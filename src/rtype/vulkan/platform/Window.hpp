@@ -14,8 +14,6 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include "exceptions/WindowExceptions.hpp"
-
 namespace rtype::vulkan::platform {
 /**
  * @brief A wrapper for the GLFW window.
@@ -25,18 +23,24 @@ namespace rtype::vulkan::platform {
  */
 class Window {
   public:
-    Window(std::uint16_t width, std::uint16_t height, const std::string &title);
+    Window(std::uint16_t width, std::uint16_t height, std::string title);
     ~Window();
+
+    Window(const Window &) = delete;
+    Window &operator=(const Window &) = delete;
+    Window(Window &&) = delete;
+    Window &operator=(Window &&) = delete;
+
     [[nodiscard]] GLFWwindow *getHandle() const noexcept;
 
   protected:
   private:
-    bool _isOpen;           ///< True while the window is open.
-    bool _glfwInitialized;  ///< True once glfwInit() succeeded, used to call glfwTerminate().
-    GLFWwindow *_window;    ///< The GLFW window instance
-    std::uint16_t _width;   ///< Current framebuffer width in pixels.
-    std::uint16_t _height;  ///< Current framebuffer height in pixels.
-    std::string _title;     ///< Window title.
+    bool _isOpen{true};            ///< True while the window is open.
+    bool _glfwInitialized{false};  ///< True once glfwInit() succeeded, used to call glfwTerminate().
+    GLFWwindow *_window{nullptr};  ///< The GLFW window instance
+    std::uint16_t _width;          ///< Current framebuffer width in pixels.
+    std::uint16_t _height;         ///< Current framebuffer height in pixels.
+    std::string _title;            ///< Window title.
 };
 }  // namespace rtype::vulkan::platform
 #endif /* !WINDOW_HPP_ */

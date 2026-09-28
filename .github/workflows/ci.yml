@@ -139,6 +139,7 @@ jobs:
           tidy-checks: ""
           database: "."
           ignore: ".github"
+          step-summary: true
 
       - name: Fail fast if checks failed
         if: steps.linter.outputs.checks-failed > 0

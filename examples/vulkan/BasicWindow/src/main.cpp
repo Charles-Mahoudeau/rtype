@@ -5,27 +5,17 @@
 ** main
 */
 
-#include <iostream>
+#include <GLFW/glfw3.h>
 
 #include "platform/Window.hpp"
 
-#include <GLFW/glfw3.h>
-
-int main(int argc, char **argv)
-{
+int main() {
     // Create a window with the specified width, height, and title
-    rtype::vulkan::platform::Window window(800, 600, "Vulkan Window Example");
+    const rtype::vulkan::platform::Window window(800, 600, "Vulkan Window Example");
 
-    while (true)
-    {
-        // Poll for window events
+    // Poll for window events until the user closes the window
+    while (glfwWindowShouldClose(window.getHandle()) == GLFW_FALSE) {
         glfwPollEvents();
-
-        // Check if the window should close
-        if (glfwWindowShouldClose(window.getHandle()))
-        {
-            break;
-        }
     }
     return 0;
 }

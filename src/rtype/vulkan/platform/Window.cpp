@@ -7,6 +7,14 @@
 
 #include "Window.hpp"
 
+#include <GLFW/glfw3.h>
+
+#include <cstdint>
+#include <string>
+#include <utility>
+
+#include "exceptions/WindowExceptions.hpp"
+
 namespace rtype::vulkan::platform {
 
 /**
@@ -32,19 +40,21 @@ namespace rtype::vulkan::platform {
  * @note A constructor has no return value, so there is no `@return`.
  * @see createSurface(), recreateSwapchain()
  */
-Window::Window(std::uint16_t width, std::uint16_t height, const std::string &title)
-    : _isOpen(true), _width(width), _height(height), _title(title) {
-    if (!glfwInit()) throw exceptions::GLFWWindowException("Failed to initialize GLFW");
+Window::Window(std::uint16_t width, std::uint16_t height, std::string title)
+    : _width(width), _height(height), _title(std::move(title)) {
+    if (glfwInit() == GLFW_FALSE) {
+        throw exceptions::GLFWWindowException("Failed to initialize GLFW");
+    }
     _glfwInitialized = true;
     _window = glfwCreateWindow(_width, _height, _title.c_str(), nullptr, nullptr);
-    if (!_window) {
+    if (_window == nullptr) {
         glfwTerminate();
         throw exceptions::GLFWWindowException("Failed to create GLFW window");
     }
 }
 
 Window::~Window() {
-    if (_window) {
+    if (_window != nullptr) {
         glfwDestroyWindow(_window);
         if (_glfwInitialized) {
             glfwTerminate();

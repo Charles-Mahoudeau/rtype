@@ -9,6 +9,7 @@
 #define WINDOWEXCEPTIONS_HPP_
 
 #include <stdexcept>
+#include <string>
 
 namespace rtype::vulkan::platform::exceptions {
 /**
