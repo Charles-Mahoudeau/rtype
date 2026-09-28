@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and verify binaries
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+          - os: ubuntu-latest
+          - os: macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Linux dependencies
+        if: contains(runner.os, 'linux')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y vulkan-utils libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+
+      - name: Install xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+          actions-cache-folder: ".xmake-cache"
+          actions-cache-key: "${{ matrix.os }}-compilation"
+          build-cache: true
+          build-cache-key: "${{ matrix.os }}-compilation"
+
+      - name: Build project
+        run: |
+          xmake f -y
+          xmake build -y
+        timeout-minutes: 30
