@@ -1,0 +1,126 @@
+name: Vulkan Feature
+description: A unit of work on the engine or the Vulkan renderer.
+title: "[Vulkan Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe one deliverable. Keep it small enough to be reviewed in a single PR.
+        After submitting, add the matching `weight: *`, `difficulty: *`, `priority: *` and category labels, and link the issue to its epic as a sub-issue.
+
+  - type: input
+    id: epic
+    attributes:
+      label: Epic
+      description: Parent epic issue.
+      placeholder: "#1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What must be built, in one or two sentences.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why it is needed and how it fits in the renderer.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tasks
+    attributes:
+      label: Tasks
+      description: Checklist of concrete steps.
+      value: |
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Observable conditions that make this issue done.
+      value: |
+        - [ ] Builds with `xmake` on Linux, Windows and macOS (MoltenVK)
+        - [ ] No validation layer errors or warnings
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical
+    attributes:
+      label: Technical notes
+      description: Design choices, Vulkan objects, extensions, pitfalls.
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Links to https://docs.vulkan.org (tutorial, guide, spec, samples).
+
+  - type: input
+    id: dependencies
+    attributes:
+      label: Blocked by
+      description: Issues that must be done first.
+      placeholder: "#2, #3"
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - required
+        - optional
+        - 2D
+        - 3D
+        - advanced
+        - debug
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - critical
+        - high
+        - medium
+        - low
+    validations:
+      required: true
+
+  - type: dropdown
+    id: weight
+    attributes:
+      label: Weight
+      description: Story points.
+      options:
+        - "1"
+        - "2"
+        - "3"
+        - "5"
+        - "8"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: difficulty
+    attributes:
+      label: Difficulty
+      options:
+        - easy
+        - medium
+        - hard
+    validations:
+      required: true
