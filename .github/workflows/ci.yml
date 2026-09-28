@@ -13,6 +13,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   build:
@@ -50,3 +51,87 @@ jobs:
           xmake f -y
           xmake build -y
         timeout-minutes: 30
+
+  test:
+    name: Run tests
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+          - os: ubuntu-latest
+          - os: macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Linux dependencies
+        if: contains(runner.os, 'linux')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y vulkan-tools libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+
+      - name: Install xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+          actions-cache-folder: ".xmake-cache"
+          actions-cache-key: "${{ matrix.os }}-compilation"
+          build-cache: true
+          build-cache-key: "${{ matrix.os }}-compilation"
+
+      - name: Build project
+        run: |
+          xmake f -y
+          xmake build -y
+        timeout-minutes: 30
+
+      # No test suite exists yet; this job builds the project as a placeholder.
+      # Replace this with the real test command (e.g. `xmake test`) once tests are added.
+
+  lint:
+    name: Check code style with clang-format and clang-tidy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang-format-20 clang-tidy-20 \
+            vulkan-tools libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+
+      - name: Install xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+          actions-cache-folder: ".xmake-cache"
+          actions-cache-key: "ubuntu-latest-compilation"
+          build-cache: true
+          build-cache-key: "ubuntu-latest-compilation"
+
+      - name: Configure xmake
+        run: xmake f -y
+
+      - name: Generate compile_commands.json
+        run: xmake project -k compile_commands
+
+      - name: Run cpp-linter
+        uses: cpp-linter/cpp-linter-action@v2
+        id: linter
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          version: '22'
+          style: 'file'
+          tidy-checks: ''
+          database: '.'
+          ignore: '.github'
+
+      - name: Fail fast if checks failed
+        if: steps.linter.outputs.checks-failed > 0
+        run: exit 1
