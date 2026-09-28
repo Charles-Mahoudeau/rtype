@@ -1,6 +1,6 @@
 #include <iostream>
 
-#if defined(_WIN32)
+#ifdef _WIN32
 #define RTYPE_VULKAN_API __declspec(dllexport)
 #else
 #define RTYPE_VULKAN_API

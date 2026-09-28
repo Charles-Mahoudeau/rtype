@@ -46,6 +46,14 @@ jobs:
           build-cache: true
           build-cache-key: "${{ matrix.os }}-compilation"
 
+      - name: Cache xmake packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.os == 'Windows' && '~\AppData\Local\.xmake\packages' || '~/.xmake/packages' }}
+          key: ${{ runner.os }}-xmake-packages-${{ hashFiles('**/xmake.lua') }}
+          restore-keys: |
+            ${{ runner.os }}-xmake-packages-
+
       - name: Build project
         run: |
           xmake f -y
@@ -82,6 +90,14 @@ jobs:
           build-cache: true
           build-cache-key: "${{ matrix.os }}-compilation"
 
+      - name: Cache xmake packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.os == 'Windows' && '~\AppData\Local\.xmake\packages' || '~/.xmake/packages' }}
+          key: ${{ runner.os }}-xmake-packages-${{ hashFiles('**/xmake.lua') }}
+          restore-keys: |
+            ${{ runner.os }}-xmake-packages-
+
       - name: Build project
         run: |
           xmake f -y
@@ -114,6 +130,14 @@ jobs:
           build-cache: true
           build-cache-key: "ubuntu-latest-compilation"
 
+      - name: Cache xmake packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.os == 'Windows' && '~\AppData\Local\.xmake\packages' || '~/.xmake/packages' }}
+          key: ${{ runner.os }}-xmake-packages-${{ hashFiles('**/xmake.lua') }}
+          restore-keys: |
+            ${{ runner.os }}-xmake-packages-
+
       - name: Configure xmake
         run: xmake f -y
 
@@ -126,11 +150,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          version: '22'
-          style: 'file'
-          tidy-checks: ''
-          database: '.'
-          ignore: '.github'
+          version: "22"
+          style: "file"
+          tidy-checks: ""
+          database: "."
+          ignore: ".github"
 
       - name: Fail fast if checks failed
         if: steps.linter.outputs.checks-failed > 0
