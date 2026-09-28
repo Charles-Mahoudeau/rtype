@@ -63,5 +63,5 @@ Window::~Window() {
     }
 }
 
-GLFWwindow *Window::getHandle() const noexcept { return _window; }
+GLFWwindow* Window::getHandle() const noexcept { return _window; }
 }  // namespace rtype::vulkan::platform

@@ -20,7 +20,7 @@ namespace rtype::vulkan::platform::exceptions {
  */
 class GLFWWindowException : public std::runtime_error {
   public:
-    explicit GLFWWindowException(const std::string &message) : std::runtime_error(message) {}
+    explicit GLFWWindowException(const std::string& message) : std::runtime_error(message) {}
 };
 }  // namespace rtype::vulkan::platform::exceptions
 #endif /* !WINDOWEXCEPTIONS_HPP_ */
