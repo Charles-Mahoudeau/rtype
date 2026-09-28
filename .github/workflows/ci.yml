@@ -126,11 +126,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          version: '22'
-          style: 'file'
-          tidy-checks: ''
-          database: '.'
-          ignore: '.github'
+          version: "22"
+          style: "file"
+          tidy-checks: ""
+          database: "."
+          ignore: ".github"
 
       - name: Fail fast if checks failed
         if: steps.linter.outputs.checks-failed > 0
