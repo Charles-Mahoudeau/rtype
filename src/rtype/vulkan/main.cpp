@@ -6,6 +6,7 @@
 #define RTYPE_VULKAN_API
 #endif
 
-extern "C" RTYPE_VULKAN_API void vulkan_hello() {
+extern "C" RTYPE_VULKAN_API void vulkan_hello()
+{
     std::cout << "hello world!" << std::endl;
 }
