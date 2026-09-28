@@ -1,0 +1,35 @@
+---
+Checks: >
+  -*,
+  bugprone-*,
+  cppcoreguidelines-*,
+  clang-analyzer-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  misc-*,
+  -modernize-use-trailing-return-type,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -performance-avoid-endl,
+  -llvmlibc-*,
+  -fuchsia-*,
+  -android-*,
+  -zircon-*,
+  -abseil-*
+HeaderFilterRegex: '.*'
+CheckOptions:
+  - key: bugprone-easily-swappable-parameters.MinimumLength
+    value: 5
+  - key: modernize-use-override.AllowMacro
+    value: 0
+  - key: modernize-use-nullptr.NullMacros
+    value: "NULL"
+  - key: readability-identifier-length.IgnoredVariableNames
+    value: "^[a-z]$"
+  - key: misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic
+    value: 1
+  - key: misc-include-cleaner.IgnoreHeaders
+    value: "bits/.*"
+...
