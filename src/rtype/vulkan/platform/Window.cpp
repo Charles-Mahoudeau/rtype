@@ -12,7 +12,9 @@
 #include <cstdint>
 #include <string>
 #include <utility>
+#include <vector>
 
+#include "Event.hpp"
 #include "exceptions/WindowExceptions.hpp"
 
 namespace rtype::vulkan::platform {
@@ -51,6 +53,8 @@ Window::Window(std::uint16_t width, std::uint16_t height, std::string title)
         glfwTerminate();
         throw exceptions::GLFWWindowException("Failed to create GLFW window");
     }
+
+    registerCallbacks();
 }
 
 Window::~Window() {
@@ -63,9 +67,11 @@ Window::~Window() {
     }
 }
 
-void Window::pollEvents() {
+std::vector<Event> Window::pollEvents() {
+    _events.clear();
     glfwPollEvents();
     _isOpen = glfwWindowShouldClose(_window) == GLFW_FALSE;
+    return std::exchange(_events, {});
 }
 
 void Window::setTitle(const std::string& title) {
@@ -85,6 +91,11 @@ void Window::getSize(std::uint16_t& width, std::uint16_t& height) const noexcept
 }
 
 bool Window::isOpen() const noexcept { return _isOpen; }
+
+void Window::close() {
+    _isOpen = false;
+    glfwSetWindowShouldClose(_window, GLFW_TRUE);
+}
 
 std::uint16_t Window::getWidth() const noexcept { return _width; }
 
