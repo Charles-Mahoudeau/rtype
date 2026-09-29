@@ -1,0 +1,10 @@
+add_requires("luau 696")
+
+target("luau")
+    set_kind("shared")
+    set_basename("rtype-luau")
+    add_files("**.cpp")
+    add_headerfiles("**.hpp")
+    add_defines("RTYPE_LUAU_BUILD", {public = false})
+    add_includedirs("$(projectdir)/src", {public = true})
+    add_packages("luau", {public = false})
