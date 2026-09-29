@@ -86,8 +86,11 @@ void Window::setSize(std::uint16_t width, std::uint16_t height) {
 }
 
 void Window::getSize(std::uint16_t& width, std::uint16_t& height) const noexcept {
-    width = _width;
-    height = _height;
+    int framebufferWidth = 0;
+    int framebufferHeight = 0;
+    glfwGetFramebufferSize(_window, &framebufferWidth, &framebufferHeight);
+    width = static_cast<std::uint16_t>(framebufferWidth);
+    height = static_cast<std::uint16_t>(framebufferHeight);
 }
 
 bool Window::isOpen() const noexcept { return _isOpen; }
@@ -97,9 +100,19 @@ void Window::close() {
     glfwSetWindowShouldClose(_window, GLFW_TRUE);
 }
 
-std::uint16_t Window::getWidth() const noexcept { return _width; }
+std::uint16_t Window::getWidth() const noexcept {
+    std::uint16_t width = 0;
+    std::uint16_t height = 0;
+    getSize(width, height);
+    return width;
+}
 
-std::uint16_t Window::getHeight() const noexcept { return _height; }
+std::uint16_t Window::getHeight() const noexcept {
+    std::uint16_t width = 0;
+    std::uint16_t height = 0;
+    getSize(width, height);
+    return height;
+}
 
 GLFWwindow* Window::getHandle() const noexcept { return _window; }
 }  // namespace rtype::vulkan::platform

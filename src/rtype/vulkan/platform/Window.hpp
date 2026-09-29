@@ -42,9 +42,12 @@ class Window {
     [[nodiscard]] bool isOpen() const noexcept;
 
     /// @return Current framebuffer width in pixels.
+    /// @note Use getSize() to get both width and height at once, prefer using getSize() to avoid a race condition where
+    /// the window is resized between two calls.
     [[nodiscard]] std::uint16_t getWidth() const noexcept;
 
-    /// @return Current framebuffer height in pixels.
+    /// @note Use getSize() to get both width and height at once, prefer using getSize() to avoid a race condition where
+    /// the window is resized between two calls.
     [[nodiscard]] std::uint16_t getHeight() const noexcept;
 
     /// @return Current framebuffer size in pixels.
