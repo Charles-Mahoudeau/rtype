@@ -8,6 +8,7 @@
 #include <GLFW/glfw3.h>
 
 #include <cstdio>
+#include <iostream>
 
 #include "platform/input/Input.hpp"
 #include "platform/Window.hpp"
@@ -58,16 +59,16 @@ int main() {
         input.update();
 
         if (auto dir = move.readVector(); dir.x != 0.0F || dir.y != 0.0F) {
-            std::std::println("Move: (%.2f, %.2f)\n", dir.x, dir.y);
+            std::cout << "Move: (" << dir.x << ", " << dir.y << ")\n";
         }
         if (fire.isPressed()) {
-            std::std::println("Fire!\n");
+            std::cout << "Fire!\n";
         }
         if (float value = throttle.readAxis(); value != 0.0F) {
-            std::std::println("Throttle: %.2f\n", value);
+            std::cout << "Throttle: " << value << "\n";
         }
         if (auto delta = look.readVector(); delta.x != 0.0F || delta.y != 0.0F) {
-            std::std::println("Look: (%.2f, %.2f)\n", delta.x, delta.y);
+            std::cout << "Look: (" << delta.x << ", " << delta.y << ")\n";
         }
 
         // Actions can also be fetched by name.
