@@ -44,6 +44,15 @@ class Input {
     InputAction& addAction(const std::string& name, ActionType type);
     /// @throws InputException If no action has this name.
     [[nodiscard]] InputAction& getAction(const std::string& name);
+
+    /// @brief Deletes an action by name. Does nothing if no action has this name.
+    /// @throws InputException If no action has this name.
+    void removeAction(const std::string& name);
+
+    /// @brief Deletes all actions.
+    /// @note This is not necessary, as the destructor will do it automatically.
+    void clearActions() noexcept;
+
     /// @throws InputException If no action has this name.
     [[nodiscard]] const InputAction& getAction(const std::string& name) const;
 

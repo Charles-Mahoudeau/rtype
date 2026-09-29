@@ -120,6 +120,16 @@ InputAction& Input::addAction(const std::string& name, ActionType type) {
     return _actions.insert_or_assign(name, InputAction(type)).first->second;
 }
 
+void Input::removeAction(const std::string& name) {
+    auto it = _actions.find(name);
+    if (it == _actions.end()) {
+        throw exceptions::InputException("Unknown input action: " + name);
+    }
+    _actions.erase(it);
+}
+
+void Input::clearActions() noexcept { _actions.clear(); }
+
 InputAction& Input::getAction(const std::string& name) {
     auto it = _actions.find(name);
     if (it == _actions.end()) {
