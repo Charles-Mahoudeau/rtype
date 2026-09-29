@@ -15,7 +15,7 @@
 
 namespace rtype::vulkan::platform::input {
 
-/// @brief What an action produces, like Unity's action type.
+/// @brief What an action produces
 enum class ActionType : std::uint8_t {
     Button,   ///< On/off, use isPressed() / isHeld() / isReleased().
     Axis,     ///< A single float, use readAxis().
