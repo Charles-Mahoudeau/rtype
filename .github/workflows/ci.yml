@@ -45,14 +45,8 @@ jobs:
           actions-cache-key: "${{ matrix.os }}-compilation"
           build-cache: true
           build-cache-key: "${{ matrix.os }}-compilation"
-
-      - name: Cache xmake packages
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.os == 'Windows' && '~\AppData\Local\.xmake\packages' || '~/.xmake/packages' }}
-          key: ${{ runner.os }}-xmake-packages-${{ hashFiles('**/xmake.lua') }}
-          restore-keys: |
-            ${{ runner.os }}-xmake-packages-
+          package-cache: true
+          package-cache-key: "${{ matrix.os }}-compilation"
 
       - name: Build project
         run: |
@@ -62,6 +56,7 @@ jobs:
 
   test:
     name: Run tests
+    needs: build
     strategy:
       matrix:
         include:
@@ -89,14 +84,8 @@ jobs:
           actions-cache-key: "${{ matrix.os }}-compilation"
           build-cache: true
           build-cache-key: "${{ matrix.os }}-compilation"
-
-      - name: Cache xmake packages
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.os == 'Windows' && '~\AppData\Local\.xmake\packages' || '~/.xmake/packages' }}
-          key: ${{ runner.os }}-xmake-packages-${{ hashFiles('**/xmake.lua') }}
-          restore-keys: |
-            ${{ runner.os }}-xmake-packages-
+          package-cache: true
+          package-cache-key: "${{ matrix.os }}-compilation"
 
       - name: Build project
         run: |
@@ -109,6 +98,7 @@ jobs:
 
   lint:
     name: Check code style with clang-format and clang-tidy
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -129,14 +119,8 @@ jobs:
           actions-cache-key: "ubuntu-latest-compilation"
           build-cache: true
           build-cache-key: "ubuntu-latest-compilation"
-
-      - name: Cache xmake packages
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.os == 'Windows' && '~\AppData\Local\.xmake\packages' || '~/.xmake/packages' }}
-          key: ${{ runner.os }}-xmake-packages-${{ hashFiles('**/xmake.lua') }}
-          restore-keys: |
-            ${{ runner.os }}-xmake-packages-
+          package-cache: true
+          package-cache-key: "ubuntu-latest-compilation"
 
       - name: Configure xmake
         run: xmake f -y
@@ -155,6 +139,7 @@ jobs:
           tidy-checks: ""
           database: "."
           ignore: ".github"
+          step-summary: true
 
       - name: Fail fast if checks failed
         if: steps.linter.outputs.checks-failed > 0
