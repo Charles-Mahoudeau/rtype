@@ -9,6 +9,7 @@
 
 #include <GLFW/glfw3.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <glm/ext/vector_double2.hpp>
@@ -150,8 +151,9 @@ glm::vec2 Input::getMousePosition() const noexcept { return _mousePosition; }
 
 bool Input::isGamepadConnected() const noexcept { return _gamepadConnected; }
 
-void Input::setDeadzone(float deadzone) noexcept { _deadzone = deadzone; }
-
+void Input::setDeadzone(float deadzone) noexcept {
+    _deadzone = std::isfinite(deadzone) ? std::clamp(deadzone, 0.0F, 0.99F) : 0.0F;
+}
 void Input::setCursorLocked(bool locked) {
     glfwSetInputMode(_window, GLFW_CURSOR, locked ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
     _firstMouse = true;
