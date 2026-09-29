@@ -1,7 +1,11 @@
 add_rules("mode.debug", "mode.release")
 set_languages("c++23")
 
-set_toolchains("clang")
+if is_plat("windows") then
+    set_toolchains("msvc")
+else
+    set_toolchains("clang")
+end
 
 includes("src/rtype/engine")
 includes("src/rtype/luau")
