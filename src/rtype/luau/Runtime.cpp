@@ -24,7 +24,7 @@ Result<Runtime> Runtime::create() noexcept {
     lua_State* state = luaL_newstate();
     if (state == nullptr) {
         return std::unexpected<Error>{{
-            ErrorKind::kRuntime,
+            ErrorKind::kUnknown,
             "unable to create lua state",
             std::source_location::current(),
         }};
