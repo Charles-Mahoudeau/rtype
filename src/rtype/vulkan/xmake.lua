@@ -39,7 +39,7 @@ target("vulkan")
     set_kind("shared")
     set_basename("rtype-vulkan")
     add_packages("vulkan-headers", "vulkan-loader", "vulkan-memory-allocator", "glfw", "glm", "stb", "imgui", "slang")
-    add_packages("glfw", "vulkan-headers", {public = true})
+    add_packages("glfw", "vulkan-headers", "glm", {public = true})
     add_files("**.cpp")
     add_includedirs(".", {public = true})
 
