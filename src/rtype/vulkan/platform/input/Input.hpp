@@ -9,7 +9,8 @@
 
 #include <GLFW/glfw3.h>
 
-#include <glm/vec2.hpp>
+#include <glm/ext/vector_double2.hpp>
+#include <glm/ext/vector_float2.hpp>
 #include <string>
 #include <unordered_map>
 

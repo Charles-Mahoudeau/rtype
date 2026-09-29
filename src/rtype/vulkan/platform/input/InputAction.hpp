@@ -8,7 +8,7 @@
 #pragma once
 
 #include <cstdint>
-#include <glm/vec2.hpp>
+#include <glm/ext/vector_float2.hpp>
 #include <vector>
 
 #include "platform/input/Control.hpp"

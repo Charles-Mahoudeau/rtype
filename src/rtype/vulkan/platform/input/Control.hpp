@@ -21,7 +21,7 @@ namespace rtype::vulkan::platform::input {
 struct Control {
     enum class Source : std::uint8_t { Key, MouseButton, MouseDeltaX, MouseDeltaY, GamepadButton, GamepadAxis };
 
-    Source source;       ///< Device and kind of control.
+    Source source{};     ///< Device and kind of control.
     int code = 0;        ///< GLFW key / button / axis code.
     float scale = 1.0F;  ///< Multiplier applied to the raw value (sensitivity, inversion).
 
