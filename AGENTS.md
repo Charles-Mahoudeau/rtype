@@ -11,7 +11,7 @@ are added.
 ## Project structure
 
 - `src/rtype/engine/` — `engine` target, the executable (depends on `luau` and `vulkan`).
-- `src/rtype/lua/` — `luau` target, shared library for Luau scripting.
+- `src/rtype/luau/` — `luau` target, shared library for Luau scripting.
 - `src/rtype/vulkan/` — `vulkan` target, shared library (`rtype-vulkan`) for rendering. Namespace
   `rtype::vulkan`; the GLFW window wrapper lives in `platform/` (`rtype::vulkan::platform`, with
   its exceptions in `platform/exceptions/`). Shaders go in `shaders/` and are compiled to SPIR-V
