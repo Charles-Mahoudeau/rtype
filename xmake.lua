@@ -46,3 +46,11 @@ for _, dir in ipairs(all_examples_folder) do
         end
     end
 end
+
+local TESTS_FLAG = "Tests"
+
+option(TESTS_FLAG, {default = false, description = "Enable unit tests"})
+
+if has_config(TESTS_FLAG) then
+    includes("tests")
+end
