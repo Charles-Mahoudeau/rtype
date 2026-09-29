@@ -10,11 +10,8 @@
 #include <lua.h>
 #include <lualib.h>
 
-#include <expected>
-#include <source_location>
-
-#include "Error.hpp"
 #include "ErrorKind.hpp"
+#include "Failure.hpp"
 #include "Result.hpp"
 
 namespace rtype::luau {
@@ -23,11 +20,7 @@ void Runtime::StateDeleter::operator()(lua_State* state) const noexcept { lua_cl
 Result<Runtime> Runtime::create() noexcept {
     lua_State* state = luaL_newstate();
     if (state == nullptr) {
-        return std::unexpected<Error>{{
-            ErrorKind::kUnknown,
-            "unable to create lua state",
-            std::source_location::current(),
-        }};
+        return Failure{ErrorKind::kUnknown, "unable to create lua state"};
     }
     return Runtime{state};
 }

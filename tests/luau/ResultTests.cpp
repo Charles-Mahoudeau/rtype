@@ -7,9 +7,9 @@
 
 #include <gtest/gtest.h>
 
-#include <expected>
 #include <memory>
 #include <string>
+#include <tl/expected.hpp>
 #include <type_traits>
 #include <utility>
 
@@ -19,12 +19,12 @@
 
 namespace {
 rtype::luau::Result<int> makeFailure(const rtype::luau::ErrorKind kind, std::string message) {
-    return std::unexpected{rtype::luau::Error{kind, std::move(message)}};
+    return tl::unexpected{rtype::luau::Error{kind, std::move(message)}};
 }
 }  // namespace
 
 TEST(Result, SuccessConvertsToTrue) {
-    constexpr rtype::luau::Result<int> result{42};
+    const rtype::luau::Result<int> result{42};
 
     EXPECT_TRUE(result);
     EXPECT_TRUE(result.has_value());
@@ -38,7 +38,7 @@ TEST(Result, FailureConvertsToFalse) {
 }
 
 TEST(Result, DereferenceReturnsValue) {
-    constexpr rtype::luau::Result<int> result{42};
+    const rtype::luau::Result<int> result{42};
 
     EXPECT_EQ(*result, 42);
 }
@@ -68,7 +68,7 @@ TEST(Result, ErrorExposesKindAndMessage) {
 
 TEST(Result, AcceptsErrorBuiltWithTraceback) {
     const rtype::luau::Result<int> result{
-        std::unexpected{rtype::luau::Error{rtype::luau::ErrorKind::kRuntime, "boom", "script:3"}}};
+        tl::unexpected{rtype::luau::Error{rtype::luau::ErrorKind::kRuntime, "boom", "script:3"}}};
 
     ASSERT_FALSE(result);
     EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kRuntime);
@@ -106,7 +106,7 @@ TEST(Result, MoveOnlyResultIsMovable) {
 
 TEST(Result, MoveOnlyFailureIsMovable) {
     rtype::luau::Result<std::unique_ptr<int>> source{
-        std::unexpected{rtype::luau::Error{rtype::luau::ErrorKind::kOutOfMemory, "oom"}}};
+        tl::unexpected{rtype::luau::Error{rtype::luau::ErrorKind::kOutOfMemory, "oom"}}};
     const rtype::luau::Result target{std::move(source)};
 
     ASSERT_FALSE(target);
@@ -115,27 +115,27 @@ TEST(Result, MoveOnlyFailureIsMovable) {
 }
 
 TEST(ResultVoid, DefaultIsSuccess) {
-    constexpr rtype::luau::Result<> result{};
+    const rtype::luau::Result<> result{};
 
     EXPECT_TRUE(result);
     EXPECT_TRUE(result.has_value());
 }
 
 TEST(ResultVoid, ExplicitVoidIsSuccess) {
-    constexpr rtype::luau::Result<void> result{};
+    const rtype::luau::Result<void> result{};
 
     EXPECT_TRUE(result);
 }
 
 TEST(ResultVoid, FailureConvertsToFalse) {
-    const rtype::luau::Result result{std::unexpected{rtype::luau::Error{rtype::luau::ErrorKind::kSyntax, "bad chunk"}}};
+    const rtype::luau::Result result{tl::unexpected{rtype::luau::Error{rtype::luau::ErrorKind::kSyntax, "bad chunk"}}};
 
     EXPECT_FALSE(result);
 }
 
 TEST(ResultVoid, ErrorExposesKindAndMessage) {
     const rtype::luau::Result result{
-        std::unexpected{rtype::luau::Error{rtype::luau::ErrorKind::kStackOverflow, "too deep"}}};
+        tl::unexpected{rtype::luau::Error{rtype::luau::ErrorKind::kStackOverflow, "too deep"}}};
 
     ASSERT_FALSE(result);
     EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kStackOverflow);
