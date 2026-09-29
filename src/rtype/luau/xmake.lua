@@ -1,4 +1,4 @@
-add_requires("luau")
+add_requires("luau 696")
 
 target("luau")
     set_kind("shared")
