@@ -63,5 +63,32 @@ Window::~Window() {
     }
 }
 
+void Window::pollEvents() {
+    glfwPollEvents();
+    _isOpen = !glfwWindowShouldClose(_window);
+}
+
+void Window::setTitle(const std::string& title) {
+    _title = title;
+    glfwSetWindowTitle(_window, _title.c_str());
+}
+
+void Window::setSize(std::uint16_t width, std::uint16_t height) {
+    _width = width;
+    _height = height;
+    glfwSetWindowSize(_window, _width, _height);
+}
+
+void Window::getSize(std::uint16_t& width, std::uint16_t& height) const noexcept {
+    width = _width;
+    height = _height;
+}
+
+bool Window::isOpen() const noexcept { return _isOpen; }
+
+std::uint16_t Window::getWidth() const noexcept { return _width; }
+
+std::uint16_t Window::getHeight() const noexcept { return _height; }
+
 GLFWwindow* Window::getHandle() const noexcept { return _window; }
 }  // namespace rtype::vulkan::platform
