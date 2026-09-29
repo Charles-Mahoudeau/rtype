@@ -29,7 +29,7 @@ class RTYPE_LUAU_API Runtime {
     explicit Runtime(lua_State* state) noexcept;
 
     struct StateDeleter {
-        void operator()(lua_State *state) const noexcept;
+        void operator()(lua_State* state) const noexcept;
     };
     std::unique_ptr<lua_State, StateDeleter> _state;
 };
