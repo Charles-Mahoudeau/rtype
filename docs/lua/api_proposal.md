@@ -331,19 +331,9 @@ auto a = rt.load("player.luau", srcA);
 // Creates a new, separate global environment.
 rtype::luau::Environment world = rt.createEnvironment("world");
 
-// world.datastore() is a plain Table, auto-bound into every script loaded
-// into this environment under the fixed global name `store` — see Hot
-// Reloading for why scripts should keep persistent state there.
-world.datastore().set("difficulty", "normal");
-
-// Both share the same environment, and so see the same `store` contents,
-// whether set from C++ above or from either script below.
+// Both scripts share the same environment, and so see the same globals.
 auto b = rt.load("house.luau", srcB, {.env = world});
 auto c = rt.load("car.luau",   srcC, {.env = world});
-```
-```luau
--- house.luau
-print(store.get("difficulty")) --> "normal"
 ```
 
 `Environment::globals()` returns a `Table` too — the same type described in
@@ -354,13 +344,6 @@ assignments (`x = 1`, without `local`) actually write into, and what
 Luau `world` is just whichever plain `Table` was registered under that name
 (the enemy-spawning namespace from [Handles](#handles)), not the C++
 `Environment` object — it has no `.globals()` method to call.
-
-`Environment::datastore()` is what scripts actually use instead: a plain
-data `Table`, unrelated to whatever `world` (or any other namespace) means
-in a given script, auto-exposed under the fixed global name `store` to
-every script loaded into that environment. Like any other `Table`, ordinary
-`.get(...)`/`.set(...)` calls on it remain usable after `rt.seal()` — only
-the registration vocabulary is blocked (see [Values & Tables](#values--tables)).
 
 ## Usertypes
 
@@ -565,23 +548,22 @@ on it (e.g. "spawn a boss every 10th enemy") silently restarts from zero
 mid-level, even though dozens of enemies already spawned before the reload.
 
 ```luau
--- good_wave.luau — GOOD: authoritative progress lives in the environment's
--- datastore (see Sandboxing), which reload() never touches — only the
--- chunk's own locals are reset.
+-- good_wave.luau — GOOD: authoritative progress lives on the C++ side,
+-- reached through a C++-registered function, which reload() never touches —
+-- only the chunk's own locals are reset.
 function update(dt)
-    local spawned = store.get("enemiesSpawned") or 0
-    store.set("enemiesSpawned", spawned + 1)
     world.createEnemy()
+
+    if world.enemiesSpawned() % 10 == 0 then
+        world.createBoss()
+    end
 end
 ```
 
-Here `enemiesSpawned` survives the reload, because it lives in `store` — the
-environment's [datastore](#sandboxing), bound in as a global outside any
-single script's chunk — rather than in a Luau local. `store` is unrelated
-to `world` (the enemy-spawning namespace from [Handles](#handles)): both are
-just plain globals visible to the script, one a namespace of C++-backed
-functions, the other a data table meant for exactly this kind of
-reload-safe bookkeeping.
+Here the spawn count survives the reload, because it lives in the C++ game
+world rather than in a Luau local. How the engine exposes persistent
+script state (e.g. a per-level key/value store) is up to the engine
+implementation and is not part of this generic library.
 
 ## Multithreading
 
