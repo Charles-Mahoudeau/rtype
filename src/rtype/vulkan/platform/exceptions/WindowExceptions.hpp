@@ -5,9 +5,7 @@
 ** WindowExceptions
 */
 
-#ifndef WINDOWEXCEPTIONS_HPP_
-#define WINDOWEXCEPTIONS_HPP_
-
+#pragma once
 #include <stdexcept>
 #include <string>
 
@@ -23,4 +21,3 @@ class GLFWWindowException : public std::runtime_error {
     explicit GLFWWindowException(const std::string& message) : std::runtime_error(message) {}
 };
 }  // namespace rtype::vulkan::platform::exceptions
-#endif /* !WINDOWEXCEPTIONS_HPP_ */
