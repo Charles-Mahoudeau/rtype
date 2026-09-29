@@ -1,4 +1,4 @@
-add_requires("luau 696")
+add_requires("luau 696", "tl_expected")
 
 target("luau")
     set_kind("shared")
@@ -8,3 +8,4 @@ target("luau")
     add_defines("RTYPE_LUAU_BUILD", {public = false})
     add_includedirs("$(projectdir)/src", {public = true})
     add_packages("luau", {public = false})
+    add_packages("tl_expected", {public = true})

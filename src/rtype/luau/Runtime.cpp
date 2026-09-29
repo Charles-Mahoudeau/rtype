@@ -10,15 +10,17 @@
 #include <lua.h>
 #include <lualib.h>
 
-#include <optional>
+#include "ErrorKind.hpp"
+#include "Failure.hpp"
+#include "Result.hpp"
 
 namespace rtype::luau {
 void Runtime::StateDeleter::operator()(lua_State* state) const noexcept { lua_close(state); }
 
-std::optional<Runtime> Runtime::create() noexcept {
+Result<Runtime> Runtime::create() noexcept {
     lua_State* state = luaL_newstate();
     if (state == nullptr) {
-        return std::nullopt;
+        return Failure{ErrorKind::kUnknown, "unable to create lua state"};
     }
     return Runtime{state};
 }

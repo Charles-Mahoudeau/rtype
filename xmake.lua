@@ -1,7 +1,11 @@
 add_rules("mode.debug", "mode.release")
 set_languages("c++23")
 
-set_toolchains("clang")
+if is_plat("windows") then
+    set_toolchains("msvc")
+else
+    set_toolchains("clang")
+end
 
 includes("src/rtype/engine")
 includes("src/rtype/luau")
@@ -45,4 +49,12 @@ for _, dir in ipairs(all_examples_folder) do
             end
         end
     end
+end
+
+local TESTS_FLAG = "Tests"
+
+option(TESTS_FLAG, {default = false, description = "Enable unit tests"})
+
+if has_config(TESTS_FLAG) then
+    includes("tests")
 end

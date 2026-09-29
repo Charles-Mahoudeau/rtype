@@ -89,14 +89,14 @@ jobs:
           package-cache: true
           package-cache-key: "${{ matrix.os }}-compilation"
 
-      - name: Build project
+      - name: Build tests
         run: |
-          xmake f -y
+          xmake f -y --Tests=y
           xmake build -y
         timeout-minutes: 30
 
-      # No test suite exists yet; this job builds the project as a placeholder.
-      # Replace this with the real test command (e.g. `xmake test`) once tests are added.
+      - name: Run tests
+        run: xmake test -v -y
 
   lint:
     name: Check code style with clang-format and clang-tidy

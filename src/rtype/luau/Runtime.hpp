@@ -8,16 +8,16 @@
 #pragma once
 
 #include <memory>
-#include <optional>
 
 #include "Export.hpp"
+#include "Result.hpp"
 
 struct lua_State;
 
 namespace rtype::luau {
 class RTYPE_LUAU_API Runtime {
   public:
-    [[nodiscard]] static std::optional<Runtime> create() noexcept;
+    [[nodiscard]] static Result<Runtime> create() noexcept;
 
     ~Runtime() noexcept;
     Runtime(const Runtime& other) noexcept = delete;
