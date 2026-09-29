@@ -13,9 +13,9 @@
 namespace rtype::luau {
 void Runtime::StateDeleter::operator()(lua_State* state) const noexcept { lua_close(state); }
 
-Runtime::Runtime() : _state{luaL_newstate()} {}
+Runtime::Runtime() noexcept : _state{luaL_newstate()} {}
 
-Runtime::~Runtime() = default;
+Runtime::~Runtime() noexcept = default;
 
 Runtime::Runtime(Runtime&& other) noexcept = default;
 
