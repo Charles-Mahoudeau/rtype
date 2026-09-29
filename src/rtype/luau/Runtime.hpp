@@ -10,10 +10,12 @@
 #include <memory>
 #include <optional>
 
+#include "Export.hpp"
+
 struct lua_State;
 
 namespace rtype::luau {
-class Runtime {
+class RTYPE_LUAU_API Runtime {
   public:
     [[nodiscard]] static std::optional<Runtime> create() noexcept;
 
