@@ -78,13 +78,12 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
     `= delete` when there is nothing custom to write. Never rely on implicit special members.
   - Class members follow the Google Style Guide declaration order: `public`, then `protected`,
     then `private` sections (omit empty ones); within each section, in this order: types and type
-    aliases, static constants, factory functions, constructors and assignment operators,
-    destructor, all other member functions (static and non-static), then data members.
+    aliases, static constants, factory functions, constructors, the destructor and the copy/move
+    special members, all other member functions (static and non-static), then data members.
   - Within those groups, order members as follows:
-    1. Constructors: custom ones first (parameterized, then default), then copy constructor, copy
-       assignment, move constructor, move assignment.
-    2. Destructor, placed right after the assignment operators (Google placement, not before the
-       copy/move members).
+    1. Custom constructors first (parameterized, then default).
+    2. The rule of five in textbook order, right after the custom constructors: destructor, copy
+       constructor, copy assignment, move constructor, move assignment.
     3. Accessors: getters, then setters, in the same order as the data members they expose.
     4. Other member functions: public behavior in logical groups, static functions together.
     5. Data members, in the same order as their accessors.
