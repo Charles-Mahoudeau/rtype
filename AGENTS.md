@@ -32,8 +32,10 @@ The project uses `xmake` with the `clang` toolchain and C++23.
 - Build everything: `xmake build -y`
 - Build one target: `xmake build engine`
 - Run the engine: `xmake run engine`
-- Enable examples: `xmake f --AllExamples=y`, `--AllVulkanExamples=y`, `--AllLuaExamples=y`, or one
-  by folder name (e.g. `--BasicWindow=y`), then rebuild.
+- Enable examples, then rebuild: `xmake f --AllExamples=y` enables every discovered example. For
+  now `--AllVulkanExamples=y` and `--AllLuaExamples=y` behave the same way (the root `xmake.lua`
+  does not filter by category yet), so each also enables every discovered example. To enable a
+  single example, use its folder name (e.g. `--BasicWindow=y`).
 - Generate `compile_commands.json` (needed by clang-tidy): `xmake project -k compile_commands`
 - Format: `clang-format -i <files>` (style in `.clang-format`)
 - Lint: `clang-tidy -p . <files>` (checks in `.clang-tidy`)
