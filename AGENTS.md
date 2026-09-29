@@ -16,6 +16,7 @@ are added.
   `rtype::vulkan`; the GLFW window wrapper lives in `platform/` (`rtype::vulkan::platform`, with
   its exceptions in `platform/exceptions/`). Shaders go in `shaders/` and are compiled to SPIR-V
   by the `glsl.spirv` rule defined in its `xmake.lua`.
+- `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `examples/<category>/<Name>/` — standalone examples, each with its own `xmake.lua`. They are
   only built when enabled (see Commands).
 - `.github/` — CI workflow and issue templates.
@@ -36,12 +37,17 @@ The project uses `xmake` with the `clang` toolchain and C++23.
   now `--AllVulkanExamples=y` and `--AllLuaExamples=y` behave the same way (the root `xmake.lua`
   does not filter by category yet), so each also enables every discovered example. To enable a
   single example, use its folder name (e.g. `--BasicWindow=y`).
+- Enable and run the tests (GoogleTest): `xmake f -y --Tests=y`, then `xmake build -y` and
+  `xmake test -v` (`-v` prints GoogleTest's output, needed to see which test failed). Run one
+  module's tests with `xmake test -v luau-tests/*`.
 - Generate `compile_commands.json` (needed by clang-tidy): `xmake project -k compile_commands`
 - Format: `clang-format -i <files>` (style in `.clang-format`)
 - Lint: `clang-tidy -p . <files>` (checks in `.clang-tidy`)
 
-There is no test suite yet; the CI `test` job only builds. Once tests exist, document the command
-here (e.g. `xmake test`).
+Tests live in `tests/<module>/` (e.g. `tests/luau/`, target `luau-tests`), one folder per module
+with its own `xmake.lua` included from `tests/xmake.lua`. They are opt-in (`--Tests=y`) and use
+GoogleTest; the shared `tests/main.cpp` provides `main`. The CI `test` job builds with `--Tests=y`
+and runs `xmake test -v`.
 
 CI (`.github/workflows/ci.yml`) builds on Linux, macOS and Windows, then runs `cpp-linter` with
 `clang-format` and `clang-tidy`. A change must build on all three platforms and pass both linters.
