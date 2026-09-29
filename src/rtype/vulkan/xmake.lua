@@ -42,6 +42,8 @@ target("vulkan")
     add_packages("glfw", "vulkan-headers", "glm", {public = true})
     add_files("**.cpp")
     add_includedirs(".", {public = true})
+    -- Plain x/y/z/w members instead of unions (cppcoreguidelines-pro-type-union-access).
+    add_defines("GLM_FORCE_XYZW_ONLY", {public = true})
 
     add_rules("glsl.spirv")
     add_files("shaders/*.vert", "shaders/*.frag", "shaders/*.comp", "shaders/*.geom", "shaders/*.tesc", "shaders/*.tese")

@@ -70,7 +70,7 @@ class Input {
 
     GLFWgamepadstate _gamepad{};     ///< State of the first connected gamepad.
     bool _gamepadConnected = false;  ///< True if _gamepad holds a valid state.
-    float _deadzone = 0.15f;         ///< Stick values below this are read as 0.
+    float _deadzone = 0.15F;         ///< Stick values below this are read as 0.
 
     glm::dvec2 _mousePosition{0.0};  ///< Current mouse position in pixels.
     glm::dvec2 _mouseDelta{0.0};     ///< Mouse movement since the previous frame, in pixels.

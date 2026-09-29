@@ -86,8 +86,8 @@ class InputAction {
 
     ActionType _type;                ///< What the action produces.
     std::vector<Binding> _bindings;  ///< Every source that can drive the action.
-    glm::vec2 _value{0.0f};          ///< Value of the winning binding this frame.
-    float _pressPoint = 0.5f;        ///< Magnitude above which the action is held.
+    glm::vec2 _value{0.0F};          ///< Value of the winning binding this frame.
+    float _pressPoint = 0.5F;        ///< Magnitude above which the action is held.
     bool _held = false;              ///< Held this frame.
     bool _wasHeld = false;           ///< Held the previous frame.
 };

@@ -7,30 +7,38 @@
 
 #include "InputAction.hpp"
 
+#include <glm/ext/vector_float2.hpp>
 #include <glm/geometric.hpp>
+
+#include "platform/input/Control.hpp"
 
 namespace rtype::vulkan::platform::input {
 
 InputAction::InputAction(ActionType type) noexcept : _type(type) {}
 
 InputAction& InputAction::bind(Control control) {
-    _bindings.push_back({{{control, {1.0f, 0.0f}}}});
+    _bindings.push_back({.parts = {{.control = control, .direction = {1.0F, 0.0F}}}});
     return *this;
 }
 
 InputAction& InputAction::bindAxis(Control negative, Control positive) {
-    _bindings.push_back({{{negative, {-1.0f, 0.0f}}, {positive, {1.0f, 0.0f}}}});
+    _bindings.push_back({.parts = {{.control = negative, .direction = {-1.0F, 0.0F}},
+                                   {.control = positive, .direction = {1.0F, 0.0F}}}});
     return *this;
 }
 
 InputAction& InputAction::bindVector(Control up, Control down, Control left, Control right) {
-    _bindings.push_back(
-        {{{up, {0.0f, 1.0f}}, {down, {0.0f, -1.0f}}, {left, {-1.0f, 0.0f}}, {right, {1.0f, 0.0f}}}, true});
+    _bindings.push_back({.parts = {{.control = up, .direction = {0.0F, 1.0F}},
+                                   {.control = down, .direction = {0.0F, -1.0F}},
+                                   {.control = left, .direction = {-1.0F, 0.0F}},
+                                   {.control = right, .direction = {1.0F, 0.0F}}},
+                         .normalize = true});
     return *this;
 }
 
 InputAction& InputAction::bindVector(Control x, Control y) {
-    _bindings.push_back({{{x, {1.0f, 0.0f}}, {y, {0.0f, 1.0f}}}});
+    _bindings.push_back(
+        {.parts = {{.control = x, .direction = {1.0F, 0.0F}}, {.control = y, .direction = {0.0F, 1.0F}}}});
     return *this;
 }
 

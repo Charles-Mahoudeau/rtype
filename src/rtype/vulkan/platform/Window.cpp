@@ -65,7 +65,7 @@ Window::~Window() {
 
 void Window::pollEvents() {
     glfwPollEvents();
-    _isOpen = !glfwWindowShouldClose(_window);
+    _isOpen = glfwWindowShouldClose(_window) == GLFW_FALSE;
 }
 
 void Window::setTitle(const std::string& title) {
