@@ -8,13 +8,15 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 
 struct lua_State;
 
 namespace rtype::luau {
 class Runtime {
   public:
-    Runtime() noexcept;
+    [[nodiscard]] static std::optional<Runtime> create() noexcept;
+
     ~Runtime() noexcept;
     Runtime(const Runtime& other) noexcept = delete;
     Runtime& operator=(const Runtime& other) noexcept = delete;
@@ -22,6 +24,8 @@ class Runtime {
     Runtime& operator=(Runtime&& other) noexcept;
 
   private:
+    explicit Runtime(lua_State* state) noexcept;
+
     struct StateDeleter {
         void operator()(lua_State *state) const noexcept;
     };

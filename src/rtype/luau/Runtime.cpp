@@ -10,10 +10,20 @@
 #include <lua.h>
 #include <lualib.h>
 
+#include <optional>
+
 namespace rtype::luau {
 void Runtime::StateDeleter::operator()(lua_State* state) const noexcept { lua_close(state); }
 
-Runtime::Runtime() noexcept : _state{luaL_newstate()} {}
+std::optional<Runtime> Runtime::create() noexcept {
+    lua_State* state = luaL_newstate();
+    if (state == nullptr) {
+        return std::nullopt;
+    }
+    return Runtime{state};
+}
+
+Runtime::Runtime(lua_State* state) noexcept : _state{state} {}
 
 Runtime::~Runtime() noexcept = default;
 
