@@ -26,6 +26,10 @@ namespace rtype::vulkan::platform::input {
  *
  * @note Polling can miss a key pressed and released between two frames.
  * Use GLFW callbacks instead if that matters (e.g. text input).
+ *
+ * @warning On macOS 11.3+, controllers natively handled by Apple's GameController
+ * framework (e.g. Switch Pro Controller) are detected by GLFW but never send updates,
+ * so they read as idle. Gamepads are not supported on macOS for now.
  */
 class Input {
   public:
