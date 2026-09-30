@@ -18,14 +18,14 @@
  */
 namespace rtype::platform::glfw {
 
-/// @return The engine key for a GLFW key code, or Key::Unknown.
+/// @return The engine key for a GLFW key code, or Key::kUnknown.
 [[nodiscard]] engine::input::Key fromGlfwKey(int key);
 /// @return The GLFW key code for an engine key, or GLFW_KEY_UNKNOWN.
 [[nodiscard]] int toGlfwKey(engine::input::Key key);
 
-/// @return The engine mouse button for a GLFW button code, or MouseButton::Unknown.
+/// @return The engine mouse button for a GLFW button code, or MouseButton::kUnknown.
 [[nodiscard]] engine::input::MouseButton fromGlfwMouseButton(int button) noexcept;
-/// @return The GLFW button code for an engine mouse button, or -1 for MouseButton::Unknown.
+/// @return The GLFW button code for an engine mouse button, or -1 for MouseButton::kUnknown.
 [[nodiscard]] int toGlfwMouseButton(engine::input::MouseButton button) noexcept;
 
 /// @return The GLFW gamepad button index for an engine gamepad button.

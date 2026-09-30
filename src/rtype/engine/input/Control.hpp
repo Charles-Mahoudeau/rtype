@@ -22,51 +22,51 @@ namespace rtype::engine::input {
  */
 struct Control {
     enum class Source : std::uint8_t {
-        Key,
-        MouseButton,
-        MouseDeltaX,
-        MouseDeltaY,
-        MouseScrollX,
-        MouseScrollY,
-        GamepadButton,
-        GamepadAxis
+        kKey,
+        kMouseButton,
+        kMouseDeltaX,
+        kMouseDeltaY,
+        kMouseScrollX,
+        kMouseScrollY,
+        kGamepadButton,
+        kGamepadAxis
     };
 
     Source source{};        ///< Device and kind of control.
     std::uint8_t code = 0;  ///< Engine Key / MouseButton / GamepadButton / GamepadAxis value, depending on source.
     float scale = 1.0F;     ///< Multiplier applied to the raw value (sensitivity, inversion).
 
-    /// @brief Keyboard key, e.g. Control::key(Key::W).
+    /// @brief Keyboard key, e.g. Control::key(Key::kW).
     [[nodiscard]] static constexpr Control key(engine::input::Key key) noexcept {
-        return {.source = Source::Key, .code = static_cast<std::uint8_t>(key)};
+        return {.source = Source::kKey, .code = static_cast<std::uint8_t>(key)};
     }
-    /// @brief Mouse button, e.g. Control::mouseButton(MouseButton::Left).
+    /// @brief Mouse button, e.g. Control::mouseButton(MouseButton::kLeft).
     [[nodiscard]] static constexpr Control mouseButton(engine::input::MouseButton button) noexcept {
-        return {.source = Source::MouseButton, .code = static_cast<std::uint8_t>(button)};
+        return {.source = Source::kMouseButton, .code = static_cast<std::uint8_t>(button)};
     }
     /// @brief Horizontal mouse movement since the previous frame, in pixels.
     [[nodiscard]] static constexpr Control mouseDeltaX(float sensitivity = 1.0F) noexcept {
-        return {.source = Source::MouseDeltaX, .code = 0, .scale = sensitivity};
+        return {.source = Source::kMouseDeltaX, .code = 0, .scale = sensitivity};
     }
     /// @brief Vertical mouse movement since the previous frame, in pixels (up-positive).
     [[nodiscard]] static constexpr Control mouseDeltaY(float sensitivity = 1.0F) noexcept {
-        return {.source = Source::MouseDeltaY, .code = 0, .scale = sensitivity};
+        return {.source = Source::kMouseDeltaY, .code = 0, .scale = sensitivity};
     }
     /// @brief Horizontal scroll since the previous frame, in wheel steps.
     [[nodiscard]] static constexpr Control mouseScrollX(float scale = 1.0F) noexcept {
-        return {.source = Source::MouseScrollX, .code = 0, .scale = scale};
+        return {.source = Source::kMouseScrollX, .code = 0, .scale = scale};
     }
     /// @brief Vertical scroll since the previous frame, in wheel steps (away from the user is positive).
     [[nodiscard]] static constexpr Control mouseScrollY(float scale = 1.0F) noexcept {
-        return {.source = Source::MouseScrollY, .code = 0, .scale = scale};
+        return {.source = Source::kMouseScrollY, .code = 0, .scale = scale};
     }
-    /// @brief Gamepad button, e.g. Control::gamepadButton(GamepadButton::South).
+    /// @brief Gamepad button, e.g. Control::gamepadButton(GamepadButton::kSouth).
     [[nodiscard]] static constexpr Control gamepadButton(engine::input::GamepadButton button) noexcept {
-        return {.source = Source::GamepadButton, .code = static_cast<std::uint8_t>(button)};
+        return {.source = Source::kGamepadButton, .code = static_cast<std::uint8_t>(button)};
     }
-    /// @brief Gamepad axis, e.g. Control::gamepadAxis(GamepadAxis::LeftX).
+    /// @brief Gamepad axis, e.g. Control::gamepadAxis(GamepadAxis::kLeftX).
     [[nodiscard]] static constexpr Control gamepadAxis(engine::input::GamepadAxis axis, float scale = 1.0F) noexcept {
-        return {.source = Source::GamepadAxis, .code = static_cast<std::uint8_t>(axis), .scale = scale};
+        return {.source = Source::kGamepadAxis, .code = static_cast<std::uint8_t>(axis), .scale = scale};
     }
 
     /// @return A copy of this control with its value negated.

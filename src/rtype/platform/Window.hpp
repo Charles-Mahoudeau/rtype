@@ -83,8 +83,8 @@ class Window {
     [[nodiscard]] GLFWwindow* getNativeHandle() const noexcept;
 
   private:
-    static constexpr std::size_t GAMEPAD_BUTTON_COUNT = static_cast<std::size_t>(engine::input::GamepadButton::Count);
-    static constexpr std::size_t GAMEPAD_AXIS_COUNT = static_cast<std::size_t>(engine::input::GamepadAxis::Count);
+    static constexpr std::size_t kGamepadButtonCount = static_cast<std::size_t>(engine::input::GamepadButton::kCount);
+    static constexpr std::size_t kGamepadAxisCount = static_cast<std::size_t>(engine::input::GamepadAxis::kCount);
 
     /// @brief Binds this instance to the GLFW handle and installs every event callback.
     void registerCallbacks();
@@ -120,7 +120,7 @@ class Window {
     glm::vec2 _cursorPosition{0.0F};     ///< Last cursor position, to compute MouseMoved::delta.
     bool _hasCursorPosition{false};      ///< False until the first cursor event, to avoid a first jump.
     int _gamepadId{-1};                  ///< GLFW joystick id of the reported gamepad, -1 if none.
-    std::array<bool, GAMEPAD_BUTTON_COUNT> _gamepadButtons{};  ///< Button state sent in the last events.
-    std::array<float, GAMEPAD_AXIS_COUNT> _gamepadAxes{};      ///< Axis values sent in the last events.
+    std::array<bool, kGamepadButtonCount> _gamepadButtons{};  ///< Button state sent in the last events.
+    std::array<float, kGamepadAxisCount> _gamepadAxes{};      ///< Axis values sent in the last events.
 };
 }  // namespace rtype::platform

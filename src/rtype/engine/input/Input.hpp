@@ -104,16 +104,16 @@ class Input {
         [[nodiscard]] bool isDown(Button button) const { return isValid(button) && _frame.test(index(button)); }
 
       private:
-        static constexpr std::size_t COUNT = static_cast<std::size_t>(Button::Count);
+        static constexpr std::size_t kCount = static_cast<std::size_t>(Button::kCount);
 
         [[nodiscard]] static constexpr std::size_t index(Button button) noexcept {
             return static_cast<std::size_t>(button);
         }
-        [[nodiscard]] static constexpr bool isValid(Button button) noexcept { return index(button) < COUNT; }
+        [[nodiscard]] static constexpr bool isValid(Button button) noexcept { return index(button) < kCount; }
 
-        std::bitset<COUNT> _down;    ///< Held right now.
-        std::bitset<COUNT> _tapped;  ///< Pressed at least once since the last beginFrame().
-        std::bitset<COUNT> _frame;   ///< Snapshot read during the current frame.
+        std::bitset<kCount> _down;    ///< Held right now.
+        std::bitset<kCount> _tapped;  ///< Pressed at least once since the last beginFrame().
+        std::bitset<kCount> _frame;   ///< Snapshot read during the current frame.
     };
 
     /// @name Event handlers, dispatched by handleEvent().
@@ -143,7 +143,7 @@ class Input {
     ButtonStates<Key> _keys;
     ButtonStates<MouseButton> _mouseButtons;
     ButtonStates<GamepadButton> _gamepadButtons;
-    std::array<float, static_cast<std::size_t>(GamepadAxis::Count)> _gamepadAxes{};  ///< Raw values, no deadzone.
+    std::array<float, static_cast<std::size_t>(GamepadAxis::kCount)> _gamepadAxes{};  ///< Raw values, no deadzone.
     bool _gamepadConnected = false;
     float _deadzone = 0.15F;  ///< Stick values below this are read as 0.
 

@@ -39,14 +39,14 @@ struct FocusChanged {
 
 /// @brief A key was pressed, or is being auto-repeated by the OS.
 struct KeyPressed {
-    input::Key key = input::Key::Unknown;
+    input::Key key = input::Key::kUnknown;
     input::Mods mods{};
     bool repeat = false;  ///< True when the OS auto-repeats a held key.
 };
 
 /// @brief A key was released.
 struct KeyReleased {
-    input::Key key = input::Key::Unknown;
+    input::Key key = input::Key::kUnknown;
     input::Mods mods{};
 };
 
@@ -63,13 +63,13 @@ struct MouseMoved {
 
 /// @brief A mouse button was pressed.
 struct MouseButtonPressed {
-    input::MouseButton button = input::MouseButton::Unknown;
+    input::MouseButton button = input::MouseButton::kUnknown;
     input::Mods mods{};
 };
 
 /// @brief A mouse button was released.
 struct MouseButtonReleased {
-    input::MouseButton button = input::MouseButton::Unknown;
+    input::MouseButton button = input::MouseButton::kUnknown;
     input::Mods mods{};
 };
 
@@ -86,17 +86,17 @@ struct GamepadDisconnected {};
 
 /// @brief A gamepad button was pressed.
 struct GamepadButtonPressed {
-    input::GamepadButton button = input::GamepadButton::South;
+    input::GamepadButton button = input::GamepadButton::kSouth;
 };
 
 /// @brief A gamepad button was released.
 struct GamepadButtonReleased {
-    input::GamepadButton button = input::GamepadButton::South;
+    input::GamepadButton button = input::GamepadButton::kSouth;
 };
 
 /// @brief A gamepad axis changed. Sticks read [-1, 1] (Y up-positive), triggers read [0, 1], no deadzone applied.
 struct GamepadAxisMoved {
-    input::GamepadAxis axis = input::GamepadAxis::LeftX;
+    input::GamepadAxis axis = input::GamepadAxis::kLeftX;
     float value = 0.0F;
 };
 

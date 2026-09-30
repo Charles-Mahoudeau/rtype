@@ -29,7 +29,7 @@ void Input::handleEvent(const Event& event) {
 }
 
 void Input::onEvent(const event::KeyPressed& event) {
-    if (!event.repeat && event.key != Key::Unknown) {
+    if (!event.repeat && event.key != Key::kUnknown) {
         _keys.press(event.key);
     }
 }
@@ -37,7 +37,7 @@ void Input::onEvent(const event::KeyPressed& event) {
 void Input::onEvent(const event::KeyReleased& event) { _keys.release(event.key); }
 
 void Input::onEvent(const event::MouseButtonPressed& event) {
-    if (event.button != MouseButton::Unknown) {
+    if (event.button != MouseButton::kUnknown) {
         _mouseButtons.press(event.button);
     }
 }
@@ -71,7 +71,7 @@ void Input::onEvent(const event::GamepadButtonPressed& event) { _gamepadButtons.
 void Input::onEvent(const event::GamepadButtonReleased& event) { _gamepadButtons.release(event.button); }
 
 void Input::onEvent(const event::GamepadAxisMoved& event) {
-    if (event.axis < GamepadAxis::Count) {
+    if (event.axis < GamepadAxis::kCount) {
         _gamepadAxes.at(static_cast<std::size_t>(event.axis)) = event.value;
     }
 }
@@ -108,28 +108,28 @@ glm::vec2 Input::evaluate(const InputAction::Binding& binding) const {
 
 float Input::read(const Control& control) const {
     switch (control.source) {
-        case Control::Source::Key:
+        case Control::Source::kKey:
             return _keys.isDown(static_cast<Key>(control.code)) ? control.scale : 0.0F;
-        case Control::Source::MouseButton:
+        case Control::Source::kMouseButton:
             return _mouseButtons.isDown(static_cast<MouseButton>(control.code)) ? control.scale : 0.0F;
-        case Control::Source::MouseDeltaX:
+        case Control::Source::kMouseDeltaX:
             return _mouseDelta.x * control.scale;
-        case Control::Source::MouseDeltaY:
+        case Control::Source::kMouseDeltaY:
             return -_mouseDelta.y * control.scale;
-        case Control::Source::MouseScrollX:
+        case Control::Source::kMouseScrollX:
             return _scroll.x * control.scale;
-        case Control::Source::MouseScrollY:
+        case Control::Source::kMouseScrollY:
             return _scroll.y * control.scale;
-        case Control::Source::GamepadButton:
+        case Control::Source::kGamepadButton:
             return _gamepadButtons.isDown(static_cast<GamepadButton>(control.code)) ? control.scale : 0.0F;
-        case Control::Source::GamepadAxis:
+        case Control::Source::kGamepadAxis:
             return readGamepadAxis(static_cast<GamepadAxis>(control.code)) * control.scale;
     }
     return 0.0F;
 }
 
 float Input::readGamepadAxis(GamepadAxis axis) const {
-    if (!_gamepadConnected || axis >= GamepadAxis::Count) {
+    if (!_gamepadConnected || axis >= GamepadAxis::kCount) {
         return 0.0F;
     }
     const float value = _gamepadAxes.at(static_cast<std::size_t>(axis));

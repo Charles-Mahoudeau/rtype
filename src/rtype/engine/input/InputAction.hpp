@@ -17,9 +17,9 @@ namespace rtype::engine::input {
 
 /// @brief What an action produces
 enum class ActionType : std::uint8_t {
-    Button,   ///< On/off, use isPressed() / isHeld() / isReleased().
-    Axis,     ///< A single float, use readAxis().
-    Vector2,  ///< A 2D vector, use readVector().
+    kButton,   ///< On/off, use isPressed() / isHeld() / isReleased().
+    kAxis,     ///< A single float, use readAxis().
+    kVector2,  ///< A 2D vector, use readVector().
 };
 
 /**
@@ -30,16 +30,16 @@ enum class ActionType : std::uint8_t {
  * keyboard, the mouse and a gamepad can drive the same action.
  *
  * @code
- * input.addAction("move", ActionType::Vector2)
- *     .bindVector(Control::key(Key::W), Control::key(Key::S), Control::key(Key::A), Control::key(Key::D))
- *     .bindVector(Control::gamepadAxis(GamepadAxis::LeftX), Control::gamepadAxis(GamepadAxis::LeftY));
+ * input.addAction("move", ActionType::kVector2)
+ *     .bindVector(Control::key(Key::kW), Control::key(Key::kS), Control::key(Key::kA), Control::key(Key::kD))
+ *     .bindVector(Control::gamepadAxis(GamepadAxis::kLeftX), Control::gamepadAxis(GamepadAxis::kLeftY));
  * @endcode
  */
 class InputAction {
   public:
     explicit InputAction(ActionType type) noexcept;
 
-    /// @brief Binds a single control. For a Vector2 action it drives X.
+    /// @brief Binds a single control. For a kVector2 action it drives X.
     InputAction& bind(Control control);
     /// @brief 1D composite: negative gives -1, positive gives +1 (e.g. A / D).
     InputAction& bindAxis(Control negative, Control positive);

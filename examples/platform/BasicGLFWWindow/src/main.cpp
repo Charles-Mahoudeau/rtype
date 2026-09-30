@@ -33,34 +33,34 @@ int main() {
 
         /// @note Declare the actions once. Each one can be driven by any number of devices.
 
-        /// @note Vector2: WASD, arrows and the left stick all move the player.
+        /// @note kVector2: WASD, arrows and the left stick all move the player.
         auto& move =
-            input.addAction("move", ActionType::Vector2)
-                .bindVector(Control::key(Key::W), Control::key(Key::S), Control::key(Key::A), Control::key(Key::D))
-                .bindVector(Control::key(Key::Up), Control::key(Key::Down), Control::key(Key::Left),
-                            Control::key(Key::Right))
-                .bindVector(Control::gamepadAxis(GamepadAxis::LeftX), Control::gamepadAxis(GamepadAxis::LeftY));
+            input.addAction("move", ActionType::kVector2)
+                .bindVector(Control::key(Key::kW), Control::key(Key::kS), Control::key(Key::kA), Control::key(Key::kD))
+                .bindVector(Control::key(Key::kUp), Control::key(Key::kDown), Control::key(Key::kLeft),
+                            Control::key(Key::kRight))
+                .bindVector(Control::gamepadAxis(GamepadAxis::kLeftX), Control::gamepadAxis(GamepadAxis::kLeftY));
 
-        /// @note Button: space, left click or the A button.
-        auto& fire = input.addAction("fire", ActionType::Button)
-                         .bind(Control::key(Key::Space))
-                         .bind(Control::mouseButton(MouseButton::Left))
-                         .bind(Control::gamepadButton(GamepadButton::South));
+        /// @note kButton: space, left click or the A button.
+        auto& fire = input.addAction("fire", ActionType::kButton)
+                         .bind(Control::key(Key::kSpace))
+                         .bind(Control::mouseButton(MouseButton::kLeft))
+                         .bind(Control::gamepadButton(GamepadButton::kSouth));
 
-        /// @note Axis: Q / E or the gamepad triggers.
-        auto& throttle = input.addAction("throttle", ActionType::Axis)
-                             .bindAxis(Control::key(Key::Q), Control::key(Key::E))
-                             .bindAxis(Control::gamepadAxis(GamepadAxis::LeftTrigger),
-                                       Control::gamepadAxis(GamepadAxis::RightTrigger));
+        /// @note kAxis: Q / E or the gamepad triggers.
+        auto& throttle = input.addAction("throttle", ActionType::kAxis)
+                             .bindAxis(Control::key(Key::kQ), Control::key(Key::kE))
+                             .bindAxis(Control::gamepadAxis(GamepadAxis::kLeftTrigger),
+                                       Control::gamepadAxis(GamepadAxis::kRightTrigger));
 
-        /// @note Vector2: mouse movement or the right stick.
+        /// @note kVector2: mouse movement or the right stick.
         auto& look =
-            input.addAction("look", ActionType::Vector2)
+            input.addAction("look", ActionType::kVector2)
                 .bindVector(Control::mouseDeltaX(0.1F), Control::mouseDeltaY(0.1F))
-                .bindVector(Control::gamepadAxis(GamepadAxis::RightX), Control::gamepadAxis(GamepadAxis::RightY));
+                .bindVector(Control::gamepadAxis(GamepadAxis::kRightX), Control::gamepadAxis(GamepadAxis::kRightY));
 
-        input.addAction("lock", ActionType::Button).bind(Control::key(Key::L));
-        input.addAction("unlock", ActionType::Button).bind(Control::key(Key::U));
+        input.addAction("lock", ActionType::kButton).bind(Control::key(Key::kL));
+        input.addAction("unlock", ActionType::kButton).bind(Control::key(Key::kU));
 
         while (window.isOpen()) {
             /// @note Poll for window events and update the window state
@@ -68,7 +68,7 @@ int main() {
                 input.handleEvent(event);
 
                 /// @note Using the raw event system
-                if (const auto* key = std::get_if<KeyPressed>(&event); (key != nullptr) && key->key == Key::Escape) {
+                if (const auto* key = std::get_if<KeyPressed>(&event); (key != nullptr) && key->key == Key::kEscape) {
                     std::cout << "Escape pressed, closing window.\n";
                     window.close();
                 } else if (const auto* resized = std::get_if<Resized>(&event)) {

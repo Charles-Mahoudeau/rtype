@@ -23,17 +23,17 @@ flowchart LR
     direction TB
         CB["WindowCallbacks<br> <strong>onKey, onMouseButton, onCursorPos,<br>onScroll, onChar, onFocus, onResize, onClose </strong>"]
         PG["WindowGamepad: <strong>pollGamepad()</strong><br>compares with the previous frame,<br>emits only the changes"]
-        MAP["GlfwMapping<br> <strong>GLFW_KEY_W → Key::W</strong><br>axes: Y up, triggers 0..1"]
+        MAP["GlfwMapping<br> <strong>GLFW_KEY_W → Key::kW</strong><br>axes: Y up, triggers 0..1"]
         Q["_events<br>std::vector&lt;engine::Event&gt;"]
         POLL["Window::pollEvents()"]
   end
  subgraph BUTTONS["Buttons: ButtonStates&lt;T&gt;"]
     direction TB
-        KEYS["<strong>_keys</strong><br>ButtonStates&lt;Key&gt;"]
+        kKeys["<strong>_keys</strong><br>ButtonStates&lt;Key&gt;"]
         MBTN["<strong>_mouseButtons</strong><br>ButtonStates&lt;MouseButton&gt;"]
         GBTN["<strong>_gamepadButtons</strong><br>ButtonStates&lt;GamepadButton&gt;"]
         BITS["Each one holds 3 bitsets<br><strong>_down</strong>: held right now<br><strong>_tapped</strong>: pressed since last frame<br><strong>_frame</strong>: snapshot read this frame"]
-        KEYS ~~~ BITS
+        kKeys ~~~ BITS
         MBTN ~~~ BITS
         GBTN ~~~ BITS
   end
@@ -69,7 +69,7 @@ flowchart LR
   end
  subgraph ACTIONS["Actions"]
     direction TB
-        BIND["Bindings of an action<br>Control::key(Key::W), gamepadAxis(LeftX), mouseDeltaX()…"]
+        BIND["Bindings of an action<br>Control::key(Key::kW), gamepadAxis(kLeftX), mouseDeltaX()…"]
         READ["read(Control)<br>reads the frozen values, applies scale + deadzone"]
         BEST["The binding with the largest<br>magnitude wins"]
         ACT["InputAction::update(value)<br>held = magnitude ≥ pressPoint"]
@@ -141,14 +141,14 @@ using namespace rtype::engine::input;
 
 Input input;
 
-auto& move = input.addAction("move", ActionType::Vector2)
-                 .bindVector(Control::key(Key::W), Control::key(Key::S), Control::key(Key::A), Control::key(Key::D))
-                 .bindVector(Control::gamepadAxis(GamepadAxis::LeftX), Control::gamepadAxis(GamepadAxis::LeftY));
+auto& move = input.addAction("move", ActionType::kVector2)
+                 .bindVector(Control::key(Key::kW), Control::key(Key::kS), Control::key(Key::kA), Control::key(Key::kD))
+                 .bindVector(Control::gamepadAxis(GamepadAxis::kLeftX), Control::gamepadAxis(GamepadAxis::kLeftY));
 
-auto& fire = input.addAction("fire", ActionType::Button)
-                 .bind(Control::key(Key::Space))
-                 .bind(Control::mouseButton(MouseButton::Left))
-                 .bind(Control::gamepadButton(GamepadButton::South));
+auto& fire = input.addAction("fire", ActionType::kButton)
+                 .bind(Control::key(Key::kSpace))
+                 .bind(Control::mouseButton(MouseButton::kLeft))
+                 .bind(Control::gamepadButton(GamepadButton::kSouth));
 ```
 
 `addAction()` returns a reference that stays valid until the action is removed, so it can be kept. Actions can also be fetched later by name with `getAction("fire")`.
@@ -178,7 +178,7 @@ Actions are for gameplay. One-off things (closing, resizing, typing text) read t
 ```cpp
 for (const auto& event : window.pollEvents()) {
     input.handleEvent(event);
-    if (const auto* key = std::get_if<rtype::engine::event::KeyPressed>(&event); key && key->key == Key::Escape) {
+    if (const auto* key = std::get_if<rtype::engine::event::KeyPressed>(&event); key && key->key == Key::kEscape) {
         window.close();
     } else if (const auto* text = std::get_if<rtype::engine::event::TextEntered>(&event)) {
         chat.append(text->codepoint);
@@ -192,9 +192,9 @@ for (const auto& event : window.pollEvents()) {
 
 | `ActionType` | Produces | Read with |
 | --- | --- | --- |
-| `Button` | on / off | `isPressed()`, `isHeld()`, `isReleased()` |
-| `Axis` | one float | `readAxis()` |
-| `Vector2` | a 2D vector | `readVector()` |
+| `kButton` | on / off | `isPressed()`, `isHeld()`, `isReleased()` |
+| `kAxis` | one float | `readAxis()` |
+| `kVector2` | a 2D vector | `readVector()` |
 
 Every action also supports `isPressed()` / `isHeld()` / `isReleased()`: it is held while the magnitude of its value is at least its press point (`0.5` by default, change it with `setPressPoint()`).
 
@@ -210,7 +210,7 @@ An action has any number of bindings, from any device. Each frame every binding 
 
 | Method | Use |
 | --- | --- |
-| `bind(control)` | A single control. For a `Vector2` action it drives X. |
+| `bind(control)` | A single control. For a `kVector2` action it drives X. |
 | `bindAxis(negative, positive)` | Two buttons into one axis: `A` / `D` → -1 / +1. |
 | `bindVector(up, down, left, right)` | Four buttons into a vector (WASD, arrows, d-pad). Diagonals are normalized to length 1. |
 | `bindVector(x, y)` | Two analog controls into a vector (stick, mouse delta). |
@@ -219,22 +219,22 @@ An action has any number of bindings, from any device. Each frame every binding 
 
 | Factory | Value |
 | --- | --- |
-| `Control::key(Key::W)` | 0 or 1 |
-| `Control::mouseButton(MouseButton::Left)` | 0 or 1 |
+| `Control::key(Key::kW)` | 0 or 1 |
+| `Control::mouseButton(MouseButton::kLeft)` | 0 or 1 |
 | `Control::mouseDeltaX(sensitivity)` / `mouseDeltaY(...)` | pixels moved since the previous frame |
 | `Control::mouseScrollX(scale)` / `mouseScrollY(...)` | wheel steps since the previous frame |
-| `Control::gamepadButton(GamepadButton::South)` | 0 or 1 |
-| `Control::gamepadAxis(GamepadAxis::LeftX, scale)` | [-1, 1] for sticks, [0, 1] for triggers, after deadzone |
+| `Control::gamepadButton(GamepadButton::kSouth)` | 0 or 1 |
+| `Control::gamepadAxis(GamepadAxis::kLeftX, scale)` | [-1, 1] for sticks, [0, 1] for triggers, after deadzone |
 
 `control.inverted()` returns the same control with its value negated. The optional `scale` / `sensitivity` multiplies the raw value.
 
 ## Conventions
 
-- **Keys are physical positions**, named after the US QWERTY layout: `Key::W` is the key right of Tab on every layout (Z on AZERTY). WASD bindings therefore land on ZQSD for French players without any setting. Use `TextEntered` to read the characters actually typed.
+- **Keys are physical positions**, named after the US QWERTY layout: `Key::kW` is the key right of Tab on every layout (Z on AZERTY). WASD bindings therefore land on ZQSD for French players without any setting. Use `TextEntered` to read the characters actually typed.
 - **Every Y axis is up-positive**: "up" on WASD, on a stick and on the mouse all give +Y. `MouseMoved::delta` itself stays in screen space (Y down), the flip happens in `Control::mouseDeltaY`.
 - **Triggers read [0, 1]**, sticks read [-1, 1]. The platform converts GLFW's raw values before sending the event.
 - **Deadzone**: stick values below it read 0, the rest is rescaled to keep the full range. Defaults to `0.15`, set with `Input::setDeadzone()` (clamped to [0, 0.99]). Events carry raw values, the deadzone is applied only when reading.
-- **Gamepad buttons are named by position**: `South` is A on Xbox, Cross on PlayStation, B on Nintendo.
+- **Gamepad buttons are named by position**: `kSouth` is A on Xbox, Cross on PlayStation, B on Nintendo.
 - **Modifiers** come with key and mouse button events as a struct: `if (event.mods.control)`.
 
 ## Events
@@ -291,8 +291,8 @@ GLFW has no gamepad callbacks, only `glfwGetGamepadState()`. `Window::pollEvents
 
 ### Adding a key
 
-1. Add the value to `Key` in [`Key.hpp`](../src/rtype/engine/input/Key.hpp), before `Count`.
-2. Add its GLFW pair to the `KEYS` table in [`GlfwMapping.cpp`](../src/rtype/platform/GlfwMapping.cpp).
+1. Add the value to `Key` in [`Key.hpp`](../src/rtype/engine/input/Key.hpp), before `kCount`.
+2. Add its GLFW pair to the `kKeys` table in [`GlfwMapping.cpp`](../src/rtype/platform/GlfwMapping.cpp).
 
 A `static_assert` fails the build if a `Key` has no GLFW mapping, so step 2 cannot be forgotten.
 

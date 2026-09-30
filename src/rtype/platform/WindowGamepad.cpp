@@ -58,7 +58,7 @@ void Window::pollGamepad() {
     const auto buttons = std::to_array(state.buttons);
     const auto axes = std::to_array(state.axes);
 
-    for (std::size_t i = 0; i < GAMEPAD_BUTTON_COUNT; ++i) {
+    for (std::size_t i = 0; i < kGamepadButtonCount; ++i) {
         const auto button = static_cast<GamepadButton>(i);
         const bool down = buttons.at(static_cast<std::size_t>(glfw::toGlfwGamepadButton(button))) == GLFW_PRESS;
         if (down == _gamepadButtons.at(i)) {
@@ -72,7 +72,7 @@ void Window::pollGamepad() {
         }
     }
 
-    for (std::size_t i = 0; i < GAMEPAD_AXIS_COUNT; ++i) {
+    for (std::size_t i = 0; i < kGamepadAxisCount; ++i) {
         const auto axis = static_cast<GamepadAxis>(i);
         const float raw = axes.at(static_cast<std::size_t>(glfw::toGlfwGamepadAxis(axis)));
         const float value = glfw::fromGlfwGamepadAxisValue(axis, raw);
@@ -84,12 +84,12 @@ void Window::pollGamepad() {
 }
 
 void Window::disconnectGamepad() {
-    for (std::size_t i = 0; i < GAMEPAD_BUTTON_COUNT; ++i) {
+    for (std::size_t i = 0; i < kGamepadButtonCount; ++i) {
         if (_gamepadButtons.at(i)) {
             _events.emplace_back(engine::event::GamepadButtonReleased{.button = static_cast<GamepadButton>(i)});
         }
     }
-    for (std::size_t i = 0; i < GAMEPAD_AXIS_COUNT; ++i) {
+    for (std::size_t i = 0; i < kGamepadAxisCount; ++i) {
         if (_gamepadAxes.at(i) != 0.0F) {
             _events.emplace_back(engine::event::GamepadAxisMoved{.axis = static_cast<GamepadAxis>(i), .value = 0.0F});
         }
