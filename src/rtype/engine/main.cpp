@@ -13,11 +13,14 @@
 #include "engine/input/Input.hpp"
 #include "engine/input/Key.hpp"
 #include "platform/Window.hpp"
+#include "vulkan/core/Instance.hpp"
 
 int main() {
     try {
         rtype::platform::Window window(1280, 720, "R-Type");
         rtype::engine::input::Input input;
+        const rtype::vulkan::core::Instance instance("R-Type", "R-Type Engine", VK_API_VERSION_1_3,
+                                                     rtype::platform::Window::getRequiredVulkanExtensions(), true);
 
         while (window.isOpen()) {
             for (const auto& event : window.pollEvents()) {
