@@ -112,9 +112,10 @@ flowchart LR
 
 | Module | Role | Depends on |
 | --- | --- | --- |
-| `engine/` | `Key`, `Event`, `Control`, `InputAction`, `Input`. Pure logic, testable without a window. | glm only |
-| `platform/` | `Window`: GLFW callbacks and gamepad polling, translated into engine events. | `engine`, GLFW |
-| `vulkan/`, `lua/` | Rendering and scripting. They read input through the engine, never through GLFW. | `engine` |
+| `engine/` (`engine-core`) | `Key`, `Event`, `Control`, `InputAction`, `Input`, `ButtonStates`. Pure logic, testable without a window. | glm only |
+| `platform/` | `Window`: GLFW callbacks and gamepad polling, translated into engine events. | `engine-core`, GLFW |
+| `vulkan/`, `luau/` | Rendering and scripting. They read input through the engine, never through GLFW. | `engine-core` |
+| `engine/main.cpp` (`engine`) | The executable: creates the window and feeds its events to `Input`. | everything above |
 
 **Rule:** GLFW never leaves `platform/`. No public header outside it includes `<GLFW/glfw3.h>` or uses a `GLFW_*` code. `Window::getNativeHandle()` exists only for integrations that need the raw handle (Vulkan surface, ImGui backend).
 
@@ -127,6 +128,7 @@ flowchart LR
 | [`engine/input/Control.hpp`](../src/rtype/engine/input/Control.hpp) | One physical control read as a float |
 | [`engine/input/InputAction.hpp`](../src/rtype/engine/input/InputAction.hpp) | A named action and its bindings |
 | [`engine/input/Input.hpp`](../src/rtype/engine/input/Input.hpp) | Input state and the action registry |
+| [`engine/input/ButtonStates.hpp`](../src/rtype/engine/input/ButtonStates.hpp) | Held / tapped / snapshot state of a family of buttons |
 | [`platform/Window.hpp`](../src/rtype/platform/Window.hpp) | The window, source of every event |
 | [`platform/WindowCallbacks.cpp`](../src/rtype/platform/WindowCallbacks.cpp) | GLFW callbacks → events |
 | [`platform/WindowGamepad.cpp`](../src/rtype/platform/WindowGamepad.cpp) | Gamepad polling → events |

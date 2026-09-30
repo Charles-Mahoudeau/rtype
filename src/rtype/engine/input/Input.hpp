@@ -8,13 +8,13 @@
 #pragma once
 
 #include <array>
-#include <bitset>
 #include <cstddef>
 #include <glm/ext/vector_float2.hpp>
 #include <string>
 #include <unordered_map>
 
 #include "engine/event/Event.hpp"
+#include "engine/input/ButtonStates.hpp"
 #include "engine/input/Control.hpp"
 #include "engine/input/InputAction.hpp"
 #include "engine/input/Key.hpp"
@@ -41,6 +41,13 @@ namespace rtype::engine::input {
  */
 class Input {
   public:
+    Input() = default;
+    ~Input() = default;
+    Input(const Input& other) = default;
+    Input& operator=(const Input& other) = default;
+    Input(Input&& other) noexcept = default;
+    Input& operator=(Input&& other) noexcept = default;
+
     /// @brief Feeds one event. Call it for every event of the frame, before update().
     void handleEvent(const Event& event);
 
@@ -76,46 +83,6 @@ class Input {
     void setDeadzone(float deadzone) noexcept;
 
   private:
-    /**
-     * @brief Held state of a family of buttons (keys, mouse buttons or gamepad buttons).
-     *
-     * @details Events update the live state at any time. beginFrame() then takes the
-     * snapshot the frame reads: held now, or pressed at least once since the last frame.
-     */
-    template <typename Button>
-    class ButtonStates {
-      public:
-        void press(Button button) {
-            if (isValid(button)) {
-                _down.set(index(button));
-                _tapped.set(index(button));
-            }
-        }
-        void release(Button button) {
-            if (isValid(button)) {
-                _down.reset(index(button));
-            }
-        }
-        void releaseAll() noexcept { _down.reset(); }
-        void beginFrame() noexcept {
-            _frame = _down | _tapped;
-            _tapped.reset();
-        }
-        [[nodiscard]] bool isDown(Button button) const { return isValid(button) && _frame.test(index(button)); }
-
-      private:
-        static constexpr std::size_t kCount = static_cast<std::size_t>(Button::kCount);
-
-        [[nodiscard]] static constexpr std::size_t index(Button button) noexcept {
-            return static_cast<std::size_t>(button);
-        }
-        [[nodiscard]] static constexpr bool isValid(Button button) noexcept { return index(button) < kCount; }
-
-        std::bitset<kCount> _down;    ///< Held right now.
-        std::bitset<kCount> _tapped;  ///< Pressed at least once since the last beginFrame().
-        std::bitset<kCount> _frame;   ///< Snapshot read during the current frame.
-    };
-
     /// @name Event handlers, dispatched by handleEvent().
     /// @{
     void onEvent(const event::KeyPressed& event);
@@ -132,7 +99,7 @@ class Input {
     void onEvent(const event::GamepadAxisMoved& event);
     /// @brief Events Input does not use (Closed, Resized, TextEntered...).
     template <typename Unused>
-    void onEvent(const Unused& /*event*/) noexcept {}
+    void onEvent(const Unused& event) noexcept;
     /// @}
 
     [[nodiscard]] float readGamepadAxis(GamepadAxis axis) const;
@@ -154,3 +121,5 @@ class Input {
     glm::vec2 _scroll{0.0F};             ///< Scroll read during the current frame.
 };
 }  // namespace rtype::engine::input
+
+#include "Input.tpp"

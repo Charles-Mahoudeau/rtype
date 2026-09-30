@@ -2,7 +2,7 @@
 target("platform")
     set_kind("static")
     set_basename("rtype-platform")
-    add_deps("engine")
+    add_deps("engine-core")
     add_packages("glfw")
     add_files("**.cpp")
     add_headerfiles("**.hpp")
