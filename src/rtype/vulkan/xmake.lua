@@ -2,8 +2,11 @@ add_requires("vulkan-headers 1.4.x", {alias = "vulkan-headers"})
 add_requires("vulkan-loader 1.4.x", {alias = "vulkan-loader"})
 add_requires("vulkan-memory-allocator 3.x", {alias = "vulkan-memory-allocator"})
 add_requires("stb", {alias = "stb"})
-add_requires("imgui 1.92.x", {alias = "imgui", configs = {glfw = true, vulkan = true}})
+add_requires("imgui 1.92.x", {alias = "imgui", configs = {vulkan = true}})
 add_requires("slang 2025.x", {alias = "slang"})
+if is_plat("macosx") then
+    add_requires("moltenvk", {alias = "moltenvk", configs = {shared = true}})
+end
 
 rule("glsl.spirv")
     set_extensions(".vert", ".frag", ".comp", ".geom", ".tesc", ".tese")
@@ -37,10 +40,41 @@ target("vulkan")
     set_kind("shared")
     set_basename("rtype-vulkan")
     add_deps("engine-core")
-    add_packages("vulkan-headers", "vulkan-loader", "vulkan-memory-allocator", "glfw", "glm", "stb", "imgui", "slang")
+    add_packages("vulkan-headers", "vulkan-loader", "vulkan-memory-allocator", "glm", "stb", "imgui", "slang")
     add_packages("vulkan-headers", {public = true})
     add_files("**.cpp")
     add_includedirs(".", {public = true})
+
+    if is_plat("macosx") then
+        after_build(function (target)
+            import("core.base.json")
+            import("core.project.project")
+
+            local moltenvk = project.required_package("moltenvk")
+            local searchdirs = table.wrap(moltenvk:get("linkdirs"))
+            if moltenvk:installdir() then
+                table.insert(searchdirs, path.join(moltenvk:installdir(), "lib"))
+            end
+            local library
+            for _, dir in ipairs(searchdirs) do
+                local candidate = path.join(dir, "libMoltenVK.dylib")
+                if os.isfile(candidate) then
+                    library = path.absolute(candidate)
+                    break
+                end
+            end
+            if not library then
+                raise("libMoltenVK.dylib not found in the moltenvk package (searched: %s)", table.concat(searchdirs, ", "))
+            end
+
+            local icddir = path.join(target:targetdir(), "vulkan", "icd.d")
+            os.mkdir(icddir)
+            json.savefile(path.join(icddir, "MoltenVK_icd.json"), {
+                file_format_version = "1.0.0",
+                ICD = {library_path = library, api_version = "1.4.0", is_portability_driver = true}
+            })
+        end)
+    end
 
     add_rules("glsl.spirv")
     add_files("shaders/*.vert", "shaders/*.frag", "shaders/*.comp", "shaders/*.geom", "shaders/*.tesc", "shaders/*.tese")
