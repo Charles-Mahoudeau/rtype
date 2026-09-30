@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <glm/ext/vector_double2.hpp>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -45,8 +46,13 @@ Window::Window(std::uint16_t width, std::uint16_t height, std::string title)
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
     _window = glfwCreateWindow(_width, _height, _title.c_str(), nullptr, nullptr);
     if (_window == nullptr) {
-        glfwTerminate();
-        throw exceptions::GLFWWindowException("Failed to create GLFW window");
+        // The exception is built before glfwTerminate(), which would discard the GLFW error it reports.
+        try {
+            throw exceptions::GLFWWindowException("Failed to create GLFW window");
+        } catch (...) {
+            glfwTerminate();
+            throw;
+        }
     }
     registerCallbacks();
 }
@@ -119,6 +125,16 @@ void Window::setCursorLocked(bool locked) {
     glm::dvec2 position{0.0};
     glfwGetCursorPos(_window, &position.x, &position.y);
     _cursorPosition = position;
+}
+
+std::vector<const char*> Window::getRequiredVulkanExtensions() {
+    uint32_t glfwExtensionCount = 0;
+    auto* extensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+    if (extensions == nullptr) {
+        throw exceptions::GLFWWindowException("Vulkan is not supported: no required instance extensions");
+    }
+    const std::span<const char*> view(extensions, glfwExtensionCount);
+    return {view.begin(), view.end()};
 }
 
 GLFWwindow* Window::getNativeHandle() const noexcept { return _window; }

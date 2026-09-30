@@ -73,6 +73,12 @@ class Window {
     /// @brief Hides and locks the cursor, useful for an FPS camera. Mouse deltas keep flowing.
     void setCursorLocked(bool locked);
 
+    /// @return The Vulkan instance extensions required to create a surface for this window.
+    /// @note Call it once a Window exists: GLFW must be initialized. The strings are owned by GLFW and stay
+    /// valid while the window exists.
+    /// @throws GLFWWindowException If Vulkan is not supported on this system, or GLFW is not initialized.
+    [[nodiscard]] static std::vector<const char*> getRequiredVulkanExtensions();
+
     /// @return The underlying GLFW window.
     /// @note Only for integrations that require it (Vulkan surface, ImGui backend).
     /// Game and engine code must go through the events instead.
