@@ -20,23 +20,21 @@
 
 namespace rtype::platform {
 
-/**
- * @brief Initializes GLFW and creates a window ready for Vulkan rendering.
- *
- * @details Window hints:
- * - `GLFW_CLIENT_API = GLFW_NO_API`: by default GLFW creates an OpenGL context
- *   with the window. Vulkan does not use an OpenGL context, so it is disabled.
- *   The rendering surface is created later with `glfwCreateWindowSurface()`.
- * - `GLFW_RESIZABLE = GLFW_TRUE`: the user can resize the window. The renderer
- *   must then handle `VK_ERROR_OUT_OF_DATE_KHR` / `VK_SUBOPTIMAL_KHR` and
- *   recreate the swapchain.
- *
- * @param width  Initial window width in pixels.
- * @param height Initial window height in pixels.
- * @param title  Text displayed in the window title bar.
- *
- * @throws GLFWWindowException If `glfwInit()` or the window creation fails.
- */
+/// @brief Initializes GLFW and creates a window ready for Vulkan rendering.
+///
+/// @details Window hints:
+/// - `GLFW_CLIENT_API = GLFW_NO_API`: by default GLFW creates an OpenGL context
+///   with the window. Vulkan does not use an OpenGL context, so it is disabled.
+///   The rendering surface is created later with `glfwCreateWindowSurface()`.
+/// - `GLFW_RESIZABLE = GLFW_TRUE`: the user can resize the window. The renderer
+///   must then handle `VK_ERROR_OUT_OF_DATE_KHR` / `VK_SUBOPTIMAL_KHR` and
+///   recreate the swapchain.
+///
+/// @param width  Initial window width in pixels.
+/// @param height Initial window height in pixels.
+/// @param title  Text displayed in the window title bar.
+///
+/// @throws GLFWWindowException If `glfwInit()` or the window creation fails.
 Window::Window(std::uint16_t width, std::uint16_t height, std::string title)
     : _width(width), _height(height), _title(std::move(title)) {
     if (glfwInit() == GLFW_FALSE) {

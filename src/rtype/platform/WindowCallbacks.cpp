@@ -16,13 +16,11 @@
 
 namespace rtype::platform {
 
-/**
- * @brief Installs the GLFW callbacks that turn window input into engine events.
- *
- * @details GLFW only accepts plain function pointers, so each callback is a
- * static member that finds its Window again through the GLFW user pointer.
- * This is why Window can be neither copied nor moved: the stored `this` would dangle.
- */
+/// @brief Installs the GLFW callbacks that turn window input into engine events.
+///
+/// @details GLFW only accepts plain function pointers, so each callback is a
+/// static member that finds its Window again through the GLFW user pointer.
+/// This is why Window can be neither copied nor moved: the stored `this` would dangle.
 void Window::registerCallbacks() {
     glfwSetWindowUserPointer(_window, this);
     glfwSetWindowCloseCallback(_window, onClose);

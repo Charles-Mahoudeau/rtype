@@ -21,17 +21,15 @@ struct GLFWwindow;
 
 namespace rtype::platform {
 
-/**
- * @brief The application window, and the source of every engine event.
- *
- * @details Wraps a GLFW window created for Vulkan rendering. GLFW stays an
- * implementation detail: this header does not include it, and every callback is
- * translated into an engine::Event returned by pollEvents().
- *
- * @warning On macOS 11.3+, controllers natively handled by Apple's GameController
- * framework (e.g. Switch Pro Controller) are detected by GLFW but never send updates,
- * so they read as idle.
- */
+/// @brief The application window, and the source of every engine event.
+///
+/// @details Wraps a GLFW window created for Vulkan rendering. GLFW stays an
+/// implementation detail: this header does not include it, and every callback is
+/// translated into an engine::Event returned by pollEvents().
+///
+/// @warning On macOS 11.3+, controllers natively handled by Apple's GameController
+/// framework (e.g. Switch Pro Controller) are detected by GLFW but never send updates,
+/// so they read as idle.
 class Window {
   public:
     /// @throws GLFWWindowException If GLFW or the window cannot be initialized.
@@ -75,11 +73,9 @@ class Window {
     /// @brief Hides and locks the cursor, useful for an FPS camera. Mouse deltas keep flowing.
     void setCursorLocked(bool locked);
 
-    /**
-     * @return The underlying GLFW window.
-     * @note Only for integrations that require it (Vulkan surface, ImGui backend).
-     * Game and engine code must go through the events instead.
-     */
+    /// @return The underlying GLFW window.
+    /// @note Only for integrations that require it (Vulkan surface, ImGui backend).
+    /// Game and engine code must go through the events instead.
     [[nodiscard]] GLFWwindow* getNativeHandle() const noexcept;
 
   private:

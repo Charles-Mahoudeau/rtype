@@ -11,14 +11,12 @@
 
 namespace rtype::engine::input {
 
-/**
- * @brief A physical keyboard key.
- *
- * @details Keys are named after their position on a US QWERTY layout, not after the
- * character they type: Key::kW is the key right of Tab on every layout (Z on AZERTY).
- * This keeps bindings like WASD in the same place for everyone. Use the TextEntered
- * event to read typed characters.
- */
+/// @brief A physical keyboard key.
+///
+/// @details Keys are named after their position on a US QWERTY layout, not after the
+/// character they type: Key::kW is the key right of Tab on every layout (Z on AZERTY).
+/// This keeps bindings like WASD in the same place for everyone. Use the TextEntered
+/// event to read typed characters.
 enum class Key : std::uint8_t {
     kUnknown,  ///< A key the engine does not know (media keys, vendor keys...).
 
@@ -145,11 +143,9 @@ enum class MouseButton : std::uint8_t {
     kCount
 };
 
-/**
- * @brief A gamepad button, named by position so that it means the same on every brand.
- *
- * @details kSouth is A on Xbox, Cross on PlayStation and B on Nintendo.
- */
+/// @brief A gamepad button, named by position so that it means the same on every brand.
+///
+/// @details kSouth is A on Xbox, Cross on PlayStation and B on Nintendo.
 enum class GamepadButton : std::uint8_t {
     kSouth,
     kEast,

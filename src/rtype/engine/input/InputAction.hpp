@@ -22,19 +22,17 @@ enum class ActionType : std::uint8_t {
     kVector2,  ///< A 2D vector, use readVector().
 };
 
-/**
- * @brief A named, device-independent input, e.g. "move" or "fire".
- *
- * @details An action holds any number of bindings, from any device. Each frame
- * every binding is evaluated and the one with the largest magnitude wins, so the
- * keyboard, the mouse and a gamepad can drive the same action.
- *
- * @code
- * input.addAction("move", ActionType::kVector2)
- *     .bindVector(Control::key(Key::kW), Control::key(Key::kS), Control::key(Key::kA), Control::key(Key::kD))
- *     .bindVector(Control::gamepadAxis(GamepadAxis::kLeftX), Control::gamepadAxis(GamepadAxis::kLeftY));
- * @endcode
- */
+/// @brief A named, device-independent input, e.g. "move" or "fire".
+///
+/// @details An action holds any number of bindings, from any device. Each frame
+/// every binding is evaluated and the one with the largest magnitude wins, so the
+/// keyboard, the mouse and a gamepad can drive the same action.
+///
+/// @code
+/// input.addAction("move", ActionType::kVector2)
+///     .bindVector(Control::key(Key::kW), Control::key(Key::kS), Control::key(Key::kA), Control::key(Key::kD))
+///     .bindVector(Control::gamepadAxis(GamepadAxis::kLeftX), Control::gamepadAxis(GamepadAxis::kLeftY));
+/// @endcode
 class InputAction {
   public:
     explicit InputAction(ActionType type) noexcept;

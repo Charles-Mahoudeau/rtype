@@ -13,14 +13,12 @@
 
 #include "engine/input/Key.hpp"
 
-/**
- * @brief Events produced by the platform layer and consumed by the engine.
- *
- * @details The platform translates its native events (GLFW callbacks, gamepad
- * polling...) into these types, so nothing outside the platform ever sees a
- * GLFW code. Values follow the engine conventions: stick Y is up-positive and
- * triggers read [0, 1].
- */
+/// @brief Events produced by the platform layer and consumed by the engine.
+///
+/// @details The platform translates its native events (GLFW callbacks, gamepad
+/// polling...) into these types, so nothing outside the platform ever sees a
+/// GLFW code. Values follow the engine conventions: stick Y is up-positive and
+/// triggers read [0, 1].
 namespace rtype::engine::event {
 
 /// @brief The user asked to close the window.
@@ -104,15 +102,13 @@ struct GamepadAxisMoved {
 
 namespace rtype::engine {
 
-/**
- * @brief Any event, read with std::get_if or std::visit.
- *
- * @code
- * for (const auto& event : window.pollEvents()) {
- *     if (const auto* key = std::get_if<event::KeyPressed>(&event)) { ... }
- * }
- * @endcode
- */
+/// @brief Any event, read with std::get_if or std::visit.
+///
+/// @code
+/// for (const auto& event : window.pollEvents()) {
+///     if (const auto* key = std::get_if<event::KeyPressed>(&event)) { ... }
+/// }
+/// @endcode
 using Event = std::variant<event::Closed, event::Resized, event::FocusChanged, event::KeyPressed, event::KeyReleased,
                            event::TextEntered, event::MouseMoved, event::MouseButtonPressed, event::MouseButtonReleased,
                            event::MouseScrolled, event::GamepadConnected, event::GamepadDisconnected,

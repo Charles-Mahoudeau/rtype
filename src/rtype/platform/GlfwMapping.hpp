@@ -9,13 +9,11 @@
 
 #include "engine/input/Key.hpp"
 
-/**
- * @brief Translation between GLFW codes and the engine input types.
- *
- * @details This is the only place that knows both. GLFW codes never leave the
- * platform layer: everything is translated into engine types before being sent
- * as an event.
- */
+/// @brief Translation between GLFW codes and the engine input types.
+///
+/// @details This is the only place that knows both. GLFW codes never leave the
+/// platform layer: everything is translated into engine types before being sent
+/// as an event.
 namespace rtype::platform::glfw {
 
 /// @return The engine key for a GLFW key code, or Key::kUnknown.

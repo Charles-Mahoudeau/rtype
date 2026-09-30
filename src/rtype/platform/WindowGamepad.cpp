@@ -34,10 +34,8 @@ int findGamepad() noexcept {
 
 }  // namespace
 
-/**
- * @details Only the first connected gamepad is reported. Axis values are converted
- * to the engine convention here, so Input only has to apply its deadzone.
- */
+/// @details Only the first connected gamepad is reported. Axis values are converted
+/// to the engine convention here, so Input only has to apply its deadzone.
 void Window::pollGamepad() {
     if (_gamepadId >= 0 && glfwJoystickIsGamepad(_gamepadId) == GLFW_FALSE) {
         disconnectGamepad();

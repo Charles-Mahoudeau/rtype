@@ -21,24 +21,22 @@
 
 namespace rtype::engine::input {
 
-/**
- * @brief Per-frame input state built from engine events, driven by named actions.
- *
- * @details Input never talks to a device or a window library: the platform layer
- * feeds it events, so it works the same with any backend and can be tested without
- * a window. Register actions once with addAction(), then every frame:
- *
- * @code
- * for (const auto& event : window.pollEvents()) {
- *     input.handleEvent(event);
- * }
- * input.update();
- * if (input.getAction("fire").isPressed()) { ... }
- * @endcode
- *
- * A key pressed and released between two frames still counts as held for one frame,
- * so short taps are never missed.
- */
+/// @brief Per-frame input state built from engine events, driven by named actions.
+///
+/// @details Input never talks to a device or a window library: the platform layer
+/// feeds it events, so it works the same with any backend and can be tested without
+/// a window. Register actions once with addAction(), then every frame:
+///
+/// @code
+/// for (const auto& event : window.pollEvents()) {
+///     input.handleEvent(event);
+/// }
+/// input.update();
+/// if (input.getAction("fire").isPressed()) { ... }
+/// @endcode
+///
+/// A key pressed and released between two frames still counts as held for one frame,
+/// so short taps are never missed.
 class Input {
   public:
     Input() = default;

@@ -13,13 +13,11 @@
 
 namespace rtype::engine::input {
 
-/**
- * @brief One physical control (key, mouse button, stick axis...) read as a float.
- *
- * @details Buttons read 0 or 1, analog axes read a value in [-1, 1] (triggers in [0, 1]),
- * mouse deltas read pixels and scroll reads wheel steps. Every Y axis is up-positive,
- * so that "up" on WASD, on a stick and on the mouse all mean +Y.
- */
+/// @brief One physical control (key, mouse button, stick axis...) read as a float.
+///
+/// @details Buttons read 0 or 1, analog axes read a value in [-1, 1] (triggers in [0, 1]),
+/// mouse deltas read pixels and scroll reads wheel steps. Every Y axis is up-positive,
+/// so that "up" on WASD, on a stick and on the mouse all mean +Y.
 struct Control {
     enum class Source : std::uint8_t {
         kKey,
