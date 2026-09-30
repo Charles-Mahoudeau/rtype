@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace rtype::vulkan::platform::exceptions {
+namespace rtype::platform::exceptions {
 /**
  * @brief Exception thrown when a GLFW window operation fails.
  *
@@ -20,4 +20,4 @@ class GLFWWindowException : public std::runtime_error {
   public:
     explicit GLFWWindowException(const std::string& message) : std::runtime_error(message) {}
 };
-}  // namespace rtype::vulkan::platform::exceptions
+}  // namespace rtype::platform::exceptions

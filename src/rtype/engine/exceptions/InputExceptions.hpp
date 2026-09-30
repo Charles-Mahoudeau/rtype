@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace rtype::vulkan::platform::exceptions {
+namespace rtype::engine::exceptions {
 /**
  * @brief Exception thrown when an input action is used incorrectly.
  *
@@ -20,4 +20,4 @@ class InputException : public std::runtime_error {
   public:
     explicit InputException(const std::string& message) : std::runtime_error(message) {}
 };
-}  // namespace rtype::vulkan::platform::exceptions
+}  // namespace rtype::engine::exceptions

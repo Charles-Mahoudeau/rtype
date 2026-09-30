@@ -5,67 +5,70 @@
 ** main
 */
 
-#include <GLFW/glfw3.h>
-
 #include <exception>
 #include <iostream>
 #include <variant>
 
-#include "platform/Event.hpp"
+#include "engine/event/Event.hpp"
+#include "engine/input/Control.hpp"
+#include "engine/input/Input.hpp"
+#include "engine/input/InputAction.hpp"
+#include "engine/input/Key.hpp"
 #include "platform/Window.hpp"
-#include "platform/input/Control.hpp"
-#include "platform/input/Input.hpp"
-#include "platform/input/InputAction.hpp"
 
-using rtype::vulkan::platform::Event;
-using namespace rtype::vulkan::platform::event;
-using rtype::vulkan::platform::input::ActionType;
-using rtype::vulkan::platform::input::Control;
+using rtype::engine::input::GamepadAxis;
+using rtype::engine::input::GamepadButton;
+using rtype::engine::input::Key;
+using rtype::engine::input::MouseButton;
+using namespace rtype::engine::event;
+using rtype::engine::input::ActionType;
+using rtype::engine::input::Control;
 
 int main() {
     try {
         /// @note Create a window with the specified width, height, and title
-        rtype::vulkan::platform::Window window(800, 600, "Vulkan Window Example");
-        rtype::vulkan::platform::input::Input input(window);
+        rtype::platform::Window window(800, 600, "Vulkan Window Example");
+        /// @note Input does not know the window: it only reads the events the window produces.
+        rtype::engine::input::Input input;
 
         /// @note Declare the actions once. Each one can be driven by any number of devices.
 
         /// @note Vector2: WASD, arrows and the left stick all move the player.
-        auto& move = input.addAction("move", ActionType::Vector2)
-                         .bindVector(Control::key(GLFW_KEY_W), Control::key(GLFW_KEY_S), Control::key(GLFW_KEY_A),
-                                     Control::key(GLFW_KEY_D))
-                         .bindVector(Control::key(GLFW_KEY_UP), Control::key(GLFW_KEY_DOWN),
-                                     Control::key(GLFW_KEY_LEFT), Control::key(GLFW_KEY_RIGHT))
-                         .bindVector(Control::gamepadAxis(GLFW_GAMEPAD_AXIS_LEFT_X),
-                                     Control::gamepadAxis(GLFW_GAMEPAD_AXIS_LEFT_Y));
+        auto& move =
+            input.addAction("move", ActionType::Vector2)
+                .bindVector(Control::key(Key::W), Control::key(Key::S), Control::key(Key::A), Control::key(Key::D))
+                .bindVector(Control::key(Key::Up), Control::key(Key::Down), Control::key(Key::Left),
+                            Control::key(Key::Right))
+                .bindVector(Control::gamepadAxis(GamepadAxis::LeftX), Control::gamepadAxis(GamepadAxis::LeftY));
 
         /// @note Button: space, left click or the A button.
         auto& fire = input.addAction("fire", ActionType::Button)
-                         .bind(Control::key(GLFW_KEY_SPACE))
-                         .bind(Control::mouseButton(GLFW_MOUSE_BUTTON_LEFT))
-                         .bind(Control::gamepadButton(GLFW_GAMEPAD_BUTTON_A));
+                         .bind(Control::key(Key::Space))
+                         .bind(Control::mouseButton(MouseButton::Left))
+                         .bind(Control::gamepadButton(GamepadButton::South));
 
         /// @note Axis: Q / E or the gamepad triggers.
         auto& throttle = input.addAction("throttle", ActionType::Axis)
-                             .bindAxis(Control::key(GLFW_KEY_Q), Control::key(GLFW_KEY_E))
-                             .bindAxis(Control::gamepadAxis(GLFW_GAMEPAD_AXIS_LEFT_TRIGGER),
-                                       Control::gamepadAxis(GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER));
+                             .bindAxis(Control::key(Key::Q), Control::key(Key::E))
+                             .bindAxis(Control::gamepadAxis(GamepadAxis::LeftTrigger),
+                                       Control::gamepadAxis(GamepadAxis::RightTrigger));
 
         /// @note Vector2: mouse movement or the right stick.
-        auto& look = input.addAction("look", ActionType::Vector2)
-                         .bindVector(Control::mouseDeltaX(0.1F), Control::mouseDeltaY(0.1F))
-                         .bindVector(Control::gamepadAxis(GLFW_GAMEPAD_AXIS_RIGHT_X),
-                                     Control::gamepadAxis(GLFW_GAMEPAD_AXIS_RIGHT_Y));
+        auto& look =
+            input.addAction("look", ActionType::Vector2)
+                .bindVector(Control::mouseDeltaX(0.1F), Control::mouseDeltaY(0.1F))
+                .bindVector(Control::gamepadAxis(GamepadAxis::RightX), Control::gamepadAxis(GamepadAxis::RightY));
 
-        input.addAction("lock", ActionType::Button).bind(Control::key(GLFW_KEY_L));
-        input.addAction("unlock", ActionType::Button).bind(Control::key(GLFW_KEY_U));
+        input.addAction("lock", ActionType::Button).bind(Control::key(Key::L));
+        input.addAction("unlock", ActionType::Button).bind(Control::key(Key::U));
 
         while (window.isOpen()) {
             /// @note Poll for window events and update the window state
             for (const auto& event : window.pollEvents()) {
+                input.handleEvent(event);
+
                 /// @note Using the raw event system
-                if (const auto* key = std::get_if<KeyPressed>(&event);
-                    (key != nullptr) && key->key == GLFW_KEY_ESCAPE) {
+                if (const auto* key = std::get_if<KeyPressed>(&event); (key != nullptr) && key->key == Key::Escape) {
                     std::cout << "Escape pressed, closing window.\n";
                     window.close();
                 } else if (const auto* resized = std::get_if<Resized>(&event)) {
@@ -75,7 +78,7 @@ int main() {
                 }
             }
 
-            /// @note Using action input system
+            /// @note Using action input system, once every event of the frame was handled
             /// @{
             input.update();
 
@@ -94,9 +97,9 @@ int main() {
 
             /// @note Actions can also be fetched by name.
             if (input.getAction("lock").isPressed()) {
-                input.setCursorLocked(true);
+                window.setCursorLocked(true);
             } else if (input.getAction("unlock").isPressed()) {
-                input.setCursorLocked(false);
+                window.setCursorLocked(false);
             }
             /// @}
         }

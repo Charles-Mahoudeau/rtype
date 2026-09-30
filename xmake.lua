@@ -3,14 +3,19 @@ set_languages("c++23")
 
 set_toolchains("clang")
 
+-- Shared by several modules, so declared once here.
+add_requires("glm 1.0.x", {alias = "glm"})
+add_requires("glfw 3.4", {alias = "glfw"})
+
 includes("src/rtype/engine")
+includes("src/rtype/platform")
 includes("src/rtype/lua")
 includes("src/rtype/vulkan")
 
 target("rtype")
     set_kind("phony")
     set_default(true)
-    add_deps("engine", "lua", "vulkan")
+    add_deps("engine", "platform", "lua", "vulkan")
 
 
 local ALL_EXAMPLES_FLAG = "AllExamples"

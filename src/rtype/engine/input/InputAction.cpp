@@ -10,9 +10,9 @@
 #include <glm/ext/vector_float2.hpp>
 #include <glm/geometric.hpp>
 
-#include "platform/input/Control.hpp"
+#include "engine/input/Control.hpp"
 
-namespace rtype::vulkan::platform::input {
+namespace rtype::engine::input {
 
 InputAction::InputAction(ActionType type) noexcept : _type(type) {}
 
@@ -65,4 +65,4 @@ glm::vec2 InputAction::readVector() const noexcept { return _value; }
 
 ActionType InputAction::getType() const noexcept { return _type; }
 
-}  // namespace rtype::vulkan::platform::input
+}  // namespace rtype::engine::input

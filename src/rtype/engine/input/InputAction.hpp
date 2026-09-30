@@ -11,9 +11,9 @@
 #include <glm/ext/vector_float2.hpp>
 #include <vector>
 
-#include "platform/input/Control.hpp"
+#include "engine/input/Control.hpp"
 
-namespace rtype::vulkan::platform::input {
+namespace rtype::engine::input {
 
 /// @brief What an action produces
 enum class ActionType : std::uint8_t {
@@ -31,9 +31,8 @@ enum class ActionType : std::uint8_t {
  *
  * @code
  * input.addAction("move", ActionType::Vector2)
- *     .bindVector(Control::key(GLFW_KEY_W), Control::key(GLFW_KEY_S),
- *                 Control::key(GLFW_KEY_A), Control::key(GLFW_KEY_D))
- *     .bindVector(Control::gamepadAxis(GLFW_GAMEPAD_AXIS_LEFT_X), Control::gamepadAxis(GLFW_GAMEPAD_AXIS_LEFT_Y));
+ *     .bindVector(Control::key(Key::W), Control::key(Key::S), Control::key(Key::A), Control::key(Key::D))
+ *     .bindVector(Control::gamepadAxis(GamepadAxis::LeftX), Control::gamepadAxis(GamepadAxis::LeftY));
  * @endcode
  */
 class InputAction {
@@ -91,4 +90,4 @@ class InputAction {
     bool _held = false;              ///< Held this frame.
     bool _wasHeld = false;           ///< Held the previous frame.
 };
-}  // namespace rtype::vulkan::platform::input
+}  // namespace rtype::engine::input
