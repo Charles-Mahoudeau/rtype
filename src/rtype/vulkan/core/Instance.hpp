@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
 #include <string_view>
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
@@ -43,13 +44,34 @@ class Instance {
     /// @note Hand it to every other Vulkan user (e.g. GLFW) so the whole process shares one loader.
     [[nodiscard]] static PFN_vkGetInstanceProcAddr getLoaderEntryPoint() noexcept;
 
-  protected:
   private:
-    vk::raii::Context _context;
-    vk::raii::Instance _instance = nullptr;
+    /// @throws std::runtime_error Naming the first required extension the loader does not offer.
+    static void checkExtensionsSupported(std::span<const vk::ExtensionProperties> available,
+                                         std::span<const char* const> required);
 
+    /// @throws std::runtime_error Naming the first requested layer the loader does not offer.
+    static void checkLayersSupported(std::span<const vk::LayerProperties> available,
+                                     std::span<const char* const> requested);
+
+    /// @brief Opts in to portability drivers (MoltenVK on macOS) when the loader offers it.
+    /// @details Appends VK_KHR_portability_enumeration to the extensions, which must go with the returned flag:
+    /// without both, the loader hides portability drivers and instance creation fails.
+    /// @return The instance creation flags to use, empty when the loader does not offer the extension.
+    static vk::InstanceCreateFlags enablePortability(std::span<const vk::ExtensionProperties> available,
+                                                     std::vector<const char*>& extensions);
+
+    /// @return True if the loader offers the instance extension.
     static bool isExtensionAvailable(std::span<const vk::ExtensionProperties> available, std::string_view name);
 
+    /// @return True if the loader offers the instance layer.
     static bool isLayerAvailable(std::span<const vk::LayerProperties> available, std::string_view name);
+
+    /// @brief Creates the instance from the already checked extensions and layers.
+    [[nodiscard]] vk::raii::Instance createInstance(const vk::ApplicationInfo& appInfo, vk::InstanceCreateFlags flags,
+                                                    std::span<const char* const> extensions,
+                                                    std::span<const char* const> layers) const;
+
+    vk::raii::Context _context;              ///< Loader dispatch, built from getLoaderEntryPoint().
+    vk::raii::Instance _instance = nullptr;  ///< The Vulkan instance, created by the constructor.
 };
 }  // namespace rtype::vulkan::core
