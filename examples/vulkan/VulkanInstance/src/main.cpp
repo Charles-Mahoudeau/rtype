@@ -8,6 +8,7 @@
 #include <exception>
 #include <iostream>
 #include <memory>
+#include <utility>
 #include <variant>
 
 #include "engine/event/Event.hpp"
@@ -29,15 +30,17 @@ using rtype::vulkan::VulkanRenderer;
 int main() {
     try {
         /// @note 0. Pick the backends. This is the only place that names them: from here on, the code only sees
-        /// IPlatform and IRenderer, and would be the same with any other pair. Validation layers are a debug tool:
-        /// enabled in debug builds only (xmake f -m debug).
-#ifdef NDEBUG
-        constexpr bool kEnableValidation = false;
-#else
-        constexpr bool kEnableValidation = true;
+        /// IPlatform and IRenderer, and would be the same with any other pair. The Config is the Vulkan backend's
+        /// own: here the validation layer and the DebugMessenger, which prints its messages, in debug builds only
+        /// (xmake f -m debug). A layer that is not installed makes init() throw (brew install
+        /// vulkan-validationlayers on macOS).
+        VulkanRenderer::Config config;
+#ifndef NDEBUG
+        config.layers.push_back("VK_LAYER_KHRONOS_validation");
+        config.debugging = true;
 #endif
         const std::unique_ptr<IPlatform> platform = std::make_unique<GlfwPlatform>();
-        const std::unique_ptr<IRenderer> renderer = std::make_unique<VulkanRenderer>(kEnableValidation);
+        const std::unique_ptr<IRenderer> renderer = std::make_unique<VulkanRenderer>(std::move(config));
 
         /// @note 1. Share one loader, BEFORE the window exists. The renderer gives the entry point of the Vulkan
         /// loader it is linked against (vkGetInstanceProcAddr), the platform hands it to GLFW
@@ -55,8 +58,7 @@ int main() {
         ///   one: VK_EXT_metal_surface, VK_KHR_win32_surface...), enabled when the instance is created;
         /// - createSurface(instance): the surface of the window (glfwCreateWindowSurface).
         /// A platform that does not provide them throws UnsupportedFeatureException: the pair does not fit.
-        /// In debug builds, the instance also gets the validation layer and the DebugMessenger, which prints its
-        /// messages to stderr.
+        /// The instance also gets the layers of the Config, and the DebugMessenger if requested.
         renderer->init(*platform);
         std::cout << "Vulkan instance and window surface created.\n" << std::flush;
 

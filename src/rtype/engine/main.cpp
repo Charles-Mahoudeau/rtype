@@ -18,25 +18,18 @@
 #include "platform/GlfwPlatform.hpp"
 #include "vulkan/VulkanRenderer.hpp"
 
-namespace {
-#ifdef NDEBUG
-constexpr bool kEnableValidation = false;
-#else
-constexpr bool kEnableValidation = true;
-#endif
-}  // namespace
-
 int main() {
     try {
         const std::unique_ptr<rtype::engine::platform::IPlatform> platform =
             std::make_unique<rtype::platform::GlfwPlatform>();
         const std::unique_ptr<rtype::engine::graphics::IRenderer> renderer =
-            std::make_unique<rtype::vulkan::VulkanRenderer>(kEnableValidation);
+            std::make_unique<rtype::vulkan::VulkanRenderer>(
+                rtype::vulkan::VulkanRenderer::Config{.layers = {"VK_LAYER_KHRONOS_validation"}, .debugging = true});
 
         platform->initLoader(renderer->getLoaderEntryPoint());
         platform->init({.size = {800, 600}, .title = "R-Type", .resizable = true, .fullscreen = false});
         renderer->init(*platform);
-        
+
         rtype::engine::input::Input input;
         while (platform->isOpen()) {
             for (const auto& event : platform->pollEvents()) {

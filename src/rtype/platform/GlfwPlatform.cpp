@@ -118,8 +118,7 @@ void GlfwPlatform::setCursorLocked(bool locked) {
 double GlfwPlatform::getTime() const { return glfwGetTime(); }
 
 void GlfwPlatform::initLoader(engine::platform::ProcAddress entryPoint) {
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    glfwInitVulkanLoader(reinterpret_cast<PFN_vkGetInstanceProcAddr>(entryPoint));
+    glfwInitVulkanLoader(std::bit_cast<PFN_vkGetInstanceProcAddr>(entryPoint));
 }
 
 std::vector<const char*> GlfwPlatform::getRequiredExtensions() const {

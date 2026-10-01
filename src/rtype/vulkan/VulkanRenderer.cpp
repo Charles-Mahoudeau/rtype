@@ -30,16 +30,12 @@
 
 namespace rtype::vulkan {
 
-namespace {
-constexpr std::string_view kEngineName = "R-Type Engine";
-constexpr const char* kValidationLayer = "VK_LAYER_KHRONOS_validation";
-}  // namespace
+VulkanRenderer::VulkanRenderer(Config config) : _config(std::move(config)) {}
 
-VulkanRenderer::VulkanRenderer(bool enableValidation) : _enableValidation(enableValidation) {}
+VulkanRenderer::VulkanRenderer() : VulkanRenderer(Config{}) {}
 
 engine::platform::ProcAddress VulkanRenderer::getLoaderEntryPoint() const {
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    return reinterpret_cast<engine::platform::ProcAddress>(core::Instance::getLoaderEntryPoint());
+    return std::bit_cast<engine::platform::ProcAddress>(core::Instance::getLoaderEntryPoint());
 }
 
 void VulkanRenderer::init(engine::platform::IPlatform& platform) {
@@ -48,14 +44,14 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
     }
 
     std::vector<const char*> extensions = platform.getRequiredExtensions();
-    std::vector<const char*> layers;
-    if (_enableValidation) {
-        layers.push_back(kValidationLayer);
+    extensions.insert(extensions.end(), _config.extraExtensions.begin(), _config.extraExtensions.end());
+    if (_config.debugging) {
         extensions.push_back(core::DebugMessenger::kExtensionName);
     }
-    _instance.emplace(platform.getTitle(), kEngineName, VK_API_VERSION_1_3, std::move(extensions), std::move(layers));
-    if (_enableValidation) {
-        _debugMessenger.emplace(*_instance);
+    _instance.emplace(platform.getTitle(), _config.engineName, _config.apiVersion, std::move(extensions),
+                      _config.layers);
+    if (_config.debugging) {
+        _debugMessenger.emplace(*_instance, _config.minSeverity);
     }
 
     auto* const instance = static_cast<VkInstance>(*_instance->getInstance());

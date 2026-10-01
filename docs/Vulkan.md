@@ -36,12 +36,17 @@ matters:
 
 ```cpp
 const std::unique_ptr<IPlatform> platform = std::make_unique<GlfwPlatform>();
-const std::unique_ptr<IRenderer> renderer = std::make_unique<VulkanRenderer>(enableValidation);
+VulkanRenderer::Config config;  // debug builds: {.layers = {"VK_LAYER_KHRONOS_validation"}, .debugging = true}
+const std::unique_ptr<IRenderer> renderer = std::make_unique<VulkanRenderer>(config);
 
 platform->initLoader(renderer->getLoaderEntryPoint());  // 1. one Vulkan loader for GLFW and the renderer
 platform->init({.title = "R-Type"});                    // 2. the window, without graphics context
-renderer->init(*platform);                              // 3. instance (+ validation), then the window surface
+renderer->init(*platform);                              // 3. instance (+ layers, messenger), then the surface
 ```
+
+`VulkanRenderer::Config` holds the settings of the Vulkan backend: engine name, API version, layers, extra
+extensions, debugging (the DebugMessenger) and its minimum severity. No layer is enabled by default; set only what differs from the
+defaults. Another backend would have its own `Config`: the engine never sees them.
 
 In step 3, the renderer asks the platform for what it needs through the optional functions of `IPlatform`:
 `getRequiredExtensions()` and `createSurface()`. A platform that does not provide them throws
