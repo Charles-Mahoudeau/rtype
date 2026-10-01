@@ -127,6 +127,10 @@ void Window::setCursorLocked(bool locked) {
     _cursorPosition = position;
 }
 
+void Window::initVulkanLoader(PFN_vkGetInstanceProcAddr getInstanceProcAddr) noexcept {
+    glfwInitVulkanLoader(getInstanceProcAddr);
+}
+
 std::vector<const char*> Window::getRequiredVulkanExtensions() {
     uint32_t glfwExtensionCount = 0;
     auto* extensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
