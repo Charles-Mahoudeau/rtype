@@ -64,6 +64,7 @@ target("vulkan")
     else
         add_packages("vulkan-loader")
     end
+    add_defines("RTYPE_VULKAN_BUILD", {public = false})
     add_files("**.cpp")
     add_includedirs(".", {public = true})
 

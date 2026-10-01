@@ -7,29 +7,46 @@
 
 #include <exception>
 #include <iostream>
+#include <memory>
 #include <variant>
 
 #include "engine/event/Event.hpp"
+#include "engine/graphics/IRenderer.hpp"
 #include "engine/input/Input.hpp"
 #include "engine/input/Key.hpp"
-#include "platform/Window.hpp"
-#include "vulkan/core/Instance.hpp"
+#include "engine/platform/IPlatform.hpp"
+#include "platform/GlfwPlatform.hpp"
+#include "vulkan/VulkanRenderer.hpp"
+
+namespace {
+#ifdef NDEBUG
+constexpr bool kEnableValidation = false;
+#else
+constexpr bool kEnableValidation = true;
+#endif
+}  // namespace
 
 int main() {
     try {
-        rtype::platform::Window::initVulkanLoader(rtype::vulkan::core::Instance::getLoaderEntryPoint());
-        rtype::platform::Window window(1280, 720, "R-Type");
-        rtype::engine::input::Input input;
-        const rtype::vulkan::core::Instance instance("R-Type", "R-Type Engine", VK_API_VERSION_1_3,
-                                                     rtype::platform::Window::getRequiredVulkanExtensions(),
-                                                     {"VK_LAYER_KHRONOS_validation"});
+        const std::unique_ptr<rtype::engine::platform::IPlatform> platform =
+            std::make_unique<rtype::platform::GlfwPlatform>();
+        const std::unique_ptr<rtype::engine::graphics::IRenderer> renderer =
+            std::make_unique<rtype::vulkan::VulkanRenderer>(kEnableValidation);
 
-        while (window.isOpen()) {
-            for (const auto& event : window.pollEvents()) {
+        platform->initLoader(renderer->getLoaderEntryPoint());
+        platform->init({.size = {800, 600}, .title = "R-Type", .resizable = true, .fullscreen = false});
+        renderer->init(*platform);
+        
+        rtype::engine::input::Input input;
+        while (platform->isOpen()) {
+            for (const auto& event : platform->pollEvents()) {
                 input.handleEvent(event);
+                if (const auto* resized = std::get_if<rtype::engine::event::Resized>(&event); resized != nullptr) {
+                    renderer->resize({resized->width, resized->height});
+                }
                 if (const auto* key = std::get_if<rtype::engine::event::KeyPressed>(&event);
                     key != nullptr && key->key == rtype::engine::input::Key::kEscape) {
-                    window.close();
+                    platform->close();
                 }
             }
             input.update();

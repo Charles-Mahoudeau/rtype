@@ -1,8 +1,9 @@
 # Vulkan
 
-The `vulkan` module (`src/rtype/vulkan/`, namespace `rtype::vulkan`) is the renderer. For now it only creates the
-Vulkan instance:
+The `vulkan` module (`src/rtype/vulkan/`, namespace `rtype::vulkan`) is the renderer:
 
+- **`VulkanRenderer`**: implements `IRenderer`. Skeleton for now: `init()` creates the instance, the debug messenger
+  and the window surface; drawing throws `UnsupportedFeatureException` until it is implemented.
 - **`core::Instance`**: the `VkInstance`, with its extensions and layers.
 - **`core::DebugMessenger`**: prints the validation layer messages to stderr.
 
@@ -30,38 +31,29 @@ The loader comes from xmake, and the driver from your GPU vendor. For the valida
 
 ## Usage
 
-The order matters:
+The engine only sees `IPlatform` and `IRenderer`; the backends are named once, where they are created. The order
+matters:
 
 ```cpp
-// 1. Before any Window: make GLFW use the renderer's loader instead of loading one of its own.
-Window::initVulkanLoader(Instance::getLoaderEntryPoint());
+const std::unique_ptr<IPlatform> platform = std::make_unique<GlfwPlatform>();
+const std::unique_ptr<IRenderer> renderer = std::make_unique<VulkanRenderer>(enableValidation);
 
-// 2. The window initializes GLFW, which knows the extensions its surface needs.
-Window window(800, 600, "R-Type");
-std::vector<const char*> extensions = Window::getRequiredVulkanExtensions();
-std::vector<const char*> layers;
-
-// 3. Debug builds only: validation layer + the messenger's extension.
-#ifndef NDEBUG
-layers.push_back("VK_LAYER_KHRONOS_validation");
-extensions.push_back(DebugMessenger::kExtensionName);
-#endif
-
-// 4. Layers and extensions are fixed from now on.
-const Instance instance("R-Type", "R-Type Engine", VK_API_VERSION_1_3, std::move(extensions), std::move(layers));
-
-// 5. After the instance, and destroyed before it.
-const DebugMessenger debugMessenger(instance);
+platform->initLoader(renderer->getLoaderEntryPoint());  // 1. one Vulkan loader for GLFW and the renderer
+platform->init({.title = "R-Type"});                    // 2. the window, without graphics context
+renderer->init(*platform);                              // 3. instance (+ validation), then the window surface
 ```
 
-On macOS, `Instance` enables `VK_KHR_portability_enumeration` by itself, which MoltenVK requires.
+In step 3, the renderer asks the platform for what it needs through the optional functions of `IPlatform`:
+`getRequiredExtensions()` and `createSurface()`. A platform that does not provide them throws
+`UnsupportedFeatureException`. On macOS, `Instance` also enables `VK_KHR_portability_enumeration`, which MoltenVK
+requires.
 
 ## Run the example
 
 ```sh
 xmake f -m debug --VulkanInstance=y   # debug: validation enabled (release: -m release, no validation)
 xmake build VulkanInstance
-xmake run VulkanInstance              # prints the GPUs, e.g. "GPU: Apple M2"
+xmake run VulkanInstance              # "Vulkan instance and window surface created."
 ```
 
 The validation layer stays silent while there is nothing to report. To check that it is loaded:

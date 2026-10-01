@@ -13,8 +13,10 @@
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
+#include "Export.hpp"
+
 namespace rtype::vulkan::core {
-class Instance {
+class RTYPE_VULKAN_API Instance {
   public:
     /// @brief Creates a Vulkan instance with the specified application and engine names, API version, required
     /// extensions, and layers.

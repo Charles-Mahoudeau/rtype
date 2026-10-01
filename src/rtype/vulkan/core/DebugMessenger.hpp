@@ -9,6 +9,7 @@
 
 #include <vulkan/vulkan_raii.hpp>
 
+#include "Export.hpp"
 #include "Instance.hpp"
 
 namespace rtype::vulkan::core {
@@ -23,7 +24,7 @@ namespace rtype::vulkan::core {
 /// declare the DebugMessenger after its Instance.
 /// @note Messages emitted while the instance itself is created or destroyed are not caught: the messenger only
 /// exists between the two.
-class DebugMessenger {
+class RTYPE_VULKAN_API DebugMessenger {
   public:
     /// The instance extension a DebugMessenger needs (VK_EXT_debug_utils).
     static constexpr const char* kExtensionName = vk::EXTDebugUtilsExtensionName;

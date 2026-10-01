@@ -2,7 +2,7 @@
 ** EPITECH PROJECT, 2026
 ** rtype
 ** File description:
-** WindowGamepad
+** GlfwPlatformGamepad
 */
 
 #include <GLFW/glfw3.h>
@@ -11,7 +11,7 @@
 #include <cstddef>
 
 #include "GlfwMapping.hpp"
-#include "Window.hpp"
+#include "GlfwPlatform.hpp"
 #include "engine/event/Event.hpp"
 #include "engine/input/Key.hpp"
 
@@ -36,7 +36,7 @@ int findGamepad() noexcept {
 
 /// @details Only the first connected gamepad is reported. Axis values are converted
 /// to the engine convention here, so Input only has to apply its deadzone.
-void Window::pollGamepad() {
+void GlfwPlatform::pollGamepad() {
     if (_gamepadId >= 0 && glfwJoystickIsGamepad(_gamepadId) == GLFW_FALSE) {
         disconnectGamepad();
     }
@@ -81,7 +81,7 @@ void Window::pollGamepad() {
     }
 }
 
-void Window::disconnectGamepad() {
+void GlfwPlatform::disconnectGamepad() {
     for (std::size_t i = 0; i < kGamepadButtonCount; ++i) {
         if (_gamepadButtons.at(i)) {
             _events.emplace_back(engine::event::GamepadButtonReleased{.button = static_cast<GamepadButton>(i)});
