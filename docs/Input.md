@@ -4,7 +4,7 @@ How keyboard, mouse and gamepad input goes from the OS to the game.
 
 The game never talks to a device or to GLFW. The **platform** turns native input into engine **events**, and **`Input`** turns those events into named **actions** (`"move"`, `"fire"`...) that gameplay code, ECS systems and Lua scripts read.
 
-A runnable example lives in [`examples/platform/BasicGLFWWindow`](../examples/platform/BasicGLFWWindow/src/main.cpp).
+A runnable example lives in [`examples/graphic/platform/BasicGLFWWindow`](../examples/graphic/platform/BasicGLFWWindow/src/main.cpp).
 
 ## Architecture
 

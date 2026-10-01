@@ -7,7 +7,10 @@ The `vulkan` module (`src/rtype/vulkan/`, namespace `rtype::vulkan`) is the rend
 - **`core::Instance`**: the `VkInstance`, with its extensions and layers.
 - **`core::DebugMessenger`**: prints the validation layer messages to stderr.
 
-A runnable example lives in [`examples/vulkan/VulkanInstance`](../examples/vulkan/VulkanInstance/src/main.cpp).
+A runnable example lives in [`examples/graphic/render/vulkan/VulkanInstance`](../examples/graphic/render/vulkan/VulkanInstance/src/main.cpp).
+[`examples/graphic/platform/sdl/SdlVulkanWindow`](../examples/graphic/platform/sdl/SdlVulkanWindow/src/SdlPlatform.hpp)
+runs the same renderer on a platform written with SDL3 inside the example: a model for plugging another windowing
+library into the engine.
 
 ## Setup
 

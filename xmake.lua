@@ -27,28 +27,15 @@ option(ALL_EXAMPLES_FLAG, {default = false, description = "Enable all examples"}
 option(ALL_VULKAN_EXAMPLES_FLAG, {default = false, description = "Enable all Vulkan examples"})
 option(ALL_LUAU_EXAMPLES_FLAG, {default = false, description = "Enable all Luau examples"})
 
-local all_examples_folder = {}
 
-table.join2(all_examples_folder, os.dirs(path.join(".", "examples", "*", "*")))
-
-for _, dir in ipairs(all_examples_folder) do
+for _, file in ipairs(os.files(path.join(os.scriptdir(), "examples", "**", "xmake.lua"))) do
+    local dir = path.directory(file)
     local name = path.basename(dir)
 
     option(name, {default = false, description = "Enabling \"" .. name .. "\" as an example to build."})
 
-    if has_config(ALL_EXAMPLES_FLAG) or has_config(name) or has_config(ALL_LUAU_EXAMPLES_FLAG) or has_config(ALL_VULKAN_EXAMPLES_FLAG) then
-        if (not os.isfile(path.join(dir, "xmake.lua"))) then
-            print("Warning: No xmake.lua found in " .. dir .. ", skipping example...")
-        else
-            if has_config(name) then
-                includes(path.join(dir, "xmake.lua"))
-            elseif has_config(ALL_LUAU_EXAMPLES_FLAG) then
-                includes(path.join(dir, "xmake.lua"))
-            elseif has_config(ALL_VULKAN_EXAMPLES_FLAG) then
-                includes(path.join(dir, "xmake.lua"))
-            elseif has_config(ALL_EXAMPLES_FLAG) then
-                includes(path.join(dir, "xmake.lua"))
-            end
-        end
+    if has_config(name) or has_config(ALL_EXAMPLES_FLAG) or has_config(ALL_VULKAN_EXAMPLES_FLAG)
+        or has_config(ALL_LUAU_EXAMPLES_FLAG) then
+        includes(file)
     end
 end
