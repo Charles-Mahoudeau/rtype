@@ -1,8 +1,5 @@
--- macOS: Homebrew's loader (brew install molten-vk vulkan-loader), built to find Homebrew's MoltenVK driver and
--- layers. xmake's own loader is configured for its own prefix and would see neither.
-if is_plat("macosx") then
-    add_requires("pkgconfig::vulkan", {alias = "vulkan-loader"})
-else
+
+if not is_plat("macosx") then
     add_requires("vulkan-loader 1.4.x", {alias = "vulkan-loader"})
 end
 add_requires("vulkan-memory-allocator 3.x", {alias = "vulkan-memory-allocator"})
@@ -42,19 +39,30 @@ target("vulkan")
     set_kind("shared")
     set_basename("rtype-vulkan")
     add_deps("engine-core")
-    add_packages("vulkan-headers", "vulkan-loader", "vulkan-memory-allocator", "glm", "stb", "imgui", "slang")
+    add_packages("vulkan-headers", "vulkan-memory-allocator", "glm", "stb", "imgui", "slang")
     add_packages("vulkan-headers", {public = true})
     -- vk::raii::Context takes the linked vkGetInstanceProcAddr instead of dlopen()-ing its own loader. Public: it
     -- changes the layout of vk::raii::Context, so every file including the renderer headers must agree on it.
     add_defines("VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL=0", {public = true})
 
     if is_plat("macosx") then
+        -- Homebrew's loader (brew install molten-vk vulkan-loader): xmake's is configured for its own prefix and
+        -- would see neither Homebrew's MoltenVK driver nor its layers. Only the library is linked: its headers
+        -- are another version than vulkan-headers, and mixing both breaks vk::raii (VK_HEADER_VERSION mismatch).
         on_load(function (target)
-            local brewprefix = try { function () return os.iorunv("brew", {"--prefix"}):trim() end }
-            if brewprefix then
-                target:add("rpathdirs", path.join(brewprefix, "lib"), {public = true})
+            local loaderprefix = try { function () return os.iorunv("brew", {"--prefix", "vulkan-loader"}):trim() end }
+            if not loaderprefix or not os.isdir(path.join(loaderprefix, "lib")) then
+                raise("Vulkan loader not found: brew install molten-vk vulkan-loader")
             end
+            target:add("linkdirs", path.join(loaderprefix, "lib"))
+            target:add("links", "vulkan")
+            -- Homebrew's layer manifests name their library without a path, and dyld does not search Homebrew's
+            -- lib folder for bare names: add it to the rpath of every binary using the renderer.
+            local brewprefix = os.iorunv("brew", {"--prefix"}):trim()
+            target:add("rpathdirs", path.join(brewprefix, "lib"), {public = true})
         end)
+    else
+        add_packages("vulkan-loader")
     end
     add_files("**.cpp")
     add_includedirs(".", {public = true})
