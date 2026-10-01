@@ -4,6 +4,8 @@ target("platform")
     set_basename("rtype-platform")
     add_deps("engine-core")
     add_packages("glfw")
+    -- Headers only: Window::initVulkanLoader() takes a PFN_vkGetInstanceProcAddr.
+    add_packages("vulkan-headers", {public = true})
     add_files("**.cpp")
     add_headerfiles("**.hpp")
     -- Headers are included as "platform/...".

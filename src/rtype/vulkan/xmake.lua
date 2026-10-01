@@ -1,12 +1,14 @@
-add_requires("vulkan-headers 1.4.x", {alias = "vulkan-headers"})
-add_requires("vulkan-loader 1.4.x", {alias = "vulkan-loader"})
+-- macOS: Homebrew's loader (brew install molten-vk vulkan-loader), built to find Homebrew's MoltenVK driver and
+-- layers. xmake's own loader is configured for its own prefix and would see neither.
+if is_plat("macosx") then
+    add_requires("pkgconfig::vulkan", {alias = "vulkan-loader"})
+else
+    add_requires("vulkan-loader 1.4.x", {alias = "vulkan-loader"})
+end
 add_requires("vulkan-memory-allocator 3.x", {alias = "vulkan-memory-allocator"})
 add_requires("stb", {alias = "stb"})
 add_requires("imgui 1.92.x", {alias = "imgui", configs = {vulkan = true}})
 add_requires("slang 2025.x", {alias = "slang"})
-if is_plat("macosx") then
-    add_requires("moltenvk", {alias = "moltenvk", configs = {shared = true}})
-end
 
 rule("glsl.spirv")
     set_extensions(".vert", ".frag", ".comp", ".geom", ".tesc", ".tese")
@@ -42,39 +44,20 @@ target("vulkan")
     add_deps("engine-core")
     add_packages("vulkan-headers", "vulkan-loader", "vulkan-memory-allocator", "glm", "stb", "imgui", "slang")
     add_packages("vulkan-headers", {public = true})
-    add_files("**.cpp")
-    add_includedirs(".", {public = true})
+    -- vk::raii::Context takes the linked vkGetInstanceProcAddr instead of dlopen()-ing its own loader. Public: it
+    -- changes the layout of vk::raii::Context, so every file including the renderer headers must agree on it.
+    add_defines("VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL=0", {public = true})
 
     if is_plat("macosx") then
-        after_build(function (target)
-            import("core.base.json")
-            import("core.project.project")
-
-            local moltenvk = project.required_package("moltenvk")
-            local searchdirs = table.wrap(moltenvk:get("linkdirs"))
-            if moltenvk:installdir() then
-                table.insert(searchdirs, path.join(moltenvk:installdir(), "lib"))
+        on_load(function (target)
+            local brewprefix = try { function () return os.iorunv("brew", {"--prefix"}):trim() end }
+            if brewprefix then
+                target:add("rpathdirs", path.join(brewprefix, "lib"), {public = true})
             end
-            local library
-            for _, dir in ipairs(searchdirs) do
-                local candidate = path.join(dir, "libMoltenVK.dylib")
-                if os.isfile(candidate) then
-                    library = path.absolute(candidate)
-                    break
-                end
-            end
-            if not library then
-                raise("libMoltenVK.dylib not found in the moltenvk package (searched: %s)", table.concat(searchdirs, ", "))
-            end
-
-            local icddir = path.join(target:targetdir(), "vulkan", "icd.d")
-            os.mkdir(icddir)
-            json.savefile(path.join(icddir, "MoltenVK_icd.json"), {
-                file_format_version = "1.0.0",
-                ICD = {library_path = library, api_version = "1.4.0", is_portability_driver = true}
-            })
         end)
     end
+    add_files("**.cpp")
+    add_includedirs(".", {public = true})
 
     add_rules("glsl.spirv")
     add_files("shaders/*.vert", "shaders/*.frag", "shaders/*.comp", "shaders/*.geom", "shaders/*.tesc", "shaders/*.tese")

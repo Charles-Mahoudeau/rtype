@@ -17,10 +17,12 @@
 
 int main() {
     try {
+        rtype::platform::Window::initVulkanLoader(rtype::vulkan::core::Instance::getLoaderEntryPoint());
         rtype::platform::Window window(1280, 720, "R-Type");
         rtype::engine::input::Input input;
         const rtype::vulkan::core::Instance instance("R-Type", "R-Type Engine", VK_API_VERSION_1_3,
-                                                     rtype::platform::Window::getRequiredVulkanExtensions(), true);
+                                                     rtype::platform::Window::getRequiredVulkanExtensions(),
+                                                     {"VK_LAYER_KHRONOS_validation"});
 
         while (window.isOpen()) {
             for (const auto& event : window.pollEvents()) {
