@@ -7,39 +7,48 @@
 
 #include <exception>
 #include <iostream>
-#include <memory>
+#include <string>
 #include <variant>
+#include <vector>
 
+#include "engine/backend/BackendRegistry.hpp"
+#include "engine/config/Settings.hpp"
 #include "engine/event/Event.hpp"
-#include "engine/graphics/IRenderer.hpp"
 #include "engine/input/Input.hpp"
 #include "engine/input/Key.hpp"
-#include "engine/platform/IPlatform.hpp"
-#include "platform/GlfwPlatform.hpp"
-#include "vulkan/VulkanRenderer.hpp"
+#include "platform/PlatformRegistration.hpp"
+#include "vulkan/RendererRegistration.hpp"
 
 int main() {
     try {
-        const std::unique_ptr<rtype::engine::platform::IPlatform> platform =
-            std::make_unique<rtype::platform::GlfwPlatform>();
-        const std::unique_ptr<rtype::engine::graphics::IRenderer> renderer =
-            std::make_unique<rtype::vulkan::VulkanRenderer>(
-                rtype::vulkan::VulkanRenderer::Config{.layers = {"VK_LAYER_KHRONOS_validation"}, .debugging = true});
+        rtype::engine::backend::BackendRegistry registry;
+        rtype::platform::registerPlatforms(registry);
+        rtype::vulkan::registerRenderers(registry);
 
-        platform->initLoader(renderer->getLoaderEntryPoint());
-        platform->init({.size = {800, 600}, .title = "R-Type", .resizable = true, .fullscreen = false});
-        renderer->init(*platform);
+        rtype::engine::config::Settings config;
+
+        config.set("platform", "glfw");
+        config.set("renderer", "vulkan");
+
+        config.set("window.title", "R-Type");
+        config.set("window.size", std::vector<double>{800, 600});
+        config.set("vulkan.layers", std::vector<std::string>{"VK_LAYER_KHRONOS_validation"});
+        config.set("vulkan.debugging", true);
+
+        const rtype::engine::backend::Backend backend = registry.createBackend(config);
+        auto& platform = *backend.platform;
+        auto& renderer = *backend.renderer;
 
         rtype::engine::input::Input input;
-        while (platform->isOpen()) {
-            for (const auto& event : platform->pollEvents()) {
+        while (platform.isOpen()) {
+            for (const auto& event : platform.pollEvents()) {
                 input.handleEvent(event);
                 if (const auto* resized = std::get_if<rtype::engine::event::Resized>(&event); resized != nullptr) {
-                    renderer->resize({resized->width, resized->height});
+                    renderer.resize({resized->width, resized->height});
                 }
                 if (const auto* key = std::get_if<rtype::engine::event::KeyPressed>(&event);
                     key != nullptr && key->key == rtype::engine::input::Key::kEscape) {
-                    platform->close();
+                    platform.close();
                 }
             }
             input.update();

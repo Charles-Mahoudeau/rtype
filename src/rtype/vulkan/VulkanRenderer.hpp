@@ -46,8 +46,8 @@ class RTYPE_VULKAN_API VulkanRenderer final : public engine::graphics::IRenderer
     struct Config {
         std::string engineName = "R-Type Engine";       ///< Reported to the driver, with the window title as app name.
         std::uint32_t apiVersion = VK_API_VERSION_1_3;  ///< Highest Vulkan version the renderer uses.
-        std::vector<const char*> layers;
-        std::vector<const char*> extraExtensions;  ///< Enabled on top of the ones the window needs.
+        std::vector<std::string> layers;           ///< Instance layers to enable, e.g. VK_LAYER_KHRONOS_validation.
+        std::vector<std::string> extraExtensions;  ///< Enabled on top of the ones the window needs.
         bool debugging = false;                    ///< Whether to create the DebugMessenger
         vk::DebugUtilsMessageSeverityFlagBitsEXT minSeverity =
             vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning;  ///< Minimum severity of messages the DebugMessenger

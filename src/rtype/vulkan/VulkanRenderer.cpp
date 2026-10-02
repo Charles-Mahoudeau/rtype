@@ -43,13 +43,21 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
         throw std::runtime_error("VulkanRenderer::init() called twice");
     }
 
+    // The Config owns the names; the instance only needs their c_str() while it is created.
     std::vector<const char*> extensions = platform.getRequiredExtensions();
-    extensions.insert(extensions.end(), _config.extraExtensions.begin(), _config.extraExtensions.end());
+    for (const std::string& extension : _config.extraExtensions) {
+        extensions.push_back(extension.c_str());
+    }
     if (_config.debugging) {
         extensions.push_back(core::DebugMessenger::kExtensionName);
     }
+    std::vector<const char*> layers;
+    layers.reserve(_config.layers.size());
+    for (const std::string& layer : _config.layers) {
+        layers.push_back(layer.c_str());
+    }
     _instance.emplace(platform.getTitle(), _config.engineName, _config.apiVersion, std::move(extensions),
-                      _config.layers);
+                      std::move(layers));
     if (_config.debugging) {
         _debugMessenger.emplace(*_instance, _config.minSeverity);
     }
