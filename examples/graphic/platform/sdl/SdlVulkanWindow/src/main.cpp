@@ -8,55 +8,67 @@
 #include <exception>
 #include <iostream>
 #include <memory>
-#include <utility>
+#include <string>
 #include <variant>
+#include <vector>
 
 #include "SdlPlatform.hpp"
+#include "engine/backend/BackendRegistry.hpp"
+#include "engine/config/Settings.hpp"
 #include "engine/event/Event.hpp"
-#include "engine/graphics/IRenderer.hpp"
 #include "engine/input/Key.hpp"
 #include "engine/platform/IPlatform.hpp"
-#include "vulkan/VulkanRenderer.hpp"
+#include "vulkan/RendererRegistration.hpp"
 
 using namespace rtype::engine::event;
 using example::SdlPlatform;
-using rtype::engine::graphics::IRenderer;
+using rtype::engine::backend::Backend;
+using rtype::engine::backend::BackendRegistry;
+using rtype::engine::config::Settings;
 using rtype::engine::input::Key;
 using rtype::engine::platform::IPlatform;
-using rtype::vulkan::VulkanRenderer;
 
-/// @warning macOS: brew install sdl3 molten-vk vulkan-loader (+ vulkan-validationlayers in debug builds)
+/// @warning macOS: brew install molten-vk vulkan-loader (+ vulkan-validationlayers in debug builds)
 
 int main() {
     try {
-        /// @note The same program as examples/graphic/render/vulkan/VulkanInstance, with SdlPlatform (written in this
-        /// example) instead of GlfwPlatform. The engine's VulkanRenderer is used as is: it only talks to IPlatform, so
-        /// it never knows SDL is behind it.
-        VulkanRenderer::Config config;
-#ifndef NDEBUG
-        config.layers.push_back("VK_LAYER_KHRONOS_validation");
-        config.debugging = true;
-#endif
-        const std::unique_ptr<IPlatform> platform = std::make_unique<SdlPlatform>();
-        const std::unique_ptr<IRenderer> renderer = std::make_unique<VulkanRenderer>(std::move(config));
+        /// @note Your own platform next to the engine's renderer: the engine registers "vulkan", this example
+        /// registers "sdl" (SdlPlatform, written here). The factory receives the "sdl" section of the config; this
+        /// platform has no setting, so it only rejects unknown keys.
+        BackendRegistry registry;
+        rtype::vulkan::registerRenderers(registry);
+        registry.addPlatform("sdl", [](const Settings& settings) -> std::unique_ptr<IPlatform> {
+            settings.checkKeys({}, "sdl");
+            return std::make_unique<SdlPlatform>();
+        });
 
-        /// @note The engine's start-up sequence, unchanged. On the SDL side:
+        /// @note Same config as examples/graphic/render/vulkan/VulkanInstance, with "sdl" instead of "glfw". The
+        /// VulkanRenderer never knows SDL is behind it: it only calls the optional functions of IPlatform.
+        Settings config;
+        config.set("platform", "sdl");
+        config.set("renderer", "vulkan");
+        config.set("window.title", "SDL + Vulkan Example");
+        config.set("window.size", std::vector<double>{800, 600});
+#ifndef NDEBUG
+        config.set("vulkan.layers", std::vector<std::string>{"VK_LAYER_KHRONOS_validation"});
+        config.set("vulkan.debugging", true);
+#endif
+
+        /// @note On the SDL side, createBackend() calls:
         /// 1. initLoader(): SdlPlatform finds the file of the renderer's loader, SDL_Vulkan_LoadLibrary() loads it;
         /// 2. init(): SDL_CreateWindow() with SDL_WINDOW_VULKAN;
-        /// 3. the renderer calls getRequiredExtensions() (SDL_Vulkan_GetInstanceExtensions) and createSurface()
-        ///    (SDL_Vulkan_CreateSurface).
-        platform->initLoader(renderer->getLoaderEntryPoint());
-        platform->init({.size = {800, 600}, .title = "SDL + Vulkan Example"});
-        renderer->init(*platform);
+        /// 3. getRequiredExtensions() (SDL_Vulkan_GetInstanceExtensions) and createSurface()
+        ///    (SDL_Vulkan_CreateSurface), asked by the renderer's init().
+        const Backend backend = registry.createBackend(config);
         std::cout << "SDL window with a Vulkan surface created.\n" << std::flush;
 
-        while (platform->isOpen()) {
-            for (const auto& event : platform->pollEvents()) {
+        while (backend.platform->isOpen()) {
+            for (const auto& event : backend.platform->pollEvents()) {
                 if (const auto* resized = std::get_if<Resized>(&event); resized != nullptr) {
-                    renderer->resize({resized->width, resized->height});
+                    backend.renderer->resize({resized->width, resized->height});
                 }
                 if (const auto* key = std::get_if<KeyPressed>(&event); key != nullptr && key->key == Key::kEscape) {
-                    platform->close();
+                    backend.platform->close();
                 }
             }
         }
