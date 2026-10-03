@@ -10,19 +10,44 @@ are added.
 
 ## Project structure
 
-- `src/rtype/engine/` — `engine` target, the executable (depends on `luau` and `vulkan`).
-- `src/rtype/luau/` — `luau` target, shared library for Luau scripting.
+- `src/rtype/engine/` — two targets defined in the same `xmake.lua`:
+  - `engine-core`: static library (`rtype-engine-core`), the core of the engine: ECS, events
+    (`event/`, `rtype::engine::event`) and input (`input/`, `rtype::engine::input`). It depends on
+    no window, graphics or scripting library (only glm).
+  - `engine`: the executable, built from `main.cpp` only. It wires `engine-core` with `platform`,
+    `luau` and `vulkan`.
+- `src/rtype/platform/` — `platform` target, static library (`rtype-platform`): the GLFW window
+  (`rtype::platform`, exceptions in `platform/exceptions/`). The only module that includes GLFW:
+  it translates every GLFW callback and the gamepad state into `rtype::engine::Event`s.
+- `src/rtype/luau/` — `luau` target, shared library (`rtype-luau`) for Luau scripting.
 - `src/rtype/vulkan/` — `vulkan` target, shared library (`rtype-vulkan`) for rendering. Namespace
-  `rtype::vulkan`; the GLFW window wrapper lives in `platform/` (`rtype::vulkan::platform`, with
-  its exceptions in `platform/exceptions/`). Shaders go in `shaders/` and are compiled to SPIR-V
-  by the `glsl.spirv` rule defined in its `xmake.lua`.
+  `rtype::vulkan`. Shaders go in `shaders/` and are compiled to SPIR-V by the `glsl.spirv` rule
+  defined in its `xmake.lua`.
 - `examples/<category>/<Name>/` — standalone examples, each with its own `xmake.lua`. They are
   only built when enabled (see Commands).
+- `docs/` — design documentation (e.g. `docs/Input.md` for the event and input pipeline).
 - `.github/` — CI workflow and issue templates.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
 
-Each target has its own `xmake.lua`, included from the root `xmake.lua`. Add new sources under the
-matching target; `vulkan` globs `**.cpp`, `engine` and `luau` glob `*.cpp` in their own folder.
+Each module has its own `xmake.lua`, included from the root `xmake.lua`. Add new sources under the
+matching module: `engine-core` globs `**.cpp` in `src/rtype/engine/` except `main.cpp`, while
+`platform`, `luau` and `vulkan` glob `**.cpp` in their own folder.
+
+### Dependency rules
+
+Dependencies always point towards `engine-core`, never away from it:
+
+```
+engine-core  ←  platform, vulkan, luau  ←  engine (executable)
+```
+
+- `engine-core` depends on nothing but glm. Never add a dependency on `platform`, `vulkan` or
+  `luau` to it: they depend on it, so it would create a cycle.
+- Modules exchange engine types only (`rtype::engine::Event`, `rtype::engine::input::Key`...).
+  GLFW never leaves `platform/`: no header outside it includes `<GLFW/glfw3.h>` or uses a
+  `GLFW_*` code. `Window::getNativeHandle()` is reserved for integrations that need the raw
+  handle (Vulkan surface, ImGui backend).
+- Only the `engine` executable (and examples) link everything together.
 
 ## Commands
 
@@ -35,7 +60,7 @@ The project uses `xmake` with the `clang` toolchain and C++23.
 - Enable examples, then rebuild: `xmake f --AllExamples=y` enables every discovered example. For
   now `--AllVulkanExamples=y` and `--AllLuaExamples=y` behave the same way (the root `xmake.lua`
   does not filter by category yet), so each also enables every discovered example. To enable a
-  single example, use its folder name (e.g. `--BasicWindow=y`).
+  single example, use its folder name (e.g. `--BasicGLFWWindow=y`).
 - Generate `compile_commands.json` (needed by clang-tidy): `xmake project -k compile_commands`
 - Format: `clang-format -i <files>` (style in `.clang-format`)
 - Lint: `clang-tidy -p . <files>` (checks in `.clang-tidy`)
@@ -53,7 +78,7 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
 - Google-based style, 4-space indent, 120-column limit, newline at end of file.
 - clang-tidy checks: `bugprone`, `cppcoreguidelines`, `clang-analyzer`, `modernize`,
   `performance`, `readability`, `misc`.
-- Match the existing conventions in `src/rtype/vulkan/platform/`:
+- Match the existing conventions in `src/rtype/engine/` and `src/rtype/platform/`:
   - Files named in PascalCase after their class (`Window.hpp`, `Window.cpp`).
   - Every source and header file starts with the Epitech header, with the current year, the
     project name (`rtype`) and the file name without extension as the description:
@@ -69,8 +94,12 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
 
   - Headers use `#pragma once` as their include guard, placed right after the Epitech header —
     never `#ifndef`/`#define`/`#endif` guards.
-  - Namespaces mirror the directory path under `src/rtype/` (`rtype::vulkan::platform`).
+  - Namespaces mirror the directory path under `src/rtype/` (`rtype::engine::input`,
+    `rtype::platform`).
   - Private members prefixed with `_` (`_window`), documented with `///<` comments.
+  - Constants (`constexpr` / `static constexpr` variables) and enumerators are named `kName`
+    (`kGamepadAxisCount`, `Key::kEscape`, `GamepadButton::kSouth`). Enum types themselves keep
+    PascalCase (`GamepadButton`). Local `const` variables keep camelCase.
   - Doxygen comments use the `///` style (not `/** ... */`), with `@brief` on public classes and
     functions.
   - `[[nodiscard]]` on getters, `noexcept` where applicable, copy/move explicitly deleted for
@@ -98,10 +127,12 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
   compile with GCC. Avoid compiler-specific extensions and C++23 features that one of the MUST
   compilers doesn't support yet; when a compiler-specific workaround is unavoidable, guard it
   with the appropriate preprocessor check and keep the other compilers working.
-- New dependencies go through `add_requires` in the relevant target's `xmake.lua`.
+- New dependencies go through `add_requires` in the relevant target's `xmake.lua`. A package used
+  by several modules (glm, glfw) is declared once in the root `xmake.lua`.
 - C++ practices:
-  - Never, under any circumstances, use `using namespace` — in headers, sources, examples or
-    tests. Always qualify names explicitly.
+  - Never use `using namespace` in `src/` (headers or sources) or in tests: always qualify names
+    explicitly. The only exception is `examples/`, where `using namespace` is allowed in `.cpp`
+    files to keep examples short and readable.
   - Manage resources with RAII and smart pointers (`std::unique_ptr` by default,
     `std::shared_ptr` only for genuinely shared ownership). No raw owning pointers, and no
     `new`/`delete` or `malloc`/`free` outside code that wraps a C API.
