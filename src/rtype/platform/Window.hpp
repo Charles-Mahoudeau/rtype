@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include <vulkan/vulkan_core.h>
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -72,6 +74,18 @@ class Window {
 
     /// @brief Hides and locks the cursor, useful for an FPS camera. Mouse deltas keep flowing.
     void setCursorLocked(bool locked);
+
+    /// @brief Makes GLFW use the given Vulkan loader instead of loading libvulkan by itself.
+    /// @details Without it, GLFW opens its own loader with dlopen(), which may find another one than the
+    /// renderer's (or none). Pass the loader entry point the renderer is linked against.
+    /// @note Call it before the first Window is created: it only takes effect when GLFW is initialized.
+    static void initVulkanLoader(PFN_vkGetInstanceProcAddr getInstanceProcAddr) noexcept;
+
+    /// @return The Vulkan instance extensions required to create a surface for this window.
+    /// @note Call it once a Window exists: GLFW must be initialized. The strings are owned by GLFW and stay
+    /// valid while the window exists.
+    /// @throws GLFWWindowException If Vulkan is not supported on this system, or GLFW is not initialized.
+    [[nodiscard]] static std::vector<const char*> getRequiredVulkanExtensions();
 
     /// @return The underlying GLFW window.
     /// @note Only for integrations that require it (Vulkan surface, ImGui backend).

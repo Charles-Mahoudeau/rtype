@@ -6,6 +6,7 @@ set_toolchains("clang")
 -- Shared by several modules, so declared once here.
 add_requires("glm 1.0.x", {alias = "glm"})
 add_requires("glfw 3.4", {alias = "glfw"})
+add_requires("vulkan-headers 1.4.x", {alias = "vulkan-headers"})
 
 includes("src/rtype/engine")
 includes("src/rtype/platform")
