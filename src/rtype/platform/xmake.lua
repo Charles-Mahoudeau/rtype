@@ -4,6 +4,8 @@ target("platform")
     set_basename("rtype-platform")
     add_deps("engine-core")
     add_packages("glfw")
+    -- Headers only, private: GlfwPlatform.cpp calls the Vulkan functions of GLFW (loader, surface).
+    add_packages("vulkan-headers")
     add_files("**.cpp")
     add_headerfiles("**.hpp")
     -- Headers are included as "platform/...".

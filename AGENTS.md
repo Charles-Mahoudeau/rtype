@@ -23,8 +23,9 @@ are added.
 - `src/rtype/vulkan/` — `vulkan` target, shared library (`rtype-vulkan`) for rendering. Namespace
   `rtype::vulkan`. Shaders go in `shaders/` and are compiled to SPIR-V by the `glsl.spirv` rule
   defined in its `xmake.lua`.
-- `examples/<category>/<Name>/` — standalone examples, each with its own `xmake.lua`. They are
-  only built when enabled (see Commands).
+- `examples/<category>/.../<Name>/` — standalone examples, each with its own `xmake.lua`, grouped in
+  folders of any depth (e.g. `examples/graphic/render/vulkan/VulkanInstance/`). Every `xmake.lua` under
+  `examples/` is an example named after its folder. They are only built when enabled (see Commands).
 - `docs/` — design documentation (e.g. `docs/Input.md` for the event and input pipeline).
 - `.github/` — CI workflow and issue templates.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).

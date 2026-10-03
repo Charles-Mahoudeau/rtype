@@ -14,7 +14,7 @@
 #include "engine/input/Input.hpp"
 #include "engine/input/InputAction.hpp"
 #include "engine/input/Key.hpp"
-#include "platform/Window.hpp"
+#include "platform/GlfwPlatform.hpp"
 
 using rtype::engine::input::GamepadAxis;
 using rtype::engine::input::GamepadButton;
@@ -27,7 +27,8 @@ using rtype::engine::input::Control;
 int main() {
     try {
         /// @note Create a window with the specified width, height, and title
-        rtype::platform::Window window(800, 600, "Vulkan Window Example");
+        rtype::platform::GlfwPlatform window;
+        window.init({.size = {800, 600}, .title = "GLFW Window Example"});
         /// @note Input does not know the window: it only reads the events the window produces.
         rtype::engine::input::Input input;
 
