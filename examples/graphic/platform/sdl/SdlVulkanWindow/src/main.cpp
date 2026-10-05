@@ -18,7 +18,7 @@
 #include "engine/event/Event.hpp"
 #include "engine/input/Key.hpp"
 #include "engine/platform/IPlatform.hpp"
-#include "vulkan/RendererRegistration.hpp"
+#include "render/vulkan/Registration.hpp"
 
 using namespace rtype::engine::event;
 using example::SdlPlatform;
@@ -36,7 +36,7 @@ int main() {
         /// registers "sdl" (SdlPlatform, written here). The factory receives the "sdl" section of the config; this
         /// platform has no setting, so it only rejects unknown keys.
         BackendRegistry registry;
-        rtype::vulkan::registerRenderers(registry);
+        rtype::render::vulkan::registerRenderer(registry);
         registry.addPlatform("sdl", [](const Settings& settings) -> std::unique_ptr<IPlatform> {
             settings.checkKeys({}, "sdl");
             return std::make_unique<SdlPlatform>();

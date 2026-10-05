@@ -2,10 +2,10 @@
 ** EPITECH PROJECT, 2026
 ** rtype
 ** File description:
-** RendererRegistration
+** Registration
 */
 
-#include "RendererRegistration.hpp"
+#include "Registration.hpp"
 
 #include <memory>
 #include <string>
@@ -17,7 +17,7 @@
 #include "engine/exceptions/ConfigExceptions.hpp"
 #include "engine/graphics/IRenderer.hpp"
 
-namespace rtype::vulkan {
+namespace rtype::render::vulkan {
 
 namespace {
 
@@ -59,11 +59,11 @@ VulkanRenderer::Config toConfig(const engine::config::Settings& settings) {
 
 }  // namespace
 
-void registerRenderers(engine::backend::BackendRegistry& registry) {
+void registerRenderer(engine::backend::BackendRegistry& registry) {
     registry.addRenderer("vulkan",
                          [](const engine::config::Settings& settings) -> std::unique_ptr<engine::graphics::IRenderer> {
                              return std::make_unique<VulkanRenderer>(toConfig(settings));
                          });
 }
 
-}  // namespace rtype::vulkan
+}  // namespace rtype::render::vulkan

@@ -28,7 +28,7 @@
 #include "engine/platform/IPlatform.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
 
-namespace rtype::vulkan {
+namespace rtype::render::vulkan {
 
 VulkanRenderer::VulkanRenderer(Config config) : _config(std::move(config)) {}
 
@@ -101,4 +101,4 @@ void VulkanRenderer::notImplemented(std::string_view function) {
                                                           " is not implemented yet");
 }
 
-}  // namespace rtype::vulkan
+}  // namespace rtype::render::vulkan

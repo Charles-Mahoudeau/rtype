@@ -16,7 +16,7 @@
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
-namespace rtype::vulkan::core {
+namespace rtype::render::vulkan::core {
 Instance::Instance(const std::string_view& appName, const std::string_view& engineName, uint32_t apiVersion,
                    std::vector<const char*> requiredExtensions, std::vector<const char*> layers)
     : _context(getLoaderEntryPoint()) {
@@ -89,4 +89,4 @@ vk::raii::Instance Instance::createInstance(const vk::ApplicationInfo& appInfo, 
     return {_context, createInfo};
 }
 
-}  // namespace rtype::vulkan::core
+}  // namespace rtype::render::vulkan::core

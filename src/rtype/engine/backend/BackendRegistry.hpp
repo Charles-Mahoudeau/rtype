@@ -29,8 +29,8 @@ struct Backend {
 
 /// @brief Platforms and renderers by name, so the configuration picks them instead of the code.
 ///
-/// @details Each module registers its implementations (rtype::platform::registerPlatforms(),
-/// rtype::vulkan::registerRenderers()...), then createBackend() starts the pair a config names:
+/// @details Each module registers its implementations (rtype::platform::glfw::registerPlatform(),
+/// rtype::render::vulkan::registerRenderer()...), then createBackend() starts the pair a config names:
 /// @code{.lua}
 /// return {
 ///     platform = "glfw",

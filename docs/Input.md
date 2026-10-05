@@ -113,11 +113,11 @@ flowchart LR
 | Module | Role | Depends on |
 | --- | --- | --- |
 | `engine/` (`engine-core`) | `Key`, `Event`, `Control`, `InputAction`, `Input`, `ButtonStates`. Pure logic, testable without a window. | glm only |
-| `platform/` | `GlfwPlatform` (implements `IPlatform`): GLFW callbacks and gamepad polling, translated into engine events. | `engine-core`, GLFW |
-| `vulkan/`, `luau/` | Rendering and scripting. They read input through the engine, never through GLFW. | `engine-core` |
+| `platform/glfw/` | `GlfwPlatform` (implements `IPlatform`): GLFW callbacks and gamepad polling, translated into engine events. | `engine-core`, GLFW |
+| `render/vulkan/`, `luau/` | Rendering and scripting. They read input through the engine, never through GLFW. | `engine-core` |
 | `engine/main.cpp` (`engine`) | The executable: creates the window and feeds its events to `Input`. | everything above |
 
-**Rule:** GLFW never leaves `platform/`. No public header outside it includes `<GLFW/glfw3.h>` or uses a `GLFW_*` code. Renderers attach to the window through the interop interfaces the platform implements (`IVulkanSurfaceSource`, see [`Backend.md`](Backend.md)), never through GLFW itself.
+**Rule:** GLFW never leaves `platform/glfw/`. No public header outside it includes `<GLFW/glfw3.h>` or uses a `GLFW_*` code. Renderers attach to the window through the interop interfaces the platform implements (`IVulkanSurfaceSource`, see [`Backend.md`](Backend.md)), never through GLFW itself.
 
 ### Files
 
@@ -129,10 +129,10 @@ flowchart LR
 | [`engine/input/InputAction.hpp`](../src/rtype/engine/input/InputAction.hpp) | A named action and its bindings |
 | [`engine/input/Input.hpp`](../src/rtype/engine/input/Input.hpp) | Input state and the action registry |
 | [`engine/input/ButtonStates.hpp`](../src/rtype/engine/input/ButtonStates.hpp) | Held / tapped / snapshot state of a family of buttons |
-| [`platform/GlfwPlatform.hpp`](../src/rtype/platform/GlfwPlatform.hpp) | The window, source of every event |
-| [`platform/GlfwPlatformCallbacks.cpp`](../src/rtype/platform/GlfwPlatformCallbacks.cpp) | GLFW callbacks → events |
-| [`platform/GlfwPlatformGamepad.cpp`](../src/rtype/platform/GlfwPlatformGamepad.cpp) | Gamepad polling → events |
-| [`platform/GlfwMapping.cpp`](../src/rtype/platform/GlfwMapping.cpp) | GLFW codes ↔ engine types, the only place that knows both |
+| [`platform/glfw/GlfwPlatform.hpp`](../src/rtype/platform/glfw/GlfwPlatform.hpp) | The window, source of every event |
+| [`platform/glfw/GlfwPlatformCallbacks.cpp`](../src/rtype/platform/glfw/GlfwPlatformCallbacks.cpp) | GLFW callbacks → events |
+| [`platform/glfw/GlfwPlatformGamepad.cpp`](../src/rtype/platform/glfw/GlfwPlatformGamepad.cpp) | Gamepad polling → events |
+| [`platform/glfw/GlfwMapping.cpp`](../src/rtype/platform/glfw/GlfwMapping.cpp) | GLFW codes ↔ engine types, the only place that knows both |
 
 ## Usage
 
@@ -295,7 +295,7 @@ GLFW has no gamepad callbacks, only `glfwGetGamepadState()`. `GlfwPlatform::poll
 ### Adding a key
 
 1. Add the value to `Key` in [`Key.hpp`](../src/rtype/engine/input/Key.hpp), before `kCount`.
-2. Add its GLFW pair to the `kKeys` table in [`GlfwMapping.cpp`](../src/rtype/platform/GlfwMapping.cpp).
+2. Add its GLFW pair to the `kKeys` table in [`GlfwMapping.cpp`](../src/rtype/platform/glfw/GlfwMapping.cpp).
 
 A `static_assert` fails the build if a `Key` has no GLFW mapping, so step 2 cannot be forgotten.
 

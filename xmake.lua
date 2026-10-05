@@ -10,14 +10,14 @@ add_requires("vulkan-headers 1.4.x", {alias = "vulkan-headers"})
 
 includes("src/rtype/engine")
 includes("src/rtype/interop")
-includes("src/rtype/platform")
+includes("src/rtype/platform/glfw")
 includes("src/rtype/luau")
-includes("src/rtype/vulkan")
+includes("src/rtype/render/vulkan")
 
 target("rtype")
     set_kind("phony")
     set_default(true)
-    add_deps("engine", "platform", "luau", "vulkan")
+    add_deps("engine", "platform-glfw", "luau", "render-vulkan")
 
 
 local ALL_EXAMPLES_FLAG = "AllExamples"

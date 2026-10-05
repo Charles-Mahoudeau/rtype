@@ -9,10 +9,10 @@
 
 #include <vulkan/vulkan_raii.hpp>
 
-#include "Export.hpp"
 #include "Instance.hpp"
+#include "render/vulkan/Export.hpp"
 
-namespace rtype::vulkan::core {
+namespace rtype::render::vulkan::core {
 
 /// @brief Prints the messages of the validation layers (and of the loader) to the standard error output.
 ///
@@ -24,7 +24,7 @@ namespace rtype::vulkan::core {
 /// declare the DebugMessenger after its Instance.
 /// @note Messages emitted while the instance itself is created or destroyed are not caught: the messenger only
 /// exists between the two.
-class RTYPE_VULKAN_API DebugMessenger {
+class RTYPE_RENDER_VULKAN_API DebugMessenger {
   public:
     /// The instance extension a DebugMessenger needs (VK_EXT_debug_utils).
     static constexpr const char* kExtensionName = vk::EXTDebugUtilsExtensionName;
@@ -53,4 +53,4 @@ class RTYPE_VULKAN_API DebugMessenger {
 
     vk::raii::DebugUtilsMessengerEXT _messenger;  ///< Registration of onMessage, removed on destruction.
 };
-}  // namespace rtype::vulkan::core
+}  // namespace rtype::render::vulkan::core

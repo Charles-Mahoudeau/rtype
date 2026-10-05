@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace rtype::platform::exceptions {
+namespace rtype::platform::glfw::exceptions {
 /// @brief Exception thrown when a GLFW window operation fails.
 ///
 /// This exception is thrown when an error occurs during the creation or management
@@ -30,4 +30,4 @@ class GLFWWindowException : public std::runtime_error {
     /// @return The message, followed by the pending GLFW error description or code if any.
     static std::string withGlfwError(const std::string& message);
 };
-}  // namespace rtype::platform::exceptions
+}  // namespace rtype::platform::glfw::exceptions

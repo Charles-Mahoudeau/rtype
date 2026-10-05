@@ -13,7 +13,7 @@
 
 #include "Instance.hpp"
 
-namespace rtype::vulkan::core {
+namespace rtype::render::vulkan::core {
 
 DebugMessenger::DebugMessenger(const Instance& instance, vk::DebugUtilsMessageSeverityFlagBitsEXT minSeverity)
     : _messenger(instance.getInstance(), vk::DebugUtilsMessengerCreateInfoEXT{}
@@ -47,4 +47,4 @@ VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugMessenger::onMessage(vk::DebugUtilsMessage
     return vk::False;
 }
 
-}  // namespace rtype::vulkan::core
+}  // namespace rtype::render::vulkan::core

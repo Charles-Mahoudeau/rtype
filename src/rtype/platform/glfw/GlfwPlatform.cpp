@@ -22,7 +22,7 @@
 #include "engine/platform/WindowConfig.hpp"
 #include "exceptions/WindowExceptions.hpp"
 
-namespace rtype::platform {
+namespace rtype::platform::glfw {
 
 GlfwPlatform::~GlfwPlatform() {
     if (_window != nullptr) {
@@ -134,4 +134,4 @@ VkSurfaceKHR GlfwPlatform::createSurface(VkInstance instance) {
     return surface;
 }
 
-}  // namespace rtype::platform
+}  // namespace rtype::platform::glfw

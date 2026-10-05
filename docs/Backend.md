@@ -29,14 +29,14 @@ flowchart BT
         IV["IVulkanSurfaceSource<br/>(interop-vulkan)"]
     end
 
-    subgraph PLATFORM["platform/"]
+    subgraph PLATFORM["platform/glfw/ (platform-glfw)"]
         GP["GlfwPlatform"]
-        RP["registerPlatforms(registry)<br/>→ &quot;glfw&quot;"]
+        RP["registerPlatform(registry)<br/>→ &quot;glfw&quot;"]
     end
 
-    subgraph VULKAN["vulkan/"]
+    subgraph VULKAN["render/vulkan/ (render-vulkan)"]
         VR["VulkanRenderer"]
-        RR["registerRenderers(registry)<br/>→ &quot;vulkan&quot;"]
+        RR["registerRenderer(registry)<br/>→ &quot;vulkan&quot;"]
     end
 
     subgraph OWN["your own code (e.g. examples)"]
@@ -66,16 +66,16 @@ code that registers the backends (`main.cpp`, an example) names the modules.
 | [`engine/config/Settings.hpp`](../src/rtype/engine/config/Settings.hpp) | The configuration |
 | [`engine/backend/BackendRegistry.hpp`](../src/rtype/engine/backend/BackendRegistry.hpp) | Backends by name, and the start-up sequence |
 | [`interop/vulkan/IVulkanSurfaceSource.hpp`](../src/rtype/interop/vulkan/IVulkanSurfaceSource.hpp) | What a Vulkan renderer needs from a window |
-| [`platform/PlatformRegistration.hpp`](../src/rtype/platform/PlatformRegistration.hpp) | Registers `glfw` |
-| [`vulkan/RendererRegistration.hpp`](../src/rtype/vulkan/RendererRegistration.hpp) | Registers `vulkan` |
+| [`platform/glfw/Registration.hpp`](../src/rtype/platform/glfw/Registration.hpp) | Registers `glfw` |
+| [`render/vulkan/Registration.hpp`](../src/rtype/render/vulkan/Registration.hpp) | Registers `vulkan` |
 
 ## Usage
 
 ```cpp
 // 1. Every module registers its backends.
 rtype::engine::backend::BackendRegistry registry;
-rtype::platform::registerPlatforms(registry);   // "glfw"
-rtype::vulkan::registerRenderers(registry);     // "vulkan"
+rtype::platform::glfw::registerPlatform(registry);   // "glfw"
+rtype::render::vulkan::registerRenderer(registry);  // "vulkan"
 
 // 2. The configuration picks the pair and sets it up.
 rtype::engine::config::Settings config;
@@ -297,9 +297,11 @@ A backend can live in an engine module or in your own code, as the SDL and SFML 
    ```
 
    A backend with settings reads them in its factory, into its own typed configuration
-   (see [`RendererRegistration.cpp`](../src/rtype/vulkan/RendererRegistration.cpp)).
+   (see [`render/vulkan/Registration.cpp`](../src/rtype/render/vulkan/Registration.cpp)).
 3. **Choose it** in the configuration: `config.set("platform", "sdl")`.
 
-In an engine module, put the registration in a `registerPlatforms()` / `registerRenderers()` function, exported with
-the module's `RTYPE_<LIB>_API` macro if it is a shared library. Self-registration through global variables does not
-work: the linker drops the unreferenced objects of static libraries.
+In an engine module, a backend gets its own folder and target (`platform/<library>/` → `platform-<library>`,
+`render/<api>/` → `render-<api>`), and its registration goes in a `Registration.hpp` with a `registerPlatform()` /
+`registerRenderer()` function, exported with the target's `RTYPE_<LIB>_API` macro if it is a shared library.
+Self-registration through global variables does not work: the linker drops the unreferenced objects of static
+libraries.

@@ -29,7 +29,7 @@
 #include "engine/platform/IPlatform.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
 
-namespace rtype::vulkan {
+namespace rtype::render::vulkan {
 
 /// @brief The Vulkan implementation of IRenderer.
 ///
@@ -37,7 +37,7 @@ namespace rtype::vulkan {
 /// the window. Every other function throws UnsupportedFeatureException until it is implemented.
 ///
 /// Needs a platform that implements interop::vulkan::IVulkanSurfaceSource (GlfwPlatform does).
-class RTYPE_VULKAN_API VulkanRenderer final : public engine::graphics::IRenderer {
+class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IRenderer {
   public:
     /// @brief Settings of the Vulkan backend, given at construction. Set only what differs from the defaults:
     /// @code
@@ -101,4 +101,4 @@ class RTYPE_VULKAN_API VulkanRenderer final : public engine::graphics::IRenderer
     std::optional<core::DebugMessenger> _debugMessenger;  ///< Created by init() when validation is enabled.
     vk::raii::SurfaceKHR _surface = nullptr;              ///< The window's surface, created by init().
 };
-}  // namespace rtype::vulkan
+}  // namespace rtype::render::vulkan

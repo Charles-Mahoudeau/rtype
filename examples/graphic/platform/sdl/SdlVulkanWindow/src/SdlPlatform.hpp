@@ -24,7 +24,7 @@ namespace example {
 
 /// @brief An IPlatform written with SDL3, to show how to plug another windowing library into the engine.
 ///
-/// @details Same role as rtype::platform::GlfwPlatform: a window, and every native event translated into an
+/// @details Same role as rtype::platform::glfw::GlfwPlatform: a window, and every native event translated into an
 /// engine::Event. It also implements IVulkanSurfaceSource, so the engine's VulkanRenderer can use it, through
 /// SDL_Vulkan_*:
 /// - initLoader(): SDL_Vulkan_LoadLibrary() on the file of the renderer's loader, so SDL and the renderer share it;

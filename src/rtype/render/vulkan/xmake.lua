@@ -35,9 +35,10 @@ rule("glsl.spirv")
     end)
 rule_end()
 
-target("vulkan")
+-- Vulkan renderer: IRenderer with Vulkan.
+target("render-vulkan")
     set_kind("shared")
-    set_basename("rtype-vulkan")
+    set_basename("rtype-render-vulkan")
     -- engine-core for IRenderer, interop-vulkan for IVulkanSurfaceSource (implemented by the platforms).
     add_deps("engine-core", "interop-vulkan")
     add_packages("vulkan-headers", "vulkan-memory-allocator", "glm", "stb", "imgui", "slang")
@@ -65,9 +66,10 @@ target("vulkan")
     else
         add_packages("vulkan-loader")
     end
-    add_defines("RTYPE_VULKAN_BUILD", {public = false})
+    add_defines("RTYPE_RENDER_VULKAN_BUILD", {public = false})
     add_files("**.cpp")
-    add_includedirs(".", {public = true})
+    -- Headers are included as "render/vulkan/...".
+    add_includedirs("../..", {public = true})
 
     add_rules("glsl.spirv")
     add_files("shaders/*.vert", "shaders/*.frag", "shaders/*.comp", "shaders/*.geom", "shaders/*.tesc", "shaders/*.tese")

@@ -12,7 +12,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace rtype::platform::exceptions {
+namespace rtype::platform::glfw::exceptions {
 
 GLFWWindowException::GLFWWindowException(const std::string& message) : std::runtime_error(withGlfwError(message)) {}
 
@@ -25,4 +25,4 @@ std::string GLFWWindowException::withGlfwError(const std::string& message) {
     return message + ": " + (description != nullptr ? std::string(description) : std::to_string(errorCode));
 }
 
-}  // namespace rtype::platform::exceptions
+}  // namespace rtype::platform::glfw::exceptions

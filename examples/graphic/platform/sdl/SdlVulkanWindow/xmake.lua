@@ -6,8 +6,8 @@ add_requires("libsdl3", {alias = "sdl3", system = false})
 target("SdlVulkanWindow")
     set_kind("binary")
     set_default(false)
-    -- SdlPlatform implements IVulkanSurfaceSource (interop-vulkan) for the engine's renderer (vulkan).
-    add_deps("engine-core", "interop-vulkan", "vulkan")
+    -- SdlPlatform implements IVulkanSurfaceSource (interop-vulkan) for the engine's renderer (render-vulkan).
+    add_deps("engine-core", "interop-vulkan", "render-vulkan")
     add_packages("sdl3")
 
     add_files("src/**.cpp")

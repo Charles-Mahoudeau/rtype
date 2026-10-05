@@ -15,7 +15,7 @@
 #include "engine/event/Event.hpp"
 #include "engine/input/Key.hpp"
 
-namespace rtype::platform {
+namespace rtype::platform::glfw {
 
 using engine::input::GamepadAxis;
 using engine::input::GamepadButton;
@@ -98,4 +98,4 @@ void GlfwPlatform::disconnectGamepad() {
     _events.emplace_back(engine::event::GamepadDisconnected{});
 }
 
-}  // namespace rtype::platform
+}  // namespace rtype::platform::glfw

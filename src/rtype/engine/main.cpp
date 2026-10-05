@@ -16,14 +16,14 @@
 #include "engine/event/Event.hpp"
 #include "engine/input/Input.hpp"
 #include "engine/input/Key.hpp"
-#include "platform/PlatformRegistration.hpp"
-#include "vulkan/RendererRegistration.hpp"
+#include "platform/glfw/Registration.hpp"
+#include "render/vulkan/Registration.hpp"
 
 int main() {
     try {
         rtype::engine::backend::BackendRegistry registry;
-        rtype::platform::registerPlatforms(registry);
-        rtype::vulkan::registerRenderers(registry);
+        rtype::platform::glfw::registerPlatform(registry);
+        rtype::render::vulkan::registerRenderer(registry);
 
         rtype::engine::config::Settings config;
 

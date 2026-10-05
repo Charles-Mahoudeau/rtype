@@ -2,10 +2,10 @@
 ** EPITECH PROJECT, 2026
 ** rtype
 ** File description:
-** PlatformRegistration
+** Registration
 */
 
-#include "PlatformRegistration.hpp"
+#include "Registration.hpp"
 
 #include <memory>
 
@@ -14,9 +14,9 @@
 #include "engine/config/Settings.hpp"
 #include "engine/platform/IPlatform.hpp"
 
-namespace rtype::platform {
+namespace rtype::platform::glfw {
 
-void registerPlatforms(engine::backend::BackendRegistry& registry) {
+void registerPlatform(engine::backend::BackendRegistry& registry) {
     registry.addPlatform("glfw",
                          [](const engine::config::Settings& settings) -> std::unique_ptr<engine::platform::IPlatform> {
                              settings.checkKeys({}, "glfw");
@@ -24,4 +24,4 @@ void registerPlatforms(engine::backend::BackendRegistry& registry) {
                          });
 }
 
-}  // namespace rtype::platform
+}  // namespace rtype::platform::glfw

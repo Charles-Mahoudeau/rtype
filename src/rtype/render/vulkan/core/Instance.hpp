@@ -13,10 +13,10 @@
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
-#include "Export.hpp"
+#include "render/vulkan/Export.hpp"
 
-namespace rtype::vulkan::core {
-class RTYPE_VULKAN_API Instance {
+namespace rtype::render::vulkan::core {
+class RTYPE_RENDER_VULKAN_API Instance {
   public:
     /// @brief Creates a Vulkan instance with the specified application and engine names, API version, required
     /// extensions, and layers.
@@ -76,4 +76,4 @@ class RTYPE_VULKAN_API Instance {
     vk::raii::Context _context;              ///< Loader dispatch, built from getLoaderEntryPoint().
     vk::raii::Instance _instance = nullptr;  ///< The Vulkan instance, created by the constructor.
 };
-}  // namespace rtype::vulkan::core
+}  // namespace rtype::render::vulkan::core

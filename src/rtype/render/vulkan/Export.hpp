@@ -12,11 +12,11 @@
 /// Without this, the engine will not find the VulkanRenderer class, and the registration function will not be called.
 /// Dynamic cast to IVulkanSurfaceSource will fail, and the engine will throw UnsupportedFeatureException.
 #ifdef _WIN32
-#ifdef RTYPE_VULKAN_BUILD
-#define RTYPE_VULKAN_API __declspec(dllexport)
+#ifdef RTYPE_RENDER_VULKAN_BUILD
+#define RTYPE_RENDER_VULKAN_API __declspec(dllexport)
 #else
-#define RTYPE_VULKAN_API __declspec(dllimport)
+#define RTYPE_RENDER_VULKAN_API __declspec(dllimport)
 #endif
 #else
-#define RTYPE_VULKAN_API __attribute__((visibility("default")))
+#define RTYPE_RENDER_VULKAN_API __attribute__((visibility("default")))
 #endif

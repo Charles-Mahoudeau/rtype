@@ -15,8 +15,8 @@
 #include "engine/config/Settings.hpp"
 #include "engine/event/Event.hpp"
 #include "engine/input/Key.hpp"
-#include "platform/PlatformRegistration.hpp"
-#include "vulkan/RendererRegistration.hpp"
+#include "platform/glfw/Registration.hpp"
+#include "render/vulkan/Registration.hpp"
 
 using namespace rtype::engine::event;
 using rtype::engine::backend::Backend;
@@ -31,11 +31,11 @@ int main() {
         /// @note 1. Register the backends. Each module adds its own under a name: "glfw" for the platform module,
         /// "vulkan" for the renderer module. The code never names a backend class.
         BackendRegistry registry;
-        rtype::platform::registerPlatforms(registry);
-        rtype::vulkan::registerRenderers(registry);
+        rtype::platform::glfw::registerPlatform(registry);
+        rtype::render::vulkan::registerRenderer(registry);
 
         /// @note 2. The config picks the pair and sets them up. "window" is for every platform; "vulkan" only for
-        /// the vulkan renderer (see rtype::vulkan::registerRenderers). Filled in code here; a config file later.
+        /// the vulkan renderer (see rtype::render::vulkan::registerRenderer). Filled in code here; a config file later.
         Settings config;
         config.set("platform", "glfw");
         config.set("renderer", "vulkan");

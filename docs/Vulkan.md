@@ -1,10 +1,10 @@
 # Vulkan
 
-The `vulkan` module (`src/rtype/vulkan/`, namespace `rtype::vulkan`) is the renderer:
+The `render-vulkan` target (`src/rtype/render/vulkan/`, namespace `rtype::render::vulkan`) is the Vulkan renderer:
 
 - **`VulkanRenderer`**: implements `IRenderer`. Skeleton for now: `init()` creates the instance, the debug messenger
   and the window surface; drawing throws `UnsupportedFeatureException` until it is implemented. Registered as
-  `"vulkan"` by `registerRenderers()`.
+  `"vulkan"` by `registerRenderer()`.
 - **`core::Instance`**: the `VkInstance`, with its extensions and layers.
 - **`core::DebugMessenger`**: prints the validation layer messages to stderr.
 
@@ -24,7 +24,7 @@ along with the loader and the validation layers:
 brew install molten-vk vulkan-loader vulkan-validationlayers
 ```
 
-- `vulkan-loader` is **required**: on macOS the `vulkan` target links Homebrew's loader, the only one that finds
+- `vulkan-loader` is **required**: on macOS the `render-vulkan` target links Homebrew's loader, the only one that finds
   Homebrew's MoltenVK and layers. The build stops with an explicit message if it is missing.
 - `vulkan-validationlayers` is only needed to enable `VK_LAYER_KHRONOS_validation` (debug builds).
 
@@ -35,13 +35,13 @@ The loader comes from xmake, and the driver from your GPU vendor. For the valida
 
 ## Usage
 
-The engine does not create `VulkanRenderer` itself: the `vulkan` module registers it under the name `"vulkan"`, and
+The engine does not create `VulkanRenderer` itself: the `render-vulkan` target registers it under the name `"vulkan"`, and
 the configuration picks it (see [`Backend.md`](Backend.md)):
 
 ```cpp
 rtype::engine::backend::BackendRegistry registry;
-rtype::platform::registerPlatforms(registry);  // "glfw"
-rtype::vulkan::registerRenderers(registry);    // "vulkan"
+rtype::platform::glfw::registerPlatform(registry);   // "glfw"
+rtype::render::vulkan::registerRenderer(registry);  // "vulkan"
 
 rtype::engine::config::Settings config;
 config.set("platform", "glfw");

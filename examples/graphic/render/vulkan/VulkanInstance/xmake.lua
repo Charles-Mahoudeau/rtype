@@ -1,7 +1,7 @@
 target("VulkanInstance")
     set_kind("binary")
     set_default(false)
-    add_deps("engine-core", "platform", "vulkan")
+    add_deps("engine-core", "platform-glfw", "render-vulkan")
 
     add_files("src/**.cpp")
 

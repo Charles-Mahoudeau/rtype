@@ -14,7 +14,7 @@
 #include "GlfwPlatform.hpp"
 #include "engine/event/Event.hpp"
 
-namespace rtype::platform {
+namespace rtype::platform::glfw {
 
 /// @brief Installs the GLFW callbacks that turn window input into engine events.
 ///
@@ -89,4 +89,4 @@ void GlfwPlatform::onScroll(GLFWwindow* handle, double xoffset, double yoffset) 
         engine::event::MouseScrolled{.offset = {static_cast<float>(xoffset), static_cast<float>(yoffset)}});
 }
 
-}  // namespace rtype::platform
+}  // namespace rtype::platform::glfw

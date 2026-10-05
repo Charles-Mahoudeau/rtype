@@ -23,7 +23,7 @@
 
 struct GLFWwindow;
 
-namespace rtype::platform {
+namespace rtype::platform::glfw {
 
 /// @brief The GLFW implementation of IPlatform: the application window, and the source of every engine event.
 ///
@@ -112,4 +112,4 @@ class GlfwPlatform final : public engine::platform::IPlatform, public interop::v
     std::array<bool, kGamepadButtonCount> _gamepadButtons{};  ///< Button state sent in the last events.
     std::array<float, kGamepadAxisCount> _gamepadAxes{};      ///< Axis values sent in the last events.
 };
-}  // namespace rtype::platform
+}  // namespace rtype::platform::glfw
