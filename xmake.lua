@@ -7,14 +7,19 @@ else
     set_toolchains("clang")
 end
 
+-- Shared by several modules, so declared once here.
+add_requires("glm 1.0.x", {alias = "glm"})
+add_requires("glfw 3.4", {alias = "glfw"})
+
 includes("src/rtype/engine")
+includes("src/rtype/platform")
 includes("src/rtype/luau")
 includes("src/rtype/vulkan")
 
 target("rtype")
     set_kind("phony")
     set_default(true)
-    add_deps("engine", "luau", "vulkan")
+    add_deps("engine", "platform", "luau", "vulkan")
 
 
 local ALL_EXAMPLES_FLAG = "AllExamples"
