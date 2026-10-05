@@ -13,6 +13,7 @@
 #include <string_view>
 
 #include "ErrorKind.hpp"
+#include "Export.hpp"
 
 namespace rtype::luau {
 /// @brief Describes a failure raised while creating or running Luau code.
@@ -20,7 +21,7 @@ namespace rtype::luau {
 /// Carries the failure category, a message, an optional Luau traceback and the C++ source location where the error
 /// was raised. It is the error side of `Result<T>`, and it derives from `std::exception` so it can also be thrown.
 /// Copying is disabled; errors are moved.
-class Error : public std::exception {
+class RTYPE_LUAU_API Error : public std::exception {
   public:
     /// @brief Builds an error with a traceback and an explicit source location.
     /// @param kind Category of the failure.
