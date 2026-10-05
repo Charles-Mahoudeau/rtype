@@ -126,7 +126,7 @@ jobs:
           package-cache-key: "ubuntu-latest-compilation"
 
       - name: Configure xmake
-        run: xmake f -y
+        run: xmake f -y --Tests=y
 
       - name: Generate compile_commands.json
         run: xmake project -k compile_commands
