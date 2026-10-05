@@ -9,7 +9,6 @@
 
 #include <array>
 #include <cstddef>
-#include <cstdint>
 #include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
 #include <string>
