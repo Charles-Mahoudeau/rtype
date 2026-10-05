@@ -24,8 +24,8 @@ namespace example {
 /// @brief An IPlatform written with SFML 3: the window and its events.
 ///
 /// @details With SFML, the window and the renderer are one object (sf::RenderWindow). This platform owns it, and
-/// the matching SfmlRenderer draws into it through getWindow(): the two are a pair, created together. None of the
-/// optional functions of IPlatform (loader, surface) is overridden, since SfmlRenderer needs none of them.
+/// the matching SfmlRenderer draws into it through getWindow(): the two are a pair, created together. It implements
+/// no interop interface (such as IVulkanSurfaceSource): SfmlRenderer needs none.
 ///
 /// Kept short on purpose: only the common keys and the mouse are translated, and gamepads are ignored.
 class SfmlPlatform final : public rtype::engine::platform::IPlatform {

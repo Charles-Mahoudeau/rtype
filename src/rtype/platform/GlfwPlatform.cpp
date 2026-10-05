@@ -11,7 +11,6 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include <bit>
 #include <cstdint>
 #include <glm/ext/vector_double2.hpp>
 #include <glm/ext/vector_uint2.hpp>
@@ -21,7 +20,6 @@
 #include <vector>
 
 #include "engine/event/Event.hpp"
-#include "engine/platform/IPlatform.hpp"
 #include "engine/platform/WindowConfig.hpp"
 #include "exceptions/WindowExceptions.hpp"
 
@@ -56,7 +54,7 @@ void GlfwPlatform::setSize(glm::uvec2 size) {
 
 /// @details Window hints:
 /// - `GLFW_CLIENT_API = GLFW_NO_API`: by default GLFW creates an OpenGL context with the window. The renderer
-///   brings its own graphics API instead, and attaches to the window through createSurface().
+///   brings its own graphics API instead, and attaches to the window (Vulkan: through IVulkanSurfaceSource).
 /// - `GLFW_RESIZABLE`: from the config. A resizable window makes the renderer rebuild its swapchain on resize.
 void GlfwPlatform::init(const engine::platform::WindowConfig& config) {
     if (_glfwInitialized) {
@@ -117,9 +115,7 @@ void GlfwPlatform::setCursorLocked(bool locked) {
 
 double GlfwPlatform::getTime() const { return glfwGetTime(); }
 
-void GlfwPlatform::initLoader(engine::platform::ProcAddress entryPoint) {
-    glfwInitVulkanLoader(std::bit_cast<PFN_vkGetInstanceProcAddr>(entryPoint));
-}
+void GlfwPlatform::initLoader(PFN_vkGetInstanceProcAddr loader) { glfwInitVulkanLoader(loader); }
 
 std::vector<const char*> GlfwPlatform::getRequiredExtensions() const {
     uint32_t count = 0;
@@ -131,12 +127,12 @@ std::vector<const char*> GlfwPlatform::getRequiredExtensions() const {
     return {view.begin(), view.end()};
 }
 
-std::uint64_t GlfwPlatform::createSurface(void* instance) {
+VkSurfaceKHR GlfwPlatform::createSurface(VkInstance instance) {
     VkSurfaceKHR surface = VK_NULL_HANDLE;
-    if (glfwCreateWindowSurface(static_cast<VkInstance>(instance), _window, nullptr, &surface) != VK_SUCCESS) {
+    if (glfwCreateWindowSurface(instance, _window, nullptr, &surface) != VK_SUCCESS) {
         throw exceptions::GLFWWindowException("Failed to create the Vulkan surface of the window");
     }
-    return std::bit_cast<std::uint64_t>(surface);
+    return surface;
 }
 
 }  // namespace rtype::platform

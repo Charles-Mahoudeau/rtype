@@ -22,7 +22,6 @@
 #include <dlfcn.h>
 #endif
 
-#include <bit>
 #include <cstdint>
 #include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
@@ -34,7 +33,6 @@
 
 #include "engine/event/Event.hpp"
 #include "engine/input/Key.hpp"
-#include "engine/platform/IPlatform.hpp"
 #include "engine/platform/WindowConfig.hpp"
 
 using namespace rtype::engine;
@@ -42,7 +40,7 @@ using namespace rtype::engine;
 namespace {
 
 /// @return The file the function was loaded from: here, the Vulkan loader the renderer is linked against.
-std::string libraryPathOf(platform::ProcAddress function) {
+std::string libraryPathOf(PFN_vkGetInstanceProcAddr function) {
 #ifdef _WIN32
     HMODULE module = nullptr;
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast): the OS API takes the address as a string type.
@@ -203,9 +201,9 @@ double SdlPlatform::getTime() const {
     return static_cast<double>(SDL_GetTicksNS()) / kNanosecondsPerSecond;
 }
 
-void SdlPlatform::initLoader(platform::ProcAddress entryPoint) {
-    if (entryPoint != nullptr) {
-        _loaderPath = libraryPathOf(entryPoint);
+void SdlPlatform::initLoader(PFN_vkGetInstanceProcAddr loader) {
+    if (loader != nullptr) {
+        _loaderPath = libraryPathOf(loader);
     }
 }
 
@@ -219,13 +217,12 @@ std::vector<const char*> SdlPlatform::getRequiredExtensions() const {
     return {view.begin(), view.end()};
 }
 
-std::uint64_t SdlPlatform::createSurface(void* instance) {
+VkSurfaceKHR SdlPlatform::createSurface(VkInstance instance) {
     VkSurfaceKHR surface = VK_NULL_HANDLE;
-    if (!SDL_Vulkan_CreateSurface(_window, static_cast<VkInstance>(instance), nullptr, &surface)) {
+    if (!SDL_Vulkan_CreateSurface(_window, instance, nullptr, &surface)) {
         throw std::runtime_error(std::string("SDL_Vulkan_CreateSurface failed: ") + SDL_GetError());
     }
-    // A VkSurfaceKHR is a 64-bit handle on every platform (a pointer on 64-bit ones, an integer on 32-bit ones).
-    return std::bit_cast<std::uint64_t>(surface);
+    return surface;
 }
 
 // SDL_Event is a C union: reading the member that matches event.type is how SDL is meant to be used.

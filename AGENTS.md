@@ -16,9 +16,13 @@ are added.
     no window, graphics or scripting library (only glm).
   - `engine`: the executable, built from `main.cpp` only. It wires `engine-core` with `platform`,
     `luau` and `vulkan`.
-- `src/rtype/platform/` — `platform` target, static library (`rtype-platform`): the GLFW window
-  (`rtype::platform`, exceptions in `platform/exceptions/`). The only module that includes GLFW:
-  it translates every GLFW callback and the gamepad state into `rtype::engine::Event`s.
+- `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
+  `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
+  (`IVulkanSurfaceSource`). See `docs/Backend.md`.
+- `src/rtype/platform/` — `platform` target, static library (`rtype-platform`): `GlfwPlatform`, the
+  GLFW implementation of `IPlatform` and `IVulkanSurfaceSource` (`rtype::platform`, exceptions in
+  `platform/exceptions/`). The only module that includes GLFW: it translates every GLFW callback and
+  the gamepad state into `rtype::engine::Event`s.
 - `src/rtype/luau/` — `luau` target, shared library (`rtype-luau`) for Luau scripting.
 - `src/rtype/vulkan/` — `vulkan` target, shared library (`rtype-vulkan`) for rendering. Namespace
   `rtype::vulkan`. Shaders go in `shaders/` and are compiled to SPIR-V by the `glsl.spirv` rule
@@ -39,15 +43,17 @@ matching module: `engine-core` globs `**.cpp` in `src/rtype/engine/` except `mai
 Dependencies always point towards `engine-core`, never away from it:
 
 ```
-engine-core  ←  platform, vulkan, luau  ←  engine (executable)
+engine-core, interop-*  ←  platform, vulkan, luau  ←  engine (executable)
 ```
 
 - `engine-core` depends on nothing but glm. Never add a dependency on `platform`, `vulkan` or
   `luau` to it: they depend on it, so it would create a cycle.
 - Modules exchange engine types only (`rtype::engine::Event`, `rtype::engine::input::Key`...).
   GLFW never leaves `platform/`: no header outside it includes `<GLFW/glfw3.h>` or uses a
-  `GLFW_*` code. `Window::getNativeHandle()` is reserved for integrations that need the raw
-  handle (Vulkan surface, ImGui backend).
+  `GLFW_*` code.
+- A platform module and a renderer module never depend on each other: what a renderer needs from a
+  window that is specific to its graphics API goes through the matching `interop-*` target, which
+  both sides depend on (see `docs/Backend.md`).
 - Only the `engine` executable (and examples) link everything together.
 
 ## Commands

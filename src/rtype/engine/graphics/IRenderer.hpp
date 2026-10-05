@@ -11,6 +11,7 @@
 #include <glm/ext/vector_uint2.hpp>
 #include <span>
 
+#include "engine/Export.hpp"
 #include "engine/graphics/Camera.hpp"
 #include "engine/graphics/Color.hpp"
 #include "engine/graphics/RectShape.hpp"
@@ -35,7 +36,7 @@ namespace rtype::engine::graphics {
 /// renderer.draw(ship);
 /// renderer.endFrame();
 /// @endcode
-class IRenderer {
+class RTYPE_ENGINE_API IRenderer {
   public:
     IRenderer() = default;
     virtual ~IRenderer() = default;
@@ -44,13 +45,16 @@ class IRenderer {
     IRenderer(IRenderer&&) = delete;
     IRenderer& operator=(IRenderer&&) = delete;
 
-    /// @return The entry point of the API loader this renderer uses (Vulkan: vkGetInstanceProcAddr), handed to
-    /// IPlatform::initLoader() so the process has a single loader. Optional. Default: null, no loader.
-    [[nodiscard]] virtual platform::ProcAddress getLoaderEntryPoint() const { return nullptr; }
+    /// @brief Sets the platform up before its window exists. Called once by the engine, before IPlatform::init().
+    /// @details The only moment to change how the platform will create its window (Vulkan: which loader GLFW
+    /// uses). A renderer that can already tell the platform does not fit should throw here, before a window
+    /// opens. Optional. Default: does nothing.
+    /// @throws exceptions::UnsupportedFeatureException If the platform does not provide what this renderer needs.
+    virtual void prepare(platform::IPlatform& /*platform*/) {}
 
     /// @brief Attaches the renderer to the window. Called once by the engine, after IPlatform::init().
-    /// @details Asks the platform for what this renderer needs: its framebuffer size, and the optional
-    /// integration functions (Vulkan: getRequiredExtensions() and createSurface()).
+    /// @details Takes what it needs from the platform: its framebuffer size, and whatever its graphics API needs
+    /// through an interop interface the platform implements (Vulkan: interop::vulkan::IVulkanSurfaceSource).
     /// @throws exceptions::UnsupportedFeatureException If the platform does not provide what this renderer needs.
     virtual void init(platform::IPlatform& platform) = 0;
 

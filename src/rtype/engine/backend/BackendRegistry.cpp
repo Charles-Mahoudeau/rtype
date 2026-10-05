@@ -81,7 +81,7 @@ Backend BackendRegistry::createBackend(const config::Settings& config) const {
     Backend backend;
     backend.platform = createPlatform(config.section(platformName));
     backend.renderer = createRenderer(config.section(rendererName));
-    backend.platform->initLoader(backend.renderer->getLoaderEntryPoint());
+    backend.renderer->prepare(*backend.platform);
     backend.platform->init(window);
     backend.renderer->init(*backend.platform);
     return backend;

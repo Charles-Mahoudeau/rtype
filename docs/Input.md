@@ -117,7 +117,7 @@ flowchart LR
 | `vulkan/`, `luau/` | Rendering and scripting. They read input through the engine, never through GLFW. | `engine-core` |
 | `engine/main.cpp` (`engine`) | The executable: creates the window and feeds its events to `Input`. | everything above |
 
-**Rule:** GLFW never leaves `platform/`. No public header outside it includes `<GLFW/glfw3.h>` or uses a `GLFW_*` code. Renderers attach to the window through the optional functions of `IPlatform` (such as `createSurface()`), never through GLFW itself.
+**Rule:** GLFW never leaves `platform/`. No public header outside it includes `<GLFW/glfw3.h>` or uses a `GLFW_*` code. Renderers attach to the window through the interop interfaces the platform implements (`IVulkanSurfaceSource`, see [`Backend.md`](Backend.md)), never through GLFW itself.
 
 ### Files
 

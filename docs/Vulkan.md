@@ -3,7 +3,8 @@
 The `vulkan` module (`src/rtype/vulkan/`, namespace `rtype::vulkan`) is the renderer:
 
 - **`VulkanRenderer`**: implements `IRenderer`. Skeleton for now: `init()` creates the instance, the debug messenger
-  and the window surface; drawing throws `UnsupportedFeatureException` until it is implemented.
+  and the window surface; drawing throws `UnsupportedFeatureException` until it is implemented. Registered as
+  `"vulkan"` by `registerRenderers()`.
 - **`core::Instance`**: the `VkInstance`, with its extensions and layers.
 - **`core::DebugMessenger`**: prints the validation layer messages to stderr.
 
@@ -34,27 +35,35 @@ The loader comes from xmake, and the driver from your GPU vendor. For the valida
 
 ## Usage
 
-The engine only sees `IPlatform` and `IRenderer`; the backends are named once, where they are created. The order
-matters:
+The engine does not create `VulkanRenderer` itself: the `vulkan` module registers it under the name `"vulkan"`, and
+the configuration picks it (see [`Backend.md`](Backend.md)):
 
 ```cpp
-const std::unique_ptr<IPlatform> platform = std::make_unique<GlfwPlatform>();
-VulkanRenderer::Config config;  // debug builds: {.layers = {"VK_LAYER_KHRONOS_validation"}, .debugging = true}
-const std::unique_ptr<IRenderer> renderer = std::make_unique<VulkanRenderer>(config);
+rtype::engine::backend::BackendRegistry registry;
+rtype::platform::registerPlatforms(registry);  // "glfw"
+rtype::vulkan::registerRenderers(registry);    // "vulkan"
 
-platform->initLoader(renderer->getLoaderEntryPoint());  // 1. one Vulkan loader for GLFW and the renderer
-platform->init({.title = "R-Type"});                    // 2. the window, without graphics context
-renderer->init(*platform);                              // 3. instance (+ layers, messenger), then the surface
+rtype::engine::config::Settings config;
+config.set("platform", "glfw");
+config.set("renderer", "vulkan");
+config.set("vulkan.layers", std::vector<std::string>{"VK_LAYER_KHRONOS_validation"});  // debug builds
+config.set("vulkan.debugging", true);
+
+const rtype::engine::backend::Backend backend = registry.createBackend(config);
 ```
 
-`VulkanRenderer::Config` holds the settings of the Vulkan backend: engine name, API version, layers, extra
-extensions, debugging (the DebugMessenger) and its minimum severity. No layer is enabled by default; set only what differs from the
-defaults. Another backend would have its own `Config`: the engine never sees them.
+The `vulkan` settings fill a `VulkanRenderer::Config`: `engineName`, `layers`, `extraExtensions`, `debugging` (the
+DebugMessenger) and `minSeverity`. No layer is enabled by default.
 
-In step 3, the renderer asks the platform for what it needs through the optional functions of `IPlatform`:
-`getRequiredExtensions()` and `createSurface()`. A platform that does not provide them throws
-`UnsupportedFeatureException`. On macOS, `Instance` also enables `VK_KHR_portability_enumeration`, which MoltenVK
-requires.
+`VulkanRenderer` needs a platform that implements
+[`IVulkanSurfaceSource`](../src/rtype/interop/vulkan/IVulkanSurfaceSource.hpp) (`GlfwPlatform` does):
+
+1. `prepare()`, before the window exists: `initLoader()`, so GLFW uses the renderer's Vulkan loader (one loader per
+   process). A platform without `IVulkanSurfaceSource` throws `UnsupportedFeatureException` here.
+2. `init()`, once the window exists: the instance with `getRequiredExtensions()` (plus the layers and the messenger),
+   then the window surface with `createSurface()`.
+
+On macOS, `Instance` also enables `VK_KHR_portability_enumeration`, which MoltenVK requires.
 
 ## Run the example
 

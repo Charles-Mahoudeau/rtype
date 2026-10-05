@@ -15,6 +15,7 @@
 #include "engine/event/Event.hpp"
 #include "engine/platform/IPlatform.hpp"
 #include "engine/platform/WindowConfig.hpp"
+#include "interop/vulkan/IVulkanSurfaceSource.hpp"
 
 struct SDL_Window;
 union SDL_Event;
@@ -24,15 +25,17 @@ namespace example {
 /// @brief An IPlatform written with SDL3, to show how to plug another windowing library into the engine.
 ///
 /// @details Same role as rtype::platform::GlfwPlatform: a window, and every native event translated into an
-/// engine::Event. It also overrides the three optional functions a Vulkan renderer needs, through SDL_Vulkan_*:
+/// engine::Event. It also implements IVulkanSurfaceSource, so the engine's VulkanRenderer can use it, through
+/// SDL_Vulkan_*:
 /// - initLoader(): SDL_Vulkan_LoadLibrary() on the file of the renderer's loader, so SDL and the renderer share it;
 /// - getRequiredExtensions(): SDL_Vulkan_GetInstanceExtensions();
 /// - createSurface(): SDL_Vulkan_CreateSurface().
 ///
 /// Kept short on purpose: only the common keys and the mouse are translated, and gamepads are ignored.
-class SdlPlatform final : public rtype::engine::platform::IPlatform {
+class SdlPlatform final : public rtype::engine::platform::IPlatform,
+                          public rtype::interop::vulkan::IVulkanSurfaceSource {
   public:
-    /// @brief Does not touch SDL yet: the engine calls initLoader(), then init().
+    /// @brief Does not touch SDL yet: the renderer may call initLoader() first, then the engine calls init().
     SdlPlatform() = default;
     /// @brief Destroys the window and shuts SDL down, if init() succeeded.
     ~SdlPlatform() override;
@@ -58,13 +61,13 @@ class SdlPlatform final : public rtype::engine::platform::IPlatform {
     /// @brief Remembers the file of the renderer's loader; init() loads it with SDL_Vulkan_LoadLibrary().
     /// @details SDL only loads a loader from a path, not from a function pointer: the path is found from the
     /// address of the entry point (dladdr(), or GetModuleFileName() on Windows).
-    void initLoader(rtype::engine::platform::ProcAddress entryPoint) override;
+    void initLoader(PFN_vkGetInstanceProcAddr loader) override;
 
     /// @throws std::runtime_error If SDL has no Vulkan support.
     [[nodiscard]] std::vector<const char*> getRequiredExtensions() const override;
 
     /// @throws std::runtime_error If the surface cannot be created.
-    [[nodiscard]] std::uint64_t createSurface(void* instance) override;
+    [[nodiscard]] VkSurfaceKHR createSurface(VkInstance instance) override;
 
   private:
     /// @brief Appends the engine event matching an SDL event to _events, if there is one.

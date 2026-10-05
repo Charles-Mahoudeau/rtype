@@ -27,6 +27,7 @@
 #include "engine/graphics/Sprite.hpp"
 #include "engine/graphics/Texture.hpp"
 #include "engine/platform/IPlatform.hpp"
+#include "interop/vulkan/IVulkanSurfaceSource.hpp"
 
 namespace rtype::vulkan {
 
@@ -35,7 +36,7 @@ namespace rtype::vulkan {
 /// @details Skeleton for now: init() creates the instance, the debug messenger (if requested) and the surface of
 /// the window. Every other function throws UnsupportedFeatureException until it is implemented.
 ///
-/// Needs a platform that overrides getRequiredExtensions() and createSurface() (GlfwPlatform does).
+/// Needs a platform that implements interop::vulkan::IVulkanSurfaceSource (GlfwPlatform does).
 class RTYPE_VULKAN_API VulkanRenderer final : public engine::graphics::IRenderer {
   public:
     /// @brief Settings of the Vulkan backend, given at construction. Set only what differs from the defaults:
@@ -63,11 +64,12 @@ class RTYPE_VULKAN_API VulkanRenderer final : public engine::graphics::IRenderer
     VulkanRenderer(VulkanRenderer&&) = delete;
     VulkanRenderer& operator=(VulkanRenderer&&) = delete;
 
-    /// @return vkGetInstanceProcAddr of the loader this library is linked against.
-    [[nodiscard]] engine::platform::ProcAddress getLoaderEntryPoint() const override;
+    /// @brief Finds the platform's IVulkanSurfaceSource, and makes it use this library's Vulkan loader.
+    /// @throws exceptions::UnsupportedFeatureException If the platform does not implement IVulkanSurfaceSource.
+    void prepare(engine::platform::IPlatform& platform) override;
 
     /// @brief Creates the instance (with the platform's extensions), the debug messenger and the window surface.
-    /// @throws exceptions::UnsupportedFeatureException If the platform cannot create a Vulkan surface.
+    /// @throws exceptions::UnsupportedFeatureException If the platform does not implement IVulkanSurfaceSource.
     /// @throws std::runtime_error If a layer or an extension is missing, or init() was already called.
     void init(engine::platform::IPlatform& platform) override;
 
@@ -87,6 +89,10 @@ class RTYPE_VULKAN_API VulkanRenderer final : public engine::graphics::IRenderer
 
   private:
     /// @throws exceptions::UnsupportedFeatureException Always, naming the function.
+    /// @return The platform's IVulkanSurfaceSource.
+    /// @throws exceptions::UnsupportedFeatureException If the platform does not implement it.
+    static interop::vulkan::IVulkanSurfaceSource& surfaceSourceOf(engine::platform::IPlatform& platform);
+
     [[noreturn]] static void notImplemented(std::string_view function);
 
     Config _config;                                       ///< Settings given at construction.

@@ -19,6 +19,7 @@
 #include "engine/input/Key.hpp"
 #include "engine/platform/IPlatform.hpp"
 #include "engine/platform/WindowConfig.hpp"
+#include "interop/vulkan/IVulkanSurfaceSource.hpp"
 
 struct GLFWwindow;
 
@@ -28,14 +29,14 @@ namespace rtype::platform {
 ///
 /// @details GLFW stays an implementation detail: this header does not include it, and every callback is
 /// translated into an engine::Event returned by pollEvents(). The window has no graphics context
-/// (GLFW_NO_API): the renderer attaches to it through createSurface() (Vulkan).
+/// (GLFW_NO_API): a Vulkan renderer attaches to it through IVulkanSurfaceSource.
 ///
 /// @warning On macOS 11.3+, controllers natively handled by Apple's GameController
 /// framework (e.g. Switch Pro Controller) are detected by GLFW but never send updates,
 /// so they read as idle.
-class GlfwPlatform final : public engine::platform::IPlatform {
+class GlfwPlatform final : public engine::platform::IPlatform, public interop::vulkan::IVulkanSurfaceSource {
   public:
-    /// @brief Does not touch GLFW yet: the engine calls initLoader(), then init().
+    /// @brief Does not touch GLFW yet: the renderer may call initLoader() first, then the engine calls init().
     GlfwPlatform() = default;
     /// @brief Destroys the window and terminates GLFW, if init() succeeded.
     ~GlfwPlatform() override;
@@ -58,15 +59,19 @@ class GlfwPlatform final : public engine::platform::IPlatform {
     void setCursorLocked(bool locked) override;
     [[nodiscard]] double getTime() const override;
 
+    /// @name IVulkanSurfaceSource
+    /// @{
+
     /// @brief glfwInitVulkanLoader(): GLFW then uses the renderer's Vulkan loader instead of dlopen()-ing its own.
-    void initLoader(engine::platform::ProcAddress entryPoint) override;
+    void initLoader(PFN_vkGetInstanceProcAddr loader) override;
 
     /// @throws GLFWWindowException If no Vulkan driver exposes the surface extensions.
     [[nodiscard]] std::vector<const char*> getRequiredExtensions() const override;
 
     /// @brief glfwCreateWindowSurface(): the Vulkan surface of the window.
     /// @throws GLFWWindowException If the surface cannot be created.
-    [[nodiscard]] std::uint64_t createSurface(void* instance) override;
+    [[nodiscard]] VkSurfaceKHR createSurface(VkInstance instance) override;
+    /// @}
 
   private:
     static constexpr std::size_t kGamepadButtonCount = static_cast<std::size_t>(engine::input::GamepadButton::kCount);

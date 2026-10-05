@@ -43,7 +43,7 @@ int main() {
         });
 
         /// @note Same config as examples/graphic/render/vulkan/VulkanInstance, with "sdl" instead of "glfw". The
-        /// VulkanRenderer never knows SDL is behind it: it only calls the optional functions of IPlatform.
+        /// VulkanRenderer never knows SDL is behind it: it only uses the IVulkanSurfaceSource SdlPlatform implements.
         Settings config;
         config.set("platform", "sdl");
         config.set("renderer", "vulkan");
@@ -54,11 +54,12 @@ int main() {
         config.set("vulkan.debugging", true);
 #endif
 
-        /// @note On the SDL side, createBackend() calls:
-        /// 1. initLoader(): SdlPlatform finds the file of the renderer's loader, SDL_Vulkan_LoadLibrary() loads it;
-        /// 2. init(): SDL_CreateWindow() with SDL_WINDOW_VULKAN;
-        /// 3. getRequiredExtensions() (SDL_Vulkan_GetInstanceExtensions) and createSurface()
-        ///    (SDL_Vulkan_CreateSurface), asked by the renderer's init().
+        /// @note On the SDL side, createBackend() leads to:
+        /// 1. renderer->prepare(): the renderer calls initLoader(); SdlPlatform finds the file of the renderer's
+        ///    loader, and init() loads it with SDL_Vulkan_LoadLibrary(), so SDL and the renderer share it;
+        /// 2. platform->init(): SDL_CreateWindow() with SDL_WINDOW_VULKAN;
+        /// 3. renderer->init(): the renderer calls getRequiredExtensions() (SDL_Vulkan_GetInstanceExtensions) and
+        ///    createSurface() (SDL_Vulkan_CreateSurface).
         const Backend backend = registry.createBackend(config);
         std::cout << "SDL window with a Vulkan surface created.\n" << std::flush;
 

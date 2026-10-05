@@ -38,7 +38,8 @@ rule_end()
 target("vulkan")
     set_kind("shared")
     set_basename("rtype-vulkan")
-    add_deps("engine-core")
+    -- engine-core for IRenderer, interop-vulkan for IVulkanSurfaceSource (implemented by the platforms).
+    add_deps("engine-core", "interop-vulkan")
     add_packages("vulkan-headers", "vulkan-memory-allocator", "glm", "stb", "imgui", "slang")
     add_packages("vulkan-headers", {public = true})
     -- vk::raii::Context takes the linked vkGetInstanceProcAddr instead of dlopen()-ing its own loader. Public: it

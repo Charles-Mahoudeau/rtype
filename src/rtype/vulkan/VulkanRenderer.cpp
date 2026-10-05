@@ -7,7 +7,6 @@
 
 #include "VulkanRenderer.hpp"
 
-#include <bit>
 #include <cstddef>
 #include <glm/ext/vector_uint2.hpp>
 #include <span>
@@ -27,6 +26,7 @@
 #include "engine/graphics/Sprite.hpp"
 #include "engine/graphics/Texture.hpp"
 #include "engine/platform/IPlatform.hpp"
+#include "interop/vulkan/IVulkanSurfaceSource.hpp"
 
 namespace rtype::vulkan {
 
@@ -34,8 +34,8 @@ VulkanRenderer::VulkanRenderer(Config config) : _config(std::move(config)) {}
 
 VulkanRenderer::VulkanRenderer() : VulkanRenderer(Config{}) {}
 
-engine::platform::ProcAddress VulkanRenderer::getLoaderEntryPoint() const {
-    return std::bit_cast<engine::platform::ProcAddress>(core::Instance::getLoaderEntryPoint());
+void VulkanRenderer::prepare(engine::platform::IPlatform& platform) {
+    surfaceSourceOf(platform).initLoader(core::Instance::getLoaderEntryPoint());
 }
 
 void VulkanRenderer::init(engine::platform::IPlatform& platform) {
@@ -43,8 +43,9 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
         throw std::runtime_error("VulkanRenderer::init() called twice");
     }
 
-    // The Config owns the names; the instance only needs their c_str() while it is created.
-    std::vector<const char*> extensions = platform.getRequiredExtensions();
+    interop::vulkan::IVulkanSurfaceSource& surfaceSource = surfaceSourceOf(platform);
+
+    std::vector<const char*> extensions = surfaceSource.getRequiredExtensions();
     for (const std::string& extension : _config.extraExtensions) {
         extensions.push_back(extension.c_str());
     }
@@ -63,8 +64,7 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
     }
 
     auto* const instance = static_cast<VkInstance>(*_instance->getInstance());
-    _surface =
-        vk::raii::SurfaceKHR(_instance->getInstance(), std::bit_cast<VkSurfaceKHR>(platform.createSurface(instance)));
+    _surface = vk::raii::SurfaceKHR(_instance->getInstance(), surfaceSource.createSurface(instance));
     _framebufferSize = platform.getFramebufferSize();
 }
 
@@ -86,6 +86,15 @@ void VulkanRenderer::setCamera(const engine::graphics::Camera& /*camera*/) { not
 void VulkanRenderer::draw(const engine::graphics::Sprite& /*sprite*/) { notImplemented("draw(Sprite)"); }
 
 void VulkanRenderer::draw(const engine::graphics::RectShape& /*rect*/) { notImplemented("draw(RectShape)"); }
+
+interop::vulkan::IVulkanSurfaceSource& VulkanRenderer::surfaceSourceOf(engine::platform::IPlatform& platform) {
+    auto* surfaceSource = dynamic_cast<interop::vulkan::IVulkanSurfaceSource*>(&platform);
+    if (surfaceSource == nullptr) {
+        throw engine::exceptions::UnsupportedFeatureException(
+            "VulkanRenderer needs a platform that implements IVulkanSurfaceSource (glfw, sdl...)");
+    }
+    return *surfaceSource;
+}
 
 void VulkanRenderer::notImplemented(std::string_view function) {
     throw engine::exceptions::UnsupportedFeatureException("VulkanRenderer::" + std::string(function) +

@@ -49,10 +49,11 @@ int main() {
 #endif
 
         /// @note 3. Start them. createBackend() runs the engine's sequence:
-        /// - platform->initLoader(renderer->getLoaderEntryPoint()): GLFW uses the renderer's Vulkan loader;
+        /// - renderer->prepare(*platform): the renderer finds the platform's IVulkanSurfaceSource (GlfwPlatform
+        ///   implements it) and calls initLoader(): GLFW will use the renderer's Vulkan loader;
         /// - platform->init(window): the window, without graphics context;
-        /// - renderer->init(*platform): the instance (+ layers, messenger), then the window surface, through the
-        ///   platform's getRequiredExtensions() and createSurface().
+        /// - renderer->init(*platform): the instance (+ layers, messenger), then the window surface, through
+        ///   IVulkanSurfaceSource::getRequiredExtensions() and createSurface().
         /// A wrong name, an unknown setting or a pair that does not fit throws, with a message saying why.
         const Backend backend = registry.createBackend(config);
         std::cout << "Vulkan instance and window surface created.\n" << std::flush;

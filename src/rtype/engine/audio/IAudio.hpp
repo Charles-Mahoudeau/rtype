@@ -9,6 +9,7 @@
 
 #include <filesystem>
 
+#include "engine/Export.hpp"
 #include "engine/audio/AudioResources.hpp"
 
 namespace rtype::engine::audio {
@@ -20,7 +21,7 @@ namespace rtype::engine::audio {
 /// const Sound laser(audio, audio.loadSound("assets/laser.wav"));
 /// audio.play(laser.getId(), {.volume = 0.5F});
 /// @endcode
-class IAudio {
+class RTYPE_ENGINE_API IAudio {
   public:
     IAudio() = default;
     virtual ~IAudio() = default;

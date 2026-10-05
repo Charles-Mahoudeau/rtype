@@ -52,9 +52,9 @@ int main() {
         config.set("window.title", "SFML Window Example");
         config.set("window.size", std::vector<double>{800, 600});
 
-        /// @note createBackend() runs the same sequence as with GLFW + Vulkan. initLoader() does nothing here:
-        /// neither class overrides it. SfmlRenderer::init() finds the window through a dynamic_cast to SfmlPlatform,
-        /// so pairing it with another platform throws.
+        /// @note createBackend() runs the same sequence as with GLFW + Vulkan. SfmlRenderer does not override
+        /// prepare(): no interop is involved. Its init() finds the window through a dynamic_cast to SfmlPlatform, so
+        /// pairing it with another platform throws.
         const Backend backend = registry.createBackend(config);
 
         while (backend.platform->isOpen()) {

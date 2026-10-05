@@ -9,6 +9,7 @@ add_requires("glfw 3.4", {alias = "glfw"})
 add_requires("vulkan-headers 1.4.x", {alias = "vulkan-headers"})
 
 includes("src/rtype/engine")
+includes("src/rtype/interop")
 includes("src/rtype/platform")
 includes("src/rtype/luau")
 includes("src/rtype/vulkan")
