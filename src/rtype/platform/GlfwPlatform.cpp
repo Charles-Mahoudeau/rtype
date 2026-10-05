@@ -7,7 +7,6 @@
 
 #include "GlfwPlatform.hpp"
 
-// Declares the Vulkan functions of GLFW (glfwInitVulkanLoader, glfwCreateWindowSurface...).
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
