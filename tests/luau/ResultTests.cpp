@@ -98,7 +98,7 @@ TEST(Result, WorksWithMoveOnlyType) {
 
 TEST(Result, MoveOnlyResultIsMovable) {
     rtype::luau::Result<std::unique_ptr<int>> source{std::make_unique<int>(3)};
-    rtype::luau::Result target{std::move(source)};
+    rtype::luau::Result<std::unique_ptr<int>> target{std::move(source)};
 
     ASSERT_TRUE(target);
     EXPECT_EQ(**target, 3);
@@ -107,7 +107,7 @@ TEST(Result, MoveOnlyResultIsMovable) {
 TEST(Result, MoveOnlyFailureIsMovable) {
     rtype::luau::Result<std::unique_ptr<int>> source{
         tl::unexpected{rtype::luau::Error{rtype::luau::ErrorKind::kOutOfMemory, "oom"}}};
-    const rtype::luau::Result target{std::move(source)};
+    const rtype::luau::Result<std::unique_ptr<int>> target{std::move(source)};
 
     ASSERT_FALSE(target);
     EXPECT_EQ(target.error().kind(), rtype::luau::ErrorKind::kOutOfMemory);
@@ -128,13 +128,14 @@ TEST(ResultVoid, ExplicitVoidIsSuccess) {
 }
 
 TEST(ResultVoid, FailureConvertsToFalse) {
-    const rtype::luau::Result result{tl::unexpected{rtype::luau::Error{rtype::luau::ErrorKind::kSyntax, "bad chunk"}}};
+    const rtype::luau::Result<> result{
+        tl::unexpected{rtype::luau::Error{rtype::luau::ErrorKind::kSyntax, "bad chunk"}}};
 
     EXPECT_FALSE(result);
 }
 
 TEST(ResultVoid, ErrorExposesKindAndMessage) {
-    const rtype::luau::Result result{
+    const rtype::luau::Result<> result{
         tl::unexpected{rtype::luau::Error{rtype::luau::ErrorKind::kStackOverflow, "too deep"}}};
 
     ASSERT_FALSE(result);
