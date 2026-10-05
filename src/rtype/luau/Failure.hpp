@@ -35,7 +35,8 @@ class RTYPE_LUAU_API Failure {
 
     /// @brief Converts the failure into the error side of any `Result<T>`.
     template <typename T>
-    // NOLINTNEXTLINE(google-explicit-constructor,hicpp-explicit-conversions)
+    // ReSharper disable once CppNonExplicitConversionOperator
+    // NOLINTNEXTLINE(hicpp-explicit-conversions, *-explicit-constructor)
     [[nodiscard]] operator Result<T>() && noexcept;
 
   private:
