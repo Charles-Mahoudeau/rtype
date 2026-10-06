@@ -55,7 +55,7 @@ int main() {
 #endif
 
         /// @note On the SDL side, createBackend() leads to:
-        /// 1. renderer->prepare(): the renderer calls initLoader(); SdlPlatform finds the file of the renderer's
+        /// 1. renderer->setup(): the renderer calls initLoader(); SdlPlatform finds the file of the renderer's
         ///    loader, and init() loads it with SDL_Vulkan_LoadLibrary(), so SDL and the renderer share it;
         /// 2. platform->init(): SDL_CreateWindow() with SDL_WINDOW_VULKAN;
         /// 3. renderer->init(): the renderer calls getRequiredExtensions() (SDL_Vulkan_GetInstanceExtensions) and

@@ -34,7 +34,7 @@ VulkanRenderer::VulkanRenderer(Config config) : _config(std::move(config)) {}
 
 VulkanRenderer::VulkanRenderer() : VulkanRenderer(Config{}) {}
 
-void VulkanRenderer::prepare(engine::platform::IPlatform& platform) {
+void VulkanRenderer::setup(engine::platform::IPlatform& platform) {
     surfaceSourceOf(platform).initLoader(core::Instance::getLoaderEntryPoint());
 }
 

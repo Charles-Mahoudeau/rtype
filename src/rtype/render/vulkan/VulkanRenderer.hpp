@@ -66,7 +66,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
 
     /// @brief Finds the platform's IVulkanSurfaceSource, and makes it use this library's Vulkan loader.
     /// @throws exceptions::UnsupportedFeatureException If the platform does not implement IVulkanSurfaceSource.
-    void prepare(engine::platform::IPlatform& platform) override;
+    void setup(engine::platform::IPlatform& platform) override;
 
     /// @brief Creates the instance (with the platform's extensions), the debug messenger and the window surface.
     /// @throws exceptions::UnsupportedFeatureException If the platform does not implement IVulkanSurfaceSource.

@@ -22,7 +22,7 @@ namespace rtype::engine::platform {
 /// @details Every native event is translated into an engine Event: the engine, Input included, never sees the
 /// windowing library. The engine starts a platform and a renderer together (BackendRegistry::createBackend()):
 /// @code
-/// renderer.prepare(platform);  // the renderer sets the platform up, before the window exists
+/// renderer.setup(platform);  // the renderer sets the platform up, before the window exists
 /// platform.init(config);       // creates the window
 /// renderer.init(platform);     // attaches the renderer to it
 /// @endcode

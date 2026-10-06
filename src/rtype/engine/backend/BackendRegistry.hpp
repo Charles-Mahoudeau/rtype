@@ -65,7 +65,7 @@ class BackendRegistry {
     [[nodiscard]] std::vector<std::string> getRendererNames() const;
 
     /// @brief Creates and starts the platform and the renderer the config names, in the engine's order:
-    /// IRenderer::prepare(), IPlatform::init() with the `window` section, then IRenderer::init().
+    /// IRenderer::setup(), IPlatform::init() with the `window` section, then IRenderer::init().
     /// @param config The whole configuration: `platform`, `renderer`, `window`, and a section per backend.
     /// @throws exceptions::BackendException If a name is missing or not registered.
     /// @throws exceptions::SettingsException If a setting is unknown or has the wrong type.

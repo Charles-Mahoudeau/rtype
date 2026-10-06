@@ -31,7 +31,7 @@ class RTYPE_INTEROP_API IVulkanSurfaceSource {
 
     /// @brief Makes the windowing library use the renderer's Vulkan loader instead of loading one of its own, so
     /// the process has a single one (GLFW: glfwInitVulkanLoader()).
-    /// @note Called before IPlatform::init(), from IRenderer::prepare(): the window does not exist yet.
+    /// @note Called before IPlatform::init(), from IRenderer::setup(): the window does not exist yet.
     virtual void initLoader(PFN_vkGetInstanceProcAddr loader) = 0;
 
     /// @return The instance extensions the window's surface needs: VK_KHR_surface plus the OS one

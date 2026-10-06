@@ -50,7 +50,7 @@ class RTYPE_ENGINE_API IRenderer {
     /// uses). A renderer that can already tell the platform does not fit should throw here, before a window
     /// opens. Optional. Default: does nothing.
     /// @throws exceptions::UnsupportedFeatureException If the platform does not provide what this renderer needs.
-    virtual void prepare(platform::IPlatform& /*platform*/) {}
+    virtual void setup(platform::IPlatform& /*platform*/) {}
 
     /// @brief Attaches the renderer to the window. Called once by the engine, after IPlatform::init().
     /// @details Takes what it needs from the platform: its framebuffer size, and whatever its graphics API needs

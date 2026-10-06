@@ -58,7 +58,7 @@ DebugMessenger) and `minSeverity`. No layer is enabled by default.
 `VulkanRenderer` needs a platform that implements
 [`IVulkanSurfaceSource`](../src/rtype/interop/vulkan/IVulkanSurfaceSource.hpp) (`GlfwPlatform` does):
 
-1. `prepare()`, before the window exists: `initLoader()`, so GLFW uses the renderer's Vulkan loader (one loader per
+1. `setup()`, before the window exists: `initLoader()`, so GLFW uses the renderer's Vulkan loader (one loader per
    process). A platform without `IVulkanSurfaceSource` throws `UnsupportedFeatureException` here.
 2. `init()`, once the window exists: the instance with `getRequiredExtensions()` (plus the layers and the messenger),
    then the window surface with `createSurface()`.

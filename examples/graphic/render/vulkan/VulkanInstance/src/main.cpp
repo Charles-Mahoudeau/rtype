@@ -49,7 +49,7 @@ int main() {
 #endif
 
         /// @note 3. Start them. createBackend() runs the engine's sequence:
-        /// - renderer->prepare(*platform): the renderer finds the platform's IVulkanSurfaceSource (GlfwPlatform
+        /// - renderer->setup(*platform): the renderer finds the platform's IVulkanSurfaceSource (GlfwPlatform
         ///   implements it) and calls initLoader(): GLFW will use the renderer's Vulkan loader;
         /// - platform->init(window): the window, without graphics context;
         /// - renderer->init(*platform): the instance (+ layers, messenger), then the window surface, through

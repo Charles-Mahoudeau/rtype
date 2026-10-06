@@ -87,7 +87,7 @@ Backend BackendRegistry::createBackend(const config::Settings& config) const {
     if (!backend.renderer) {
         throw exceptions::BackendException("The renderer factory '" + rendererName + "' returned no renderer");
     }
-    backend.renderer->prepare(*backend.platform);
+    backend.renderer->setup(*backend.platform);
     backend.platform->init(window);
     backend.renderer->init(*backend.platform);
     return backend;

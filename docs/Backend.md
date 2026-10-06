@@ -120,7 +120,7 @@ the backend.
 
 | Function | Role |
 |---|---|
-| `prepare(IPlatform&)` | Optional (default: nothing). Sets the platform up before its window exists, and may throw early if the pair does not fit. |
+| `setup(IPlatform&)` | Optional (default: nothing). Sets the platform up before its window exists, and may throw early if the pair does not fit. |
 | `init(IPlatform&)` | Attaches to the window. Called once, by the registry, after `IPlatform::init()`. |
 | `resize(size)` | Called on every `Resized` event. |
 | `createTexture(desc, pixels)`, `destroy(id)` | Textures from RGBA pixels, referred to by `TextureId`. |
@@ -138,7 +138,7 @@ implementation).
 
 ### How a renderer attaches to its platform
 
-Libraries split the window and the rendering differently, so `IRenderer::prepare()` and `init()` receive the whole
+Libraries split the window and the rendering differently, so `IRenderer::setup()` and `init()` receive the whole
 platform and take what they need. `IPlatform` itself stays free of any graphics API. Two ways exist today:
 
 | Way | Used by | How |
@@ -161,7 +161,7 @@ class GlfwPlatform final : public engine::platform::IPlatform, public interop::v
 
 | `IVulkanSurfaceSource` | `GlfwPlatform` | Called by `VulkanRenderer` in |
 |---|---|---|
-| `initLoader(PFN_vkGetInstanceProcAddr)` | `glfwInitVulkanLoader`: GLFW uses the renderer's Vulkan loader, so the process has a single one | `prepare()`, before the window exists |
+| `initLoader(PFN_vkGetInstanceProcAddr)` | `glfwInitVulkanLoader`: GLFW uses the renderer's Vulkan loader, so the process has a single one | `setup()`, before the window exists |
 | `getRequiredExtensions()` | `glfwGetRequiredInstanceExtensions` | `init()`, to create the instance |
 | `createSurface(VkInstance)` → `VkSurfaceKHR` | `glfwCreateWindowSurface` | `init()`, after the instance |
 
@@ -186,7 +186,7 @@ must be shared. Neither macro exports code (the interfaces are header-only), and
 types are compared by name.
 
 A platform and a renderer that do not fit are reported by the renderer, with a message saying why:
-`VulkanRenderer::prepare()` throws `UnsupportedFeatureException` before any window opens if the platform does not
+`VulkanRenderer::setup()` throws `UnsupportedFeatureException` before any window opens if the platform does not
 implement `IVulkanSurfaceSource`, and `SfmlRenderer::init()` throws if the platform is not an `SfmlPlatform`.
 
 ## Start-up sequence
@@ -209,7 +209,7 @@ sequenceDiagram
     Registry->>Platform: platform factory(config.section(platform name))
     Registry->>Renderer: renderer factory(config.section(renderer name))
 
-    Registry->>Renderer: prepare(platform)
+    Registry->>Renderer: setup(platform)
     Renderer->>Interop: dynamic_cast from IPlatform (throws if not implemented)
     Renderer->>Interop: initLoader(vkGetInstanceProcAddr)
 
@@ -225,9 +225,9 @@ sequenceDiagram
 
 `IPlatform` only receives the generic calls (its factory, `init()`); everything specific to Vulkan goes through
 `IVulkanSurfaceSource`, which the renderer gets from the same object with a `dynamic_cast`. With `SfmlRenderer`,
-there is no interop step: `prepare()` does nothing, and `init()` casts the platform to `SfmlPlatform`.
+there is no interop step: `setup()` does nothing, and `init()` casts the platform to `SfmlPlatform`.
 
-The order matters: `prepare()` is the only moment the renderer can still change how the platform creates its window
+The order matters: `setup()` is the only moment the renderer can still change how the platform creates its window
 (the Vulkan loader must be set before GLFW initializes), and `init()` attaches to a window that already exists.
 Everything that can be checked without opening a window (the names, the `window` settings, each backend's settings,
 a pair that does not fit) is checked before `IPlatform::init()`.
@@ -285,7 +285,7 @@ A backend can live in an engine module or in your own code, as the SDL and SFML 
 
 1. **Implement the interface.** `class MyPlatform final : public rtype::engine::platform::IPlatform`, or `IRenderer`.
    A platform also implements the interop interfaces of the renderers it serves (`IVulkanSurfaceSource` for
-   `vulkan`, with `add_deps("interop-vulkan")`); a renderer overrides `prepare()` if it must set the platform up
+   `vulkan`, with `add_deps("interop-vulkan")`); a renderer overrides `setup()` if it must set the platform up
    before its window exists.
 2. **Register it under a name**, with a factory that receives its own section of the settings:
 
