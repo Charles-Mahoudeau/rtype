@@ -4,7 +4,7 @@ How keyboard, mouse and gamepad input goes from the OS to the game.
 
 The game never talks to a device or to GLFW. The **platform** turns native input into engine **events**, and **`Input`** turns those events into named **actions** (`"move"`, `"fire"`...) that gameplay code, ECS systems and Lua scripts read.
 
-A runnable example lives in [`examples/platform/BasicGLFWWindow`](../examples/platform/BasicGLFWWindow/src/main.cpp).
+A runnable example lives in [`examples/graphic/platform/BasicGLFWWindow`](../examples/graphic/platform/BasicGLFWWindow/src/main.cpp).
 
 ## Architecture
 
@@ -21,11 +21,11 @@ flowchart LR
   end
  subgraph PLATFORM["platform/ (the only module that includes GLFW)"]
     direction TB
-        CB["WindowCallbacks<br> <strong>onKey, onMouseButton, onCursorPos,<br>onScroll, onChar, onFocus, onResize, onClose </strong>"]
-        PG["WindowGamepad: <strong>pollGamepad()</strong><br>compares with the previous frame,<br>emits only the changes"]
+        CB["GlfwPlatformCallbacks<br> <strong>onKey, onMouseButton, onCursorPos,<br>onScroll, onChar, onFocus, onResize, onClose </strong>"]
+        PG["GlfwPlatformGamepad: <strong>pollGamepad()</strong><br>compares with the previous frame,<br>emits only the changes"]
         MAP["GlfwMapping<br> <strong>GLFW_KEY_W → Key::kW</strong><br>axes: Y up, triggers 0..1"]
         Q["_events<br>std::vector&lt;engine::Event&gt;"]
-        POLL["Window::pollEvents()"]
+        POLL["GlfwPlatform::pollEvents()"]
   end
  subgraph BUTTONS["Buttons: ButtonStates&lt;T&gt;"]
     direction TB
@@ -113,11 +113,11 @@ flowchart LR
 | Module | Role | Depends on |
 | --- | --- | --- |
 | `engine/` (`engine-core`) | `Key`, `Event`, `Control`, `InputAction`, `Input`, `ButtonStates`. Pure logic, testable without a window. | glm only |
-| `platform/` | `Window`: GLFW callbacks and gamepad polling, translated into engine events. | `engine-core`, GLFW |
-| `vulkan/`, `luau/` | Rendering and scripting. They read input through the engine, never through GLFW. | `engine-core` |
+| `platform/glfw/` | `GlfwPlatform` (implements `IPlatform`): GLFW callbacks and gamepad polling, translated into engine events. | `engine-core`, GLFW |
+| `render/vulkan/`, `luau/` | Rendering and scripting. They read input through the engine, never through GLFW. | `engine-core` |
 | `engine/main.cpp` (`engine`) | The executable: creates the window and feeds its events to `Input`. | everything above |
 
-**Rule:** GLFW never leaves `platform/`. No public header outside it includes `<GLFW/glfw3.h>` or uses a `GLFW_*` code. `Window::getNativeHandle()` exists only for integrations that need the raw handle (Vulkan surface, ImGui backend).
+**Rule:** GLFW never leaves `platform/glfw/`. No public header outside it includes `<GLFW/glfw3.h>` or uses a `GLFW_*` code. Renderers attach to the window through the interop interfaces the platform implements (`IVulkanSurfaceSource`, see [`Backend.md`](Backend.md)), never through GLFW itself.
 
 ### Files
 
@@ -129,10 +129,10 @@ flowchart LR
 | [`engine/input/InputAction.hpp`](../src/rtype/engine/input/InputAction.hpp) | A named action and its bindings |
 | [`engine/input/Input.hpp`](../src/rtype/engine/input/Input.hpp) | Input state and the action registry |
 | [`engine/input/ButtonStates.hpp`](../src/rtype/engine/input/ButtonStates.hpp) | Held / tapped / snapshot state of a family of buttons |
-| [`platform/Window.hpp`](../src/rtype/platform/Window.hpp) | The window, source of every event |
-| [`platform/WindowCallbacks.cpp`](../src/rtype/platform/WindowCallbacks.cpp) | GLFW callbacks → events |
-| [`platform/WindowGamepad.cpp`](../src/rtype/platform/WindowGamepad.cpp) | Gamepad polling → events |
-| [`platform/GlfwMapping.cpp`](../src/rtype/platform/GlfwMapping.cpp) | GLFW codes ↔ engine types, the only place that knows both |
+| [`platform/glfw/GlfwPlatform.hpp`](../src/rtype/platform/glfw/GlfwPlatform.hpp) | The window, source of every event |
+| [`platform/glfw/GlfwPlatformCallbacks.cpp`](../src/rtype/platform/glfw/GlfwPlatformCallbacks.cpp) | GLFW callbacks → events |
+| [`platform/glfw/GlfwPlatformGamepad.cpp`](../src/rtype/platform/glfw/GlfwPlatformGamepad.cpp) | Gamepad polling → events |
+| [`platform/glfw/GlfwMapping.cpp`](../src/rtype/platform/glfw/GlfwMapping.cpp) | GLFW codes ↔ engine types, the only place that knows both |
 
 ## Usage
 
@@ -158,7 +158,8 @@ auto& fire = input.addAction("fire", ActionType::kButton)
 ### 2. Run the frame loop
 
 ```cpp
-rtype::platform::Window window(800, 600, "R-Type");
+rtype::platform::GlfwPlatform window;
+window.init({.title = "R-Type"});
 
 while (window.isOpen()) {
     for (const auto& event : window.pollEvents()) {
@@ -283,7 +284,7 @@ Release events are not received while the window is unfocused, so keys would sta
 
 ### Gamepad
 
-GLFW has no gamepad callbacks, only `glfwGetGamepadState()`. `Window::pollEvents()` therefore reads the first connected gamepad every frame, compares it with the previous frame and sends events only for what changed. On disconnection it releases every button and axis first, then sends `GamepadDisconnected`, so nothing stays stuck.
+GLFW has no gamepad callbacks, only `glfwGetGamepadState()`. `GlfwPlatform::pollEvents()` therefore reads the first connected gamepad every frame, compares it with the previous frame and sends events only for what changed. On disconnection it releases every button and axis first, then sends `GamepadDisconnected`, so nothing stays stuck.
 
 ### Cursor lock
 
@@ -294,14 +295,14 @@ GLFW has no gamepad callbacks, only `glfwGetGamepadState()`. `Window::pollEvents
 ### Adding a key
 
 1. Add the value to `Key` in [`Key.hpp`](../src/rtype/engine/input/Key.hpp), before `kCount`.
-2. Add its GLFW pair to the `kKeys` table in [`GlfwMapping.cpp`](../src/rtype/platform/GlfwMapping.cpp).
+2. Add its GLFW pair to the `kKeys` table in [`GlfwMapping.cpp`](../src/rtype/platform/glfw/GlfwMapping.cpp).
 
 A `static_assert` fails the build if a `Key` has no GLFW mapping, so step 2 cannot be forgotten.
 
 ### Adding an event
 
 1. Add the struct in [`Event.hpp`](../src/rtype/engine/event/Event.hpp) and add it to the `Event` variant.
-2. Emit it from the platform (a callback in `WindowCallbacks.cpp`, or polling).
+2. Emit it from the platform (a callback in `GlfwPlatformCallbacks.cpp`, or polling).
 3. If `Input` needs it, add an `onEvent()` overload in `Input.hpp` / `Input.cpp`. Events without an overload are ignored automatically.
 
 ## Limitations
