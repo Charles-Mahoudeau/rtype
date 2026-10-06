@@ -144,6 +144,14 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
   - Never use `using namespace` in `src/` (headers or sources) or in tests: always qualify names
     explicitly. The only exception is `examples/`, where `using namespace` is allowed in `.cpp`
     files to keep examples short and readable.
+  - Prefer the short form over the verbose one:
+    - Test a `std::optional` with its `bool` conversion: `if (opt)` / `if (!opt)`, not
+      `opt.has_value()`.
+    - Initialize with braces: `MyClass hello{arg1, arg2};` and `: _member{value}`, not
+      `MyClass hello(arg1, arg2);`. Braces reject narrowing conversions, so cast explicitly when
+      one is intended. Keep parentheses only where braces would call a different constructor
+      (`std::initializer_list` overloads, e.g. `std::vector<int> v(3, 0);` builds `{0, 0, 0}` while
+      `v{3, 0}` builds `{3, 0}`).
   - Manage resources with RAII and smart pointers (`std::unique_ptr` by default,
     `std::shared_ptr` only for genuinely shared ownership). No raw owning pointers, and no
     `new`/`delete` or `malloc`/`free` outside code that wraps a C API.

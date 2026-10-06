@@ -19,11 +19,11 @@
 namespace rtype::render::vulkan::core {
 Instance::Instance(const std::string_view& appName, const std::string_view& engineName, uint32_t apiVersion,
                    std::vector<const char*> requiredExtensions, std::vector<const char*> layers)
-    : _context(getLoaderEntryPoint()) {
-    const std::string applicationName(appName);
-    const std::string engineNameString(engineName);
-    const vk::ApplicationInfo appInfo(applicationName.c_str(), VK_MAKE_VERSION(1, 0, 0), engineNameString.c_str(),
-                                      VK_MAKE_VERSION(1, 0, 0), apiVersion);
+    : _context{getLoaderEntryPoint()} {
+    const std::string applicationName{appName};
+    const std::string engineNameString{engineName};
+    const vk::ApplicationInfo appInfo{applicationName.c_str(), VK_MAKE_VERSION(1, 0, 0), engineNameString.c_str(),
+                                      VK_MAKE_VERSION(1, 0, 0), apiVersion};
 
     const auto availableExtensions = _context.enumerateInstanceExtensionProperties();
     checkExtensionsSupported(availableExtensions, requiredExtensions);

@@ -144,7 +144,7 @@ std::vector<Event> SfmlPlatform::pollEvents() {
         } else if (const auto* released = sfEvent->getIf<sf::Event::KeyReleased>()) {
             events.emplace_back(event::KeyReleased{.key = toKey(released->scancode), .mods = toMods(*released)});
         } else if (const auto* moved = sfEvent->getIf<sf::Event::MouseMoved>()) {
-            const glm::vec2 position(moved->position.x, moved->position.y);
+            const glm::vec2 position{static_cast<float>(moved->position.x), static_cast<float>(moved->position.y)};
             const glm::vec2 delta = _hasCursorPosition ? position - _cursorPosition : glm::vec2(0.0F);
             _cursorPosition = position;
             _hasCursorPosition = true;

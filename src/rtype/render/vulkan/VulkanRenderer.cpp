@@ -39,7 +39,7 @@ void VulkanRenderer::setup(engine::platform::IPlatform& platform) {
 }
 
 void VulkanRenderer::init(engine::platform::IPlatform& platform) {
-    if (_instance.has_value()) {
+    if (_instance) {
         throw std::runtime_error("VulkanRenderer::init() called twice");
     }
 

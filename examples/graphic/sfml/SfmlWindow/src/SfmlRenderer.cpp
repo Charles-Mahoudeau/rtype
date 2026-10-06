@@ -71,7 +71,7 @@ graphics::TextureId SfmlRenderer::createTexture(const graphics::TextureDesc& des
     if (pixels.size() != static_cast<std::size_t>(desc.size.x) * desc.size.y * kBytesPerPixel) {
         throw std::invalid_argument("SfmlRenderer::createTexture: pixels must hold size.x * size.y RGBA pixels");
     }
-    sf::Texture texture(sf::Vector2u{desc.size.x, desc.size.y});
+    sf::Texture texture{sf::Vector2u{desc.size.x, desc.size.y}};
     // std::byte and std::uint8_t are both raw bytes: SFML only takes the latter.
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
     texture.update(reinterpret_cast<const std::uint8_t*>(pixels.data()));
@@ -128,9 +128,9 @@ void SfmlRenderer::draw(const graphics::Sprite& sprite) {
         throw std::invalid_argument("SfmlRenderer::draw: the sprite's texture was destroyed");
     }
     const auto& source = sprite.source;
-    sf::Sprite sfSprite(*texture,
+    sf::Sprite sfSprite{*texture,
                         sf::IntRect({static_cast<int>(source.getX()), static_cast<int>(source.getY())},
-                                    {static_cast<int>(source.getWidth()), static_cast<int>(source.getHeight())}));
+                                    {static_cast<int>(source.getWidth()), static_cast<int>(source.getHeight())})};
     sfSprite.setOrigin({sprite.origin.x, sprite.origin.y});
     sfSprite.setPosition({sprite.position.x, sprite.position.y});
     sfSprite.setScale({sprite.scale.x, sprite.scale.y});
@@ -140,7 +140,7 @@ void SfmlRenderer::draw(const graphics::Sprite& sprite) {
 }
 
 void SfmlRenderer::draw(const graphics::RectShape& rect) {
-    sf::RectangleShape shape({rect.size.x, rect.size.y});
+    sf::RectangleShape shape{{rect.size.x, rect.size.y}};
     shape.setOrigin({rect.origin.x, rect.origin.y});
     shape.setPosition({rect.position.x, rect.position.y});
     shape.setRotation(sf::radians(rect.rotation));
@@ -156,7 +156,7 @@ const sf::Texture* SfmlRenderer::find(graphics::TextureId texture) const {
         return nullptr;
     }
     const Slot& slot = _slots.at(texture.index);
-    if (slot.generation != texture.generation || !slot.texture.has_value()) {
+    if (slot.generation != texture.generation || !slot.texture) {
         return nullptr;
     }
     return &*slot.texture;

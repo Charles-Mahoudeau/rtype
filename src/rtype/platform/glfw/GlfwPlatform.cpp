@@ -121,7 +121,7 @@ std::vector<const char*> GlfwPlatform::getRequiredExtensions() const {
     if (extensions == nullptr) {
         throw exceptions::GLFWWindowException("Vulkan is not supported: no required instance extensions");
     }
-    const std::span<const char*> view(extensions, count);
+    const std::span<const char*> view{extensions, count};
     return {view.begin(), view.end()};
 }
 

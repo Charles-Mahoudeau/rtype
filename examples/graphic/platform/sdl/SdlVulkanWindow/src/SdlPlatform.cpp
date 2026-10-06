@@ -213,7 +213,7 @@ std::vector<const char*> SdlPlatform::getRequiredExtensions() const {
     if (extensions == nullptr) {
         throw std::runtime_error(std::string("SDL_Vulkan_GetInstanceExtensions failed: ") + SDL_GetError());
     }
-    const std::span view(extensions, count);
+    const std::span view{extensions, count};
     return {view.begin(), view.end()};
 }
 
