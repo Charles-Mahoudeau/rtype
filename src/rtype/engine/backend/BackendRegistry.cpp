@@ -80,7 +80,13 @@ Backend BackendRegistry::createBackend(const config::Settings& config) const {
 
     Backend backend;
     backend.platform = createPlatform(config.section(platformName));
+    if (!backend.platform) {
+        throw exceptions::BackendException("The platform factory '" + platformName + "' returned no platform");
+    }
     backend.renderer = createRenderer(config.section(rendererName));
+    if (!backend.renderer) {
+        throw exceptions::BackendException("The renderer factory '" + rendererName + "' returned no renderer");
+    }
     backend.renderer->prepare(*backend.platform);
     backend.platform->init(window);
     backend.renderer->init(*backend.platform);
