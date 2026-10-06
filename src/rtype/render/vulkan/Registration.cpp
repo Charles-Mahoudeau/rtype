@@ -7,8 +7,11 @@
 
 #include "Registration.hpp"
 
+#include <array>
 #include <memory>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vulkan/vulkan_raii.hpp>
 
 #include "VulkanRenderer.hpp"
@@ -25,17 +28,18 @@ namespace {
 /// @throws engine::exceptions::SettingsException If the name is unknown.
 vk::DebugUtilsMessageSeverityFlagBitsEXT toSeverity(const std::string& name) {
     using Severity = vk::DebugUtilsMessageSeverityFlagBitsEXT;
-    if (name == "verbose") {
-        return Severity::eVerbose;
-    }
-    if (name == "info") {
-        return Severity::eInfo;
-    }
-    if (name == "warning") {
-        return Severity::eWarning;
-    }
-    if (name == "error") {
-        return Severity::eError;
+    using Entry = std::pair<std::string_view, Severity>;
+    static constexpr std::array<Entry, 4> kSeverities{{
+        {"verbose", Severity::eVerbose},
+        {"info", Severity::eInfo},
+        {"warning", Severity::eWarning},
+        {"error", Severity::eError},
+    }};
+
+    for (const auto& [key, severity] : kSeverities) {
+        if (key == name) {
+            return severity;
+        }
     }
     throw engine::exceptions::SettingsException(
         "Setting 'vulkan.minSeverity' must be \"verbose\", \"info\", "
