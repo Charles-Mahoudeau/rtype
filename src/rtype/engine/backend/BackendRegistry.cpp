@@ -7,6 +7,7 @@
 
 #include "BackendRegistry.hpp"
 
+#include <format>
 #include <functional>
 #include <map>
 #include <memory>
@@ -41,8 +42,7 @@ const Factory& findFactory(const std::map<std::string, Factory, std::less<>>& fa
                            std::string_view kind, std::string& name) {
     name = config.getString(kind, "");
     if (name.empty()) {
-        throw exceptions::BackendException("The config does not choose a " + std::string(kind) + " ('" +
-                                           std::string(kind) + " = \"...\"')");
+        throw exceptions::BackendException(std::format(R"(The config does not choose a {0} ('{0} = "..."'))", kind));
     }
     const auto it = factories.find(name);
     if (it == factories.end()) {
@@ -50,8 +50,8 @@ const Factory& findFactory(const std::map<std::string, Factory, std::less<>>& fa
         for (const std::string& known : namesOf(factories)) {
             available += (available.empty() ? "" : ", ") + known;
         }
-        throw exceptions::BackendException("Unknown " + std::string(kind) + " '" + name +
-                                           "' (registered: " + (available.empty() ? "none" : available) + ")");
+        throw exceptions::BackendException(
+            std::format("Unknown {} '{}' (registered: {})", kind, name, available.empty() ? "none" : available));
     }
     return it->second;
 }
@@ -81,11 +81,11 @@ Backend BackendRegistry::createBackend(const config::Settings& config) const {
     Backend backend;
     backend.platform = createPlatform(config.section(platformName));
     if (!backend.platform) {
-        throw exceptions::BackendException("The platform factory '" + platformName + "' returned no platform");
+        throw exceptions::BackendException(std::format("The platform factory '{}' returned no platform", platformName));
     }
     backend.renderer = createRenderer(config.section(rendererName));
     if (!backend.renderer) {
-        throw exceptions::BackendException("The renderer factory '" + rendererName + "' returned no renderer");
+        throw exceptions::BackendException(std::format("The renderer factory '{}' returned no renderer", rendererName));
     }
     backend.renderer->setup(*backend.platform);
     backend.platform->init(window);

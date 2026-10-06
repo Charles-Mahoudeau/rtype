@@ -8,6 +8,7 @@
 #include "Settings.hpp"
 
 #include <algorithm>
+#include <format>
 #include <functional>
 #include <initializer_list>
 #include <map>
@@ -35,7 +36,7 @@ T read(const std::map<std::string, Settings::Value, std::less<>>& values, std::s
     if (const T* value = std::get_if<T>(&it->second)) {
         return *value;
     }
-    throw exceptions::SettingsException("Setting '" + std::string(key) + "' must be " + std::string(expected));
+    throw exceptions::SettingsException(std::format("Setting '{}' must be {}", key, expected));
 }
 
 }  // namespace
@@ -45,7 +46,7 @@ void Settings::set(std::string key, Value value) { _values.insert_or_assign(std:
 bool Settings::has(std::string_view key) const { return _values.contains(key); }
 
 Settings Settings::section(std::string_view prefix) const {
-    const std::string start = std::string(prefix) + ".";
+    const std::string start = std::format("{}.", prefix);
     Settings result;
     for (const auto& [key, value] : _values) {
         if (key.starts_with(start)) {
@@ -93,7 +94,7 @@ void Settings::checkKeys(std::initializer_list<std::string_view> allowed, std::s
             return key == name || (key.starts_with(name) && key.size() > name.size() && key.at(name.size()) == '.');
         });
         if (!known) {
-            throw exceptions::SettingsException("Unknown setting '" + key + "' in '" + std::string(context) + "'");
+            throw exceptions::SettingsException(std::format("Unknown setting '{}' in '{}'", key, context));
         }
     }
 }

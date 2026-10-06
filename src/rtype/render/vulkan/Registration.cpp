@@ -8,6 +8,7 @@
 #include "Registration.hpp"
 
 #include <array>
+#include <format>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -26,7 +27,7 @@ namespace {
 
 /// @return The severity named in the config.
 /// @throws engine::exceptions::SettingsException If the name is unknown.
-vk::DebugUtilsMessageSeverityFlagBitsEXT toSeverity(const std::string& name) {
+vk::DebugUtilsMessageSeverityFlagBitsEXT toSeverity(std::string_view name) {
     using Severity = vk::DebugUtilsMessageSeverityFlagBitsEXT;
     using Entry = std::pair<std::string_view, Severity>;
     static constexpr std::array<Entry, 4> kSeverities{{
@@ -42,9 +43,7 @@ vk::DebugUtilsMessageSeverityFlagBitsEXT toSeverity(const std::string& name) {
         }
     }
     throw engine::exceptions::SettingsException(
-        "Setting 'vulkan.minSeverity' must be \"verbose\", \"info\", "
-        "\"warning\" or \"error\", not \"" +
-        name + "\"");
+        std::format(R"(Setting 'vulkan.minSeverity' must be "verbose", "info", "warning" or "error", not "{}")", name));
 }
 
 /// @return The Config described by the "vulkan" section; missing keys keep the Config defaults.

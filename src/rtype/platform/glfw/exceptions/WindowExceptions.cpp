@@ -9,6 +9,7 @@
 
 #include <GLFW/glfw3.h>
 
+#include <format>
 #include <stdexcept>
 #include <string>
 
@@ -22,7 +23,10 @@ std::string GLFWWindowException::withGlfwError(const std::string& message) {
     if (errorCode == GLFW_NO_ERROR) {
         return message;
     }
-    return message + ": " + (description != nullptr ? std::string(description) : std::to_string(errorCode));
+    if (description != nullptr) {
+        return std::format("{}: {}", message, description);
+    }
+    return std::format("{}: {}", message, errorCode);
 }
 
 }  // namespace rtype::platform::glfw::exceptions

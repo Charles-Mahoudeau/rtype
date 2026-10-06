@@ -152,6 +152,10 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
       one is intended. Keep parentheses only where braces would call a different constructor
       (`std::initializer_list` overloads, e.g. `std::vector<int> v(3, 0);` builds `{0, 0, 0}` while
       `v{3, 0}` builds `{3, 0}`).
+    - Build strings with `std::format`: `std::format("Unknown setting '{}' in '{}'", key, context)`,
+      not `"Unknown setting '" + key + "' in '" + std::string(context) + "'"`. It takes `std::string_view`
+      and numbers directly (no `std::string(...)` or `std::to_string`). Use a raw string literal
+      (`R"(...)"`) when the text contains quotes. Appending in a loop (`result += ...`) stays as it is.
   - Manage resources with RAII and smart pointers (`std::unique_ptr` by default,
     `std::shared_ptr` only for genuinely shared ownership). No raw owning pointers, and no
     `new`/`delete` or `malloc`/`free` outside code that wraps a C API.

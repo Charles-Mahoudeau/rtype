@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <format>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -43,7 +44,7 @@ void Instance::checkExtensionsSupported(std::span<const vk::ExtensionProperties>
                                         std::span<const char* const> required) {
     for (const char* extension : required) {
         if (!isExtensionAvailable(available, extension)) {
-            throw std::runtime_error("Required instance extension not supported: " + std::string(extension));
+            throw std::runtime_error(std::format("Required instance extension not supported: {}", extension));
         }
     }
 }
@@ -52,7 +53,7 @@ void Instance::checkLayersSupported(std::span<const vk::LayerProperties> availab
                                     std::span<const char* const> requested) {
     for (const char* layer : requested) {
         if (!isLayerAvailable(available, layer)) {
-            throw std::runtime_error("Instance layer not supported: " + std::string(layer));
+            throw std::runtime_error(std::format("Instance layer not supported: {}", layer));
         }
     }
 }

@@ -8,6 +8,7 @@
 #include "VulkanRenderer.hpp"
 
 #include <cstddef>
+#include <format>
 #include <glm/ext/vector_uint2.hpp>
 #include <span>
 #include <stdexcept>
@@ -97,8 +98,8 @@ interop::vulkan::IVulkanSurfaceSource& VulkanRenderer::surfaceSourceOf(engine::p
 }
 
 void VulkanRenderer::notImplemented(std::string_view function) {
-    throw engine::exceptions::UnsupportedFeatureException("VulkanRenderer::" + std::string(function) +
-                                                          " is not implemented yet");
+    throw engine::exceptions::UnsupportedFeatureException(
+        std::format("VulkanRenderer::{} is not implemented yet", function));
 }
 
 }  // namespace rtype::render::vulkan
