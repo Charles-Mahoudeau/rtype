@@ -88,7 +88,6 @@ std::vector<engine::Event> GlfwPlatform::pollEvents() {
     if (_window == nullptr) {
         return {};
     }
-    _events.clear();
     glfwPollEvents();
     pollGamepad();
     _isOpen = glfwWindowShouldClose(_window) == GLFW_FALSE;
