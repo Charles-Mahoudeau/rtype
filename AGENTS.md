@@ -163,10 +163,12 @@ checks on every pull request.
 
 ## Asking questions
 
-If a request, requirement or piece of context is vague, ambiguous or something you don't know, do
-not guess and do not fill the gap with assumptions. Ask the user clarifying questions first, then
-proceed once the answers are clear. This applies to design choices, scope, naming, expected
-behavior and anything else that could change what you build.
+Never act on assumptions. If a request, requirement or piece of context is vague, ambiguous,
+incomplete or unknown to you, or if you are unsure how to proceed, stop and ask the user
+clarifying questions before doing anything. Proceed only once the answers are clear.
+
+This applies to design choices, scope, naming, expected behavior and anything else that could
+change what you build. Do not fill gaps with guesses and do not work around missing details.
 
 ## Debugging
 
