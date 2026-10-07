@@ -16,6 +16,7 @@
 #include <variant>
 
 #include "Export.hpp"
+#include "Table.hpp"
 
 namespace rtype::luau {
 /// @brief A dynamically typed Luau value, held by value on the C++ side.
@@ -36,9 +37,9 @@ class RTYPE_LUAU_API Value {
 #endif
     /// @brief The set of Luau types a Value can hold.
     ///
-    /// See https://luau.org/api/#type-inspection. Not implemented types (yet): Table, Function, Userdata,
+    /// See https://luau.org/api/#type-inspection. Not implemented types (yet): Function, Userdata,
     /// Thread, Buffer, Class.
-    using Variant = std::variant<Nil, bool, double, std::int64_t, Vector, std::string>;
+    using Variant = std::variant<Nil, bool, double, std::int64_t, Vector, std::string, Table>;
 
     /// @brief Constructs a Value from any of the supported types.
     /// @param v The variant to hold.
