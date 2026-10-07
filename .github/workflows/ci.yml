@@ -37,6 +37,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y vulkan-tools libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
 
+      - name: Setup macOS dependencies
+        if: contains(runner.os, 'macos')
+        run: brew install molten-vk vulkan-loader
+
       - name: Install xmake
         uses: xmake-io/github-action-setup-xmake@v1
         with:
@@ -76,6 +80,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y vulkan-tools libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+
+      # Vulkan loader and MoltenVK driver from Homebrew, used by the vulkan target on macOS.
+      - name: Setup macOS dependencies
+        if: contains(runner.os, 'macos')
+        run: brew install molten-vk vulkan-loader
 
       - name: Install xmake
         uses: xmake-io/github-action-setup-xmake@v1

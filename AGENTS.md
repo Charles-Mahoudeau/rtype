@@ -14,40 +14,51 @@ are added.
   - `engine-core`: static library (`rtype-engine-core`), the core of the engine: ECS, events
     (`event/`, `rtype::engine::event`) and input (`input/`, `rtype::engine::input`). It depends on
     no window, graphics or scripting library (only glm).
-  - `engine`: the executable, built from `main.cpp` only. It wires `engine-core` with `platform`,
-    `luau` and `vulkan`.
-- `src/rtype/platform/` — `platform` target, static library (`rtype-platform`): the GLFW window
-  (`rtype::platform`, exceptions in `platform/exceptions/`). The only module that includes GLFW:
-  it translates every GLFW callback and the gamepad state into `rtype::engine::Event`s.
+  - `engine`: the executable, built from `main.cpp` only. It wires `engine-core` with
+    `platform-glfw`, `luau` and `render-vulkan`.
+- `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
+  `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
+  (`IVulkanSurfaceSource`). See `docs/Backend.md`.
+- `src/rtype/platform/<library>/` — one target per windowing backend, named `platform-<library>`.
+  - `platform/glfw/` — `platform-glfw` target, static library (`rtype-platform-glfw`): `GlfwPlatform`,
+    the GLFW implementation of `IPlatform` and `IVulkanSurfaceSource` (`rtype::platform::glfw`,
+    exceptions in `platform/glfw/exceptions/`), registered as `"glfw"` by `registerPlatform()`
+    (`Registration.hpp`). The only module that includes GLFW: it translates every GLFW callback and the
+    gamepad state into `rtype::engine::Event`s.
+- `src/rtype/render/<api>/` — one target per renderer, named `render-<api>`.
+  - `render/vulkan/` — `render-vulkan` target, shared library (`rtype-render-vulkan`): `VulkanRenderer`,
+    the Vulkan implementation of `IRenderer` (`rtype::render::vulkan`), registered as `"vulkan"` by
+    `registerRenderer()` (`Registration.hpp`). Shaders go in `shaders/` and are compiled to SPIR-V by
+    the `glsl.spirv` rule defined in its `xmake.lua`.
 - `src/rtype/luau/` — `luau` target, shared library (`rtype-luau`) for Luau scripting.
-- `src/rtype/vulkan/` — `vulkan` target, shared library (`rtype-vulkan`) for rendering. Namespace
-  `rtype::vulkan`. Shaders go in `shaders/` and are compiled to SPIR-V by the `glsl.spirv` rule
-  defined in its `xmake.lua`.
+- `examples/<category>/.../<Name>/` — standalone examples, each with its own `xmake.lua`, grouped in
+  folders of any depth (e.g. `examples/graphic/render/vulkan/VulkanInstance/`). Every `xmake.lua` under
+  `examples/` is an example named after its folder. They are only built when enabled (see Commands).
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
-- `examples/<category>/<Name>/` — standalone examples, each with its own `xmake.lua`. They are
-  only built when enabled (see Commands).
 - `docs/` — design documentation (e.g. `docs/Input.md` for the event and input pipeline).
 - `.github/` — CI workflow and issue templates.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
 
 Each module has its own `xmake.lua`, included from the root `xmake.lua`. Add new sources under the
 matching module: `engine-core` globs `**.cpp` in `src/rtype/engine/` except `main.cpp`, while
-`platform`, `luau` and `vulkan` glob `**.cpp` in their own folder.
+`platform-glfw`, `render-vulkan` and `luau` glob `**.cpp` in their own folder.
 
 ### Dependency rules
 
 Dependencies always point towards `engine-core`, never away from it:
 
 ```
-engine-core  ←  platform, vulkan, luau  ←  engine (executable)
+engine-core, interop-*  ←  platform-*, render-*, luau  ←  engine (executable)
 ```
 
-- `engine-core` depends on nothing but glm. Never add a dependency on `platform`, `vulkan` or
-  `luau` to it: they depend on it, so it would create a cycle.
+- `engine-core` depends on nothing but glm. Never add a dependency on a `platform-*`, `render-*` or
+  `luau` target to it: they depend on it, so it would create a cycle.
 - Modules exchange engine types only (`rtype::engine::Event`, `rtype::engine::input::Key`...).
-  GLFW never leaves `platform/`: no header outside it includes `<GLFW/glfw3.h>` or uses a
-  `GLFW_*` code. `Window::getNativeHandle()` is reserved for integrations that need the raw
-  handle (Vulkan surface, ImGui backend).
+  GLFW never leaves `platform/glfw/`: no header outside it includes `<GLFW/glfw3.h>` or uses a
+  `GLFW_*` code.
+- A platform module and a renderer module never depend on each other: what a renderer needs from a
+  window that is specific to its graphics API goes through the matching `interop-*` target, which
+  both sides depend on (see `docs/Backend.md`).
 - Only the `engine` executable (and examples) link everything together.
 
 ## Commands
@@ -84,7 +95,7 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
 - Google-based style, 4-space indent, 120-column limit, newline at end of file.
 - clang-tidy checks: `bugprone`, `cppcoreguidelines`, `clang-analyzer`, `modernize`,
   `performance`, `readability`, `misc`.
-- Match the existing conventions in `src/rtype/engine/` and `src/rtype/platform/`:
+- Match the existing conventions in `src/rtype/engine/` and `src/rtype/platform/glfw/`:
   - Files named in PascalCase after their class (`Window.hpp`, `Window.cpp`).
   - Every source and header file starts with the Epitech header, with the current year, the
     project name (`rtype`) and the file name without extension as the description:
@@ -101,7 +112,7 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
   - Headers use `#pragma once` as their include guard, placed right after the Epitech header —
     never `#ifndef`/`#define`/`#endif` guards.
   - Namespaces mirror the directory path under `src/rtype/` (`rtype::engine::input`,
-    `rtype::platform`).
+    `rtype::platform::glfw`, `rtype::render::vulkan`).
   - Private members prefixed with `_` (`_window`), documented with `///<` comments.
   - Constants (`constexpr` / `static constexpr` variables) and enumerators are named `kName`
     (`kGamepadAxisCount`, `Key::kEscape`, `GamepadButton::kSouth`). Enum types themselves keep
@@ -126,8 +137,8 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
     5. Data members, in the same order as their accessors.
   - Errors reported through exceptions derived from `std::runtime_error`, kept in an `exceptions/`
     folder next to the code that throws them.
-- Exported symbols from shared libraries use the per-library `RTYPE_<LIB>_API` macro
-  (`__declspec(dllexport)` on Windows).
+- Exported symbols from shared libraries use the per-library `RTYPE_<LIB>_API` macro, named after the
+  target (`RTYPE_RENDER_VULKAN_API`, `RTYPE_LUAU_API`; `__declspec(dllexport)` on Windows).
 - Keep code portable across Linux, macOS and Windows.
 - Compiler compatibility: the project MUST compile with Clang, Apple Clang and MSVC, and SHOULD
   compile with GCC. Avoid compiler-specific extensions and C++23 features that one of the MUST
@@ -139,6 +150,18 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
   - Never use `using namespace` in `src/` (headers or sources) or in tests: always qualify names
     explicitly. The only exception is `examples/`, where `using namespace` is allowed in `.cpp`
     files to keep examples short and readable.
+  - Prefer the short form over the verbose one:
+    - Test a `std::optional` with its `bool` conversion: `if (opt)` / `if (!opt)`, not
+      `opt.has_value()`.
+    - Initialize with braces: `MyClass hello{arg1, arg2};` and `: _member{value}`, not
+      `MyClass hello(arg1, arg2);`. Braces reject narrowing conversions, so cast explicitly when
+      one is intended. Keep parentheses only where braces would call a different constructor
+      (`std::initializer_list` overloads, e.g. `std::vector<int> v(3, 0);` builds `{0, 0, 0}` while
+      `v{3, 0}` builds `{3, 0}`).
+    - Build strings with `std::format`: `std::format("Unknown setting '{}' in '{}'", key, context)`,
+      not `"Unknown setting '" + key + "' in '" + std::string(context) + "'"`. It takes `std::string_view`
+      and numbers directly (no `std::string(...)` or `std::to_string`). Use a raw string literal
+      (`R"(...)"`) when the text contains quotes. Appending in a loop (`result += ...`) stays as it is.
   - Manage resources with RAII and smart pointers (`std::unique_ptr` by default,
     `std::shared_ptr` only for genuinely shared ownership). No raw owning pointers, and no
     `new`/`delete` or `malloc`/`free` outside code that wraps a C API.
