@@ -21,9 +21,11 @@
 /// @endcode
 ///
 /// @tparam Ts Callable types (lambdas, functors...) to merge. Each one must have a distinct call signature.
-template <class... Ts> struct Overload : Ts... {
+template <class... Ts>
+struct Overload : Ts... {
     using Ts::operator()...;
 };
 
 /// @brief Deduction guide allowing `Overload{lambda1, lambda2, ...}` without spelling the template arguments.
-template <class... Ts> Overload(Ts...) -> Overload<Ts...>;
+template <class... Ts>
+Overload(Ts...) -> Overload<Ts...>;

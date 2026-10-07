@@ -60,11 +60,7 @@ bool Value::isNumeric() const noexcept {
     return std::holds_alternative<double>(_variant) || std::holds_alternative<std::int64_t>(_variant);
 }
 
-std::optional<std::int32_t> Value::toInt32() const {
-    return convertSafe<std::int32_t>(_variant);
-}
+std::optional<std::int32_t> Value::toInt32() const { return convertSafe<std::int32_t>(_variant); }
 
-std::optional<std::uint32_t> Value::toUInt32() const {
-    return convertSafe<std::uint32_t>(_variant);
-}
+std::optional<std::uint32_t> Value::toUInt32() const { return convertSafe<std::uint32_t>(_variant); }
 }  // namespace rtype::luau
