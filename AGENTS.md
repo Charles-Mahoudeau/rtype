@@ -31,6 +31,7 @@ are added.
     `registerRenderer()` (`Registration.hpp`). Shaders go in `shaders/` and are compiled to SPIR-V by
     the `glsl.spirv` rule defined in its `xmake.lua`.
 - `src/rtype/luau/` — `luau` target, shared library (`rtype-luau`) for Luau scripting.
+- `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `examples/<category>/.../<Name>/` — standalone examples, each with its own `xmake.lua`, grouped in
   folders of any depth (e.g. `examples/graphic/render/vulkan/VulkanInstance/`). Every `xmake.lua` under
   `examples/` is an example named after its folder. They are only built when enabled (see Commands).
