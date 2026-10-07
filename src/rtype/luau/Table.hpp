@@ -22,7 +22,7 @@ class Value;
 ///
 /// Models a Luau table whose keys are strings. Lookups accept `std::string_view`
 /// without allocating a temporary `std::string` (heterogeneous lookup).
-class Table {
+class RTYPE_LUAU_API Table {
   public:
     /// @brief Underlying map type, with transparent string hashing and comparison.
     using Map = std::unordered_map<std::string, Value, StringHash, std::equal_to<>>;
