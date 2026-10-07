@@ -9,23 +9,25 @@
 
 #include <lua.h>
 #include <lualib.h>
+#include <utility>
 
 #include "ErrorKind.hpp"
 #include "Failure.hpp"
 #include "Result.hpp"
+#include "RuntimeConfig.hpp"
 
 namespace rtype::luau {
 void Runtime::StateDeleter::operator()(lua_State* state) const noexcept { lua_close(state); }
 
-Result<Runtime> Runtime::create() noexcept {
+Runtime::Runtime(lua_State* state, RuntimeConfig config) noexcept : _config{std::move(config)}, _state{state} {}
+
+Result<Runtime> Runtime::create(RuntimeConfig config) noexcept {
     lua_State* state = luaL_newstate();
     if (state == nullptr) {
         return Failure{ErrorKind::kUnknown, "unable to create lua state"};
     }
-    return Runtime{state};
+    return Runtime{state, std::move(config)};
 }
-
-Runtime::Runtime(lua_State* state) noexcept : _state{state} {}
 
 Runtime::~Runtime() noexcept = default;
 
