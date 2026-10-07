@@ -203,6 +203,16 @@ Never commit without being explicitly asked. Committing is never the default —
 a task, running tests successfully, or being asked to implement or fix something. Always wait for
 explicit confirmation before running `git commit`, regardless of how the request was phrased.
 
+When you are asked to commit, make atomic and descriptive commits that follow the commit norm above:
+
+- Atomic: one logical change per commit, self-contained and building on its own. Tests go in their
+  own `test(...)` commit, separate from the `feat`/`fix` they cover. Never mix unrelated concerns
+  (a feature, a refactor, a formatting pass...) in one commit.
+- Descriptive: a precise lowercase Conventional Commits subject saying what changed, plus a body
+  (separated by a blank line) explaining what was done and why. Every commit has a body.
+- If the pending changes cover several concerns, split them into several commits: propose the
+  split to the user and ask before staging each one, instead of lumping everything together.
+
 ## Pull requests
 
 When asked to open a pull request, always create it as a draft (`gh pr create --draft`). If a PR
