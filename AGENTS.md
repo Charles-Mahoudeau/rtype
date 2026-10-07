@@ -208,10 +208,24 @@ When you are asked to commit, make atomic and descriptive commits that follow th
 - Atomic: one logical change per commit, self-contained and building on its own. Tests go in their
   own `test(...)` commit, separate from the `feat`/`fix` they cover. Never mix unrelated concerns
   (a feature, a refactor, a formatting pass...) in one commit.
+- Split by file, not just by feature: before committing, list every changed or new file and ask
+  of each one "does this work and make sense on its own?". A file that does (a helper, a utility,
+  a type, an exception, a build-file change) gets its own commit, made *before* the commit of the
+  code that uses it, so that every commit builds and history reads bottom-up (dependency first,
+  consumer after). Example: a new `MapHelper.hpp` hash helper and the `Table` class that uses it
+  are two commits: `feat(luau): add transparent string hash helper`, then
+  `feat(luau): add Table class`. "Files added in the same session" or "files of the same
+  feature" is not a reason to group them.
+- Only group files in one commit when they cannot exist separately (e.g. a class's `.hpp` and its
+  `.cpp`, or a change and the call sites it forces to update).
 - Descriptive: a precise lowercase Conventional Commits subject saying what changed, plus a body
   (separated by a blank line) explaining what was done and why. Every commit has a body.
 - If the pending changes cover several concerns, split them into several commits: propose the
   split to the user and ask before staging each one, instead of lumping everything together.
+  Stage explicitly by path (`git add <files>`), never `git add -A` or `git add .`, so each commit
+  contains exactly the files planned for it.
+- Before the first commit, show the planned list of commits (subject and files of each) when there
+  is more than one, then run them in order.
 
 ## Pull requests
 
