@@ -16,6 +16,6 @@ target("engine-core")
 -- The executable: wires the core with the platform, the renderer and the scripting.
 target("engine")
     set_kind("binary")
-    add_deps("engine-core", "platform", "luau", "vulkan")
+    add_deps("engine-core", "platform-glfw", "luau", "render-vulkan")
     add_files("main.cpp")
     set_rundir("$(projectdir)")

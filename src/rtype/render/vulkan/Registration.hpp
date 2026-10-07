@@ -1,0 +1,24 @@
+/*
+** EPITECH PROJECT, 2026
+** rtype
+** File description:
+** Registration
+*/
+
+#pragma once
+
+#include "Export.hpp"
+#include "engine/backend/BackendRegistry.hpp"
+
+namespace rtype::render::vulkan {
+
+/// @brief Registers the renderers of this module: "vulkan" (VulkanRenderer).
+///
+/// @details Settings of the "vulkan" section, all optional (see VulkanRenderer::Config):
+/// - `engineName` (string);
+/// - `layers`, `extraExtensions` (lists of strings);
+/// - `debugging` (boolean);
+/// - `minSeverity` ("verbose", "info", "warning" or "error").
+RTYPE_RENDER_VULKAN_API void registerRenderer(engine::backend::BackendRegistry& registry);
+
+}  // namespace rtype::render::vulkan

@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <format>
 #include <glm/ext/vector_float2.hpp>
 #include <glm/geometric.hpp>
 #include <string>
@@ -147,7 +148,7 @@ InputAction& Input::addAction(const std::string& name, ActionType type) {
 void Input::removeAction(const std::string& name) {
     auto it = _actions.find(name);
     if (it == _actions.end()) {
-        throw exceptions::InputException("Unknown input action: " + name);
+        throw exceptions::InputException(std::format("Unknown input action: {}", name));
     }
     _actions.erase(it);
 }
@@ -157,7 +158,7 @@ void Input::clearActions() noexcept { _actions.clear(); }
 InputAction& Input::getAction(const std::string& name) {
     auto it = _actions.find(name);
     if (it == _actions.end()) {
-        throw exceptions::InputException("Unknown input action: " + name);
+        throw exceptions::InputException(std::format("Unknown input action: {}", name));
     }
     return it->second;
 }
@@ -165,7 +166,7 @@ InputAction& Input::getAction(const std::string& name) {
 const InputAction& Input::getAction(const std::string& name) const {
     auto it = _actions.find(name);
     if (it == _actions.end()) {
-        throw exceptions::InputException("Unknown input action: " + name);
+        throw exceptions::InputException(std::format("Unknown input action: {}", name));
     }
     return it->second;
 }
