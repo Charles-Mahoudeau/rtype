@@ -24,15 +24,15 @@ T& Value::as() {
 }
 
 template <typename T>
-std::optional<const T&> Value::tryAs() const noexcept {
+const T* Value::tryAs() const noexcept {
     if (is<T>()) {
-        return as<T>();
+        return &as<T>();
     }
-    return std::nullopt;
+    return nullptr;
 }
 
 template <typename T>
-std::optional<T&> Value::tryAs() noexcept {
+T* Value::tryAs() noexcept {
     if (is<T>()) {
         return as<T>();
     }

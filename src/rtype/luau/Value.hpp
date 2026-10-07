@@ -77,12 +77,12 @@ class RTYPE_LUAU_API Value {
     /// @tparam T One of the alternatives of `Variant`.
     /// @return A const reference to the held value, or `std::nullopt` if the Value does not hold a `T`.
     template<typename T>
-    [[nodiscard]] std::optional<const T&> tryAs() const noexcept;
+    [[nodiscard]] const T* tryAs() const noexcept;
     /// @brief Accesses the held value as a `T`, without throwing.
     /// @tparam T One of the alternatives of `Variant`.
     /// @return A reference to the held value, or `std::nullopt` if the Value does not hold a `T`.
     template<typename T>
-    [[nodiscard]] std::optional<T&> tryAs() noexcept;
+    [[nodiscard]] T* tryAs() noexcept;
 
     /// @brief Checks whether the Value holds a number (`double` or `std::int64_t`).
     /// @return `true` if the Value is numeric.
