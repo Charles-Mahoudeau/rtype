@@ -53,7 +53,8 @@ const rtype::engine::backend::Backend backend = registry.createBackend(config);
 ```
 
 The `vulkan` settings fill a `VulkanRenderer::Config`: `engineName`, `layers`, `extraExtensions`, `debugging` (the
-DebugMessenger) and `minSeverity`. No layer is enabled by default.
+DebugMessenger), `minSeverity` and `preferredDeviceType` (the type of GPU favored when several are suitable,
+`"discrete_gpu"` by default). No layer is enabled by default.
 
 `VulkanRenderer` needs a platform that implements
 [`IVulkanSurfaceSource`](../src/rtype/interop/vulkan/IVulkanSurfaceSource.hpp) (`GlfwPlatform` does):
