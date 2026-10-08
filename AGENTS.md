@@ -31,9 +31,11 @@ are added.
     `registerRenderer()` (`Registration.hpp`). Shaders go in `shaders/` and are compiled to SPIR-V by
     the `glsl.spirv` rule defined in its `xmake.lua`.
 - `src/rtype/luau/` — `luau` target, shared library (`rtype-luau`) for Luau scripting.
+- `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `examples/<category>/.../<Name>/` — standalone examples, each with its own `xmake.lua`, grouped in
   folders of any depth (e.g. `examples/graphic/render/vulkan/VulkanInstance/`). Every `xmake.lua` under
   `examples/` is an example named after its folder. They are only built when enabled (see Commands).
+- `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `docs/` — design documentation (e.g. `docs/Input.md` for the event and input pipeline).
 - `.github/` — CI workflow and issue templates.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
@@ -72,12 +74,17 @@ The project uses `xmake` with the `clang` toolchain and C++23.
   now `--AllVulkanExamples=y` and `--AllLuaExamples=y` behave the same way (the root `xmake.lua`
   does not filter by category yet), so each also enables every discovered example. To enable a
   single example, use its folder name (e.g. `--BasicGLFWWindow=y`).
+- Enable and run the tests (GoogleTest): `xmake f -y --Tests=y`, then `xmake build -y` and
+  `xmake test -v` (`-v` prints GoogleTest's output, needed to see which test failed). Run one
+  module's tests with `xmake test -v luau-tests/*`.
 - Generate `compile_commands.json` (needed by clang-tidy): `xmake project -k compile_commands`
 - Format: `clang-format -i <files>` (style in `.clang-format`)
 - Lint: `clang-tidy -p . <files>` (checks in `.clang-tidy`)
 
-There is no test suite yet; the CI `test` job only builds. Once tests exist, document the command
-here (e.g. `xmake test`).
+Tests live in `tests/<module>/` (e.g. `tests/luau/`, target `luau-tests`), one folder per module
+with its own `xmake.lua` included from `tests/xmake.lua`. They are opt-in (`--Tests=y`) and use
+GoogleTest; the shared `tests/main.cpp` provides `main`. The CI `test` job builds with `--Tests=y`
+and runs `xmake test -v`.
 
 CI (`.github/workflows/ci.yml`) builds on Linux, macOS and Windows, then runs `cpp-linter` with
 `clang-format` and `clang-tidy`. A change must build on all three platforms and pass both linters.
@@ -180,10 +187,12 @@ checks on every pull request.
 
 ## Asking questions
 
-If a request, requirement or piece of context is vague, ambiguous or something you don't know, do
-not guess and do not fill the gap with assumptions. Ask the user clarifying questions first, then
-proceed once the answers are clear. This applies to design choices, scope, naming, expected
-behavior and anything else that could change what you build.
+Never act on assumptions. If a request, requirement or piece of context is vague, ambiguous,
+incomplete or unknown to you, or if you are unsure how to proceed, stop and ask the user
+clarifying questions before doing anything. Proceed only once the answers are clear.
+
+This applies to design choices, scope, naming, expected behavior and anything else that could
+change what you build. Do not fill gaps with guesses and do not work around missing details.
 
 ## Debugging
 
@@ -217,6 +226,30 @@ Branches are named `<type>/<area>/<name>` in kebab-case (e.g. `feat/vulkan/windo
 Never commit without being explicitly asked. Committing is never the default — not after finishing
 a task, running tests successfully, or being asked to implement or fix something. Always wait for
 explicit confirmation before running `git commit`, regardless of how the request was phrased.
+
+When you are asked to commit, make atomic and descriptive commits that follow the commit norm above:
+
+- Atomic: one logical change per commit, self-contained and building on its own. Tests go in their
+  own `test(...)` commit, separate from the `feat`/`fix` they cover. Never mix unrelated concerns
+  (a feature, a refactor, a formatting pass...) in one commit.
+- Split by file, not just by feature: before committing, list every changed or new file and ask
+  of each one "does this work and make sense on its own?". A file that does (a helper, a utility,
+  a type, an exception, a build-file change) gets its own commit, made *before* the commit of the
+  code that uses it, so that every commit builds and history reads bottom-up (dependency first,
+  consumer after). Example: a new `MapHelper.hpp` hash helper and the `Table` class that uses it
+  are two commits: `feat(luau): add transparent string hash helper`, then
+  `feat(luau): add Table class`. "Files added in the same session" or "files of the same
+  feature" is not a reason to group them.
+- Only group files in one commit when they cannot exist separately (e.g. a class's `.hpp` and its
+  `.cpp`, or a change and the call sites it forces to update).
+- Descriptive: a precise lowercase Conventional Commits subject saying what changed, plus a body
+  (separated by a blank line) explaining what was done and why. Every commit has a body.
+- If the pending changes cover several concerns, split them into several commits: propose the
+  split to the user and ask before staging each one, instead of lumping everything together.
+  Stage explicitly by path (`git add <files>`), never `git add -A` or `git add .`, so each commit
+  contains exactly the files planned for it.
+- Before the first commit, show the planned list of commits (subject and files of each) when there
+  is more than one, then run them in order.
 
 ## Pull requests
 

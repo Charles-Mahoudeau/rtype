@@ -1,0 +1,10 @@
+add_requires("gtest")
+
+target("luau-tests")
+    set_kind("binary")
+    set_default(false)
+    set_group("tests")
+    add_deps("luau")
+    add_files("*.cpp", "../main.cpp")
+    add_packages("gtest", "luau")
+    add_tests("default")

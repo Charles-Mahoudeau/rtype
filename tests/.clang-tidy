@@ -1,0 +1,6 @@
+---
+# clang-tidy is disabled for tests: the GoogleTest macros (TEST, EXPECT_*...) expand to code that
+# trips many checks (internal linkage, throwing static initialization, owning memory...).
+InheritParentConfig: false
+Checks: '-*'
+...

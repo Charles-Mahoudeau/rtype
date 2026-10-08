@@ -1,7 +1,11 @@
 add_rules("mode.debug", "mode.release")
 set_languages("c++23")
 
-set_toolchains("clang")
+if is_plat("windows") then
+    set_toolchains("msvc")
+else
+    set_toolchains("clang")
+end
 
 -- Shared by several modules, so declared once here.
 add_requires("glm 1.0.x", {alias = "glm"})
@@ -39,4 +43,12 @@ for _, file in ipairs(os.files(path.join(os.scriptdir(), "examples", "**", "xmak
         or has_config(ALL_LUAU_EXAMPLES_FLAG) then
         includes(file)
     end
+end
+
+local TESTS_FLAG = "Tests"
+
+option(TESTS_FLAG, {default = false, description = "Enable unit tests"})
+
+if has_config(TESTS_FLAG) then
+    includes("tests")
 end
