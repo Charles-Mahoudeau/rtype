@@ -7,8 +7,6 @@
 
 #pragma once
 
-#include <lua.h>
-
 #include <filesystem>
 #include <memory>
 #include <string>

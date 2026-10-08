@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include <lua.h>
+struct lua_State;
 
 namespace rtype::luau {
 /// @brief RAII handle on a Luau value stored in the registry.

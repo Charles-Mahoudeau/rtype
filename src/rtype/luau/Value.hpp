@@ -7,8 +7,6 @@
 
 #pragma once
 
-#include <luaconf.h>
-
 #include <cstdint>
 #include <glm/ext/vector_float3.hpp>
 #include <optional>
@@ -27,14 +25,8 @@ class RTYPE_LUAU_API Value {
   public:
     /// @brief Luau `nil`.
     using Nil = std::monostate;
-#if LUA_VECTOR_SIZE == 3
-    /// @brief Luau native vector type (`vector`), matching the configured `LUA_VECTOR_SIZE`.
+    /// @brief Luau native vector type (`vector`), three components wide (checked against `LUA_VECTOR_SIZE`).
     using Vector = glm::vec3;
-#elif LUA_VECTOR_SIZE == 4
-    using Vector = glm::vec4;
-#else
-#error "Invalid LUA_VECTOR_SIZE"
-#endif
     /// @brief The set of Luau types a Value can hold.
     ///
     /// See https://luau.org/api/#type-inspection. Not implemented types (yet): Function, Userdata,
