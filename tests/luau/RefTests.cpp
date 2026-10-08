@@ -10,6 +10,7 @@
 #include <lualib.h>
 
 #include <memory>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 
@@ -29,28 +30,77 @@ State makeState() {
 }
 }  // namespace
 
-TEST(Ref, PopsValueByDefault) {
+TEST(Ref, PopRemovesValueFromStack) {
     const State state = makeState();
     lua_pushinteger(state.get(), 42);
 
-    const rtype::luau::Ref ref{*state};
+    const auto ref = rtype::luau::Ref::pop(state.get());
 
     EXPECT_EQ(lua_gettop(state.get()), 0);
 }
 
-TEST(Ref, KeepsValueOnStackWhenRequested) {
+TEST(Ref, ConstructorKeepsValueOnStack) {
     const State state = makeState();
     lua_pushinteger(state.get(), 42);
 
-    const rtype::luau::Ref ref{*state, -1, true};
+    const rtype::luau::Ref ref{state.get()};
 
     EXPECT_EQ(lua_gettop(state.get()), 1);
+}
+
+TEST(Ref, ThrowsOnNullState) { EXPECT_THROW((rtype::luau::Ref{nullptr}), std::runtime_error); }
+
+TEST(Ref, PushOntoAnotherThread) {
+    const State state = makeState();
+    lua_State* thread = lua_newthread(state.get());
+    const auto threadRef = rtype::luau::Ref::pop(state.get());
+    lua_pushinteger(state.get(), 11);
+    const auto ref = rtype::luau::Ref::pop(state.get());
+
+    ref.push(thread);
+
+    EXPECT_EQ(lua_tointeger(thread, -1), 11);
+}
+
+TEST(Ref, ReferenceCreatedFromThreadIsUsableFromMainState) {
+    const State state = makeState();
+    lua_State* thread = lua_newthread(state.get());
+    const auto threadRef = rtype::luau::Ref::pop(state.get());
+    lua_pushinteger(thread, 21);
+    const auto ref = rtype::luau::Ref::pop(thread);
+
+    ref.push(state.get());
+
+    EXPECT_EQ(lua_tointeger(state.get(), -1), 21);
+}
+
+TEST(Ref, PushWithNullStateUsesOriginState) {
+    const State state = makeState();
+    lua_pushinteger(state.get(), 5);
+    const auto ref = rtype::luau::Ref::pop(state.get());
+
+    ref.push(nullptr);
+
+    EXPECT_EQ(lua_tointeger(state.get(), -1), 5);
+}
+
+TEST(Ref, MovedFromRefCanBeAssignedAgain) {
+    const State state = makeState();
+    lua_pushinteger(state.get(), 1);
+    auto source = rtype::luau::Ref::pop(state.get());
+    const rtype::luau::Ref moved{std::move(source)};
+    lua_pushinteger(state.get(), 2);
+
+    source = rtype::luau::Ref::pop(state.get());
+    source.push();
+
+    EXPECT_EQ(lua_tointeger(state.get(), -1), 2);
 }
 
 TEST(Ref, PushRestoresReferencedValue) {
     const State state = makeState();
     lua_pushinteger(state.get(), 42);
-    const rtype::luau::Ref ref{*state};
+    const auto ref = rtype::luau::Ref::pop(state.get());
 
     ref.push();
 
@@ -61,7 +111,7 @@ TEST(Ref, PushRestoresReferencedValue) {
 TEST(Ref, PushCanBeRepeated) {
     const State state = makeState();
     lua_pushstring(state.get(), "hello");
-    const rtype::luau::Ref ref{*state};
+    const auto ref = rtype::luau::Ref::pop(state.get());
 
     ref.push();
     ref.push();
@@ -76,7 +126,7 @@ TEST(Ref, ReferencesValueAtGivenIndex) {
     lua_pushinteger(state.get(), 1);
     lua_pushinteger(state.get(), 2);
 
-    const rtype::luau::Ref ref{*state, 1, true};
+    const rtype::luau::Ref ref{state.get(), 1};
     ref.push();
 
     EXPECT_EQ(lua_tointeger(state.get(), -1), 1);
@@ -85,7 +135,7 @@ TEST(Ref, ReferencesValueAtGivenIndex) {
 TEST(Ref, MoveConstructionTransfersReference) {
     const State state = makeState();
     lua_pushinteger(state.get(), 7);
-    rtype::luau::Ref source{*state};
+    auto source = rtype::luau::Ref::pop(state.get());
 
     const rtype::luau::Ref moved{std::move(source)};
     moved.push();
@@ -96,9 +146,9 @@ TEST(Ref, MoveConstructionTransfersReference) {
 TEST(Ref, MoveAssignmentTransfersReference) {
     const State state = makeState();
     lua_pushinteger(state.get(), 1);
-    rtype::luau::Ref target{*state};
+    auto target = rtype::luau::Ref::pop(state.get());
     lua_pushinteger(state.get(), 2);
-    rtype::luau::Ref source{*state};
+    auto source = rtype::luau::Ref::pop(state.get());
 
     target = std::move(source);
     target.push();
@@ -109,7 +159,7 @@ TEST(Ref, MoveAssignmentTransfersReference) {
 TEST(Ref, SelfMoveAssignmentKeepsReference) {
     const State state = makeState();
     lua_pushinteger(state.get(), 9);
-    rtype::luau::Ref ref{*state};
+    auto ref = rtype::luau::Ref::pop(state.get());
     rtype::luau::Ref& alias = ref;
 
     ref = std::move(alias);
