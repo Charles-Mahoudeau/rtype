@@ -49,7 +49,7 @@ export type Shield = {
 }
 
 return ecs.component("game.Shield", {
-    replicated = true,
+    replication = "everyChange",          -- or "spawnOnly"; omitted = never sent
     defaults = { strength = 50, regen = 2 },
 })
 ```
@@ -58,7 +58,7 @@ return ecs.component("game.Shield", {
 flowchart LR
     file["Shield.luau"] --> parse["Luau.Ast parser<br/>export type Shield"]
     aliases["generated .d.luau<br/>f32, i32, Entity, vec2, AssetId"] -.-> parse
-    parse --> desc["ComponentDescriptor<br/>name, fields, flags, defaults"]
+    parse --> desc["ComponentDescriptor<br/>name, fields, presence,<br/>replication, defaults"]
     file --> run["Run the chunk<br/>options + defaults"]
     run --> desc
     desc --> reg["world.registerComponent()"]
@@ -130,7 +130,7 @@ function RtypePlugin:build(app)
     app:prefab("game.Bydo", { --[[ ... ]] })
     app:state("game.Phase", { "Menu", "Lobby", "Playing", "GameOver" })
     app:event("game.BossDefeated", { type = "BossDefeated" })
-    app:resource("game.Score", { type = "Score", replicated = true })
+    app:resource("game.Score", { type = "Score", replication = "everyChange" })
 end
 
 return RtypePlugin

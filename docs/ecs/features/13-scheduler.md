@@ -47,12 +47,14 @@ flowchart LR
 
 ### Fixed timestep
 
-```
-accumulator += frame delta
-while accumulator >= fixedDelta (1/60 s):
-    run FixedUpdate once        (one simulation tick, tick counter + 1)
-    accumulator -= fixedDelta
-alpha = accumulator / fixedDelta   -> available to rendering for interpolation
+```mermaid
+flowchart TD
+    frame["New frame"] --> add["accumulator += frame delta"]
+    add --> enough{"accumulator ≥ fixedDelta (1/60 s)<br/>and below the iteration cap?"}
+    enough -- "yes" --> run["Run FixedUpdate once<br/>tick counter + 1<br/>accumulator -= fixedDelta"]
+    run --> enough
+    enough -- "no" --> alpha["alpha = accumulator / fixedDelta<br/>(for render interpolation)"]
+    alpha --> rest["Update, PostUpdate, Render"]
 ```
 
 A slow frame runs `FixedUpdate` several times; a fast one may run it zero times. A cap on iterations per

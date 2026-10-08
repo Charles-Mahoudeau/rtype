@@ -34,17 +34,15 @@ per-component **replication mode** suited to R-Type's bullets.
 
 ### Three layers
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│ Game (Luau)          replicated flags, spawn a ship on       │
-│                      ClientConnected, read PlayerInput       │
-├──────────────────────────────────────────────────────────────┤
-│ ECS plugins (C++)    ServerPlugin / ClientPlugin             │
-│                      + shared ReplicationPlugin              │
-├──────────────────────────────────────────────────────────────┤
-│ rtype-network        UDP sockets, packets, acks,             │
-│ (no ECS)             reliable channel, connections           │
-└──────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    game["Game (Luau)<br/>replication modes on components,<br/>spawn a ship on ClientConnected, read PlayerInput"]
+    plugins["ECS plugins (C++)<br/>ServerPlugin / ClientPlugin<br/>+ shared ReplicationPlugin"]
+    net["rtype-network (no ECS)<br/>UDP sockets, packets, acks,<br/>reliable channel, connections"]
+    thread["Network thread"]
+    game --> plugins
+    plugins -- "two thread-safe queues" --> net
+    net --- thread
 ```
 
 `rtype-network` knows nothing about the ECS. Socket I/O runs on a **network thread** and exchanges
@@ -65,21 +63,37 @@ ECS stays single-threaded.
 
 ### One server tick, one client frame
 
-```
-SERVER (headless, FixedUpdate at 60 Hz)
-PreUpdate    net.receive       drain queue → input buffers, acks, connect/disconnect events
-FixedUpdate  net.applyInputs   input buffer[tick] → PlayerInput on the owner's ship
-             ...gameplay...    Luau + C++ systems
-PostUpdate   net.assignIds     NetworkId for new replicated entities
-             net.snapshot      per client: delta since that client's last acked tick
-             net.send          push packets to the network thread
+**Server** (headless, `FixedUpdate` at 60 Hz):
 
-CLIENT (every frame)
-PreUpdate    net.receive       apply snapshots: spawn / despawn / write, via NetworkId → Entity
-Update       net.interpolate   display state at (latest server tick − ~100 ms)
-PostUpdate   net.collectInput  Input actions → PlayerInput
-             net.sendInput     send the last 3 inputs (redundancy against loss)
-Render       ...draw...
+| Phase | System | Does |
+|---|---|---|
+| PreUpdate | `net.receive` | Drain the queue → input buffers, acks, connect / disconnect events |
+| FixedUpdate | `net.applyInputs` | Input buffer of this tick → `PlayerInput` on the owner's ship |
+| FixedUpdate | gameplay | Luau and C++ systems |
+| PostUpdate | `net.assignIds` | `NetworkId` for new replicated entities |
+| PostUpdate | `net.snapshot` | Per client: delta since that client's last acknowledged tick |
+| PostUpdate | `net.send` | Push packets to the network thread |
+
+**Client** (every frame):
+
+| Phase | System | Does |
+|---|---|---|
+| PreUpdate | `net.receive` | Apply snapshots: spawn / despawn / write, through `NetworkId → Entity` |
+| Update | `net.interpolate` | Display the state at (latest server tick − ~100 ms) |
+| PostUpdate | `net.collectInput` | Input actions → `PlayerInput` |
+| PostUpdate | `net.sendInput` | Send the last 3 inputs (redundancy against loss) |
+| Render | drawing | |
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Server
+    Note over C: PostUpdate: collect input
+    C->>S: inputs (ticks N-2, N-1, N)
+    Note over S: PreUpdate: receive<br/>FixedUpdate: apply input N, run gameplay<br/>PostUpdate: snapshot per client
+    S->>C: delta since last acked tick
+    Note over C: PreUpdate: apply delta<br/>Update: interpolate
+    C->>S: ack
 ```
 
 **Deltas from the last acknowledged snapshot** make UDP manageable: the server never resends lost
@@ -113,13 +127,13 @@ last one if it is missing).
 
 ### Packet layout (binary)
 
-```
-header      [ protocol id u16 | type u8 | tick u32 | ack u32 | ack bits u32 ]
-input       [ last 3 × (tick u32, buttons u32, axes i16×2×n) ]                     client → server
-snapshot    [ baseTick u32 | spawns[] | despawns[] | updates[] ]                   server → client
-  spawn     [ networkId u32 | prefab id u16 | count u8 | (component id u16, fields...)... ]
-  update    [ networkId u32 | component id u16 | field mask | fields... ]
-```
+| Part | Direction | Fields, in order |
+|---|---|---|
+| Header | both | protocol id `u16`, type `u8`, tick `u32`, ack `u32`, ack bits `u32` |
+| Input | client → server | last 3 × (tick `u32`, buttons `u32`, axes `i16` × 2 × n) |
+| Snapshot | server → client | base tick `u32`, spawns[], despawns[], updates[] |
+| Spawn (in a snapshot) | server → client | network id `u32`, prefab id `u16`, count `u8`, then count × (component id `u16`, fields…) |
+| Update (in a snapshot) | server → client | network id `u32`, component id `u16`, field mask, fields… |
 
 Component and prefab ids are the short numbers from the **manifest**. Fields are written by the
 reflection serializer, so Luau components need no network code.
@@ -167,7 +181,7 @@ end
 return OnJoin
 ```
 
-Plus `replicated = "everyChange"` or `"spawnOnly"` on its components. That is all the networking the
+Plus `replication = "everyChange"` or `replication = "spawnOnly"` on its components. That is all the networking the
 game code sees; the same systems run in standalone mode, where `PlayerInput` comes from local input.
 
 ### Build order

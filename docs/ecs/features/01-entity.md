@@ -43,9 +43,9 @@ component instead (see [Replication](20-replication.md)).
 
 ### The handle
 
-```
-Entity = [ generation : 32 bits | index : 32 bits ]
-```
+| Bits | 63 … 32 | 31 … 0 |
+|---|---|---|
+| Field | generation | index |
 
 ```c++
 namespace rtype::ecs {
@@ -69,16 +69,19 @@ class Entity {
 
 The allocator keeps one generation per slot and a **free list** of released slots.
 
-```
-slot index:   0    1    2    3
-generation:   3    1    7    2
-alive:        yes  no   yes  yes          free list: [1]
+| Slot index | 0 | 1 | 2 | 3 |
+|---|---|---|---|---|
+| Generation | 3 | 1 | 7 | 2 |
+| Alive | yes | no (free list: `1`) | yes | yes |
 
-despawn({index 2, gen 7})  ->  generation[2] = 8, free list: [1, 2]
-old handle {index 2, gen 7}  ->  isAlive == false   (7 != 8)
-spawn()                    ->  reuses slot 2 (last freed, LIFO)  ->  {index 2, gen 8}
-spawn()                    ->  reuses slot 1                     ->  {index 1, gen 1}
-spawn()                    ->  free list empty: new slot 4       ->  {index 4, gen 0}
+```mermaid
+flowchart TD
+    despawn["despawn {index 2, gen 7}<br/>generation of slot 2 becomes 8<br/>free list: 1, 2"]
+    despawn --> stale{"isAlive(old handle)?"}
+    stale -- "7 ≠ 8" --> dead["false: stale handle detected"]
+    despawn --> s1["spawn()<br/>pops slot 2 (last freed, LIFO)<br/>→ {index 2, gen 8}"]
+    s1 --> s2["spawn()<br/>pops slot 1<br/>→ {index 1, gen 1}"]
+    s2 --> s3["spawn()<br/>free list empty: new slot 4<br/>→ {index 4, gen 0}"]
 ```
 
 | Operation | What happens | Cost |

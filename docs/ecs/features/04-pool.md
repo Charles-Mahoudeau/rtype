@@ -37,20 +37,30 @@ component of storage kind `kSparseSet` (every component in v1).
 
 ### Layout
 
-```
-sparse (paged, indexed by entity index)            pages 1+: not allocated
-index:     0    1    2    3    4    5    6
-page 0:  [ -  , 2  , -  , 0  , -  , -  , 1  , ... ]
+Example: a `Position` pool holding `e3`, `e6` and `e1`.
 
-dense (packed, same order in every array)
-position:          0      1      2
-entities        [ e3   , e6   , e1   ]
-data (Position) [ P3   , P6   , P1   ]   <- raw bytes, size * count
-added ticks     [ 12   , 40   , 40   ]
-changed ticks   [ 50   , 41   , 40   ]
+**Sparse array** (page 0; later pages not allocated), indexed by entity index:
 
-get(e6):  sparse[6] = 1  ->  entities[1] == e6 ?  yes  ->  data[1]
-get(e2):  sparse[2] = -  ->  absent
+| Entity index | 0 | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|---|
+| Dense position | – | 2 | – | 0 | – | – | 1 |
+
+**Dense arrays**, packed and in the same order:
+
+| Dense position | 0 | 1 | 2 |
+|---|---|---|---|
+| Entity | `e3` | `e6` | `e1` |
+| Data (`Position` bytes) | P3 | P6 | P1 |
+| Added tick | 12 | 40 | 40 |
+| Changed tick | 50 | 41 | 40 |
+
+```mermaid
+flowchart LR
+    get["get(e6)"] --> sparse["sparse entry of index 6<br/>→ dense position 1"]
+    sparse --> check{"entities[1] == e6?<br/>(same generation)"}
+    check -- "yes" --> data["data[1]"]
+    check -- "no: stale handle" --> absent["absent"]
+    miss["get(e2)"] --> empty["sparse entry of index 2<br/>is empty"] --> absent
 ```
 
 ```c++
@@ -89,25 +99,33 @@ hooks are null (plain data, and every Luau component).
 
 **emplace(e):**
 
-```
-dense.push_back(e)
-data.grow by one element  -> construct hook (or zero-fill)
-added.push_back(tick), changed.push_back(tick)
-sparse[e.index] = dense.size() - 1
-```
+1. Append `e` to the dense entity array.
+2. Grow the data column by one element: `construct` hook, or zero-fill when it is null.
+3. Append the current tick to the added and changed tick arrays.
+4. Set the sparse entry of `e`'s index to the new dense position (`size - 1`).
 
 **remove(e)**, swap-and-pop:
 
+```mermaid
+flowchart LR
+    subgraph before ["Before remove(e3)"]
+        direction TB
+        b0["0 · e3 · P3"]
+        b1["1 · e6 · P6"]
+        b2["2 · e1 · P1"]
+    end
+    subgraph after ["After"]
+        direction TB
+        a0["0 · e1 · P1"]
+        a1["1 · e6 · P6"]
+    end
+    b2 -- "1. move the last element into the hole<br/>(move hook or memcpy, ticks too)" --> a0
+    b1 -- "unchanged" --> a1
 ```
-before:  entities [ e3 , e6 , e1 ]      remove(e3): hole at 0, last is e1 at 2
 
-move last into hole:   entities[0] = e1, data[0] <- data[2] (move hook or memcpy), ticks too
-update moved entity:   sparse[1] = 0
-clear removed entity:  sparse[3] = none
-pop back:              destroy data[2] if it has a destruct hook, shrink every array by one
-
-after:   entities [ e1 , e6 ]
-```
+2. Update the moved entity's sparse entry: index 1 → position 0.
+3. Clear the removed entity's sparse entry: index 3 → empty.
+4. Pop the back of every array, destroying the old last element if it has a `destruct` hook.
 
 | Operation | Cost |
 |---|---|

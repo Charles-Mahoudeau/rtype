@@ -53,13 +53,13 @@ struct Transform {
 RTYPE_ECS_COMPONENT(Transform, "rtype.Transform", position, rotation, scale);
 ```
 
-```
-rtype.Transform   size 20, alignment 4
-fields:
-  position  kVec2  offset 0
-  rotation  kF32   offset 8
-  scale     kVec2  offset 12
-```
+Resulting description of `rtype.Transform` (size 20, alignment 4):
+
+| Field | `FieldType` | Offset | Size |
+|---|---|---|---|
+| `position` | `kVec2` | 0 | 8 |
+| `rotation` | `kF32` | 8 | 4 |
+| `scale` | `kVec2` | 12 | 8 |
 
 ### The serializer
 
@@ -88,7 +88,7 @@ Replication wants fewer bytes than the in-memory form. Fields can carry options:
 
 ```c++
 app.component<Transform>()
-    .replicated()
+    .replicate(rtype::ecs::ReplicationMode::kEveryChange)
     .quantize("position", rtype::ecs::Quantize::fixedPoint(16, 1.F / 8.F));
 ```
 

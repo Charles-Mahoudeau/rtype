@@ -33,15 +33,37 @@ in a predictable order.
 
 ### Double buffering
 
-```
-frame N    : writers push into buffer B          readers see A (from N-1) + B (so far)
-end of N   : swap -> A is dropped, B becomes the "previous" buffer
-frame N+1  : writers push into the new buffer    readers see B + new
+| Moment | Writers push into | Readers see |
+|---|---|---|
+| Frame N | buffer B | A (events of N-1) + B (events of N so far) |
+| End of frame N | — | swap: A is cleared, B becomes the "previous" buffer |
+| Frame N+1 | buffer A (now empty) | B (events of N) + A (events of N+1 so far) |
+
+```mermaid
+flowchart LR
+    subgraph queue ["Events of T"]
+        direction TB
+        prev["Previous buffer<br/>events of frame N-1"]
+        curr["Current buffer<br/>events of frame N"]
+    end
+    writer["EventWriter::send<br/>push_back + counter++"] --> curr
+    reader["EventReader<br/>cursor = last id read"] --> prev
+    reader --> curr
+    swap["End of frame: clear previous,<br/>current becomes previous"] -.-> queue
 ```
 
 An event is therefore readable **during the frame it was sent and the next one**, then dropped. Each
-reader keeps a **cursor**, so it sees each event exactly once even if it runs before the writer in one
-frame and after it in the next.
+reader keeps a **cursor** (the id of the last event it read), so it sees each event exactly once even
+if it runs before the writer in one frame and after it in the next.
+
+**The swap follows the phase that writes the event.** Events written in `FixedUpdate` (collisions,
+damage) are swapped once per **fixed tick**, not once per frame: a frame that runs `FixedUpdate` three
+times would otherwise mix three ticks of events, or drop some. Writing is a `push_back`, and buffers are
+cleared rather than freed, so there is no allocation in steady state.
+
+For a complete example (collision detection producing `Collision` events, step by step, and how to
+keep it fast), see [Collisions: From Overlap to Event](../design.md#collisions-from-overlap-to-event)
+in the design.
 
 ```c++
 struct Collision {

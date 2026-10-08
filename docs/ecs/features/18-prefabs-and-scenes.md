@@ -88,12 +88,13 @@ spawns the same prefab locally. See [Replication](20-replication.md).
 
 ### Scenes (v3)
 
-```
-scene "level1"
-  entity 1:  rtype.Transform { position = (0, 0) }  game.Background { ... }
-  entity 2:  prefab "game.Bydo"  rtype.Transform { position = (820, 140) }
-  ...
-```
+What a scene holds, for example `level1` (the file format is still open, see below):
+
+| Entity | Prefab | Components (values by field name) |
+|---|---|---|
+| 1 | — | `rtype.Transform { position = (0, 0) }`, `game.Background { … }` |
+| 2 | `game.Bydo` | `rtype.Transform { position = (820, 140) }` (override) |
+| … | … | … |
 
 A scene can reference prefabs, so levels stay short. Loading a scene spawns its entities through
 commands; saving one walks the world with the serializer.

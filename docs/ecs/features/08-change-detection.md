@@ -37,13 +37,12 @@ directly to "send this component of this entity".
 - Each [pool](04-pool.md) stores, for each instance, `added` and `changed` ticks.
 - Each system remembers `lastRun`, the world tick when it last ran.
 
-```
-world tick:            100       101           102
-system run:         movement  collision    replication (last ran at 97)
+| World tick | 100 | 101 | 102 |
+|---|---|---|---|
+| System running | `movement` | `collision`, writes `Position` of `e5` | `replication` (its last run was tick 97) |
+| `Position` of `e5` | added 40, changed 40 | added 40, **changed 101** | — |
 
-Position of e5:   added = 40, changed = 101   (written by collision)
-replication sees: Changed<Position> for e5, since 101 > 97
-```
+At tick 102, `replication` sees `Changed<Position>` for `e5` because 101 > 97 (its last run).
 
 | Filter | True when |
 |---|---|

@@ -49,6 +49,8 @@ namespace rtype::ecs {
 using ComponentId = std::uint32_t;
 
 enum class StorageKind : std::uint8_t { kSparseSet, kTable };
+enum class Presence : std::uint8_t { kBoth, kServerOnly, kClientOnly };
+enum class ReplicationMode : std::uint8_t { kNone, kEveryChange, kSpawnOnly };
 
 enum class FieldType : std::uint8_t {
     kBool, kI8, kI16, kI32, kI64, kU8, kU16, kU32, kU64, kF32, kF64,
@@ -68,8 +70,9 @@ struct ComponentInfo {
     std::size_t size;        ///< 0 for tags.
     std::size_t alignment;
     StorageKind storage;
-    ComponentFlags flags;    ///< kReplicated, kServerOnly, kClientOnly
-    ComponentHooks hooks;    ///< construct / destruct / move / copy, null when trivial
+    Presence presence;              ///< Server and clients, server only, or client only.
+    ReplicationMode replication;    ///< Never sent, sent on every change, or sent once at spawn.
+    ComponentHooks hooks;           ///< construct / destruct / move / copy, null when trivial
     std::vector<FieldInfo> fields;
     std::uint64_t layoutHash;
 };
@@ -81,8 +84,24 @@ struct ComponentInfo {
 | `size`, `alignment`, `hooks` | Storage: how to allocate, construct, move and destroy the bytes |
 | `storage` | The world: which backend holds it |
 | `fields` | Reflection, the Luau bridge, the serializer |
-| `flags` | Replication: what is sent, what exists on which side |
+| `presence`, `replication` | Replication: what exists on which side, what is sent and how |
 | `name`, `layoutHash` | Network manifest, hot reload, scene files |
+
+### Two enums, not bit flags
+
+`Presence` and `ReplicationMode` replace an earlier bit-flag enum (`kReplicated = 1U << 0U`,
+`kServerOnly = 1U << 1U`, `kClientOnly = 1U << 2U`). The shifts cost nothing (the compiler folds them)
+and these options are read per component *type*, never per entity, so speed was never the issue:
+
+| Problem with bit flags | With two enums |
+|---|---|
+| Invalid combinations are representable (`kServerOnly \| kClientOnly`) | `Presence` holds exactly one value |
+| One bit cannot say *how* to replicate (every change, spawn only) | `ReplicationMode` names the modes |
+| `enum class` flags need hand-written `\|` / `&` operators and casts | Plain comparisons and exhaustive `switch` |
+
+The only invalid pair left, `kClientOnly` with a replication mode other than `kNone`, is rejected at
+registration. Replication's per-tick work loops over a **precomputed list of replicated component
+ids** kept by the registry, so it never tests these enums per entity.
 
 ### Two ways in
 
@@ -122,16 +141,19 @@ The server and every client compute script layouts independently, and Luau does 
 order. So the registry sorts fields **by alignment (largest first), then by name**, and places them
 in that order:
 
-```
-game.Shield { strength: f32, regen: f32, owner: Entity }
+Declared as `game.Shield { strength: f32, regen: f32, owner: Entity }`, then sorted:
 
-sorted: owner (align 8), regen (align 4), strength (align 4)
+| Order | Field | Type | Alignment |
+|---|---|---|---|
+| 1 | `owner` | `Entity` (u64) | 8 |
+| 2 | `regen` | `f32` | 4 (same as `strength`: ordered by name) |
+| 3 | `strength` | `f32` | 4 |
 
-offset:  0               8         12        16
-         ┌───────────────┬─────────┬─────────┐
-         │ owner         │ regen   │strength │     size 16, alignment 8
-         └───────────────┴─────────┴─────────┘
-```
+Resulting layout (size 16, alignment 8):
+
+| Bytes | 0 – 7 | 8 – 11 | 12 – 15 |
+|---|---|---|---|
+| Field | `owner` | `regen` | `strength` |
 
 Sorting by alignment also minimizes padding.
 

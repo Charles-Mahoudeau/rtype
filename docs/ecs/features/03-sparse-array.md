@@ -34,23 +34,22 @@ only when an entity in its range gets the component. Each entry is a 32-bit dens
 
 ## How it works
 
-```
-entity index:  0 ........ 4095 | 4096 ...... 8191 | 8192 ..... 12287 | ...
-pages:         [ page 0       ] [ not allocated  ] [ page 2         ]
-                 │                                  │
-                 ▼                                  ▼
-               entries: dense index or none        entries: ...
-```
+| Entity indices | 0 – 4095 | 4096 – 8191 | 8192 – 12287 | … |
+|---|---|---|---|---|
+| Page | page 0 | not allocated | page 2 | … |
+| Content | 4096 entries: dense position or empty | nothing | 4096 entries | … |
 
 Lookup of entity index `i`:
 
-```
-page   = i / 4096          (a shift: i >> 12)
-offset = i % 4096          (a mask:  i & 4095)
-if page not allocated -> absent
-entry  = pages[page][offset]
-if entry == none      -> absent
-else                  -> dense index = entry
+```mermaid
+flowchart LR
+    start["entity index i"] --> split["page = i >> 12 (i / 4096)<br/>offset = i & 4095 (i % 4096)"]
+    split --> allocated{"page allocated?"}
+    allocated -- "no" --> absent["absent"]
+    allocated -- "yes" --> entry["entry = pages[page][offset]"]
+    entry --> empty{"entry empty?"}
+    empty -- "yes" --> absent
+    empty -- "no" --> found["dense position = entry"]
 ```
 
 Two arrays dereferenced, no hashing, no branching on hash collisions: a few nanoseconds.
@@ -60,8 +59,11 @@ Two arrays dereferenced, no hashing, no branching on hash collisions: a few nano
 The sparse array stores only the dense index. To reject a **stale** entity (same index, older
 generation), the pool compares the full entity stored in its dense array:
 
-```
-contains(e) = sparse[e.index] != none  &&  dense_entities[sparse[e.index]] == e
+```c++
+bool contains(Entity e) {
+    const std::optional<std::uint32_t> position = _sparse.get(e.getIndex());
+    return position.has_value() && _dense[*position] == e;  // == compares the generation too
+}
 ```
 
 This keeps entries at 4 bytes and makes the dense array the single source of truth.

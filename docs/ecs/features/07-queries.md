@@ -74,13 +74,21 @@ ctx.query do`.
 
 ### The join: smallest pool first
 
-```
-Position pool (1200 entities)   e1 e2 e3 e4 e5 ... e1200
-Velocity pool  (900 entities)   e2 e3 e5 ...
-Player pool      (2 entities)   e17  e42        <- driver: 2 iterations instead of 1200
-                                 │    │
-                                 ▼    ▼
-                    Position.contains? Velocity.contains?  ->  yield if both
+Example: `Query<Position, const Velocity, With<Player>>`.
+
+| Pool | Entities | Role |
+|---|---|---|
+| `Position` | 1200 | checked with `contains` |
+| `Velocity` | 900 | checked with `contains` |
+| `Player` | 2 (`e17`, `e42`) | **driver**: 2 iterations instead of 1200 |
+
+```mermaid
+flowchart LR
+    driver["Iterate the Player pool<br/>e17, e42"] --> pos{"Position pool<br/>contains it?"}
+    pos -- "no" --> skip["skip"]
+    pos -- "yes" --> vel{"Velocity pool<br/>contains it?"}
+    vel -- "no" --> skip
+    vel -- "yes" --> yield["yield entity,<br/>Position, Velocity"]
 ```
 
 1. Among the **required** components, pick the pool with the fewest entities: the **driver**.

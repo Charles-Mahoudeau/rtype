@@ -35,15 +35,20 @@ states, most script components) never move it between tables.
 
 ### Tables
 
-```
-table {Position, Velocity}                   table {Position, Velocity, Sprite}
-┌────────┬──────────┬──────────┐             ┌────────┬──────────┬──────────┬────────┐
-│ entity │ Position │ Velocity │             │ entity │ Position │ Velocity │ Sprite │
-├────────┼──────────┼──────────┤             ├────────┼──────────┼──────────┼────────┤
-│ e4     │ ...      │ ...      │             │ e2     │ ...      │ ...      │ ...    │
-│ e7     │ ...      │ ...      │   add       │ e9     │ moved    │ moved    │ new    │
-│ e9 ────┼──────────┼──────────┼─ Sprite ──▶ └────────┴──────────┴──────────┴────────┘
-└────────┴──────────┴──────────┘   to e9: its whole row moves to the other table
+```mermaid
+flowchart LR
+    subgraph t1 ["Table {Position, Velocity}"]
+        direction TB
+        r4["e4 · Position · Velocity"]
+        r7["e7 · Position · Velocity"]
+        r9["e9 · Position · Velocity"]
+    end
+    subgraph t2 ["Table {Position, Velocity, Sprite}"]
+        direction TB
+        r2["e2 · Position · Velocity · Sprite"]
+        r9b["e9 · Position (moved) · Velocity (moved) · Sprite (new)"]
+    end
+    r9 -- "add Sprite to e9:<br/>its whole row moves" --> r9b
 ```
 
 Each column is a `ByteColumn` with its tick arrays, the same building block as a pool.

@@ -70,7 +70,7 @@ this changes nothing at runtime; it is there so a parallel scheduler later knows
 ### From Luau
 
 ```luau
-app:resource("game.Score", { type = "Score", replicated = true })   -- declared like a component
+app:resource("game.Score", { type = "Score", replication = "everyChange" })   -- declared like a component
 
 function ScoreOnKill:run(ctx)
     ctx.resources["game.Score"].value += 100
