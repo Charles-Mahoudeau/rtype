@@ -122,12 +122,11 @@ unsigned int rateDeviceSuitability(const vk::raii::PhysicalDevice& device, const
         return 0;
     }
 
-    unsigned int score = 0;
+    constexpr unsigned int kPreferredBit = 1U << 31U;
+    unsigned int score = std::min(deviceProperties.limits.maxImageDimension2D, kPreferredBit - 1U) + 1U;
     if (deviceProperties.deviceType == preferredType) {
-        score += 1000;
+        score |= kPreferredBit;
     }
-    score += deviceProperties.limits.maxImageDimension2D;
-
     return score;
 }
 }  // namespace
