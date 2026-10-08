@@ -39,17 +39,38 @@ bool checkDeviceExtensionSupport(const vk::raii::PhysicalDevice& physicalDevice)
     });
 }
 
-bool checkDeviceFeatures(const vk::raii::PhysicalDevice& physicalDevice) {
+/// @return Whether @p physicalDevice supports every feature the renderer needs: dynamicRendering and
+/// synchronization2. Only valid on a Vulkan 1.3 device.
+bool checkRequiredFeatures(const vk::raii::PhysicalDevice& physicalDevice) {
     const auto features =
-        physicalDevice.template getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan11Features,
-                                             vk::PhysicalDeviceVulkan13Features,
-                                             vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
-    const bool supportsRequiredFeatures =
-        static_cast<bool>(features.template get<vk::PhysicalDeviceVulkan11Features>().shaderDrawParameters) &&
-        static_cast<bool>(features.template get<vk::PhysicalDeviceVulkan13Features>().dynamicRendering) &&
-        static_cast<bool>(
-            features.template get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>().extendedDynamicState);
-    return supportsRequiredFeatures;
+        physicalDevice.getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan13Features>();
+    const auto& vulkan13 = features.get<vk::PhysicalDeviceVulkan13Features>();
+    return vulkan13.dynamicRendering == VK_TRUE && vulkan13.synchronization2 == VK_TRUE;
+}
+
+/// @return The optional features @p physicalDevice supports. Only valid on a Vulkan 1.2 device or newer.
+PhysicalDevice::OptionalFeatures queryOptionalFeatures(const vk::raii::PhysicalDevice& physicalDevice) {
+    const auto features =
+        physicalDevice.getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan12Features>();
+    const vk::PhysicalDeviceFeatures& core = features.get<vk::PhysicalDeviceFeatures2>().features;
+    const auto& vulkan12 = features.get<vk::PhysicalDeviceVulkan12Features>();
+    return PhysicalDevice::OptionalFeatures{
+        .timelineSemaphore = vulkan12.timelineSemaphore == VK_TRUE,
+        .samplerAnisotropy = core.samplerAnisotropy == VK_TRUE,
+        .bufferDeviceAddress = vulkan12.bufferDeviceAddress == VK_TRUE,
+        .descriptorIndexing = vulkan12.descriptorIndexing == VK_TRUE,
+    };
+}
+
+/// @return The limits of @p physicalDevice the renderer needs.
+PhysicalDevice::Limits queryLimits(const vk::raii::PhysicalDevice& physicalDevice) {
+    const vk::PhysicalDeviceLimits limits = physicalDevice.getProperties().limits;
+    return PhysicalDevice::Limits{
+        .minUniformBufferOffsetAlignment = limits.minUniformBufferOffsetAlignment,
+        .maxPushConstantsSize = limits.maxPushConstantsSize,
+        .framebufferColorSampleCounts = limits.framebufferColorSampleCounts,
+        .timestampPeriod = limits.timestampPeriod,
+    };
 }
 
 /// @return The first queue family supporting graphics and the first one able to present to @p surface.
@@ -83,20 +104,14 @@ core::PhysicalDevice::SwapChainSupportDetails querySwapChainSupport(const vk::ra
     return details;
 }
 
+/// @details The API version is checked first: querying the Vulkan 1.3 features of an older device is invalid usage.
 bool isDeviceSuitable(const vk::raii::PhysicalDevice& device, const vk::raii::SurfaceKHR& surface) {
-    const bool queueFamiliesSupported = findQueueFamilies(device, surface).isComplete();
-    if (!checkDeviceFeatures(device)) {
-        return false;
-    }
-    const bool supportsVulkan1_3 = device.getProperties().apiVersion >= vk::ApiVersion13;
-    const bool extensionsSupported = checkDeviceExtensionSupport(device);
-    if (!extensionsSupported) {
+    if (device.getProperties().apiVersion < vk::ApiVersion13 || !checkRequiredFeatures(device) ||
+        !checkDeviceExtensionSupport(device) || !findQueueFamilies(device, surface).isComplete()) {
         return false;
     }
     const core::PhysicalDevice::SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device, surface);
-    const bool swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
-
-    return supportsVulkan1_3 && extensionsSupported && swapChainAdequate && queueFamiliesSupported;
+    return !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
 }
 
 unsigned int rateDeviceSuitability(const vk::raii::PhysicalDevice& device, const vk::raii::SurfaceKHR& surface,
@@ -144,5 +159,7 @@ PhysicalDevice::PhysicalDevice(const Instance& instance, const vk::raii::Surface
     if (_physicalDevice == nullptr) {
         throw std::runtime_error("Failed to find a suitable GPU");
     }
+    _optionalFeatures = queryOptionalFeatures(_physicalDevice);
+    _limits = queryLimits(_physicalDevice);
 }
 }  // namespace rtype::render::vulkan::core
