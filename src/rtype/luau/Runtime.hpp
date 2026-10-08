@@ -15,6 +15,7 @@
 
 #include "Bytecode.hpp"
 #include "Export.hpp"
+#include "Ref.hpp"
 #include "Result.hpp"
 #include "RuntimeConfig.hpp"
 #include "Script.hpp"
@@ -64,12 +65,12 @@ class RTYPE_LUAU_API Runtime {
     /// @brief Runs a loaded closure in protected mode.
     /// @param closure Reference to the closure to call, without arguments.
     /// @return Success, or an `ErrorKind::kRuntime` error if the closure raised an error.
-    Result<> run(const Ref& closure) const;
+    [[nodiscard]] Result<> run(const Ref& closure) const;
 
     /// @brief Runs a loaded script in protected mode.
     /// @param script Script to run; it must have been loaded by this runtime.
     /// @return Success, or an `ErrorKind::kRuntime` error if the script raised an error.
-    Result<> run(const Script& script) const;
+    [[nodiscard]] Result<> run(const Script& script) const;
 
   private:
     /// @brief Deleter closing a `lua_State`.
