@@ -12,6 +12,7 @@ add_requires("glm 1.0.x", {alias = "glm"})
 add_requires("glfw 3.4", {alias = "glfw"})
 add_requires("vulkan-headers 1.4.x", {alias = "vulkan-headers"})
 
+includes("src/rtype/ecs")
 includes("src/rtype/engine")
 includes("src/rtype/interop")
 includes("src/rtype/platform/glfw")
@@ -21,7 +22,7 @@ includes("src/rtype/render/vulkan")
 target("rtype")
     set_kind("phony")
     set_default(true)
-    add_deps("engine", "platform-glfw", "luau", "render-vulkan")
+    add_deps("ecs", "engine", "platform-glfw", "luau", "render-vulkan")
 
 
 local ALL_EXAMPLES_FLAG = "AllExamples"
