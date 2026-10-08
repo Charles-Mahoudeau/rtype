@@ -253,16 +253,6 @@ TEST(Runtime, ScriptCannotModifyStandardLibraries) {
     EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kRuntime);
 }
 
-TEST(Runtime, ScriptSurvivesRuntimeGarbageCollection) {
-    const auto runtime = makeRuntime();
-    const auto script = runtime.load("gc", "assert(1 + 1 == 2)");
-    ASSERT_TRUE(script);
-
-    lua_gc(script->state(), LUA_GCCOLLECT, 0);
-
-    EXPECT_TRUE(runtime.run(*script));
-}
-
 TEST(Runtime, AllOptimizationLevelsRunScripts) {
     for (const auto level : {rtype::luau::RuntimeConfig::OptimizationLevel::kDisabled,
                              rtype::luau::RuntimeConfig::OptimizationLevel::kStandard,

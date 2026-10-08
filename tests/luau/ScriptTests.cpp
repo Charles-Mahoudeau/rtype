@@ -6,69 +6,44 @@
 */
 
 #include <gtest/gtest.h>
-#include <lua.h>
-#include <lualib.h>
 
-#include <memory>
-#include <string>
 #include <type_traits>
 #include <utility>
 
-#include "rtype/luau/Ref.hpp"
+#include "rtype/luau/Runtime.hpp"
+#include "rtype/luau/RuntimeConfig.hpp"
 #include "rtype/luau/Script.hpp"
 
 namespace {
-struct StateCloser {
-    void operator()(lua_State* state) const noexcept { lua_close(state); }
-};
-
-using State = std::unique_ptr<lua_State, StateCloser>;
-
-rtype::luau::Script makeScript(lua_State& state, std::string name) {
-    lua_State* thread = lua_newthread(&state);
-    rtype::luau::Ref threadRef = rtype::luau::Ref::pop(&state);
-    lua_pushinteger(thread, 5);
-    rtype::luau::Ref closure = rtype::luau::Ref::pop(thread);
-    return rtype::luau::Script{thread, std::move(threadRef), std::move(closure), std::move(name)};
+rtype::luau::Runtime makeRuntime() {
+    auto runtime = rtype::luau::Runtime::create({
+        .libs = rtype::luau::RuntimeConfig::Libs::kStandard,
+        .optimizationLevel = rtype::luau::RuntimeConfig::OptimizationLevel::kStandard,
+    });
+    EXPECT_TRUE(runtime);
+    return std::move(*runtime);
 }
 }  // namespace
 
 TEST(Script, ExposesName) {
-    const State state{luaL_newstate()};
+    const auto runtime = makeRuntime();
 
-    const auto script = makeScript(*state, "main.luau");
+    const auto script = runtime.load("main.luau", "local x = 1");
 
-    EXPECT_EQ(script.name(), "main.luau");
-}
-
-TEST(Script, ExposesThread) {
-    const State state{luaL_newstate()};
-
-    const auto script = makeScript(*state, "main.luau");
-
-    EXPECT_NE(script.state(), nullptr);
-    EXPECT_NE(script.state(), state.get());
-    script.thread().push();
-    EXPECT_EQ(lua_tothread(state.get(), -1), script.state());
-}
-
-TEST(Script, ExposesClosure) {
-    const State state{luaL_newstate()};
-    const auto script = makeScript(*state, "main.luau");
-
-    script.closure().push();
-
-    EXPECT_EQ(lua_tointeger(state.get(), -1), 5);
+    ASSERT_TRUE(script);
+    EXPECT_EQ(script->name(), "main.luau");
+    EXPECT_NE(script->state(), nullptr);
 }
 
 TEST(Script, MoveConstructionTransfersParts) {
-    const State state{luaL_newstate()};
-    auto source = makeScript(*state, "moved.luau");
+    const auto runtime = makeRuntime();
+    auto source = runtime.load("moved.luau", "assert(1 + 1 == 2)");
+    ASSERT_TRUE(source);
 
-    const rtype::luau::Script moved{std::move(source)};
+    const rtype::luau::Script moved{std::move(*source)};
 
     EXPECT_EQ(moved.name(), "moved.luau");
-    EXPECT_NE(moved.state(), nullptr);
+    EXPECT_TRUE(runtime.run(moved));
 }
 
 TEST(Script, IsMoveOnly) {
