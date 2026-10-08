@@ -36,9 +36,9 @@
 namespace {
 constexpr std::int32_t kLuauGlobalEnv = 0;
 
-/// @brief Tells whether @p flag is set in @p libs.
+/// @brief Tells whether every library of @p flag is set in @p libs.
 bool has(const rtype::luau::RuntimeConfig::Libs libs, const rtype::luau::RuntimeConfig::Libs flag) noexcept {
-    return std::to_underlying(libs & flag) != 0;
+    return (libs & flag) == flag;
 }
 }  // namespace
 
@@ -62,8 +62,14 @@ Result<Bytecode> Runtime::compile(const std::string& source) const {
     // NOLINTNEXTLINE(*-avoid-c-arrays)
     auto result = CPtr<char[]>{luau_compile(source.data(), source.size(), &options, &size)};
 
+    // On a compilation error, Luau returns a buffer made of a null byte followed by the error message.
     if (size == 0) {
-        return Failure{ErrorKind::kCompilation, std::format("unable to compile script: {}", result.get())};
+        return Failure{ErrorKind::kCompilation, "unable to compile script"};
+    }
+    // NOLINTNEXTLINE(*-pro-bounds-avoid-unchecked-container-access)
+    if (result[0] == 0) {
+        // NOLINTNEXTLINE(*-pro-bounds-pointer-arithmetic)
+        return Failure{ErrorKind::kCompilation, std::format("unable to compile script: {}", result.get() + 1)};
     }
     return Bytecode{std::move(result), size};
 }
