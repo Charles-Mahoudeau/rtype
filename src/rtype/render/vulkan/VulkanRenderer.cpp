@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <format>
 #include <glm/ext/vector_uint2.hpp>
+#include <memory>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -67,6 +68,7 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
     auto* const instance = static_cast<VkInstance>(*_instance->getInstance());
     _surface = vk::raii::SurfaceKHR(_instance->getInstance(), surfaceSource.createSurface(instance));
     _framebufferSize = platform.getFramebufferSize();
+    _physicalDevice = std::make_unique<core::PhysicalDevice>(*_instance, _surface, _config.preferredDeviceType);
 }
 
 void VulkanRenderer::resize(glm::uvec2 framebufferSize) { _framebufferSize = framebufferSize; }

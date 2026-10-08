@@ -15,7 +15,7 @@
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
-namespace rtype::render::vulkan {
+namespace rtype::render::vulkan::core {
 
 namespace {
 
@@ -53,10 +53,10 @@ bool checkDeviceFeatures(const vk::raii::PhysicalDevice& physicalDevice) {
 }
 
 /// @return The first queue family supporting graphics and the first one able to present to @p surface.
-PhysicalDevice::QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice& physicalDevice,
-                                                     const vk::SurfaceKHR& surface) {
+core::PhysicalDevice::QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice& physicalDevice,
+                                                           const vk::SurfaceKHR& surface) {
     const std::vector<vk::QueueFamilyProperties> queueFamilies = physicalDevice.getQueueFamilyProperties();
-    PhysicalDevice::QueueFamilyIndices indices;
+    core::PhysicalDevice::QueueFamilyIndices indices;
 
     std::uint32_t index = 0;
     for (const vk::QueueFamilyProperties& queueFamily : queueFamilies) {
@@ -74,9 +74,9 @@ PhysicalDevice::QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice& p
     return indices;
 }
 
-rtype::render::vulkan::PhysicalDevice::SwapChainSupportDetails querySwapChainSupport(
-    const vk::raii::PhysicalDevice& device, const vk::raii::SurfaceKHR& surface) {
-    rtype::render::vulkan::PhysicalDevice::SwapChainSupportDetails details;
+core::PhysicalDevice::SwapChainSupportDetails querySwapChainSupport(const vk::raii::PhysicalDevice& device,
+                                                                    const vk::raii::SurfaceKHR& surface) {
+    core::PhysicalDevice::SwapChainSupportDetails details;
     details.capabilities = device.getSurfaceCapabilitiesKHR(surface);
     details.formats = device.getSurfaceFormatsKHR(surface);
     details.presentModes = device.getSurfacePresentModesKHR(surface);
@@ -93,8 +93,7 @@ bool isDeviceSuitable(const vk::raii::PhysicalDevice& device, const vk::raii::Su
     if (!extensionsSupported) {
         return false;
     }
-    const rtype::render::vulkan::PhysicalDevice::SwapChainSupportDetails swapChainSupport =
-        querySwapChainSupport(device, surface);
+    const core::PhysicalDevice::SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device, surface);
     const bool swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
 
     return supportsVulkan1_3 && extensionsSupported && swapChainAdequate && queueFamiliesSupported;
@@ -119,16 +118,13 @@ unsigned int rateDeviceSuitability(const vk::raii::PhysicalDevice& device, const
 }  // namespace
 
 void PhysicalDevice::pickPhysicalDevice(const vk::raii::SurfaceKHR& surface, vk::PhysicalDeviceType preferredType) {
-    const auto deviceCount = static_cast<uint32_t>(_physicalDevices.size());
-
-    if (deviceCount == 0) {
+    if (_physicalDevices.empty()) {
         throw std::runtime_error("Failed to find GPUs with Vulkan support");
     }
 
     std::multimap<unsigned int, vk::raii::PhysicalDevice> candidates;
-    for (uint32_t i = 0; i < deviceCount; i++) {
-        unsigned int score = rateDeviceSuitability(_physicalDevices[i], surface, preferredType);
-        candidates.insert(std::make_pair(score, _physicalDevices[i]));
+    for (const vk::raii::PhysicalDevice& physicalDevice : _physicalDevices) {
+        candidates.emplace(rateDeviceSuitability(physicalDevice, surface, preferredType), physicalDevice);
     }
     if (candidates.rbegin()->first > 0) {
         _physicalDevice = candidates.rbegin()->second;
@@ -137,10 +133,10 @@ void PhysicalDevice::pickPhysicalDevice(const vk::raii::SurfaceKHR& surface, vk:
     }
 }
 
-PhysicalDevice::PhysicalDevice(vk::raii::Instance& instance, const vk::raii::SurfaceKHR& surface,
+PhysicalDevice::PhysicalDevice(const Instance& instance, const vk::raii::SurfaceKHR& surface,
                                vk::PhysicalDeviceType preferredType)
     : _physicalDevices(nullptr), _physicalDevice(nullptr) {
-    _physicalDevices = vk::raii::PhysicalDevices(instance);
+    _physicalDevices = vk::raii::PhysicalDevices(instance.getInstance());
     if (_physicalDevices.empty()) {
         throw std::runtime_error("No Vulkan physical devices found");
     }
@@ -149,4 +145,4 @@ PhysicalDevice::PhysicalDevice(vk::raii::Instance& instance, const vk::raii::Sur
         throw std::runtime_error("Failed to find a suitable GPU");
     }
 }
-}  // namespace rtype::render::vulkan
+}  // namespace rtype::render::vulkan::core

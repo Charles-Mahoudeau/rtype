@@ -12,9 +12,10 @@
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
+#include "Instance.hpp"
 #include "render/vulkan/Export.hpp"
 
-namespace rtype::render::vulkan {
+namespace rtype::render::vulkan::core {
 class RTYPE_RENDER_VULKAN_API PhysicalDevice {
     /// @brief The first physical device of a Vulkan instance, and all of them for lifetime management.
     /// @details The first physical device is the one used by the renderer. The others are kept alive so that the first
@@ -45,7 +46,7 @@ class RTYPE_RENDER_VULKAN_API PhysicalDevice {
     /// @param instance The Vulkan instance.
     /// @param surface The Vulkan surface to check for swap chain support.
     /// @param preferredType The type of GPU favored when several suitable ones are found.
-    PhysicalDevice(vk::raii::Instance& instance, const vk::raii::SurfaceKHR& surface,
+    PhysicalDevice(const Instance& instance, const vk::raii::SurfaceKHR& surface,
                    vk::PhysicalDeviceType preferredType = vk::PhysicalDeviceType::eDiscreteGpu);
     ~PhysicalDevice() = default;
     PhysicalDevice(const PhysicalDevice&) = delete;
@@ -70,4 +71,4 @@ class RTYPE_RENDER_VULKAN_API PhysicalDevice {
     vk::raii::PhysicalDevices _physicalDevices;  ///< All physical devices of the instance, destroyed on destruction.
     vk::raii::PhysicalDevice _physicalDevice;  ///< The first physical device of the instance, destroyed on destruction.
 };
-}  // namespace rtype::render::vulkan
+}  // namespace rtype::render::vulkan::core

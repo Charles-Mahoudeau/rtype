@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <glm/ext/vector_uint2.hpp>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -20,6 +21,7 @@
 #include "Export.hpp"
 #include "core/DebugMessenger.hpp"
 #include "core/Instance.hpp"
+#include "core/PhysicalDevice.hpp"
 #include "engine/graphics/Camera.hpp"
 #include "engine/graphics/Color.hpp"
 #include "engine/graphics/IRenderer.hpp"
@@ -102,5 +104,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
     std::optional<core::Instance> _instance;              ///< Created by init().
     std::optional<core::DebugMessenger> _debugMessenger;  ///< Created by init() when validation is enabled.
     vk::raii::SurfaceKHR _surface = nullptr;              ///< The window's surface, created by init().
+    std::unique_ptr<core::PhysicalDevice>
+        _physicalDevice;  ///< The first suitable physical device of the instance, created by init().
 };
 }  // namespace rtype::render::vulkan
