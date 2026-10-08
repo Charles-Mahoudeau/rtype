@@ -23,8 +23,8 @@ Ref::Ref(lua_State* state, const int stackIndex) {
     if (state == nullptr) {
         throw std::runtime_error{"invalid Lua state"};
     }
+    _ref = lua_ref(state, stackIndex);
     _state = lua_mainthread(state);
-    _ref = lua_ref(_state, stackIndex);
 }
 
 Ref::~Ref() {
@@ -44,5 +44,11 @@ Ref& Ref::operator=(Ref&& other) noexcept {
     return *this;
 }
 
-void Ref::push() const { lua_getref(_state, _ref); }
+void Ref::push(lua_State* state) const {
+    if (state == nullptr) {
+        lua_getref(_state, _ref);
+        return;
+    }
+    lua_getref(state, _ref);
+}
 }  // namespace rtype::luau

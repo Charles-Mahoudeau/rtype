@@ -29,8 +29,10 @@ class Ref {
     [[nodiscard]] static Ref pop(lua_State* state);
 
     /// @brief Creates a registry reference to the value at the given stack index.
-    /// @param state The Lua state owning the value.
+    /// @param state The Lua state owning the value. The reference is stored against its main thread, so it
+    ///        stays valid when @p state is a coroutine or a script thread.
     /// @param stackIndex Stack index of the value to reference (defaults to the top).
+    /// @throws std::runtime_error If @p state is null.
     explicit Ref(lua_State* state, int stackIndex = kLuaStackTop);
 
     /// @brief Releases the registry reference.
@@ -54,7 +56,10 @@ class Ref {
     /// @brief Pushes the referenced value onto the top of the Lua stack.
     ///
     /// The reference itself is left untouched and stays valid after the call.
-    void push() const;
+    /// @param state Lua state (or thread) onto whose stack the value is pushed. It must share its global state
+    ///        with the state holding the reference. When null, the value is pushed onto the state the
+    ///        reference was created from.
+    void push(lua_State* state = nullptr) const;
 
   private:
     lua_State* _state{nullptr};  ///< Lua state holding the reference.
