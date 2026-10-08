@@ -40,6 +40,20 @@ constexpr std::int32_t kLuauGlobalEnv = 0;
 bool has(const rtype::luau::RuntimeConfig::Libs libs, const rtype::luau::RuntimeConfig::Libs flag) noexcept {
     return (libs & flag) == flag;
 }
+
+/// @brief Calls a closure in protected mode, without arguments or results.
+/// @param state Lua state (or thread) to run the closure on.
+/// @param closure Reference to the closure to call.
+/// @return Success, or an `ErrorKind::kRuntime` error carrying the Lua error message.
+rtype::luau::Result<> runClosure(lua_State* state, const rtype::luau::Ref& closure) {
+    closure.push(state);
+    if (lua_pcall(state, 0, 0, 0) != LUA_OK) {
+        const std::string message{lua_tostring(state, -1)};
+        lua_pop(state, 1);
+        return rtype::luau::Failure{rtype::luau::ErrorKind::kRuntime, std::format("unable to run script: {}", message)};
+    }
+    return {};
+}
 }  // namespace
 
 namespace rtype::luau {
@@ -51,6 +65,7 @@ Runtime::Runtime(lua_State* state, const RuntimeConfig config) : _config{config}
     } else if (_config.libs != RuntimeConfig::Libs::kNone) {
         throw std::runtime_error{"unsupported library configuration"};
     }
+    luaL_sandbox(_state.get());
 }
 
 Result<Bytecode> Runtime::compile(const std::string& source) const {
@@ -95,17 +110,21 @@ Result<Script> Runtime::load(std::string name, const std::string& source) const 
         return forwardError<Script>(std::move(bytecode));
     }
 
+    lua_State* threadState = lua_newthread(_state.get());
+    Ref thread = Ref::pop(_state.get());
+    luaL_sandboxthread(threadState);
+
     const std::int32_t result =
-        luau_load(_state.get(), name.c_str(), bytecode->data().get(), bytecode->size(), kLuauGlobalEnv);
+        luau_load(threadState, name.c_str(), bytecode->data().get(), bytecode->size(), kLuauGlobalEnv);
 
     if (result != 0) {
-        const std::string message{lua_tostring(_state.get(), -1)};
-        lua_pop(_state.get(), 1);
+        const std::string message{lua_tostring(threadState, -1)};
+        lua_pop(threadState, 1);
         return Failure{ErrorKind::kRuntime, std::format("unable to load script '{}': {}", name, message)};
     }
 
-    Ref closure = Ref::pop(_state.get());
-    return Script{std::move(closure), std::move(name), std::move(*bytecode)};
+    Ref closure = Ref::pop(threadState);
+    return Script{threadState, std::move(thread), std::move(closure), std::move(name)};
 }
 
 Result<Script> Runtime::load(const std::filesystem::path& path) const {
@@ -122,15 +141,9 @@ Result<Script> Runtime::load(const std::filesystem::path& path) const {
     return load(path.filename().string(), source);
 }
 
-Result<> Runtime::run(const Ref& closure) const {
-    closure.push();
-    if (lua_pcall(_state.get(), 0, 0, 0) != LUA_OK) {
-        const std::string message{lua_tostring(_state.get(), -1)};
-        lua_pop(_state.get(), 1);
-        return Failure{ErrorKind::kRuntime, std::format("unable to run script: {}", message)};
-    }
-    return {};
-}
+Result<> Runtime::run(const Ref& closure) const { return runClosure(_state.get(), closure); }
 
-Result<> Runtime::run(const Script& script) const { return run(script.closure()); }
+// ReSharper disable once CppMemberFunctionMayBeStatic
+// NOLINTNEXTLINE(*-convert-member-functions-to-static)
+Result<> Runtime::run(const Script& script) const { return runClosure(script.state(), script.closure()); }
 }  // namespace rtype::luau

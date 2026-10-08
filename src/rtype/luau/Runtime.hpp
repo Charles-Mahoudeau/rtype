@@ -49,6 +49,8 @@ class RTYPE_LUAU_API Runtime {
     Runtime& operator=(Runtime&& other) noexcept = default;
 
     /// @brief Compiles and loads a script from its source code, without running it.
+    ///
+    /// The script is loaded in its own sandboxed thread, which the returned `Script` keeps alive.
     /// @param name Name of the script, used in error messages.
     /// @param source Luau source code.
     /// @return The loaded script, or an error (`ErrorKind::kCompilation` if the compilation fails,
@@ -62,12 +64,12 @@ class RTYPE_LUAU_API Runtime {
     /// @return The loaded script, or an error if the file cannot be read, compiled or loaded.
     [[nodiscard]] Result<Script> load(const std::filesystem::path& path) const;
 
-    /// @brief Runs a loaded closure in protected mode.
+    /// @brief Runs a loaded closure in protected mode on the runtime's main state.
     /// @param closure Reference to the closure to call, without arguments.
     /// @return Success, or an `ErrorKind::kRuntime` error if the closure raised an error.
     [[nodiscard]] Result<> run(const Ref& closure) const;
 
-    /// @brief Runs a loaded script in protected mode.
+    /// @brief Runs a loaded script in protected mode, on the thread it was loaded in.
     /// @param script Script to run; it must have been loaded by this runtime.
     /// @return Success, or an `ErrorKind::kRuntime` error if the script raised an error.
     [[nodiscard]] Result<> run(const Script& script) const;
