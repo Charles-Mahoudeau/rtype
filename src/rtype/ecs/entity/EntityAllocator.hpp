@@ -12,7 +12,7 @@
 #include <vector>
 
 #include "Entity.hpp"
-#include "Export.hpp"
+#include "rtype/ecs/Export.hpp"
 
 namespace rtype::ecs {
 /// @brief Creates, recycles and validates entities.

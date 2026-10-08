@@ -14,8 +14,8 @@
 #include <optional>
 
 #include "Entity.hpp"
-#include "detail/Generation.hpp"
-#include "exceptions/EntityExceptions.hpp"
+#include "rtype/ecs/detail/Generation.hpp"
+#include "rtype/ecs/exceptions/EntityExceptions.hpp"
 
 namespace rtype::ecs {
 std::size_t EntityAllocator::getAliveCount() const noexcept { return _aliveCount; }

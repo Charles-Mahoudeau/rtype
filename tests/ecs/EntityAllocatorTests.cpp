@@ -9,8 +9,8 @@
 
 #include <cstdint>
 
-#include "rtype/ecs/Entity.hpp"
-#include "rtype/ecs/EntityAllocator.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/entity/EntityAllocator.hpp"
 
 TEST(EntityAllocator, AllocatesFreshIndicesWithGenerationOne) {
     rtype::ecs::EntityAllocator allocator;

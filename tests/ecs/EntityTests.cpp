@@ -12,8 +12,8 @@
 #include <limits>
 #include <type_traits>
 
-#include "rtype/ecs/Entity.hpp"
 #include "rtype/ecs/detail/Generation.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
 
 static_assert(sizeof(rtype::ecs::Entity) == 8);
 static_assert(std::is_trivially_copyable_v<rtype::ecs::Entity>);
