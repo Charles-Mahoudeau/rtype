@@ -45,7 +45,6 @@ jobs:
         uses: xmake-io/github-action-setup-xmake@v1
         with:
           xmake-version: latest
-          project-path: "rtype"
           actions-cache-folder: ".xmake-cache"
           actions-cache-key: "${{ matrix.os }}-compilation"
           build-cache: true
@@ -90,7 +89,6 @@ jobs:
         uses: xmake-io/github-action-setup-xmake@v1
         with:
           xmake-version: latest
-          project-path: "rtype"
           actions-cache-folder: ".xmake-cache"
           actions-cache-key: "${{ matrix.os }}-compilation"
           build-cache: true
@@ -126,7 +124,6 @@ jobs:
         uses: xmake-io/github-action-setup-xmake@v1
         with:
           xmake-version: latest
-          project-path: "rtype"
           actions-cache-folder: ".xmake-cache"
           actions-cache-key: "ubuntu-latest-compilation"
           build-cache: true
