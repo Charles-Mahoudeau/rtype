@@ -33,7 +33,7 @@ struct RuntimeConfig {
         kVector = 1U << 10U,    ///< `vector`
         // NOLINTNEXTLINE(bugprone-signed-bitwise): enumerators of a 16-bit enum promote to int
         kStandard = kBase | kMath | kTable | kString | kCoroutine | kBit32 | kUtf8 | kOs | kDebug | kBuffer |
-            kVector,  ///< Standard libraries.
+                    kVector,  ///< Standard libraries.
         /// @}
     };
 
