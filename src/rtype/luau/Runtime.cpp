@@ -104,9 +104,8 @@ Result<Script> Runtime::load(std::string name, const std::string& source) const 
         return Failure{ErrorKind::kRuntime, std::format("unable to load script '{}': {}", name, message)};
     }
 
-    Ref closure{*_state};
-    Script script{std::move(closure), std::move(name), std::move(*bytecode)};
-    return script;
+    Ref closure = Ref::pop(_state.get());
+    return Script{std::move(closure), std::move(name), std::move(*bytecode)};
 }
 
 Result<Script> Runtime::load(const std::filesystem::path& path) const {

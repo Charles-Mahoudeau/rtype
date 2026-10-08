@@ -9,8 +9,6 @@
 
 #include <lua.h>
 
-#include <functional>
-
 namespace rtype::luau {
 /// @brief RAII handle on a Luau value stored in the registry.
 ///
@@ -19,12 +17,21 @@ namespace rtype::luau {
 /// `lua_State` must outlive the `Ref`.
 class Ref {
   public:
+    /// @brief Registry reference id meaning "no reference" (Luau's `LUA_NOREF`).
+    static constexpr int kLuaNoRef = -1;
+
+    /// @brief Stack index of the value at the top of the Lua stack.
+    static constexpr int kLuaStackTop = -1;
+
+    /// @brief Creates a registry reference to the value at the top of the stack, then pops that value.
+    /// @param state The Lua state owning the value.
+    /// @return A Ref owning the registry reference to the popped value.
+    [[nodiscard]] static Ref pop(lua_State* state);
+
     /// @brief Creates a registry reference to the value at the given stack index.
     /// @param state The Lua state owning the value.
     /// @param stackIndex Stack index of the value to reference (defaults to the top).
-    /// @param keepOnStack If false, the top of the stack is popped once the reference is created;
-    ///                    if true, the stack is left untouched.
-    explicit Ref(lua_State& state, int stackIndex = -1, bool keepOnStack = false);
+    explicit Ref(lua_State* state, int stackIndex = kLuaStackTop);
 
     /// @brief Releases the registry reference.
     ~Ref();
@@ -50,7 +57,7 @@ class Ref {
     void push() const;
 
   private:
-    std::reference_wrapper<lua_State> _state;  ///< Lua state holding the reference.
-    int _ref;                                  ///< Registry reference id.
+    lua_State* _state{nullptr};  ///< Lua state holding the reference.
+    int _ref{kLuaNoRef};         ///< Registry reference id.
 };
 }  // namespace rtype::luau
