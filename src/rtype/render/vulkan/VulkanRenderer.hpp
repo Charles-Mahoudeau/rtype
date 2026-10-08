@@ -53,6 +53,8 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
         vk::DebugUtilsMessageSeverityFlagBitsEXT minSeverity =
             vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning;  ///< Minimum severity of messages the DebugMessenger
                                                                  ///< prints.
+        vk::PhysicalDeviceType preferredDeviceType =
+            vk::PhysicalDeviceType::eDiscreteGpu;  ///< Type of GPU favored when several suitable ones are found.
     };
 
     explicit VulkanRenderer(Config config);
