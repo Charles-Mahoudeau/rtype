@@ -129,7 +129,7 @@ jobs:
           build-cache: true
           build-cache-key: "ubuntu-latest-compilation"
           package-cache: true
-          package-cache-key: "ubuntu-latest-compilation"
+          package-cache-key: "ubuntu-latest-lint"
 
       - name: Configure xmake
         run: xmake f -y --Tests=y
