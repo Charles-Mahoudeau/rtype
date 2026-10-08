@@ -7,8 +7,6 @@
 
 #pragma once
 
-#include <lua.h>
-
 #include <string>
 #include <string_view>
 
