@@ -94,7 +94,7 @@ jobs:
           build-cache: true
           build-cache-key: "${{ matrix.os }}-compilation"
           package-cache: true
-          package-cache-key: "${{ matrix.os }}-compilation"
+          package-cache-key: "${{ matrix.os }}-tests"
 
       - name: Build tests
         run: |
