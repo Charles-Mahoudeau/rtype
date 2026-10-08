@@ -10,8 +10,13 @@ are added.
 
 ## Project structure
 
+- `src/rtype/ecs/` — `ecs` target, shared library (`rtype-ecs`): the Entity Component System and,
+  later, the App and its plugins (`rtype::ecs`). Design in `docs/ecs/design.md`. It depends on no other
+  project target. Exported classes and functions are marked `RTYPE_ECS_API`, and the library keeps no
+  global mutable state (state lives in the world), so it can also be built static by switching its
+  kind and defining `RTYPE_ECS_STATIC` publicly (see `Export.hpp`).
 - `src/rtype/engine/` — two targets defined in the same `xmake.lua`:
-  - `engine-core`: static library (`rtype-engine-core`), the core of the engine: ECS, events
+  - `engine-core`: static library (`rtype-engine-core`), the core of the engine: events
     (`event/`, `rtype::engine::event`) and input (`input/`, `rtype::engine::input`). It depends on
     no window, graphics or scripting library (only glm).
   - `engine`: the executable, built from `main.cpp` only. It wires `engine-core` with
@@ -41,7 +46,7 @@ are added.
 
 Each module has its own `xmake.lua`, included from the root `xmake.lua`. Add new sources under the
 matching module: `engine-core` globs `**.cpp` in `src/rtype/engine/` except `main.cpp`, while
-`platform-glfw`, `render-vulkan` and `luau` glob `**.cpp` in their own folder.
+`ecs`, `platform-glfw`, `render-vulkan` and `luau` glob `**.cpp` in their own folder.
 
 ### Dependency rules
 
@@ -49,8 +54,12 @@ Dependencies always point towards `engine-core`, never away from it:
 
 ```
 engine-core, interop-*  ←  platform-*, render-*, luau  ←  engine (executable)
+ecs                                                     ←  engine (executable)
 ```
 
+- `ecs` depends on no other project target; only the engine (and its plugins, examples and tests)
+  depends on it. The renderer, the platforms and `luau` never include ECS headers: the glue between
+  them and the ECS lives in the engine's plugins.
 - `engine-core` depends on nothing but glm. Never add a dependency on a `platform-*`, `render-*` or
   `luau` target to it: they depend on it, so it would create a cycle.
 - Modules exchange engine types only (`rtype::engine::Event`, `rtype::engine::input::Key`...).
@@ -80,10 +89,10 @@ The project uses `xmake` with the `clang` toolchain and C++23.
 - Format: `clang-format -i <files>` (style in `.clang-format`)
 - Lint: `clang-tidy -p . <files>` (checks in `.clang-tidy`)
 
-Tests live in `tests/<module>/` (e.g. `tests/luau/`, target `luau-tests`), one folder per module
-with its own `xmake.lua` included from `tests/xmake.lua`. They are opt-in (`--Tests=y`) and use
-GoogleTest; the shared `tests/main.cpp` provides `main`. The CI `test` job builds with `--Tests=y`
-and runs `xmake test -v`.
+Tests live in `tests/<module>/` (e.g. `tests/ecs/`, target `ecs-tests`, or `tests/luau/`, target
+`luau-tests`), one folder per module with its own `xmake.lua` included from `tests/xmake.lua`. They
+are opt-in (`--Tests=y`) and use GoogleTest; the shared `tests/main.cpp` provides `main`. The CI
+`test` job builds with `--Tests=y` and runs `xmake test -v`.
 
 CI (`.github/workflows/ci.yml`) builds on Linux, macOS and Windows, then runs `cpp-linter` with
 `clang-format` and `clang-tidy`. A change must build on all three platforms and pass both linters.
