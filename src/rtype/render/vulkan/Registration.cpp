@@ -46,9 +46,34 @@ vk::DebugUtilsMessageSeverityFlagBitsEXT toSeverity(std::string_view name) {
         std::format(R"(Setting 'vulkan.minSeverity' must be "verbose", "info", "warning" or "error", not "{}")", name));
 }
 
+/// @return The physical device type named in the config.
+/// @throws engine::exceptions::SettingsException If the name is unknown.
+vk::PhysicalDeviceType toDeviceType(std::string_view name) {
+    using Type = vk::PhysicalDeviceType;
+    using Entry = std::pair<std::string_view, Type>;
+    static constexpr std::array<Entry, 5> kDeviceTypes{{
+        {"discrete_gpu", Type::eDiscreteGpu},
+        {"integrated_gpu", Type::eIntegratedGpu},
+        {"virtual_gpu", Type::eVirtualGpu},
+        {"cpu", Type::eCpu},
+        {"other", Type::eOther},
+    }};
+
+    for (const auto& [key, type] : kDeviceTypes) {
+        if (key == name) {
+            return type;
+        }
+    }
+    throw engine::exceptions::SettingsException(std::format(
+        R"(Setting 'vulkan.preferredDeviceType' must be "discrete_gpu", "integrated_gpu", "virtual_gpu", "cpu" or )"
+        R"("other", not "{}")",
+        name));
+}
+
 /// @return The Config described by the "vulkan" section; missing keys keep the Config defaults.
 VulkanRenderer::Config toConfig(const engine::config::Settings& settings) {
-    settings.checkKeys({"engineName", "layers", "extraExtensions", "debugging", "minSeverity"}, "vulkan");
+    settings.checkKeys({"engineName", "layers", "extraExtensions", "debugging", "minSeverity", "preferredDeviceType"},
+                       "vulkan");
     VulkanRenderer::Config config;
     config.engineName = settings.getString("engineName", config.engineName);
     config.layers = settings.getStringList("layers", config.layers);
@@ -56,6 +81,9 @@ VulkanRenderer::Config toConfig(const engine::config::Settings& settings) {
     config.debugging = settings.getBool("debugging", config.debugging);
     if (settings.has("minSeverity")) {
         config.minSeverity = toSeverity(settings.getString("minSeverity", ""));
+    }
+    if (settings.has("preferredDeviceType")) {
+        config.preferredDeviceType = toDeviceType(settings.getString("preferredDeviceType", ""));
     }
     return config;
 }
