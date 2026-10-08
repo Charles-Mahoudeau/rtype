@@ -142,3 +142,22 @@ TEST(ResultVoid, ErrorExposesKindAndMessage) {
     EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kStackOverflow);
     EXPECT_EQ(result.error().message(), "too deep");
 }
+
+TEST(Result, ForwardErrorKeepsKindAndMessage) {
+    auto source = makeFailure(rtype::luau::ErrorKind::kCompilation, "bad syntax");
+
+    const auto forwarded = rtype::luau::forwardError<std::string>(std::move(source));
+
+    ASSERT_FALSE(forwarded);
+    EXPECT_EQ(forwarded.error().kind(), rtype::luau::ErrorKind::kCompilation);
+    EXPECT_EQ(forwarded.error().message(), "bad syntax");
+}
+
+TEST(Result, ForwardErrorToVoidResult) {
+    auto source = makeFailure(rtype::luau::ErrorKind::kRuntime, "boom");
+
+    const auto forwarded = rtype::luau::forwardError<void>(std::move(source));
+
+    ASSERT_FALSE(forwarded);
+    EXPECT_EQ(forwarded.error().kind(), rtype::luau::ErrorKind::kRuntime);
+}
