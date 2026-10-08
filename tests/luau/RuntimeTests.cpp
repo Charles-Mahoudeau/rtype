@@ -93,7 +93,7 @@ TEST(Runtime, LoadValidSourceReturnsScript) {
 
     ASSERT_TRUE(script);
     EXPECT_EQ(script->name(), "valid");
-    EXPECT_GT(script->bytecode().size(), 0U);
+    EXPECT_NE(script->state(), nullptr);
 }
 
 TEST(Runtime, LoadSyntaxErrorReturnsCompilationError) {
@@ -203,13 +203,64 @@ TEST(Runtime, NoLibrariesLeavesGlobalsEmpty) {
         .libs = rtype::luau::RuntimeConfig::Libs::kNone,
         .optimizationLevel = rtype::luau::RuntimeConfig::OptimizationLevel::kStandard,
     });
-    const auto script = runtime.load("nolibs", "math.max(1, 2)");
+    const auto script = runtime.load("nolibs", "local m = math\nlocal _ = m.max");
     ASSERT_TRUE(script);
 
     const auto result = runtime.run(*script);
 
     ASSERT_FALSE(result);
     EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kRuntime);
+}
+
+TEST(Runtime, ScriptRunsInItsOwnThread) {
+    const auto runtime = makeRuntime();
+    const auto first = runtime.load("first", "local x = 1");
+    const auto second = runtime.load("second", "local x = 2");
+    ASSERT_TRUE(first);
+    ASSERT_TRUE(second);
+
+    EXPECT_NE(first->state(), second->state());
+}
+
+TEST(Runtime, ScriptGlobalsDoNotLeakToOtherScripts) {
+    const auto runtime = makeRuntime();
+    const auto writer = runtime.load("writer", "shared = 42");
+    const auto reader = runtime.load("reader", "assert(shared == nil)");
+    ASSERT_TRUE(writer);
+    ASSERT_TRUE(reader);
+
+    EXPECT_TRUE(runtime.run(*writer));
+    EXPECT_TRUE(runtime.run(*reader));
+}
+
+TEST(Runtime, ScriptKeepsItsOwnGlobalsBetweenRuns) {
+    const auto runtime = makeRuntime();
+    const auto script = runtime.load("counter", "count = (count or 0) + 1\nassert(count <= 2)");
+    ASSERT_TRUE(script);
+
+    EXPECT_TRUE(runtime.run(*script));
+    EXPECT_TRUE(runtime.run(*script));
+}
+
+TEST(Runtime, ScriptCannotModifyStandardLibraries) {
+    const auto runtime = makeRuntime();
+    const auto script = runtime.load("tamper", "math.max = nil");
+    ASSERT_TRUE(script);
+
+    const auto result = runtime.run(*script);
+
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kRuntime);
+}
+
+TEST(Runtime, ScriptSurvivesRuntimeGarbageCollection) {
+    const auto runtime = makeRuntime();
+    const auto script = runtime.load("gc", "assert(1 + 1 == 2)");
+    ASSERT_TRUE(script);
+
+    lua_gc(script->state(), LUA_GCCOLLECT, 0);
+
+    EXPECT_TRUE(runtime.run(*script));
 }
 
 TEST(Runtime, AllOptimizationLevelsRunScripts) {

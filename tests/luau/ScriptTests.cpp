@@ -9,14 +9,11 @@
 #include <lua.h>
 #include <lualib.h>
 
-#include <cstdlib>
 #include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
 
-#include "rtype/luau/Bytecode.hpp"
-#include "rtype/luau/CHelper.hpp"
 #include "rtype/luau/Ref.hpp"
 #include "rtype/luau/Script.hpp"
 
@@ -28,10 +25,11 @@ struct StateCloser {
 using State = std::unique_ptr<lua_State, StateCloser>;
 
 rtype::luau::Script makeScript(lua_State& state, std::string name) {
-    lua_pushinteger(&state, 5);
-    // NOLINTNEXTLINE(*-avoid-c-arrays,*-no-malloc,*-owning-memory)
-    rtype::luau::Bytecode bytecode{rtype::luau::CPtr<char[]>{static_cast<char*>(std::malloc(3))}, 3};
-    return rtype::luau::Script{rtype::luau::Ref{state}, std::move(name), std::move(bytecode)};
+    lua_State* thread = lua_newthread(&state);
+    rtype::luau::Ref threadRef = rtype::luau::Ref::pop(&state);
+    lua_pushinteger(thread, 5);
+    rtype::luau::Ref closure = rtype::luau::Ref::pop(thread);
+    return rtype::luau::Script{thread, std::move(threadRef), std::move(closure), std::move(name)};
 }
 }  // namespace
 
@@ -43,13 +41,15 @@ TEST(Script, ExposesName) {
     EXPECT_EQ(script.name(), "main.luau");
 }
 
-TEST(Script, ExposesBytecode) {
+TEST(Script, ExposesThread) {
     const State state{luaL_newstate()};
 
     const auto script = makeScript(*state, "main.luau");
 
-    EXPECT_EQ(script.bytecode().size(), 3U);
-    EXPECT_NE(script.bytecode().data().get(), nullptr);
+    EXPECT_NE(script.state(), nullptr);
+    EXPECT_NE(script.state(), state.get());
+    script.thread().push();
+    EXPECT_EQ(lua_tothread(state.get(), -1), script.state());
 }
 
 TEST(Script, ExposesClosure) {
@@ -68,7 +68,7 @@ TEST(Script, MoveConstructionTransfersParts) {
     const rtype::luau::Script moved{std::move(source)};
 
     EXPECT_EQ(moved.name(), "moved.luau");
-    EXPECT_EQ(moved.bytecode().size(), 3U);
+    EXPECT_NE(moved.state(), nullptr);
 }
 
 TEST(Script, IsMoveOnly) {
