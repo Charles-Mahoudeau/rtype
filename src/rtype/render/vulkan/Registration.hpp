@@ -18,7 +18,9 @@ namespace rtype::render::vulkan {
 /// - `engineName` (string);
 /// - `layers`, `extraExtensions` (lists of strings);
 /// - `debugging` (boolean);
-/// - `minSeverity` ("verbose", "info", "warning" or "error").
+/// - `minSeverity` ("verbose", "info", "warning" or "error");
+/// - `preferredDeviceType` ("discrete_gpu", "integrated_gpu", "virtual_gpu", "cpu" or "other", default
+///   "discrete_gpu").
 RTYPE_RENDER_VULKAN_API void registerRenderer(engine::backend::BackendRegistry& registry);
 
 }  // namespace rtype::render::vulkan
