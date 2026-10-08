@@ -1,0 +1,92 @@
+name: ECS Feature
+description: A unit of work on the Entity Component System, the App or the engine plugins built on it.
+title: "[ECS Feature] "
+labels: ["enhancement", "ecs"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe one deliverable. Keep it small enough to be reviewed in a single PR.
+        After submitting, add the matching priority (`critical`, `high`, `medium`, `low`) and `weight: *` labels, link the issue to its epic as a sub-issue, and add any blocking issues in the issue's relationships.
+        The ECS design (`docs/ecs/design.md`, `docs/ecs/features/`) is a direction, not a strict spec: describe the intent and leave room for implementation choices.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What must be built, in one or two sentences.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why it is needed and how it fits in the ECS, the App or the engine plugins.
+    validations:
+      required: true
+
+  - type: textarea
+    id: api
+    attributes:
+      label: C++ API and usage
+      description: The intended C++ API (indicative) and how a system, a plugin or a Luau script uses it.
+      placeholder: |
+        ```c++
+        rtype::ecs::World world;
+        const rtype::ecs::Entity entity = world.spawn();
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: tasks
+    attributes:
+      label: Tasks
+      description: Checklist of concrete steps.
+      value: |
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Observable conditions that make this issue done.
+      value: |
+        - [ ] Builds with `xmake` on Linux, Windows and macOS
+        - [ ] Unit tests in `tests/ecs/` cover the success and failure paths
+        - [ ] Passes `clang-format` and `clang-tidy`
+        - [ ] Follows the conventions in `CLAUDE.md` (rule of five, `.tpp` for templates, `RTYPE_ECS_API` exports)
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical
+    attributes:
+      label: Technical notes
+      description: Design choices, data structures, complexity, pitfalls, interactions with other ECS parts.
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Links to `docs/ecs/design.md`, the matching `docs/ecs/features/` doc, or related issues and PRs.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - core
+        - storage
+        - queries
+        - systems
+        - scheduling
+        - app
+        - engine-plugins
+        - tooling
+        - docs-tests
+    validations:
+      required: true
