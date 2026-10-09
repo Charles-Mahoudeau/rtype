@@ -20,6 +20,7 @@
 
 #include "Export.hpp"
 #include "core/DebugMessenger.hpp"
+#include "core/Device.hpp"
 #include "core/Instance.hpp"
 #include "core/PhysicalDevice.hpp"
 #include "engine/graphics/Camera.hpp"
@@ -99,12 +100,12 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
 
     [[noreturn]] static void notImplemented(std::string_view function);
 
-    Config _config;                                       ///< Settings given at construction.
-    glm::uvec2 _framebufferSize{0};                       ///< Size of the window's framebuffer, in pixels.
-    std::optional<core::Instance> _instance;              ///< Created by init().
-    std::optional<core::DebugMessenger> _debugMessenger;  ///< Created by init() when validation is enabled.
-    vk::raii::SurfaceKHR _surface = nullptr;              ///< The window's surface, created by init().
-    std::unique_ptr<core::PhysicalDevice>
-        _physicalDevice;  ///< The first suitable physical device of the instance, created by init().
+    Config _config;                                         ///< Settings given at construction.
+    glm::uvec2 _framebufferSize{0};                         ///< Size of the window's framebuffer, in pixels.
+    std::optional<core::Instance> _instance;                /// Contains the VkInstance.
+    std::optional<core::DebugMessenger> _debugMessenger;    ///< Created by init() when validation is enabled.
+    vk::raii::SurfaceKHR _surface = nullptr;                ///< The window's surface
+    std::unique_ptr<core::PhysicalDevice> _physicalDevice;  ///< The first suitable physical device of the instance
+    std::unique_ptr<core::Device> _device;                  ///< The logical device created from the physical device
 };
 }  // namespace rtype::render::vulkan
