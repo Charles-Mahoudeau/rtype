@@ -69,6 +69,7 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
     _surface = vk::raii::SurfaceKHR(_instance->getInstance(), surfaceSource.createSurface(instance));
     _framebufferSize = platform.getFramebufferSize();
     _physicalDevice = std::make_unique<core::PhysicalDevice>(*_instance, _surface, _config.preferredDeviceType);
+    _device = std::make_unique<core::Device>(*_physicalDevice);
 }
 
 void VulkanRenderer::resize(glm::uvec2 framebufferSize) { _framebufferSize = framebufferSize; }
