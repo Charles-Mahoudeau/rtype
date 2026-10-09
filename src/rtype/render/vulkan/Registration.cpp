@@ -72,13 +72,16 @@ vk::PhysicalDeviceType toDeviceType(std::string_view name) {
 
 /// @return The Config described by the "vulkan" section; missing keys keep the Config defaults.
 VulkanRenderer::Config toConfig(const engine::config::Settings& settings) {
-    settings.checkKeys({"engineName", "layers", "extraExtensions", "debugging", "minSeverity", "preferredDeviceType"},
+    settings.checkKeys({"engineName", "layers", "extraExtensions", "debugging", "minSeverity", "preferredDeviceType",
+                        "synchronizationValidation", "bestPractices"},
                        "vulkan");
     VulkanRenderer::Config config;
     config.engineName = settings.getString("engineName", config.engineName);
     config.layers = settings.getStringList("layers", config.layers);
     config.extraExtensions = settings.getStringList("extraExtensions", config.extraExtensions);
     config.debugging = settings.getBool("debugging", config.debugging);
+    config.synchronizationValidation = settings.getBool("synchronizationValidation", config.synchronizationValidation);
+    config.bestPractices = settings.getBool("bestPractices", config.bestPractices);
     if (settings.has("minSeverity")) {
         config.minSeverity = toSeverity(settings.getString("minSeverity", ""));
     }
