@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <stdexcept>
 #include <string_view>
 #include <vector>
@@ -28,13 +29,7 @@ bool isExtensionAvailable(const std::vector<vk::ExtensionProperties>& availableE
 bool checkDeviceExtensionSupport(const vk::raii::PhysicalDevice& physicalDevice) {
     const std::vector<vk::ExtensionProperties> availableExtensions =
         physicalDevice.enumerateDeviceExtensionProperties();
-#ifdef __APPLE__
-    const std::vector<const char*> requiredExtensions{vk::KHRSwapchainExtensionName, "VK_KHR_portability_subset"};
-#else
-    const std::vector<const char*> requiredExtensions{vk::KHRSwapchainExtensionName};
-#endif
-
-    return std::ranges::all_of(requiredExtensions, [&availableExtensions](const char* name) {
+    return std::ranges::all_of(PhysicalDevice::kRequiredExtensions, [&availableExtensions](const char* name) {
         return isExtensionAvailable(availableExtensions, name);
     });
 }
@@ -73,11 +68,19 @@ PhysicalDevice::Limits queryLimits(const vk::raii::PhysicalDevice& physicalDevic
     };
 }
 
+/// @brief Queue families found while searching a device; either may be missing.
+struct QueueFamilyIndices {
+    std::optional<std::uint32_t> graphicsFamily;  ///< Index of a queue family that supports graphics commands.
+    std::optional<std::uint32_t> presentFamily;   ///< Index of a queue family that can present to the surface.
+
+    /// @return Whether both a graphics and a present queue family were found.
+    [[nodiscard]] bool isComplete() const noexcept { return graphicsFamily && presentFamily; }
+};
+
 /// @return The first queue family supporting graphics and the first one able to present to @p surface.
-core::PhysicalDevice::QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice& physicalDevice,
-                                                           const vk::SurfaceKHR& surface) {
+QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice& physicalDevice, const vk::SurfaceKHR& surface) {
     const std::vector<vk::QueueFamilyProperties> queueFamilies = physicalDevice.getQueueFamilyProperties();
-    core::PhysicalDevice::QueueFamilyIndices indices;
+    QueueFamilyIndices indices;
 
     std::uint32_t index = 0;
     for (const vk::QueueFamilyProperties& queueFamily : queueFamilies) {
@@ -160,5 +163,11 @@ PhysicalDevice::PhysicalDevice(const Instance& instance, const vk::raii::Surface
     }
     _optionalFeatures = queryOptionalFeatures(_physicalDevice);
     _limits = queryLimits(_physicalDevice);
+
+    const QueueFamilyIndices indices = findQueueFamilies(_physicalDevice, surface);
+    if (!indices.graphicsFamily || !indices.presentFamily) {
+        throw std::runtime_error("Chosen GPU has no graphics or present queue family");
+    }
+    _queueFamilies = QueueFamilies{.graphics = *indices.graphicsFamily, .present = *indices.presentFamily};
 }
 }  // namespace rtype::render::vulkan::core
