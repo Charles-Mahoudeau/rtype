@@ -31,6 +31,7 @@
 #include "engine/graphics/Texture.hpp"
 #include "engine/platform/IPlatform.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
+#include "memory/Allocator.hpp"
 
 namespace rtype::render::vulkan {
 
@@ -107,5 +108,6 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
     vk::raii::SurfaceKHR _surface = nullptr;                ///< The window's surface
     std::unique_ptr<core::PhysicalDevice> _physicalDevice;  ///< The first suitable physical device of the instance
     std::unique_ptr<core::Device> _device;                  ///< The logical device created from the physical device
+    std::unique_ptr<memory::Allocator> _allocator;  ///< VMA allocator; declared after _device to be destroyed first.
 };
 }  // namespace rtype::render::vulkan
