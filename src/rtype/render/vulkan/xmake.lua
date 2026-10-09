@@ -2,7 +2,10 @@
 if not is_plat("macosx") then
     add_requires("vulkan-loader 1.4.x", {alias = "vulkan-loader"})
 end
-add_requires("vulkan-memory-allocator 3.x", {alias = "vulkan-memory-allocator"})
+
+add_requires("vulkan-memory-allocator 3.3.x", {alias = "vulkan-memory-allocator"})
+add_requires("vulkan-memory-allocator-hpp v3.3.0+3",
+             {alias = "vulkan-memory-allocator-hpp", configs = {use_vulkanheaders = true}})
 add_requires("stb", {alias = "stb"})
 add_requires("imgui 1.92.x", {alias = "imgui", configs = {vulkan = true}})
 add_requires("slang 2025.x", {alias = "slang", configs = {shared = true}})
@@ -41,7 +44,7 @@ target("render-vulkan")
     set_basename("rtype-render-vulkan")
     -- engine-core for IRenderer, interop-vulkan for IVulkanSurfaceSource (implemented by the platforms).
     add_deps("engine-core", "interop-vulkan")
-    add_packages("vulkan-headers", "vulkan-memory-allocator", "glm", "stb", "imgui", "slang")
+    add_packages("vulkan-headers", "vulkan-memory-allocator", "vulkan-memory-allocator-hpp", "glm", "stb", "imgui", "slang")
     add_packages("vulkan-headers", {public = true})
     -- vk::raii::Context takes the linked vkGetInstanceProcAddr instead of dlopen()-ing its own loader. Public: it
     -- changes the layout of vk::raii::Context, so every file including the renderer headers must agree on it.
