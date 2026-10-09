@@ -263,7 +263,7 @@ Each part of the engine reads **its own section** and turns it into **its own ty
 | (root) | `BackendRegistry` | `platform`, `renderer` (names, required) |
 | `window` | `WindowConfig::fromSettings()` | `size` ({width, height}), `title`, `resizable`, `fullscreen` |
 | `glfw` | the `glfw` factory | none |
-| `vulkan` | the `vulkan` factory → `VulkanRenderer::Config` | `engineName`, `layers`, `extraExtensions`, `debugging`, `minSeverity` (`"verbose"`, `"info"`, `"warning"`, `"error"`), `preferredDeviceType` (`"discrete_gpu"` by default, `"integrated_gpu"`, `"virtual_gpu"`, `"cpu"`, `"other"`) |
+| `vulkan` | the `vulkan` factory → `VulkanRenderer::Config` | `engineName`, `layers`, `extraExtensions`, `debugging`, `minSeverity` (`"verbose"`, `"info"`, `"warning"`, `"error"`), `preferredDeviceType` (`"discrete_gpu"` by default, `"integrated_gpu"`, `"virtual_gpu"`, `"cpu"`, `"other"`), `synchronizationValidation` (`true` by default), `bestPractices` (`false` by default) |
 
 Every key is optional except `platform` and `renderer`; a missing one keeps the default of the typed
 configuration. The typed configurations stay usable on their own, for code that builds a backend by hand.
