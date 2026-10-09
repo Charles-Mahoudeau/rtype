@@ -60,7 +60,9 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
         layers.push_back(layer.c_str());
     }
     _instance.emplace(platform.getTitle(), _config.engineName, _config.apiVersion, std::move(extensions),
-                      std::move(layers));
+                      std::move(layers),
+                      core::ValidationOptions{.synchronization = _config.synchronizationValidation,
+                                              .bestPractices = _config.bestPractices});
     if (_config.debugging) {
         _debugMessenger.emplace(*_instance, _config.minSeverity);
     }
