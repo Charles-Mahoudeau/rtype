@@ -68,32 +68,72 @@ PhysicalDevice::Limits queryLimits(const vk::raii::PhysicalDevice& physicalDevic
     };
 }
 
-/// @brief Queue families found while searching a device; either may be missing.
-struct QueueFamilyIndices {
-    std::optional<std::uint32_t> graphicsFamily;  ///< Index of a queue family that supports graphics commands.
-    std::optional<std::uint32_t> presentFamily;   ///< Index of a queue family that can present to the surface.
+/// @return The extensions the logical device must enable: the required ones, plus portability_subset when exposed.
+std::vector<const char*> listDeviceExtensions(const vk::raii::PhysicalDevice& physicalDevice) {
+    std::vector<const char*> extensions{PhysicalDevice::kRequiredExtensions.begin(),
+                                        PhysicalDevice::kRequiredExtensions.end()};
+    if (isExtensionAvailable(physicalDevice.enumerateDeviceExtensionProperties(),
+                             PhysicalDevice::kPortabilitySubsetExtension)) {
+        extensions.push_back(PhysicalDevice::kPortabilitySubsetExtension);
+    }
+    return extensions;
+}
 
-    /// @return Whether both a graphics and a present queue family were found.
-    [[nodiscard]] bool isComplete() const noexcept { return graphicsFamily && presentFamily; }
+/// @brief Queue families found while searching a device; any may be missing.
+struct QueueFamilyIndices {
+    std::optional<std::uint32_t> graphicsFamily;  ///< Family that supports graphics commands.
+    std::optional<std::uint32_t> presentFamily;   ///< Family that can present to the surface.
+    std::optional<std::uint32_t> computeFamily;   ///< Family that supports compute, dedicated if possible.
+    std::optional<std::uint32_t> transferFamily;  ///< Family for copies, dedicated if possible.
+
+    /// @return Whether every family was found.
+    [[nodiscard]] bool isComplete() const noexcept {
+        return graphicsFamily && presentFamily && computeFamily && transferFamily;
+    }
 };
 
-/// @return The first queue family supporting graphics and the first one able to present to @p surface.
+/// @return The first family whose flags contain all of @p wanted and none of @p excluded, if any.
+std::optional<std::uint32_t> findFamily(const std::vector<vk::QueueFamilyProperties>& queueFamilies,
+                                        vk::QueueFlags wanted, vk::QueueFlags excluded = {}) {
+    std::uint32_t index = 0;
+    for (const vk::QueueFamilyProperties& queueFamily : queueFamilies) {
+        if ((queueFamily.queueFlags & wanted) == wanted && !(queueFamily.queueFlags & excluded)) {
+            return index;
+        }
+        ++index;
+    }
+    return std::nullopt;
+}
+
+/// @return The first family able to present to @p surface, if any.
+std::optional<std::uint32_t> findPresentFamily(const vk::PhysicalDevice& physicalDevice, const vk::SurfaceKHR& surface,
+                                               std::uint32_t familyCount) {
+    for (std::uint32_t index = 0; index < familyCount; ++index) {
+        if (physicalDevice.getSurfaceSupportKHR(index, surface) == VK_TRUE) {
+            return index;
+        }
+    }
+    return std::nullopt;
+}
+
+/// @return The queue families of @p physicalDevice. Compute and transfer prefer dedicated families, so their work
+/// can run in parallel with graphics; otherwise compute takes any compute family, and transfer the graphics one
+/// (graphics families implicitly support transfer).
 QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice& physicalDevice, const vk::SurfaceKHR& surface) {
+    using Flag = vk::QueueFlagBits;
     const std::vector<vk::QueueFamilyProperties> queueFamilies = physicalDevice.getQueueFamilyProperties();
     QueueFamilyIndices indices;
 
-    std::uint32_t index = 0;
-    for (const vk::QueueFamilyProperties& queueFamily : queueFamilies) {
-        if (!indices.graphicsFamily && (queueFamily.queueFlags & vk::QueueFlagBits::eGraphics)) {
-            indices.graphicsFamily = index;
-        }
-        if (!indices.presentFamily && physicalDevice.getSurfaceSupportKHR(index, surface) == VK_TRUE) {
-            indices.presentFamily = index;
-        }
-        if (indices.isComplete()) {
-            break;
-        }
-        ++index;
+    indices.graphicsFamily = findFamily(queueFamilies, Flag::eGraphics);
+    indices.presentFamily =
+        findPresentFamily(physicalDevice, surface, static_cast<std::uint32_t>(queueFamilies.size()));
+    indices.computeFamily = findFamily(queueFamilies, Flag::eCompute, Flag::eGraphics);
+    if (!indices.computeFamily) {
+        indices.computeFamily = findFamily(queueFamilies, Flag::eCompute);
+    }
+    indices.transferFamily = findFamily(queueFamilies, Flag::eTransfer, Flag::eGraphics | Flag::eCompute);
+    if (!indices.transferFamily) {
+        indices.transferFamily = indices.graphicsFamily;
     }
     return indices;
 }
@@ -163,11 +203,17 @@ PhysicalDevice::PhysicalDevice(const Instance& instance, const vk::raii::Surface
     }
     _optionalFeatures = queryOptionalFeatures(_physicalDevice);
     _limits = queryLimits(_physicalDevice);
+    _deviceExtensions = listDeviceExtensions(_physicalDevice);
 
     const QueueFamilyIndices indices = findQueueFamilies(_physicalDevice, surface);
-    if (!indices.graphicsFamily || !indices.presentFamily) {
-        throw std::runtime_error("Chosen GPU has no graphics or present queue family");
+    if (!indices.graphicsFamily || !indices.presentFamily || !indices.computeFamily || !indices.transferFamily) {
+        throw std::runtime_error("Chosen GPU lacks a graphics, present, compute or transfer queue family");
     }
-    _queueFamilies = QueueFamilies{.graphics = *indices.graphicsFamily, .present = *indices.presentFamily};
+    _queueFamilies = QueueFamilies{
+        .graphics = *indices.graphicsFamily,
+        .present = *indices.presentFamily,
+        .compute = *indices.computeFamily,
+        .transfer = *indices.transferFamily,
+    };
 }
 }  // namespace rtype::render::vulkan::core
