@@ -32,8 +32,11 @@ int main() {
 
         config.set("window.title", "R-Type");
         config.set("window.size", std::vector<double>{800, 600});
+#ifndef NDEBUG
+        // Debug builds only: the validation layer (with synchronization validation) is slow.
         config.set("vulkan.layers", std::vector<std::string>{"VK_LAYER_KHRONOS_validation"});
         config.set("vulkan.debugging", true);
+#endif
 
         const rtype::engine::backend::Backend backend = registry.createBackend(config);
         auto& platform = *backend.platform;
