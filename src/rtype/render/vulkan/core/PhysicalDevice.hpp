@@ -7,8 +7,8 @@
 
 #pragma once
 
+#include <array>
 #include <cstdint>
-#include <optional>
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
@@ -22,13 +22,10 @@ class RTYPE_RENDER_VULKAN_API PhysicalDevice {
     /// one is not destroyed when the instance is destroyed.
     /// @note The physical devices are destroyed in reverse order.
   public:
-    /// @brief Indices of the queue families of a physical device.
-    struct QueueFamilyIndices {
-        std::optional<std::uint32_t> graphicsFamily;  ///< Index of a queue family that supports graphics commands.
-        std::optional<std::uint32_t> presentFamily;   ///< Index of a queue family that can present to the surface.
-
-        /// @return Whether both a graphics and a present queue family were found.
-        [[nodiscard]] bool isComplete() const noexcept { return graphicsFamily && presentFamily; }
+    /// @brief Queue families of the chosen device. Both are guaranteed to exist: a device without them is never chosen.
+    struct QueueFamilies {
+        std::uint32_t graphics = 0;  ///< Index of a queue family that supports graphics commands.
+        std::uint32_t present = 0;   ///< Index of a queue family that can present to the surface; may be graphics.
     };
 
     /// @brief Features the renderer uses when the chosen device supports them, without requiring them.
@@ -58,6 +55,15 @@ class RTYPE_RENDER_VULKAN_API PhysicalDevice {
             presentModes;  ///< Available presentation modes (how images are presented to the screen).
     };
 
+#ifdef __APPLE__
+    /// @brief Device extensions the renderer needs: the swapchain, plus portability_subset on MoltenVK.
+    static constexpr std::array<const char*, 2> kRequiredExtensions{vk::KHRSwapchainExtensionName,
+                                                                    "VK_KHR_portability_subset"};
+#else
+    /// @brief Device extensions the renderer needs: the swapchain.
+    static constexpr std::array<const char*, 1> kRequiredExtensions{vk::KHRSwapchainExtensionName};
+#endif
+
     /// @brief Creates a PhysicalDevice object and picks the first suitable physical device from the Vulkan instance.
     /// @param instance The Vulkan instance.
     /// @param surface The Vulkan surface to check for swap chain support.
@@ -82,17 +88,20 @@ class RTYPE_RENDER_VULKAN_API PhysicalDevice {
     /// @return The limits of the chosen device.
     [[nodiscard]] const Limits& getLimits() const noexcept { return _limits; }
 
+    /// @return The graphics and present queue families of the chosen device.
+    [[nodiscard]] const QueueFamilies& getQueueFamilies() const noexcept { return _queueFamilies; }
+
     /// @brief Picks the first suitable physical device from the Vulkan instance.
     /// @param surface The Vulkan surface to check for swap chain support.
     /// @param preferredType The type of GPU favored when several suitable ones are found.
     /// @throws std::runtime_error If no suitable physical device is found.
     void pickPhysicalDevice(const vk::raii::SurfaceKHR& surface, vk::PhysicalDeviceType preferredType);
 
-  protected:
   private:
     vk::raii::PhysicalDevices _physicalDevices;  ///< All physical devices of the instance, destroyed on destruction.
     vk::raii::PhysicalDevice _physicalDevice;  ///< The first physical device of the instance, destroyed on destruction.
     OptionalFeatures _optionalFeatures;        ///< Optional features the chosen device supports.
     Limits _limits;                            ///< Limits of the chosen device.
+    QueueFamilies _queueFamilies;              ///< Graphics and present queue families of the chosen device.
 };
 }  // namespace rtype::render::vulkan::core
