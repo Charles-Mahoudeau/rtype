@@ -7,10 +7,13 @@
 
 #include "VulkanRenderer.hpp"
 
+#include <array>
 #include <cstddef>
+#include <cstdint>
 #include <format>
 #include <glm/ext/vector_uint2.hpp>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <span>
@@ -30,9 +33,24 @@
 #include "engine/graphics/Sprite.hpp"
 #include "engine/graphics/Texture.hpp"
 #include "engine/platform/IPlatform.hpp"
+#include "frame/FrameData.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
+#include "rendering/DynamicRendering.hpp"
 
 namespace rtype::render::vulkan {
+
+namespace {
+
+/// @brief Waits on fences and acquires images without a timeout.
+constexpr std::uint64_t kNoTimeout = std::numeric_limits<std::uint64_t>::max();
+
+/// @return @p color (x, y, z, w = red, green, blue, alpha) as a Vulkan clear value: linear, an sRGB swapchain encodes
+/// it.
+vk::ClearColorValue toClearColor(const engine::graphics::Color& color) {
+    return vk::ClearColorValue{std::array{color.x, color.y, color.z, color.w}};
+}
+
+}  // namespace
 
 VulkanRenderer::VulkanRenderer(Config config) : _config(std::move(config)) {}
 
@@ -102,9 +120,80 @@ engine::graphics::TextureId VulkanRenderer::createTexture(const engine::graphics
 
 void VulkanRenderer::destroy(engine::graphics::TextureId /*texture*/) { notImplemented("destroy"); }
 
-void VulkanRenderer::beginFrame(const engine::graphics::Color& /*clearColor*/) { notImplemented("beginFrame"); }
+void VulkanRenderer::beginFrame(const engine::graphics::Color& clearColor) {
+    if (!_frames) {
+        throw std::logic_error("VulkanRenderer::beginFrame() called before init()");
+    }
+    if (_acquiredImage) {
+        throw std::logic_error("VulkanRenderer::beginFrame() called twice without endFrame()");
+    }
+    const frame::FrameData& frame = _frames->getCurrentFrame();
+    const vk::raii::Device& device = _device->getDevice();
 
-void VulkanRenderer::endFrame() { notImplemented("endFrame"); }
+    if (device.waitForFences(*frame.getInFlight(), vk::True, kNoTimeout) != vk::Result::eSuccess) {
+        throw std::runtime_error("VulkanRenderer: waiting for the frame's fence failed");
+    }
+    _deletionQueue.flush(_frames->getFrameIndex());
+
+    std::uint32_t imageIndex = 0;
+    try {
+        imageIndex = _swapchain->getSwapchain().acquireNextImage(kNoTimeout, *frame.getImageAvailable()).value;
+    } catch (const vk::OutOfDateKHRError&) {
+        // Swapchain recreation is not implemented yet: skip the frame. The fence stays signaled, so the next
+        // beginFrame() does not block on it.
+        _swapchainOutOfDate = true;
+        return;
+    }
+    device.resetFences(*frame.getInFlight());
+    frame.getCommandPool().reset();
+
+    const vk::raii::CommandBuffer& commandBuffer = frame.getCommandBuffer();
+    commandBuffer.begin(vk::CommandBufferBeginInfo{}.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
+    rendering::transitionImage(commandBuffer, _swapchain->getImages().at(imageIndex), rendering::kToColorAttachment);
+    const vk::RenderingAttachmentInfo color =
+        rendering::colorAttachment(*_swapchain->getImageViews().at(imageIndex), toClearColor(clearColor));
+    commandBuffer.beginRendering(rendering::renderingInfo(_swapchain->getExtent(), {&color, 1}));
+    _acquiredImage = imageIndex;
+}
+
+void VulkanRenderer::endFrame() {
+    if (!_acquiredImage) {
+        return;
+    }
+    const std::uint32_t imageIndex = *_acquiredImage;
+    _acquiredImage.reset();
+    const frame::FrameData& frame = _frames->getCurrentFrame();
+    const vk::raii::CommandBuffer& commandBuffer = frame.getCommandBuffer();
+
+    commandBuffer.endRendering();
+    rendering::transitionImage(commandBuffer, _swapchain->getImages().at(imageIndex),
+                               rendering::kColorAttachmentToPresent);
+    commandBuffer.end();
+
+    const vk::Semaphore renderFinished = *_frames->getRenderFinished(imageIndex);
+    const vk::SemaphoreSubmitInfo waitInfo{*frame.getImageAvailable(), 0,
+                                           vk::PipelineStageFlagBits2::eColorAttachmentOutput};
+    const vk::CommandBufferSubmitInfo commandBufferInfo{*commandBuffer};
+    const vk::SemaphoreSubmitInfo signalInfo{renderFinished, 0, vk::PipelineStageFlagBits2::eAllCommands};
+    _device->getGraphicsQueue().handle.submit2(vk::SubmitInfo2{}
+                                                   .setWaitSemaphoreInfos(waitInfo)
+                                                   .setCommandBufferInfos(commandBufferInfo)
+                                                   .setSignalSemaphoreInfos(signalInfo),
+                                               *frame.getInFlight());
+
+    const vk::SwapchainKHR swapchain = *_swapchain->getSwapchain();
+    try {
+        // eSuboptimalKHR still presents: nothing to do until swapchain recreation exists.
+        static_cast<void>(_device->getPresentQueue().handle.presentKHR(vk::PresentInfoKHR{}
+                                                                           .setWaitSemaphores(renderFinished)
+                                                                           .setSwapchains(swapchain)
+                                                                           .setImageIndices(imageIndex)));
+    } catch (const vk::OutOfDateKHRError&) {
+        // Swapchain recreation is not implemented yet: the image is not presented.
+        _swapchainOutOfDate = true;
+    }
+    _frames->advance();
+}
 
 void VulkanRenderer::setCamera(const engine::graphics::Camera& /*camera*/) { notImplemented("setCamera"); }
 

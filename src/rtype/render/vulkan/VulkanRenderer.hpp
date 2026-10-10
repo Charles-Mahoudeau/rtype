@@ -40,8 +40,9 @@ namespace rtype::render::vulkan {
 
 /// @brief The Vulkan implementation of IRenderer.
 ///
-/// @details Skeleton for now: init() creates the instance, the debug messenger (if requested) and the surface of
-/// the window. Every other function throws UnsupportedFeatureException until it is implemented.
+/// @details init() creates the instance, the debug messenger (if requested), the surface, the device, the swapchain,
+/// the frames in flight and the allocator. beginFrame() clears the next swapchain image with dynamic rendering and
+/// endFrame() presents it. Drawing functions throw UnsupportedFeatureException until they are implemented.
 ///
 /// Needs a platform that implements interop::vulkan::IVulkanSurfaceSource (GlfwPlatform does).
 class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IRenderer {
@@ -91,13 +92,21 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
 
     void resize(glm::uvec2 framebufferSize) override;
 
+    /// @brief Waits for the current frame in flight, acquires the next swapchain image and starts rendering into it,
+    /// cleared to @p clearColor.
+    /// @details When the swapchain is out of date (window resized), the frame is skipped: endFrame() then does
+    /// nothing. Recreating the swapchain is not implemented yet.
+    /// @throws std::logic_error If init() was not called, or the previous frame was not ended.
+    void beginFrame(const engine::graphics::Color& clearColor) override;
+
+    /// @brief Ends rendering, submits the frame and presents the image. Does nothing if beginFrame() skipped it.
+    void endFrame() override;
+
     /// @name Not implemented yet: throw UnsupportedFeatureException
     /// @{
     [[nodiscard]] engine::graphics::TextureId createTexture(const engine::graphics::TextureDesc& desc,
                                                             std::span<const std::byte> pixels) override;
     void destroy(engine::graphics::TextureId texture) override;
-    void beginFrame(const engine::graphics::Color& clearColor) override;
-    void endFrame() override;
     void setCamera(const engine::graphics::Camera& camera) override;
     void draw(const engine::graphics::Sprite& sprite) override;
     void draw(const engine::graphics::RectShape& rect) override;
@@ -127,8 +136,12 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
     // The window outlives the renderer: Backend declares its platform before its renderer.
 
     // 1. Settings and state.
-    Config _config;                  ///< Settings given at construction.
-    glm::uvec2 _framebufferSize{0};  ///< Size of the window's framebuffer, in pixels.
+    Config _config;                               ///< Settings given at construction.
+    glm::uvec2 _framebufferSize{0};               ///< Size of the window's framebuffer, in pixels.
+    std::optional<std::uint32_t> _acquiredImage;  ///< Swapchain image of the frame being recorded, between
+                                                  ///< beginFrame() and endFrame(); empty when the frame was skipped.
+    bool _swapchainOutOfDate = false;  ///< Set when acquire or present reports VK_ERROR_OUT_OF_DATE_KHR; swapchain
+                                       ///< recreation (not implemented yet) will act on it and clear it.
 
     // 2. Context: created by init(), in this order.
     std::optional<core::Instance> _instance;                ///< The VkInstance.
