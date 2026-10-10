@@ -70,10 +70,30 @@ vk::PhysicalDeviceType toDeviceType(std::string_view name) {
         name));
 }
 
+/// @return The present mode named in the config.
+/// @throws engine::exceptions::SettingsException If the name is unknown.
+vk::PresentModeKHR toPresentMode(std::string_view name) {
+    using Mode = vk::PresentModeKHR;
+    using Entry = std::pair<std::string_view, Mode>;
+    static constexpr std::array<Entry, 3> kPresentModes{{
+        {"fifo", Mode::eFifo},
+        {"mailbox", Mode::eMailbox},
+        {"immediate", Mode::eImmediate},
+    }};
+
+    for (const auto& [key, mode] : kPresentModes) {
+        if (key == name) {
+            return mode;
+        }
+    }
+    throw engine::exceptions::SettingsException(
+        std::format(R"(Setting 'vulkan.presentMode' must be "fifo", "mailbox" or "immediate", not "{}")", name));
+}
+
 /// @return The Config described by the "vulkan" section; missing keys keep the Config defaults.
 VulkanRenderer::Config toConfig(const engine::config::Settings& settings) {
     settings.checkKeys({"engineName", "layers", "extraExtensions", "debugging", "minSeverity", "preferredDeviceType",
-                        "synchronizationValidation", "bestPractices"},
+                        "synchronizationValidation", "bestPractices", "presentMode"},
                        "vulkan");
     VulkanRenderer::Config config;
     config.engineName = settings.getString("engineName", config.engineName);
@@ -87,6 +107,9 @@ VulkanRenderer::Config toConfig(const engine::config::Settings& settings) {
     }
     if (settings.has("preferredDeviceType")) {
         config.preferredDeviceType = toDeviceType(settings.getString("preferredDeviceType", ""));
+    }
+    if (settings.has("presentMode")) {
+        config.presentMode = toPresentMode(settings.getString("presentMode", ""));
     }
     return config;
 }

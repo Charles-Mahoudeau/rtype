@@ -22,7 +22,8 @@ namespace rtype::render::vulkan {
 /// - `preferredDeviceType` ("discrete_gpu", "integrated_gpu", "virtual_gpu", "cpu" or "other", default
 ///   "discrete_gpu");
 /// - `synchronizationValidation` (boolean, default true), `bestPractices` (boolean, default false): extra checks of
-///   VK_LAYER_KHRONOS_validation, ignored when it is not in `layers`.
+///   VK_LAYER_KHRONOS_validation, ignored when it is not in `layers`;
+/// - `presentMode` ("fifo", "mailbox" or "immediate", default "fifo"; FIFO when the surface does not support it).
 RTYPE_RENDER_VULKAN_API void registerRenderer(engine::backend::BackendRegistry& registry);
 
 }  // namespace rtype::render::vulkan
