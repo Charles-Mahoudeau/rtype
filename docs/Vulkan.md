@@ -77,18 +77,46 @@ On macOS, `Instance` also enables `VK_KHR_portability_enumeration`, which Molten
 
 ## Shaders
 
-Shaders are written in GLSL and compiled to SPIR-V at build time by the `glsl.spirv` rule of
-[`render/vulkan/xmake.lua`](../src/rtype/render/vulkan/xmake.lua), with `glslangValidator` from the `glslang`
-package (a system one, such as Homebrew's, is used when found):
+Shaders are written in GLSL and compiled to SPIR-V, then turned into `vk::raii::ShaderModule`s by
+`pipeline::ShaderCache`, which keeps each module so asking twice gives the same one. They come from two places.
 
-- `src/rtype/render/vulkan/shaders/<name>.<stage>` (`vert`, `frag`, `comp`, `geom`, `tesc`, `tese`) becomes
-  `shaders/<name>.<stage>.spv` next to the binaries (e.g. `build/macosx/arm64/debug/shaders/sprite.vert.spv`).
+### Built-in shaders (engine)
+
+Shaders the engine itself uses (rectangles, sprites, post-processing) live in `src/rtype/render/vulkan/shaders/` and
+are **embedded in the renderer** at build time: nothing to find on disk at runtime, and they cannot get out of sync
+with the code. The `glsl.spirv` rule of [`render/vulkan/xmake.lua`](../src/rtype/render/vulkan/xmake.lua) compiles
+`shaders/<name>.<stage>` (`vert`, `frag`, `comp`, `geom`, `tesc`, `tese`) with `glslangValidator` from the `glslang`
+package (a system one, such as Homebrew's, is used when found) and generates `<name>.<stage>.h`, which defines
+`const uint32_t rtype_shader_<name>_<stage>[]`:
+
+```cpp
+#include "sprite.vert.h"
+const vk::raii::ShaderModule& vertex = shaders.get("sprite.vert", rtype_shader_sprite_vert);
+```
+
 - Target environment `vulkan1.3`; debug info (`-g`) in debug builds, for validation messages and RenderDoc;
   size-optimized SPIR-V (`-Os`) in release builds.
 - Common headers go in `shaders/include/` and are included with `#extension GL_GOOGLE_include_directive : require`
   then `#include "Name.glsl"`.
 - A shader error fails the build with `file:line`. Editing a shader recompiles only that shader; editing a header in
   `shaders/include/` recompiles every shader.
+
+### Game shaders
+
+Shaders of the game are SPIR-V files loaded at runtime with `shaders.load("enemy.frag.spv")`. A relative path is
+resolved against the `vulkan.shaderDirectory` setting (`"shaders"` by default), itself relative to the **executable's
+directory**, never to the working directory: the files are found the same way through `xmake run`, a terminal or a
+file manager. An absolute `shaderDirectory` is used as is. A missing file or a file that is not SPIR-V throws a
+`ShaderException` naming the full path.
+
+Compiling GLSL at runtime (hot reload of the game's shaders) is not implemented yet.
+
+### Specialization constants
+
+`pipeline::SpecializationBuilder` builds the `vk::SpecializationInfo` of a stage, for compile-time variants of one
+shader (e.g. `layout(constant_id = 0) const bool USE_TEXTURE = false;`) without extra shader files:
+`builder.add(0, true).add(1, 4U)`, then `builder.build()`. The result points into the builder: keep both alive until
+the pipeline is created.
 
 ## Run the example
 
