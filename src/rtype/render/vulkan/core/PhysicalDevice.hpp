@@ -90,6 +90,9 @@ class RTYPE_RENDER_VULKAN_API PhysicalDevice {
     /// @return The graphics, present, compute and transfer queue families of the chosen device.
     [[nodiscard]] const QueueFamilies& getQueueFamilies() const noexcept { return _queueFamilies; }
 
+    /// @return The number of queue families of the chosen device.
+    [[nodiscard]] const std::uint32_t getQueueFamiliesIndexCount() const noexcept { return _queueFamiliesIndexCount; }
+
     /// @return The extensions the logical device must enable: kRequiredExtensions, plus kPortabilitySubsetExtension
     /// when the chosen device exposes it.
     [[nodiscard]] const std::vector<const char*>& getDeviceExtensions() const noexcept { return _deviceExtensions; }
@@ -100,12 +103,20 @@ class RTYPE_RENDER_VULKAN_API PhysicalDevice {
     /// @throws std::runtime_error If no suitable physical device is found.
     void pickPhysicalDevice(const vk::raii::SurfaceKHR& surface, vk::PhysicalDeviceType preferredType);
 
+    /// @brief Queries the swap chain support of a physical device.
+    /// @param device The physical device to query.
+    /// @param surface The surface to check for swap chain support.
+    /// @return The swap chain support details.
+    static PhysicalDevice::SwapChainSupportDetails querySwapChainSupport(const vk::raii::PhysicalDevice& device,
+                                                                         const vk::raii::SurfaceKHR& surface);
+
   private:
     vk::raii::PhysicalDevices _physicalDevices;  ///< All physical devices of the instance, destroyed on destruction.
     vk::raii::PhysicalDevice _physicalDevice;  ///< The first physical device of the instance, destroyed on destruction.
     OptionalFeatures _optionalFeatures;        ///< Optional features the chosen device supports.
     Limits _limits;                            ///< Limits of the chosen device.
     QueueFamilies _queueFamilies;              ///< Queue families of the chosen device.
+    uint32_t _queueFamiliesIndexCount = 0;     ///< Index of the graphics queue family.
     std::vector<const char*> _deviceExtensions;  ///< Extensions the logical device must enable.
 };
 }  // namespace rtype::render::vulkan::core

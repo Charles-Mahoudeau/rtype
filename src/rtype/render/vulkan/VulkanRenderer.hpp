@@ -33,6 +33,7 @@
 #include "engine/platform/IPlatform.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
 #include "memory/Allocator.hpp"
+#include "presentation/Swapchain.hpp"
 
 namespace rtype::render::vulkan {
 
@@ -132,6 +133,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
     std::unique_ptr<core::Device> _device;                  ///< The logical device and its queues.
 
     // 3. Swapchain: slot reserved.
+    std::unique_ptr<presentation::Swapchain> _swapchain;
     // 4. Sync objects and command pools: slot reserved.
 
     // 5. Memory: the allocator first, then the resources allocated from it.

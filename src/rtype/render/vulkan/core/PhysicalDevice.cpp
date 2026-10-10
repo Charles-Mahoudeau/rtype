@@ -138,22 +138,14 @@ QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice& physicalDevice, c
     return indices;
 }
 
-core::PhysicalDevice::SwapChainSupportDetails querySwapChainSupport(const vk::raii::PhysicalDevice& device,
-                                                                    const vk::raii::SurfaceKHR& surface) {
-    core::PhysicalDevice::SwapChainSupportDetails details;
-    details.capabilities = device.getSurfaceCapabilitiesKHR(surface);
-    details.formats = device.getSurfaceFormatsKHR(surface);
-    details.presentModes = device.getSurfacePresentModesKHR(surface);
-    return details;
-}
-
 /// @details The API version is checked first: querying the Vulkan 1.3 features of an older device is invalid usage.
 bool isDeviceSuitable(const vk::raii::PhysicalDevice& device, const vk::raii::SurfaceKHR& surface) {
     if (device.getProperties().apiVersion < vk::ApiVersion13 || !checkRequiredFeatures(device) ||
         !checkDeviceExtensionSupport(device) || !findQueueFamilies(device, surface).isComplete()) {
         return false;
     }
-    const core::PhysicalDevice::SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device, surface);
+    const core::PhysicalDevice::SwapChainSupportDetails swapChainSupport =
+        PhysicalDevice::querySwapChainSupport(device, surface);
     return !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
 }
 
@@ -173,6 +165,15 @@ unsigned int rateDeviceSuitability(const vk::raii::PhysicalDevice& device, const
     return score;
 }
 }  // namespace
+
+PhysicalDevice::SwapChainSupportDetails PhysicalDevice::querySwapChainSupport(const vk::raii::PhysicalDevice& device,
+                                                                              const vk::raii::SurfaceKHR& surface) {
+    PhysicalDevice::SwapChainSupportDetails details;
+    details.capabilities = device.getSurfaceCapabilitiesKHR(surface);
+    details.formats = device.getSurfaceFormatsKHR(surface);
+    details.presentModes = device.getSurfacePresentModesKHR(surface);
+    return details;
+}
 
 void PhysicalDevice::pickPhysicalDevice(const vk::raii::SurfaceKHR& surface, vk::PhysicalDeviceType preferredType) {
     if (_physicalDevices.empty()) {
@@ -209,6 +210,7 @@ PhysicalDevice::PhysicalDevice(const Instance& instance, const vk::raii::Surface
     if (!indices.graphicsFamily || !indices.presentFamily || !indices.computeFamily || !indices.transferFamily) {
         throw std::runtime_error("Chosen GPU lacks a graphics, present, compute or transfer queue family");
     }
+    _queueFamiliesIndexCount = 4;
     _queueFamilies = QueueFamilies{
         .graphics = *indices.graphicsFamily,
         .present = *indices.presentFamily,
