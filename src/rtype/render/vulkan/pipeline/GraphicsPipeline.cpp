@@ -2,17 +2,19 @@
 ** EPITECH PROJECT, 2026
 ** rtype
 ** File description:
-** GraphicsPipelineBuilder
+** GraphicsPipeline
 */
 
-#include "GraphicsPipelineBuilder.hpp"
+#include "GraphicsPipeline.hpp"
 
 #include <array>
 #include <optional>
 #include <span>
 #include <stdexcept>
+#include <utility>
 #include <vulkan/vulkan_raii.hpp>
 
+#include "PipelineLayout.hpp"
 #include "render/vulkan/core/Device.hpp"
 #include "render/vulkan/rendering/DynamicRendering.hpp"
 
@@ -21,7 +23,7 @@ namespace rtype::render::vulkan::pipeline {
 namespace {
 
 /// @return The color blend state of @p mode, writing every channel (the default mask writes none).
-vk::PipelineColorBlendAttachmentState blendAttachment(GraphicsPipelineBuilder::BlendMode mode) {
+vk::PipelineColorBlendAttachmentState blendAttachment(GraphicsPipeline::BlendMode mode) {
     using Factor = vk::BlendFactor;
     const auto state = vk::PipelineColorBlendAttachmentState{}
                            .setColorBlendOp(vk::BlendOp::eAdd)
@@ -29,16 +31,16 @@ vk::PipelineColorBlendAttachmentState blendAttachment(GraphicsPipelineBuilder::B
                            .setColorWriteMask(vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
                                               vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
     switch (mode) {
-        case GraphicsPipelineBuilder::BlendMode::kOpaque:
+        case GraphicsPipeline::BlendMode::kOpaque:
             return vk::PipelineColorBlendAttachmentState{state}.setBlendEnable(vk::False);
-        case GraphicsPipelineBuilder::BlendMode::kAlpha:
+        case GraphicsPipeline::BlendMode::kAlpha:
             return vk::PipelineColorBlendAttachmentState{state}
                 .setBlendEnable(vk::True)
                 .setSrcColorBlendFactor(Factor::eSrcAlpha)
                 .setDstColorBlendFactor(Factor::eOneMinusSrcAlpha)
                 .setSrcAlphaBlendFactor(Factor::eOne)
                 .setDstAlphaBlendFactor(Factor::eOneMinusSrcAlpha);
-        case GraphicsPipelineBuilder::BlendMode::kAdditive:
+        case GraphicsPipeline::BlendMode::kAdditive:
             return vk::PipelineColorBlendAttachmentState{state}
                 .setBlendEnable(vk::True)
                 .setSrcColorBlendFactor(Factor::eSrcAlpha)
@@ -46,23 +48,21 @@ vk::PipelineColorBlendAttachmentState blendAttachment(GraphicsPipelineBuilder::B
                 .setSrcAlphaBlendFactor(Factor::eZero)
                 .setDstAlphaBlendFactor(Factor::eOne);
     }
-    throw std::logic_error("GraphicsPipelineBuilder: invalid blend mode");
+    throw std::logic_error("GraphicsPipeline: invalid blend mode");
 }
 
 }  // namespace
 
-GraphicsPipelineBuilder::GraphicsPipelineBuilder(const core::Device& device) : _device{&device} {}
-
-GraphicsPipelineBuilder& GraphicsPipelineBuilder::setShaders(const vk::raii::ShaderModule& vertex,
-                                                             const vk::raii::ShaderModule& fragment,
-                                                             const vk::SpecializationInfo* specialization) {
+GraphicsPipeline::Builder& GraphicsPipeline::Builder::setShaders(const vk::raii::ShaderModule& vertex,
+                                                                 const vk::raii::ShaderModule& fragment,
+                                                                 const vk::SpecializationInfo* specialization) {
     _vertexShader = &vertex;
     _fragmentShader = &fragment;
     _specialization = specialization;
     return *this;
 }
 
-GraphicsPipelineBuilder& GraphicsPipelineBuilder::setVertexInput(
+GraphicsPipeline::Builder& GraphicsPipeline::Builder::setVertexInput(
     std::span<const vk::VertexInputBindingDescription> bindings,
     std::span<const vk::VertexInputAttributeDescription> attributes) {
     _bindings.assign(bindings.begin(), bindings.end());
@@ -70,36 +70,47 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::setVertexInput(
     return *this;
 }
 
-GraphicsPipelineBuilder& GraphicsPipelineBuilder::setBlend(BlendMode mode) {
+GraphicsPipeline::Builder& GraphicsPipeline::Builder::setTopology(vk::PrimitiveTopology topology) {
+    _topology = topology;
+    return *this;
+}
+
+GraphicsPipeline::Builder& GraphicsPipeline::Builder::setBlend(BlendMode mode) {
     _blendMode = mode;
     return *this;
 }
 
-GraphicsPipelineBuilder& GraphicsPipelineBuilder::setCullMode(vk::CullModeFlags mode) {
+GraphicsPipeline::Builder& GraphicsPipeline::Builder::setCullMode(vk::CullModeFlags mode) {
     _cullMode = mode;
     return *this;
 }
 
-GraphicsPipelineBuilder& GraphicsPipelineBuilder::setColorFormat(vk::Format format) {
+GraphicsPipeline::Builder& GraphicsPipeline::Builder::setColorFormat(vk::Format format) {
     _colorFormat = format;
     return *this;
 }
 
-GraphicsPipelineBuilder& GraphicsPipelineBuilder::setDepth(vk::Format format, bool write) {
+GraphicsPipeline::Builder& GraphicsPipeline::Builder::setDepth(vk::Format format, bool write) {
     _depthFormat = format;
     _depthWrite = write;
     return *this;
 }
 
-GraphicsPipelineBuilder& GraphicsPipelineBuilder::setLayout(const vk::raii::PipelineLayout& layout) {
+GraphicsPipeline::Builder& GraphicsPipeline::Builder::setLayout(const PipelineLayout& layout) {
     _layout = &layout;
     return *this;
 }
 
-vk::raii::Pipeline GraphicsPipelineBuilder::build(const vk::raii::PipelineCache* cache) const {
-    if (_vertexShader == nullptr || _fragmentShader == nullptr || !_colorFormat || _layout == nullptr) {
-        throw std::logic_error("GraphicsPipelineBuilder: shaders, color format and layout are required");
+bool GraphicsPipeline::Builder::isComplete() const noexcept {
+    return _vertexShader != nullptr && _fragmentShader != nullptr && _colorFormat && _layout != nullptr;
+}
+
+GraphicsPipeline GraphicsPipeline::Builder::build(const core::Device& device,
+                                                  const vk::raii::PipelineCache* cache) const {
+    if (!_colorFormat || !isComplete()) {
+        throw std::logic_error("GraphicsPipeline::Builder: the shaders, the color format and the layout are required");
     }
+    // Everything the create info points to lives in this scope, until the pipeline is created.
     const std::array stages{
         vk::PipelineShaderStageCreateInfo{
             {}, vk::ShaderStageFlagBits::eVertex, **_vertexShader, "main", _specialization},
@@ -109,8 +120,7 @@ vk::raii::Pipeline GraphicsPipelineBuilder::build(const vk::raii::PipelineCache*
     const auto vertexInput =
         vk::PipelineVertexInputStateCreateInfo{}.setVertexBindingDescriptions(_bindings).setVertexAttributeDescriptions(
             _attributes);
-    const auto inputAssembly =
-        vk::PipelineInputAssemblyStateCreateInfo{}.setTopology(vk::PrimitiveTopology::eTriangleList);
+    const auto inputAssembly = vk::PipelineInputAssemblyStateCreateInfo{}.setTopology(_topology);
     const auto viewport = vk::PipelineViewportStateCreateInfo{}.setViewportCount(1).setScissorCount(1);
     const auto rasterization = vk::PipelineRasterizationStateCreateInfo{}.setCullMode(_cullMode).setLineWidth(1.0F);
     const auto multisample =
@@ -138,16 +148,15 @@ vk::raii::Pipeline GraphicsPipelineBuilder::build(const vk::raii::PipelineCache*
                                                     .setPDepthStencilState(&depth)
                                                     .setPColorBlendState(&blend)
                                                     .setPDynamicState(&dynamic)
-                                                    .setLayout(**_layout);
-    return vk::raii::Pipeline{_device->getDevice(), cache, info};
+                                                    .setLayout(*_layout->getLayout());
+    return GraphicsPipeline{vk::raii::Pipeline{device.getDevice(), cache, info}, *_layout};
 }
 
-vk::raii::PipelineLayout createPipelineLayout(const core::Device& device,
-                                              std::span<const vk::DescriptorSetLayout> setLayouts,
-                                              std::span<const vk::PushConstantRange> pushConstants) {
-    return vk::raii::PipelineLayout{
-        device.getDevice(),
-        vk::PipelineLayoutCreateInfo{}.setSetLayouts(setLayouts).setPushConstantRanges(pushConstants)};
+GraphicsPipeline::GraphicsPipeline(vk::raii::Pipeline pipeline, const PipelineLayout& layout)
+    : _pipeline{std::move(pipeline)}, _layout{&layout} {}
+
+void GraphicsPipeline::bind(const vk::raii::CommandBuffer& commandBuffer) const {
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *_pipeline);
 }
 
 }  // namespace rtype::render::vulkan::pipeline
