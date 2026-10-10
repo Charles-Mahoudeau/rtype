@@ -263,7 +263,7 @@ Each part of the engine reads **its own section** and turns it into **its own ty
 | (root) | `BackendRegistry` | `platform`, `renderer` (names, required) |
 | `window` | `WindowConfig::fromSettings()` | `size` ({width, height}), `title`, `resizable`, `fullscreen` |
 | `glfw` | the `glfw` factory | none |
-| `vulkan` | the `vulkan` factory → `VulkanRenderer::Config` | `engineName`, `layers`, `extraExtensions`, `debugging`, `minSeverity` (`"verbose"`, `"info"`, `"warning"`, `"error"`) |
+| `vulkan` | the `vulkan` factory → `VulkanRenderer::Config` | `engineName`, `layers`, `extraExtensions`, `debugging`, `minSeverity` (`"verbose"`, `"info"`, `"warning"`, `"error"`), `preferredDeviceType` (`"discrete_gpu"` by default, `"integrated_gpu"`, `"virtual_gpu"`, `"cpu"`, `"other"`) |
 
 Every key is optional except `platform` and `renderer`; a missing one keeps the default of the typed
 configuration. The typed configurations stay usable on their own, for code that builds a backend by hand.
@@ -275,7 +275,7 @@ Everything is reported by exceptions, before a window opens whenever possible:
 | Exception | When |
 |---|---|
 | `BackendException` | `platform` or `renderer` missing, or not registered (the message lists the registered names). |
-| `SettingsException` | An unknown key, a value of the wrong type, an invalid value (`window.size`, `vulkan.minSeverity`). |
+| `SettingsException` | An unknown key, a value of the wrong type, an invalid value (`window.size`, `vulkan.minSeverity`, `vulkan.preferredDeviceType`). |
 | `UnsupportedFeatureException` | The renderer does not fit the platform (the platform lacks the interop interface it needs), or a function is not implemented yet (`VulkanRenderer` drawing). |
 | Others (`std::runtime_error`...) | The backend itself fails: a missing Vulkan layer, a window that cannot be created... |
 
