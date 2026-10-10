@@ -82,7 +82,8 @@ vk::CompositeAlphaFlagBitsKHR chooseCompositeAlpha(const vk::SurfaceCapabilities
 }  // namespace
 
 Swapchain::Swapchain(const core::PhysicalDevice& physicalDevice, const vk::raii::SurfaceKHR& surface,
-                     const core::Device& device, glm::uvec2 framebufferSize, vk::PresentModeKHR presentMode) {
+                     const core::Device& device, glm::uvec2 framebufferSize, vk::PresentModeKHR presentMode,
+                     vk::SwapchainKHR oldSwapchain) {
     if (framebufferSize.x == 0 || framebufferSize.y == 0) {
         throw std::runtime_error("Swapchain: the framebuffer is empty (minimized window)");
     }
@@ -110,7 +111,8 @@ Swapchain::Swapchain(const core::PhysicalDevice& physicalDevice, const vk::raii:
         .setPreTransform(support.capabilities.currentTransform)
         .setCompositeAlpha(chooseCompositeAlpha(support.capabilities))
         .setPresentMode(_presentMode)
-        .setClipped(vk::True);
+        .setClipped(vk::True)
+        .setOldSwapchain(oldSwapchain);
     if (shared) {
         createInfo.setQueueFamilyIndices(queueFamilies);
     }
