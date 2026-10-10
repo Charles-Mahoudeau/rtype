@@ -210,7 +210,6 @@ PhysicalDevice::PhysicalDevice(const Instance& instance, const vk::raii::Surface
     if (!indices.graphicsFamily || !indices.presentFamily || !indices.computeFamily || !indices.transferFamily) {
         throw std::runtime_error("Chosen GPU lacks a graphics, present, compute or transfer queue family");
     }
-    _queueFamiliesIndexCount = 4;
     _queueFamilies = QueueFamilies{
         .graphics = *indices.graphicsFamily,
         .present = *indices.presentFamily,
