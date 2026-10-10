@@ -14,6 +14,7 @@
 #include "engine/backend/BackendRegistry.hpp"
 #include "engine/config/Settings.hpp"
 #include "engine/event/Event.hpp"
+#include "engine/graphics/Color.hpp"
 #include "engine/input/Input.hpp"
 #include "engine/input/Key.hpp"
 #include "platform/glfw/Registration.hpp"
@@ -55,6 +56,8 @@ int main() {
                 }
             }
             input.update();
+            renderer.beginFrame({0.05F, 0.05F, 0.15F, 1.0F});
+            renderer.endFrame();
         }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";
