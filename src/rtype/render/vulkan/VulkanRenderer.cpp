@@ -152,7 +152,7 @@ void VulkanRenderer::beginFrame(const engine::graphics::Color& clearColor) {
         throw std::logic_error("VulkanRenderer::beginFrame() called twice without endFrame()");
     }
     if (_framebufferSize.x == 0 || _framebufferSize.y == 0) {
-        return;  // Minimized: nothing to render into.
+        return;
     }
     const vk::raii::Device& device = _device->getDevice();
     if (device.waitForFences(*_frames->getCurrentFrame().getInFlight(), vk::True, kNoTimeout) != vk::Result::eSuccess) {
