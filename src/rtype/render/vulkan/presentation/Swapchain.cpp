@@ -71,13 +71,12 @@ vk::CompositeAlphaFlagBitsKHR chooseCompositeAlpha(const vk::SurfaceCapabilities
     constexpr std::array kPreferred{vk::CompositeAlphaFlagBitsKHR::eOpaque, vk::CompositeAlphaFlagBitsKHR::eInherit,
                                     vk::CompositeAlphaFlagBitsKHR::ePreMultiplied,
                                     vk::CompositeAlphaFlagBitsKHR::ePostMultiplied};
-    const auto* const supported = std::ranges::find_if(kPreferred, [&capabilities](auto mode) {
-        return static_cast<bool>(capabilities.supportedCompositeAlpha & mode);
-    });
-    if (supported == kPreferred.end()) {
-        throw std::runtime_error("Swapchain: the surface supports no composite alpha mode");
+    for (const vk::CompositeAlphaFlagBitsKHR mode : kPreferred) {
+        if (capabilities.supportedCompositeAlpha & mode) {
+            return mode;
+        }
     }
-    return *supported;
+    throw std::runtime_error("Swapchain: the surface supports no composite alpha mode");
 }
 
 }  // namespace
