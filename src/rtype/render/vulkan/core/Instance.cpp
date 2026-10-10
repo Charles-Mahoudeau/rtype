@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <format>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -20,8 +21,14 @@
 namespace rtype::render::vulkan::core {
 Instance::Instance(const std::string_view& appName, const std::string_view& engineName, uint32_t apiVersion,
                    std::vector<const char*> requiredExtensions, std::vector<const char*> layers,
-                   ValidationOptions validation)
+                   ValidationOptions validation, const std::optional<vk::DebugUtilsMessengerCreateInfoEXT>& messenger)
     : _context{getLoaderEntryPoint()} {
+    if (messenger && std::ranges::none_of(requiredExtensions, [](const char* extension) {
+            return std::string_view{extension} == vk::EXTDebugUtilsExtensionName;
+        })) {
+        throw std::invalid_argument(std::format("Instance: a debug messenger needs {} in the required extensions",
+                                                vk::EXTDebugUtilsExtensionName));
+    }
     const std::string applicationName{appName};
     const std::string engineNameString{engineName};
     const vk::ApplicationInfo appInfo{applicationName.c_str(), VK_MAKE_VERSION(1, 0, 0), engineNameString.c_str(),
@@ -33,7 +40,7 @@ Instance::Instance(const std::string_view& appName, const std::string_view& engi
     checkLayersSupported(_context.enumerateInstanceLayerProperties(), layers);
     const ValidationOptions appliedValidation = enableValidationFeatures(validation, layers, requiredExtensions);
 
-    _instance = createInstance(appInfo, flags, requiredExtensions, layers, appliedValidation);
+    _instance = createInstance(appInfo, flags, requiredExtensions, layers, appliedValidation, messenger);
 }
 
 const vk::raii::Instance& Instance::getInstance() const { return _instance; }
@@ -98,9 +105,10 @@ ValidationOptions Instance::enableValidationFeatures(ValidationOptions requested
     return requested;
 }
 
-vk::raii::Instance Instance::createInstance(const vk::ApplicationInfo& appInfo, vk::InstanceCreateFlags flags,
-                                            std::span<const char* const> extensions,
-                                            std::span<const char* const> layers, ValidationOptions validation) const {
+vk::raii::Instance Instance::createInstance(
+    const vk::ApplicationInfo& appInfo, vk::InstanceCreateFlags flags, std::span<const char* const> extensions,
+    std::span<const char* const> layers, ValidationOptions validation,
+    const std::optional<vk::DebugUtilsMessengerCreateInfoEXT>& messenger) const {
     static constexpr vk::Bool32 kEnabled = vk::True;
     std::vector<vk::LayerSettingEXT> settings;
     if (validation.synchronization) {
@@ -112,14 +120,20 @@ vk::raii::Instance Instance::createInstance(const vk::ApplicationInfo& appInfo, 
     }
     const vk::LayerSettingsCreateInfoEXT layerSettings = vk::LayerSettingsCreateInfoEXT{}.setSettings(settings);
 
+    const void* next = settings.empty() ? nullptr : &layerSettings;
+    vk::DebugUtilsMessengerCreateInfoEXT messengerInfo{};
+    if (messenger) {
+        messengerInfo = *messenger;
+        messengerInfo.setPNext(next);
+        next = &messengerInfo;
+    }
+
     vk::InstanceCreateInfo createInfo{};
     createInfo.setFlags(flags)
         .setPApplicationInfo(&appInfo)
         .setPEnabledExtensionNames(extensions)
-        .setPEnabledLayerNames(layers);
-    if (!settings.empty()) {
-        createInfo.setPNext(&layerSettings);
-    }
+        .setPEnabledLayerNames(layers)
+        .setPNext(next);
     return {_context, createInfo};
 }
 
