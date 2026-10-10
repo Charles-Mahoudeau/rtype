@@ -22,8 +22,9 @@ namespace rtype::render::vulkan::core {
 ///
 /// @warning The instance must be created with kExtensionName enabled, and must outlive the messenger:
 /// declare the DebugMessenger after its Instance.
-/// @note Messages emitted while the instance itself is created or destroyed are not caught: the messenger only
-/// exists between the two.
+/// @note The messenger only exists between the creation and the destruction of the instance. To also catch the
+/// messages of vkCreateInstance and vkDestroyInstance (leaked objects, for instance), give makeCreateInfo() to the
+/// Instance, which chains it into its creation.
 class RTYPE_RENDER_VULKAN_API DebugMessenger {
   public:
     /// The instance extension a DebugMessenger needs (VK_EXT_debug_utils).
@@ -39,6 +40,11 @@ class RTYPE_RENDER_VULKAN_API DebugMessenger {
     DebugMessenger& operator=(const DebugMessenger&) = delete;
     DebugMessenger(DebugMessenger&&) = delete;
     DebugMessenger& operator=(DebugMessenger&&) = delete;
+
+    /// @return The settings of a messenger printing the messages of @p minSeverity and above: what the constructor
+    /// creates, and what Instance chains into vkCreateInstance.
+    [[nodiscard]] static vk::DebugUtilsMessengerCreateInfoEXT makeCreateInfo(
+        vk::DebugUtilsMessageSeverityFlagBitsEXT minSeverity);
 
   private:
     /// @return minSeverity and every severity above it.
