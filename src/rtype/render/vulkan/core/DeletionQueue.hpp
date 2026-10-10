@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "render/vulkan/Export.hpp"
