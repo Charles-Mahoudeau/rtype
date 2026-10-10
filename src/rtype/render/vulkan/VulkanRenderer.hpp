@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <glm/ext/vector_uint2.hpp>
 #include <memory>
@@ -35,6 +36,7 @@
 #include "frame/FrameResources.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
 #include "memory/Allocator.hpp"
+#include "pipeline/ShaderCache.hpp"
 #include "presentation/Swapchain.hpp"
 
 namespace rtype::render::vulkan {
@@ -71,6 +73,9 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
             vk::PresentModeKHR::eFifo;  ///< Swapchain present mode: FIFO (vsync, always supported), MAILBOX (vsync,
                                         ///< a newer image replaces the pending one instead of waiting) or IMMEDIATE
                                         ///< (no vsync, may tear; benchmarks); FIFO when unsupported.
+        std::filesystem::path shaderDirectory = "shaders";  ///< Where the game's SPIR-V shaders are loaded from.
+                                                            ///< Relative: to the executable's directory, never to
+                                                            ///< the working directory. Built-in shaders are embedded.
     };
 
     /// @brief Called after each swapchain recreation with the new swapchain: recreate there what depends on its size
@@ -147,7 +152,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
     //   3. Swapchain and its image views.
     //   4. Sync objects (fences, semaphores) and command pools / buffers.
     //   5. Allocator, then buffers, images and samplers (they must die before it). (allocator only for now)
-    //   6. Pipelines, pipeline layouts, descriptor pools / sets, shader modules.   (slot: not implemented yet)
+    //   6. Pipelines, pipeline layouts, descriptor pools / sets, shader modules.   (shader modules only for now)
     //   7. Deletion queue: last declared, so it is flushed first, while everything it may hold is still alive.
     // The window outlives the renderer: Backend declares its platform before its renderer.
 
@@ -175,7 +180,8 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
     // 5. Memory: the allocator first, then the resources allocated from it.
     std::unique_ptr<memory::Allocator> _allocator;  ///< VMA allocator, destroyed after every buffer and image.
 
-    // 6. Pipelines and descriptors: slot reserved.
+    // 6. Pipelines, descriptors and shaders.
+    std::unique_ptr<pipeline::ShaderCache> _shaders;  ///< Shader modules, built-in and from the game.
 
     // 7. Deferred deletion.
     core::DeletionQueue _deletionQueue{kFramesInFlight};  ///< Resources the GPU may still use, one bucket per frame.
