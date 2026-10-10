@@ -23,8 +23,8 @@ namespace rtype::render::vulkan::presentation {
 /// requested one when the surface supports it, FIFO otherwise (vsync, always available). The images are color
 /// attachments (rendered into with dynamic rendering), and transfer destinations when the surface allows it.
 ///
-/// @note Recreating it (resize, VK_ERROR_OUT_OF_DATE_KHR) is not handled yet: it will build a new Swapchain from the
-/// old one (oldSwapchain) and defer the old one's destruction.
+/// @note It is not resized in place: on resize or VK_ERROR_OUT_OF_DATE_KHR, the renderer builds a new Swapchain from
+/// the old one (oldSwapchain), then defers the old one's destruction.
 class RTYPE_RENDER_VULKAN_API Swapchain {
   public:
     /// @brief Creates the swapchain and its image views.
@@ -34,10 +34,13 @@ class RTYPE_RENDER_VULKAN_API Swapchain {
     /// @param framebufferSize Size of the window's framebuffer, in pixels; used when the surface lets the
     /// application choose the extent.
     /// @param presentMode The preferred present mode; FIFO when the surface does not support it.
+    /// @param oldSwapchain The swapchain this one replaces, if any: lets the driver reuse its resources. It is retired
+    /// by the creation (its images can no longer be acquired) but must be destroyed by the caller.
     /// @throws std::runtime_error If the framebuffer is empty (minimized window) or the surface cannot be rendered to.
     /// @throws vk::SystemError If the swapchain or an image view cannot be created.
     Swapchain(const core::PhysicalDevice& physicalDevice, const vk::raii::SurfaceKHR& surface,
-              const core::Device& device, glm::uvec2 framebufferSize, vk::PresentModeKHR presentMode);
+              const core::Device& device, glm::uvec2 framebufferSize, vk::PresentModeKHR presentMode,
+              vk::SwapchainKHR oldSwapchain = nullptr);
     ~Swapchain() = default;
     Swapchain(const Swapchain&) = delete;
     Swapchain& operator=(const Swapchain&) = delete;
