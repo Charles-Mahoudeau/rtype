@@ -52,6 +52,8 @@ Ref& Ref::operator=(Ref&& other) noexcept {
     return *this;
 }
 
+lua_State* Ref::state() const noexcept { return _state; }
+
 void Ref::push(lua_State* state) const {
     if (!isValid()) {
         throw exceptions::InvalidRef{};
