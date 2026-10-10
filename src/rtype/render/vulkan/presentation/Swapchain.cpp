@@ -71,19 +71,19 @@ vk::CompositeAlphaFlagBitsKHR chooseCompositeAlpha(const vk::SurfaceCapabilities
     constexpr std::array kPreferred{vk::CompositeAlphaFlagBitsKHR::eOpaque, vk::CompositeAlphaFlagBitsKHR::eInherit,
                                     vk::CompositeAlphaFlagBitsKHR::ePreMultiplied,
                                     vk::CompositeAlphaFlagBitsKHR::ePostMultiplied};
-    const auto* const supported = std::ranges::find_if(kPreferred, [&capabilities](auto mode) {
-        return static_cast<bool>(capabilities.supportedCompositeAlpha & mode);
-    });
-    if (supported == kPreferred.end()) {
-        throw std::runtime_error("Swapchain: the surface supports no composite alpha mode");
+    for (const vk::CompositeAlphaFlagBitsKHR mode : kPreferred) {
+        if (capabilities.supportedCompositeAlpha & mode) {
+            return mode;
+        }
     }
-    return *supported;
+    throw std::runtime_error("Swapchain: the surface supports no composite alpha mode");
 }
 
 }  // namespace
 
 Swapchain::Swapchain(const core::PhysicalDevice& physicalDevice, const vk::raii::SurfaceKHR& surface,
-                     const core::Device& device, glm::uvec2 framebufferSize, vk::PresentModeKHR presentMode) {
+                     const core::Device& device, glm::uvec2 framebufferSize, vk::PresentModeKHR presentMode,
+                     vk::SwapchainKHR oldSwapchain) {
     if (framebufferSize.x == 0 || framebufferSize.y == 0) {
         throw std::runtime_error("Swapchain: the framebuffer is empty (minimized window)");
     }
@@ -111,7 +111,8 @@ Swapchain::Swapchain(const core::PhysicalDevice& physicalDevice, const vk::raii:
         .setPreTransform(support.capabilities.currentTransform)
         .setCompositeAlpha(chooseCompositeAlpha(support.capabilities))
         .setPresentMode(_presentMode)
-        .setClipped(vk::True);
+        .setClipped(vk::True)
+        .setOldSwapchain(oldSwapchain);
     if (shared) {
         createInfo.setQueueFamilyIndices(queueFamilies);
     }

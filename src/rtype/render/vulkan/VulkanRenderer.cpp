@@ -90,6 +90,7 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
                                                            _config.presentMode);
 
     _allocator = std::make_unique<memory::Allocator>(*_instance, *_physicalDevice, *_device);
+    _swapchain = std::make_unique<presentation::Swapchain>(_framebufferSize, *_physicalDevice, _surface, *_device);
 }
 
 void VulkanRenderer::resize(glm::uvec2 framebufferSize) { _framebufferSize = framebufferSize; }
