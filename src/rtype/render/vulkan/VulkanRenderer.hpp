@@ -20,6 +20,7 @@
 
 #include "Export.hpp"
 #include "core/DebugMessenger.hpp"
+#include "core/DeletionQueue.hpp"
 #include "core/Device.hpp"
 #include "core/Instance.hpp"
 #include "core/PhysicalDevice.hpp"
@@ -67,7 +68,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
     explicit VulkanRenderer(Config config);
     /// @brief A renderer with the default Config.
     VulkanRenderer();
-    ~VulkanRenderer() override = default;
+    ~VulkanRenderer() override;
     VulkanRenderer(const VulkanRenderer&) = delete;
     VulkanRenderer& operator=(const VulkanRenderer&) = delete;
     VulkanRenderer(VulkanRenderer&&) = delete;
@@ -104,13 +105,41 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
 
     [[noreturn]] static void notImplemented(std::string_view function);
 
-    Config _config;                                         ///< Settings given at construction.
-    glm::uvec2 _framebufferSize{0};                         ///< Size of the window's framebuffer, in pixels.
-    std::optional<core::Instance> _instance;                /// Contains the VkInstance.
-    std::optional<core::DebugMessenger> _debugMessenger;    ///< Created by init() when validation is enabled.
-    vk::raii::SurfaceKHR _surface = nullptr;                ///< The window's surface
-    std::unique_ptr<core::PhysicalDevice> _physicalDevice;  ///< The first suitable physical device of the instance
-    std::unique_ptr<core::Device> _device;                  ///< The logical device created from the physical device
-    std::unique_ptr<memory::Allocator> _allocator;  ///< VMA allocator; declared after _device to be destroyed first.
+    /// @brief Frames the CPU may record while the GPU still works on previous ones.
+    static constexpr std::size_t kFramesInFlight = 2;
+
+    // Teardown order. Members are destroyed in reverse declaration order, after ~VulkanRenderer() has waited for the
+    // GPU (vkDeviceWaitIdle). Each group below may only depend on the groups declared before it, so every Vulkan
+    // object is destroyed before what it was created from. New members go in their group's slot, never at the end:
+    //   1. Settings and state, no Vulkan object.
+    //   2. Instance, debug messenger, surface, physical device, device (and its queues).
+    //   3. Swapchain and its image views.                                          (slot: not implemented yet)
+    //   4. Sync objects (fences, semaphores) and command pools / buffers.          (slot: not implemented yet)
+    //   5. Allocator, then buffers, images and samplers (they must die before it). (allocator only for now)
+    //   6. Pipelines, pipeline layouts, descriptor pools / sets, shader modules.   (slot: not implemented yet)
+    //   7. Deletion queue: last declared, so it is flushed first, while everything it may hold is still alive.
+    // The window outlives the renderer: Backend declares its platform before its renderer.
+
+    // 1. Settings and state.
+    Config _config;                  ///< Settings given at construction.
+    glm::uvec2 _framebufferSize{0};  ///< Size of the window's framebuffer, in pixels.
+
+    // 2. Context: created by init(), in this order.
+    std::optional<core::Instance> _instance;                ///< The VkInstance.
+    std::optional<core::DebugMessenger> _debugMessenger;    ///< Created by init() when debugging is enabled.
+    vk::raii::SurfaceKHR _surface = nullptr;                ///< The window's surface.
+    std::unique_ptr<core::PhysicalDevice> _physicalDevice;  ///< The chosen GPU.
+    std::unique_ptr<core::Device> _device;                  ///< The logical device and its queues.
+
+    // 3. Swapchain: slot reserved.
+    // 4. Sync objects and command pools: slot reserved.
+
+    // 5. Memory: the allocator first, then the resources allocated from it.
+    std::unique_ptr<memory::Allocator> _allocator;  ///< VMA allocator, destroyed after every buffer and image.
+
+    // 6. Pipelines and descriptors: slot reserved.
+
+    // 7. Deferred deletion.
+    core::DeletionQueue _deletionQueue{kFramesInFlight};  ///< Resources the GPU may still use, one bucket per frame.
 };
 }  // namespace rtype::render::vulkan

@@ -10,7 +10,9 @@
 #include <cstddef>
 #include <format>
 #include <glm/ext/vector_uint2.hpp>
+#include <iostream>
 #include <memory>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -36,6 +38,17 @@ VulkanRenderer::VulkanRenderer(Config config) : _config(std::move(config)) {}
 
 VulkanRenderer::VulkanRenderer() : VulkanRenderer(Config{}) {}
 
+VulkanRenderer::~VulkanRenderer() {
+    if (!_device) {
+        return;
+    }
+    try {
+        _device->getDevice().waitIdle();
+    } catch (const vk::SystemError& error) {
+        std::cerr << "[Vulkan] vkDeviceWaitIdle failed at shutdown: " << error.what() << '\n';
+    }
+}
+
 void VulkanRenderer::setup(engine::platform::IPlatform& platform) {
     surfaceSourceOf(platform).initLoader(core::Instance::getLoaderEntryPoint());
 }
@@ -59,10 +72,11 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
     for (const std::string& layer : _config.layers) {
         layers.push_back(layer.c_str());
     }
-    _instance.emplace(platform.getTitle(), _config.engineName, _config.apiVersion, std::move(extensions),
-                      std::move(layers),
-                      core::ValidationOptions{.synchronization = _config.synchronizationValidation,
-                                              .bestPractices = _config.bestPractices});
+    _instance.emplace(
+        platform.getTitle(), _config.engineName, _config.apiVersion, std::move(extensions), std::move(layers),
+        core::ValidationOptions{.synchronization = _config.synchronizationValidation,
+                                .bestPractices = _config.bestPractices},
+        _config.debugging ? std::optional{core::DebugMessenger::makeCreateInfo(_config.minSeverity)} : std::nullopt);
     if (_config.debugging) {
         _debugMessenger.emplace(*_instance, _config.minSeverity);
     }
