@@ -18,6 +18,7 @@ enum class ErrorKind : std::uint8_t {
     kTimeout,        ///< Execution exceeded its allotted time.
     kOutOfMemory,    ///< The Luau state could not allocate memory.
     kStackOverflow,  ///< The Luau stack or call depth limit was exceeded.
-    kUnknown         ///< The failure does not fit any other category.
+    kCompilation,    ///< The script could not be compiled because of a compilation error.
+    kUnknown,        ///< The failure does not fit any other category.
 };
 }  // namespace rtype::luau
