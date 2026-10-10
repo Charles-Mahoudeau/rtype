@@ -7,8 +7,11 @@
 
 #include "Swapchain.hpp"
 
+#include <algorithm>
 #include <array>
 #include <glm/ext/vector_uint2.hpp>
+#include <limits>
+#include <memory>
 #include <vulkan/vulkan_raii.hpp>
 
 #include "../core/Device.hpp"
@@ -71,9 +74,68 @@ uint32_t chooseQueueFamilyIndexCount(const core::PhysicalDevice::QueueFamilies& 
 
 }  // namespace
 
+void Swapchain::createFramebuffers(const core::Device& device, const vk::Extent2D& swapChainExtent) {
+    _framebuffers.clear();
+    _framebuffers.reserve(_imageViews.size());
+
+    for (const auto& imageView : _imageViews) {
+        const vk::FramebufferCreateInfo framebufferInfo({}, *renderPass, imageView, swapChainExtent.width,
+                                                        swapChainExtent.height, 1);
+
+        _framebuffers.emplace_back(device.getDevice(), framebufferInfo);
+    }
+}
+
+void Swapchain::createImageViews(const core::Device& device, const vk::Format swapChainImageFormat) {
+    _imageViews.clear();
+    std::vector<vk::Image> swapChainImages = _swapChain.getImages();
+    _imageViews.reserve(_swapChain.getImages().size());
+
+    for (const auto& image : swapChainImages) {
+        const vk::ImageViewCreateInfo viewInfo({}, image, vk::ImageViewType::e2D, swapChainImageFormat,
+                                               vk::ComponentMapping{},
+                                               vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1));
+
+        _imageViews.emplace_back(device.getDevice(), viewInfo);
+    }
+}
+
+vk::raii::RenderPass Swapchain::createRenderPass(const core::Device& device, const vk::Format swapChainImageFormat) {
+    const vk::AttachmentDescription colorAttachment({}, swapChainImageFormat, vk::SampleCountFlagBits::e1,
+                                                    vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
+                                                    vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+                                                    vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR);
+
+    const vk::AttachmentReference colorAttachmentRef(0, vk::ImageLayout::eColorAttachmentOptimal);
+
+    const vk::SubpassDescription subpass({}, vk::PipelineBindPoint::eGraphics, 0, nullptr, 1, &colorAttachmentRef);
+
+    const vk::SubpassDependency dependency(VK_SUBPASS_EXTERNAL, 0, vk::PipelineStageFlagBits::eColorAttachmentOutput,
+                                           vk::PipelineStageFlagBits::eColorAttachmentOutput, {},
+                                           vk::AccessFlagBits::eColorAttachmentWrite);
+
+    const vk::RenderPassCreateInfo renderPassInfo({}, 1, &colorAttachment, 1, &subpass, 1, &dependency);
+    return {device.getDevice(), renderPassInfo};
+}
+
+void Swapchain::recreate(const glm::uvec2 framebufferSize, const core::PhysicalDevice& physicalDevice,
+                         const vk::raii::SurfaceKHR& surface, const core::Device& device) {
+    _swapChain = nullptr;
+    _imageViews.clear();
+    _framebuffers.clear();
+    *this = Swapchain(framebufferSize, physicalDevice, surface, device);
+}
+
+Swapchain::~Swapchain() {
+    _framebuffers.clear();
+    _imageViews.clear();
+    _swapChain = nullptr;
+    renderPass = nullptr;
+}
+
 Swapchain::Swapchain(const glm::uvec2 framebufferSize, const core::PhysicalDevice& physicalDevice,
                      const vk::raii::SurfaceKHR& surface, const core::Device& device)
-    : _swapChain(nullptr) {
+    : _swapChain(nullptr), renderPass(nullptr) {
     core::PhysicalDevice::SwapChainSupportDetails swapChainSupport =
         core::PhysicalDevice::querySwapChainSupport(physicalDevice.getPhysicalDevice(), surface);
 
@@ -104,5 +166,8 @@ Swapchain::Swapchain(const glm::uvec2 framebufferSize, const core::PhysicalDevic
     swapChainCreateInfo.clipped = vk::True;
     swapChainCreateInfo.oldSwapchain = nullptr;
     _swapChain = vk::raii::SwapchainKHR(device.getDevice(), swapChainCreateInfo);
+    createImageViews(device, surfaceFormat.format);
+    createFramebuffers(device, extent);
+    renderPass = createRenderPass(device, surfaceFormat.format);
 }
 }  // namespace rtype::render::vulkan::presentation
