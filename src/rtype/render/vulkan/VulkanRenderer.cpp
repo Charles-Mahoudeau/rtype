@@ -111,7 +111,31 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
     _allocator = std::make_unique<memory::Allocator>(*_instance, *_physicalDevice, *_device);
 }
 
-void VulkanRenderer::resize(glm::uvec2 framebufferSize) { _framebufferSize = framebufferSize; }
+void VulkanRenderer::resize(glm::uvec2 framebufferSize) {
+    _framebufferSize = framebufferSize;
+    _swapchainOutOfDate = true;
+}
+
+void VulkanRenderer::addSwapchainListener(SwapchainListener listener) {
+    _swapchainListeners.push_back(std::move(listener));
+}
+
+void VulkanRenderer::recreateSwapchain() {
+    if (_framebufferSize.x == 0 || _framebufferSize.y == 0) {
+        _swapchainOutOfDate = true;
+        return;
+    }
+    _device->getDevice().waitIdle();
+    auto swapchain = std::make_unique<presentation::Swapchain>(*_physicalDevice, _surface, *_device, _framebufferSize,
+                                                               _config.presentMode, *_swapchain->getSwapchain());
+    const std::size_t frameIndex = _frames->getFrameIndex();
+    _deletionQueue.defer(frameIndex, std::exchange(_swapchain, std::move(swapchain)));
+    _deletionQueue.defer(frameIndex, _frames->recreateRenderFinished(*_device, _swapchain->getImages().size()));
+    _swapchainOutOfDate = false;
+    for (const SwapchainListener& listener : _swapchainListeners) {
+        listener(*_swapchain);
+    }
+}
 
 engine::graphics::TextureId VulkanRenderer::createTexture(const engine::graphics::TextureDesc& /*desc*/,
                                                           std::span<const std::byte> /*pixels*/) {
@@ -127,21 +151,27 @@ void VulkanRenderer::beginFrame(const engine::graphics::Color& clearColor) {
     if (_acquiredImage) {
         throw std::logic_error("VulkanRenderer::beginFrame() called twice without endFrame()");
     }
-    const frame::FrameData& frame = _frames->getCurrentFrame();
+    if (_framebufferSize.x == 0 || _framebufferSize.y == 0) {
+        return;  // Minimized: nothing to render into.
+    }
     const vk::raii::Device& device = _device->getDevice();
-
-    if (device.waitForFences(*frame.getInFlight(), vk::True, kNoTimeout) != vk::Result::eSuccess) {
+    if (device.waitForFences(*_frames->getCurrentFrame().getInFlight(), vk::True, kNoTimeout) != vk::Result::eSuccess) {
         throw std::runtime_error("VulkanRenderer: waiting for the frame's fence failed");
     }
     _deletionQueue.flush(_frames->getFrameIndex());
+    if (_swapchainOutOfDate) {
+        recreateSwapchain();
+    }
+    const frame::FrameData& frame = _frames->getCurrentFrame();
 
     std::uint32_t imageIndex = 0;
     try {
-        imageIndex = _swapchain->getSwapchain().acquireNextImage(kNoTimeout, *frame.getImageAvailable()).value;
+        const vk::ResultValue<std::uint32_t> acquired =
+            _swapchain->getSwapchain().acquireNextImage(kNoTimeout, *frame.getImageAvailable());
+        imageIndex = acquired.value;
+        _swapchainOutOfDate = _swapchainOutOfDate || acquired.result == vk::Result::eSuboptimalKHR;
     } catch (const vk::OutOfDateKHRError&) {
-        // Swapchain recreation is not implemented yet: skip the frame. The fence stays signaled, so the next
-        // beginFrame() does not block on it.
-        _swapchainOutOfDate = true;
+        recreateSwapchain();
         return;
     }
     device.resetFences(*frame.getInFlight());
@@ -183,13 +213,12 @@ void VulkanRenderer::endFrame() {
 
     const vk::SwapchainKHR swapchain = *_swapchain->getSwapchain();
     try {
-        // eSuboptimalKHR still presents: nothing to do until swapchain recreation exists.
-        static_cast<void>(_device->getPresentQueue().handle.presentKHR(vk::PresentInfoKHR{}
-                                                                           .setWaitSemaphores(renderFinished)
-                                                                           .setSwapchains(swapchain)
-                                                                           .setImageIndices(imageIndex)));
+        const vk::Result presented = _device->getPresentQueue().handle.presentKHR(vk::PresentInfoKHR{}
+                                                                                      .setWaitSemaphores(renderFinished)
+                                                                                      .setSwapchains(swapchain)
+                                                                                      .setImageIndices(imageIndex));
+        _swapchainOutOfDate = _swapchainOutOfDate || presented == vk::Result::eSuboptimalKHR;
     } catch (const vk::OutOfDateKHRError&) {
-        // Swapchain recreation is not implemented yet: the image is not presented.
         _swapchainOutOfDate = true;
     }
     _frames->advance();
