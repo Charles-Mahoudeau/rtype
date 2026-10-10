@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -40,12 +41,17 @@ class RTYPE_RENDER_VULKAN_API Instance {
     /// VK_EXT_layer_settings when @p validation enables something.
     /// @param layers Instance layers to enable.
     /// @param validation Extra checks of the validation layer, ignored when it is not in @p layers.
+    /// @param messenger Debug messenger active during vkCreateInstance and vkDestroyInstance, whose messages the
+    /// DebugMessenger cannot catch (e.g. objects leaked at exit): DebugMessenger::makeCreateInfo(). Requires
+    /// VK_EXT_debug_utils in @p requiredExtensions.
+    /// @throws std::invalid_argument If @p messenger is given without VK_EXT_debug_utils in @p requiredExtensions.
     /// @throws std::runtime_error If one of the required extensions is not supported.
     /// @throws std::runtime_error If one of the layers is not supported.
     /// @throws std::runtime_error If @p validation enables something the validation layer does not offer.
     Instance(const std::string_view& appName, const std::string_view& engineName, uint32_t apiVersion,
              std::vector<const char*> requiredExtensions, std::vector<const char*> layers = {},
-             ValidationOptions validation = {});
+             ValidationOptions validation = {},
+             const std::optional<vk::DebugUtilsMessengerCreateInfoEXT>& messenger = std::nullopt);
     ~Instance() = default;
     Instance(const Instance&) = delete;
     Instance& operator=(const Instance&) = delete;
@@ -91,13 +97,12 @@ class RTYPE_RENDER_VULKAN_API Instance {
                                                              std::span<const char* const> layers,
                                                              std::vector<const char*>& extensions) const;
 
-    /// @brief Creates the instance from the already checked extensions and layers, with the validation layer settings
-    /// of
-    /// @p validation chained into its pNext.
-    [[nodiscard]] vk::raii::Instance createInstance(const vk::ApplicationInfo& appInfo, vk::InstanceCreateFlags flags,
-                                                    std::span<const char* const> extensions,
-                                                    std::span<const char* const> layers,
-                                                    ValidationOptions validation) const;
+    /// @brief Creates the instance from the already checked extensions and layers, with @p messenger and the
+    /// validation layer settings of @p validation chained into its pNext.
+    [[nodiscard]] vk::raii::Instance createInstance(
+        const vk::ApplicationInfo& appInfo, vk::InstanceCreateFlags flags, std::span<const char* const> extensions,
+        std::span<const char* const> layers, ValidationOptions validation,
+        const std::optional<vk::DebugUtilsMessengerCreateInfoEXT>& messenger) const;
 
     vk::raii::Context _context;              ///< Loader dispatch, built from getLoaderEntryPoint().
     vk::raii::Instance _instance = nullptr;  ///< The Vulkan instance, created by the constructor.
