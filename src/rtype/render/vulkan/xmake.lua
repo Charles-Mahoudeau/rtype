@@ -10,21 +10,31 @@ add_requires("stb", {alias = "stb"})
 add_requires("imgui 1.92.x", {alias = "imgui", configs = {vulkan = true}})
 add_requires("glslang 1.4.x", {alias = "glslang", configs = {binaryonly = true, spirv_tools = true}})
 
+-- Embeds each shader (shaders/<name>.<stage>) as SPIR-V: generates <name>.<stage>.h, which defines
+-- const uint32_t rtype_shader_<name>_<stage>[] (other characters than letters and digits become '_').
 rule("glsl.spirv")
     set_extensions(".vert", ".frag", ".comp", ".geom", ".tesc", ".tese")
+
+    on_load(function (target)
+        local headerdir = path.join(target:autogendir(), "shaders")
+        os.mkdir(headerdir)
+        target:add("includedirs", headerdir)
+    end)
 
     before_buildcmd_file(function (target, batchcmds, sourcefile, opt)
         import("lib.detect.find_tool")
         local glslang = find_tool("glslangValidator")
         assert(glslang, "glslangValidator not found: add_packages(\"glslang\") to the target")
 
-        local outdir = path.join(target:targetdir(), "shaders")
-        local spv = path.join(outdir, path.filename(sourcefile) .. ".spv")
+        local filename = path.filename(sourcefile)
+        local outdir = path.join(target:autogendir(), "shaders")
+        local header = path.join(outdir, filename .. ".h")
+        local variable = "rtype_shader_" .. (filename:gsub("[^%w]", "_"))
         local includedir = path.join(path.directory(sourcefile), "include")
 
         local argv = {"-V", "--target-env", "vulkan1.3", "-I" .. includedir}
         table.insert(argv, is_mode("debug") and "-g" or "-Os")
-        table.join2(argv, {"-o", spv, sourcefile})
+        table.join2(argv, {"--vn", variable, "-o", header, sourcefile})
 
         batchcmds:show_progress(opt.progress, "${color.build.object}compiling.glsl %s", sourcefile)
         batchcmds:mkdir(outdir)
@@ -32,8 +42,8 @@ rule("glsl.spirv")
 
         batchcmds:add_depfiles(sourcefile)
         batchcmds:add_depfiles(os.files(path.join(includedir, "**")))
-        batchcmds:set_depmtime(os.mtime(spv))
-        batchcmds:set_depcache(target:dependfile(spv))
+        batchcmds:set_depmtime(os.mtime(header))
+        batchcmds:set_depcache(target:dependfile(header))
     end)
 rule_end()
 

@@ -93,7 +93,7 @@ vk::PresentModeKHR toPresentMode(std::string_view name) {
 /// @return The Config described by the "vulkan" section; missing keys keep the Config defaults.
 VulkanRenderer::Config toConfig(const engine::config::Settings& settings) {
     settings.checkKeys({"engineName", "layers", "extraExtensions", "debugging", "minSeverity", "preferredDeviceType",
-                        "synchronizationValidation", "bestPractices", "presentMode"},
+                        "synchronizationValidation", "bestPractices", "presentMode", "shaderDirectory"},
                        "vulkan");
     VulkanRenderer::Config config;
     config.engineName = settings.getString("engineName", config.engineName);
@@ -107,6 +107,9 @@ VulkanRenderer::Config toConfig(const engine::config::Settings& settings) {
     }
     if (settings.has("preferredDeviceType")) {
         config.preferredDeviceType = toDeviceType(settings.getString("preferredDeviceType", ""));
+    }
+    if (settings.has("shaderDirectory")) {
+        config.shaderDirectory = settings.getString("shaderDirectory", "");
     }
     if (settings.has("presentMode")) {
         config.presentMode = toPresentMode(settings.getString("presentMode", ""));

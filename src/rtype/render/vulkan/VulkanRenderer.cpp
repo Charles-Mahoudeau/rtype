@@ -10,6 +10,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <format>
 #include <glm/ext/vector_uint2.hpp>
 #include <iostream>
@@ -33,6 +34,7 @@
 #include "engine/graphics/Sprite.hpp"
 #include "engine/graphics/Texture.hpp"
 #include "engine/platform/IPlatform.hpp"
+#include "engine/system/ExecutablePath.hpp"
 #include "frame/FrameData.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
 #include "rendering/DynamicRendering.hpp"
@@ -109,6 +111,10 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
     _frames = std::make_unique<frame::FrameResources>(*_device, kFramesInFlight, _swapchain->getImages().size());
 
     _allocator = std::make_unique<memory::Allocator>(*_instance, *_physicalDevice, *_device);
+    const std::filesystem::path& shaderDirectory = _config.shaderDirectory;
+    _shaders = std::make_unique<pipeline::ShaderCache>(
+        *_device,
+        shaderDirectory.is_absolute() ? shaderDirectory : engine::system::getExecutableDirectory() / shaderDirectory);
 }
 
 void VulkanRenderer::resize(glm::uvec2 framebufferSize) {
