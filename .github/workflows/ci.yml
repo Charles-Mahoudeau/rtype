@@ -41,6 +41,8 @@ jobs:
         if: contains(runner.os, 'macos')
         run: brew install molten-vk vulkan-loader
 
+      # The package cache key also contains a hash of the project's packages (xmake l utils.ci.packageskey, run at
+      # the repository root): adding, removing or reconfiguring a package invalidates the cache.
       - name: Install xmake
         uses: xmake-io/github-action-setup-xmake@v1
         with:
