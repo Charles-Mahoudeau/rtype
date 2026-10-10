@@ -67,7 +67,6 @@ DeletionQueue::CallEntry::~CallEntry() {
 }
 
 void DeletionQueue::clear(Bucket& bucket) noexcept {
-    // Reverse order of deferral, like members of a class: a later resource may depend on an earlier one.
     while (!bucket.empty()) {
         bucket.pop_back();
     }
