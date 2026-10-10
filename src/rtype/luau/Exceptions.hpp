@@ -33,4 +33,20 @@ class RTYPE_LUAU_API InvalidRef : public Base {
     /// @brief Creates the exception with the message "use of an empty Luau reference".
     InvalidRef() : Base{"use of an empty Luau reference"} {}
 };
+
+/// @brief Exception thrown when an operation is not supported by the object it is called on.
+///
+/// For instance, binding a native closure to a Function that wraps a function defined in Luau.
+class RTYPE_LUAU_API InvalidOperation : public Base {
+  public:
+    using Base::Base;
+};
+
+/// @brief Exception thrown when Luau code called from C++ raises an error.
+///
+/// Its message is the error message raised by the Luau code.
+class RTYPE_LUAU_API RuntimeError : public Base {
+  public:
+    using Base::Base;
+};
 }  // namespace rtype::luau::exceptions
