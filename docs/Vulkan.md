@@ -54,9 +54,11 @@ const rtype::engine::backend::Backend backend = registry.createBackend(config);
 
 The `vulkan` settings fill a `VulkanRenderer::Config`: `engineName`, `layers`, `extraExtensions`, `debugging` (the
 DebugMessenger), `minSeverity`, `preferredDeviceType` (the type of GPU favored when several are suitable,
-`"discrete_gpu"` by default), `synchronizationValidation`, `bestPractices` and `presentMode` (the swapchain's present mode: `"fifo"` by default,
-with vsync and always supported; `"mailbox"` without vsync nor tearing; `"immediate"` for benchmarks; FIFO when the
-surface does not support the requested one). No layer is enabled by default.
+`"discrete_gpu"` by default), `synchronizationValidation`, `bestPractices` and `presentMode` (the swapchain's
+present mode: `"fifo"` by default, synchronized to the vertical blank and always supported; `"mailbox"`, also
+synchronized to the vertical blank, but a newer image replaces the pending one instead of waiting for it;
+`"immediate"`, not synchronized and may tear, for benchmarks; FIFO when the surface does not support the requested
+one). No layer is enabled by default.
 
 When `layers` contains `VK_LAYER_KHRONOS_validation`, `synchronizationValidation` (on by default) and `bestPractices`
 (off by default) configure it through `VK_EXT_layer_settings`, chained into the instance's `pNext`: the layer's
