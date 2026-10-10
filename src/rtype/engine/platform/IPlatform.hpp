@@ -55,6 +55,12 @@ class RTYPE_ENGINE_API IPlatform {
     /// @return Every event received since the previous call. Call once per frame.
     [[nodiscard]] virtual std::vector<Event> pollEvents() = 0;
 
+    /// @brief Like pollEvents(), but blocks until at least one event arrives, instead of spinning: for when there is
+    /// nothing to render, e.g. while the window is minimized.
+    /// @details Defaults to pollEvents() for platforms that cannot wait.
+    /// @return Every event received since the previous call.
+    [[nodiscard]] virtual std::vector<Event> waitEvents() { return pollEvents(); }
+
     /// @return True while the window is open.
     [[nodiscard]] virtual bool isOpen() const noexcept = 0;
 
