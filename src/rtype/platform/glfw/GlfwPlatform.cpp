@@ -94,6 +94,16 @@ std::vector<engine::Event> GlfwPlatform::pollEvents() {
     return std::exchange(_events, {});
 }
 
+std::vector<engine::Event> GlfwPlatform::waitEvents() {
+    if (_window == nullptr) {
+        return {};
+    }
+    glfwWaitEvents();
+    pollGamepad();
+    _isOpen = glfwWindowShouldClose(_window) == GLFW_FALSE;
+    return std::exchange(_events, {});
+}
+
 bool GlfwPlatform::isOpen() const noexcept { return _isOpen; }
 
 void GlfwPlatform::close() {

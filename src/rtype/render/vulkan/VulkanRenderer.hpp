@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <glm/ext/vector_uint2.hpp>
 #include <memory>
 #include <optional>
@@ -72,6 +73,10 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
                                         ///< (no vsync, may tear; benchmarks); FIFO when unsupported.
     };
 
+    /// @brief Called after each swapchain recreation with the new swapchain: recreate there what depends on its size
+    /// or format (depth, MSAA, HDR targets...).
+    using SwapchainListener = std::function<void(const presentation::Swapchain&)>;
+
     explicit VulkanRenderer(Config config);
     /// @brief A renderer with the default Config.
     VulkanRenderer();
@@ -90,12 +95,18 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
     /// @throws std::runtime_error If a layer or an extension is missing, or init() was already called.
     void init(engine::platform::IPlatform& platform) override;
 
+    /// @brief Records the new framebuffer size; the next beginFrame() recreates the swapchain (or skips frames while it
+    /// is 0x0, i.e. minimized).
     void resize(glm::uvec2 framebufferSize) override;
+
+    /// @brief Registers @p listener, called after every swapchain recreation.
+    void addSwapchainListener(SwapchainListener listener);
 
     /// @brief Waits for the current frame in flight, acquires the next swapchain image and starts rendering into it,
     /// cleared to @p clearColor.
-    /// @details When the swapchain is out of date (window resized), the frame is skipped: endFrame() then does
-    /// nothing. Recreating the swapchain is not implemented yet.
+    /// @details Recreates the swapchain first when it is out of date (resize, VK_ERROR_OUT_OF_DATE_KHR,
+    /// VK_SUBOPTIMAL_KHR). The frame is skipped, and endFrame() then does nothing, while the window is minimized or
+    /// when the acquire reports the swapchain out of date.
     /// @throws std::logic_error If init() was not called, or the previous frame was not ended.
     void beginFrame(const engine::graphics::Color& clearColor) override;
 
@@ -120,6 +131,11 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
 
     [[noreturn]] static void notImplemented(std::string_view function);
 
+    /// @brief Waits for the GPU, builds a new swapchain from the old one (oldSwapchain) and new renderFinished
+    /// semaphores, defers the old ones to the deletion queue, then notifies the listeners. Does nothing but keep the
+    /// swapchain out of date while the window is minimized.
+    void recreateSwapchain();
+
     /// @brief Frames the CPU may record while the GPU still works on previous ones.
     static constexpr std::size_t kFramesInFlight = 2;
 
@@ -140,8 +156,9 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
     glm::uvec2 _framebufferSize{0};               ///< Size of the window's framebuffer, in pixels.
     std::optional<std::uint32_t> _acquiredImage;  ///< Swapchain image of the frame being recorded, between
                                                   ///< beginFrame() and endFrame(); empty when the frame was skipped.
-    bool _swapchainOutOfDate = false;  ///< Set when acquire or present reports VK_ERROR_OUT_OF_DATE_KHR; swapchain
-                                       ///< recreation (not implemented yet) will act on it and clear it.
+    bool _swapchainOutOfDate = false;  ///< Set on resize, VK_ERROR_OUT_OF_DATE_KHR or VK_SUBOPTIMAL_KHR; the next
+                                       ///< beginFrame() recreates the swapchain and clears it.
+    std::vector<SwapchainListener> _swapchainListeners;  ///< Called after each swapchain recreation.
 
     // 2. Context: created by init(), in this order.
     std::optional<core::Instance> _instance;                ///< The VkInstance.
