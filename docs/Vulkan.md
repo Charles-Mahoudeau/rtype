@@ -75,6 +75,21 @@ hazards between commands, and is slow. The engine only loads the layer in debug 
 
 On macOS, `Instance` also enables `VK_KHR_portability_enumeration`, which MoltenVK requires.
 
+## Shaders
+
+Shaders are written in GLSL and compiled to SPIR-V at build time by the `glsl.spirv` rule of
+[`render/vulkan/xmake.lua`](../src/rtype/render/vulkan/xmake.lua), with `glslangValidator` from the `glslang`
+package (a system one, such as Homebrew's, is used when found):
+
+- `src/rtype/render/vulkan/shaders/<name>.<stage>` (`vert`, `frag`, `comp`, `geom`, `tesc`, `tese`) becomes
+  `shaders/<name>.<stage>.spv` next to the binaries (e.g. `build/macosx/arm64/debug/shaders/sprite.vert.spv`).
+- Target environment `vulkan1.3`; debug info (`-g`) in debug builds, for validation messages and RenderDoc;
+  size-optimized SPIR-V (`-Os`) in release builds.
+- Common headers go in `shaders/include/` and are included with `#extension GL_GOOGLE_include_directive : require`
+  then `#include "Name.glsl"`.
+- A shader error fails the build with `file:line`. Editing a shader recompiles only that shader; editing a header in
+  `shaders/include/` recompiles every shader.
+
 ## Run the example
 
 ```sh
