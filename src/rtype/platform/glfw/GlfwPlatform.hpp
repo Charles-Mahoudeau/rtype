@@ -53,6 +53,8 @@ class GlfwPlatform final : public engine::platform::IPlatform, public interop::v
     void init(const engine::platform::WindowConfig& config) override;
 
     [[nodiscard]] std::vector<engine::Event> pollEvents() override;
+    /// @brief Blocks in glfwWaitEvents() until an event arrives, then returns the events like pollEvents().
+    [[nodiscard]] std::vector<engine::Event> waitEvents() override;
     [[nodiscard]] bool isOpen() const noexcept override;
     void close() override;
     void setCursorLocked(bool locked) override;
