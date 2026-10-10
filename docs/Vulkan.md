@@ -53,8 +53,13 @@ const rtype::engine::backend::Backend backend = registry.createBackend(config);
 ```
 
 The `vulkan` settings fill a `VulkanRenderer::Config`: `engineName`, `layers`, `extraExtensions`, `debugging` (the
-DebugMessenger), `minSeverity` and `preferredDeviceType` (the type of GPU favored when several are suitable,
-`"discrete_gpu"` by default). No layer is enabled by default.
+DebugMessenger), `minSeverity`, `preferredDeviceType` (the type of GPU favored when several are suitable,
+`"discrete_gpu"` by default), `synchronizationValidation` and `bestPractices`. No layer is enabled by default.
+
+When `layers` contains `VK_LAYER_KHRONOS_validation`, `synchronizationValidation` (on by default) and `bestPractices`
+(off by default) configure it through `VK_EXT_layer_settings`, chained into the instance's `pNext`: the layer's
+`validate_sync` and `validate_best_practices` settings. Synchronization validation reports missing barriers and
+hazards between commands, and is slow. The engine only loads the layer in debug builds (`NDEBUG` not defined).
 
 `VulkanRenderer` needs a platform that implements
 [`IVulkanSurfaceSource`](../src/rtype/interop/vulkan/IVulkanSurfaceSource.hpp) (`GlfwPlatform` does):

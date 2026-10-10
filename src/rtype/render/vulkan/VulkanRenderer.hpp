@@ -59,6 +59,9 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
                                                                  ///< prints.
         vk::PhysicalDeviceType preferredDeviceType =
             vk::PhysicalDeviceType::eDiscreteGpu;  ///< Type of GPU favored when several suitable ones are found.
+        bool synchronizationValidation = true;     ///< Synchronization validation (missing barriers, hazards), when
+                                                   ///< VK_LAYER_KHRONOS_validation is in layers. Slow.
+        bool bestPractices = false;  ///< Best practices warnings, when VK_LAYER_KHRONOS_validation is in layers.
     };
 
     explicit VulkanRenderer(Config config);
