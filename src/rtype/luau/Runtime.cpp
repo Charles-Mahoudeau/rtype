@@ -18,6 +18,7 @@
 #include <format>
 #include <fstream>
 #include <ios>
+#include <iostream>
 #include <iterator>
 #include <memory>
 #include <stdexcept>
@@ -65,7 +66,8 @@ Runtime::Runtime(lua_State* state, const RuntimeConfig config) : _config{config}
     } else if (_config.libs != RuntimeConfig::Libs::kNone) {
         throw std::runtime_error{"unsupported library configuration"};
     }
-    luaL_sandbox(_state.get());
+    // TODO: enable later, this breaks more things than it fixes
+    // luaL_sandbox(_state.get());
 }
 
 Result<Bytecode> Runtime::compile(const std::string& source) const {
@@ -103,6 +105,13 @@ Result<Runtime> Runtime::create(const RuntimeConfig config) {
     }
 }
 
+lua_State* Runtime::state() const {
+    std::cerr << "warning: direct access to lua state is an unsafe operation, this probably means that you are doing "
+                 "something wrong or that an api is missing"
+              << std::endl;
+    return _state.get();
+}
+
 Result<Script> Runtime::load(std::string name, const std::string& source) const {
     Result<Bytecode> bytecode = compile(source);
 
@@ -112,7 +121,9 @@ Result<Script> Runtime::load(std::string name, const std::string& source) const 
 
     lua_State* threadState = lua_newthread(_state.get());
     Ref thread = Ref::pop(_state.get());
-    luaL_sandboxthread(threadState);
+
+    // TODO: enable later, when global state will be sandboxed
+    // luaL_sandboxthread(threadState);
 
     const std::int32_t result =
         luau_load(threadState, name.c_str(), bytecode->data().get(), bytecode->size(), kLuauGlobalEnv);
@@ -146,4 +157,11 @@ Result<> Runtime::run(const Ref& closure) const { return runClosure(_state.get()
 // ReSharper disable once CppMemberFunctionMayBeStatic
 // NOLINTNEXTLINE(*-convert-member-functions-to-static)
 Result<> Runtime::run(const Script& script) const { return runClosure(script.state(), script.closure()); }
+
+Ref Runtime::global(const std::string& name) const {
+    if (lua_getglobal(_state.get(), name.c_str()) == LUA_TNIL) {
+        std::cerr << "warning: global '" << name << "' not found\n";
+    }
+    return Ref::pop(_state.get());
+}
 }  // namespace rtype::luau
