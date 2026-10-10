@@ -70,6 +70,7 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
     _framebufferSize = platform.getFramebufferSize();
     _physicalDevice = std::make_unique<core::PhysicalDevice>(*_instance, _surface, _config.preferredDeviceType);
     _device = std::make_unique<core::Device>(*_physicalDevice);
+    _allocator = std::make_unique<memory::Allocator>(*_instance, *_physicalDevice, *_device);
 }
 
 void VulkanRenderer::resize(glm::uvec2 framebufferSize) { _framebufferSize = framebufferSize; }
