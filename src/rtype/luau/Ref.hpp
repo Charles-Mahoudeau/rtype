@@ -64,6 +64,11 @@ class RTYPE_LUAU_API Ref {
     /// @return A reference to this Ref.
     Ref& operator=(Ref&& other) noexcept;
 
+    /// @brief Gives the Lua state holding the reference.
+    /// @return The main thread of the Lua state the reference was created from, or nullptr if the Ref was
+    ///         default-constructed.
+    [[nodiscard]] lua_State* state() const noexcept;
+
     /// @brief Pushes the referenced value onto the top of the Lua stack.
     ///
     /// The reference itself is left untouched and stays valid after the call.
