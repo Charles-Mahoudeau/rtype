@@ -31,6 +31,7 @@
 #include "engine/graphics/Sprite.hpp"
 #include "engine/graphics/Texture.hpp"
 #include "engine/platform/IPlatform.hpp"
+#include "frame/FrameResources.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
 #include "memory/Allocator.hpp"
 #include "presentation/Swapchain.hpp"
@@ -119,7 +120,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
     //   1. Settings and state, no Vulkan object.
     //   2. Instance, debug messenger, surface, physical device, device (and its queues).
     //   3. Swapchain and its image views.
-    //   4. Sync objects (fences, semaphores) and command pools / buffers.          (slot: not implemented yet)
+    //   4. Sync objects (fences, semaphores) and command pools / buffers.
     //   5. Allocator, then buffers, images and samplers (they must die before it). (allocator only for now)
     //   6. Pipelines, pipeline layouts, descriptor pools / sets, shader modules.   (slot: not implemented yet)
     //   7. Deletion queue: last declared, so it is flushed first, while everything it may hold is still alive.
@@ -138,7 +139,8 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
 
     // 3. Presentation.
     std::unique_ptr<presentation::Swapchain> _swapchain;  ///< The window's swapchain and its image views.
-    // 4. Sync objects and command pools: slot reserved.
+    // 4. Frames in flight: command pools / buffers and sync objects.
+    std::unique_ptr<frame::FrameResources> _frames;  ///< Per-frame command buffers and sync objects.
 
     // 5. Memory: the allocator first, then the resources allocated from it.
     std::unique_ptr<memory::Allocator> _allocator;  ///< VMA allocator, destroyed after every buffer and image.
