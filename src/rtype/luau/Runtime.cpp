@@ -157,4 +157,11 @@ Result<> Runtime::run(const Ref& closure) const { return runClosure(_state.get()
 // ReSharper disable once CppMemberFunctionMayBeStatic
 // NOLINTNEXTLINE(*-convert-member-functions-to-static)
 Result<> Runtime::run(const Script& script) const { return runClosure(script.state(), script.closure()); }
+
+Ref Runtime::global(const std::string& name) const {
+    if (lua_getglobal(_state.get(), name.c_str()) == LUA_TNIL) {
+        std::cerr << "warning: global '" << name << "' not found\n";
+    }
+    return Ref::pop(_state.get());
+}
 }  // namespace rtype::luau
