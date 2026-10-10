@@ -62,6 +62,7 @@ int main() {
             input.update();
             if (!minimized) {
                 renderer.beginFrame({0.05F, 0.05F, 0.15F, 1.0F});
+                // Draw calls would go here.
                 renderer.endFrame();
             }
         }
