@@ -18,6 +18,7 @@
 #include <format>
 #include <fstream>
 #include <ios>
+#include <iostream>
 #include <iterator>
 #include <memory>
 #include <stdexcept>
@@ -102,6 +103,13 @@ Result<Runtime> Runtime::create(const RuntimeConfig config) {
     } catch (...) {
         return Failure{ErrorKind::kUnknown, "unable to create runtime"};
     }
+}
+
+lua_State* Runtime::state() const {
+    std::cerr << "warning: direct access to lua state is an unsafe operation, this probably means that you are doing "
+                 "something wrong or that an api is missing"
+              << std::endl;
+    return _state.get();
 }
 
 Result<Script> Runtime::load(std::string name, const std::string& source) const {
