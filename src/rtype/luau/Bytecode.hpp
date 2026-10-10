@@ -10,13 +10,14 @@
 #include <cstddef>
 
 #include "CHelper.hpp"
+#include "Export.hpp"
 
 namespace rtype::luau {
 /// @brief Compiled Luau bytecode buffer.
 ///
 /// Owns the buffer produced by the Luau compiler (allocated with `malloc`, released with `std::free`)
 /// together with its size. Move-only: the buffer has a single owner.
-class Bytecode {
+class RTYPE_LUAU_API Bytecode {
   public:
     /// @brief Takes ownership of a bytecode buffer.
     /// @param data Buffer allocated by the Luau compiler.

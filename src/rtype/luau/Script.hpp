@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 
+#include "Export.hpp"
 #include "Ref.hpp"
 
 namespace rtype::luau {
@@ -17,7 +18,7 @@ namespace rtype::luau {
 ///
 /// Bundles the closure ready to be run, the name of the script and the bytecode it was loaded from.
 /// Move-only. The closure belongs to the `lua_State` of the `Runtime` that loaded it, which must outlive the script.
-class Script {
+class RTYPE_LUAU_API Script {
   public:
     /// @brief Creates a script from its parts.
     /// @param state Thread the closure was loaded in, where the script runs.

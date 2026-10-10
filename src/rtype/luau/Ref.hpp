@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include "Export.hpp"
+
 struct lua_State;
 
 namespace rtype::luau {
@@ -15,7 +17,7 @@ namespace rtype::luau {
 /// Creates a registry reference (`lua_ref`) to a value of the Lua stack, keeping it alive
 /// from the garbage collector, and releases it (`lua_unref`) on destruction. The referenced
 /// `lua_State` must outlive the `Ref`.
-class Ref {
+class RTYPE_LUAU_API Ref {
   public:
     /// @brief Registry reference id meaning "no reference" (Luau's `LUA_NOREF`).
     static constexpr int kLuaNoRef = -1;
