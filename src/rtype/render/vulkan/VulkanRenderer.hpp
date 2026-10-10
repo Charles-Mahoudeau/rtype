@@ -65,8 +65,9 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
                                                    ///< VK_LAYER_KHRONOS_validation is in layers. Slow.
         bool bestPractices = false;  ///< Best practices warnings, when VK_LAYER_KHRONOS_validation is in layers.
         vk::PresentModeKHR presentMode =
-            vk::PresentModeKHR::eFifo;  ///< Swapchain present mode: FIFO (vsync, always supported), MAILBOX (no vsync,
-                                        ///< no tearing) or IMMEDIATE (benchmarks); FIFO when unsupported.
+            vk::PresentModeKHR::eFifo;  ///< Swapchain present mode: FIFO (vsync, always supported), MAILBOX (vsync,
+                                        ///< a newer image replaces the pending one instead of waiting) or IMMEDIATE
+                                        ///< (no vsync, may tear; benchmarks); FIFO when unsupported.
     };
 
     explicit VulkanRenderer(Config config);
