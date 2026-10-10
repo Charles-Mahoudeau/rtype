@@ -8,30 +8,30 @@ add_requires("vulkan-memory-allocator-hpp v3.3.0+3",
              {alias = "vulkan-memory-allocator-hpp", configs = {use_vulkanheaders = true}})
 add_requires("stb", {alias = "stb"})
 add_requires("imgui 1.92.x", {alias = "imgui", configs = {vulkan = true}})
+add_requires("glslang 1.4.x", {alias = "glslang", configs = {binaryonly = true, spirv_tools = true}})
 
 rule("glsl.spirv")
     set_extensions(".vert", ".frag", ".comp", ".geom", ".tesc", ".tese")
 
-    on_load(function (target)
-        local outdir = path.join(target:targetdir(), "shaders")
-        os.mkdir(outdir)
-        target:data_set("shader_outdir", outdir)
-    end)
-
     before_buildcmd_file(function (target, batchcmds, sourcefile, opt)
-        local glslang = target:data("glslang") or "glslangValidator"
-        local outdir  = target:data("shader_outdir")
+        import("lib.detect.find_tool")
+        local glslang = find_tool("glslangValidator")
+        assert(glslang, "glslangValidator not found: add_packages(\"glslang\") to the target")
 
-        local basename = path.basename(sourcefile)
-        local stage    = path.extension(sourcefile):sub(2)
-        local spv      = path.join(outdir, basename .. "_" .. stage .. ".spv")
+        local outdir = path.join(target:targetdir(), "shaders")
+        local spv = path.join(outdir, path.filename(sourcefile) .. ".spv")
+        local includedir = path.join(path.directory(sourcefile), "include")
 
-        batchcmds:show_progress(opt.progress,
-            "${color.build.object}compiling %s.%s to SPIR-V", basename, stage)
+        local argv = {"-V", "--target-env", "vulkan1.3", "-I" .. includedir}
+        table.insert(argv, is_mode("debug") and "-g" or "-Os")
+        table.join2(argv, {"-o", spv, sourcefile})
+
+        batchcmds:show_progress(opt.progress, "${color.build.object}compiling.glsl %s", sourcefile)
         batchcmds:mkdir(outdir)
-        batchcmds:vrunv(glslang, {"-V", "-S", stage, sourcefile, "-o", spv})
+        batchcmds:vrunv(glslang.program, argv)
 
         batchcmds:add_depfiles(sourcefile)
+        batchcmds:add_depfiles(os.files(path.join(includedir, "**")))
         batchcmds:set_depmtime(os.mtime(spv))
         batchcmds:set_depcache(target:dependfile(spv))
     end)
@@ -74,4 +74,10 @@ target("render-vulkan")
     add_includedirs("../..", {public = true})
 
     add_rules("glsl.spirv")
-    add_files("shaders/*.vert", "shaders/*.frag", "shaders/*.comp", "shaders/*.geom", "shaders/*.tesc", "shaders/*.tese")
+    add_packages("glslang")
+    -- Only the stages that have shaders, so a missing one is not a warning on every build.
+    for _, stage in ipairs({"vert", "frag", "comp", "geom", "tesc", "tese"}) do
+        if #os.files(path.join(os.scriptdir(), "shaders", "*." .. stage)) > 0 then
+            add_files("shaders/*." .. stage)
+        end
+    end
