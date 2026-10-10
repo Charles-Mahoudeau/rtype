@@ -65,7 +65,8 @@ Runtime::Runtime(lua_State* state, const RuntimeConfig config) : _config{config}
     } else if (_config.libs != RuntimeConfig::Libs::kNone) {
         throw std::runtime_error{"unsupported library configuration"};
     }
-    luaL_sandbox(_state.get());
+    // TODO: enable later, this breaks more things than it fixes
+    // luaL_sandbox(_state.get());
 }
 
 Result<Bytecode> Runtime::compile(const std::string& source) const {
@@ -112,7 +113,9 @@ Result<Script> Runtime::load(std::string name, const std::string& source) const 
 
     lua_State* threadState = lua_newthread(_state.get());
     Ref thread = Ref::pop(_state.get());
-    luaL_sandboxthread(threadState);
+
+    // TODO: enable later, when global state will be sandboxed
+    // luaL_sandboxthread(threadState);
 
     const std::int32_t result =
         luau_load(threadState, name.c_str(), bytecode->data().get(), bytecode->size(), kLuauGlobalEnv);
