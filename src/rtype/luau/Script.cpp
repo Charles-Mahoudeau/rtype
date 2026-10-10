@@ -13,7 +13,6 @@
 #include <string_view>
 #include <utility>
 
-#include "Bytecode.hpp"
 #include "Ref.hpp"
 
 namespace rtype::luau {

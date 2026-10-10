@@ -10,9 +10,7 @@
 #include <string>
 #include <string_view>
 
-#include "Bytecode.hpp"
 #include "Ref.hpp"
-#include "Result.hpp"
 
 namespace rtype::luau {
 /// @brief Script loaded by a `Runtime`.
