@@ -86,6 +86,9 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
     _framebufferSize = platform.getFramebufferSize();
     _physicalDevice = std::make_unique<core::PhysicalDevice>(*_instance, _surface, _config.preferredDeviceType);
     _device = std::make_unique<core::Device>(*_physicalDevice);
+    _swapchain = std::make_unique<presentation::Swapchain>(*_physicalDevice, _surface, *_device, _framebufferSize,
+                                                           _config.presentMode);
+
     _allocator = std::make_unique<memory::Allocator>(*_instance, *_physicalDevice, *_device);
 }
 

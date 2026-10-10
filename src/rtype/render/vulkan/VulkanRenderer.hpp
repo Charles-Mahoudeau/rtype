@@ -33,6 +33,7 @@
 #include "engine/platform/IPlatform.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
 #include "memory/Allocator.hpp"
+#include "presentation/Swapchain.hpp"
 
 namespace rtype::render::vulkan {
 
@@ -63,6 +64,10 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
         bool synchronizationValidation = true;     ///< Synchronization validation (missing barriers, hazards), when
                                                    ///< VK_LAYER_KHRONOS_validation is in layers. Slow.
         bool bestPractices = false;  ///< Best practices warnings, when VK_LAYER_KHRONOS_validation is in layers.
+        vk::PresentModeKHR presentMode =
+            vk::PresentModeKHR::eFifo;  ///< Swapchain present mode: FIFO (vsync, always supported), MAILBOX (vsync,
+                                        ///< a newer image replaces the pending one instead of waiting) or IMMEDIATE
+                                        ///< (no vsync, may tear; benchmarks); FIFO when unsupported.
     };
 
     explicit VulkanRenderer(Config config);
@@ -113,7 +118,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
     // object is destroyed before what it was created from. New members go in their group's slot, never at the end:
     //   1. Settings and state, no Vulkan object.
     //   2. Instance, debug messenger, surface, physical device, device (and its queues).
-    //   3. Swapchain and its image views.                                          (slot: not implemented yet)
+    //   3. Swapchain and its image views.
     //   4. Sync objects (fences, semaphores) and command pools / buffers.          (slot: not implemented yet)
     //   5. Allocator, then buffers, images and samplers (they must die before it). (allocator only for now)
     //   6. Pipelines, pipeline layouts, descriptor pools / sets, shader modules.   (slot: not implemented yet)
@@ -131,7 +136,8 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
     std::unique_ptr<core::PhysicalDevice> _physicalDevice;  ///< The chosen GPU.
     std::unique_ptr<core::Device> _device;                  ///< The logical device and its queues.
 
-    // 3. Swapchain: slot reserved.
+    // 3. Presentation.
+    std::unique_ptr<presentation::Swapchain> _swapchain;  ///< The window's swapchain and its image views.
     // 4. Sync objects and command pools: slot reserved.
 
     // 5. Memory: the allocator first, then the resources allocated from it.

@@ -100,6 +100,13 @@ class RTYPE_RENDER_VULKAN_API PhysicalDevice {
     /// @throws std::runtime_error If no suitable physical device is found.
     void pickPhysicalDevice(const vk::raii::SurfaceKHR& surface, vk::PhysicalDeviceType preferredType);
 
+    /// @brief Queries the swap chain support of a physical device.
+    /// @param device The physical device to query.
+    /// @param surface The surface to check for swap chain support.
+    /// @return The swap chain support details.
+    static PhysicalDevice::SwapChainSupportDetails querySwapChainSupport(const vk::raii::PhysicalDevice& device,
+                                                                         const vk::raii::SurfaceKHR& surface);
+
   private:
     vk::raii::PhysicalDevices _physicalDevices;  ///< All physical devices of the instance, destroyed on destruction.
     vk::raii::PhysicalDevice _physicalDevice;  ///< The first physical device of the instance, destroyed on destruction.
