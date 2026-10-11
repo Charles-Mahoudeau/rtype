@@ -45,7 +45,6 @@ jobs:
         uses: xmake-io/github-action-setup-xmake@v1
         with:
           xmake-version: latest
-          project-path: "rtype"
           actions-cache-folder: ".xmake-cache"
           actions-cache-key: "${{ matrix.os }}-compilation"
           build-cache: true
@@ -90,13 +89,12 @@ jobs:
         uses: xmake-io/github-action-setup-xmake@v1
         with:
           xmake-version: latest
-          project-path: "rtype"
           actions-cache-folder: ".xmake-cache"
           actions-cache-key: "${{ matrix.os }}-compilation"
           build-cache: true
           build-cache-key: "${{ matrix.os }}-compilation"
           package-cache: true
-          package-cache-key: "${{ matrix.os }}-compilation"
+          package-cache-key: "${{ matrix.os }}-tests"
 
       - name: Build tests
         run: |
@@ -126,13 +124,12 @@ jobs:
         uses: xmake-io/github-action-setup-xmake@v1
         with:
           xmake-version: latest
-          project-path: "rtype"
           actions-cache-folder: ".xmake-cache"
           actions-cache-key: "ubuntu-latest-compilation"
           build-cache: true
           build-cache-key: "ubuntu-latest-compilation"
           package-cache: true
-          package-cache-key: "ubuntu-latest-compilation"
+          package-cache-key: "ubuntu-latest-lint"
 
       - name: Configure xmake
         run: xmake f -y --Tests=y

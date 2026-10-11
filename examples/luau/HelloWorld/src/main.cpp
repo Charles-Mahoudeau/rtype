@@ -5,16 +5,32 @@
 ** main
 */
 
+#include <fstream>
 #include <iostream>
 #include <rtype/luau/Runtime.hpp>
 
 int main() {
     // ReSharper disable once CppTooWideScopeInitStatement
-    const auto rt = rtype::luau::Runtime::create();
+    constexpr rtype::luau::RuntimeConfig config{
+        .libs = rtype::luau::RuntimeConfig::Libs::kStandard,
+        .optimizationLevel = rtype::luau::RuntimeConfig::OptimizationLevel::kDisabled,
+    };
+    const auto runtime = rtype::luau::Runtime::create(config);
 
-    if (!rt) {
-        std::cerr << "Failed to create Luau runtime" << std::endl;
+    if (!runtime) {
+        std::cerr << "failed to create Luau runtime: " << runtime.error().message() << std::endl;
         return 1;
     }
-    std::cout << "Hello World" << std::endl;
+
+    auto script = runtime->load("examples/luau/HelloWorld/script.luau");
+
+    if (!script) {
+        std::cerr << "failed to load script: " << script.error().message() << std::endl;
+        return 1;
+    }
+
+    if (auto result = runtime->run(*script); !result) {
+        std::cerr << "failed to run script: " << result.error().message() << std::endl;
+        return 1;
+    }
 }

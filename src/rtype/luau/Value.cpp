@@ -7,6 +7,8 @@
 
 #include "Value.hpp"
 
+#include <luaconf.h>
+
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -14,6 +16,8 @@
 #include <variant>
 
 #include "VariantHelper.hpp"
+
+static_assert(LUA_VECTOR_SIZE == 3, "rtype::luau::Value::Vector assumes 3-component Luau vectors");
 
 namespace {
 template <typename T, typename U>
