@@ -29,15 +29,17 @@ namespace {
 /// @brief Waits on the fence without a timeout.
 constexpr std::uint64_t kNoTimeout = std::numeric_limits<std::uint64_t>::max();
 
-/// @brief Stages that may read an uploaded buffer: vertex and index fetching, then the shaders.
-constexpr vk::PipelineStageFlags2 kReadStages =
+/// @brief Stages that may use an uploaded buffer after its copy: vertex and index fetching, the shaders, and another
+/// copy into it (two uploads to the same buffer in one batch must not run in any order).
+constexpr vk::PipelineStageFlags2 kAfterCopyStages =
     vk::PipelineStageFlagBits2::eVertexAttributeInput | vk::PipelineStageFlagBits2::eIndexInput |
     vk::PipelineStageFlagBits2::eVertexShader | vk::PipelineStageFlagBits2::eFragmentShader |
-    vk::PipelineStageFlagBits2::eComputeShader;
+    vk::PipelineStageFlagBits2::eComputeShader | vk::PipelineStageFlagBits2::eCopy;
 
-/// @brief How those stages may read it: as vertices, indices, uniforms or storage.
-constexpr vk::AccessFlags2 kReadAccesses = vk::AccessFlagBits2::eVertexAttributeRead | vk::AccessFlagBits2::eIndexRead |
-                                           vk::AccessFlagBits2::eUniformRead | vk::AccessFlagBits2::eShaderStorageRead;
+/// @brief How those stages may use it: read as vertices, indices, uniforms or storage, or written by a copy.
+constexpr vk::AccessFlags2 kAfterCopyAccesses =
+    vk::AccessFlagBits2::eVertexAttributeRead | vk::AccessFlagBits2::eIndexRead | vk::AccessFlagBits2::eUniformRead |
+    vk::AccessFlagBits2::eShaderStorageRead | vk::AccessFlagBits2::eTransferWrite;
 
 }  // namespace
 
@@ -90,8 +92,8 @@ void Uploader::upload(std::span<const std::byte> data, Buffer& destination, vk::
     const auto barrier = vk::BufferMemoryBarrier2{}
                              .setSrcStageMask(vk::PipelineStageFlagBits2::eCopy)
                              .setSrcAccessMask(vk::AccessFlagBits2::eTransferWrite)
-                             .setDstStageMask(kReadStages)
-                             .setDstAccessMask(kReadAccesses)
+                             .setDstStageMask(kAfterCopyStages)
+                             .setDstAccessMask(kAfterCopyAccesses)
                              .setSrcQueueFamilyIndex(vk::QueueFamilyIgnored)
                              .setDstQueueFamilyIndex(vk::QueueFamilyIgnored)
                              .setBuffer(*destination.getBuffer())
