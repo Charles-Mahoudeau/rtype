@@ -8,10 +8,14 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
+#include "rtype/luau/CallContext.hpp"
 #include "rtype/luau/ErrorKind.hpp"
+#include "rtype/luau/Exceptions.hpp"
 #include "rtype/luau/Function.hpp"
 #include "rtype/luau/Ref.hpp"
 #include "rtype/luau/Runtime.hpp"
@@ -21,6 +25,7 @@
 #include "rtype/luau/ValuePack.hpp"
 
 namespace {
+using CallContext = rtype::luau::CallContext;
 using Function = rtype::luau::Function;
 using Value = rtype::luau::Value;
 using ValuePack = rtype::luau::ValuePack;
@@ -228,5 +233,207 @@ TEST(Function, UnreadableReturnValueDoesNotLeaveValuesOnStack) {
         const auto result = function.call();
         ASSERT_FALSE(result) << "call " << i;
         ASSERT_EQ(result.error().kind(), rtype::luau::ErrorKind::kTypeMismatch) << "call " << i;
+    }
+}
+
+TEST(Function, NativeReceivesArgumentsInOrder) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    std::vector<Value> received{};
+    native.setHandler([&received](const CallContext& context) -> ValuePack {
+        received.assign(context.args().begin(), context.args().end());
+        return {};
+    });
+    const Function function = makeFunction(runtime, R"(native("first", 2, true, nil))");
+
+    ASSERT_TRUE(function.call());
+
+    ASSERT_EQ(received.size(), 4U);
+    EXPECT_EQ(received[0].as<std::string>(), "first");
+    EXPECT_EQ(received[1].as<double>(), 2.0);
+    EXPECT_EQ(received[2].as<bool>(), true);
+    EXPECT_TRUE(received[3].is<Value::Nil>());
+}
+
+TEST(Function, NativeReturnsValuesInOrder) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    native.setHandler([](const CallContext&) -> ValuePack {
+        ValuePack result{};
+        result.add({std::string{"first"}});
+        result.add({2.0});
+        result.add({Value::Vector{1.0F, 2.0F, 3.0F}});
+        return result;
+    });
+    const Function function = makeFunction(runtime, R"(
+        assert(select("#", native()) == 3)
+        local a, b, v = native()
+        assert(a == "first" and b == 2)
+        assert(typeof(v) == "vector" and v.x == 1 and v.y == 2 and v.z == 3)
+    )");
+
+    EXPECT_TRUE(function.call());
+}
+
+TEST(Function, NativeWithoutValuesReturnsNothing) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    native.setHandler([](const CallContext&) -> ValuePack { return {}; });
+    const Function function = makeFunction(runtime, R"(assert(select("#", native(1, 2)) == 0))");
+
+    EXPECT_TRUE(function.call());
+}
+
+TEST(Function, NativeEchoesArgumentsBackToLuau) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    native.setHandler([](const CallContext& context) -> ValuePack {
+        ValuePack result{};
+        for (const Value& arg : context.args()) {
+            result.add(arg);
+        }
+        return result;
+    });
+    const Function function = makeFunction(runtime, "return native(...)");
+    ValuePack args{};
+    args.add({std::string{"text"}});
+    args.add({false});
+
+    const auto result = function.call(args);
+
+    ASSERT_TRUE(result);
+    ASSERT_EQ(result->values().size(), 2U);
+    EXPECT_EQ(result->values()[0].as<std::string>(), "text");
+    EXPECT_EQ(result->values()[1].as<bool>(), false);
+}
+
+TEST(Function, NativeReturnsMoreValuesThanMinimumStack) {
+    const auto runtime = makeRuntime();
+    constexpr std::size_t kValueCount = 1000;
+    Function native = Function::create(runtime.state(), "native");
+    native.setHandler([](const CallContext&) -> ValuePack {
+        ValuePack result{};
+        for (std::size_t i = 0; i < kValueCount; ++i) {
+            result.add({static_cast<double>(i)});
+        }
+        return result;
+    });
+    const Function function = makeFunction(runtime, R"(
+        assert(select("#", native()) == 1000)
+        assert(select(1000, native()) == 999)
+    )");
+
+    EXPECT_TRUE(function.call());
+}
+
+TEST(Function, NativeRaisesErrorForUnreadableArgument) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    bool called{false};
+    native.setHandler([&called](const CallContext&) -> ValuePack {
+        called = true;
+        return {};
+    });
+    const Function function = makeFunction(runtime, R"(
+        local ok, err = pcall(native, 1, {})
+        assert(not ok)
+        assert(string.find(err, "invalid argument to 'native' (value #2: ", 1, true), err)
+    )");
+
+    const auto result = function.call();
+
+    EXPECT_TRUE(result) << result.error().message();
+    EXPECT_FALSE(called);
+}
+
+TEST(Function, NativeRaisesErrorForUnpushableValue) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    native.setHandler([](const CallContext&) -> ValuePack {
+        ValuePack result{};
+        result.add({rtype::luau::Table{}});
+        return result;
+    });
+    const Function function = makeFunction(runtime, R"(
+        local ok, err = pcall(native)
+        assert(not ok)
+        assert(err == "native function 'native': not implemented", err)
+    )");
+
+    const auto result = function.call();
+
+    EXPECT_TRUE(result) << result.error().message();
+}
+
+TEST(Function, NativeRaisesErrorWhenHandlerThrowsModuleException) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    native.setHandler([](const CallContext&) -> ValuePack { throw rtype::luau::exceptions::InvalidOperation{"boom"}; });
+    const Function function = makeFunction(runtime, R"(
+        local ok, err = pcall(native)
+        assert(not ok)
+        assert(err == "native function 'native': boom", err)
+    )");
+
+    const auto result = function.call();
+
+    EXPECT_TRUE(result) << result.error().message();
+}
+
+TEST(Function, NativeRaisesErrorWhenHandlerThrowsStdException) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    native.setHandler([](const CallContext&) -> ValuePack { throw std::runtime_error{"oops"}; });
+    const Function function = makeFunction(runtime, "native()");
+
+    const auto result = function.call();
+
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kRuntime);
+    EXPECT_EQ(result.error().message(), "oops");
+}
+
+TEST(Function, NativeHandlerCanCallBackIntoLuau) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    // The handler calls back into Luau: the nested call runs in protected mode, so its error comes back as a
+    // Result and the native call itself succeeds.
+    const Function failing = makeFunction(runtime, "error('nested', 0)");
+    native.setHandler([&failing](const CallContext&) -> ValuePack {
+        const auto nested = failing.call();
+        ValuePack result{};
+        result.add({std::string{nested ? "ok" : nested.error().message()}});
+        return result;
+    });
+    const Function function = makeFunction(runtime, R"(assert(native() == "nested"))");
+
+    const auto result = function.call();
+
+    EXPECT_TRUE(result) << result.error().message();
+}
+
+TEST(Function, NativeCallsDoNotLeaveValuesOnStack) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    native.setHandler([](const CallContext& context) -> ValuePack {
+        ValuePack result{};
+        for (const Value& arg : context.args()) {
+            result.add(arg);
+        }
+        return result;
+    });
+    // Each call passes and returns 100 values, 100 times. If they were left on the stack, they would add up past
+    // Luau's 8000-slot cap, and the calls would fail with a stack overflow instead.
+    const Function function = makeFunction(runtime, R"(
+        local values = table.create(100, 0)
+        for _ = 1, 100 do
+            assert(select("#", native(table.unpack(values))) == 100)
+        end
+    )");
+    constexpr int kCalls = 10;
+
+    for (int i = 0; i < kCalls; ++i) {
+        const auto result = function.call();
+        ASSERT_TRUE(result) << "call " << i << ": " << result.error().message();
     }
 }
