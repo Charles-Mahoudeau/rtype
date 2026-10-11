@@ -16,6 +16,7 @@
 
 #include "FrameData.hpp"
 #include "render/vulkan/core/Device.hpp"
+#include "render/vulkan/sync/Semaphore.hpp"
 
 namespace rtype::render::vulkan::frame {
 
@@ -31,21 +32,21 @@ FrameResources::FrameResources(const core::Device& device, std::size_t framesInF
     _renderFinished = createSemaphores(device, swapchainImageCount);
 }
 
-std::vector<vk::raii::Semaphore> FrameResources::recreateRenderFinished(const core::Device& device,
-                                                                        std::size_t swapchainImageCount) {
+std::vector<sync::Semaphore> FrameResources::recreateRenderFinished(const core::Device& device,
+                                                                    std::size_t swapchainImageCount) {
     return std::exchange(_renderFinished, createSemaphores(device, swapchainImageCount));
 }
 
-std::vector<vk::raii::Semaphore> FrameResources::createSemaphores(const core::Device& device, std::size_t count) {
-    std::vector<vk::raii::Semaphore> semaphores;
+std::vector<sync::Semaphore> FrameResources::createSemaphores(const core::Device& device, std::size_t count) {
+    std::vector<sync::Semaphore> semaphores;
     semaphores.reserve(count);
     for (std::size_t index = 0; index < count; ++index) {
-        semaphores.emplace_back(device.getDevice(), vk::SemaphoreCreateInfo{});
+        semaphores.emplace_back(device);
     }
     return semaphores;
 }
 
-const vk::raii::Semaphore& FrameResources::getRenderFinished(std::uint32_t imageIndex) const {
+const sync::Semaphore& FrameResources::getRenderFinished(std::uint32_t imageIndex) const {
     return _renderFinished.at(imageIndex);
 }
 

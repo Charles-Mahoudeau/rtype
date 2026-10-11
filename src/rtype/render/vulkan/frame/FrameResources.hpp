@@ -15,6 +15,7 @@
 #include "FrameData.hpp"
 #include "render/vulkan/Export.hpp"
 #include "render/vulkan/core/Device.hpp"
+#include "render/vulkan/sync/Semaphore.hpp"
 
 namespace rtype::render::vulkan::frame {
 
@@ -46,24 +47,24 @@ class RTYPE_RENDER_VULKAN_API FrameResources {
 
     /// @return The semaphore signaled when rendering into swapchain image @p imageIndex is done.
     /// @throws std::out_of_range If @p imageIndex is not a swapchain image index.
-    [[nodiscard]] const vk::raii::Semaphore& getRenderFinished(std::uint32_t imageIndex) const;
+    [[nodiscard]] const sync::Semaphore& getRenderFinished(std::uint32_t imageIndex) const;
 
     /// @brief Replaces the renderFinished semaphores with @p swapchainImageCount new ones, for a recreated swapchain.
     /// @return The previous semaphores: presentation may still wait on them, destroy them once the GPU is done (e.g.
     /// through a DeletionQueue).
     /// @throws vk::SystemError If a semaphore cannot be created.
-    [[nodiscard]] std::vector<vk::raii::Semaphore> recreateRenderFinished(const core::Device& device,
-                                                                          std::size_t swapchainImageCount);
+    [[nodiscard]] std::vector<sync::Semaphore> recreateRenderFinished(const core::Device& device,
+                                                                      std::size_t swapchainImageCount);
 
     /// @brief Moves on to the next frame in flight, wrapping around.
     void advance() noexcept;
 
   private:
     /// @return @p count new binary semaphores.
-    static std::vector<vk::raii::Semaphore> createSemaphores(const core::Device& device, std::size_t count);
+    static std::vector<sync::Semaphore> createSemaphores(const core::Device& device, std::size_t count);
 
-    std::vector<FrameData> _frames;                    ///< One per frame in flight.
-    std::vector<vk::raii::Semaphore> _renderFinished;  ///< One per swapchain image.
-    std::size_t _frameIndex = 0;                       ///< Frame being recorded.
+    std::vector<FrameData> _frames;                ///< One per frame in flight.
+    std::vector<sync::Semaphore> _renderFinished;  ///< One per swapchain image.
+    std::size_t _frameIndex = 0;                   ///< Frame being recorded.
 };
 }  // namespace rtype::render::vulkan::frame

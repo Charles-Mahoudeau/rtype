@@ -162,10 +162,7 @@ void VulkanRenderer::beginFrame(const engine::graphics::Color& clearColor) {
     if (_framebufferSize.x == 0 || _framebufferSize.y == 0) {
         return;
     }
-    const vk::raii::Device& device = _device->getDevice();
-    if (device.waitForFences(*_frames->getCurrentFrame().getInFlight(), vk::True, kNoTimeout) != vk::Result::eSuccess) {
-        throw std::runtime_error("VulkanRenderer: waiting for the frame's fence failed");
-    }
+    _frames->getCurrentFrame().getInFlight().wait();
     _deletionQueue.flush(_frames->getFrameIndex());
     if (_swapchainOutOfDate) {
         recreateSwapchain();
@@ -175,18 +172,18 @@ void VulkanRenderer::beginFrame(const engine::graphics::Color& clearColor) {
     std::uint32_t imageIndex = 0;
     try {
         const vk::ResultValue<std::uint32_t> acquired =
-            _swapchain->getSwapchain().acquireNextImage(kNoTimeout, *frame.getImageAvailable());
+            _swapchain->getSwapchain().acquireNextImage(kNoTimeout, *frame.getImageAvailable().getSemaphore());
         imageIndex = acquired.value;
         _swapchainOutOfDate = _swapchainOutOfDate || acquired.result == vk::Result::eSuboptimalKHR;
     } catch (const vk::OutOfDateKHRError&) {
         recreateSwapchain();
         return;
     }
-    device.resetFences(*frame.getInFlight());
+    frame.getInFlight().reset();
     frame.getCommandPool().reset();
 
-    const vk::raii::CommandBuffer& commandBuffer = frame.getCommandBuffer();
-    commandBuffer.begin(vk::CommandBufferBeginInfo{}.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
+    frame.getCommandBuffer().begin();
+    const vk::raii::CommandBuffer& commandBuffer = frame.getCommandBuffer().getCommandBuffer();
     rendering::transitionImage(commandBuffer, _swapchain->getImages().at(imageIndex), rendering::kToColorAttachment);
     const vk::RenderingAttachmentInfo color =
         rendering::colorAttachment(*_swapchain->getImageViews().at(imageIndex), toClearColor(clearColor));
@@ -201,15 +198,15 @@ void VulkanRenderer::endFrame() {
     const std::uint32_t imageIndex = *_acquiredImage;
     _acquiredImage.reset();
     const frame::FrameData& frame = _frames->getCurrentFrame();
-    const vk::raii::CommandBuffer& commandBuffer = frame.getCommandBuffer();
+    const vk::raii::CommandBuffer& commandBuffer = frame.getCommandBuffer().getCommandBuffer();
 
     commandBuffer.endRendering();
     rendering::transitionImage(commandBuffer, _swapchain->getImages().at(imageIndex),
                                rendering::kColorAttachmentToPresent);
-    commandBuffer.end();
+    frame.getCommandBuffer().end();
 
-    const vk::Semaphore renderFinished = *_frames->getRenderFinished(imageIndex);
-    const vk::SemaphoreSubmitInfo waitInfo{*frame.getImageAvailable(), 0,
+    const vk::Semaphore renderFinished = *_frames->getRenderFinished(imageIndex).getSemaphore();
+    const vk::SemaphoreSubmitInfo waitInfo{*frame.getImageAvailable().getSemaphore(), 0,
                                            vk::PipelineStageFlagBits2::eColorAttachmentOutput};
     const vk::CommandBufferSubmitInfo commandBufferInfo{*commandBuffer};
     const vk::SemaphoreSubmitInfo signalInfo{renderFinished, 0, vk::PipelineStageFlagBits2::eAllCommands};
@@ -217,7 +214,7 @@ void VulkanRenderer::endFrame() {
                                                    .setWaitSemaphoreInfos(waitInfo)
                                                    .setCommandBufferInfos(commandBufferInfo)
                                                    .setSignalSemaphoreInfos(signalInfo),
-                                               *frame.getInFlight());
+                                               *frame.getInFlight().getFence());
 
     const vk::SwapchainKHR swapchain = *_swapchain->getSwapchain();
     try {
