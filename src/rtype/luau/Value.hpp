@@ -16,11 +16,13 @@
 #include "Export.hpp"
 #include "Table.hpp"
 
+struct lua_State;
+
 namespace rtype::luau {
 /// @brief A dynamically typed Luau value, held by value on the C++ side.
 ///
 /// Wraps a `std::variant` of the Luau types that are currently supported. Use `is<T>()` to inspect
-/// the held type and `as<T>()` to access it.
+/// the held type, `as<T>()` or `tryAs<T>()` to access it, and `push()` to hand it over to a Lua state.
 class RTYPE_LUAU_API Value {
   public:
     /// @brief Luau `nil`.
@@ -29,9 +31,10 @@ class RTYPE_LUAU_API Value {
     using Vector = glm::vec3;
     /// @brief The set of Luau types a Value can hold.
     ///
-    /// See https://luau.org/api/#type-inspection. Not implemented types (yet): Function, Userdata,
-    /// Thread, Buffer, Class.
-    using Variant = std::variant<Nil, bool, double, std::int64_t, Vector, std::string, Table>;
+    /// See https://luau.org/api/#type-inspection. Numbers are all `double` for now: 64-bit integers
+    /// come with a later Luau version. Not implemented types (yet): Function, Userdata, Thread,
+    /// Buffer, Class.
+    using Variant = std::variant<Nil, bool, double, Vector, std::string, Table>;
 
     /// @brief Constructs a Value from any of the supported types.
     /// @param v The variant to hold.
@@ -48,6 +51,14 @@ class RTYPE_LUAU_API Value {
     Value(Value&&) noexcept;
     /// @brief Move assignment.
     Value& operator=(Value&&) noexcept;
+
+    /// @brief Pushes the held value onto the stack of a Lua state, as the matching Luau type.
+    ///
+    /// Pushes exactly one value on success and nothing when it throws. Does not grow the stack: the
+    /// caller makes sure there is room for one more slot (`lua_checkstack`).
+    /// @param state The Lua state to push onto; must not be null.
+    /// @throws exceptions::NotImplemented If the Value holds a type that cannot be pushed yet (`Table`).
+    void push(lua_State* state) const;
 
     /// @brief Checks whether the Value currently holds a `T`.
     /// @tparam T One of the alternatives of `Variant`.
@@ -68,25 +79,26 @@ class RTYPE_LUAU_API Value {
     [[nodiscard]] T& as();
     /// @brief Accesses the held value as a `T`, without throwing.
     /// @tparam T One of the alternatives of `Variant`.
-    /// @return A const reference to the held value, or `std::nullopt` if the Value does not hold a `T`.
+    /// @return A const pointer to the held value, or `nullptr` if the Value does not hold a `T`.
     template <typename T>
     [[nodiscard]] const T* tryAs() const noexcept;
     /// @brief Accesses the held value as a `T`, without throwing.
     /// @tparam T One of the alternatives of `Variant`.
-    /// @return A reference to the held value, or `std::nullopt` if the Value does not hold a `T`.
+    /// @return A pointer to the held value, or `nullptr` if the Value does not hold a `T`.
     template <typename T>
     [[nodiscard]] T* tryAs() noexcept;
 
-    /// @brief Checks whether the Value holds a number (`double` or `std::int64_t`).
+    /// @brief Checks whether the Value holds a number (a `double`, the only numeric type for now).
     /// @return `true` if the Value is numeric.
     [[nodiscard]] bool isNumeric() const noexcept;
     /// @brief Converts the Value to a 32-bit signed integer.
-    /// @return The converted value (truncated towards zero if it is a `double`), or `std::nullopt`
-    ///         if the Value is not numeric or does not fit in `std::int32_t`.
+    /// @return The number truncated towards zero, or `std::nullopt` if the Value is not numeric, is
+    ///         NaN, or lies outside the range of `std::int32_t` (checked before truncating).
     [[nodiscard]] std::optional<std::int32_t> toInt32() const;
     /// @brief Converts the Value to a 32-bit unsigned integer.
-    /// @return The converted value (truncated towards zero if it is a `double`), or `std::nullopt`
-    ///         if the Value is not numeric or does not fit in `std::uint32_t`.
+    /// @return The number truncated towards zero, or `std::nullopt` if the Value is not numeric, is
+    ///         NaN, or lies outside the range of `std::uint32_t` (checked before truncating, so
+    ///         `-0.5` is rejected).
     [[nodiscard]] std::optional<std::uint32_t> toUInt32() const;
 
   private:
