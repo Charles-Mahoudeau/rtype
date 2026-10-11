@@ -10,6 +10,7 @@
 #include <lua.h>
 #include <luaconf.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -51,6 +52,29 @@ template <typename T>
 }  // namespace
 
 namespace rtype::luau {
+Value Value::fromStack(lua_State* state, const int stackIndex) {
+    switch (lua_type(state, stackIndex)) {
+        case LUA_TNIL:
+            return Value{Nil{}};
+        case LUA_TBOOLEAN:
+            return Value{lua_toboolean(state, stackIndex) != 0};
+        case LUA_TNUMBER:
+            return Value{lua_tonumber(state, stackIndex)};
+        case LUA_TVECTOR: {
+            const float* v{lua_tovector(state, stackIndex)};
+            // NOLINTNEXTLINE(*-pro-bounds-pointer-arithmetic)
+            return Value{Vector{v[0], v[1], v[2]}};
+        }
+        case LUA_TSTRING: {
+            std::size_t length{};
+            const char* str{lua_tolstring(state, stackIndex, &length)};
+            return Value{std::string{str, length}};
+        }
+        default:
+            throw exceptions::NotImplemented{};
+    }
+}
+
 Value::Value(Variant v) noexcept : _variant{std::move(v)} {}
 Value::~Value() noexcept = default;
 Value::Value(const Value&) noexcept = default;

@@ -14,6 +14,7 @@
 #include <variant>
 
 #include "Export.hpp"
+#include "Ref.hpp"
 #include "Table.hpp"
 
 struct lua_State;
@@ -35,6 +36,17 @@ class RTYPE_LUAU_API Value {
     /// come with a later Luau version. Not implemented types (yet): Function, Userdata, Thread,
     /// Buffer, Class.
     using Variant = std::variant<Nil, bool, double, Vector, std::string, Table>;
+
+    /// @brief Reads a value from the stack of a Lua state, as the matching Value alternative.
+    ///
+    /// Copies the value without popping it, and leaves the stack untouched. The reverse of `push()`.
+    /// @param state The Lua state to read from; must not be null.
+    /// @param stackIndex Stack index of the value to read (defaults to the top). It must be a valid index
+    ///        of @p state's stack.
+    /// @return A Value holding a copy of the Luau value.
+    /// @throws exceptions::NotImplemented If the value has a type that cannot be read yet (table,
+    ///         function, userdata, thread, buffer).
+    [[nodiscard]] static Value fromStack(lua_State* state, int stackIndex = Ref::kLuaStackTop);
 
     /// @brief Constructs a Value from any of the supported types.
     /// @param v The variant to hold.
