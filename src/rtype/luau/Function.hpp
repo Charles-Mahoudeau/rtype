@@ -43,7 +43,7 @@ class RTYPE_LUAU_API Function {
     /// run and the call raises a Lua error instead. A handler raises a Lua error by throwing an `exceptions::Base`,
     /// whose message is then prefixed with the name of the function; any other `std::exception` also becomes a Lua
     /// error, with its message unchanged.
-    using Handler = std::move_only_function<ValuePack(const CallContext&)>;
+    using Handler = std::function<ValuePack(const CallContext&)>;
 
     /// @brief Creates a native closure bound to a new Function and registers it as a global of the Lua state.
     ///
