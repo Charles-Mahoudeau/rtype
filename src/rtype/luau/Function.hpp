@@ -96,7 +96,7 @@ class RTYPE_LUAU_API Function {
     ///         error, or of kind `ErrorKind::kTypeMismatch` if a returned value cannot be read yet (see
     ///         `ValuePack::pop`).
     /// @throws exceptions::InvalidRef If the Function was moved from.
-    Result<ValuePack> call(const ValuePack& args = {}) const;
+    [[nodiscard]] Result<ValuePack> call(const ValuePack& args = {}) const;
 
   private:
     /// @brief Creates a Function wrapping an existing function.
