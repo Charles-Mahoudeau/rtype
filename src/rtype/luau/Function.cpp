@@ -10,14 +10,19 @@
 #include <lua.h>
 
 #include <cstddef>
+#include <exception>
 #include <format>
 #include <iostream>
 #include <string>
 #include <utility>
 
 #include "CallContext.hpp"
+#include "CallResult.hpp"
+#include "ErrorKind.hpp"
 #include "Exceptions.hpp"
+#include "Failure.hpp"
 #include "Ref.hpp"
+#include "Result.hpp"
 
 namespace rtype::luau {
 Function Function::create(lua_State* state, std::string name) {
@@ -68,7 +73,7 @@ const Ref& Function::ref() const noexcept { return _ref; }
 
 void Function::setHandler(Handler handler) { _handler = std::move(handler); }
 
-void Function::call(const CallContext& context) const {
+Result<CallResult> Function::call(const CallContext& context) const {
     if (_type == BindingType::kNative) {
         std::cerr << "warning: you are calling a native function from a script binding" << std::endl;
     }
@@ -77,16 +82,20 @@ void Function::call(const CallContext& context) const {
     std::size_t argCount{};
     try {
         argCount = context.pushArgs(_state);
-    } catch (...) {
+    } catch (const std::exception& e) {
         // Drop the function and the arguments pushed before the failure, to leave the stack as it was.
         lua_settop(_state, top);
-        throw;
+        return Failure{ErrorKind::kRuntime, e.what()};
+    } catch (...) {
+        lua_settop(_state, top);
+        return Failure{ErrorKind::kRuntime, "unknown error"};
     }
     if (lua_pcall(_state, static_cast<int>(argCount), 0, 0) != LUA_OK) {
-        const std::string error{lua_tostring(_state, -1)};
+        std::string error{lua_tostring(_state, -1)};
         lua_pop(_state, 1);
-        throw exceptions::RuntimeError{error};
+        return Failure{ErrorKind::kRuntime, std::move(error)};
     }
+    return {};
 }
 
 Function::Function(lua_State* state, const BindingType type, Ref ref, std::string name)
