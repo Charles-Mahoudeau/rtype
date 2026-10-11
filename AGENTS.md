@@ -15,6 +15,12 @@ are added.
   project target. Exported classes and functions are marked `RTYPE_ECS_API`, and the library keeps no
   global mutable state (state lives in the world), so it can also be built static by switching its
   kind and defining `RTYPE_ECS_STATIC` publicly (see `Export.hpp`).
+  - Files are grouped in one folder per feature (`entity/`, and later `component/`, `storage/`,
+    `world/`, `query/`, `system/`, `schedule/`, `app/`), included as `rtype/ecs/<feature>/<File>.hpp`.
+  - Exception to the namespace rule: the types users write every day stay in the flat `rtype::ecs`
+    namespace whatever their folder (`rtype/ecs/entity/Entity.hpp` declares `rtype::ecs::Entity`).
+    Only internal parts get a sub-namespace, named after their folder: `rtype::ecs::storage`,
+    `rtype::ecs::detail` (`detail/`), `rtype::ecs::exceptions` (`exceptions/`).
 - `src/rtype/engine/` — two targets defined in the same `xmake.lua`:
   - `engine-core`: static library (`rtype-engine-core`), the core of the engine: events
     (`event/`, `rtype::engine::event`) and input (`input/`, `rtype::engine::input`). It depends on
@@ -122,7 +128,8 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
   - Headers use `#pragma once` as their include guard, placed right after the Epitech header —
     never `#ifndef`/`#define`/`#endif` guards.
   - Namespaces mirror the directory path under `src/rtype/` (`rtype::engine::input`,
-    `rtype::platform::glfw`, `rtype::render::vulkan`).
+    `rtype::platform::glfw`, `rtype::render::vulkan`). The ECS feature folders are the one exception
+    (see `src/rtype/ecs/` in Project structure).
   - Private members prefixed with `_` (`_window`), documented with `///<` comments.
   - Constants (`constexpr` / `static constexpr` variables) and enumerators are named `kName`
     (`kGamepadAxisCount`, `Key::kEscape`, `GamepadButton::kSouth`). Enum types themselves keep

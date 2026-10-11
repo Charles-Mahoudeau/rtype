@@ -1308,51 +1308,40 @@ and meet in `RenderPlugin`.
 
 ## Source Layout
 
-`rtype-ecs` is its own **shared** library. Putting it in `engine-core` would not work: `engine-core`
-is a static library linked into both the executable and `rtype-render-vulkan`, so each binary would get
-its own copy of the registries.
+`rtype-ecs` is its own library, depending on no other project target. It is **shared**, and can be
+switched to **static** without touching the code: exported classes and functions are marked
+`RTYPE_ECS_API`, and the library keeps no global mutable state (see `Export.hpp`). Code written for a
+shared library also works as a static one, while the reverse would mean finding every missing export
+later.
 
-**`src/rtype/ecs/`**: the `ecs` target (shared library `rtype-ecs`, `RTYPE_ECS_BUILD`, namespace
-`rtype::ecs`).
+Files are grouped **one folder per feature**, included as `rtype/ecs/<feature>/<File>.hpp`. The types
+users write every day stay in the **flat `rtype::ecs` namespace** whatever their folder
+(`rtype/ecs/entity/Entity.hpp` declares `rtype::ecs::Entity`, not `rtype::ecs::entity::Entity`); only
+internal parts get a sub-namespace named after their folder (`storage`, `detail`, `exceptions`). This
+is the same idea as Bevy's modules with a short prelude.
 
-| File | Contents |
-|---|---|
-| `xmake.lua` | `target("ecs")`, shared, basename `rtype-ecs` |
-| `Export.hpp` | `RTYPE_ECS_API` |
-| `Entity.hpp`, `EntityAllocator.hpp/.cpp` | Generational ids, free list, reservation |
-| `ComponentInfo.hpp` | `ComponentId`, `StorageKind`, `Presence`, `ReplicationMode`, `FieldType`, `FieldInfo`, `ComponentInfo` |
-| `ComponentTraits.hpp` | `RTYPE_ECS_COMPONENT`, compile-time name hash |
-| `ComponentRegistry.hpp/.cpp` | Name → id, deterministic layout for descriptors, list of replicated ids |
-| `World.hpp/.tpp/.cpp` | The world, typed and type-erased API |
-| `Mut.hpp/.tpp` | Write access that stamps changed ticks |
-| `Query.hpp/.tpp` | Typed queries and filters |
-| `DynamicQuery.hpp/.cpp` | The single query engine |
-| `Commands.hpp/.tpp/.cpp` | Deferred structural changes |
-| `Events.hpp/.tpp` | Double-buffered event queues |
-| `Resources.hpp/.tpp` | `Res`, `ResMut`, `NonSend`, `NonSendMut` |
-| `System.hpp/.tpp` | Parameter deduction, access sets |
-| `Scheduler.hpp/.cpp` | Phases, ordering, fixed timestep |
-| `App.hpp/.tpp/.cpp`, `Plugin.hpp` | The App and the plugin interface |
-
-**`src/rtype/ecs/storage/`** (namespace `rtype::ecs::storage`):
-
-| File | Contents |
-|---|---|
-| `PagedSparseArray.hpp/.cpp` | Entity index → dense position, paged |
-| `ByteColumn.hpp/.cpp` | Aligned, type-erased array of component bytes |
-| `SparseSetStorage.hpp/.cpp` | The pool: sparse array + dense entities, bytes and ticks |
-| `Table.hpp/.cpp` | Archetype tables (v3) |
+| Folder | Namespace | Contents |
+|---|---|---|
+| *(root)* | `rtype::ecs` | `xmake.lua` (`target("ecs")`), `Export.hpp` (`RTYPE_ECS_API`), `Version.hpp/.cpp` |
+| `entity/` | `rtype::ecs` | `Entity.hpp`, `EntityAllocator.hpp/.cpp`: generational ids, free list, reservation |
+| `component/` | `rtype::ecs` | `ComponentInfo.hpp` (`ComponentId`, `StorageKind`, `Presence`, `ReplicationMode`, `FieldType`, `FieldInfo`), `ComponentTraits.hpp` (`RTYPE_ECS_COMPONENT`, name hash), `ComponentRegistry.hpp/.cpp` |
+| `storage/` | `rtype::ecs::storage` | `PagedSparseArray`, `ByteColumn`, `SparseSetStorage` (the pool), `Table` (v3) |
+| `world/` | `rtype::ecs` | `World.hpp/.tpp/.cpp`: typed and type-erased API |
+| `query/` | `rtype::ecs` | `DynamicQuery` (the single query engine), `Query` (typed queries and filters), `Mut` (write access stamping ticks) |
+| `system/` | `rtype::ecs` | `System` (parameter deduction, access sets), `Commands`, `Resources` (`Res`, `ResMut`, `NonSend`, `NonSendMut`), `Events` |
+| `schedule/` | `rtype::ecs` | `Scheduler` (phases, ordering), fixed timestep and `Time` |
+| `app/` | `rtype::ecs` | `App`, `Plugin` |
+| `detail/` | `rtype::ecs::detail` | Internal helpers shared by several features (e.g. `Generation.hpp`) |
+| `exceptions/` | `rtype::ecs::exceptions` | Every ECS exception (e.g. `EntityExceptions.hpp`) |
 
 **Elsewhere:**
 
 | Path | Contents |
 |---|---|
-| `src/rtype/ecs/exceptions/EcsExceptions.hpp` | Registration and scheduling errors |
-| `src/rtype/engine/plugins/` | `WindowPlugin`, `InputPlugin`, `RenderPlugin`, `AudioPlugin`, `AssetPlugin`, `TransformPlugin`, `CollisionPlugin`, `ScriptPlugin`, `LuauPlugin`, `ClientPlugin`, `ServerPlugin`, `StandalonePlugin`, plugin groups |
+| `src/rtype/engine/plugins/` | `WindowPlugin`, `InputPlugin`, `RenderPlugin`, `AudioPlugin`, `AssetPlugin`, `TransformPlugin`, `CollisionPlugin`, `ScriptPlugin`, `LuauPlugin`, `ClientPlugin`, `ServerPlugin`, `StandalonePlugin`, plugin groups (`rtype::engine::plugins`) |
 | `tests/ecs/` | gtest, same setup as `tests/luau` (`xmake f --Tests=y`) |
 
-Namespaces mirror folders (`rtype::ecs`, `rtype::ecs::storage`, `rtype::engine::plugins`). The public
-include path is `src/`: `#include <rtype/ecs/World.hpp>`.
+The public include path is `src/`: `#include <rtype/ecs/world/World.hpp>`.
 
 ## Roadmap
 

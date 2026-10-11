@@ -5,7 +5,7 @@ end
 add_requires("vulkan-memory-allocator 3.x", {alias = "vulkan-memory-allocator"})
 add_requires("stb", {alias = "stb"})
 add_requires("imgui 1.92.x", {alias = "imgui", configs = {vulkan = true}})
-add_requires("slang 2025.x", {alias = "slang"})
+add_requires("slang 2025.x", {alias = "slang", configs = {shared = true}})
 
 rule("glsl.spirv")
     set_extensions(".vert", ".frag", ".comp", ".geom", ".tesc", ".tese")
