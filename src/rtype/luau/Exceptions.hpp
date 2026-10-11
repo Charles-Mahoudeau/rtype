@@ -49,4 +49,13 @@ class RTYPE_LUAU_API RuntimeError : public Base {
   public:
     using Base::Base;
 };
+
+/// @brief Exception thrown when a feature of the module is not implemented yet.
+///
+/// For instance, pushing a Value that holds a Table onto a Lua stack.
+class RTYPE_LUAU_API NotImplemented : public Base {
+  public:
+    /// @brief Creates the exception with the message "not implemented".
+    NotImplemented() : Base{"not implemented"} {}
+};
 }  // namespace rtype::luau::exceptions
