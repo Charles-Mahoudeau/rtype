@@ -1,4 +1,4 @@
-target("FunctionBinding")
+target("AdvancedFunctionBinding")
     set_kind("binary")
     set_default(false)
     add_deps("luau")
