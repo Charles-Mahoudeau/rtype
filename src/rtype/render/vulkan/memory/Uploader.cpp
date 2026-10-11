@@ -8,14 +8,11 @@
 #include "Uploader.hpp"
 
 #include <cstddef>
-#include <cstdint>
 #include <exception>
 #include <format>
 #include <iostream>
-#include <limits>
 #include <span>
 #include <stdexcept>
-#include <utility>
 #include <vulkan/vulkan_raii.hpp>
 
 #include "Allocator.hpp"
@@ -25,9 +22,6 @@
 namespace rtype::render::vulkan::memory {
 
 namespace {
-
-/// @brief Waits on the fence without a timeout.
-constexpr std::uint64_t kNoTimeout = std::numeric_limits<std::uint64_t>::max();
 
 /// @brief Stages that may use an uploaded buffer after its copy: vertex and index fetching, the shaders, and another
 /// copy into it (two uploads to the same buffer in one batch must not run in any order).
@@ -46,10 +40,9 @@ constexpr vk::AccessFlags2 kAfterCopyAccesses =
 Uploader::Uploader(const core::Device& device, const Allocator& allocator)
     : _device{&device},
       _allocator{&allocator},
-      _commandPool{device.getDevice(), vk::CommandPoolCreateInfo{}
-                                           .setFlags(vk::CommandPoolCreateFlagBits::eTransient)
-                                           .setQueueFamilyIndex(device.getGraphicsQueue().family)},
-      _fence{device.getDevice(), vk::FenceCreateInfo{}} {}
+      _commandPool{device, device.getGraphicsQueue().family},
+      _commandBuffer{_commandPool.allocate()},
+      _fence{device} {}
 
 Uploader::~Uploader() {
     try {
@@ -77,18 +70,12 @@ void Uploader::upload(std::span<const std::byte> data, Buffer& destination, vk::
     staging.write(data);
 
     if (!_recording) {
-        if (*_commandBuffer == VK_NULL_HANDLE) {
-            vk::raii::CommandBuffers buffers{_device->getDevice(), vk::CommandBufferAllocateInfo{}
-                                                                       .setCommandPool(*_commandPool)
-                                                                       .setLevel(vk::CommandBufferLevel::ePrimary)
-                                                                       .setCommandBufferCount(1)};
-            _commandBuffer = std::move(buffers.front());
-        }
-        _commandBuffer.begin(vk::CommandBufferBeginInfo{}.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
+        _commandBuffer.begin();
         _recording = true;
     }
-    _commandBuffer.copyBuffer(*staging.getBuffer(), *destination.getBuffer(),
-                              vk::BufferCopy{}.setSrcOffset(0).setDstOffset(offset).setSize(data.size()));
+    const vk::raii::CommandBuffer& commandBuffer = _commandBuffer.getCommandBuffer();
+    commandBuffer.copyBuffer(*staging.getBuffer(), *destination.getBuffer(),
+                             vk::BufferCopy{}.setSrcOffset(0).setDstOffset(offset).setSize(data.size()));
     const auto barrier = vk::BufferMemoryBarrier2{}
                              .setSrcStageMask(vk::PipelineStageFlagBits2::eCopy)
                              .setSrcAccessMask(vk::AccessFlagBits2::eTransferWrite)
@@ -99,7 +86,7 @@ void Uploader::upload(std::span<const std::byte> data, Buffer& destination, vk::
                              .setBuffer(*destination.getBuffer())
                              .setOffset(offset)
                              .setSize(data.size());
-    _commandBuffer.pipelineBarrier2(vk::DependencyInfo{}.setBufferMemoryBarriers(barrier));
+    commandBuffer.pipelineBarrier2(vk::DependencyInfo{}.setBufferMemoryBarriers(barrier));
 }
 
 void Uploader::flush() {
@@ -109,13 +96,11 @@ void Uploader::flush() {
     _commandBuffer.end();
     _recording = false;
 
-    const vk::CommandBufferSubmitInfo commandBufferInfo{*_commandBuffer};
-    _device->getGraphicsQueue().handle.submit2(vk::SubmitInfo2{}.setCommandBufferInfos(commandBufferInfo), *_fence);
-    const vk::raii::Device& device = _device->getDevice();
-    if (device.waitForFences(*_fence, vk::True, kNoTimeout) != vk::Result::eSuccess) {
-        throw std::runtime_error("Uploader: waiting for the uploads failed");
-    }
-    device.resetFences(*_fence);
+    const vk::CommandBufferSubmitInfo commandBufferInfo{*_commandBuffer.getCommandBuffer()};
+    _device->getGraphicsQueue().handle.submit2(vk::SubmitInfo2{}.setCommandBufferInfos(commandBufferInfo),
+                                               *_fence.getFence());
+    _fence.wait();
+    _fence.reset();
     _stagingBuffers.clear();
     _commandPool.reset();
 }

@@ -15,7 +15,10 @@
 #include "Allocator.hpp"
 #include "Buffer.hpp"
 #include "render/vulkan/Export.hpp"
+#include "render/vulkan/command/CommandBuffer.hpp"
+#include "render/vulkan/command/CommandPool.hpp"
 #include "render/vulkan/core/Device.hpp"
+#include "render/vulkan/sync/Fence.hpp"
 
 namespace rtype::render::vulkan::memory {
 
@@ -61,13 +64,13 @@ class RTYPE_RENDER_VULKAN_API Uploader {
     void flush();
 
   private:
-    const core::Device* _device;                       ///< Records and submits; not owned.
-    const Allocator* _allocator;                       ///< Allocates the staging buffers; not owned.
-    vk::raii::CommandPool _commandPool;                ///< Transient pool of the command buffer, reset by flush().
-    vk::raii::CommandBuffer _commandBuffer = nullptr;  ///< Allocated by the first upload, reused afterwards.
-    vk::raii::Fence _fence;                            ///< Signaled when a flush's copies are done.
-    std::vector<Buffer> _stagingBuffers;               ///< Sources of the recorded copies, freed by flush().
-    bool _recording = false;                           ///< Whether the command buffer has been begun.
+    const core::Device* _device;            ///< Records and submits; not owned.
+    const Allocator* _allocator;            ///< Allocates the staging buffers; not owned.
+    command::CommandPool _commandPool;      ///< Transient pool of the command buffer, reset by flush().
+    command::CommandBuffer _commandBuffer;  ///< Records the copies; freed before _commandPool.
+    sync::Fence _fence;                     ///< Signaled when a flush's copies are done.
+    std::vector<Buffer> _stagingBuffers;    ///< Sources of the recorded copies, freed by flush().
+    bool _recording = false;                ///< Whether the command buffer has been begun.
 };
 
 }  // namespace rtype::render::vulkan::memory
