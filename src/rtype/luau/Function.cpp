@@ -149,12 +149,32 @@ int Function::handle(lua_State* state) {
             "somehow, a script function was bound to a native function, that's a massive fuck up, this is a critical "
             "bug"};
     }
+    std::string error{};
+    std::size_t resultCount{};
+    // Every C++ object of the call lives in the scope below, so it is destroyed before the Lua error is raised. Only
+    // the exceptions of the module are caught: a Lua error raised inside the handler is a C++ exception too, and
+    // must reach Luau untouched.
     if (!self->_handler) {
-        const std::string message{std::format("native function '{}' has no handler", self->_name)};
-        lua_pushlstring(state, message.data(), message.size());
+        error = std::format("native function '{}' has no handler", self->_name);
+    } else {
+        auto context = CallContext::fromStack(state);
+        if (!context) {
+            error = std::format("invalid argument to '{}' ({})", self->_name, context.error().message());
+        } else {
+            try {
+                const ValuePack results{self->_handler(*context)};
+                resultCount = results.push(state);
+            } catch (const exceptions::Base& e) {
+                error = std::format("native function '{}': {}", self->_name, e.what());
+            }
+        }
+    }
+    if (!error.empty()) {
+        lua_pushlstring(state, error.data(), error.size());
+        // The string is copied onto the Lua stack, so it can be released before the error unwinds.
+        std::string{}.swap(error);
         lua_error(state);
     }
-    self->_handler(CallContext{});
-    return 0;
+    return static_cast<int>(resultCount);
 }
 }  // namespace rtype::luau
