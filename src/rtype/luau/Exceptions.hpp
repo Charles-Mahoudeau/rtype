@@ -50,6 +50,13 @@ class RTYPE_LUAU_API RuntimeError : public Base {
     using Base::Base;
 };
 
+/// @brief Exception thrown when the stack of a Lua state cannot grow enough to hold the values pushed onto it.
+class RTYPE_LUAU_API StackOverflow : public Base {
+  public:
+    /// @brief Creates the exception with the message "Lua stack overflow".
+    StackOverflow() : Base{"Lua stack overflow"} {}
+};
+
 /// @brief Exception thrown when a feature of the module is not implemented yet.
 ///
 /// For instance, pushing a Value that holds a Table onto a Lua stack.
