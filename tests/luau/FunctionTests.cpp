@@ -176,3 +176,55 @@ TEST(Function, FailedPushDoesNotLeaveValuesOnStack) {
         ASSERT_EQ(result.error().message(), "not implemented") << "call " << i;
     }
 }
+
+TEST(Function, CallReturnsNoValues) {
+    const auto runtime = makeRuntime();
+    const Function function = makeFunction(runtime, "local _ = 1");
+
+    const auto result = function.call();
+
+    ASSERT_TRUE(result);
+    EXPECT_TRUE(result->values().empty());
+}
+
+TEST(Function, CallReturnsValuesInOrder) {
+    const auto runtime = makeRuntime();
+    const Function function = makeFunction(runtime, R"(return "first", 2, true)");
+
+    const auto result = function.call();
+
+    ASSERT_TRUE(result);
+    const auto values = result->values();
+    ASSERT_EQ(values.size(), 3);
+    EXPECT_EQ(values[0].as<std::string>(), "first");
+    EXPECT_EQ(values[1].as<double>(), 2.0);
+    EXPECT_EQ(values[2].as<bool>(), true);
+}
+
+TEST(Function, CallFailsForUnreadableReturnValue) {
+    const auto runtime = makeRuntime();
+    const Function function = makeFunction(runtime, "return 1, {}, 3");
+
+    const auto result = function.call();
+
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kTypeMismatch);
+}
+
+TEST(Function, UnreadableReturnValueDoesNotLeaveValuesOnStack) {
+    const auto runtime = makeRuntime();
+    // Each call returns 100 numbers followed by a table. If they were left on the stack, they would add up
+    // past Luau's 8000-slot cap within 100 calls, and the call would fail with a stack overflow instead.
+    const Function function = makeFunction(runtime, R"(
+        local values = table.create(100, 0)
+        values[101] = {}
+        return table.unpack(values, 1, 101)
+    )");
+    constexpr int kCalls = 100;
+
+    for (int i = 0; i < kCalls; ++i) {
+        const auto result = function.call();
+        ASSERT_FALSE(result) << "call " << i;
+        ASSERT_EQ(result.error().kind(), rtype::luau::ErrorKind::kTypeMismatch) << "call " << i;
+    }
+}
