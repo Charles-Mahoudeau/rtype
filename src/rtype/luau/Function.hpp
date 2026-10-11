@@ -13,6 +13,7 @@
 
 #include "CallContext.hpp"
 #include "CallResult.hpp"
+#include "Export.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
 
