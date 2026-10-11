@@ -40,7 +40,10 @@ int main() {
     // `func1` must stay alive as long as Luau may call the closure: once it is destroyed, the closure is
     // unbound and calling it raises a Lua error instead of reaching a dangling object.
     rtype::luau::Function func1 = rtype::luau::Function::create(runtime->state(), "hello_from_cpp");
-    func1.setHandler([](const rtype::luau::CallContext&) { std::cout << "Hello from C++!" << std::endl; });
+    func1.setHandler([](const rtype::luau::CallContext&) -> rtype::luau::CallResult {
+        std::cout << "Hello from C++!" << std::endl;
+        return {};
+    });
 
     // Run the script: it calls `hello_from_cpp`, then defines the global functions `hello_from_luau` and
     // `hello_with_args`.
@@ -52,12 +55,13 @@ int main() {
     // Call a Luau function from C++.
     // `hello_from_luau` only exists once the script has run, so it is looked up afterwards. `global` returns a
     // reference to nil if the global is not set, hence the check. `fromRef` takes over the reference, which keeps
-    // the Luau function alive for as long as `func2` exists. `call` runs it in protected mode and throws
-    // `exceptions::RuntimeError` if it raises an error.
+    // the Luau function alive for as long as `func2` exists. `call` runs it in protected mode and returns a
+    // `Result` holding an `Error` if it raises an error.
     rtype::luau::Ref func2Ref = runtime->global("hello_from_luau");
     assert(!func2Ref.isNil());
     rtype::luau::Function func2 = rtype::luau::Function::fromRef(std::move(func2Ref), "hello_from_luau");
-    func2.call({});
+    auto func2Result = func2.call({});
+    assert(func2Result);
 
     // Call the C++ function from C++, through Luau.
     // The native closure made by `create` is an ordinary Luau value: wrapping it with `fromRef` gives a handle
@@ -68,7 +72,8 @@ int main() {
     rtype::luau::Ref func3Ref = runtime->global("hello_from_cpp");
     assert(!func3Ref.isNil());
     rtype::luau::Function func3 = rtype::luau::Function::fromRef(std::move(func3Ref), "hello_from_cpp");
-    func3.call();
+    auto func3Result = func3.call();
+    assert(func3Result);
 
     // Call a Luau function with arguments from C++.
     // The arguments are gathered in a `CallContext`: `addArg` appends them in order, and `call` pushes them onto
@@ -76,8 +81,9 @@ int main() {
     rtype::luau::Ref func4Ref = runtime->global("hello_with_args");
     assert(!func4Ref.isNil());
     rtype::luau::Function func4 = rtype::luau::Function::fromRef(std::move(func4Ref), "hello_with_args");
-    rtype::luau::CallContext func4CallContext{};
-    func4CallContext.addArg({"C++"});        // from
-    func4CallContext.addArg({"arguments"});  // name
-    func4.call(func4CallContext);
+    rtype::luau::CallContext func4Context{};
+    func4Context.addArg({"C++"});        // from
+    func4Context.addArg({"arguments"});  // name
+    auto func4Result = func4.call(func4Context);
+    assert(func4Result);
 }

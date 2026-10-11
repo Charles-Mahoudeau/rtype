@@ -12,7 +12,9 @@
 #include <string>
 
 #include "CallContext.hpp"
+#include "CallResult.hpp"
 #include "Ref.hpp"
+#include "Result.hpp"
 
 struct lua_State;
 
@@ -32,8 +34,10 @@ class RTYPE_LUAU_API Function {
         kScript,  ///< Function defined in Luau.
     };
 
-    /// @brief C++ callable run each time Lua calls the native closure.
-    using Handler = std::move_only_function<void(const CallContext&)>;
+    /// @brief C++ callable run each time Lua calls the native closure, returning the result of the call.
+    ///
+    /// The returned `CallResult` holds no values yet: nothing is returned to Lua.
+    using Handler = std::move_only_function<CallResult(const CallContext&)>;
 
     /// @brief Creates a native closure bound to a new Function and registers it as a global of the Lua state.
     ///
@@ -80,12 +84,11 @@ class RTYPE_LUAU_API Function {
     /// Prints a warning on `std::cerr` if the Function wraps a native closure. If the arguments cannot be
     /// pushed, the Lua stack is left as it was before the call.
     /// @param context Context of the call, holding the arguments passed to the function in order.
+    /// @return An empty `CallResult` on success, or an `Error` of kind `ErrorKind::kRuntime` if an argument
+    ///         cannot be pushed (the Lua stack cannot hold every argument, or an argument holds a type that cannot
+    ///         be pushed yet, see `Value::push`) or if the function raised an error.
     /// @throws exceptions::InvalidRef If the Function was moved from.
-    /// @throws exceptions::StackOverflow If the Lua stack cannot hold every argument.
-    /// @throws exceptions::NotImplemented If an argument holds a type that cannot be pushed yet (see
-    ///         `Value::push`).
-    /// @throws exceptions::RuntimeError If the function raised an error.
-    void call(const CallContext& context = {}) const;
+    Result<CallResult> call(const CallContext& context = {}) const;
 
   private:
     /// @brief Creates a Function wrapping an existing function.
