@@ -90,12 +90,14 @@ Result<CallResult> Function::call(const CallContext& context) const {
         lua_settop(_state, top);
         return Failure{ErrorKind::kRuntime, "unknown error"};
     }
-    if (lua_pcall(_state, static_cast<int>(argCount), 0, 0) != LUA_OK) {
+    if (lua_pcall(_state, static_cast<int>(argCount), LUA_MULTRET, 0) != LUA_OK) {
         std::string error{lua_tostring(_state, -1)};
         lua_pop(_state, 1);
         return Failure{ErrorKind::kRuntime, std::move(error)};
     }
-    return {};
+    // With LUA_MULTRET, every value above the saved top is a returned value.
+    const auto resultCount{static_cast<std::size_t>(lua_gettop(_state) - top)};
+    return CallResult::fromStack(_state, resultCount);
 }
 
 Function::Function(lua_State* state, const BindingType type, Ref ref, std::string name)
