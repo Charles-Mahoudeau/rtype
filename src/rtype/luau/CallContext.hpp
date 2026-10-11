@@ -11,15 +11,27 @@
 #include <span>
 
 #include "Export.hpp"
+#include "Result.hpp"
 #include "Value.hpp"
 #include "ValuePack.hpp"
+
+struct lua_State;
 
 namespace rtype::luau {
 /// @brief Context of a single call from Luau to a native Function, given to its handler.
 ///
-/// Holds the arguments of the call, in order. Move-only: a context belongs to one call.
+/// Built by the native closure from the arguments Luau passed to it (see `fromStack`), and holds them in order.
+/// Move-only: a context belongs to one call.
 class RTYPE_LUAU_API CallContext {
   public:
+    /// @brief Reads the arguments of a call to a native closure from the stack of a Lua state, without popping them.
+    ///
+    /// Meant to be called from a C function: every value of the stack, from index 1 up, is an argument.
+    /// @param state The Lua state calling the closure; must not be null.
+    /// @return A context holding a copy of the arguments in order, or a Failure of kind `kTypeMismatch` if one of
+    ///         them has a type that cannot be read yet (see `ValuePack::fromStack`).
+    [[nodiscard]] static Result<CallContext> fromStack(lua_State* state);
+
     /// @brief Creates a context holding the given arguments.
     /// @param args The arguments of the call, in order.
     explicit CallContext(ValuePack args) noexcept;
