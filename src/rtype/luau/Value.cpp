@@ -12,13 +12,19 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <format>
 #include <limits>
 #include <optional>
 #include <string>
 #include <utility>
 #include <variant>
 
+#include "ErrorKind.hpp"
 #include "Exceptions.hpp"
+#include "Failure.hpp"
+#include "Ref.hpp"
+#include "Result.hpp"
+#include "Result.tpp"
 #include "VariantHelper.hpp"
 
 static_assert(LUA_VECTOR_SIZE == 3, "rtype::luau::Value::Vector assumes 3-component Luau vectors");
@@ -52,8 +58,8 @@ template <typename T>
 }  // namespace
 
 namespace rtype::luau {
-Value Value::fromStack(lua_State* state, const int stackIndex) {
-    switch (lua_type(state, stackIndex)) {
+Result<Value> Value::fromStack(lua_State* state, const int stackIndex) {
+    switch (const int type = lua_type(state, stackIndex)) {
         case LUA_TNIL:
             return Value{Nil{}};
         case LUA_TBOOLEAN:
@@ -71,8 +77,19 @@ Value Value::fromStack(lua_State* state, const int stackIndex) {
             return Value{std::string{str, length}};
         }
         default:
-            throw exceptions::NotImplemented{};
+            return Failure{ErrorKind::kTypeMismatch,
+                           std::format("cannot read a value of type '{}' yet", lua_typename(state, type))};
     }
+}
+
+Result<Value> Value::pop(lua_State* state) {
+    auto value = fromStack(state, Ref::kLuaStackTop);
+
+    if (!value) {
+        return forwardError<Value>(std::move(value));
+    }
+    lua_pop(state, 1);
+    return value;
 }
 
 Value::Value(Variant v) noexcept : _variant{std::move(v)} {}
