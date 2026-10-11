@@ -36,6 +36,7 @@
 #include "frame/FrameResources.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
 #include "memory/Allocator.hpp"
+#include "memory/Uploader.hpp"
 #include "pipeline/PipelineCache.hpp"
 #include "pipeline/ShaderCache.hpp"
 #include "presentation/Swapchain.hpp"
@@ -180,6 +181,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
 
     // 5. Memory: the allocator first, then the resources allocated from it.
     std::unique_ptr<memory::Allocator> _allocator;  ///< VMA allocator, destroyed after every buffer and image.
+    std::unique_ptr<memory::Uploader> _uploader;    ///< Fills device local buffers through staging buffers.
 
     // 6. Pipelines, descriptors and shaders.
     std::unique_ptr<pipeline::ShaderCache> _shaders;          ///< Shader modules, built-in and from the game.

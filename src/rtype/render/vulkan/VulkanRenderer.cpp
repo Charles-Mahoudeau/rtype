@@ -111,6 +111,7 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
     _frames = std::make_unique<frame::FrameResources>(*_device, kFramesInFlight, _swapchain->getImages().size());
 
     _allocator = std::make_unique<memory::Allocator>(*_instance, *_physicalDevice, *_device);
+    _uploader = std::make_unique<memory::Uploader>(*_device, *_allocator);
     const std::filesystem::path& shaderDirectory = _config.shaderDirectory;
     _shaders = std::make_unique<pipeline::ShaderCache>(
         *_device,
