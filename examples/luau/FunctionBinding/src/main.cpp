@@ -11,6 +11,7 @@
 #include <rtype/luau/CallContext.hpp>
 #include <rtype/luau/Function.hpp>
 #include <rtype/luau/Runtime.hpp>
+#include <rtype/luau/ValuePack.hpp>
 #include <string>
 
 int main() {
@@ -41,7 +42,7 @@ int main() {
     // `func1` must stay alive as long as Luau may call the closure: once it is destroyed, the closure is
     // unbound and calling it raises a Lua error instead of reaching a dangling object.
     rtype::luau::Function func1 = rtype::luau::Function::create(runtime->state(), "hello_from_cpp");
-    func1.setHandler([](const rtype::luau::CallContext&) -> rtype::luau::CallResult {
+    func1.setHandler([](const rtype::luau::CallContext&) -> rtype::luau::ValuePack {
         std::cout << "Hello from C++!" << std::endl;
         return {};
     });
@@ -77,19 +78,19 @@ int main() {
     assert(func3Result);
 
     // Call a Luau function with arguments from C++, and read the values it returns.
-    // The arguments are gathered in a `CallContext`: `addArg` appends them in order, and `call` pushes them onto
+    // The arguments are gathered in a `ValuePack`: `add` appends them in order, and `call` pushes them onto
     // the Lua stack before the call, so the first one added becomes the first parameter of the Luau function.
     // Each `Value` is pushed as the matching Luau type: `std::string` as a string, `double` as a number and
     // `bool` as a boolean.
     rtype::luau::Ref func4Ref = runtime->global("apply_damage");
     assert(!func4Ref.isNil());
     rtype::luau::Function func4 = rtype::luau::Function::fromRef(std::move(func4Ref), "apply_damage");
-    rtype::luau::CallContext func4Context{};
-    func4Context.addArg({std::string{"Player"}});  // name
-    func4Context.addArg({100.0});                  // health
-    func4Context.addArg({30.0});                   // damage
-    func4Context.addArg({true});                   // shielded
-    auto func4Result = func4.call(func4Context);
+    rtype::luau::ValuePack func4Args{};
+    func4Args.add({std::string{"Player"}});  // name
+    func4Args.add({100.0});                  // health
+    func4Args.add({30.0});                   // damage
+    func4Args.add({true});                   // shielded
+    auto func4Result = func4.call(func4Args);
     // The call fails if the Luau function raises an error, or if it returns a value that cannot be read yet
     // (e.g. a table or a function).
     if (!func4Result) {
@@ -97,7 +98,7 @@ int main() {
         return 1;
     }
 
-    // Every value returned by the Luau function is collected in the `CallResult`, in the order of the `return`
+    // Every value returned by the Luau function is collected in the returned `ValuePack`, in the order of the `return`
     // statement. Luau functions may return any number of values, so check the count before reading them.
     // `as<T>()` reads a value as the given type and throws `std::bad_variant_access` on a mismatch; `tryAs<T>()`
     // returns a null pointer instead, to check the type without throwing.

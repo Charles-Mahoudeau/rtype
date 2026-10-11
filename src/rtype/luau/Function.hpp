@@ -12,10 +12,10 @@
 #include <string>
 
 #include "CallContext.hpp"
-#include "CallResult.hpp"
 #include "Export.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
+#include "ValuePack.hpp"
 
 struct lua_State;
 
@@ -23,7 +23,8 @@ namespace rtype::luau {
 /// @brief Handle on a Luau function, kept alive through a registry reference.
 ///
 /// A Function either wraps a native closure made by `create`, which forwards its calls from Lua to a C++
-/// handler, or a function defined in Luau. The native closure stores the address of its Function in its first
+/// handler, or a function defined in Luau, which C++ calls with `call`. Both directions exchange their arguments and
+/// return values as `ValuePack`s. The native closure stores the address of its Function in its first
 /// upvalue: moving the Function rebinds that upvalue to the new address, and destroying it unbinds the closure,
 /// so a call from Lua then raises a Lua error instead of reaching a dangling Function. The referenced
 /// `lua_State` must outlive the Function.
@@ -35,10 +36,10 @@ class RTYPE_LUAU_API Function {
         kScript,  ///< Function defined in Luau.
     };
 
-    /// @brief C++ callable run each time Lua calls the native closure, returning the result of the call.
+    /// @brief C++ callable run each time Lua calls the native closure, returning the values of the call.
     ///
-    /// The returned `CallResult` holds no values yet: nothing is returned to Lua.
-    using Handler = std::move_only_function<CallResult(const CallContext&)>;
+    /// The context holds no arguments yet, and the values of the returned pack are not returned to Lua yet.
+    using Handler = std::move_only_function<ValuePack(const CallContext&)>;
 
     /// @brief Creates a native closure bound to a new Function and registers it as a global of the Lua state.
     ///
@@ -80,16 +81,18 @@ class RTYPE_LUAU_API Function {
     /// @param handler The handler to run; an empty one makes calls from Lua raise a Lua error.
     void setHandler(Handler handler);
 
-    /// @brief Calls the wrapped function in protected mode with the arguments of a context, discarding its results.
+    /// @brief Calls the wrapped function in protected mode with the given arguments, and reads the values it returns.
     ///
-    /// Prints a warning on `std::cerr` if the Function wraps a native closure. If the arguments cannot be
-    /// pushed, the Lua stack is left as it was before the call.
-    /// @param context Context of the call, holding the arguments passed to the function in order.
-    /// @return An empty `CallResult` on success, or an `Error` of kind `ErrorKind::kRuntime` if an argument
-    ///         cannot be pushed (the Lua stack cannot hold every argument, or an argument holds a type that cannot
-    ///         be pushed yet, see `Value::push`) or if the function raised an error.
+    /// Prints a warning on `std::cerr` if the Function wraps a native closure. If the call fails, the Lua stack is
+    /// left as it was before the call.
+    /// @param args The arguments passed to the function, in order.
+    /// @return The values returned by the function, in the order of its `return` statement, or an `Error` of kind
+    ///         `ErrorKind::kRuntime` if an argument cannot be pushed (the Lua stack cannot hold every argument, or
+    ///         an argument holds a type that cannot be pushed yet, see `Value::push`) or if the function raised an
+    ///         error, or of kind `ErrorKind::kTypeMismatch` if a returned value cannot be read yet (see
+    ///         `ValuePack::pop`).
     /// @throws exceptions::InvalidRef If the Function was moved from.
-    Result<CallResult> call(const CallContext& context = {}) const;
+    Result<ValuePack> call(const ValuePack& args = {}) const;
 
   private:
     /// @brief Creates a Function wrapping an existing function.

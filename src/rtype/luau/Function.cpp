@@ -17,12 +17,12 @@
 #include <utility>
 
 #include "CallContext.hpp"
-#include "CallResult.hpp"
 #include "ErrorKind.hpp"
 #include "Exceptions.hpp"
 #include "Failure.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
+#include "ValuePack.hpp"
 
 namespace rtype::luau {
 Function Function::create(lua_State* state, std::string name) {
@@ -73,7 +73,7 @@ const Ref& Function::ref() const noexcept { return _ref; }
 
 void Function::setHandler(Handler handler) { _handler = std::move(handler); }
 
-Result<CallResult> Function::call(const CallContext& context) const {
+Result<ValuePack> Function::call(const ValuePack& args) const {
     if (_type == BindingType::kNative) {
         std::cerr << "warning: you are calling a native function from a script binding" << std::endl;
     }
@@ -81,7 +81,7 @@ Result<CallResult> Function::call(const CallContext& context) const {
     _ref.push(_state);
     std::size_t argCount{};
     try {
-        argCount = context.pushArgs(_state);
+        argCount = args.push(_state);
     } catch (const std::exception& e) {
         // Drop the function and the arguments pushed before the failure, to leave the stack as it was.
         lua_settop(_state, top);
@@ -97,7 +97,12 @@ Result<CallResult> Function::call(const CallContext& context) const {
     }
     // With LUA_MULTRET, every value above the saved top is a returned value.
     const auto resultCount{static_cast<std::size_t>(lua_gettop(_state) - top)};
-    return CallResult::fromStack(_state, resultCount);
+    auto results = ValuePack::pop(_state, resultCount);
+    if (!results) {
+        // Drop the returned values left by the failed read, to leave the stack as it was.
+        lua_settop(_state, top);
+    }
+    return results;
 }
 
 Function::Function(lua_State* state, const BindingType type, Ref ref, std::string name)
