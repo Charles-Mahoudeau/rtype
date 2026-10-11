@@ -8,7 +8,6 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
-#include <cstdint>
 #include <iterator>
 #include <set>
 #include <string>
@@ -35,12 +34,12 @@ TEST(Table, IsEmptyByDefault) {
 TEST(Table, SetInsertsValue) {
     Table table;
 
-    table.set("answer", Value{std::int64_t{42}});
+    table.set("answer", Value{42.0});
 
     EXPECT_EQ(table.size(), 1U);
     const Value* value = table.tryGet("answer");
     ASSERT_NE(value, nullptr);
-    EXPECT_EQ(value->as<std::int64_t>(), 42);
+    EXPECT_DOUBLE_EQ(value->as<double>(), 42.0);
 }
 
 TEST(Table, SetReturnsReferenceToStoredValue) {
@@ -120,13 +119,13 @@ TEST(Table, TryGetAcceptsEmptyKey) {
 
 TEST(Table, MutableTryGetAllowsModification) {
     Table table;
-    table.set("counter", Value{std::int64_t{1}});
+    table.set("counter", Value{1.0});
 
     Value* value = table.tryGet("counter");
     ASSERT_NE(value, nullptr);
-    value->as<std::int64_t>() = 2;
+    value->as<double>() = 2.0;
 
-    EXPECT_EQ(table.tryGet("counter")->as<std::int64_t>(), 2);
+    EXPECT_DOUBLE_EQ(table.tryGet("counter")->as<double>(), 2.0);
 }
 
 TEST(Table, ConstTryGetOverloadIsSelectedOnConstTable) {
@@ -141,19 +140,19 @@ TEST(Table, ConstTryGetOverloadIsSelectedOnConstTable) {
 
 TEST(Table, IterationVisitsEveryEntry) {
     Table table;
-    table.set("a", Value{std::int64_t{1}});
-    table.set("b", Value{std::int64_t{2}});
-    table.set("c", Value{std::int64_t{3}});
+    table.set("a", Value{1.0});
+    table.set("b", Value{2.0});
+    table.set("c", Value{3.0});
 
     std::set<std::string> keys;
-    std::int64_t sum = 0;
+    double sum = 0.0;
     for (const auto& [key, value] : table) {
         keys.insert(key);
-        sum += value.as<std::int64_t>();
+        sum += value.as<double>();
     }
 
     EXPECT_EQ(keys, (std::set<std::string>{"a", "b", "c"}));
-    EXPECT_EQ(sum, 6);
+    EXPECT_DOUBLE_EQ(sum, 6.0);
     EXPECT_EQ(static_cast<std::size_t>(std::distance(table.begin(), table.end())), table.size());
 }
 
@@ -176,15 +175,15 @@ TEST(Table, ConstIterationVisitsEveryEntry) {
 
 TEST(Table, MutableIterationAllowsValueModification) {
     Table table;
-    table.set("a", Value{std::int64_t{1}});
-    table.set("b", Value{std::int64_t{2}});
+    table.set("a", Value{1.0});
+    table.set("b", Value{2.0});
 
     for (auto& [key, value] : table) {
-        value.as<std::int64_t>() *= 10;
+        value.as<double>() *= 10.0;
     }
 
-    EXPECT_EQ(table.tryGet("a")->as<std::int64_t>(), 10);
-    EXPECT_EQ(table.tryGet("b")->as<std::int64_t>(), 20);
+    EXPECT_DOUBLE_EQ(table.tryGet("a")->as<double>(), 10.0);
+    EXPECT_DOUBLE_EQ(table.tryGet("b")->as<double>(), 20.0);
 }
 
 TEST(Table, CopyConstructorDuplicatesEntries) {
