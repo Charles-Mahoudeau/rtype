@@ -127,5 +127,4 @@ class RTYPE_LUAU_API Value {
 };
 }  // namespace rtype::luau
 
-// NOLINTNEXTLINE(*-include-cleaner)
-#include "Value.tpp"
+#include "Value.tpp"  // IWYU pragma: export

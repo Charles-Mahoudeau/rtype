@@ -32,5 +32,4 @@ template <typename DestT, typename SrcT>
 [[nodiscard]] Result<DestT> forwardError(Result<SrcT> from);
 }  // namespace rtype::luau
 
-// NOLINTNEXTLINE(*-include-cleaner)
-#include "Result.tpp"
+#include "Result.tpp"  // IWYU pragma: export
