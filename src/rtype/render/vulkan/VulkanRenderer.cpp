@@ -8,10 +8,12 @@
 #include "VulkanRenderer.hpp"
 
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <format>
+#include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
 #include <iostream>
 #include <limits>
@@ -38,6 +40,7 @@
 #include "frame/FrameData.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
 #include "rendering/DynamicRendering.hpp"
+#include "rendering/FrameUniforms.hpp"
 
 namespace rtype::render::vulkan {
 
@@ -117,6 +120,9 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
         *_device,
         shaderDirectory.is_absolute() ? shaderDirectory : engine::system::getExecutableDirectory() / shaderDirectory);
     _pipelineCache = std::make_unique<pipeline::PipelineCache>(*_device);
+    _globals = std::make_unique<frame::FrameGlobals>(*_device, *_allocator, kFramesInFlight);
+    _startTime = std::chrono::steady_clock::now();
+    _lastFrameTime = _startTime;
 }
 
 void VulkanRenderer::resize(glm::uvec2 framebufferSize) {
@@ -143,6 +149,19 @@ void VulkanRenderer::recreateSwapchain() {
     for (const SwapchainListener& listener : _swapchainListeners) {
         listener(*_swapchain);
     }
+}
+
+void VulkanRenderer::updateFrameUniforms() {
+    const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+    const vk::Extent2D extent = _swapchain->getExtent();
+    _globals->update(
+        _frames->getFrameIndex(),
+        rendering::FrameUniforms{
+            .time = std::chrono::duration<float>{now - _startTime}.count(),
+            .deltaTime = std::chrono::duration<float>{now - _lastFrameTime}.count(),
+            .framebufferSize = glm::vec2{static_cast<float>(extent.width), static_cast<float>(extent.height)},
+        });
+    _lastFrameTime = now;
 }
 
 engine::graphics::TextureId VulkanRenderer::createTexture(const engine::graphics::TextureDesc& /*desc*/,
@@ -181,6 +200,7 @@ void VulkanRenderer::beginFrame(const engine::graphics::Color& clearColor) {
     }
     frame.getInFlight().reset();
     frame.getCommandPool().reset();
+    updateFrameUniforms();
 
     frame.getCommandBuffer().begin();
     const vk::raii::CommandBuffer& commandBuffer = frame.getCommandBuffer().getCommandBuffer();
