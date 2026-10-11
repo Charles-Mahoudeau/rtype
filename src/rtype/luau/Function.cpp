@@ -9,6 +9,7 @@
 
 #include <lua.h>
 
+#include <cstddef>
 #include <format>
 #include <iostream>
 #include <string>
@@ -67,12 +68,21 @@ const Ref& Function::ref() const noexcept { return _ref; }
 
 void Function::setHandler(Handler handler) { _handler = std::move(handler); }
 
-void Function::call([[maybe_unused]] CallContext context) const {
+void Function::call(const CallContext& context) const {
     if (_type == BindingType::kNative) {
         std::cerr << "warning: you are calling a native function from a script binding" << std::endl;
     }
+    const int top{lua_gettop(_state)};
     _ref.push(_state);
-    if (lua_pcall(_state, 0, 0, 0) != LUA_OK) {
+    std::size_t argCount{};
+    try {
+        argCount = context.pushArgs(_state);
+    } catch (...) {
+        // Drop the function and the arguments pushed before the failure, to leave the stack as it was.
+        lua_settop(_state, top);
+        throw;
+    }
+    if (lua_pcall(_state, static_cast<int>(argCount), 0, 0) != LUA_OK) {
         const std::string error{lua_tostring(_state, -1)};
         lua_pop(_state, 1);
         throw exceptions::RuntimeError{error};

@@ -75,13 +75,17 @@ class RTYPE_LUAU_API Function {
     /// @param handler The handler to run; an empty one makes calls from Lua raise a Lua error.
     void setHandler(Handler handler);
 
-    /// @brief Calls the wrapped function in protected mode, without arguments, discarding its results.
+    /// @brief Calls the wrapped function in protected mode with the arguments of a context, discarding its results.
     ///
-    /// Prints a warning on `std::cerr` if the Function wraps a native closure.
-    /// @param context Context of the call.
+    /// Prints a warning on `std::cerr` if the Function wraps a native closure. If the arguments cannot be
+    /// pushed, the Lua stack is left as it was before the call.
+    /// @param context Context of the call, holding the arguments passed to the function in order.
     /// @throws exceptions::InvalidRef If the Function was moved from.
+    /// @throws exceptions::StackOverflow If the Lua stack cannot hold every argument.
+    /// @throws exceptions::NotImplemented If an argument holds a type that cannot be pushed yet (see
+    ///         `Value::push`).
     /// @throws exceptions::RuntimeError If the function raised an error.
-    void call(CallContext context) const;
+    void call(const CallContext& context = {}) const;
 
   private:
     /// @brief Creates a Function wrapping an existing function.
