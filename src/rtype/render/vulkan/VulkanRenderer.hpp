@@ -36,6 +36,7 @@
 #include "frame/FrameResources.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
 #include "memory/Allocator.hpp"
+#include "pipeline/PipelineCache.hpp"
 #include "pipeline/ShaderCache.hpp"
 #include "presentation/Swapchain.hpp"
 
@@ -181,7 +182,8 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
     std::unique_ptr<memory::Allocator> _allocator;  ///< VMA allocator, destroyed after every buffer and image.
 
     // 6. Pipelines, descriptors and shaders.
-    std::unique_ptr<pipeline::ShaderCache> _shaders;  ///< Shader modules, built-in and from the game.
+    std::unique_ptr<pipeline::ShaderCache> _shaders;          ///< Shader modules, built-in and from the game.
+    std::unique_ptr<pipeline::PipelineCache> _pipelineCache;  ///< Shared by every pipeline the renderer builds.
 
     // 7. Deferred deletion.
     core::DeletionQueue _deletionQueue{kFramesInFlight};  ///< Resources the GPU may still use, one bucket per frame.
