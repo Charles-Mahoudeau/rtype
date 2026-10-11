@@ -12,7 +12,7 @@
 #include <utility>
 
 #include "rtype/luau/CallContext.hpp"
-#include "rtype/luau/Exceptions.hpp"
+#include "rtype/luau/ErrorKind.hpp"
 #include "rtype/luau/Function.hpp"
 #include "rtype/luau/Ref.hpp"
 #include "rtype/luau/Runtime.hpp"
@@ -60,7 +60,7 @@ TEST(Function, CallWithDefaultContextPassesNoArguments) {
     const auto runtime = makeRuntime();
     const Function function = makeFunction(runtime, R"(assert(select("#", ...) == 0))");
 
-    EXPECT_NO_THROW(function.call());
+    EXPECT_TRUE(function.call());
 }
 
 TEST(Function, CallPassesArgumentsInOrder) {
@@ -75,7 +75,7 @@ TEST(Function, CallPassesArgumentsInOrder) {
     context.addArg({2.0});
     context.addArg({true});
 
-    EXPECT_NO_THROW(function.call(context));
+    EXPECT_TRUE(function.call(context));
 }
 
 TEST(Function, CallPassesEveryPushableType) {
@@ -96,7 +96,7 @@ TEST(Function, CallPassesEveryPushableType) {
     context.addArg({Value::Vector{1.0F, 2.0F, 3.0F}});
     context.addArg({std::string{"text"}});
 
-    EXPECT_NO_THROW(function.call(context));
+    EXPECT_TRUE(function.call(context));
 }
 
 TEST(Function, CallPassesMoreArgumentsThanMinimumStack) {
@@ -111,19 +111,22 @@ TEST(Function, CallPassesMoreArgumentsThanMinimumStack) {
         context.addArg({static_cast<double>(i)});
     }
 
-    EXPECT_NO_THROW(function.call(context));
+    EXPECT_TRUE(function.call(context));
 }
 
-TEST(Function, CallThrowsRuntimeErrorWhenFunctionFails) {
+TEST(Function, CallFailsWhenFunctionFails) {
     const auto runtime = makeRuntime();
     const Function function = makeFunction(runtime, R"(local a = ...; assert(a == "expected"))");
     CallContext context{};
     context.addArg({std::string{"unexpected"}});
 
-    EXPECT_THROW(function.call(context), rtype::luau::exceptions::RuntimeError);
+    const auto result = function.call(context);
+
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kRuntime);
 }
 
-TEST(Function, CallThrowsStackOverflowWithTooManyArguments) {
+TEST(Function, CallFailsWithTooManyArguments) {
     const auto runtime = makeRuntime();
     const Function function = makeFunction(runtime, "error('should not run')");
     CallContext context{};
@@ -131,35 +134,45 @@ TEST(Function, CallThrowsStackOverflowWithTooManyArguments) {
         context.addArg({0.0});
     }
 
-    EXPECT_THROW(function.call(context), rtype::luau::exceptions::StackOverflow);
+    const auto result = function.call(context);
+
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kRuntime);
+    EXPECT_EQ(result.error().message(), "Lua stack overflow");
 }
 
-TEST(Function, CallThrowsNotImplementedForTableArgument) {
+TEST(Function, CallFailsForTableArgument) {
     const auto runtime = makeRuntime();
     const Function function = makeFunction(runtime, "error('should not run')");
 
-    EXPECT_THROW(function.call(makeUnpushableContext(0)), rtype::luau::exceptions::NotImplemented);
+    const auto result = function.call(makeUnpushableContext(0));
+
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kRuntime);
+    EXPECT_EQ(result.error().message(), "not implemented");
 }
 
 TEST(Function, CallWorksAfterFailedPush) {
     const auto runtime = makeRuntime();
     const Function function = makeFunction(runtime, R"(local a = ...; assert(a == "ok"))");
-    EXPECT_THROW(function.call(makeUnpushableContext(3)), rtype::luau::exceptions::NotImplemented);
+    EXPECT_FALSE(function.call(makeUnpushableContext(3)));
     CallContext context{};
     context.addArg({std::string{"ok"}});
 
-    EXPECT_NO_THROW(function.call(context));
+    EXPECT_TRUE(function.call(context));
 }
 
 TEST(Function, FailedPushDoesNotLeaveValuesOnStack) {
     const auto runtime = makeRuntime();
     const Function function = makeFunction(runtime, "error('should not run')");
     // Each failed call pushes the function and 100 arguments. If they were left on the stack, they would add
-    // up past Luau's 8000-slot cap within 100 calls, and pushArgs would throw StackOverflow instead.
+    // up past Luau's 8000-slot cap within 100 calls, and pushArgs would fail with a stack overflow instead.
     constexpr int kCalls = 100;
     const CallContext context = makeUnpushableContext(100);
 
     for (int i = 0; i < kCalls; ++i) {
-        ASSERT_THROW(function.call(context), rtype::luau::exceptions::NotImplemented) << "call " << i;
+        const auto result = function.call(context);
+        ASSERT_FALSE(result) << "call " << i;
+        ASSERT_EQ(result.error().message(), "not implemented") << "call " << i;
     }
 }
