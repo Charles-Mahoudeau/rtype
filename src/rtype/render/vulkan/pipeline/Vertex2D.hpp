@@ -10,8 +10,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint4_sized.hpp>
-#include <glm/vec2.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
 #include "render/vulkan/Export.hpp"
