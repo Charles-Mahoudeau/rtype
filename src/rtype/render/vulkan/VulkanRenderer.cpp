@@ -115,6 +115,7 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
     _shaders = std::make_unique<pipeline::ShaderCache>(
         *_device,
         shaderDirectory.is_absolute() ? shaderDirectory : engine::system::getExecutableDirectory() / shaderDirectory);
+    _pipelineCache = std::make_unique<pipeline::PipelineCache>(*_device);
 }
 
 void VulkanRenderer::resize(glm::uvec2 framebufferSize) {
