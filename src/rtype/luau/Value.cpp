@@ -24,7 +24,6 @@
 #include "Failure.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
-#include "Result.tpp"
 #include "VariantHelper.hpp"
 
 static_assert(LUA_VECTOR_SIZE == 3, "rtype::luau::Value::Vector assumes 3-component Luau vectors");
