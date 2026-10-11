@@ -14,6 +14,7 @@
 #include "render/vulkan/descriptor/DescriptorSetLayout.hpp"
 #include "render/vulkan/descriptor/DescriptorWriter.hpp"
 #include "render/vulkan/pipeline/GraphicsPipeline.hpp"
+#include "render/vulkan/pipeline/Vertex2D.hpp"
 
 namespace {
 
@@ -75,4 +76,25 @@ TEST(DescriptorWriter, ClearForgetsEverything) {
     writer.writeBuffer(0, vk::Buffer{}, 0, 4);
     writer.clear();
     EXPECT_TRUE(writer.getWrites(vk::DescriptorSet{}).empty());
+}
+
+TEST(Vertex2D, DescribesATightlyPackedVertex) {
+    using rtype::render::vulkan::pipeline::Vertex2D;
+    const auto bindings = Vertex2D::getBindings(1);
+    EXPECT_EQ(bindings[0].binding, 1U);
+    EXPECT_EQ(bindings[0].stride, 20U);
+    EXPECT_EQ(bindings[0].inputRate, vk::VertexInputRate::eVertex);
+
+    const auto attributes = Vertex2D::getAttributes(1);
+    EXPECT_EQ(attributes[0].location, 0U);
+    EXPECT_EQ(attributes[0].format, vk::Format::eR32G32Sfloat);
+    EXPECT_EQ(attributes[0].offset, 0U);
+    EXPECT_EQ(attributes[1].location, 1U);
+    EXPECT_EQ(attributes[1].offset, 8U);
+    EXPECT_EQ(attributes[2].location, 2U);
+    EXPECT_EQ(attributes[2].format, vk::Format::eR8G8B8A8Unorm);  // Read as a vec4 of 0-1 floats.
+    EXPECT_EQ(attributes[2].offset, 16U);
+    for (const vk::VertexInputAttributeDescription& attribute : attributes) {
+        EXPECT_EQ(attribute.binding, 1U);
+    }
 }
