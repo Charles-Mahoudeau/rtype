@@ -178,3 +178,47 @@ TEST(Validate, RejectsOverlappingFields) {
     };
     expectInvalid(info, {"game.Shield", "'direction'", "'strength'", "overlap"});
 }
+
+TEST(LayoutHash, IsStable) {
+    EXPECT_EQ(rtype::ecs::computeLayoutHash(makeHealth()), rtype::ecs::computeLayoutHash(makeHealth()));
+}
+
+TEST(LayoutHash, ChangesWithTheLayout) {
+    const std::uint64_t original = rtype::ecs::computeLayoutHash(makeHealth());
+
+    rtype::ecs::ComponentInfo renamed = makeHealth();
+    renamed.name = "rtype.Shield";
+    EXPECT_NE(rtype::ecs::computeLayoutHash(renamed), original);
+
+    rtype::ecs::ComponentInfo bigger = makeHealth();
+    bigger.size = 16;
+    EXPECT_NE(rtype::ecs::computeLayoutHash(bigger), original);
+
+    rtype::ecs::ComponentInfo aligned = makeHealth();
+    aligned.alignment = 8;
+    EXPECT_NE(rtype::ecs::computeLayoutHash(aligned), original);
+
+    rtype::ecs::ComponentInfo fieldRenamed = makeHealth();
+    fieldRenamed.fields.at(1).name = "maximum";
+    EXPECT_NE(rtype::ecs::computeLayoutHash(fieldRenamed), original);
+
+    rtype::ecs::ComponentInfo retyped = makeHealth();
+    retyped.fields.at(1).type = rtype::ecs::FieldType::kU32;
+    EXPECT_NE(rtype::ecs::computeLayoutHash(retyped), original);
+
+    rtype::ecs::ComponentInfo moved = makeHealth();
+    moved.fields.at(1).offset = 0;
+    EXPECT_NE(rtype::ecs::computeLayoutHash(moved), original);
+
+    rtype::ecs::ComponentInfo array = makeHealth();
+    array.fields.at(1).count = 2;
+    EXPECT_NE(rtype::ecs::computeLayoutHash(array), original);
+}
+
+TEST(LayoutHash, IgnoresTheOptions) {
+    rtype::ecs::ComponentInfo info = makeHealth();
+    info.storage = rtype::ecs::StorageKind::kTable;
+    info.presence = rtype::ecs::Presence::kServerOnly;
+    info.replication = rtype::ecs::ReplicationMode::kEveryChange;
+    EXPECT_EQ(rtype::ecs::computeLayoutHash(info), rtype::ecs::computeLayoutHash(makeHealth()));
+}
