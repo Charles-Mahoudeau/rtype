@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 
+#include "rtype/ecs/component/NameHash.hpp"
 #include "rtype/ecs/error/Error.hpp"
 #include "rtype/ecs/error/Result.hpp"
 
@@ -106,5 +107,21 @@ Result<void> validate(const ComponentInfo& info) {
         return tl::unexpected<Error>{std::move(spans.error())};
     }
     return checkOverlaps(info.name, std::move(*spans));
+}
+
+std::uint64_t computeLayoutHash(const ComponentInfo& info) noexcept {
+    std::uint64_t hash = hashString(kNameHashOffsetBasis, info.name);
+    hash = hashInteger(hash, info.size);
+    hash = hashInteger(hash, info.alignment);
+    hash = hashInteger(hash, info.fields.size());
+    for (const FieldInfo& field : info.fields) {
+        // The length first, so that fields "ab" + "c" never hash like "a" + "bc".
+        hash = hashInteger(hash, field.name.size());
+        hash = hashString(hash, field.name);
+        hash = hashInteger(hash, static_cast<std::uint64_t>(field.type));
+        hash = hashInteger(hash, field.offset);
+        hash = hashInteger(hash, field.count);
+    }
+    return hash;
 }
 }  // namespace rtype::ecs
