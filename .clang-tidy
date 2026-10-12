@@ -32,4 +32,8 @@ CheckOptions:
     value: 1
   - key: misc-include-cleaner.IgnoreHeaders
     value: "bits/.*;vulkan/.*;vk_mem_alloc.*;SDL3/.*"
+  # The ECS reflection macros (RTYPE_ECS_COMPONENT and its helpers) are intended: no constexpr function can
+  # stringify a member name or take its offset.
+  - key: cppcoreguidelines-macro-usage.AllowedRegexp
+    value: "^RTYPE_ECS_"
 ...
