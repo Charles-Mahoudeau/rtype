@@ -13,7 +13,6 @@
 #include <string_view>
 
 #include "rtype/ecs/component/ComponentInfo.hpp"
-#include "rtype/ecs/component/FieldTypeOf.hpp"
 #include "rtype/ecs/component/NameHash.hpp"
 #include "rtype/ecs/detail/ForEach.hpp"
 
