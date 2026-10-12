@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -33,6 +34,7 @@
 #include "engine/graphics/Sprite.hpp"
 #include "engine/graphics/Texture.hpp"
 #include "engine/platform/IPlatform.hpp"
+#include "frame/FrameGlobals.hpp"
 #include "frame/FrameResources.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
 #include "memory/Allocator.hpp"
@@ -143,6 +145,10 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
     /// swapchain out of date while the window is minimized.
     void recreateSwapchain();
 
+    /// @brief Writes this frame's FrameUniforms (time, delta time, swapchain extent) into its uniform buffer.
+    /// @warning Only after the frame's fence was waited for: the GPU may still read the buffer before.
+    void updateFrameUniforms();
+
     /// @brief Frames the CPU may record while the GPU still works on previous ones.
     static constexpr std::size_t kFramesInFlight = 2;
 
@@ -165,7 +171,9 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
                                                   ///< beginFrame() and endFrame(); empty when the frame was skipped.
     bool _swapchainOutOfDate = false;  ///< Set on resize, VK_ERROR_OUT_OF_DATE_KHR or VK_SUBOPTIMAL_KHR; the next
                                        ///< beginFrame() recreates the swapchain and clears it.
-    std::vector<SwapchainListener> _swapchainListeners;  ///< Called after each swapchain recreation.
+    std::vector<SwapchainListener> _swapchainListeners;    ///< Called after each swapchain recreation.
+    std::chrono::steady_clock::time_point _startTime;      ///< When init() ran: origin of FrameUniforms::time.
+    std::chrono::steady_clock::time_point _lastFrameTime;  ///< When the previous frame began: for deltaTime.
 
     // 2. Context: created by init(), in this order.
     std::optional<core::Instance> _instance;                ///< The VkInstance.
@@ -186,6 +194,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
     // 6. Pipelines, descriptors and shaders.
     std::unique_ptr<pipeline::ShaderCache> _shaders;          ///< Shader modules, built-in and from the game.
     std::unique_ptr<pipeline::PipelineCache> _pipelineCache;  ///< Shared by every pipeline the renderer builds.
+    std::unique_ptr<frame::FrameGlobals> _globals;            ///< Per-frame uniforms, at set 0, binding 0.
 
     // 7. Deferred deletion.
     core::DeletionQueue _deletionQueue{kFramesInFlight};  ///< Resources the GPU may still use, one bucket per frame.
