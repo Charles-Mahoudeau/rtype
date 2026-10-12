@@ -31,5 +31,5 @@ CheckOptions:
   - key: misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic
     value: 1
   - key: misc-include-cleaner.IgnoreHeaders
-    value: "bits/.*;vulkan/.*;SDL3/.*"
+    value: "bits/.*;vulkan/.*;vk_mem_alloc.*;SDL3/.*"
 ...

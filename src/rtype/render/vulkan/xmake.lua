@@ -2,36 +2,48 @@
 if not is_plat("macosx") then
     add_requires("vulkan-loader 1.4.x", {alias = "vulkan-loader"})
 end
-add_requires("vulkan-memory-allocator 3.x", {alias = "vulkan-memory-allocator"})
+
+add_requires("vulkan-memory-allocator 3.3.x", {alias = "vulkan-memory-allocator"})
+add_requires("vulkan-memory-allocator-hpp v3.3.0+3",
+             {alias = "vulkan-memory-allocator-hpp", configs = {use_vulkanheaders = true}})
 add_requires("stb", {alias = "stb"})
 add_requires("imgui 1.92.x", {alias = "imgui", configs = {vulkan = true}})
-add_requires("slang 2025.x", {alias = "slang", configs = {shared = true}})
+add_requires("glslang 1.4.x", {alias = "glslang", configs = {binaryonly = true, spirv_tools = true}})
 
+-- Embeds each shader (shaders/<name>.<stage>) as SPIR-V: generates <name>.<stage>.h, which defines
+-- const uint32_t rtype_shader_<name>_<stage>[] (other characters than letters and digits become '_').
 rule("glsl.spirv")
     set_extensions(".vert", ".frag", ".comp", ".geom", ".tesc", ".tese")
 
     on_load(function (target)
-        local outdir = path.join(target:targetdir(), "shaders")
-        os.mkdir(outdir)
-        target:data_set("shader_outdir", outdir)
+        local headerdir = path.join(target:autogendir(), "shaders")
+        os.mkdir(headerdir)
+        target:add("includedirs", headerdir)
     end)
 
     before_buildcmd_file(function (target, batchcmds, sourcefile, opt)
-        local glslang = target:data("glslang") or "glslangValidator"
-        local outdir  = target:data("shader_outdir")
+        import("lib.detect.find_tool")
+        local glslang = find_tool("glslangValidator")
+        assert(glslang, "glslangValidator not found: add_packages(\"glslang\") to the target")
 
-        local basename = path.basename(sourcefile)
-        local stage    = path.extension(sourcefile):sub(2)
-        local spv      = path.join(outdir, basename .. "_" .. stage .. ".spv")
+        local filename = path.filename(sourcefile)
+        local outdir = path.join(target:autogendir(), "shaders")
+        local header = path.join(outdir, filename .. ".h")
+        local variable = "rtype_shader_" .. (filename:gsub("[^%w]", "_"))
+        local includedir = path.join(path.directory(sourcefile), "include")
 
-        batchcmds:show_progress(opt.progress,
-            "${color.build.object}compiling %s.%s to SPIR-V", basename, stage)
+        local argv = {"-V", "--target-env", "vulkan1.3", "-I" .. includedir}
+        table.insert(argv, is_mode("debug") and "-g" or "-Os")
+        table.join2(argv, {"--vn", variable, "-o", header, sourcefile})
+
+        batchcmds:show_progress(opt.progress, "${color.build.object}compiling.glsl %s", sourcefile)
         batchcmds:mkdir(outdir)
-        batchcmds:vrunv(glslang, {"-V", "-S", stage, sourcefile, "-o", spv})
+        batchcmds:vrunv(glslang.program, argv)
 
         batchcmds:add_depfiles(sourcefile)
-        batchcmds:set_depmtime(os.mtime(spv))
-        batchcmds:set_depcache(target:dependfile(spv))
+        batchcmds:add_depfiles(os.files(path.join(includedir, "**")))
+        batchcmds:set_depmtime(os.mtime(header))
+        batchcmds:set_depcache(target:dependfile(header))
     end)
 rule_end()
 
@@ -41,7 +53,7 @@ target("render-vulkan")
     set_basename("rtype-render-vulkan")
     -- engine-core for IRenderer, interop-vulkan for IVulkanSurfaceSource (implemented by the platforms).
     add_deps("engine-core", "interop-vulkan")
-    add_packages("vulkan-headers", "vulkan-memory-allocator", "glm", "stb", "imgui", "slang")
+    add_packages("vulkan-headers", "vulkan-memory-allocator", "vulkan-memory-allocator-hpp", "glm", "stb", "imgui")
     add_packages("vulkan-headers", {public = true})
     -- vk::raii::Context takes the linked vkGetInstanceProcAddr instead of dlopen()-ing its own loader. Public: it
     -- changes the layout of vk::raii::Context, so every file including the renderer headers must agree on it.
@@ -72,4 +84,10 @@ target("render-vulkan")
     add_includedirs("../..", {public = true})
 
     add_rules("glsl.spirv")
-    add_files("shaders/*.vert", "shaders/*.frag", "shaders/*.comp", "shaders/*.geom", "shaders/*.tesc", "shaders/*.tese")
+    add_packages("glslang")
+    -- Only the stages that have shaders, so a missing one is not a warning on every build.
+    for _, stage in ipairs({"vert", "frag", "comp", "geom", "tesc", "tese"}) do
+        if #os.files(path.join(os.scriptdir(), "shaders", "*." .. stage)) > 0 then
+            add_files("shaders/*." .. stage)
+        end
+    end
