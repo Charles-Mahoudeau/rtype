@@ -16,12 +16,17 @@
 namespace rtype::render::vulkan::core {
 
 DebugMessenger::DebugMessenger(const Instance& instance, vk::DebugUtilsMessageSeverityFlagBitsEXT minSeverity)
-    : _messenger{instance.getInstance(), vk::DebugUtilsMessengerCreateInfoEXT{}
-                                             .setMessageSeverity(severitiesFrom(minSeverity))
-                                             .setMessageType(vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
-                                                             vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
-                                                             vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance)
-                                             .setPfnUserCallback(&DebugMessenger::onMessage)} {}
+    : _messenger{instance.getInstance(), makeCreateInfo(minSeverity)} {}
+
+vk::DebugUtilsMessengerCreateInfoEXT DebugMessenger::makeCreateInfo(
+    vk::DebugUtilsMessageSeverityFlagBitsEXT minSeverity) {
+    return vk::DebugUtilsMessengerCreateInfoEXT{}
+        .setMessageSeverity(severitiesFrom(minSeverity))
+        .setMessageType(vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
+                        vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
+                        vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance)
+        .setPfnUserCallback(&DebugMessenger::onMessage);
+}
 
 vk::DebugUtilsMessageSeverityFlagsEXT DebugMessenger::severitiesFrom(
     vk::DebugUtilsMessageSeverityFlagBitsEXT minSeverity) {

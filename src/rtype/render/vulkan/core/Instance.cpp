@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <format>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -19,8 +20,15 @@
 
 namespace rtype::render::vulkan::core {
 Instance::Instance(const std::string_view& appName, const std::string_view& engineName, uint32_t apiVersion,
-                   std::vector<const char*> requiredExtensions, std::vector<const char*> layers)
+                   std::vector<const char*> requiredExtensions, std::vector<const char*> layers,
+                   ValidationOptions validation, const std::optional<vk::DebugUtilsMessengerCreateInfoEXT>& messenger)
     : _context{getLoaderEntryPoint()} {
+    if (messenger && std::ranges::none_of(requiredExtensions, [](const char* extension) {
+            return std::string_view{extension} == vk::EXTDebugUtilsExtensionName;
+        })) {
+        throw std::invalid_argument(std::format("Instance: a debug messenger needs {} in the required extensions",
+                                                vk::EXTDebugUtilsExtensionName));
+    }
     const std::string applicationName{appName};
     const std::string engineNameString{engineName};
     const vk::ApplicationInfo appInfo{applicationName.c_str(), VK_MAKE_VERSION(1, 0, 0), engineNameString.c_str(),
@@ -30,8 +38,9 @@ Instance::Instance(const std::string_view& appName, const std::string_view& engi
     checkExtensionsSupported(availableExtensions, requiredExtensions);
     const vk::InstanceCreateFlags flags = enablePortability(availableExtensions, requiredExtensions);
     checkLayersSupported(_context.enumerateInstanceLayerProperties(), layers);
+    const ValidationOptions appliedValidation = enableValidationFeatures(validation, layers, requiredExtensions);
 
-    _instance = createInstance(appInfo, flags, requiredExtensions, layers);
+    _instance = createInstance(appInfo, flags, requiredExtensions, layers, appliedValidation, messenger);
 }
 
 const vk::raii::Instance& Instance::getInstance() const { return _instance; }
@@ -79,14 +88,52 @@ bool Instance::isLayerAvailable(std::span<const vk::LayerProperties> available, 
     });
 }
 
-vk::raii::Instance Instance::createInstance(const vk::ApplicationInfo& appInfo, vk::InstanceCreateFlags flags,
-                                            std::span<const char* const> extensions,
-                                            std::span<const char* const> layers) const {
+ValidationOptions Instance::enableValidationFeatures(ValidationOptions requested, std::span<const char* const> layers,
+                                                     std::vector<const char*>& extensions) const {
+    const bool validationLayerEnabled =
+        std::ranges::any_of(layers, [](const char* layer) { return std::string_view{layer} == kValidationLayerName; });
+    if (!validationLayerEnabled || (!requested.synchronization && !requested.bestPractices)) {
+        return {};
+    }
+    if (!isExtensionAvailable(_context.enumerateInstanceExtensionProperties(std::string{kValidationLayerName}),
+                              vk::EXTLayerSettingsExtensionName)) {
+        throw std::runtime_error(
+            std::format("{} does not offer {}: disable synchronization validation and best practices",
+                        kValidationLayerName, vk::EXTLayerSettingsExtensionName));
+    }
+    extensions.push_back(vk::EXTLayerSettingsExtensionName);
+    return requested;
+}
+
+vk::raii::Instance Instance::createInstance(
+    const vk::ApplicationInfo& appInfo, vk::InstanceCreateFlags flags, std::span<const char* const> extensions,
+    std::span<const char* const> layers, ValidationOptions validation,
+    const std::optional<vk::DebugUtilsMessengerCreateInfoEXT>& messenger) const {
+    static constexpr vk::Bool32 kEnabled = vk::True;
+    std::vector<vk::LayerSettingEXT> settings;
+    if (validation.synchronization) {
+        settings.emplace_back(kValidationLayerName, "validate_sync", vk::LayerSettingTypeEXT::eBool32, 1, &kEnabled);
+    }
+    if (validation.bestPractices) {
+        settings.emplace_back(kValidationLayerName, "validate_best_practices", vk::LayerSettingTypeEXT::eBool32, 1,
+                              &kEnabled);
+    }
+    const vk::LayerSettingsCreateInfoEXT layerSettings = vk::LayerSettingsCreateInfoEXT{}.setSettings(settings);
+
+    const void* next = settings.empty() ? nullptr : &layerSettings;
+    vk::DebugUtilsMessengerCreateInfoEXT messengerInfo{};
+    if (messenger) {
+        messengerInfo = *messenger;
+        messengerInfo.setPNext(next);
+        next = &messengerInfo;
+    }
+
     vk::InstanceCreateInfo createInfo{};
     createInfo.setFlags(flags)
         .setPApplicationInfo(&appInfo)
         .setPEnabledExtensionNames(extensions)
-        .setPEnabledLayerNames(layers);
+        .setPEnabledLayerNames(layers)
+        .setPNext(next);
     return {_context, createInfo};
 }
 
