@@ -23,3 +23,15 @@ TEST(NameHash, DependsOnEveryCharacter) {
     EXPECT_NE(rtype::ecs::hashName("ab"), rtype::ecs::hashName("ba"));
     EXPECT_EQ(rtype::ecs::hashName("rtype.Health"), rtype::ecs::hashName("rtype.Health"));
 }
+
+TEST(NameHash, IsTheStringStepFromTheOffsetBasis) {
+    EXPECT_EQ(rtype::ecs::hashName("rtype.Health"),
+              rtype::ecs::hashString(rtype::ecs::kNameHashOffsetBasis, "rtype.Health"));
+}
+
+TEST(NameHash, IntegerStepDependsOnEveryByte) {
+    const std::uint64_t start = rtype::ecs::kNameHashOffsetBasis;
+    EXPECT_NE(rtype::ecs::hashInteger(start, 1), rtype::ecs::hashInteger(start, 2));
+    EXPECT_NE(rtype::ecs::hashInteger(start, 0x0100000000000000ULL), rtype::ecs::hashInteger(start, 0));
+    EXPECT_EQ(rtype::ecs::hashInteger(start, 42), rtype::ecs::hashInteger(start, 42));
+}

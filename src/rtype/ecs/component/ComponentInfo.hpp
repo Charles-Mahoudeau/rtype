@@ -141,4 +141,11 @@ struct ComponentInfo {
 /// empty name, a bad alignment or size, fields on a tag, a client-only replicated component, a replicated component
 /// without fields, or a field that is unnamed, duplicated, empty, misaligned, out of bounds or overlapping another.
 [[nodiscard]] RTYPE_ECS_API Result<void> validate(const ComponentInfo& info);
+
+/// @brief Fingerprint of a component's layout: its name, size, alignment and every field (name, type, offset,
+/// count). The options (storage, presence, replication) are not part of it.
+///
+/// @details Two processes that compute the same hash agree on the component's bytes: the registry uses it to accept
+/// re-registering an identical component, and the network compares it when a client connects.
+[[nodiscard]] RTYPE_ECS_API std::uint64_t computeLayoutHash(const ComponentInfo& info) noexcept;
 }  // namespace rtype::ecs
