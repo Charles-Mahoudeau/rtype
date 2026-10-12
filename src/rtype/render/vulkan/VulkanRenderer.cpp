@@ -7,9 +7,18 @@
 
 #include "VulkanRenderer.hpp"
 
+#include <array>
+#include <chrono>
 #include <cstddef>
+#include <cstdint>
+#include <filesystem>
 #include <format>
+#include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
+#include <iostream>
+#include <limits>
+#include <memory>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -27,13 +36,41 @@
 #include "engine/graphics/Sprite.hpp"
 #include "engine/graphics/Texture.hpp"
 #include "engine/platform/IPlatform.hpp"
+#include "engine/system/ExecutablePath.hpp"
+#include "frame/FrameData.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
+#include "rendering/DynamicRendering.hpp"
+#include "rendering/FrameUniforms.hpp"
 
 namespace rtype::render::vulkan {
+
+namespace {
+
+/// @brief Waits on fences and acquires images without a timeout.
+constexpr std::uint64_t kNoTimeout = std::numeric_limits<std::uint64_t>::max();
+
+/// @return @p color (x, y, z, w = red, green, blue, alpha) as a Vulkan clear value: linear, an sRGB swapchain encodes
+/// it.
+vk::ClearColorValue toClearColor(const engine::graphics::Color& color) {
+    return vk::ClearColorValue{std::array{color.x, color.y, color.z, color.w}};
+}
+
+}  // namespace
 
 VulkanRenderer::VulkanRenderer(Config config) : _config(std::move(config)) {}
 
 VulkanRenderer::VulkanRenderer() : VulkanRenderer(Config{}) {}
+
+VulkanRenderer::~VulkanRenderer() {
+    if (!_device) {
+        return;
+    }
+    try {
+        _device->getDevice().waitIdle();
+    } catch (const vk::SystemError& error) {
+        std::cerr << "[Vulkan] vkDeviceWaitIdle failed at shutdown: " << error.what() << '\n';
+    }
+}
 
 void VulkanRenderer::setup(engine::platform::IPlatform& platform) {
     surfaceSourceOf(platform).initLoader(core::Instance::getLoaderEntryPoint());
@@ -58,8 +95,11 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
     for (const std::string& layer : _config.layers) {
         layers.push_back(layer.c_str());
     }
-    _instance.emplace(platform.getTitle(), _config.engineName, _config.apiVersion, std::move(extensions),
-                      std::move(layers));
+    _instance.emplace(
+        platform.getTitle(), _config.engineName, _config.apiVersion, std::move(extensions), std::move(layers),
+        core::ValidationOptions{.synchronization = _config.synchronizationValidation,
+                                .bestPractices = _config.bestPractices},
+        _config.debugging ? std::optional{core::DebugMessenger::makeCreateInfo(_config.minSeverity)} : std::nullopt);
     if (_config.debugging) {
         _debugMessenger.emplace(*_instance, _config.minSeverity);
     }
@@ -67,9 +107,62 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
     auto* const instance = static_cast<VkInstance>(*_instance->getInstance());
     _surface = vk::raii::SurfaceKHR(_instance->getInstance(), surfaceSource.createSurface(instance));
     _framebufferSize = platform.getFramebufferSize();
+    _physicalDevice = std::make_unique<core::PhysicalDevice>(*_instance, _surface, _config.preferredDeviceType);
+    _device = std::make_unique<core::Device>(*_physicalDevice);
+    _swapchain = std::make_unique<presentation::Swapchain>(*_physicalDevice, _surface, *_device, _framebufferSize,
+                                                           _config.presentMode);
+    _frames = std::make_unique<frame::FrameResources>(*_device, kFramesInFlight, _swapchain->getImages().size());
+
+    _allocator = std::make_unique<memory::Allocator>(*_instance, *_physicalDevice, *_device);
+    _uploader = std::make_unique<memory::Uploader>(*_device, *_allocator);
+    const std::filesystem::path& shaderDirectory = _config.shaderDirectory;
+    _shaders = std::make_unique<pipeline::ShaderCache>(
+        *_device,
+        shaderDirectory.is_absolute() ? shaderDirectory : engine::system::getExecutableDirectory() / shaderDirectory);
+    _pipelineCache = std::make_unique<pipeline::PipelineCache>(*_device);
+    _globals = std::make_unique<frame::FrameGlobals>(*_device, *_allocator, kFramesInFlight);
+    _startTime = std::chrono::steady_clock::now();
+    _lastFrameTime = _startTime;
 }
 
-void VulkanRenderer::resize(glm::uvec2 framebufferSize) { _framebufferSize = framebufferSize; }
+void VulkanRenderer::resize(glm::uvec2 framebufferSize) {
+    _framebufferSize = framebufferSize;
+    _swapchainOutOfDate = true;
+}
+
+void VulkanRenderer::addSwapchainListener(SwapchainListener listener) {
+    _swapchainListeners.push_back(std::move(listener));
+}
+
+void VulkanRenderer::recreateSwapchain() {
+    if (_framebufferSize.x == 0 || _framebufferSize.y == 0) {
+        _swapchainOutOfDate = true;
+        return;
+    }
+    _device->getDevice().waitIdle();
+    auto swapchain = std::make_unique<presentation::Swapchain>(*_physicalDevice, _surface, *_device, _framebufferSize,
+                                                               _config.presentMode, *_swapchain->getSwapchain());
+    const std::size_t frameIndex = _frames->getFrameIndex();
+    _deletionQueue.defer(frameIndex, std::exchange(_swapchain, std::move(swapchain)));
+    _deletionQueue.defer(frameIndex, _frames->recreateRenderFinished(*_device, _swapchain->getImages().size()));
+    _swapchainOutOfDate = false;
+    for (const SwapchainListener& listener : _swapchainListeners) {
+        listener(*_swapchain);
+    }
+}
+
+void VulkanRenderer::updateFrameUniforms() {
+    const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+    const vk::Extent2D extent = _swapchain->getExtent();
+    _globals->update(
+        _frames->getFrameIndex(),
+        rendering::FrameUniforms{
+            .time = std::chrono::duration<float>{now - _startTime}.count(),
+            .deltaTime = std::chrono::duration<float>{now - _lastFrameTime}.count(),
+            .framebufferSize = glm::vec2{static_cast<float>(extent.width), static_cast<float>(extent.height)},
+        });
+    _lastFrameTime = now;
+}
 
 engine::graphics::TextureId VulkanRenderer::createTexture(const engine::graphics::TextureDesc& /*desc*/,
                                                           std::span<const std::byte> /*pixels*/) {
@@ -78,9 +171,83 @@ engine::graphics::TextureId VulkanRenderer::createTexture(const engine::graphics
 
 void VulkanRenderer::destroy(engine::graphics::TextureId /*texture*/) { notImplemented("destroy"); }
 
-void VulkanRenderer::beginFrame(const engine::graphics::Color& /*clearColor*/) { notImplemented("beginFrame"); }
+void VulkanRenderer::beginFrame(const engine::graphics::Color& clearColor) {
+    if (!_frames) {
+        throw std::logic_error("VulkanRenderer::beginFrame() called before init()");
+    }
+    if (_acquiredImage) {
+        throw std::logic_error("VulkanRenderer::beginFrame() called twice without endFrame()");
+    }
+    if (_framebufferSize.x == 0 || _framebufferSize.y == 0) {
+        return;
+    }
+    _frames->getCurrentFrame().getInFlight().wait();
+    _deletionQueue.flush(_frames->getFrameIndex());
+    if (_swapchainOutOfDate) {
+        recreateSwapchain();
+    }
+    const frame::FrameData& frame = _frames->getCurrentFrame();
 
-void VulkanRenderer::endFrame() { notImplemented("endFrame"); }
+    std::uint32_t imageIndex = 0;
+    try {
+        const vk::ResultValue<std::uint32_t> acquired =
+            _swapchain->getSwapchain().acquireNextImage(kNoTimeout, *frame.getImageAvailable().getSemaphore());
+        imageIndex = acquired.value;
+        _swapchainOutOfDate = _swapchainOutOfDate || acquired.result == vk::Result::eSuboptimalKHR;
+    } catch (const vk::OutOfDateKHRError&) {
+        recreateSwapchain();
+        return;
+    }
+    frame.getInFlight().reset();
+    frame.getCommandPool().reset();
+    updateFrameUniforms();
+
+    frame.getCommandBuffer().begin();
+    const vk::raii::CommandBuffer& commandBuffer = frame.getCommandBuffer().getCommandBuffer();
+    rendering::transitionImage(commandBuffer, _swapchain->getImages().at(imageIndex), rendering::kToColorAttachment);
+    const vk::RenderingAttachmentInfo color =
+        rendering::colorAttachment(*_swapchain->getImageViews().at(imageIndex), toClearColor(clearColor));
+    commandBuffer.beginRendering(rendering::renderingInfo(_swapchain->getExtent(), {&color, 1}));
+    _acquiredImage = imageIndex;
+}
+
+void VulkanRenderer::endFrame() {
+    if (!_acquiredImage) {
+        return;
+    }
+    const std::uint32_t imageIndex = *_acquiredImage;
+    _acquiredImage.reset();
+    const frame::FrameData& frame = _frames->getCurrentFrame();
+    const vk::raii::CommandBuffer& commandBuffer = frame.getCommandBuffer().getCommandBuffer();
+
+    commandBuffer.endRendering();
+    rendering::transitionImage(commandBuffer, _swapchain->getImages().at(imageIndex),
+                               rendering::kColorAttachmentToPresent);
+    frame.getCommandBuffer().end();
+
+    const vk::Semaphore renderFinished = *_frames->getRenderFinished(imageIndex).getSemaphore();
+    const vk::SemaphoreSubmitInfo waitInfo{*frame.getImageAvailable().getSemaphore(), 0,
+                                           vk::PipelineStageFlagBits2::eColorAttachmentOutput};
+    const vk::CommandBufferSubmitInfo commandBufferInfo{*commandBuffer};
+    const vk::SemaphoreSubmitInfo signalInfo{renderFinished, 0, vk::PipelineStageFlagBits2::eAllCommands};
+    _device->getGraphicsQueue().handle.submit2(vk::SubmitInfo2{}
+                                                   .setWaitSemaphoreInfos(waitInfo)
+                                                   .setCommandBufferInfos(commandBufferInfo)
+                                                   .setSignalSemaphoreInfos(signalInfo),
+                                               *frame.getInFlight().getFence());
+
+    const vk::SwapchainKHR swapchain = *_swapchain->getSwapchain();
+    try {
+        const vk::Result presented = _device->getPresentQueue().handle.presentKHR(vk::PresentInfoKHR{}
+                                                                                      .setWaitSemaphores(renderFinished)
+                                                                                      .setSwapchains(swapchain)
+                                                                                      .setImageIndices(imageIndex));
+        _swapchainOutOfDate = _swapchainOutOfDate || presented == vk::Result::eSuboptimalKHR;
+    } catch (const vk::OutOfDateKHRError&) {
+        _swapchainOutOfDate = true;
+    }
+    _frames->advance();
+}
 
 void VulkanRenderer::setCamera(const engine::graphics::Camera& /*camera*/) { notImplemented("setCamera"); }
 
