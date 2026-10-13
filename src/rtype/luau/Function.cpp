@@ -91,7 +91,11 @@ Result<ValuePack> Function::call(const ValuePack& args) const {
         return Failure{ErrorKind::kRuntime, "unknown error"};
     }
     if (lua_pcall(_state, static_cast<int>(argCount), LUA_MULTRET, 0) != LUA_OK) {
-        std::string error{lua_tostring(_state, -1)};
+        // The error value is not always a string (e.g. `error({})`), in which case lua_tostring returns null.
+        const char* message{lua_tostring(_state, -1)};
+        auto error = message != nullptr
+                         ? std::string{message}
+                         : std::format("error object is a {} value", lua_typename(_state, lua_type(_state, -1)));
         lua_pop(_state, 1);
         return Failure{ErrorKind::kRuntime, std::move(error)};
     }
