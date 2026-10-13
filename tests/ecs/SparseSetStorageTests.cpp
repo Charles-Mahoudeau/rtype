@@ -12,6 +12,8 @@
 #include <map>
 #include <optional>
 #include <random>
+#include <span>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -35,6 +37,24 @@ struct Counter {
     Counter(Counter&& /*other*/) noexcept { ++liveCounters; }
     Counter& operator=(Counter&& /*other*/) noexcept = default;
 };
+
+/// @brief When true, copying a Fragile throws.
+bool failNextCopy = false;
+
+/// @brief A member whose copy can be made to throw, to check that a failed insertion leaves the pool unchanged.
+struct Fragile {
+    Fragile() noexcept = default;
+    ~Fragile() = default;
+    Fragile(const Fragile& /*other*/) {
+        if (failNextCopy) {
+            failNextCopy = false;
+            throw std::runtime_error{"copy failed"};
+        }
+    }
+    Fragile& operator=(const Fragile& /*other*/) = default;
+    Fragile(Fragile&& /*other*/) noexcept = default;
+    Fragile& operator=(Fragile&& /*other*/) noexcept = default;
+};
 }  // namespace
 
 namespace rtype::test::pool {
@@ -57,6 +77,12 @@ RTYPE_ECS_COMPONENT(Tracked, "test.pool.Tracked");
 
 struct Dead {};
 RTYPE_ECS_COMPONENT(Dead, "test.pool.Dead");
+
+struct Brittle {
+    std::int32_t value;
+    Fragile fragile;
+};
+RTYPE_ECS_COMPONENT(Brittle, "test.pool.Brittle");
 }  // namespace rtype::test::pool
 
 namespace {
@@ -328,4 +354,55 @@ TEST(SparseSetStorage, RemoveAndClearDestroyNonTrivialValues) {
         EXPECT_EQ(liveCounters, 1);
     }
     EXPECT_EQ(liveCounters, 0);
+}
+
+TEST(SparseSetStorage, EmplaceCopyCopiesTheValueIn) {
+    SparseSetStorage pool{infoOf<rtype::test::pool::Tracked>()};
+    const rtype::test::pool::Tracked source{.items = {1, 2, 3}};
+    pool.emplaceCopy(Entity{1, 1}, std::as_bytes(std::span{&source, 1}), 4);
+    EXPECT_EQ(source.items, (std::vector<std::int32_t>{1, 2, 3}));  // untouched
+    EXPECT_EQ(rtype::ecs::storage::viewAs<rtype::test::pool::Tracked>(pool.get(Entity{1, 1}))->items,
+              (std::vector<std::int32_t>{1, 2, 3}));
+    EXPECT_EQ(pool.getAddedTicks()[0], 4U);
+    EXPECT_EQ(pool.getChangedTicks()[0], 4U);
+}
+
+TEST(SparseSetStorage, EmplaceMoveMovesTheValueIn) {
+    SparseSetStorage pool{infoOf<rtype::test::pool::Tracked>()};
+    rtype::test::pool::Tracked source{.items = {4, 5}};
+    pool.emplaceMove(Entity{2, 1}, std::as_writable_bytes(std::span{&source, 1}), 0);
+    EXPECT_EQ(rtype::ecs::storage::viewAs<rtype::test::pool::Tracked>(pool.get(Entity{2, 1}))->items,
+              (std::vector<std::int32_t>{4, 5}));
+    EXPECT_TRUE(source.items.empty());  // NOLINT(bugprone-use-after-move): a moved-from vector is empty
+}
+
+TEST(SparseSetStorage, CopiesAndMovesPlainValuesAsBytes) {
+    SparseSetStorage pool{infoOf<Position>()};
+    const Position copied{.x = 1.0F, .y = 2.0F};
+    Position moved{.x = 3.0F, .y = 4.0F};
+    pool.emplaceCopy(Entity{1, 1}, std::as_bytes(std::span{&copied, 1}), 0);
+    pool.emplaceMove(Entity{2, 1}, std::as_writable_bytes(std::span{&moved, 1}), 0);
+    EXPECT_EQ(rtype::ecs::storage::viewAs<Position>(pool.get(Entity{1, 1}))->y, 2.0F);
+    EXPECT_EQ(rtype::ecs::storage::viewAs<Position>(pool.get(Entity{2, 1}))->y, 4.0F);
+}
+
+TEST(SparseSetStorage, CopiesAndMovesTags) {
+    SparseSetStorage pool{infoOf<rtype::test::pool::Dead>()};
+    EXPECT_TRUE(pool.emplaceCopy(Entity{1, 1}, {}, 0).empty());
+    EXPECT_TRUE(pool.emplaceMove(Entity{2, 1}, {}, 0).empty());
+    EXPECT_TRUE(pool.contains(Entity{1, 1}));
+    EXPECT_TRUE(pool.contains(Entity{2, 1}));
+}
+
+TEST(SparseSetStorage, AFailedCopyLeavesThePoolUnchanged) {
+    SparseSetStorage pool{infoOf<rtype::test::pool::Brittle>()};
+    const rtype::test::pool::Brittle source{.value = 7, .fragile = {}};
+    pool.emplaceCopy(Entity{1, 1}, std::as_bytes(std::span{&source, 1}), 0);
+    failNextCopy = true;
+    EXPECT_THROW(pool.emplaceCopy(Entity{2, 1}, std::as_bytes(std::span{&source, 1}), 0), std::runtime_error);
+    EXPECT_EQ(pool.getSize(), 1U);
+    EXPECT_FALSE(pool.contains(Entity{2, 1}));
+    EXPECT_EQ(pool.getAddedTicks().size(), 1U);
+    pool.emplaceCopy(Entity{2, 1}, std::as_bytes(std::span{&source, 1}), 0);  // the index is free again
+    EXPECT_EQ(rtype::ecs::storage::viewAs<rtype::test::pool::Brittle>(pool.get(Entity{2, 1}))->value, 7);
 }
