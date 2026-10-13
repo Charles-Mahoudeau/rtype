@@ -65,49 +65,51 @@ std::size_t ByteColumn::getCapacity() const noexcept { return _capacity; }
 
 std::size_t ByteColumn::getElementSize() const noexcept { return _elementSize; }
 
-void* ByteColumn::emplaceBack() {
+std::span<std::byte> ByteColumn::emplaceBack() {
     makeRoom();
     if (_elementSize == 0) {
         ++_size;
-        return nullptr;
+        return {};
     }
-    std::byte* destination = slot(_data.get(), _size);
+    const std::span<std::byte> destination = slot(_data.get(), _size);
     if (_hooks.construct != nullptr) {
-        _hooks.construct(destination);
+        _hooks.construct(destination.data());
     } else {
-        std::memset(destination, 0, _elementSize);
+        std::memset(destination.data(), 0, _elementSize);
     }
     ++_size;  // only once construction succeeded
     return destination;
 }
 
-void* ByteColumn::emplaceBackCopy(const void* source) {
+std::span<std::byte> ByteColumn::emplaceBackCopy(std::span<const std::byte> source) {
+    assert(source.size() == _elementSize);
     makeRoom();
     if (_elementSize == 0) {
         ++_size;
-        return nullptr;
+        return {};
     }
-    std::byte* destination = slot(_data.get(), _size);
+    const std::span<std::byte> destination = slot(_data.get(), _size);
     if (_hooks.copy != nullptr) {
-        _hooks.copy(destination, source);
+        _hooks.copy(destination.data(), source.data());
     } else {
-        std::memcpy(destination, source, _elementSize);
+        std::memcpy(destination.data(), source.data(), _elementSize);
     }
     ++_size;
     return destination;
 }
 
-void* ByteColumn::emplaceBackMove(void* source) {
+std::span<std::byte> ByteColumn::emplaceBackMove(std::span<std::byte> source) {
+    assert(source.size() == _elementSize);
     makeRoom();
     if (_elementSize == 0) {
         ++_size;
-        return nullptr;
+        return {};
     }
-    std::byte* destination = slot(_data.get(), _size);
+    const std::span<std::byte> destination = slot(_data.get(), _size);
     if (_hooks.move != nullptr) {
-        _hooks.move(destination, source);
+        _hooks.move(destination.data(), source.data());
     } else {
-        std::memcpy(destination, source, _elementSize);
+        std::memcpy(destination.data(), source.data(), _elementSize);
     }
     ++_size;
     return destination;
@@ -117,12 +119,12 @@ void ByteColumn::swapRemove(std::size_t position) noexcept {
     assert(position < _size);
     const std::size_t last = _size - 1;
     if (_elementSize != 0) {
-        std::byte* removed = slot(_data.get(), position);
+        std::byte* removed = slot(_data.get(), position).data();
         if (_hooks.destruct != nullptr) {
             _hooks.destruct(removed);
         }
         if (position != last) {
-            std::byte* moved = slot(_data.get(), last);
+            std::byte* moved = slot(_data.get(), last).data();
             if (_hooks.move != nullptr) {
                 _hooks.move(removed, moved);
                 if (_hooks.destruct != nullptr) {
@@ -136,14 +138,14 @@ void ByteColumn::swapRemove(std::size_t position) noexcept {
     _size = last;
 }
 
-void* ByteColumn::at(std::size_t position) noexcept {
+std::span<std::byte> ByteColumn::at(std::size_t position) noexcept {
     assert(position < _size);
-    return _elementSize == 0 ? nullptr : slot(_data.get(), position);
+    return slot(_data.get(), position);
 }
 
-const void* ByteColumn::at(std::size_t position) const noexcept {
+std::span<const std::byte> ByteColumn::at(std::size_t position) const noexcept {
     assert(position < _size);
-    return _elementSize == 0 ? nullptr : slot(_data.get(), position);
+    return slot(_data.get(), position);
 }
 
 void ByteColumn::reserve(std::size_t capacity) {
@@ -155,7 +157,7 @@ void ByteColumn::reserve(std::size_t capacity) {
 void ByteColumn::clear() noexcept {
     if (_hooks.destruct != nullptr) {
         for (std::size_t position = 0; position < _size; ++position) {
-            _hooks.destruct(slot(_data.get(), position));
+            _hooks.destruct(slot(_data.get(), position).data());
         }
     }
     _size = 0;
@@ -181,8 +183,8 @@ void ByteColumn::growTo(std::size_t capacity) {
             std::memcpy(fresh.get(), _data.get(), _size * _elementSize);
         } else {
             for (std::size_t position = 0; position < _size; ++position) {
-                std::byte* old = slot(_data.get(), position);
-                _hooks.move(slot(fresh.get(), position), old);
+                std::byte* old = slot(_data.get(), position).data();
+                _hooks.move(slot(fresh.get(), position).data(), old);
                 if (_hooks.destruct != nullptr) {
                     _hooks.destruct(old);
                 }
@@ -193,7 +195,7 @@ void ByteColumn::growTo(std::size_t capacity) {
     _capacity = capacity;
 }
 
-std::byte* ByteColumn::slot(std::byte* data, std::size_t position) const noexcept {
-    return std::span<std::byte>{data, (position + 1) * _elementSize}.subspan(position * _elementSize).data();
+std::span<std::byte> ByteColumn::slot(std::byte* data, std::size_t position) const noexcept {
+    return std::span<std::byte>{data, (position + 1) * _elementSize}.subspan(position * _elementSize);
 }
 }  // namespace rtype::ecs::storage

@@ -12,11 +12,13 @@
 #include <cstdint>
 #include <map>
 #include <memory_resource>
+#include <span>
 #include <utility>
 #include <vector>
 
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/storage/ByteColumn.hpp"
+#include "rtype/ecs/storage/ViewAs.hpp"
 
 namespace {
 /// @brief Number of Counter instances alive, to detect leaks and double destruction.
@@ -102,7 +104,17 @@ rtype::ecs::storage::ByteColumn makeColumn() {
 
 template <typename T>
 T& valueAt(rtype::ecs::storage::ByteColumn& column, std::size_t position) {
-    return *static_cast<T*>(column.at(position));
+    return *rtype::ecs::storage::viewAs<T>(column.at(position));
+}
+
+template <typename T>
+std::span<const std::byte> bytesOf(const T& value) {
+    return std::as_bytes(std::span{&value, 1});
+}
+
+template <typename T>
+std::span<std::byte> bytesOf(T& value) {
+    return std::as_writable_bytes(std::span{&value, 1});
 }
 }  // namespace
 
@@ -115,7 +127,7 @@ TEST(ByteColumn, StartsEmpty) {
 
 TEST(ByteColumn, EmplaceBackZeroFillsPlainData) {
     rtype::ecs::storage::ByteColumn column = makeColumn<rtype::test::Plain>();
-    const auto* value = static_cast<const rtype::test::Plain*>(column.emplaceBack());
+    const rtype::test::Plain* value = rtype::ecs::storage::viewAs<rtype::test::Plain>(column.emplaceBack());
     ASSERT_NE(value, nullptr);
     EXPECT_EQ(value->a, 0);
     EXPECT_EQ(value->b, 0.0F);
@@ -124,14 +136,14 @@ TEST(ByteColumn, EmplaceBackZeroFillsPlainData) {
 
 TEST(ByteColumn, EmplaceBackAppliesDefaultMemberInitializers) {
     rtype::ecs::storage::ByteColumn column = makeColumn<rtype::test::Scaled>();
-    EXPECT_EQ(static_cast<const rtype::test::Scaled*>(column.emplaceBack())->scale, 1.0F);
+    EXPECT_EQ(rtype::ecs::storage::viewAs<rtype::test::Scaled>(column.emplaceBack())->scale, 1.0F);
 }
 
 TEST(ByteColumn, KeepsValuesWhenGrowing) {
     rtype::ecs::storage::ByteColumn column = makeColumn<rtype::test::Plain>();
     for (std::int32_t i = 0; i < 100; ++i) {
         const rtype::test::Plain value{.a = i, .b = static_cast<float>(i) / 2.0F};
-        column.emplaceBackCopy(&value);
+        column.emplaceBackCopy(bytesOf(value));
     }
     ASSERT_EQ(column.getSize(), 100U);
     EXPECT_GE(column.getCapacity(), 100U);
@@ -143,18 +155,28 @@ TEST(ByteColumn, KeepsValuesWhenGrowing) {
 TEST(ByteColumn, CopiesAndMovesValuesIn) {
     rtype::ecs::storage::ByteColumn column = makeColumn<rtype::test::Tracked>();
     rtype::test::Tracked source{.items = {1, 2, 3}};
-    column.emplaceBackCopy(&source);
+    column.emplaceBackCopy(bytesOf(std::as_const(source)));
     EXPECT_EQ(source.items.size(), 3U);  // copied, untouched
-    column.emplaceBackMove(&source);
+    column.emplaceBackMove(bytesOf(source));
     EXPECT_EQ(valueAt<rtype::test::Tracked>(column, 0).items, (std::vector<std::int32_t>{1, 2, 3}));
     EXPECT_EQ(valueAt<rtype::test::Tracked>(column, 1).items, (std::vector<std::int32_t>{1, 2, 3}));
+}
+
+TEST(ByteColumn, ReadsValuesThroughAConstColumn) {
+    rtype::ecs::storage::ByteColumn column = makeColumn<rtype::test::Plain>();
+    const rtype::test::Plain value{.a = 42, .b = 0.5F};
+    column.emplaceBackCopy(bytesOf(value));
+    const rtype::ecs::storage::ByteColumn& readOnly = column;
+    const std::span<const std::byte> bytes = readOnly.at(0);
+    EXPECT_EQ(bytes.size(), sizeof(rtype::test::Plain));
+    EXPECT_EQ(rtype::ecs::storage::viewAs<rtype::test::Plain>(bytes)->a, 42);
 }
 
 TEST(ByteColumn, SwapRemoveMovesTheLastValueIntoTheHole) {
     rtype::ecs::storage::ByteColumn column = makeColumn<rtype::test::Plain>();
     for (std::int32_t i = 0; i < 3; ++i) {
         const rtype::test::Plain value{.a = i, .b = 0.0F};
-        column.emplaceBackCopy(&value);
+        column.emplaceBackCopy(bytesOf(value));
     }
     column.swapRemove(0);  // 2 moves into position 0
     ASSERT_EQ(column.getSize(), 2U);
@@ -170,7 +192,7 @@ TEST(ByteColumn, NonTrivialValuesSurviveGrowthAndRemoval) {
     {
         rtype::ecs::storage::ByteColumn column = makeColumn<rtype::test::Tracked>();
         for (std::int32_t i = 0; i < 50; ++i) {
-            auto* value = static_cast<rtype::test::Tracked*>(column.emplaceBack());
+            rtype::test::Tracked* value = rtype::ecs::storage::viewAs<rtype::test::Tracked>(column.emplaceBack());
             value->items = {i, i + 1};
         }
         EXPECT_EQ(liveCounters, 50);
@@ -191,7 +213,7 @@ TEST(ByteColumn, KeepsValuesAlignedAfterGrowth) {
         column.emplaceBack();
     }
     for (std::size_t position = 0; position < column.getSize(); ++position) {
-        EXPECT_EQ(reinterpret_cast<std::uintptr_t>(column.at(position)) % 16, 0U) << "position " << position;
+        EXPECT_EQ(reinterpret_cast<std::uintptr_t>(column.at(position).data()) % 16, 0U) << "position " << position;
     }
 }
 
@@ -199,10 +221,10 @@ TEST(ByteColumn, TagsOnlyCount) {
     CountingResource resource;
     {
         rtype::ecs::storage::ByteColumn column{rtype::ecs::ComponentTraits<rtype::test::Dead>::makeInfo(), &resource};
-        EXPECT_EQ(column.emplaceBack(), nullptr);
-        column.emplaceBack();
+        EXPECT_TRUE(column.emplaceBack().empty());
+        column.emplaceBackCopy({});
         EXPECT_EQ(column.getSize(), 2U);
-        EXPECT_EQ(column.at(0), nullptr);
+        EXPECT_TRUE(column.at(0).empty());
         column.swapRemove(0);
         EXPECT_EQ(column.getSize(), 1U);
     }
@@ -227,7 +249,7 @@ TEST(ByteColumn, MovingTransfersTheValues) {
     liveCounters = 0;
     {
         rtype::ecs::storage::ByteColumn column = makeColumn<rtype::test::Tracked>();
-        static_cast<rtype::test::Tracked*>(column.emplaceBack())->items = {7};
+        rtype::ecs::storage::viewAs<rtype::test::Tracked>(column.emplaceBack())->items = {7};
         rtype::ecs::storage::ByteColumn moved{std::move(column)};
         EXPECT_EQ(moved.getSize(), 1U);
         EXPECT_EQ(valueAt<rtype::test::Tracked>(moved, 0).items, (std::vector<std::int32_t>{7}));

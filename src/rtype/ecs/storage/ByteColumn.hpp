@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <memory>
 #include <memory_resource>
+#include <span>
 
 #include "rtype/ecs/Export.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
@@ -26,11 +27,13 @@ namespace rtype::ecs::storage {
 /// the component's alignment, so every value is correctly aligned. A tag (size 0) never allocates: the column only
 /// counts its elements.
 ///
-/// Addresses returned by the column are invalidated by any insertion (the buffer may grow) and by swapRemove()
-/// (the last value moves).
+/// Values are exchanged as byte spans of exactly getElementSize() bytes (empty for a tag); viewAs() turns one into
+/// the C++ type it holds. Spans returned by the column are invalidated by any insertion (the buffer may grow) and by
+/// swapRemove() (the last value moves).
 /// @code
 /// rtype::ecs::storage::ByteColumn column{rtype::ecs::ComponentTraits<Health>::makeInfo()};
-/// auto* health = static_cast<Health*>(column.emplaceBack());
+/// Health* health = rtype::ecs::storage::viewAs<Health>(column.emplaceBack());
+/// column.emplaceBackCopy(std::as_bytes(std::span{&otherHealth, 1}));
 /// column.swapRemove(0);
 /// @endcode
 class RTYPE_ECS_API ByteColumn {
@@ -59,26 +62,28 @@ class RTYPE_ECS_API ByteColumn {
     [[nodiscard]] std::size_t getElementSize() const noexcept;
 
     /// @brief Appends a default value: the construct hook, or zero-filled bytes when it is `nullptr`.
-    /// @return The new value's bytes, or `nullptr` for a tag.
-    void* emplaceBack();
+    /// @return The new value's bytes, empty for a tag.
+    std::span<std::byte> emplaceBack();
 
     /// @brief Appends a copy of a value: the copy hook, or a byte copy when it is `nullptr`.
-    /// @return The new value's bytes, or `nullptr` for a tag.
-    void* emplaceBackCopy(const void* source);
+    /// @param source The bytes of a live value of this column's type, getElementSize() bytes long.
+    /// @return The new value's bytes, empty for a tag.
+    std::span<std::byte> emplaceBackCopy(std::span<const std::byte> source);
 
     /// @brief Appends a value moved from `source`: the move hook, or a byte copy when it is `nullptr`.
     /// @details `source` stays a valid, moved-from value: its owner must still destroy it.
-    /// @return The new value's bytes, or `nullptr` for a tag.
-    void* emplaceBackMove(void* source);
+    /// @param source The bytes of a live value of this column's type, getElementSize() bytes long.
+    /// @return The new value's bytes, empty for a tag.
+    std::span<std::byte> emplaceBackMove(std::span<std::byte> source);
 
     /// @brief Removes a value in constant time: the last value moves into its place.
     /// @param position Must be below getSize().
     void swapRemove(std::size_t position) noexcept;
 
-    /// @return The bytes of the value at `position`, or `nullptr` for a tag.
+    /// @return The bytes of the value at `position`, empty for a tag.
     /// @note Not checked in release builds: `position` must be below getSize().
-    [[nodiscard]] void* at(std::size_t position) noexcept;
-    [[nodiscard]] const void* at(std::size_t position) const noexcept;
+    [[nodiscard]] std::span<std::byte> at(std::size_t position) noexcept;
+    [[nodiscard]] std::span<const std::byte> at(std::size_t position) const noexcept;
 
     /// @brief Grows the buffer so it holds at least `capacity` values without growing again.
     void reserve(std::size_t capacity);
@@ -104,8 +109,8 @@ class RTYPE_ECS_API ByteColumn {
     /// @brief Moves every value to a new buffer of `capacity` values. The column is unchanged if allocation fails.
     void growTo(std::size_t capacity);
 
-    /// @return The address of the value at `position` in a buffer of this column's capacity.
-    [[nodiscard]] std::byte* slot(std::byte* data, std::size_t position) const noexcept;
+    /// @return The bytes of the value at `position` in a buffer of this column's capacity.
+    [[nodiscard]] std::span<std::byte> slot(std::byte* data, std::size_t position) const noexcept;
 
     std::size_t _elementSize;              ///< Bytes per value; 0 for a tag.
     std::size_t _alignment;                ///< Alignment of every value.
