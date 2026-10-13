@@ -95,6 +95,19 @@ class RTYPE_ECS_API SparseSetStorage {
     /// @return The new value's bytes, empty for a tag.
     std::span<std::byte> emplace(Entity entity, Tick tick);
 
+    /// @brief Gives the entity a copy of a value: the copy hook, or a byte copy.
+    /// @details Same preconditions and guarantee as emplace().
+    /// @param source The bytes of a live value of this component, `getInfo().size` bytes long.
+    /// @return The new value's bytes, empty for a tag.
+    std::span<std::byte> emplaceCopy(Entity entity, std::span<const std::byte> source, Tick tick);
+
+    /// @brief Gives the entity a value moved from `source`: the move hook, or a byte copy.
+    /// @details Same preconditions and guarantee as emplace(). `source` stays a valid, moved-from value: its owner
+    /// must still destroy it.
+    /// @param source The bytes of a live value of this component, `getInfo().size` bytes long.
+    /// @return The new value's bytes, empty for a tag.
+    std::span<std::byte> emplaceMove(Entity entity, std::span<std::byte> source, Tick tick);
+
     /// @brief Removes the entity's value in constant time: the last value, its entity and its ticks move into the
     /// hole (swap-and-pop), so the dense order changes.
     /// @return False, doing nothing, if the entity does not have the component (stale handles included).

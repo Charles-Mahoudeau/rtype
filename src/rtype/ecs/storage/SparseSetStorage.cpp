@@ -66,9 +66,19 @@ std::span<std::byte> SparseSetStorage::at(std::size_t position) noexcept { retur
 std::span<const std::byte> SparseSetStorage::at(std::size_t position) const noexcept { return _data.at(position); }
 
 std::span<std::byte> SparseSetStorage::emplace(Entity entity, Tick tick) {
-    assert(!entity.isNull());
-    assert(!_sparse.get(entity.getIndex()));
     const std::span<std::byte> value = _data.emplaceBack();
+    track(entity, tick);
+    return value;
+}
+
+std::span<std::byte> SparseSetStorage::emplaceCopy(Entity entity, std::span<const std::byte> source, Tick tick) {
+    const std::span<std::byte> value = _data.emplaceBackCopy(source);
+    track(entity, tick);
+    return value;
+}
+
+std::span<std::byte> SparseSetStorage::emplaceMove(Entity entity, std::span<std::byte> source, Tick tick) {
+    const std::span<std::byte> value = _data.emplaceBackMove(source);
     track(entity, tick);
     return value;
 }
@@ -112,6 +122,8 @@ void SparseSetStorage::reserve(std::size_t capacity) {
 }
 
 void SparseSetStorage::track(Entity entity, Tick tick) {
+    assert(!entity.isNull());
+    assert(!_sparse.get(entity.getIndex()));
     // Dense positions are stored in 32 bits, and the largest value means "no entry" in the sparse array.
     assert(_dense.size() < std::numeric_limits<std::uint32_t>::max());
     const auto position = static_cast<std::uint32_t>(_dense.size());
