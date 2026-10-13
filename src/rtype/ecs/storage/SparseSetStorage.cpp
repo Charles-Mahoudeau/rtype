@@ -73,6 +73,37 @@ std::span<std::byte> SparseSetStorage::emplace(Entity entity, Tick tick) {
     return value;
 }
 
+bool SparseSetStorage::remove(Entity entity) noexcept {
+    const std::optional<std::uint32_t> position = find(entity);
+    if (!position) {
+        return false;
+    }
+    const std::size_t last = _dense.size() - 1;
+    _data.swapRemove(*position);
+    if (*position != last) {
+        const Entity moved = _dense[last];
+        _dense[*position] = moved;
+        _added[*position] = _added[last];
+        _changed[*position] = _changed[last];
+        _sparse.set(moved.getIndex(), *position);  // its page exists already: nothing to allocate
+    }
+    _dense.pop_back();
+    _added.pop_back();
+    _changed.pop_back();
+    _sparse.erase(entity.getIndex());
+    return true;
+}
+
+void SparseSetStorage::clear() noexcept {
+    for (const Entity entity : _dense) {
+        _sparse.erase(entity.getIndex());
+    }
+    _dense.clear();
+    _data.clear();
+    _added.clear();
+    _changed.clear();
+}
+
 void SparseSetStorage::reserve(std::size_t capacity) {
     _dense.reserve(capacity);
     _data.reserve(capacity);

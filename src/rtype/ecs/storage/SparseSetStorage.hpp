@@ -32,11 +32,13 @@ namespace rtype::ecs::storage {
 /// An entity is found only if the full handle matches, generation included: a stale handle whose index was
 /// reused is not found.
 ///
-/// Spans returned by the pool are invalidated by any insertion (the values may move to a larger buffer).
+/// Spans and dense positions returned by the pool are invalidated by any insertion (the values may move to a larger
+/// buffer) and by remove() (the last value moves into the hole).
 /// @code
 /// rtype::ecs::storage::SparseSetStorage pool{info};
 /// Health* health = rtype::ecs::storage::viewAs<Health>(pool.emplace(entity, tick));
 /// const bool has = pool.contains(entity);
+/// pool.remove(entity);
 /// @endcode
 class RTYPE_ECS_API SparseSetStorage {
   public:
@@ -92,6 +94,14 @@ class RTYPE_ECS_API SparseSetStorage {
     /// @param tick Stamped as both the added and the changed tick.
     /// @return The new value's bytes, empty for a tag.
     std::span<std::byte> emplace(Entity entity, Tick tick);
+
+    /// @brief Removes the entity's value in constant time: the last value, its entity and its ticks move into the
+    /// hole (swap-and-pop), so the dense order changes.
+    /// @return False, doing nothing, if the entity does not have the component (stale handles included).
+    bool remove(Entity entity) noexcept;
+
+    /// @brief Destroys every value and empties the pool. Capacity and sparse pages are kept.
+    void clear() noexcept;
 
     /// @brief Grows every dense array so the pool holds at least `capacity` values without growing again.
     void reserve(std::size_t capacity);
