@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <memory_resource>
 #include <optional>
@@ -41,7 +42,7 @@ bool SparseSetStorage::contains(Entity entity) const noexcept { return static_ca
 
 std::optional<std::uint32_t> SparseSetStorage::find(Entity entity) const noexcept {
     const std::optional<std::uint32_t> position = _sparse.get(entity.getIndex());
-    if (position && _dense[*position] == entity) {
+    if (position && *std::next(_dense.begin(), *position) == entity) {
         return position;
     }
     return std::nullopt;
@@ -88,13 +89,12 @@ bool SparseSetStorage::remove(Entity entity) noexcept {
     if (!position) {
         return false;
     }
-    const std::size_t last = _dense.size() - 1;
     _data.swapRemove(*position);
-    if (*position != last) {
-        const Entity moved = _dense[last];
-        _dense[*position] = moved;
-        _added[*position] = _added[last];
-        _changed[*position] = _changed[last];
+    if (*position != _dense.size() - 1) {
+        const Entity moved = _dense.back();
+        *std::next(_dense.begin(), *position) = moved;
+        *std::next(_added.begin(), *position) = _added.back();
+        *std::next(_changed.begin(), *position) = _changed.back();
         _sparse.set(moved.getIndex(), *position);  // its page exists already: nothing to allocate
     }
     _dense.pop_back();
