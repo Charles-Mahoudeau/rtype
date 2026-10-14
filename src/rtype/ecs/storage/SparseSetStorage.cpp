@@ -21,6 +21,12 @@
 #include "rtype/ecs/entity/Entity.hpp"
 
 namespace rtype::ecs::storage {
+namespace {
+/// @brief Bound on the number of values: dense positions are stored in 32 bits, and the largest value means "no
+/// entry" in the sparse array. Only read by an assert, so unused in release builds.
+[[maybe_unused]] constexpr std::uint32_t kMaxPositions = std::numeric_limits<std::uint32_t>::max();
+}  // namespace
+
 SparseSetStorage::SparseSetStorage(const ComponentInfo& info, std::pmr::memory_resource* resource)
     : _info{&info}, _data{info, resource} {}
 
@@ -124,8 +130,7 @@ void SparseSetStorage::reserve(std::size_t capacity) {
 void SparseSetStorage::track(Entity entity, Tick tick) {
     assert(!entity.isNull());
     assert(!_sparse.get(entity.getIndex()));
-    // Dense positions are stored in 32 bits, and the largest value means "no entry" in the sparse array.
-    assert(_dense.size() < std::numeric_limits<std::uint32_t>::max());
+    assert(_dense.size() < kMaxPositions);
     const auto position = static_cast<std::uint32_t>(_dense.size());
     try {
         _dense.push_back(entity);
