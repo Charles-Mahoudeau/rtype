@@ -49,10 +49,6 @@ template <typename Member>
 template <typename T, typename... Fields>
 [[nodiscard]] constexpr ComponentDescription<sizeof...(Fields)> describeComponent(std::string_view name,
                                                                                   Fields... fields);
-
-/// @brief Builds the lifecycle hooks of `T`, `nullptr` for every operation that is trivial.
-template <typename T>
-[[nodiscard]] constexpr TypeHooks makeHooks() noexcept;
 }  // namespace detail
 
 /// @brief True for a type declared with RTYPE_ECS_COMPONENT.

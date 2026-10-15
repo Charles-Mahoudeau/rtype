@@ -20,4 +20,13 @@ struct TypeHooks {
     void (*move)(void* destination, void* source) noexcept = nullptr;  ///< Move-constructs into raw storage.
     void (*copy)(void* destination, const void* source) = nullptr;     ///< Copy-constructs into raw storage.
 };
+
+namespace detail {
+/// @brief Builds the lifecycle hooks of `T`: `nullptr` for every operation that is trivial, or that `T` does not
+/// support (no default constructor, not copyable), so the same builder serves components and resources.
+template <typename T>
+[[nodiscard]] constexpr TypeHooks makeHooks() noexcept;
+}  // namespace detail
 }  // namespace rtype::ecs
+
+#include "TypeHooks.tpp"
