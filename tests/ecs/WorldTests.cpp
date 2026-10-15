@@ -490,3 +490,24 @@ TEST(World, AFailedSpawnLeavesNoEntity) {
     const ComponentId position = *world.findComponent("test.world.Position");
     EXPECT_FALSE(world.has(Entity{0, 1}, position));
 }
+
+TEST(World, AdvancingReturnsTheNewChangeTick) {
+    World world;
+    EXPECT_EQ(world.advanceChangeTick(), 1U);
+    EXPECT_EQ(world.advanceChangeTick(5), 6U);
+    EXPECT_EQ(world.getChangeTick(), 6U);
+}
+
+TEST(World, TheChangeTickWrapsAround) {
+    World world;
+    world.advanceChangeTick(4'000'000'000);
+    world.advanceChangeTick(300'000'000);
+    EXPECT_EQ(world.advanceChangeTick(1'000'000), 6'032'704U);  // 4'301'000'000 - 2^32
+}
+
+TEST(World, CheckingTicksOfAnEmptyWorldIsHarmless) {
+    World world;
+    world.checkChangeTicks();
+    world.advanceChangeTick(rtype::ecs::kCheckTickThreshold);  // runs a check through advancing
+    EXPECT_EQ(world.getChangeTick(), rtype::ecs::kCheckTickThreshold);
+}
