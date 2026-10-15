@@ -17,9 +17,9 @@
 #include <utility>
 
 #include "rtype/ecs/component/ComponentInfo.hpp"
-#include "rtype/ecs/component/NameHash.hpp"
 #include "rtype/ecs/error/Error.hpp"
 #include "rtype/ecs/error/Result.hpp"
+#include "rtype/ecs/type/NameHash.hpp"
 
 namespace rtype::ecs {
 namespace {

@@ -16,9 +16,9 @@
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/ComponentRegistry.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
-#include "rtype/ecs/component/NameHash.hpp"
 #include "rtype/ecs/error/Error.hpp"
 #include "rtype/ecs/exceptions/ComponentExceptions.hpp"
+#include "rtype/ecs/type/NameHash.hpp"
 
 namespace rtype::test::registry {
 struct Health {

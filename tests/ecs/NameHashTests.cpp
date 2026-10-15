@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-#include "rtype/ecs/component/NameHash.hpp"
+#include "rtype/ecs/type/NameHash.hpp"
 
 static_assert(rtype::ecs::hashName("rtype.Health") != rtype::ecs::hashName("rtype.Position"));
 

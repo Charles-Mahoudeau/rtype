@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <string_view>
 
-#include "rtype/ecs/component/NameHash.hpp"
+#include "rtype/ecs/type/NameHash.hpp"
 #include "rtype/ecs/type/TypeHooks.hpp"
 
 namespace rtype::ecs {

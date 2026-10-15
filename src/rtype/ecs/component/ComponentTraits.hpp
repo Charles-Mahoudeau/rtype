@@ -14,10 +14,10 @@
 #include <type_traits>
 
 #include "rtype/ecs/component/ComponentInfo.hpp"
-#include "rtype/ecs/component/LayoutHash.hpp"
-#include "rtype/ecs/component/NameHash.hpp"
 #include "rtype/ecs/detail/ForEach.hpp"
 #include "rtype/ecs/type/Field.hpp"
+#include "rtype/ecs/type/LayoutHash.hpp"
+#include "rtype/ecs/type/NameHash.hpp"
 #include "rtype/ecs/type/TypeHooks.hpp"
 
 namespace rtype::ecs {
