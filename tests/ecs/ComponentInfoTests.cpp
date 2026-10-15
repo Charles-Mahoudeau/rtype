@@ -182,6 +182,12 @@ TEST(LayoutHash, IsStable) {
     EXPECT_EQ(rtype::ecs::computeLayoutHash(makeHealth().type), rtype::ecs::computeLayoutHash(makeHealth().type));
 }
 
+TEST(Validate, RejectsANonCopyableComponent) {
+    rtype::ecs::ComponentInfo info = makeHealth();
+    info.type.copyable = false;
+    expectInvalid(info, {"rtype.Health", "copyable"});
+}
+
 TEST(LayoutHash, ChangesWithTheLayout) {
     const std::uint64_t original = rtype::ecs::computeLayoutHash(makeHealth().type);
 
@@ -216,6 +222,10 @@ TEST(LayoutHash, ChangesWithTheLayout) {
     rtype::ecs::ComponentInfo destroyed = makeHealth();
     destroyed.type.hooks.destruct = [](void* /*target*/) noexcept {};
     EXPECT_NE(rtype::ecs::computeLayoutHash(destroyed.type), original);
+
+    rtype::ecs::ComponentInfo moveOnly = makeHealth();
+    moveOnly.type.copyable = false;
+    EXPECT_NE(rtype::ecs::computeLayoutHash(moveOnly.type), original);
 }
 
 TEST(LayoutHash, IgnoresTheOptions) {
