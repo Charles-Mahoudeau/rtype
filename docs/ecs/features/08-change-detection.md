@@ -70,15 +70,26 @@ A writable query term yields `Mut<T>`. Reading through `get()` is free; using `-
 `changed = currentTick`. So a system that iterates `Query<Health>` but only modifies the damaged
 entities marks only those.
 
-The type-erased `world.getMut(e, id)` (used by Luau and the network) marks on access, since it cannot
-know what the caller will do with the bytes.
+The type-erased `world.getMut(e, id)` (used by Luau and the network) returns the value's bytes
+(`std::span<std::byte>`) and marks on access, since it cannot know what the caller will do with them.
+`world.getTicks(e, id)` / `getTicks<T>(e)` return a `ComponentTicks` (`added`, `changed`) with
+`isAdded(lastRun, thisRun)` and `isChanged(lastRun, thisRun)`.
 
 ### Wraparound
 
-Ticks are 32-bit. At thousands of system runs per second they would wrap after weeks, but to be safe
-the world periodically **clamps** every stored tick older than a horizon (say 1 billion runs) to that
-horizon. Comparisons then stay correct as long as no system goes that long without running (Bevy's
-approach).
+Ticks are 32-bit. At thousands of system runs per second they wrap after weeks, so ticks are compared
+by **age** (`isNewerThan(tick, lastRun, thisRun)` compares `thisRun - tick` with `thisRun - lastRun` in
+wrapping unsigned arithmetic), and old ticks are **clamped** (Bevy's approach):
+
+- `world.advanceChangeTick(count = 1)` moves the tick forward (the scheduler calls it once per system
+  run) and, every `kCheckTickThreshold` (518 400 000) ticks, runs `world.checkChangeTicks()`.
+- `checkChangeTicks()` moves every stored `added` / `changed` tick older than `kMaxChangeAge`
+  (2^32 − 1 − 2 × the threshold, about 3.26 billion) to exactly that age: it still compares as old, and
+  its age can never wrap before the next check.
+- Ticks kept **outside** the world (a system's `lastRun`, a client's acknowledged tick) are clamped by
+  their owner with `clampTick(tick, thisRun)`.
+
+Comparisons stay correct as long as no system goes more than `kMaxChangeAge` ticks without running.
 
 ### Replication's own "last run"
 
