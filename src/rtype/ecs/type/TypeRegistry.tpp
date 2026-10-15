@@ -60,8 +60,7 @@ Result<TypeId> TypeRegistry<Info>::registerType(Info info) {
 }
 
 template <typename Info>
-template <Described T>
-    requires(TypeTraits<T>::kKind == KindTraits<Info>::kKind)
+template <OfKind<Info> T>
 TypeId TypeRegistry<Info>::registerType(Options options) {
     Result<TypeId> id = registerType(Traits::template make<T>(options));
     if (!id) {
@@ -92,8 +91,7 @@ const Info* TypeRegistry<Info>::findByHash(std::uint64_t nameHash) const noexcep
 }
 
 template <typename Info>
-template <Described T>
-    requires(TypeTraits<T>::kKind == KindTraits<Info>::kKind)
+template <OfKind<Info> T>
 const Info* TypeRegistry<Info>::find() const noexcept {
     const Info* info = findByHash(TypeTraits<T>::kHash);
     // The name hash found a candidate; the name rules out a hash collision, the layout hash a different type

@@ -57,6 +57,12 @@ namespace detail {
                                                        const TypeInfo& requested);
 }  // namespace detail
 
+/// @brief True for a C++ type declared with the macro of the kind whose description is `Info`.
+/// @details A named concept, so the declaration and the out-of-line definition of a constrained member spell the
+/// constraint the same way (MSVC requires it).
+template <typename T, typename Info>
+concept OfKind = Described<T> && TypeTraits<T>::kKind == KindTraits<Info>::kKind;
+
 /// @brief The catalog of the types of one kind (components, resources) in one world.
 ///
 /// @details Registering validates a description, computes its layout hash and gives it a dense TypeId, so ids can
@@ -96,8 +102,7 @@ class TypeRegistry {
     /// @brief Registers a C++ type declared with this kind's macro.
     /// @return The type's id (its existing id if this exact type is already registered).
     /// @throws exceptions::TypeRegistrationException If the type cannot be registered.
-    template <Described T>
-        requires(TypeTraits<T>::kKind == Traits::kKind)
+    template <OfKind<Info> T>
     TypeId registerType(Options options = {});
 
     /// @return The type with this id, or nullptr.
@@ -112,8 +117,7 @@ class TypeRegistry {
     /// @return The C++ type `T`, or nullptr if it is not registered. Uses its compile-time name and layout hashes: a
     /// type registered under `T`'s name with another layout (a run-time description that only shares the name) is
     /// not `T`, so this returns nullptr, and registering `T` then fails with kLayoutMismatch.
-    template <Described T>
-        requires(TypeTraits<T>::kKind == Traits::kKind)
+    template <OfKind<Info> T>
     [[nodiscard]] const Info* find() const noexcept;
 
   private:
