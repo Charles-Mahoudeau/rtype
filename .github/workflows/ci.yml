@@ -15,6 +15,9 @@ permissions:
   contents: read
   pull-requests: read
 
+env:
+  XMAKE_ACTION_BUILD_CACHE: "true"
+
 jobs:
   build:
     name: Build and verify binaries
@@ -39,26 +42,64 @@ jobs:
 
       - name: Setup macOS dependencies
         if: contains(runner.os, 'macos')
-        run: brew install molten-vk vulkan-loader
+        run: brew install molten-vk vulkan-loader glslang
 
-      # The package cache key also contains a hash of the project's packages (xmake l utils.ci.packageskey, run at
-      # the repository root): adding, removing or reconfiguring a package invalidates the cache.
       - name: Install xmake
         uses: xmake-io/github-action-setup-xmake@v1
         with:
           xmake-version: latest
           actions-cache-folder: ".xmake-cache"
           actions-cache-key: "${{ matrix.os }}-compilation"
-          build-cache: true
-          build-cache-key: "${{ matrix.os }}-compilation"
-          package-cache: true
-          package-cache-key: "${{ matrix.os }}-compilation"
+
+      - name: Locate xmake packages
+        id: packages
+        shell: bash
+        env:
+          XMAKE_ROOT: y
+        run: |
+          xmake repo --update
+          echo "hash=$(xmake l utils.ci.packageskey | tr -d '\r')" >> "$GITHUB_OUTPUT"
+          echo "dir=$(xmake l -c 'import("core.package.package"); print(package.installdir())' | tr -d '\r')" >> "$GITHUB_OUTPUT"
+
+      - name: Restore package cache
+        id: package-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.packages.outputs.dir }}
+          key: xmake-package-cache-${{ matrix.os }}-compilation-${{ steps.packages.outputs.hash }}
+          restore-keys: xmake-package-cache-${{ matrix.os }}-compilation-
+
+      - name: Restore build cache
+        id: build-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: build/.build_cache
+          key: xmake-build-cache-${{ matrix.os }}-compilation-${{ hashFiles('**/xmake.lua', 'src/**', 'tests/**') }}
+          restore-keys: xmake-build-cache-${{ matrix.os }}-compilation-
 
       - name: Build project
         run: |
           xmake f -y
           xmake build -y
         timeout-minutes: 30
+
+      - name: Remove unused packages
+        if: github.ref == 'refs/heads/main' && steps.package-cache.outputs.cache-hit != 'true'
+        run: xmake require --clean --clean_modes=package -y
+
+      - name: Save package cache
+        if: github.ref == 'refs/heads/main' && steps.package-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.packages.outputs.dir }}
+          key: ${{ steps.package-cache.outputs.cache-primary-key }}
+
+      - name: Save build cache
+        if: github.ref == 'refs/heads/main' && steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/.build_cache
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
 
   test:
     name: Run tests
@@ -82,10 +123,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y vulkan-tools libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
 
-      # Vulkan loader and MoltenVK driver from Homebrew, used by the vulkan target on macOS.
       - name: Setup macOS dependencies
         if: contains(runner.os, 'macos')
-        run: brew install molten-vk vulkan-loader
+        run: brew install molten-vk vulkan-loader glslang
 
       - name: Install xmake
         uses: xmake-io/github-action-setup-xmake@v1
@@ -93,16 +133,56 @@ jobs:
           xmake-version: latest
           actions-cache-folder: ".xmake-cache"
           actions-cache-key: "${{ matrix.os }}-compilation"
-          build-cache: true
-          build-cache-key: "${{ matrix.os }}-compilation"
-          package-cache: true
-          package-cache-key: "${{ matrix.os }}-tests"
+
+      - name: Locate xmake packages
+        id: packages
+        shell: bash
+        env:
+          XMAKE_ROOT: y
+        run: |
+          xmake repo --update
+          echo "hash=$(xmake l utils.ci.packageskey | tr -d '\r')" >> "$GITHUB_OUTPUT"
+          echo "dir=$(xmake l -c 'import("core.package.package"); print(package.installdir())' | tr -d '\r')" >> "$GITHUB_OUTPUT"
+
+      - name: Restore package cache
+        id: package-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.packages.outputs.dir }}
+          key: xmake-package-cache-${{ matrix.os }}-tests-${{ steps.packages.outputs.hash }}
+          restore-keys: xmake-package-cache-${{ matrix.os }}-tests-
+
+      - name: Restore build cache
+        id: build-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: build/.build_cache
+          key: xmake-build-cache-${{ matrix.os }}-tests-${{ hashFiles('**/xmake.lua', 'src/**', 'tests/**') }}
+          restore-keys: xmake-build-cache-${{ matrix.os }}-tests-
 
       - name: Build tests
         run: |
           xmake f -y --Tests=y
           xmake build -y
         timeout-minutes: 30
+
+      - name: Remove unused packages
+        if: github.ref == 'refs/heads/main' && steps.package-cache.outputs.cache-hit != 'true'
+        run: xmake require --clean --clean_modes=package -y
+
+      - name: Save package cache
+        if: github.ref == 'refs/heads/main' && steps.package-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.packages.outputs.dir }}
+          key: ${{ steps.package-cache.outputs.cache-primary-key }}
+
+      - name: Save build cache
+        if: github.ref == 'refs/heads/main' && steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/.build_cache
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
 
       - name: Run tests
         run: xmake test -v -y
@@ -128,10 +208,24 @@ jobs:
           xmake-version: latest
           actions-cache-folder: ".xmake-cache"
           actions-cache-key: "ubuntu-latest-compilation"
-          build-cache: true
-          build-cache-key: "ubuntu-latest-compilation"
-          package-cache: true
-          package-cache-key: "ubuntu-latest-lint"
+
+      - name: Locate xmake packages
+        id: packages
+        shell: bash
+        env:
+          XMAKE_ROOT: y
+        run: |
+          xmake repo --update
+          echo "hash=$(xmake l utils.ci.packageskey | tr -d '\r')" >> "$GITHUB_OUTPUT"
+          echo "dir=$(xmake l -c 'import("core.package.package"); print(package.installdir())' | tr -d '\r')" >> "$GITHUB_OUTPUT"
+
+      - name: Restore package cache
+        id: package-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.packages.outputs.dir }}
+          key: xmake-package-cache-ubuntu-latest-tests-${{ steps.packages.outputs.hash }}
+          restore-keys: xmake-package-cache-ubuntu-latest-tests-
 
       - name: Configure xmake
         run: xmake f -y --Tests=y
