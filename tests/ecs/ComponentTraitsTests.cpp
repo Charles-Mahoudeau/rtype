@@ -16,6 +16,7 @@
 
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
 
 namespace rtype::test::traits {
 /// @brief A math type of the game, reflected through a FieldTypeOf specialization.
@@ -50,6 +51,12 @@ struct Scaled {
     float scale{1.0F};
 };
 RTYPE_ECS_COMPONENT(Scaled, "test.Scaled", scale);
+
+struct Link {
+    rtype::ecs::Entity target;
+    std::array<rtype::ecs::Entity, 2> pair;
+};
+RTYPE_ECS_COMPONENT(Link, "test.Link", target, pair);
 
 struct Inventory {
     std::vector<std::int32_t> items;
@@ -205,4 +212,16 @@ TEST(ComponentTraits, LayoutHashDiffersBetweenComponents) {
               rtype::ecs::ComponentTraits<rtype::test::traits::Path>::kLayoutHash);
     EXPECT_NE(rtype::ecs::ComponentTraits<rtype::test::traits::Scaled>::kLayoutHash,
               rtype::ecs::ComponentTraits<rtype::test::traits::Dead>::kLayoutHash);
+}
+
+TEST(ComponentTraits, ReflectsEntityFields) {
+    const auto& fields = rtype::ecs::ComponentTraits<rtype::test::traits::Link>::kFields;
+    ASSERT_EQ(fields.size(), 2U);
+    EXPECT_EQ(fields[0].type, rtype::ecs::FieldType::kEntity);
+    EXPECT_EQ(fields[0].count, 1U);
+    EXPECT_EQ(fields[0].offset, offsetof(rtype::test::traits::Link, target));
+    EXPECT_EQ(fields[1].type, rtype::ecs::FieldType::kEntity);
+    EXPECT_EQ(fields[1].count, 2U);
+    EXPECT_EQ(fields[1].offset, offsetof(rtype::test::traits::Link, pair));
+    EXPECT_TRUE(rtype::ecs::validate(rtype::ecs::ComponentTraits<rtype::test::traits::Link>::makeInfo()));
 }
