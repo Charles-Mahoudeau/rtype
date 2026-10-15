@@ -42,7 +42,9 @@ jobs:
         run: brew install molten-vk vulkan-loader glslang
 
       # The package cache key also contains a hash of the project's packages (xmake l utils.ci.packageskey, run at
-      # the repository root): adding, removing or reconfiguring a package invalidates the cache.
+      # the repository root): adding, removing or reconfiguring a package invalidates the cache. A saved cache is
+      # never updated under the same key: if one is saved incomplete (a run that failed while installing), every run
+      # restores it and rebuilds the missing packages. Bump the -vN suffix of the package-cache-key values to reset.
       - name: Install xmake
         uses: xmake-io/github-action-setup-xmake@v1
         with:
@@ -52,7 +54,7 @@ jobs:
           build-cache: true
           build-cache-key: "${{ matrix.os }}-compilation"
           package-cache: true
-          package-cache-key: "${{ matrix.os }}-compilation"
+          package-cache-key: "${{ matrix.os }}-compilation-v2"
 
       - name: Build project
         run: |
@@ -96,7 +98,7 @@ jobs:
           build-cache: true
           build-cache-key: "${{ matrix.os }}-compilation"
           package-cache: true
-          package-cache-key: "${{ matrix.os }}-tests"
+          package-cache-key: "${{ matrix.os }}-tests-v2"
 
       - name: Build tests
         run: |
@@ -131,7 +133,7 @@ jobs:
           build-cache: true
           build-cache-key: "ubuntu-latest-compilation"
           package-cache: true
-          package-cache-key: "ubuntu-latest-lint"
+          package-cache-key: "ubuntu-latest-lint-v2"
 
       - name: Configure xmake
         run: xmake f -y --Tests=y
