@@ -511,3 +511,65 @@ TEST(World, CheckingTicksOfAnEmptyWorldIsHarmless) {
     world.advanceChangeTick(rtype::ecs::kCheckTickThreshold);  // runs a check through advancing
     EXPECT_EQ(world.getChangeTick(), rtype::ecs::kCheckTickThreshold);
 }
+
+TEST(World, AddingStampsBothTicksWithTheCurrentTick) {
+    World world;
+    world.advanceChangeTick(3);
+    const Entity entity = world.spawn(Health{.value = 1});
+    const std::optional<rtype::ecs::ComponentTicks> ticks = world.getTicks<Health>(entity);
+    ASSERT_TRUE(ticks);
+    EXPECT_EQ(ticks->added, 3U);
+    EXPECT_EQ(ticks->changed, 3U);
+}
+
+TEST(World, ReplacingStampsOnlyTheChangedTick) {
+    World world;
+    world.advanceChangeTick(3);
+    const Entity entity = world.spawn(Health{.value = 1});
+    world.advanceChangeTick(4);
+    world.add(entity, Health{.value = 2});
+    const std::optional<rtype::ecs::ComponentTicks> ticks = world.getTicks<Health>(entity);
+    ASSERT_TRUE(ticks);
+    EXPECT_EQ(ticks->added, 3U);
+    EXPECT_EQ(ticks->changed, 7U);
+    EXPECT_FALSE(ticks->isAdded(5, world.getChangeTick()));  // a system that last ran at tick 5
+    EXPECT_TRUE(ticks->isChanged(5, world.getChangeTick()));
+}
+
+TEST(World, TypedAndErasedTicksAgree) {
+    World world;
+    world.advanceChangeTick(2);
+    const Entity entity = world.spawn(Health{.value = 1}, rtype::test::world::Dead{});
+    const ComponentId health = *world.findComponent("test.world.Health");
+    EXPECT_EQ(world.getTicks(entity, health)->changed, world.getTicks<Health>(entity)->changed);
+    EXPECT_EQ(world.getTicks<rtype::test::world::Dead>(entity)->added, 2U);  // tags have ticks too
+}
+
+TEST(World, HasNoTicksForAnAbsentComponent) {
+    World world;
+    const Entity entity = world.spawn(Position{.x = 0.0F, .y = 0.0F});
+    EXPECT_FALSE(world.getTicks<Health>(entity));                          // not registered
+    EXPECT_FALSE(world.getTicks(entity, 42));                              // unknown id
+    EXPECT_FALSE(world.getTicks<Position>(Entity{entity.getIndex(), 9}));  // stale handle
+    world.spawn(Health{.value = 1});
+    EXPECT_FALSE(world.getTicks<Health>(entity));  // registered, but not on it
+}
+
+TEST(World, ChangeDetectionSurvivesTheTickWrapping) {
+    World world;
+    world.advanceChangeTick();
+    const Entity entity = world.spawn(Health{.value = 1});  // added and changed at tick 1
+    rtype::ecs::Tick lastRun = world.advanceChangeTick();   // a system runs at tick 2 and sees it
+    // Five billion ticks later, past the 32-bit wrap; the system keeps clamping its own last run, as it must.
+    for (int step = 0; step < 5; ++step) {
+        world.advanceChangeTick(1'000'000'000);
+        rtype::ecs::clampTick(lastRun, world.getChangeTick());
+    }
+    const rtype::ecs::Tick thisRun = world.getChangeTick();
+    const std::optional<rtype::ecs::ComponentTicks> untouched = world.getTicks<Health>(entity);
+    ASSERT_TRUE(untouched);
+    EXPECT_LE(thisRun - untouched->changed, rtype::ecs::kMaxChangeAge);  // clamped by the world
+    EXPECT_FALSE(untouched->isChanged(lastRun, thisRun));                // still old, not "new" after the wrap
+    world.add(entity, Health{.value = 2});                               // now written
+    EXPECT_TRUE(world.getTicks<Health>(entity)->isChanged(lastRun, thisRun));
+}
