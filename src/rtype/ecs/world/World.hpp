@@ -93,6 +93,27 @@ class RTYPE_ECS_API World {
     /// @return False, doing nothing, if the entity does not have the component or the id is unknown.
     bool remove(Entity entity, ComponentId id) noexcept;
 
+    /// @brief Gives the entity a C++ component, or replaces its value if it already has it.
+    /// @details Registers `T` with the default options if it is not registered yet, then moves `value` in. Stamps
+    /// the world's change tick (only as the changed tick when replacing).
+    /// @return False, doing nothing (not even registering `T`), if the entity is not alive.
+    template <Component T>
+    bool add(Entity entity, T value);
+
+    /// @return Whether the entity has the component; false if `T` is not registered in this world.
+    template <Component T>
+    [[nodiscard]] bool has(Entity entity) const noexcept;
+
+    /// @return The entity's value, or nullptr if it does not have the component or `T` is not registered.
+    /// Invalidated by the next change to the component's pool. Tags have no value: test them with has().
+    template <Component T>
+    [[nodiscard]] const T* get(Entity entity) const noexcept;
+
+    /// @brief Removes the C++ component from the entity, destroying its value.
+    /// @return False, doing nothing, if the entity does not have the component or `T` is not registered.
+    template <Component T>
+    bool remove(Entity entity) noexcept;
+
   private:
     /// @brief Creates the pools of every registered component up to `id` that has none yet.
     void createPools(ComponentId id);
