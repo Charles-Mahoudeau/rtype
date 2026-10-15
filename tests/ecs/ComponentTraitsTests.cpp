@@ -68,6 +68,7 @@ static_assert(rtype::ecs::Component<rtype::test::Health>);
 static_assert(rtype::ecs::Component<GlobalPosition>);
 static_assert(!rtype::ecs::Component<int>);
 static_assert(rtype::ecs::ComponentTraits<rtype::test::Health>::kName == "rtype.Health");
+static_assert(rtype::ecs::ComponentTraits<rtype::test::Health>::kLayoutHash != 0, "known at compile time");
 
 namespace {
 /// @brief Raw storage for one T, as a pool would hold it.
@@ -184,4 +185,24 @@ TEST(ComponentHooks, ManageNonTrivialMembers) {
     hooks.destruct(original.raw());
     hooks.destruct(copy.raw());
     hooks.destruct(moved.raw());
+}
+
+TEST(ComponentTraits, LayoutHashMatchesTheRunTimeHash) {
+    EXPECT_EQ(rtype::ecs::ComponentTraits<rtype::test::Health>::kLayoutHash,
+              rtype::ecs::computeLayoutHash(rtype::ecs::ComponentTraits<rtype::test::Health>::makeInfo()));
+    EXPECT_EQ(rtype::ecs::ComponentTraits<rtype::test::Path>::kLayoutHash,
+              rtype::ecs::computeLayoutHash(rtype::ecs::ComponentTraits<rtype::test::Path>::makeInfo()));
+    EXPECT_EQ(rtype::ecs::ComponentTraits<rtype::test::Dead>::kLayoutHash,
+              rtype::ecs::computeLayoutHash(rtype::ecs::ComponentTraits<rtype::test::Dead>::makeInfo()));
+    EXPECT_EQ(rtype::ecs::ComponentTraits<rtype::test::Inventory>::kLayoutHash,
+              rtype::ecs::computeLayoutHash(rtype::ecs::ComponentTraits<rtype::test::Inventory>::makeInfo()));
+    EXPECT_EQ(rtype::ecs::ComponentTraits<GlobalPosition>::kLayoutHash,
+              rtype::ecs::computeLayoutHash(rtype::ecs::ComponentTraits<GlobalPosition>::makeInfo()));
+}
+
+TEST(ComponentTraits, LayoutHashDiffersBetweenComponents) {
+    EXPECT_NE(rtype::ecs::ComponentTraits<rtype::test::Health>::kLayoutHash,
+              rtype::ecs::ComponentTraits<rtype::test::Path>::kLayoutHash);
+    EXPECT_NE(rtype::ecs::ComponentTraits<rtype::test::Scaled>::kLayoutHash,
+              rtype::ecs::ComponentTraits<rtype::test::Dead>::kLayoutHash);
 }
