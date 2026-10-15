@@ -7,9 +7,12 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <utility>
+#include <vector>
 
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/ComponentRegistry.hpp"
@@ -18,7 +21,23 @@
 #include "rtype/ecs/error/Error.hpp"
 #include "rtype/ecs/error/Result.hpp"
 #include "rtype/ecs/exceptions/ComponentExceptions.hpp"
+#include "rtype/ecs/storage/ViewAs.hpp"
 #include "rtype/ecs/world/World.hpp"
+
+namespace {
+/// @brief Number of Counter instances alive, to detect leaks and double destruction.
+int liveCounters = 0;
+
+/// @brief Counts its own instances.
+struct Counter {
+    Counter() noexcept { ++liveCounters; }
+    ~Counter() { --liveCounters; }
+    Counter(const Counter& /*other*/) noexcept { ++liveCounters; }
+    Counter& operator=(const Counter& /*other*/) noexcept = default;
+    Counter(Counter&& /*other*/) noexcept { ++liveCounters; }
+    Counter& operator=(Counter&& /*other*/) noexcept = default;
+};
+}  // namespace
 
 namespace rtype::test::world {
 struct Position {
@@ -31,6 +50,12 @@ struct Health {
     std::int32_t value;
 };
 RTYPE_ECS_COMPONENT(Health, "test.world.Health", value);
+
+struct Inventory {
+    std::vector<std::int32_t> items;
+    Counter counter;
+};
+RTYPE_ECS_COMPONENT(Inventory, "test.world.Inventory");
 }  // namespace rtype::test::world
 
 namespace {
@@ -39,6 +64,18 @@ using rtype::ecs::Entity;
 using rtype::ecs::World;
 using rtype::test::world::Health;
 using rtype::test::world::Position;
+
+/// @brief The C++ view of a Brain value, which only exists as a run-time description in the world.
+struct BrainValue {
+    std::int32_t health;
+    float iq;
+};
+
+/// @return The bytes of a value, as the Luau bridge passes them.
+template <typename T>
+std::span<const std::byte> bytesOf(const T& value) {
+    return std::as_bytes(std::span{&value, 1});
+}
 
 /// @return A run-time description, as a Luau script would provide it.
 rtype::ecs::ComponentInfo makeBrain() {
@@ -139,4 +176,88 @@ TEST(World, MovingKeepsEntitiesAndComponents) {
     assigned = std::move(moved);
     EXPECT_TRUE(assigned.isAlive(entity));
     EXPECT_EQ(assigned.component<Position>(), position);
+}
+
+TEST(World, AddsAndReadsARunTimeComponentById) {
+    World world;
+    const ComponentId brain = *world.registerComponent(makeBrain());
+    const Entity entity = world.spawn();
+    EXPECT_TRUE(world.add(entity, brain, bytesOf(BrainValue{.health = 90, .iq = 1.5F})));
+    EXPECT_TRUE(world.has(entity, brain));
+    const std::span<const std::byte> bytes = world.get(entity, brain);
+    ASSERT_EQ(bytes.size(), sizeof(BrainValue));
+    EXPECT_EQ(rtype::ecs::storage::viewAs<BrainValue>(bytes)->health, 90);
+    EXPECT_EQ(rtype::ecs::storage::viewAs<BrainValue>(bytes)->iq, 1.5F);
+}
+
+TEST(World, AddReplacesTheValueOfAComponentTheEntityHas) {
+    World world;
+    const ComponentId brain = *world.registerComponent(makeBrain());
+    const Entity first = world.spawn();
+    const Entity second = world.spawn();
+    world.add(first, brain, bytesOf(BrainValue{.health = 1, .iq = 0.0F}));
+    world.add(second, brain, bytesOf(BrainValue{.health = 2, .iq = 0.0F}));
+    EXPECT_TRUE(world.add(first, brain, bytesOf(BrainValue{.health = 10, .iq = 0.0F})));
+    EXPECT_EQ(rtype::ecs::storage::viewAs<BrainValue>(world.get(first, brain))->health, 10);
+    EXPECT_EQ(rtype::ecs::storage::viewAs<BrainValue>(world.get(second, brain))->health, 2);
+}
+
+TEST(World, RemovesAComponentById) {
+    World world;
+    const ComponentId brain = *world.registerComponent(makeBrain());
+    const Entity entity = world.spawn();
+    world.add(entity, brain, bytesOf(BrainValue{.health = 1, .iq = 0.0F}));
+    EXPECT_TRUE(world.remove(entity, brain));
+    EXPECT_FALSE(world.has(entity, brain));
+    EXPECT_TRUE(world.get(entity, brain).empty());
+    EXPECT_FALSE(world.remove(entity, brain));  // already removed
+    EXPECT_TRUE(world.isAlive(entity));         // removing a component keeps the entity
+}
+
+TEST(World, RefusesInvalidAdds) {
+    World world;
+    const ComponentId brain = *world.registerComponent(makeBrain());
+    const Entity entity = world.spawn();
+    const BrainValue value{.health = 1, .iq = 0.0F};
+    EXPECT_FALSE(world.add(Entity{}, brain, bytesOf(value)));                      // null
+    EXPECT_FALSE(world.add(Entity{42, 1}, brain, bytesOf(value)));                 // never spawned
+    EXPECT_FALSE(world.add(Entity{entity.getIndex(), 2}, brain, bytesOf(value)));  // stale generation
+    EXPECT_FALSE(world.add(entity, brain + 1, bytesOf(value)));                    // unknown id
+    EXPECT_FALSE(world.add(entity, brain, bytesOf(std::int32_t{1})));              // 4 bytes, the component has 8
+    EXPECT_FALSE(world.has(entity, brain));
+}
+
+TEST(World, AnswersNothingForAnUnknownId) {
+    World world;
+    const Entity entity = world.spawn();
+    EXPECT_FALSE(world.has(entity, 7));
+    EXPECT_TRUE(world.get(entity, 7).empty());
+    EXPECT_FALSE(world.remove(entity, 7));
+}
+
+TEST(World, AddsTagsById) {
+    World world;
+    const ComponentId dead = *world.registerComponent(rtype::ecs::ComponentInfo{.name = "test.world.Dead"});
+    const Entity entity = world.spawn();
+    EXPECT_TRUE(world.add(entity, dead, {}));
+    EXPECT_TRUE(world.has(entity, dead));
+    EXPECT_TRUE(world.get(entity, dead).empty());
+}
+
+TEST(World, CopiesNonTrivialValuesById) {
+    liveCounters = 0;
+    {
+        World world;
+        const ComponentId inventory = world.component<rtype::test::world::Inventory>();
+        const Entity entity = world.spawn();
+        const rtype::test::world::Inventory source{.items = {1, 2}};
+        EXPECT_TRUE(world.add(entity, inventory, bytesOf(source)));
+        EXPECT_EQ(source.items.size(), 2U);  // copied, untouched
+        const rtype::test::world::Inventory replacement{.items = {3}};
+        world.add(entity, inventory, bytesOf(replacement));
+        EXPECT_EQ(rtype::ecs::storage::viewAs<rtype::test::world::Inventory>(world.get(entity, inventory))->items,
+                  (std::vector<std::int32_t>{3}));
+        EXPECT_EQ(liveCounters, 3);  // source, replacement, the stored copy
+    }
+    EXPECT_EQ(liveCounters, 0);
 }
