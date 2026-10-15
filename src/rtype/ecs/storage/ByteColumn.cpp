@@ -15,7 +15,7 @@
 #include <span>
 #include <utility>
 
-#include "rtype/ecs/component/ComponentInfo.hpp"
+#include "rtype/ecs/type/TypeInfo.hpp"
 
 namespace rtype::ecs::storage {
 namespace {
@@ -27,12 +27,12 @@ void ByteColumn::BufferDelete::operator()(std::byte* data) const noexcept {
     resource->deallocate(data, bytes, alignment);
 }
 
-ByteColumn::ByteColumn(const ComponentInfo& info, std::pmr::memory_resource* resource)
-    : _elementSize{info.type.size},
-      _alignment{info.type.alignment},
-      _hooks{info.type.hooks},
+ByteColumn::ByteColumn(const TypeInfo& info, std::pmr::memory_resource* resource)
+    : _elementSize{info.size},
+      _alignment{info.alignment},
+      _hooks{info.hooks},
       _resource{resource},
-      _data{nullptr, BufferDelete{.resource = resource, .bytes = 0, .alignment = info.type.alignment}} {}
+      _data{nullptr, BufferDelete{.resource = resource, .bytes = 0, .alignment = info.alignment}} {}
 
 ByteColumn::~ByteColumn() { clear(); }
 
