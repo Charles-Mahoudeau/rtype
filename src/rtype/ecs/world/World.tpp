@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <span>
 #include <type_traits>
+#include <utility>
 
 #include "rtype/ecs/storage/ViewAs.hpp"
 
@@ -17,6 +18,19 @@ ComponentId World::component(ComponentOptions options) {
     const ComponentId id = _registry.registerComponent<T>(options);
     createPools(id);
     return id;
+}
+
+template <Component First, Component... Rest>
+Entity World::spawn(First first, Rest... rest) {
+    const Entity entity = spawn();
+    try {
+        add(entity, std::move(first));
+        (add(entity, std::move(rest)), ...);
+    } catch (...) {
+        despawn(entity);  // destroys the components already added
+        throw;
+    }
+    return entity;
 }
 
 template <Component T>

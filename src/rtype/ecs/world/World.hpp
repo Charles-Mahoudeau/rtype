@@ -57,6 +57,16 @@ class RTYPE_ECS_API World {
     /// @throws exceptions::EntityLimitException When every entity index is in use or retired.
     [[nodiscard]] Entity spawn();
 
+    /// @brief Creates an entity with the given C++ components, moved in as by add() (registering them if needed).
+    /// @details If a type appears twice, the later value wins. If adding a component throws, the entity is
+    /// despawned before the exception leaves: no half-built entity is left behind.
+    /// @code
+    /// const rtype::ecs::Entity ship = world.spawn(Position{.x = 10.F, .y = 20.F}, Velocity{}, Player{});
+    /// @endcode
+    /// @throws exceptions::EntityLimitException When every entity index is in use or retired.
+    template <Component First, Component... Rest>
+    Entity spawn(First first, Rest... rest);
+
     /// @brief Destroys an entity: removes it from every pool (destroying its values), then frees its index.
     /// @details Every handle to it becomes stale, and its index can be reused under a new generation. Entity fields
     /// of other components that pointed to it are not cleared yet.
