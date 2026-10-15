@@ -9,13 +9,13 @@
 #include <cstdint>
 #include <string_view>
 
-#include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/NameHash.hpp"
+#include "rtype/ecs/type/TypeHooks.hpp"
 
 namespace rtype::ecs {
 template <typename Fields>
 constexpr std::uint64_t hashLayout(std::string_view name, std::size_t size, std::size_t alignment,
-                                   const ComponentHooks& hooks, const Fields& fields) noexcept {
+                                   const TypeHooks& hooks, const Fields& fields) noexcept {
     std::uint64_t hash = hashString(kNameHashOffsetBasis, name);
     hash = hashInteger(hash, size);
     hash = hashInteger(hash, alignment);

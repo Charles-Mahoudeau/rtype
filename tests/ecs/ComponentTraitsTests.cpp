@@ -148,16 +148,16 @@ TEST(ComponentTraits, EveryTestComponentIsValid) {
     EXPECT_TRUE(rtype::ecs::validate(rtype::ecs::ComponentTraits<GlobalPosition>::makeInfo()));
 }
 
-TEST(ComponentHooks, AreNullForPlainData) {
-    const rtype::ecs::ComponentHooks hooks = rtype::ecs::ComponentTraits<rtype::test::traits::Health>::kHooks;
+TEST(TypeHooks, AreNullForPlainData) {
+    const rtype::ecs::TypeHooks hooks = rtype::ecs::ComponentTraits<rtype::test::traits::Health>::kHooks;
     EXPECT_EQ(hooks.construct, nullptr);
     EXPECT_EQ(hooks.destruct, nullptr);
     EXPECT_EQ(hooks.move, nullptr);
     EXPECT_EQ(hooks.copy, nullptr);
 }
 
-TEST(ComponentHooks, ConstructAppliesDefaultMemberInitializers) {
-    const rtype::ecs::ComponentHooks hooks = rtype::ecs::ComponentTraits<rtype::test::traits::Scaled>::kHooks;
+TEST(TypeHooks, ConstructAppliesDefaultMemberInitializers) {
+    const rtype::ecs::TypeHooks hooks = rtype::ecs::ComponentTraits<rtype::test::traits::Scaled>::kHooks;
     ASSERT_NE(hooks.construct, nullptr);
     EXPECT_EQ(hooks.destruct, nullptr);
     EXPECT_EQ(hooks.move, nullptr);
@@ -168,8 +168,8 @@ TEST(ComponentHooks, ConstructAppliesDefaultMemberInitializers) {
     EXPECT_EQ(storage.get().scale, 1.0F);
 }
 
-TEST(ComponentHooks, ManageNonTrivialMembers) {
-    const rtype::ecs::ComponentHooks hooks = rtype::ecs::ComponentTraits<rtype::test::traits::Inventory>::kHooks;
+TEST(TypeHooks, ManageNonTrivialMembers) {
+    const rtype::ecs::TypeHooks hooks = rtype::ecs::ComponentTraits<rtype::test::traits::Inventory>::kHooks;
     ASSERT_NE(hooks.construct, nullptr);
     ASSERT_NE(hooks.destruct, nullptr);
     ASSERT_NE(hooks.move, nullptr);

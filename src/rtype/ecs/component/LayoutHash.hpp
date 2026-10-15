@@ -11,7 +11,7 @@
 #include <cstdint>
 #include <string_view>
 
-#include "rtype/ecs/component/ComponentInfo.hpp"
+#include "rtype/ecs/type/TypeHooks.hpp"
 
 namespace rtype::ecs {
 /// @brief Fingerprint of a component's layout: its name, size, alignment, which lifecycle hooks it has, and every
@@ -25,7 +25,7 @@ namespace rtype::ecs {
 /// and a count.
 template <typename Fields>
 [[nodiscard]] constexpr std::uint64_t hashLayout(std::string_view name, std::size_t size, std::size_t alignment,
-                                                 const ComponentHooks& hooks, const Fields& fields) noexcept;
+                                                 const TypeHooks& hooks, const Fields& fields) noexcept;
 }  // namespace rtype::ecs
 
 #include "LayoutHash.tpp"

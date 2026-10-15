@@ -49,8 +49,8 @@ constexpr ComponentDescription<sizeof...(Fields)> describeComponent(std::string_
 }
 
 template <typename T>
-constexpr ComponentHooks makeHooks() noexcept {
-    ComponentHooks hooks{};
+constexpr TypeHooks makeHooks() noexcept {
+    TypeHooks hooks{};
     if constexpr (!std::is_trivially_default_constructible_v<T>) {
         // Value-initializes, which applies default member initializers.
         hooks.construct = [](void* destination) { std::construct_at(static_cast<T*>(destination)); };

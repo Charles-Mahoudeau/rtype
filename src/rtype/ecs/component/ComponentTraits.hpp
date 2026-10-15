@@ -18,6 +18,7 @@
 #include "rtype/ecs/component/NameHash.hpp"
 #include "rtype/ecs/detail/ForEach.hpp"
 #include "rtype/ecs/type/Field.hpp"
+#include "rtype/ecs/type/TypeHooks.hpp"
 
 namespace rtype::ecs {
 /// @brief One reflected field, known at compile time: the constexpr counterpart of FieldInfo.
@@ -51,7 +52,7 @@ template <typename T, typename... Fields>
 
 /// @brief Builds the lifecycle hooks of `T`, `nullptr` for every operation that is trivial.
 template <typename T>
-[[nodiscard]] constexpr ComponentHooks makeHooks() noexcept;
+[[nodiscard]] constexpr TypeHooks makeHooks() noexcept;
 }  // namespace detail
 
 /// @brief True for a type declared with RTYPE_ECS_COMPONENT.
@@ -74,7 +75,7 @@ struct ComponentTraits {
     static constexpr auto kFields = kDescription.fields;
 
     /// @brief Lifecycle hooks, `nullptr` where the operation is trivial.
-    static constexpr ComponentHooks kHooks = detail::makeHooks<T>();
+    static constexpr TypeHooks kHooks = detail::makeHooks<T>();
 
     /// @brief computeLayoutHash() of makeInfo(), known at compile time: tells whether a registered description is
     /// really this type's.

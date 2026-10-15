@@ -16,6 +16,7 @@
 #include "rtype/ecs/Export.hpp"
 #include "rtype/ecs/error/Result.hpp"
 #include "rtype/ecs/type/Field.hpp"
+#include "rtype/ecs/type/TypeHooks.hpp"
 
 namespace rtype::ecs {
 /// @brief Dense index of a component type, local to one world. Use the component's name across worlds.
@@ -44,18 +45,6 @@ enum class ReplicationMode : std::uint8_t {
     kSpawnOnly,    ///< Sent once when the entity appears; clients simulate the rest (bullets).
 };
 
-/// @brief Type-erased lifecycle of a component's bytes. A null hook means trivial: zero-fill, memcpy or nothing.
-///
-/// @details Hooks only manage the component's own memory (a C++ component holding a `std::vector`); gameplay
-/// reactions belong in systems. They are null for plain data and always null for Luau components. Moving and
-/// destroying cannot throw: their pointer types are `noexcept`.
-struct ComponentHooks {
-    void (*construct)(void* destination) = nullptr;                    ///< Default-constructs in raw storage.
-    void (*destruct)(void* target) noexcept = nullptr;                 ///< Destroys a value.
-    void (*move)(void* destination, void* source) noexcept = nullptr;  ///< Move-constructs into raw storage.
-    void (*copy)(void* destination, const void* source) = nullptr;     ///< Copy-constructs into raw storage.
-};
-
 /// @brief Everything the ECS knows about a component type, whether it comes from C++ or from a Luau script.
 ///
 /// @details Storage, queries, reflection and replication only ever read this description, which is what lets the
@@ -68,7 +57,7 @@ struct ComponentInfo {
     StorageKind storage{StorageKind::kSparseSet};         ///< Where the values live.
     Presence presence{Presence::kBoth};                   ///< On which side of the network it exists.
     ReplicationMode replication{ReplicationMode::kNone};  ///< How the server sends it.
-    ComponentHooks hooks;                                 ///< Lifecycle of the bytes; null when trivial.
+    TypeHooks hooks;                                      ///< Lifecycle of the bytes; null when trivial.
     std::vector<FieldInfo> fields;                        ///< Reflected fields.
     std::uint64_t layoutHash{0};                          ///< Hash of the name and fields, set by the registry.
 };

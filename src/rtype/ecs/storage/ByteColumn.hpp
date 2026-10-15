@@ -14,6 +14,7 @@
 
 #include "rtype/ecs/Export.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
+#include "rtype/ecs/type/TypeHooks.hpp"
 
 namespace rtype::ecs::storage {
 /// @brief A growable array of the values of one component type, stored as raw bytes.
@@ -114,7 +115,7 @@ class RTYPE_ECS_API ByteColumn {
 
     std::size_t _elementSize;              ///< Bytes per value; 0 for a tag.
     std::size_t _alignment;                ///< Alignment of every value.
-    ComponentHooks _hooks;                 ///< Lifecycle of the values; `nullptr` hooks mean plain bytes.
+    TypeHooks _hooks;                      ///< Lifecycle of the values; `nullptr` hooks mean plain bytes.
     std::pmr::memory_resource* _resource;  ///< Where the buffer comes from.
     Buffer _data;                          ///< The values, `_elementSize` bytes each; null until the first growth.
     std::size_t _size{0};                  ///< Number of values.
