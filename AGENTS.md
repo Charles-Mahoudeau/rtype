@@ -15,8 +15,9 @@ are added.
   project target. Exported classes and functions are marked `RTYPE_ECS_API`, and the library keeps no
   global mutable state (state lives in the world), so it can also be built static by switching its
   kind and defining `RTYPE_ECS_STATIC` publicly (see `Export.hpp`).
-  - Files are grouped in one folder per feature (`entity/`, `component/`, `storage/`, `change/`
-    (change ticks), `world/`, and later `query/`, `system/`, `schedule/`, `app/`), included as
+  - Files are grouped in one folder per feature (`entity/`, `type/` (the core shared by every kind of ECS
+    data: fields, hooks, descriptions, registry), `component/`, `storage/`, `change/` (change ticks),
+    `world/`, and later `query/`, `system/`, `schedule/`, `app/`), included as
     `rtype/ecs/<feature>/<File>.hpp`.
   - Exception to the namespace rule: the types users write every day stay in the flat `rtype::ecs`
     namespace whatever their folder (`rtype/ecs/entity/Entity.hpp` declares `rtype::ecs::Entity`).
