@@ -8,7 +8,11 @@ add_requires("vulkan-memory-allocator-hpp v3.3.0+3",
              {alias = "vulkan-memory-allocator-hpp", configs = {use_vulkanheaders = true}})
 add_requires("stb", {alias = "stb"})
 add_requires("imgui 1.92.x", {alias = "imgui", configs = {vulkan = true}})
-add_requires("glslang 1.4.x", {alias = "glslang", configs = {binaryonly = true, spirv_tools = true}})
+-- glslangValidator compiles the shaders. On macOS it comes from Homebrew (brew install glslang): building glslang's
+-- tools needs xmake's own python, which no longer builds on macOS (its _ssl module fails to link).
+if not is_plat("macosx") then
+    add_requires("glslang 1.4.x", {alias = "glslang", configs = {binaryonly = true, spirv_tools = true}})
+end
 
 -- Embeds each shader (shaders/<name>.<stage>) as SPIR-V: generates <name>.<stage>.h, which defines
 -- const uint32_t rtype_shader_<name>_<stage>[] (other characters than letters and digits become '_').
@@ -24,7 +28,8 @@ rule("glsl.spirv")
     before_buildcmd_file(function (target, batchcmds, sourcefile, opt)
         import("lib.detect.find_tool")
         local glslang = find_tool("glslangValidator")
-        assert(glslang, "glslangValidator not found: add_packages(\"glslang\") to the target")
+        assert(glslang, "glslangValidator not found: add_packages(\"glslang\") to the target"
+                        .. " (on macOS: brew install glslang)")
 
         local filename = path.filename(sourcefile)
         local outdir = path.join(target:autogendir(), "shaders")
@@ -84,7 +89,9 @@ target("render-vulkan")
     add_includedirs("../..", {public = true})
 
     add_rules("glsl.spirv")
-    add_packages("glslang")
+    if not is_plat("macosx") then
+        add_packages("glslang")
+    end
     -- Only the stages that have shaders, so a missing one is not a warning on every build.
     for _, stage in ipairs({"vert", "frag", "comp", "geom", "tesc", "tese"}) do
         if #os.files(path.join(os.scriptdir(), "shaders", "*." .. stage)) > 0 then
