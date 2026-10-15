@@ -18,14 +18,16 @@ library into the engine.
 ### macOS
 
 macOS has no native Vulkan driver: Vulkan runs on top of Metal through **MoltenVK**. Install it with Homebrew,
-along with the loader and the validation layers:
+along with the loader, the shader compiler and the validation layers:
 
 ```sh
-brew install molten-vk vulkan-loader vulkan-validationlayers
+brew install molten-vk vulkan-loader glslang vulkan-validationlayers
 ```
 
 - `vulkan-loader` is **required**: on macOS the `render-vulkan` target links Homebrew's loader, the only one that finds
   Homebrew's MoltenVK and layers. The build stops with an explicit message if it is missing.
+- `glslang` is **required**: its `glslangValidator` compiles the shaders. On the other platforms it comes from xmake,
+  but building it there needs xmake's own Python, which no longer builds on macOS.
 - `vulkan-validationlayers` is only needed to enable `VK_LAYER_KHRONOS_validation` (debug builds).
 
 ### Linux / Windows
