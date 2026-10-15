@@ -8,7 +8,9 @@
 #include "World.hpp"
 
 #include <cstddef>
+#include <iterator>
 #include <optional>
+#include <span>
 #include <string_view>
 #include <utility>
 
@@ -17,6 +19,7 @@
 #include "rtype/ecs/component/ComponentRegistry.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/error/Result.hpp"
+#include "rtype/ecs/storage/SparseSetStorage.hpp"
 
 namespace rtype::ecs {
 const ComponentRegistry& World::getRegistry() const noexcept { return _registry; }
@@ -44,10 +47,46 @@ std::optional<ComponentId> World::findComponent(std::string_view name) const noe
     return std::nullopt;
 }
 
+bool World::add(Entity entity, ComponentId id, std::span<const std::byte> value) {
+    storage::SparseSetStorage* pool = findPool(id);
+    if (pool == nullptr || !isAlive(entity) || value.size() != pool->getInfo().size) {
+        return false;
+    }
+    if (pool->contains(entity)) {
+        pool->replaceCopy(entity, value, _changeTick);
+    } else {
+        pool->emplaceCopy(entity, value, _changeTick);
+    }
+    return true;
+}
+
+bool World::has(Entity entity, ComponentId id) const noexcept {
+    const storage::SparseSetStorage* pool = findPool(id);
+    return pool != nullptr && pool->contains(entity);
+}
+
+std::span<const std::byte> World::get(Entity entity, ComponentId id) const noexcept {
+    const storage::SparseSetStorage* pool = findPool(id);
+    return pool != nullptr ? pool->get(entity) : std::span<const std::byte>{};
+}
+
+bool World::remove(Entity entity, ComponentId id) noexcept {
+    storage::SparseSetStorage* pool = findPool(id);
+    return pool != nullptr && pool->remove(entity);
+}
+
 void World::createPools(ComponentId id) {
     // A loop, not a single push: if creating a pool ever threw, the next registration catches up.
     while (_pools.size() <= id) {
         _pools.emplace_back(*_registry.findById(static_cast<ComponentId>(_pools.size())));
     }
+}
+
+storage::SparseSetStorage* World::findPool(ComponentId id) noexcept {
+    return id < _pools.size() ? &*std::next(_pools.begin(), id) : nullptr;
+}
+
+const storage::SparseSetStorage* World::findPool(ComponentId id) const noexcept {
+    return id < _pools.size() ? &*std::next(_pools.begin(), id) : nullptr;
 }
 }  // namespace rtype::ecs

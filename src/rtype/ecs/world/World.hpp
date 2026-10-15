@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -74,9 +75,31 @@ class RTYPE_ECS_API World {
     /// @return The id of the component with this name in this world, or nothing if it is not registered.
     [[nodiscard]] std::optional<ComponentId> findComponent(std::string_view name) const noexcept;
 
+    /// @brief Gives the entity a copy of a value, or replaces its value if it already has the component.
+    /// @details Used by the Luau bridge and the network, which only know components by id: failures they can cause
+    /// are return values. Stamps the world's change tick (only as the changed tick when replacing).
+    /// @param value The bytes of a live value of the component, exactly its size (empty for a tag).
+    /// @return False, doing nothing, if the entity is not alive, the id is unknown, or `value` has the wrong size.
+    bool add(Entity entity, ComponentId id, std::span<const std::byte> value);
+
+    /// @return Whether the entity has the component; false for an unknown id.
+    [[nodiscard]] bool has(Entity entity, ComponentId id) const noexcept;
+
+    /// @return The bytes of the entity's value; empty if it does not have the component or the id is unknown, and
+    /// always for a tag (use has() to test a tag). Invalidated by the next change to the component's pool.
+    [[nodiscard]] std::span<const std::byte> get(Entity entity, ComponentId id) const noexcept;
+
+    /// @brief Removes the component from the entity, destroying its value.
+    /// @return False, doing nothing, if the entity does not have the component or the id is unknown.
+    bool remove(Entity entity, ComponentId id) noexcept;
+
   private:
     /// @brief Creates the pools of every registered component up to `id` that has none yet.
     void createPools(ComponentId id);
+
+    /// @return The pool of the component, or nullptr if the id is not registered in this world.
+    [[nodiscard]] storage::SparseSetStorage* findPool(ComponentId id) noexcept;
+    [[nodiscard]] const storage::SparseSetStorage* findPool(ComponentId id) const noexcept;
 
     EntityAllocator _entities;                      ///< Entity indices and generations.
     ComponentRegistry _registry;                    ///< Components of this world, by id and name.
