@@ -89,9 +89,25 @@ one implementation to test.
 
 ### Despawning
 
-`despawn(e)` removes `e` from every pool (and its table row in v3), bumps the slot's generation, and
-clears `kEntity` fields that pointed to it. To avoid scanning every pool, the world can keep a small
-per-entity list of the pools it is in; that is an implementation detail to settle with benchmarks.
+`despawn(e)`, in this order:
+
+1. **Removes `e` from every pool** (and its table row in v3), destroying its values.
+2. **Clears the `kEntity` fields that pointed to it**: in every component with entity fields (C++
+   `Entity` / `std::array<Entity, N>` members, or Luau `Entity` fields), each element holding exactly `e`
+   becomes the null entity and its value is marked changed, so the network sends the null. An older,
+   already stale handle of the same index is left alone.
+3. **Frees the index**: the slot's generation is bumped, so every copy of the handle becomes stale.
+
+**Removal scans every pool.** Each pool answers with one O(1) sparse lookup, so a despawn costs one lookup
+per registered component (a few dozen in R-Type), with no bookkeeping anywhere else. The alternative, a
+per-entity list of the pools it is in, would make despawn proportional to the entity's own components but
+cost memory and work on every add and remove, which are far more frequent than despawns.
+
+**Clearing looks at every value of the components that have entity fields**: its cost grows with how many
+such values exist (bullets with an `owner`), not with the whole world; components without entity fields
+are skipped after checking their field list.
+
+Both choices stay behind `despawn`, so they can change after benchmarks (#131) without touching callers.
 
 ### Several worlds
 
