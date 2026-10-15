@@ -13,6 +13,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -20,9 +21,11 @@
 #include "rtype/ecs/change/ComponentTicks.hpp"
 #include "rtype/ecs/change/Mut.hpp"
 #include "rtype/ecs/change/Tick.hpp"
+#include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/error/Error.hpp"
 #include "rtype/ecs/error/Result.hpp"
+#include "rtype/ecs/exceptions/ComponentExceptions.hpp"
 #include "rtype/ecs/exceptions/MissingResourceException.hpp"
 #include "rtype/ecs/exceptions/ResourceExceptions.hpp"
 #include "rtype/ecs/resource/ResourceInfo.hpp"
@@ -66,7 +69,7 @@ RTYPE_ECS_RESOURCE(Assets, "test.worldres.Assets");
 struct Paused {};
 RTYPE_ECS_RESOURCE(Paused, "test.worldres.Paused");
 
-/// @brief A component sharing Time's name: resource and component names are independent.
+/// @brief A component under Time's name: refused, since a name is either a component or a resource.
 struct TimeComponent {
     float value;
 };
@@ -183,13 +186,45 @@ TEST(WorldResource, StoresEmptyResources) {
     EXPECT_FALSE(world.hasResource<wres::Paused>());
 }
 
-TEST(WorldResource, ResourceAndComponentNamesAreIndependent) {
+TEST(WorldResource, ANameUsedByAComponentCannotBeAResource) {
     rtype::ecs::World world;
     world.component<wres::TimeComponent>();
-    world.insertResource(wres::Time{.delta = 3.F, .fixedDelta = 0.F});
+    try {
+        world.insertResource(wres::Time{.delta = 3.F, .fixedDelta = 0.F});
+        FAIL() << "expected the resource to be refused";
+    } catch (const rtype::ecs::exceptions::ResourceRegistrationException& error) {
+        EXPECT_NE(std::string{error.what()}.find("already used by a component"), std::string::npos) << error.what();
+    }
+    EXPECT_FALSE(world.findResource("test.worldres.Time"));
     EXPECT_TRUE(world.findComponent("test.worldres.Time"));
-    EXPECT_TRUE(world.findResource("test.worldres.Time"));
-    EXPECT_FLOAT_EQ(world.getResource<wres::Time>()->delta, 3.F);
+}
+
+TEST(WorldResource, ANameUsedByAResourceCannotBeAComponent) {
+    rtype::ecs::World world;
+    world.insertResource(wres::Time{.delta = 3.F, .fixedDelta = 0.F});
+    EXPECT_THROW(world.component<wres::TimeComponent>(), rtype::ecs::exceptions::ComponentRegistrationException);
+    const rtype::ecs::Entity entity = world.spawn();
+    EXPECT_THROW(world.add(entity, wres::TimeComponent{}), rtype::ecs::exceptions::ComponentRegistrationException);
+    EXPECT_FALSE(world.findComponent("test.worldres.Time"));
+    EXPECT_FLOAT_EQ(world.getResource<wres::Time>()->delta, 3.F);  // the resource is untouched
+}
+
+TEST(WorldResource, RunTimeRegistrationsRefuseTheOtherKindsNames) {
+    rtype::ecs::World world;
+    world.component<wres::TimeComponent>();
+    world.insertResource(wres::Paused{});
+    const rtype::ecs::Result<rtype::ecs::ResourceId> resource = world.registerResource(
+        rtype::ecs::ResourceInfo{.type = {.name = "test.worldres.Time", .size = 4, .alignment = 4}});
+    ASSERT_FALSE(resource);
+    EXPECT_EQ(resource.error().getKind(), rtype::ecs::ErrorKind::kNameCollision);
+    EXPECT_EQ(std::string{resource.error().getMessage()},
+              "Resource 'test.worldres.Time': the name is already used by a component");
+    const rtype::ecs::Result<rtype::ecs::ComponentId> component = world.registerComponent(
+        rtype::ecs::ComponentInfo{.type = {.name = "test.worldres.Paused", .size = 4, .alignment = 4}});
+    ASSERT_FALSE(component);
+    EXPECT_EQ(component.error().getKind(), rtype::ecs::ErrorKind::kNameCollision);
+    EXPECT_EQ(std::string{component.error().getMessage()},
+              "Component 'test.worldres.Paused': the name is already used by a resource");
 }
 
 TEST(WorldResource, WorldsAreIndependent) {
