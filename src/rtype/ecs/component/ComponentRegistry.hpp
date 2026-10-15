@@ -77,7 +77,9 @@ class RTYPE_ECS_API ComponentRegistry {
     /// @return The component whose name has this hash (see hashName()), or nullptr.
     [[nodiscard]] const ComponentInfo* findByHash(std::uint64_t nameHash) const noexcept;
 
-    /// @return The C++ component `T`, or nullptr if it is not registered. Uses its compile-time name hash.
+    /// @return The C++ component `T`, or nullptr if it is not registered. Uses its compile-time name and layout
+    /// hashes: a component registered under `T`'s name with another layout (a run-time description that only shares
+    /// the name) is not `T`, so this returns nullptr, and registering `T` then fails with kLayoutMismatch.
     template <Component T>
     [[nodiscard]] const ComponentInfo* find() const noexcept;
 

@@ -27,6 +27,10 @@ ComponentId ComponentRegistry::registerComponent(ComponentOptions options) {
 template <Component T>
 const ComponentInfo* ComponentRegistry::find() const noexcept {
     const ComponentInfo* info = findByHash(ComponentTraits<T>::kHash);
-    return info != nullptr && info->name == ComponentTraits<T>::kName ? info : nullptr;
+    if (info == nullptr || info->name != ComponentTraits<T>::kName ||
+        info->layoutHash != ComponentTraits<T>::kLayoutHash) {
+        return nullptr;
+    }
+    return info;
 }
 }  // namespace rtype::ecs
