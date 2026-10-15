@@ -6,6 +6,9 @@
 */
 
 #include <cstddef>
+#include <cstdint>
+#include <iterator>
+#include <optional>
 #include <span>
 #include <type_traits>
 #include <utility>
@@ -67,8 +70,30 @@ const T* World::get(Entity entity) const noexcept {
 }
 
 template <Component T>
+Mut<T> World::getMut(Entity entity) noexcept {
+    static_assert(!std::is_empty_v<T>, "a tag has no value: test it with has<T>()");
+    const ComponentInfo* info = _registry.find<T>();
+    if (info == nullptr) {
+        return {};
+    }
+    storage::SparseSetStorage& pool = *findPool(info->id);
+    const std::optional<std::uint32_t> position = pool.find(entity);
+    if (!position) {
+        return {};
+    }
+    return Mut<T>{storage::viewAs<T>(pool.at(*position)), &*std::next(pool.getChangedTicks().begin(), *position),
+                  _changeTick};
+}
+
+template <Component T>
 bool World::remove(Entity entity) noexcept {
     const ComponentInfo* info = _registry.find<T>();
     return info != nullptr && remove(entity, info->id);
+}
+
+template <Component T>
+std::optional<ComponentTicks> World::getTicks(Entity entity) const noexcept {
+    const ComponentInfo* info = _registry.find<T>();
+    return info != nullptr ? getTicks(entity, info->id) : std::nullopt;
 }
 }  // namespace rtype::ecs

@@ -8,12 +8,14 @@
 #include "World.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <optional>
 #include <span>
 #include <string_view>
 #include <utility>
 
+#include "rtype/ecs/change/ComponentTicks.hpp"
 #include "rtype/ecs/change/Tick.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/ComponentRegistry.hpp"
@@ -27,6 +29,26 @@ const ComponentRegistry& World::getRegistry() const noexcept { return _registry;
 Tick World::getChangeTick() const noexcept { return _changeTick; }
 
 std::size_t World::getEntityCount() const noexcept { return _entities.getAliveCount(); }
+
+Tick World::advanceChangeTick(Tick count) noexcept {
+    _changeTick += count;  // wraps around after 2^32 ticks: comparisons and clamping are built for it
+    if (_changeTick - _lastCheckTick >= kCheckTickThreshold) {
+        checkChangeTicks();
+    }
+    return _changeTick;
+}
+
+void World::checkChangeTicks() noexcept {
+    for (storage::SparseSetStorage& pool : _pools) {
+        for (Tick& tick : pool.getAddedTicks()) {
+            clampTick(tick, _changeTick);
+        }
+        for (Tick& tick : pool.getChangedTicks()) {
+            clampTick(tick, _changeTick);
+        }
+    }
+    _lastCheckTick = _changeTick;
+}
 
 Entity World::spawn() { return _entities.allocate(); }
 
@@ -82,9 +104,35 @@ std::span<const std::byte> World::get(Entity entity, ComponentId id) const noexc
     return pool != nullptr ? pool->get(entity) : std::span<const std::byte>{};
 }
 
+std::span<std::byte> World::getMut(Entity entity, ComponentId id) noexcept {
+    storage::SparseSetStorage* pool = findPool(id);
+    if (pool == nullptr) {
+        return {};
+    }
+    const std::optional<std::uint32_t> position = pool->find(entity);
+    if (!position) {
+        return {};
+    }
+    *std::next(pool->getChangedTicks().begin(), *position) = _changeTick;
+    return pool->at(*position);
+}
+
 bool World::remove(Entity entity, ComponentId id) noexcept {
     storage::SparseSetStorage* pool = findPool(id);
     return pool != nullptr && pool->remove(entity);
+}
+
+std::optional<ComponentTicks> World::getTicks(Entity entity, ComponentId id) const noexcept {
+    const storage::SparseSetStorage* pool = findPool(id);
+    if (pool == nullptr) {
+        return std::nullopt;
+    }
+    const std::optional<std::uint32_t> position = pool->find(entity);
+    if (!position) {
+        return std::nullopt;
+    }
+    return ComponentTicks{.added = *std::next(pool->getAddedTicks().begin(), *position),
+                          .changed = *std::next(pool->getChangedTicks().begin(), *position)};
 }
 
 void World::createPools(ComponentId id) {

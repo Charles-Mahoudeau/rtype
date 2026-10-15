@@ -14,6 +14,8 @@
 #include <vector>
 
 #include "rtype/ecs/Export.hpp"
+#include "rtype/ecs/change/ComponentTicks.hpp"
+#include "rtype/ecs/change/Mut.hpp"
 #include "rtype/ecs/change/Tick.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/ComponentRegistry.hpp"
@@ -52,6 +54,18 @@ class RTYPE_ECS_API World {
 
     /// @return The number of entities alive.
     [[nodiscard]] std::size_t getEntityCount() const noexcept;
+
+    /// @brief Moves the world's change tick forward; values added or written from now on get the new tick.
+    /// @details Called once per system run by the scheduler. Every kCheckTickThreshold ticks it also clamps the
+    /// ticks stored in the pools (checkChangeTicks()), so comparisons stay right when the 32-bit tick wraps around.
+    /// @param count How many ticks to move forward (the scheduler runs several systems; tests jump far ahead).
+    /// @return The new change tick.
+    Tick advanceChangeTick(Tick count = 1) noexcept;
+
+    /// @brief Clamps every added and changed tick of every pool to at most kMaxChangeAge old.
+    /// @details Runs automatically from advanceChangeTick(); calling it more often is harmless. Ticks kept outside
+    /// the world (a system's last run, a client's acknowledged tick) must be clamped by their owner the same way.
+    void checkChangeTicks() noexcept;
 
     /// @brief Creates an entity with no component.
     /// @throws exceptions::EntityLimitException When every entity index is in use or retired.
@@ -105,9 +119,19 @@ class RTYPE_ECS_API World {
     /// always for a tag (use has() to test a tag). Invalidated by the next change to the component's pool.
     [[nodiscard]] std::span<const std::byte> get(Entity entity, ComponentId id) const noexcept;
 
+    /// @brief Write access to the entity's value, marked changed now: the caller only has bytes, so the World cannot
+    /// tell a read from a write. Use get() to only read.
+    /// @return The bytes of the value; empty if it does not have the component or the id is unknown, and always for
+    /// a tag. Invalidated by the next change to the component's pool.
+    [[nodiscard]] std::span<std::byte> getMut(Entity entity, ComponentId id) noexcept;
+
     /// @brief Removes the component from the entity, destroying its value.
     /// @return False, doing nothing, if the entity does not have the component or the id is unknown.
     bool remove(Entity entity, ComponentId id) noexcept;
+
+    /// @return When the entity's value was added and last written, or nothing if it does not have the component or
+    /// the id is unknown. Compare them with ComponentTicks::isAdded() / isChanged().
+    [[nodiscard]] std::optional<ComponentTicks> getTicks(Entity entity, ComponentId id) const noexcept;
 
     /// @brief Gives the entity a C++ component, or replaces its value if it already has it.
     /// @details Registers `T` with the default options if it is not registered yet, then moves `value` in. Stamps
@@ -127,10 +151,21 @@ class RTYPE_ECS_API World {
     template <Component T>
     [[nodiscard]] const T* get(Entity entity) const noexcept;
 
+    /// @return Write access to the entity's value, which marks it changed only when written through (`->`, `*`);
+    /// an empty Mut if it does not have the component or `T` is not registered. Invalidated by the next change to
+    /// the component's pool. Tags have no value: test them with has().
+    template <Component T>
+    [[nodiscard]] Mut<T> getMut(Entity entity) noexcept;
+
     /// @brief Removes the C++ component from the entity, destroying its value.
     /// @return False, doing nothing, if the entity does not have the component or `T` is not registered.
     template <Component T>
     bool remove(Entity entity) noexcept;
+
+    /// @return When the entity's value was added and last written, or nothing if it does not have the component or
+    /// `T` is not registered.
+    template <Component T>
+    [[nodiscard]] std::optional<ComponentTicks> getTicks(Entity entity) const noexcept;
 
   private:
     /// @brief Creates the pools of every registered component up to `id` that has none yet.
@@ -143,7 +178,8 @@ class RTYPE_ECS_API World {
     EntityAllocator _entities;                      ///< Entity indices and generations.
     ComponentRegistry _registry;                    ///< Components of this world, by id and name.
     std::vector<storage::SparseSetStorage> _pools;  ///< One pool per component, indexed by ComponentId.
-    Tick _changeTick{0};                            ///< Current tick; advanced by the scheduler later.
+    Tick _changeTick{0};                            ///< Current tick, stamped on every value added or written.
+    Tick _lastCheckTick{0};                         ///< Change tick at the last checkChangeTicks().
 };
 }  // namespace rtype::ecs
 

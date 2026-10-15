@@ -490,3 +490,158 @@ TEST(World, AFailedSpawnLeavesNoEntity) {
     const ComponentId position = *world.findComponent("test.world.Position");
     EXPECT_FALSE(world.has(Entity{0, 1}, position));
 }
+
+TEST(World, AdvancingReturnsTheNewChangeTick) {
+    World world;
+    EXPECT_EQ(world.advanceChangeTick(), 1U);
+    EXPECT_EQ(world.advanceChangeTick(5), 6U);
+    EXPECT_EQ(world.getChangeTick(), 6U);
+}
+
+TEST(World, TheChangeTickWrapsAround) {
+    World world;
+    world.advanceChangeTick(4'000'000'000);
+    world.advanceChangeTick(300'000'000);
+    EXPECT_EQ(world.advanceChangeTick(1'000'000), 6'032'704U);  // 4'301'000'000 - 2^32
+}
+
+TEST(World, CheckingTicksOfAnEmptyWorldIsHarmless) {
+    World world;
+    world.checkChangeTicks();
+    world.advanceChangeTick(rtype::ecs::kCheckTickThreshold);  // runs a check through advancing
+    EXPECT_EQ(world.getChangeTick(), rtype::ecs::kCheckTickThreshold);
+}
+
+TEST(World, AddingStampsBothTicksWithTheCurrentTick) {
+    World world;
+    world.advanceChangeTick(3);
+    const Entity entity = world.spawn(Health{.value = 1});
+    const std::optional<rtype::ecs::ComponentTicks> ticks = world.getTicks<Health>(entity);
+    ASSERT_TRUE(ticks);
+    EXPECT_EQ(ticks->added, 3U);
+    EXPECT_EQ(ticks->changed, 3U);
+}
+
+TEST(World, ReplacingStampsOnlyTheChangedTick) {
+    World world;
+    world.advanceChangeTick(3);
+    const Entity entity = world.spawn(Health{.value = 1});
+    world.advanceChangeTick(4);
+    world.add(entity, Health{.value = 2});
+    const std::optional<rtype::ecs::ComponentTicks> ticks = world.getTicks<Health>(entity);
+    ASSERT_TRUE(ticks);
+    EXPECT_EQ(ticks->added, 3U);
+    EXPECT_EQ(ticks->changed, 7U);
+    EXPECT_FALSE(ticks->isAdded(5, world.getChangeTick()));  // a system that last ran at tick 5
+    EXPECT_TRUE(ticks->isChanged(5, world.getChangeTick()));
+}
+
+TEST(World, TypedAndErasedTicksAgree) {
+    World world;
+    world.advanceChangeTick(2);
+    const Entity entity = world.spawn(Health{.value = 1}, rtype::test::world::Dead{});
+    const ComponentId health = *world.findComponent("test.world.Health");
+    EXPECT_EQ(world.getTicks(entity, health)->changed, world.getTicks<Health>(entity)->changed);
+    EXPECT_EQ(world.getTicks<rtype::test::world::Dead>(entity)->added, 2U);  // tags have ticks too
+}
+
+TEST(World, HasNoTicksForAnAbsentComponent) {
+    World world;
+    const Entity entity = world.spawn(Position{.x = 0.0F, .y = 0.0F});
+    EXPECT_FALSE(world.getTicks<Health>(entity));                          // not registered
+    EXPECT_FALSE(world.getTicks(entity, 42));                              // unknown id
+    EXPECT_FALSE(world.getTicks<Position>(Entity{entity.getIndex(), 9}));  // stale handle
+    world.spawn(Health{.value = 1});
+    EXPECT_FALSE(world.getTicks<Health>(entity));  // registered, but not on it
+}
+
+TEST(World, ChangeDetectionSurvivesTheTickWrapping) {
+    World world;
+    world.advanceChangeTick();
+    const Entity entity = world.spawn(Health{.value = 1});  // added and changed at tick 1
+    rtype::ecs::Tick lastRun = world.advanceChangeTick();   // a system runs at tick 2 and sees it
+    // Five billion ticks later, past the 32-bit wrap; the system keeps clamping its own last run, as it must.
+    for (int step = 0; step < 5; ++step) {
+        world.advanceChangeTick(1'000'000'000);
+        rtype::ecs::clampTick(lastRun, world.getChangeTick());
+    }
+    const rtype::ecs::Tick thisRun = world.getChangeTick();
+    const std::optional<rtype::ecs::ComponentTicks> untouched = world.getTicks<Health>(entity);
+    ASSERT_TRUE(untouched);
+    EXPECT_LE(thisRun - untouched->changed, rtype::ecs::kMaxChangeAge);  // clamped by the world
+    EXPECT_FALSE(untouched->isChanged(lastRun, thisRun));                // still old, not "new" after the wrap
+    world.add(entity, Health{.value = 2});                               // now written
+    EXPECT_TRUE(world.getTicks<Health>(entity)->isChanged(lastRun, thisRun));
+}
+
+TEST(World, ReadingThroughMutDoesNotMarkChanged) {
+    World world;
+    const Entity entity = world.spawn(Health{.value = 3});  // tick 0
+    world.advanceChangeTick(5);
+    const rtype::ecs::Mut<Health> health = world.getMut<Health>(entity);
+    ASSERT_TRUE(health);
+    EXPECT_EQ(health.get().value, 3);
+    EXPECT_EQ(world.getTicks<Health>(entity)->changed, 0U);
+}
+
+TEST(World, WritingThroughMutMarksChanged) {
+    World world;
+    const Entity entity = world.spawn(Health{.value = 3});
+    world.advanceChangeTick(5);
+    rtype::ecs::Mut<Health> health = world.getMut<Health>(entity);
+    health->value -= 1;
+    EXPECT_EQ(world.get<Health>(entity)->value, 2);  // written in place, in the pool
+    EXPECT_EQ(world.getTicks<Health>(entity)->changed, 5U);
+    EXPECT_EQ(world.getTicks<Health>(entity)->added, 0U);
+}
+
+TEST(World, MutMarksOnlyTheValuesWrittenThrough) {
+    World world;
+    const Entity damaged = world.spawn(Health{.value = 3});
+    const Entity untouched = world.spawn(Health{.value = 3});
+    world.advanceChangeTick(5);
+    world.getMut<Health>(damaged)->value = 1;
+    static_cast<void>(world.getMut<Health>(untouched).get());
+    EXPECT_EQ(world.getTicks<Health>(damaged)->changed, 5U);
+    EXPECT_EQ(world.getTicks<Health>(untouched)->changed, 0U);
+}
+
+TEST(World, GetMutIsEmptyForAnAbsentComponent) {
+    World world;
+    const Entity entity = world.spawn(Position{.x = 0.0F, .y = 0.0F});
+    EXPECT_FALSE(world.getMut<Health>(entity));  // not registered
+    world.spawn(Health{.value = 1});
+    EXPECT_FALSE(world.getMut<Health>(entity));                          // not on this entity
+    EXPECT_FALSE(world.getMut<Position>(Entity{entity.getIndex(), 9}));  // stale handle
+}
+
+TEST(World, TypeErasedGetMutMarksOnAccess) {
+    World world;
+    const ComponentId brain = *world.registerComponent(makeBrain());
+    const Entity entity = world.spawn();
+    world.add(entity, brain, bytesOf(BrainValue{.health = 1, .iq = 0.0F}));
+    world.advanceChangeTick(4);
+    const std::span<std::byte> bytes = world.getMut(entity, brain);
+    ASSERT_EQ(bytes.size(), sizeof(BrainValue));
+    EXPECT_EQ(world.getTicks(entity, brain)->changed, 4U);  // marked by the access itself
+    rtype::ecs::storage::viewAs<BrainValue>(bytes)->health = 7;
+    EXPECT_EQ(rtype::ecs::storage::viewAs<BrainValue>(world.get(entity, brain))->health, 7);
+}
+
+TEST(World, TypeErasedGetMutIsEmptyForAnAbsentComponent) {
+    World world;
+    const ComponentId brain = *world.registerComponent(makeBrain());
+    const Entity entity = world.spawn();
+    EXPECT_TRUE(world.getMut(entity, brain).empty());
+    EXPECT_TRUE(world.getMut(entity, brain + 1).empty());
+}
+
+TEST(World, AMutStampsTheTickItWasMadeAt) {
+    World world;
+    const Entity entity = world.spawn(Health{.value = 3});
+    world.advanceChangeTick(5);
+    rtype::ecs::Mut<Health> health = world.getMut<Health>(entity);
+    world.advanceChangeTick();  // the world moves on; the handle keeps the tick of its system run
+    health->value = 0;
+    EXPECT_EQ(world.getTicks<Health>(entity)->changed, 5U);
+}
