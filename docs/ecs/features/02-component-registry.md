@@ -64,28 +64,37 @@ struct FieldInfo {
     std::uint32_t count{1};  ///< Fixed array length.
 };
 
-struct ComponentInfo {
-    ComponentId id;
+struct TypeInfo {                   // type/TypeInfo.hpp: shared with resources
+    TypeId id;
     std::string name;
-    std::size_t size;        ///< 0 for tags.
+    std::size_t size;               ///< 0 for tags.
     std::size_t alignment;
-    StorageKind storage;
     Presence presence;              ///< Server and clients, server only, or client only.
     ReplicationMode replication;    ///< Never sent, sent on every change, or sent once at spawn.
-    ComponentHooks hooks;           ///< construct / destruct / move / copy, null when trivial
+    TypeHooks hooks;                ///< construct / destruct / move / copy, null when trivial
+    bool copyable{true};            ///< Always true for a component.
     std::vector<FieldInfo> fields;
     std::uint64_t layoutHash;
+};
+
+struct ComponentInfo {
+    TypeInfo type;                  ///< Everything a resource has too.
+    StorageKind storage;            ///< Only components have a storage.
 };
 }  // namespace rtype::ecs
 ```
 
 | Part | Used by |
 |---|---|
-| `size`, `alignment`, `hooks` | Storage: how to allocate, construct, move and destroy the bytes |
+| `type.size`, `type.alignment`, `type.hooks` | Storage: how to allocate, construct, move and destroy the bytes |
 | `storage` | The world: which backend holds it |
-| `fields` | Reflection, the Luau bridge, the serializer |
-| `presence`, `replication` | Replication: what exists on which side, what is sent and how |
-| `name`, `layoutHash` | Network manifest, hot reload, scene files |
+| `type.fields` | Reflection, the Luau bridge, the serializer |
+| `type.presence`, `type.replication` | Replication: what exists on which side, what is sent and how |
+| `type.name`, `type.layoutHash` | Network manifest, hot reload, scene files |
+
+The registry itself is `ComponentRegistry = TypeRegistry<ComponentInfo>`: the generic registry of the
+type core, with a `KindTraits<ComponentInfo>` specialization for what only components have (the storage
+option and the copyability rule). See "The type core" in [the design](../design.md).
 
 ### Two enums, not bit flags
 

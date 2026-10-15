@@ -28,11 +28,11 @@ void ByteColumn::BufferDelete::operator()(std::byte* data) const noexcept {
 }
 
 ByteColumn::ByteColumn(const ComponentInfo& info, std::pmr::memory_resource* resource)
-    : _elementSize{info.size},
-      _alignment{info.alignment},
-      _hooks{info.hooks},
+    : _elementSize{info.type.size},
+      _alignment{info.type.alignment},
+      _hooks{info.type.hooks},
       _resource{resource},
-      _data{nullptr, BufferDelete{.resource = resource, .bytes = 0, .alignment = info.alignment}} {}
+      _data{nullptr, BufferDelete{.resource = resource, .bytes = 0, .alignment = info.type.alignment}} {}
 
 ByteColumn::~ByteColumn() { clear(); }
 

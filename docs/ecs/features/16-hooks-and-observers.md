@@ -38,7 +38,7 @@ Our ECS has hooks from v1, but **only for memory**. Observers are left for later
 ### Memory hooks
 
 ```c++
-struct ComponentHooks {
+struct TypeHooks {
     void (*construct)(void* dst){nullptr};
     void (*destruct)(void* dst){nullptr};
     void (*move)(void* dst, void* src){nullptr};
@@ -46,8 +46,9 @@ struct ComponentHooks {
 };
 ```
 
-`RTYPE_ECS_COMPONENT` generates them from the C++ type, and leaves them **null** when the type is
-trivially copyable. A null hook means "use `memset` / `memcpy` / nothing", which is the fast path and
+`detail::makeHooks<T>()` (in the type core, used by `RTYPE_ECS_COMPONENT` and later by resources)
+generates them from the C++ type, and leaves them **null** when the operation is trivial, or when the type
+does not support it (no default constructor: no `construct`; move-only: no `copy`). A null hook means "use `memset` / `memcpy` / nothing", which is the fast path and
 the case for every Luau component.
 
 | Storage action | Hook called | When null |

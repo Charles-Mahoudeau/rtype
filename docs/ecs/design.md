@@ -239,28 +239,54 @@ struct FieldInfo {
     std::uint32_t count{1};  ///< Fixed array length; 1 for scalars.
 };
 
-/// @brief Type-erased lifecycle. A null hook means trivial: memcpy / no-op.
-struct ComponentHooks {
+/// @brief Type-erased lifecycle. A null hook means trivial (memcpy / no-op) or unsupported (no default
+/// constructor, not copyable).
+struct TypeHooks {
     void (*construct)(void* dst){nullptr};
     void (*destruct)(void* dst){nullptr};
     void (*move)(void* dst, void* src){nullptr};
     void (*copy)(void* dst, const void* src){nullptr};
 };
 
-struct ComponentInfo {
-    ComponentId id;
+/// @brief What every kind of ECS data (components, resources) knows about its type.
+struct TypeInfo {
+    TypeId id;
     std::string name;  ///< Stable, unique key: "rtype.Position", "game.Shield".
     std::size_t size;  ///< 0 for tags.
     std::size_t alignment;
-    StorageKind storage{StorageKind::kSparseSet};
     Presence presence{Presence::kBoth};
     ReplicationMode replication{ReplicationMode::kNone};
-    ComponentHooks hooks;
+    TypeHooks hooks;
+    bool copyable{true};  ///< Always true for components; false for a move-only resource.
     std::vector<FieldInfo> fields;
-    std::uint64_t layoutHash;  ///< Hash of name + fields, compared over the network.
+    std::uint64_t layoutHash;  ///< Hash of name, layout, hooks, copyability and fields, compared over the network.
+};
+
+/// @brief A component: its type, plus where its values live.
+struct ComponentInfo {
+    TypeInfo type;
+    StorageKind storage{StorageKind::kSparseSet};
 };
 }  // namespace rtype::ecs
 ```
+
+#### The type core
+
+Components are one **kind** of ECS data; resources (#118) are another, and events may follow. Everything
+that means the same for every kind lives once in `type/`, and each kind adds only what is specific to it,
+**by composition**:
+
+| Shared (`type/`) | Specific to a kind |
+|---|---|
+| `TypeInfo` (name, layout, hooks, copyability, fields, presence, replication), `validateType()`, `computeLayoutHash()` | `ComponentInfo { TypeInfo type; StorageKind storage; }` and `validate()`: a component must also be copyable |
+| `TypeHooks` and `makeHooks<T>()` (skips `construct` / `copy` when unsupported) | |
+| `TypeTraits<T>` (name, kind, hashes, fields, hooks, `makeTypeInfo()`), `RTYPE_ECS_DETAIL_DESCRIBE` | `ComponentTraits<T>` (`makeInfo()`), `RTYPE_ECS_COMPONENT` and `describeComponent` (its rules) |
+| `TypeRegistry<Info>`: ids, lookups, layout check, the checks every kind shares | `KindTraits<ComponentInfo>`: options, label, `validate`, storage check, `make<T>()`; `ComponentRegistry = TypeRegistry<ComponentInfo>` |
+| `ErrorKind` (`kInvalidType`, `kLayoutMismatch`, ...), `TypeRegistrationException` | messages name the kind: "Component 'rtype.Health': ..." |
+
+A new kind is a description struct holding a `TypeInfo`, a `KindTraits` specialization, a declaring macro
+on `RTYPE_ECS_DETAIL_DESCRIBE`, and its own storage; `tests/ecs/TypeRegistryTests.cpp` builds one in a
+few lines.
 
 #### Why two enums instead of bit flags
 
@@ -734,7 +760,7 @@ replication plugin uses to send only what changed. Serves: R3 above all.
 **What exists.** EnTT signals (`on_construct`), Bevy component hooks and observers, flecs observers
 (`OnAdd`, `OnRemove`, `OnSet`).
 
-**Our choice.** v1 has only the **memory hooks** of `ComponentHooks`. Gameplay reactions use
+**Our choice.** v1 has only the **memory hooks** of `TypeHooks`. Gameplay reactions use
 `Added<T>` filters or events, which keep all logic in scheduled systems. Observers can come in v3 if a
 real need appears. Serves: Principles, R4.
 
@@ -1324,7 +1350,8 @@ is the same idea as Bevy's modules with a short prelude.
 |---|---|---|
 | *(root)* | `rtype::ecs` | `xmake.lua` (`target("ecs")`), `Export.hpp` (`RTYPE_ECS_API`), `Version.hpp/.cpp` |
 | `entity/` | `rtype::ecs` | `Entity.hpp`, `EntityAllocator.hpp/.cpp`: generational ids, free list, reservation |
-| `component/` | `rtype::ecs` | `ComponentInfo.hpp` (`ComponentId`, `StorageKind`, `Presence`, `ReplicationMode`, `FieldType`, `FieldInfo`), `ComponentTraits.hpp` (`RTYPE_ECS_COMPONENT`, name hash), `ComponentRegistry.hpp/.cpp` |
+| `type/` | `rtype::ecs` | The core shared by every kind: `Field.hpp` (`FieldType`, `FieldInfo`), `FieldTypeOf.hpp`, `TypeHooks`, `TypeInfo` (`TypeId`, `Presence`, `ReplicationMode`, validation, layout hash), `NameHash`, `LayoutHash`, `TypeTraits`, `TypeRegistry<Info>` |
+| `component/` | `rtype::ecs` | `ComponentInfo.hpp` (`ComponentId`, `StorageKind`, `ComponentInfo`), `ComponentTraits.hpp` (`RTYPE_ECS_COMPONENT`), `ComponentRegistry.hpp/.cpp` (`KindTraits<ComponentInfo>`, `ComponentRegistry`) |
 | `storage/` | `rtype::ecs::storage` | `PagedSparseArray`, `ByteColumn`, `SparseSetStorage` (the pool), `Table` (v3) |
 | `world/` | `rtype::ecs` | `World.hpp/.tpp/.cpp`: typed and type-erased API |
 | `query/` | `rtype::ecs` | `DynamicQuery` (the single query engine), `Query` (typed queries and filters), `Mut` (write access stamping ticks) |

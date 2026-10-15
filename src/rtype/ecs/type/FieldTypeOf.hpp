@@ -13,8 +13,8 @@
 #include <cstdint>
 #include <type_traits>
 
-#include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/type/Field.hpp"
 
 namespace rtype::ecs {
 /// @brief Maps a C++ type to the FieldType it is reflected as, in `value`. Empty for unsupported types.
