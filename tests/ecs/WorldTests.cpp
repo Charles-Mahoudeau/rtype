@@ -427,3 +427,39 @@ TEST(World, DespawnDestroysNonTrivialValues) {
     world.despawn(entity);
     EXPECT_EQ(liveCounters, 0);  // destroyed by despawn, not only when the world goes away
 }
+
+TEST(World, SpawnsAnEntityWithItsComponents) {
+    World world;
+    const Entity ship = world.spawn(Position{.x = 10.0F, .y = 20.0F}, Health{.value = 3});
+    EXPECT_TRUE(world.isAlive(ship));
+    ASSERT_NE(world.get<Position>(ship), nullptr);
+    EXPECT_EQ(world.get<Position>(ship)->y, 20.0F);
+    EXPECT_EQ(world.get<Health>(ship)->value, 3);
+    EXPECT_EQ(world.getRegistry().getCount(), 2U);  // both registered by the spawn
+}
+
+TEST(World, SpawnsWithASingleComponentAndWithTags) {
+    World world;
+    const Entity single = world.spawn(Health{.value = 1});
+    const Entity tagged = world.spawn(Position{.x = 0.0F, .y = 0.0F}, rtype::test::world::Dead{});
+    EXPECT_EQ(world.get<Health>(single)->value, 1);
+    EXPECT_TRUE(world.has<rtype::test::world::Dead>(tagged));
+    EXPECT_FALSE(world.has<rtype::test::world::Dead>(single));
+}
+
+TEST(World, SpawnKeepsTheLaterValueOfARepeatedType) {
+    World world;
+    const Entity entity = world.spawn(Health{.value = 1}, Health{.value = 2});
+    EXPECT_EQ(world.get<Health>(entity)->value, 2);
+}
+
+TEST(World, SpawnMovesNonTrivialValuesIn) {
+    liveCounters = 0;
+    {
+        World world;
+        const Entity entity = world.spawn(rtype::test::world::Inventory{.items = {5, 6}}, Health{.value = 1});
+        EXPECT_EQ(world.get<rtype::test::world::Inventory>(entity)->items, (std::vector<std::int32_t>{5, 6}));
+        EXPECT_EQ(liveCounters, 1);  // only the stored value: the temporaries are gone
+    }
+    EXPECT_EQ(liveCounters, 0);
+}
