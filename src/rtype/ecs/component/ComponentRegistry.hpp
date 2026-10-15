@@ -19,6 +19,7 @@
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/error/Result.hpp"
+#include "rtype/ecs/type/TypeInfo.hpp"
 
 namespace rtype::ecs {
 /// @brief How a C++ component is stored and sent over the network, chosen when it is registered.

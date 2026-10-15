@@ -95,12 +95,11 @@ std::span<const std::byte> bytesOf(const T& value) {
 /// @return A run-time description, as a Luau script would provide it.
 rtype::ecs::ComponentInfo makeBrain() {
     return rtype::ecs::ComponentInfo{
-        .name = "test.world.Brain",
-        .size = 8,
-        .alignment = 4,
-        .fields = {{.name = "health", .type = rtype::ecs::FieldType::kI32, .offset = 0},
-                   {.name = "iq", .type = rtype::ecs::FieldType::kF32, .offset = 4}},
-    };
+        .type = {.name = "test.world.Brain",
+                 .size = 8,
+                 .alignment = 4,
+                 .fields = {{.name = "health", .type = rtype::ecs::FieldType::kI32, .offset = 0},
+                            {.name = "iq", .type = rtype::ecs::FieldType::kF32, .offset = 4}}}};
 }
 }  // namespace
 
@@ -155,7 +154,7 @@ TEST(World, RegistersRunTimeDescriptions) {
 TEST(World, RefusesAnInvalidDescription) {
     World world;
     rtype::ecs::ComponentInfo brain = makeBrain();
-    brain.alignment = 3;
+    brain.type.alignment = 3;
     const rtype::ecs::Result<ComponentId> id = world.registerComponent(std::move(brain));
     ASSERT_FALSE(id);
     EXPECT_EQ(id.error().getKind(), rtype::ecs::ErrorKind::kInvalidComponent);
@@ -252,7 +251,7 @@ TEST(World, AnswersNothingForAnUnknownId) {
 
 TEST(World, AddsTagsById) {
     World world;
-    const ComponentId dead = *world.registerComponent(rtype::ecs::ComponentInfo{.name = "test.world.Dead"});
+    const ComponentId dead = *world.registerComponent(rtype::ecs::ComponentInfo{.type = {.name = "test.world.Dead"}});
     const Entity entity = world.spawn();
     EXPECT_TRUE(world.add(entity, dead, {}));
     EXPECT_TRUE(world.has(entity, dead));
@@ -350,7 +349,7 @@ TEST(World, KeepsTheOptionsOfAnExplicitRegistration) {
         world.component<Health>(rtype::ecs::ComponentOptions{.replication = rtype::ecs::ReplicationMode::kEveryChange});
     const Entity entity = world.spawn();
     EXPECT_TRUE(world.add(entity, Health{.value = 1}));  // finds the registration, does not register again
-    EXPECT_EQ(world.getRegistry().findById(health)->replication, rtype::ecs::ReplicationMode::kEveryChange);
+    EXPECT_EQ(world.getRegistry().findById(health)->type.replication, rtype::ecs::ReplicationMode::kEveryChange);
 }
 
 TEST(World, AddsCppTags) {
@@ -479,7 +478,7 @@ TEST(World, SpawnMovesNonTrivialValuesIn) {
 TEST(World, TypedCallsRefuseARunTimeComponentThatOnlySharesTheName) {
     World world;
     rtype::ecs::ComponentInfo script = makeBrain();  // 8 bytes, while Health has 4
-    script.name = "test.world.Health";
+    script.type.name = "test.world.Health";
     const ComponentId scriptId = *world.registerComponent(std::move(script));
     const Entity entity = world.spawn();
     EXPECT_THROW(world.add(entity, Health{.value = 1}), rtype::ecs::exceptions::ComponentRegistrationException);
@@ -493,7 +492,7 @@ TEST(World, TypedCallsRefuseARunTimeComponentThatOnlySharesTheName) {
 TEST(World, AFailedSpawnLeavesNoEntity) {
     World world;
     rtype::ecs::ComponentInfo script = makeBrain();
-    script.name = "test.world.Health";
+    script.type.name = "test.world.Health";
     static_cast<void>(world.registerComponent(std::move(script)));
     // Position is added first, then Health throws: the entity must not survive with only a Position.
     EXPECT_THROW(static_cast<void>(world.spawn(Position{.x = 1.0F, .y = 1.0F}, Health{.value = 1})),
@@ -696,11 +695,10 @@ TEST(World, AClearedValueIsMarkedChanged) {
 TEST(World, DespawnClearsEntityFieldsOfRunTimeComponents) {
     World world;
     const ComponentId homing = *world.registerComponent(rtype::ecs::ComponentInfo{
-        .name = "test.world.Homing",
-        .size = sizeof(Entity),
-        .alignment = alignof(Entity),
-        .fields = {{.name = "target", .type = rtype::ecs::FieldType::kEntity, .offset = 0}},
-    });
+        .type = {.name = "test.world.Homing",
+                 .size = sizeof(Entity),
+                 .alignment = alignof(Entity),
+                 .fields = {{.name = "target", .type = rtype::ecs::FieldType::kEntity, .offset = 0}}}});
     const Entity target = world.spawn();
     const Entity missile = world.spawn();
     world.add(missile, homing, bytesOf(target));

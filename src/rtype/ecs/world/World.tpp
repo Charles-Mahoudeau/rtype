@@ -42,8 +42,8 @@ bool World::add(Entity entity, T value) {
         return false;
     }
     const ComponentInfo* info = _registry.find<T>();
-    storage::SparseSetStorage& pool = *findPool(info != nullptr ? info->id : component<T>());
-    const std::span<std::byte> bytes = std::as_writable_bytes(std::span{&value, 1}).first(pool.getInfo().size);
+    storage::SparseSetStorage& pool = *findPool(info != nullptr ? info->type.id : component<T>());
+    const std::span<std::byte> bytes = std::as_writable_bytes(std::span{&value, 1}).first(pool.getInfo().type.size);
     if (pool.contains(entity)) {
         pool.replaceMove(entity, bytes, _changeTick);
     } else {
@@ -55,7 +55,7 @@ bool World::add(Entity entity, T value) {
 template <Component T>
 bool World::has(Entity entity) const noexcept {
     const ComponentInfo* info = _registry.find<T>();
-    return info != nullptr && has(entity, info->id);
+    return info != nullptr && has(entity, info->type.id);
 }
 
 template <Component T>
@@ -65,7 +65,7 @@ const T* World::get(Entity entity) const noexcept {
     if (info == nullptr) {
         return nullptr;
     }
-    const std::span<const std::byte> bytes = get(entity, info->id);
+    const std::span<const std::byte> bytes = get(entity, info->type.id);
     return bytes.empty() ? nullptr : storage::viewAs<T>(bytes);
 }
 
@@ -76,7 +76,7 @@ Mut<T> World::getMut(Entity entity) noexcept {
     if (info == nullptr) {
         return {};
     }
-    storage::SparseSetStorage& pool = *findPool(info->id);
+    storage::SparseSetStorage& pool = *findPool(info->type.id);
     const std::optional<std::uint32_t> position = pool.find(entity);
     if (!position) {
         return {};
@@ -88,12 +88,12 @@ Mut<T> World::getMut(Entity entity) noexcept {
 template <Component T>
 bool World::remove(Entity entity) noexcept {
     const ComponentInfo* info = _registry.find<T>();
-    return info != nullptr && remove(entity, info->id);
+    return info != nullptr && remove(entity, info->type.id);
 }
 
 template <Component T>
 std::optional<ComponentTicks> World::getTicks(Entity entity) const noexcept {
     const ComponentInfo* info = _registry.find<T>();
-    return info != nullptr ? getTicks(entity, info->id) : std::nullopt;
+    return info != nullptr ? getTicks(entity, info->type.id) : std::nullopt;
 }
 }  // namespace rtype::ecs

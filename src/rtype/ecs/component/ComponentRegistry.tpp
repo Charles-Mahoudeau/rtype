@@ -15,8 +15,8 @@ template <Component T>
 ComponentId ComponentRegistry::registerComponent(ComponentOptions options) {
     ComponentInfo info = ComponentTraits<T>::makeInfo();
     info.storage = options.storage;
-    info.presence = options.presence;
-    info.replication = options.replication;
+    info.type.presence = options.presence;
+    info.type.replication = options.replication;
     Result<ComponentId> id = registerComponent(std::move(info));
     if (!id) {
         throw exceptions::ComponentRegistrationException{std::string{id.error().getMessage()}};
@@ -27,8 +27,8 @@ ComponentId ComponentRegistry::registerComponent(ComponentOptions options) {
 template <Component T>
 const ComponentInfo* ComponentRegistry::find() const noexcept {
     const ComponentInfo* info = findByHash(ComponentTraits<T>::kHash);
-    if (info == nullptr || info->name != ComponentTraits<T>::kName ||
-        info->layoutHash != ComponentTraits<T>::kLayoutHash) {
+    if (info == nullptr || info->type.name != ComponentTraits<T>::kName ||
+        info->type.layoutHash != ComponentTraits<T>::kLayoutHash) {
         return nullptr;
     }
     return info;

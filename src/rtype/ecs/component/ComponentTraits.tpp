@@ -49,13 +49,14 @@ constexpr ComponentDescription<sizeof...(Fields)> describeComponent(std::string_
 
 template <Component T>
 ComponentInfo ComponentTraits<T>::makeInfo() {
-    ComponentInfo info{.name = std::string{kName},
-                       .size = std::is_empty_v<T> ? 0 : sizeof(T),
-                       .alignment = alignof(T),
-                       .hooks = kHooks};
-    info.fields.reserve(kFields.size());
+    ComponentInfo info{.type = {.name = std::string{kName},
+                                .size = std::is_empty_v<T> ? 0 : sizeof(T),
+                                .alignment = alignof(T),
+                                .hooks = kHooks,
+                                .copyable = std::is_copy_constructible_v<T>}};
+    info.type.fields.reserve(kFields.size());
     for (const FieldDescription& field : kFields) {
-        info.fields.push_back(FieldInfo{
+        info.type.fields.push_back(FieldInfo{
             .name = std::string{field.name}, .type = field.type, .offset = field.offset, .count = field.count});
     }
     return info;

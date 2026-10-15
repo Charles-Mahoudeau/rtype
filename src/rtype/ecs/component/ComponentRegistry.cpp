@@ -20,6 +20,7 @@
 #include "rtype/ecs/error/Error.hpp"
 #include "rtype/ecs/error/Result.hpp"
 #include "rtype/ecs/type/NameHash.hpp"
+#include "rtype/ecs/type/TypeInfo.hpp"
 
 namespace rtype::ecs {
 namespace {
@@ -69,26 +70,27 @@ template <typename Option>
 /// @brief Decides what registering `requested` again means when `registered` has the same name hash.
 /// @return The registered id when both are the same component, or the reason they conflict.
 [[nodiscard]] Result<ComponentId> checkSameComponent(const ComponentInfo& registered, const ComponentInfo& requested) {
-    if (registered.name != requested.name) {
-        return fail(ErrorKind::kNameCollision,
-                    std::format("Components '{}' and '{}' have the same name hash", registered.name, requested.name));
+    if (registered.type.name != requested.type.name) {
+        return fail(ErrorKind::kNameCollision, std::format("Components '{}' and '{}' have the same name hash",
+                                                           registered.type.name, requested.type.name));
     }
-    if (registered.layoutHash != requested.layoutHash) {
+    if (registered.type.layoutHash != requested.type.layoutHash) {
         return fail(
             ErrorKind::kLayoutMismatch,
             std::format("Component '{}' is already registered with another layout (size, alignment, hooks or fields)",
-                        requested.name));
+                        requested.type.name));
     }
     if (registered.storage != requested.storage) {
-        return optionsMismatch(requested.name, "storage", registered.storage, requested.storage);
+        return optionsMismatch(requested.type.name, "storage", registered.storage, requested.storage);
     }
-    if (registered.presence != requested.presence) {
-        return optionsMismatch(requested.name, "presence", registered.presence, requested.presence);
+    if (registered.type.presence != requested.type.presence) {
+        return optionsMismatch(requested.type.name, "presence", registered.type.presence, requested.type.presence);
     }
-    if (registered.replication != requested.replication) {
-        return optionsMismatch(requested.name, "replication", registered.replication, requested.replication);
+    if (registered.type.replication != requested.type.replication) {
+        return optionsMismatch(requested.type.name, "replication", registered.type.replication,
+                               requested.type.replication);
     }
-    return registered.id;
+    return registered.type.id;
 }
 
 }  // namespace
@@ -101,17 +103,17 @@ Result<ComponentId> ComponentRegistry::registerComponent(ComponentInfo info) {
     if (Result<void> valid = validate(info); !valid) {
         return tl::unexpected<Error>{std::move(valid.error())};
     }
-    info.layoutHash = computeLayoutHash(info);
-    const std::uint64_t nameHash = hashName(info.name);
+    info.type.layoutHash = computeLayoutHash(info.type);
+    const std::uint64_t nameHash = hashName(info.type.name);
     if (const ComponentInfo* registered = findByHash(nameHash); registered != nullptr) {
         return checkSameComponent(*registered, info);
     }
     if (_infos.size() >= kInvalidComponentId) {
-        return fail(ErrorKind::kInvalidComponent, std::format("Component '{}': no component id left", info.name));
+        return fail(ErrorKind::kInvalidComponent, std::format("Component '{}': no component id left", info.type.name));
     }
     const auto id = static_cast<ComponentId>(_infos.size());
-    info.id = id;
-    const bool replicated = info.replication != ReplicationMode::kNone;
+    info.type.id = id;
+    const bool replicated = info.type.replication != ReplicationMode::kNone;
     _infos.push_back(std::move(info));
     _idsByHash.emplace(nameHash, id);
     if (replicated) {
@@ -130,7 +132,7 @@ const ComponentInfo* ComponentRegistry::findById(ComponentId id) const noexcept 
 
 const ComponentInfo* ComponentRegistry::findByName(std::string_view name) const noexcept {
     const ComponentInfo* info = findByHash(hashName(name));
-    return info != nullptr && info->name == name ? info : nullptr;
+    return info != nullptr && info->type.name == name ? info : nullptr;
 }
 
 const ComponentInfo* ComponentRegistry::findByHash(std::uint64_t nameHash) const noexcept {

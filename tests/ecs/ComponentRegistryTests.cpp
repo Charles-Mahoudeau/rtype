@@ -47,12 +47,11 @@ namespace {
 /// @return A run-time description, as a script would provide it.
 rtype::ecs::ComponentInfo makeShield() {
     return rtype::ecs::ComponentInfo{
-        .name = "game.Shield",
-        .size = 8,
-        .alignment = 4,
-        .fields = {{.name = "strength", .type = rtype::ecs::FieldType::kF32, .offset = 0},
-                   {.name = "regen", .type = rtype::ecs::FieldType::kF32, .offset = 4}},
-    };
+        .type = {.name = "game.Shield",
+                 .size = 8,
+                 .alignment = 4,
+                 .fields = {{.name = "strength", .type = rtype::ecs::FieldType::kF32, .offset = 0},
+                            {.name = "regen", .type = rtype::ecs::FieldType::kF32, .offset = 4}}}};
 }
 }  // namespace
 
@@ -77,8 +76,8 @@ TEST(ComponentRegistry, FindsComponentsByIdNameHashAndType) {
 
     const rtype::ecs::ComponentInfo* byId = registry.findById(id);
     ASSERT_NE(byId, nullptr);
-    EXPECT_EQ(byId->name, "rtype.Health");
-    EXPECT_EQ(byId->id, id);
+    EXPECT_EQ(byId->type.name, "rtype.Health");
+    EXPECT_EQ(byId->type.id, id);
     EXPECT_EQ(registry.findByName("rtype.Health"), byId);
     EXPECT_EQ(registry.findByHash(rtype::ecs::hashName("rtype.Health")), byId);
     EXPECT_EQ(registry.find<rtype::test::registry::Health>(), byId);
@@ -94,7 +93,7 @@ TEST(ComponentRegistry, FindReturnsNullForAnotherLayoutUnderTheSameName) {
 TEST(ComponentRegistry, FindReturnsNullForARunTimeComponentThatOnlySharesTheName) {
     rtype::ecs::ComponentRegistry registry;
     rtype::ecs::ComponentInfo script = makeShield();  // 8 bytes like Health, other fields
-    script.name = "rtype.Health";
+    script.type.name = "rtype.Health";
     ASSERT_TRUE(registry.registerComponent(std::move(script)));
     EXPECT_EQ(registry.find<rtype::test::registry::Health>(), nullptr);
     EXPECT_THROW(static_cast<void>(registry.registerComponent<rtype::test::registry::Health>()),
@@ -123,8 +122,8 @@ TEST(ComponentRegistry, SetsTheLayoutHash) {
     static_cast<void>(registry.registerComponent<rtype::test::registry::Health>());
     const rtype::ecs::ComponentInfo* info = registry.find<rtype::test::registry::Health>();
     ASSERT_NE(info, nullptr);
-    EXPECT_EQ(info->layoutHash, rtype::ecs::computeLayoutHash(*info));
-    EXPECT_NE(info->layoutHash, 0U);
+    EXPECT_EQ(info->type.layoutHash, rtype::ecs::computeLayoutHash(info->type));
+    EXPECT_NE(info->type.layoutHash, 0U);
 }
 
 TEST(ComponentRegistry, AppliesTheOptions) {
@@ -134,8 +133,8 @@ TEST(ComponentRegistry, AppliesTheOptions) {
     const rtype::ecs::ComponentInfo* info = registry.find<rtype::test::registry::Transform>();
     ASSERT_NE(info, nullptr);
     EXPECT_EQ(info->storage, rtype::ecs::StorageKind::kTable);
-    EXPECT_EQ(info->presence, rtype::ecs::Presence::kBoth);
-    EXPECT_EQ(info->replication, rtype::ecs::ReplicationMode::kEveryChange);
+    EXPECT_EQ(info->type.presence, rtype::ecs::Presence::kBoth);
+    EXPECT_EQ(info->type.replication, rtype::ecs::ReplicationMode::kEveryChange);
 }
 
 TEST(ComponentRegistry, ListsOnlyReplicatedComponents) {
@@ -167,7 +166,7 @@ TEST(ComponentRegistry, RegistersRunTimeDescriptions) {
 TEST(ComponentRegistry, RefusesAnInvalidDescription) {
     rtype::ecs::ComponentRegistry registry;
     rtype::ecs::ComponentInfo info = makeShield();
-    info.alignment = 3;
+    info.type.alignment = 3;
     const rtype::ecs::Result<rtype::ecs::ComponentId> id = registry.registerComponent(std::move(info));
     ASSERT_FALSE(id);
     EXPECT_EQ(id.error().getKind(), rtype::ecs::ErrorKind::kInvalidComponent);
@@ -178,7 +177,7 @@ TEST(ComponentRegistry, RefusesTheSameNameWithAnotherLayout) {
     rtype::ecs::ComponentRegistry registry;
     ASSERT_TRUE(registry.registerComponent(makeShield()));
     rtype::ecs::ComponentInfo bigger = makeShield();
-    bigger.size = 16;
+    bigger.type.size = 16;
     const rtype::ecs::Result<rtype::ecs::ComponentId> id = registry.registerComponent(std::move(bigger));
     ASSERT_FALSE(id);
     EXPECT_EQ(id.error().getKind(), rtype::ecs::ErrorKind::kLayoutMismatch);
@@ -190,7 +189,7 @@ TEST(ComponentRegistry, RefusesTheSameLayoutWithOtherHooks) {
     rtype::ecs::ComponentRegistry registry;
     ASSERT_TRUE(registry.registerComponent(makeShield()));
     rtype::ecs::ComponentInfo managed = makeShield();  // same name, size and fields, but needs destroying
-    managed.hooks.destruct = [](void* /*target*/) noexcept {};
+    managed.type.hooks.destruct = [](void* /*target*/) noexcept {};
     const rtype::ecs::Result<rtype::ecs::ComponentId> id = registry.registerComponent(std::move(managed));
     ASSERT_FALSE(id);
     EXPECT_EQ(id.error().getKind(), rtype::ecs::ErrorKind::kLayoutMismatch);
@@ -201,7 +200,7 @@ TEST(ComponentRegistry, RefusesTheSameNameWithOtherOptions) {
     rtype::ecs::ComponentRegistry registry;
     ASSERT_TRUE(registry.registerComponent(makeShield()));
     rtype::ecs::ComponentInfo replicated = makeShield();
-    replicated.replication = rtype::ecs::ReplicationMode::kEveryChange;
+    replicated.type.replication = rtype::ecs::ReplicationMode::kEveryChange;
     const rtype::ecs::Result<rtype::ecs::ComponentId> id = registry.registerComponent(std::move(replicated));
     ASSERT_FALSE(id);
     EXPECT_EQ(id.error().getKind(), rtype::ecs::ErrorKind::kOptionsMismatch);
@@ -226,11 +225,11 @@ TEST(ComponentRegistry, PointersStayValidAfterManyRegistrations) {
     const rtype::ecs::ComponentInfo* info = registry.findById(health);
     for (int i = 0; i < 500; ++i) {
         rtype::ecs::ComponentInfo other = makeShield();
-        other.name = std::format("game.Shield{}", i);
+        other.type.name = std::format("game.Shield{}", i);
         ASSERT_TRUE(registry.registerComponent(std::move(other)));
     }
     EXPECT_EQ(registry.findById(health), info);
-    EXPECT_EQ(info->name, "rtype.Health");
+    EXPECT_EQ(info->type.name, "rtype.Health");
 }
 
 TEST(ComponentRegistry, KeepsItsComponentsWhenMoved) {
@@ -238,5 +237,5 @@ TEST(ComponentRegistry, KeepsItsComponentsWhenMoved) {
     const rtype::ecs::ComponentId health = registry.registerComponent<rtype::test::registry::Health>();
     const rtype::ecs::ComponentRegistry moved{std::move(registry)};
     ASSERT_NE(moved.findById(health), nullptr);
-    EXPECT_EQ(moved.findByName("rtype.Health")->id, health);
+    EXPECT_EQ(moved.findByName("rtype.Health")->type.id, health);
 }

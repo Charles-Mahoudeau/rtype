@@ -79,14 +79,14 @@ Result<ComponentId> World::registerComponent(ComponentInfo info) {
 
 std::optional<ComponentId> World::findComponent(std::string_view name) const noexcept {
     if (const ComponentInfo* info = _registry.findByName(name)) {
-        return info->id;
+        return info->type.id;
     }
     return std::nullopt;
 }
 
 bool World::add(Entity entity, ComponentId id, std::span<const std::byte> value) {
     storage::SparseSetStorage* pool = findPool(id);
-    if (pool == nullptr || !isAlive(entity) || value.size() != pool->getInfo().size) {
+    if (pool == nullptr || !isAlive(entity) || value.size() != pool->getInfo().type.size) {
         return false;
     }
     if (pool->contains(entity)) {
@@ -147,7 +147,7 @@ void World::createPools(ComponentId id) {
 
 void World::clearReferencesTo(Entity entity) noexcept {
     for (storage::SparseSetStorage& pool : _pools) {
-        for (const FieldInfo& field : pool.getInfo().fields) {
+        for (const FieldInfo& field : pool.getInfo().type.fields) {
             if (field.type != FieldType::kEntity) {
                 continue;
             }

@@ -124,19 +124,19 @@ TEST(ComponentTraits, ReflectsArraysAndMappedTypes) {
 
 TEST(ComponentTraits, AnEmptyStructIsATag) {
     const rtype::ecs::ComponentInfo info = rtype::ecs::ComponentTraits<rtype::test::traits::Dead>::makeInfo();
-    EXPECT_EQ(info.size, 0U);
-    EXPECT_TRUE(info.fields.empty());
+    EXPECT_EQ(info.type.size, 0U);
+    EXPECT_TRUE(info.type.fields.empty());
 }
 
 TEST(ComponentTraits, MakeInfoDescribesTheComponent) {
     const rtype::ecs::ComponentInfo info = rtype::ecs::ComponentTraits<rtype::test::traits::Path>::makeInfo();
-    EXPECT_EQ(info.name, "test.Path");
-    EXPECT_EQ(info.size, sizeof(rtype::test::traits::Path));
-    EXPECT_EQ(info.alignment, alignof(rtype::test::traits::Path));
-    ASSERT_EQ(info.fields.size(), 3U);
-    EXPECT_EQ(info.fields.at(0).name, "points");
-    EXPECT_EQ(info.fields.at(0).count, 4U);
-    EXPECT_EQ(info.id, rtype::ecs::kInvalidComponentId);  // left to the registry
+    EXPECT_EQ(info.type.name, "test.Path");
+    EXPECT_EQ(info.type.size, sizeof(rtype::test::traits::Path));
+    EXPECT_EQ(info.type.alignment, alignof(rtype::test::traits::Path));
+    ASSERT_EQ(info.type.fields.size(), 3U);
+    EXPECT_EQ(info.type.fields.at(0).name, "points");
+    EXPECT_EQ(info.type.fields.at(0).count, 4U);
+    EXPECT_EQ(info.type.id, rtype::ecs::kInvalidComponentId);  // left to the registry
 }
 
 TEST(ComponentTraits, EveryTestComponentIsValid) {
@@ -196,15 +196,16 @@ TEST(TypeHooks, ManageNonTrivialMembers) {
 
 TEST(ComponentTraits, LayoutHashMatchesTheRunTimeHash) {
     EXPECT_EQ(rtype::ecs::ComponentTraits<rtype::test::traits::Health>::kLayoutHash,
-              rtype::ecs::computeLayoutHash(rtype::ecs::ComponentTraits<rtype::test::traits::Health>::makeInfo()));
+              rtype::ecs::computeLayoutHash(rtype::ecs::ComponentTraits<rtype::test::traits::Health>::makeInfo().type));
     EXPECT_EQ(rtype::ecs::ComponentTraits<rtype::test::traits::Path>::kLayoutHash,
-              rtype::ecs::computeLayoutHash(rtype::ecs::ComponentTraits<rtype::test::traits::Path>::makeInfo()));
+              rtype::ecs::computeLayoutHash(rtype::ecs::ComponentTraits<rtype::test::traits::Path>::makeInfo().type));
     EXPECT_EQ(rtype::ecs::ComponentTraits<rtype::test::traits::Dead>::kLayoutHash,
-              rtype::ecs::computeLayoutHash(rtype::ecs::ComponentTraits<rtype::test::traits::Dead>::makeInfo()));
-    EXPECT_EQ(rtype::ecs::ComponentTraits<rtype::test::traits::Inventory>::kLayoutHash,
-              rtype::ecs::computeLayoutHash(rtype::ecs::ComponentTraits<rtype::test::traits::Inventory>::makeInfo()));
+              rtype::ecs::computeLayoutHash(rtype::ecs::ComponentTraits<rtype::test::traits::Dead>::makeInfo().type));
+    EXPECT_EQ(
+        rtype::ecs::ComponentTraits<rtype::test::traits::Inventory>::kLayoutHash,
+        rtype::ecs::computeLayoutHash(rtype::ecs::ComponentTraits<rtype::test::traits::Inventory>::makeInfo().type));
     EXPECT_EQ(rtype::ecs::ComponentTraits<GlobalPosition>::kLayoutHash,
-              rtype::ecs::computeLayoutHash(rtype::ecs::ComponentTraits<GlobalPosition>::makeInfo()));
+              rtype::ecs::computeLayoutHash(rtype::ecs::ComponentTraits<GlobalPosition>::makeInfo().type));
 }
 
 TEST(ComponentTraits, LayoutHashDiffersBetweenComponents) {

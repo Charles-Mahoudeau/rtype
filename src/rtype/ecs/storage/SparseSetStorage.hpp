@@ -97,28 +97,28 @@ class RTYPE_ECS_API SparseSetStorage {
 
     /// @brief Gives the entity a copy of a value: the copy hook, or a byte copy.
     /// @details Same preconditions and guarantee as emplace().
-    /// @param source The bytes of a live value of this component, `getInfo().size` bytes long.
+    /// @param source The bytes of a live value of this component, `getInfo().type.size` bytes long.
     /// @return The new value's bytes, empty for a tag.
     std::span<std::byte> emplaceCopy(Entity entity, std::span<const std::byte> source, Tick tick);
 
     /// @brief Gives the entity a value moved from `source`: the move hook, or a byte copy.
     /// @details Same preconditions and guarantee as emplace(). `source` stays a valid, moved-from value: its owner
     /// must still destroy it.
-    /// @param source The bytes of a live value of this component, `getInfo().size` bytes long.
+    /// @param source The bytes of a live value of this component, `getInfo().type.size` bytes long.
     /// @return The new value's bytes, empty for a tag.
     std::span<std::byte> emplaceMove(Entity entity, std::span<std::byte> source, Tick tick);
 
     /// @brief Replaces the entity's value with a copy of `source`: the copy hook, or a byte copy.
     /// @details Stamps the changed tick and keeps the added tick. The new value is built before the old one is
     /// destroyed, so if the copy throws, the pool is unchanged.
-    /// @param source The bytes of a live value of this component, `getInfo().size` bytes long.
+    /// @param source The bytes of a live value of this component, `getInfo().type.size` bytes long.
     /// @return False, doing nothing, if the entity does not have the component.
     bool replaceCopy(Entity entity, std::span<const std::byte> source, Tick tick);
 
     /// @brief Replaces the entity's value with a value moved from `source`: the move hook, or a byte copy.
     /// @details Stamps the changed tick and keeps the added tick. `source` stays a valid, moved-from value: its
     /// owner must still destroy it.
-    /// @param source The bytes of a live value of this component, `getInfo().size` bytes long.
+    /// @param source The bytes of a live value of this component, `getInfo().type.size` bytes long.
     /// @return False, doing nothing, if the entity does not have the component.
     bool replaceMove(Entity entity, std::span<std::byte> source, Tick tick);
 

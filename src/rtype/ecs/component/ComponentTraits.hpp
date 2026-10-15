@@ -75,8 +75,8 @@ struct ComponentTraits {
 
     /// @brief computeLayoutHash() of makeInfo(), known at compile time: tells whether a registered description is
     /// really this type's.
-    static constexpr std::uint64_t kLayoutHash =
-        hashLayout(kName, std::is_empty_v<T> ? 0 : sizeof(T), alignof(T), kHooks, kFields);
+    static constexpr std::uint64_t kLayoutHash = hashLayout(kName, std::is_empty_v<T> ? 0 : sizeof(T), alignof(T),
+                                                            kHooks, std::is_copy_constructible_v<T>, kFields);
 
     /// @return A ComponentInfo with the name, size (0 for an empty struct: a tag), alignment, hooks and fields. The
     /// id, presence, replication and layout hash are left for the registry to set.
