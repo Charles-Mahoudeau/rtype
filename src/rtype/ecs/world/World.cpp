@@ -104,6 +104,19 @@ std::span<const std::byte> World::get(Entity entity, ComponentId id) const noexc
     return pool != nullptr ? pool->get(entity) : std::span<const std::byte>{};
 }
 
+std::span<std::byte> World::getMut(Entity entity, ComponentId id) noexcept {
+    storage::SparseSetStorage* pool = findPool(id);
+    if (pool == nullptr) {
+        return {};
+    }
+    const std::optional<std::uint32_t> position = pool->find(entity);
+    if (!position) {
+        return {};
+    }
+    *std::next(pool->getChangedTicks().begin(), *position) = _changeTick;
+    return pool->at(*position);
+}
+
 bool World::remove(Entity entity, ComponentId id) noexcept {
     storage::SparseSetStorage* pool = findPool(id);
     return pool != nullptr && pool->remove(entity);

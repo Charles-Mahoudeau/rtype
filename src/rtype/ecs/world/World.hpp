@@ -15,6 +15,7 @@
 
 #include "rtype/ecs/Export.hpp"
 #include "rtype/ecs/change/ComponentTicks.hpp"
+#include "rtype/ecs/change/Mut.hpp"
 #include "rtype/ecs/change/Tick.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/ComponentRegistry.hpp"
@@ -118,6 +119,12 @@ class RTYPE_ECS_API World {
     /// always for a tag (use has() to test a tag). Invalidated by the next change to the component's pool.
     [[nodiscard]] std::span<const std::byte> get(Entity entity, ComponentId id) const noexcept;
 
+    /// @brief Write access to the entity's value, marked changed now: the caller only has bytes, so the World cannot
+    /// tell a read from a write. Use get() to only read.
+    /// @return The bytes of the value; empty if it does not have the component or the id is unknown, and always for
+    /// a tag. Invalidated by the next change to the component's pool.
+    [[nodiscard]] std::span<std::byte> getMut(Entity entity, ComponentId id) noexcept;
+
     /// @brief Removes the component from the entity, destroying its value.
     /// @return False, doing nothing, if the entity does not have the component or the id is unknown.
     bool remove(Entity entity, ComponentId id) noexcept;
@@ -143,6 +150,12 @@ class RTYPE_ECS_API World {
     /// Invalidated by the next change to the component's pool. Tags have no value: test them with has().
     template <Component T>
     [[nodiscard]] const T* get(Entity entity) const noexcept;
+
+    /// @return Write access to the entity's value, which marks it changed only when written through (`->`, `*`);
+    /// an empty Mut if it does not have the component or `T` is not registered. Invalidated by the next change to
+    /// the component's pool. Tags have no value: test them with has().
+    template <Component T>
+    [[nodiscard]] Mut<T> getMut(Entity entity) noexcept;
 
     /// @brief Removes the C++ component from the entity, destroying its value.
     /// @return False, doing nothing, if the entity does not have the component or `T` is not registered.

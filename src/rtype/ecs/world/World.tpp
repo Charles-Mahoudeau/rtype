@@ -6,6 +6,8 @@
 */
 
 #include <cstddef>
+#include <cstdint>
+#include <iterator>
 #include <optional>
 #include <span>
 #include <type_traits>
@@ -65,6 +67,22 @@ const T* World::get(Entity entity) const noexcept {
     }
     const std::span<const std::byte> bytes = get(entity, info->id);
     return bytes.empty() ? nullptr : storage::viewAs<T>(bytes);
+}
+
+template <Component T>
+Mut<T> World::getMut(Entity entity) noexcept {
+    static_assert(!std::is_empty_v<T>, "a tag has no value: test it with has<T>()");
+    const ComponentInfo* info = _registry.find<T>();
+    if (info == nullptr) {
+        return {};
+    }
+    storage::SparseSetStorage& pool = *findPool(info->id);
+    const std::optional<std::uint32_t> position = pool.find(entity);
+    if (!position) {
+        return {};
+    }
+    return Mut<T>{storage::viewAs<T>(pool.at(*position)), &*std::next(pool.getChangedTicks().begin(), *position),
+                  _changeTick};
 }
 
 template <Component T>
