@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "rtype/ecs/Export.hpp"
+#include "rtype/ecs/change/ComponentTicks.hpp"
 #include "rtype/ecs/change/Tick.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/ComponentRegistry.hpp"
@@ -121,6 +122,10 @@ class RTYPE_ECS_API World {
     /// @return False, doing nothing, if the entity does not have the component or the id is unknown.
     bool remove(Entity entity, ComponentId id) noexcept;
 
+    /// @return When the entity's value was added and last written, or nothing if it does not have the component or
+    /// the id is unknown. Compare them with ComponentTicks::isAdded() / isChanged().
+    [[nodiscard]] std::optional<ComponentTicks> getTicks(Entity entity, ComponentId id) const noexcept;
+
     /// @brief Gives the entity a C++ component, or replaces its value if it already has it.
     /// @details Registers `T` with the default options if it is not registered yet, then moves `value` in. Stamps
     /// the world's change tick (only as the changed tick when replacing).
@@ -143,6 +148,11 @@ class RTYPE_ECS_API World {
     /// @return False, doing nothing, if the entity does not have the component or `T` is not registered.
     template <Component T>
     bool remove(Entity entity) noexcept;
+
+    /// @return When the entity's value was added and last written, or nothing if it does not have the component or
+    /// `T` is not registered.
+    template <Component T>
+    [[nodiscard]] std::optional<ComponentTicks> getTicks(Entity entity) const noexcept;
 
   private:
     /// @brief Creates the pools of every registered component up to `id` that has none yet.

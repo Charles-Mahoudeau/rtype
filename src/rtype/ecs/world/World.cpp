@@ -8,12 +8,14 @@
 #include "World.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <optional>
 #include <span>
 #include <string_view>
 #include <utility>
 
+#include "rtype/ecs/change/ComponentTicks.hpp"
 #include "rtype/ecs/change/Tick.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/ComponentRegistry.hpp"
@@ -105,6 +107,19 @@ std::span<const std::byte> World::get(Entity entity, ComponentId id) const noexc
 bool World::remove(Entity entity, ComponentId id) noexcept {
     storage::SparseSetStorage* pool = findPool(id);
     return pool != nullptr && pool->remove(entity);
+}
+
+std::optional<ComponentTicks> World::getTicks(Entity entity, ComponentId id) const noexcept {
+    const storage::SparseSetStorage* pool = findPool(id);
+    if (pool == nullptr) {
+        return std::nullopt;
+    }
+    const std::optional<std::uint32_t> position = pool->find(entity);
+    if (!position) {
+        return std::nullopt;
+    }
+    return ComponentTicks{.added = *std::next(pool->getAddedTicks().begin(), *position),
+                          .changed = *std::next(pool->getChangedTicks().begin(), *position)};
 }
 
 void World::createPools(ComponentId id) {

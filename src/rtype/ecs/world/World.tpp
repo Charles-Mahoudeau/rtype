@@ -6,6 +6,7 @@
 */
 
 #include <cstddef>
+#include <optional>
 #include <span>
 #include <type_traits>
 #include <utility>
@@ -70,5 +71,11 @@ template <Component T>
 bool World::remove(Entity entity) noexcept {
     const ComponentInfo* info = _registry.find<T>();
     return info != nullptr && remove(entity, info->id);
+}
+
+template <Component T>
+std::optional<ComponentTicks> World::getTicks(Entity entity) const noexcept {
+    const ComponentInfo* info = _registry.find<T>();
+    return info != nullptr ? getTicks(entity, info->id) : std::nullopt;
 }
 }  // namespace rtype::ecs
