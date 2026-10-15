@@ -90,6 +90,28 @@ std::span<std::byte> SparseSetStorage::emplaceMove(Entity entity, std::span<std:
     return value;
 }
 
+bool SparseSetStorage::replaceCopy(Entity entity, std::span<const std::byte> source, Tick tick) {
+    const std::optional<std::uint32_t> position = find(entity);
+    if (!position) {
+        return false;
+    }
+    _data.emplaceBackCopy(source);  // the new value first: if it throws, nothing changed
+    _data.swapRemove(*position);    // destroys the old value and moves the new one into its slot
+    *std::next(_changed.begin(), *position) = tick;
+    return true;
+}
+
+bool SparseSetStorage::replaceMove(Entity entity, std::span<std::byte> source, Tick tick) {
+    const std::optional<std::uint32_t> position = find(entity);
+    if (!position) {
+        return false;
+    }
+    _data.emplaceBackMove(source);
+    _data.swapRemove(*position);
+    *std::next(_changed.begin(), *position) = tick;
+    return true;
+}
+
 bool SparseSetStorage::remove(Entity entity) noexcept {
     const std::optional<std::uint32_t> position = find(entity);
     if (!position) {
