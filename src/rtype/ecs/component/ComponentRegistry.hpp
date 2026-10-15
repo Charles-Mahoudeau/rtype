@@ -7,19 +7,15 @@
 
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-#include <deque>
-#include <span>
 #include <string_view>
-#include <unordered_map>
-#include <vector>
 
 #include "rtype/ecs/Export.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/error/Result.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
+#include "rtype/ecs/type/TypeRegistry.hpp"
+#include "rtype/ecs/type/TypeTraits.hpp"
 
 namespace rtype::ecs {
 /// @brief How a C++ component is stored and sent over the network, chosen when it is registered.
@@ -29,66 +25,41 @@ struct ComponentOptions {
     ReplicationMode replication{ReplicationMode::kNone};  ///< How the server sends it.
 };
 
-/// @brief The catalog of the component types of one world.
-///
-/// @details Registering validates a ComponentInfo, computes its layout hash and gives it a dense ComponentId, so ids
-/// can index plain vectors. Components are then found by id, by name or by name hash. A name identifies one
-/// component: registering the same component again returns its id, while the same name with another layout or
-/// other options is refused. Registered components never change, and pointers returned by the lookups stay valid
-/// for the registry's lifetime.
+/// @brief Compares what only components have when a component name is registered again: the storage.
+/// @return Nothing when it matches, or an ErrorKind::kOptionsMismatch error naming both values.
+[[nodiscard]] RTYPE_ECS_API Result<void> checkSameStorage(const ComponentInfo& registered,
+                                                          const ComponentInfo& requested);
+
+/// @brief What the registry needs to know about components.
+template <>
+struct KindTraits<ComponentInfo> {
+    using Options = ComponentOptions;                        ///< Storage, presence, replication.
+    static constexpr TypeKind kKind = TypeKind::kComponent;  ///< Declared with RTYPE_ECS_COMPONENT.
+    static constexpr std::string_view kName = "component";   ///< The kind in messages.
+    static constexpr std::string_view kLabel = "Component";  ///< The kind at the start of a message.
+
+    /// @return The rules of every type, and a component must be copyable.
+    [[nodiscard]] static Result<void> validate(const ComponentInfo& info) { return rtype::ecs::validate(info); }
+
+    /// @return Nothing when the storage matches, or why it does not.
+    [[nodiscard]] static Result<void> checkSameOptions(const ComponentInfo& registered,
+                                                       const ComponentInfo& requested) {
+        return checkSameStorage(registered, requested);
+    }
+
+    /// @return The description of the C++ component `T` with these options.
+    template <Component T>
+    [[nodiscard]] static ComponentInfo make(const ComponentOptions& options);
+};
+
+/// @brief The catalog of the component types of one world: a TypeRegistry of ComponentInfo.
 /// @code
 /// rtype::ecs::ComponentRegistry registry;
 /// const rtype::ecs::ComponentId transform =
-///     registry.registerComponent<Transform>({.replication = rtype::ecs::ReplicationMode::kEveryChange});
+///     registry.registerType<Transform>({.replication = rtype::ecs::ReplicationMode::kEveryChange});
 /// const rtype::ecs::ComponentInfo* info = registry.findByName("rtype.Transform");
 /// @endcode
-class RTYPE_ECS_API ComponentRegistry {
-  public:
-    ComponentRegistry() = default;
-    ~ComponentRegistry() = default;
-    ComponentRegistry(const ComponentRegistry& other) = delete;
-    ComponentRegistry& operator=(const ComponentRegistry& other) = delete;
-    ComponentRegistry(ComponentRegistry&& other) noexcept = default;
-    ComponentRegistry& operator=(ComponentRegistry&& other) noexcept = default;
-
-    /// @return The number of registered components; ids go from 0 to this count minus one.
-    [[nodiscard]] std::size_t getCount() const noexcept;
-
-    /// @return The ids of the components the server sends to clients, in registration order.
-    [[nodiscard]] std::span<const ComponentId> getReplicatedIds() const noexcept;
-
-    /// @brief Registers a component described at run time (the path scripts will use). Never throws on a refusal.
-    /// @param info The description; its id and layout hash are ignored and set by the registry.
-    /// @return The component's id (its existing id if this exact component is already registered), or an error:
-    /// ErrorKind::kInvalidType, kLayoutMismatch, kOptionsMismatch or kNameCollision.
-    [[nodiscard]] Result<ComponentId> registerComponent(ComponentInfo info);
-
-    /// @brief Registers a C++ component declared with RTYPE_ECS_COMPONENT.
-    /// @return The component's id (its existing id if this exact component is already registered).
-    /// @throws exceptions::ComponentRegistrationException If the component cannot be registered.
-    template <Component T>
-    ComponentId registerComponent(ComponentOptions options = {});
-
-    /// @return The component with this id, or nullptr.
-    [[nodiscard]] const ComponentInfo* findById(ComponentId id) const noexcept;
-
-    /// @return The component with this name, or nullptr.
-    [[nodiscard]] const ComponentInfo* findByName(std::string_view name) const noexcept;
-
-    /// @return The component whose name has this hash (see hashName()), or nullptr.
-    [[nodiscard]] const ComponentInfo* findByHash(std::uint64_t nameHash) const noexcept;
-
-    /// @return The C++ component `T`, or nullptr if it is not registered. Uses its compile-time name and layout
-    /// hashes: a component registered under `T`'s name with another layout (a run-time description that only shares
-    /// the name) is not `T`, so this returns nullptr, and registering `T` then fails with kLayoutMismatch.
-    template <Component T>
-    [[nodiscard]] const ComponentInfo* find() const noexcept;
-
-  private:
-    std::deque<ComponentInfo> _infos;                           ///< Components by id; a deque keeps their addresses.
-    std::unordered_map<std::uint64_t, ComponentId> _idsByHash;  ///< Ids by name hash.
-    std::vector<ComponentId> _replicatedIds;                    ///< Ids of the replicated components.
-};
+using ComponentRegistry = TypeRegistry<ComponentInfo>;
 }  // namespace rtype::ecs
 
 #include "ComponentRegistry.tpp"

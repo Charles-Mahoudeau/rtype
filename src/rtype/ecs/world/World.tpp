@@ -18,7 +18,7 @@
 namespace rtype::ecs {
 template <Component T>
 ComponentId World::component(ComponentOptions options) {
-    const ComponentId id = _registry.registerComponent<T>(options);
+    const ComponentId id = _registry.registerType<T>(options);
     createPools(id);
     return id;
 }

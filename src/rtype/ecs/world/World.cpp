@@ -70,7 +70,7 @@ bool World::despawn(Entity entity) noexcept {
 bool World::isAlive(Entity entity) const noexcept { return _entities.isAlive(entity); }
 
 Result<ComponentId> World::registerComponent(ComponentInfo info) {
-    Result<ComponentId> id = _registry.registerComponent(std::move(info));
+    Result<ComponentId> id = _registry.registerType(std::move(info));
     if (id) {
         createPools(*id);
     }
