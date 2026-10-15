@@ -42,7 +42,7 @@ jobs:
 
       - name: Setup macOS dependencies
         if: contains(runner.os, 'macos')
-        run: brew install molten-vk vulkan-loader
+        run: brew install molten-vk vulkan-loader glslang
 
       - name: Install xmake
         uses: xmake-io/github-action-setup-xmake@v1
@@ -125,7 +125,7 @@ jobs:
 
       - name: Setup macOS dependencies
         if: contains(runner.os, 'macos')
-        run: brew install molten-vk vulkan-loader
+        run: brew install molten-vk vulkan-loader glslang
 
       - name: Install xmake
         uses: xmake-io/github-action-setup-xmake@v1
