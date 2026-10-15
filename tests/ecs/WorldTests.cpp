@@ -463,3 +463,30 @@ TEST(World, SpawnMovesNonTrivialValuesIn) {
     }
     EXPECT_EQ(liveCounters, 0);
 }
+
+TEST(World, TypedCallsRefuseARunTimeComponentThatOnlySharesTheName) {
+    World world;
+    rtype::ecs::ComponentInfo script = makeBrain();  // 8 bytes, while Health has 4
+    script.name = "test.world.Health";
+    const ComponentId scriptId = *world.registerComponent(std::move(script));
+    const Entity entity = world.spawn();
+    EXPECT_THROW(world.add(entity, Health{.value = 1}), rtype::ecs::exceptions::ComponentRegistrationException);
+    EXPECT_FALSE(world.has<Health>(entity));
+    EXPECT_EQ(world.get<Health>(entity), nullptr);
+    EXPECT_FALSE(world.remove<Health>(entity));
+    EXPECT_FALSE(world.has(entity, scriptId));  // nothing was written into the script's component
+    EXPECT_EQ(world.getRegistry().getCount(), 1U);
+}
+
+TEST(World, AFailedSpawnLeavesNoEntity) {
+    World world;
+    rtype::ecs::ComponentInfo script = makeBrain();
+    script.name = "test.world.Health";
+    static_cast<void>(world.registerComponent(std::move(script)));
+    // Position is added first, then Health throws: the entity must not survive with only a Position.
+    EXPECT_THROW(static_cast<void>(world.spawn(Position{.x = 1.0F, .y = 1.0F}, Health{.value = 1})),
+                 rtype::ecs::exceptions::ComponentRegistrationException);
+    EXPECT_EQ(world.getEntityCount(), 0U);
+    const ComponentId position = *world.findComponent("test.world.Position");
+    EXPECT_FALSE(world.has(Entity{0, 1}, position));
+}

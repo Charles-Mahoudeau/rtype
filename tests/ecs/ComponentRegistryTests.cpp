@@ -84,6 +84,30 @@ TEST(ComponentRegistry, FindsComponentsByIdNameHashAndType) {
     EXPECT_EQ(registry.find<rtype::test::Health>(), byId);
 }
 
+TEST(ComponentRegistry, FindReturnsNullForAnotherLayoutUnderTheSameName) {
+    rtype::ecs::ComponentRegistry registry;
+    static_cast<void>(registry.registerComponent<rtype::test::Health>());
+    EXPECT_EQ(registry.find<rtype::test::OtherHealth>(), nullptr);  // "rtype.Health", but not this layout
+    EXPECT_NE(registry.find<rtype::test::Health>(), nullptr);
+}
+
+TEST(ComponentRegistry, FindReturnsNullForARunTimeComponentThatOnlySharesTheName) {
+    rtype::ecs::ComponentRegistry registry;
+    rtype::ecs::ComponentInfo script = makeShield();  // 8 bytes like Health, other fields
+    script.name = "rtype.Health";
+    ASSERT_TRUE(registry.registerComponent(std::move(script)));
+    EXPECT_EQ(registry.find<rtype::test::Health>(), nullptr);
+    EXPECT_THROW(static_cast<void>(registry.registerComponent<rtype::test::Health>()),
+                 rtype::ecs::exceptions::ComponentRegistrationException);
+}
+
+TEST(ComponentRegistry, FindAcceptsARunTimeDescriptionOfTheSameLayout) {
+    rtype::ecs::ComponentRegistry registry;
+    // A script describing exactly the C++ layout is the same component.
+    ASSERT_TRUE(registry.registerComponent(rtype::ecs::ComponentTraits<rtype::test::Health>::makeInfo()));
+    EXPECT_NE(registry.find<rtype::test::Health>(), nullptr);
+}
+
 TEST(ComponentRegistry, ReturnsNullForUnknownComponents) {
     rtype::ecs::ComponentRegistry registry;
     static_cast<void>(registry.registerComponent<rtype::test::Health>());
