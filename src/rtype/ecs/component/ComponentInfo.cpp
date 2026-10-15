@@ -19,7 +19,7 @@ Result<void> validate(const ComponentInfo& info) {
         return valid;
     }
     if (!info.type.copyable) {
-        return fail(ErrorKind::kInvalidComponent,
+        return fail(ErrorKind::kInvalidType,
                     std::format("Component '{}': a component must be copyable", info.type.name));
     }
     return {};

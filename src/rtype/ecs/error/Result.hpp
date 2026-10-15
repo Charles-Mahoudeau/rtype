@@ -27,7 +27,7 @@ using Result = tl::expected<T, Error>;
 /// @code
 /// rtype::ecs::Result<void> check(int value) {
 ///     if (value < 0) {
-///         return rtype::ecs::fail(rtype::ecs::ErrorKind::kInvalidComponent, "value must be positive");
+///         return rtype::ecs::fail(rtype::ecs::ErrorKind::kInvalidType, "value must be positive");
 ///     }
 ///     return {};
 /// }

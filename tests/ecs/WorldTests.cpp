@@ -157,7 +157,7 @@ TEST(World, RefusesAnInvalidDescription) {
     brain.type.alignment = 3;
     const rtype::ecs::Result<ComponentId> id = world.registerComponent(std::move(brain));
     ASSERT_FALSE(id);
-    EXPECT_EQ(id.error().getKind(), rtype::ecs::ErrorKind::kInvalidComponent);
+    EXPECT_EQ(id.error().getKind(), rtype::ecs::ErrorKind::kInvalidType);
     EXPECT_FALSE(world.findComponent("test.world.Brain"));
 }
 

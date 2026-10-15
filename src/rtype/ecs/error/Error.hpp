@@ -16,10 +16,10 @@
 namespace rtype::ecs {
 /// @brief Categories of failure the ECS reports through Result.
 enum class ErrorKind : std::uint8_t {
-    kInvalidComponent,  ///< A component description is inconsistent (layout, fields, replication).
-    kLayoutMismatch,    ///< A component name is already registered with another layout.
-    kOptionsMismatch,   ///< A component name is already registered with other storage, presence or replication.
-    kNameCollision,     ///< Two different component names have the same hash.
+    kInvalidType,      ///< A type description (component, resource) is inconsistent: layout, fields, replication.
+    kLayoutMismatch,   ///< A type name is already registered with another layout.
+    kOptionsMismatch,  ///< A type name is already registered with other options (storage, presence, replication...).
+    kNameCollision,    ///< Two different type names have the same hash.
 };
 
 /// @brief Describes a recoverable failure: the error side of Result.

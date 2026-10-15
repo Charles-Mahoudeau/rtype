@@ -30,7 +30,7 @@ rtype::ecs::ComponentInfo makeHealth() {
 void expectInvalid(const rtype::ecs::ComponentInfo& info, std::initializer_list<std::string_view> words) {
     const rtype::ecs::Result<void> result = rtype::ecs::validate(info);
     ASSERT_FALSE(result) << "expected '" << info.type.name << "' to be rejected";
-    EXPECT_EQ(result.error().getKind(), rtype::ecs::ErrorKind::kInvalidComponent);
+    EXPECT_EQ(result.error().getKind(), rtype::ecs::ErrorKind::kInvalidType);
     const std::string message{result.error().getMessage()};
     for (const std::string_view word : words) {
         EXPECT_NE(message.find(word), std::string::npos) << "'" << word << "' missing from: " << message;

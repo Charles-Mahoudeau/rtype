@@ -60,7 +60,7 @@ class RTYPE_ECS_API ComponentRegistry {
     /// @brief Registers a component described at run time (the path scripts will use). Never throws on a refusal.
     /// @param info The description; its id and layout hash are ignored and set by the registry.
     /// @return The component's id (its existing id if this exact component is already registered), or an error:
-    /// ErrorKind::kInvalidComponent, kLayoutMismatch, kOptionsMismatch or kNameCollision.
+    /// ErrorKind::kInvalidType, kLayoutMismatch, kOptionsMismatch or kNameCollision.
     [[nodiscard]] Result<ComponentId> registerComponent(ComponentInfo info);
 
     /// @brief Registers a C++ component declared with RTYPE_ECS_COMPONENT.

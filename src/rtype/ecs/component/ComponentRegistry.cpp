@@ -109,7 +109,7 @@ Result<ComponentId> ComponentRegistry::registerComponent(ComponentInfo info) {
         return checkSameComponent(*registered, info);
     }
     if (_infos.size() >= kInvalidComponentId) {
-        return fail(ErrorKind::kInvalidComponent, std::format("Component '{}': no component id left", info.type.name));
+        return fail(ErrorKind::kInvalidType, std::format("Component '{}': no component id left", info.type.name));
     }
     const auto id = static_cast<ComponentId>(_infos.size());
     info.type.id = id;

@@ -169,7 +169,7 @@ TEST(ComponentRegistry, RefusesAnInvalidDescription) {
     info.type.alignment = 3;
     const rtype::ecs::Result<rtype::ecs::ComponentId> id = registry.registerComponent(std::move(info));
     ASSERT_FALSE(id);
-    EXPECT_EQ(id.error().getKind(), rtype::ecs::ErrorKind::kInvalidComponent);
+    EXPECT_EQ(id.error().getKind(), rtype::ecs::ErrorKind::kInvalidType);
     EXPECT_EQ(registry.getCount(), 0U);
 }
 

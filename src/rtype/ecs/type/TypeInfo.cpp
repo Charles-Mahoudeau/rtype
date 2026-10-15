@@ -35,13 +35,13 @@ struct FieldSpan {
     std::string_view name;  ///< Field name, for messages.
 };
 
-/// @return An ErrorKind::kInvalidComponent error about the named type, e.g. "Component 'rtype.Health': ...".
+/// @return An ErrorKind::kInvalidType error about the named type, e.g. "Component 'rtype.Health': ...".
 [[nodiscard]] tl::unexpected<Error> invalid(std::string_view kind, std::string_view name, std::string_view problem) {
     std::string label{kind};
     if (!label.empty()) {
         label.front() = static_cast<char>(std::toupper(static_cast<unsigned char>(label.front())));
     }
-    return fail(ErrorKind::kInvalidComponent, std::format("{} '{}': {}", label, name, problem));
+    return fail(ErrorKind::kInvalidType, std::format("{} '{}': {}", label, name, problem));
 }
 
 /// @brief Checks every field on its own, and collects the bytes each one occupies.
@@ -93,7 +93,7 @@ struct FieldSpan {
 
 Result<void> validateType(const TypeInfo& info, std::string_view kind) {
     if (info.name.empty()) {
-        return fail(ErrorKind::kInvalidComponent, std::format("A {} needs a name", kind));
+        return fail(ErrorKind::kInvalidType, std::format("A {} needs a name", kind));
     }
     if (!std::has_single_bit(info.alignment)) {
         return invalid(kind, info.name, std::format("alignment {} is not a power of two", info.alignment));
