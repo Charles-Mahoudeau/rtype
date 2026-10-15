@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -59,6 +60,17 @@ RTYPE_ECS_COMPONENT(Inventory, "test.world.Inventory");
 
 struct Dead {};
 RTYPE_ECS_COMPONENT(Dead, "test.world.Dead");
+
+struct Bullet {
+    rtype::ecs::Entity owner;
+    float speed;
+};
+RTYPE_ECS_COMPONENT(Bullet, "test.world.Bullet", owner, speed);
+
+struct Squad {
+    std::array<rtype::ecs::Entity, 3> members;
+};
+RTYPE_ECS_COMPONENT(Squad, "test.world.Squad", members);
 }  // namespace rtype::test::world
 
 namespace {
@@ -644,4 +656,73 @@ TEST(World, AMutStampsTheTickItWasMadeAt) {
     world.advanceChangeTick();  // the world moves on; the handle keeps the tick of its system run
     health->value = 0;
     EXPECT_EQ(world.getTicks<Health>(entity)->changed, 5U);
+}
+
+TEST(World, DespawnClearsTheEntityFieldsThatPointToIt) {
+    World world;
+    const Entity ship = world.spawn();
+    const Entity otherShip = world.spawn();
+    const Entity bullet = world.spawn(rtype::test::world::Bullet{.owner = ship, .speed = 2.0F});
+    const Entity otherBullet = world.spawn(rtype::test::world::Bullet{.owner = otherShip, .speed = 3.0F});
+    world.despawn(ship);
+    EXPECT_TRUE(world.get<rtype::test::world::Bullet>(bullet)->owner.isNull());
+    EXPECT_EQ(world.get<rtype::test::world::Bullet>(bullet)->speed, 2.0F);  // only the entity field changes
+    EXPECT_EQ(world.get<rtype::test::world::Bullet>(otherBullet)->owner, otherShip);
+}
+
+TEST(World, DespawnClearsEveryMatchingElementOfAnEntityArray) {
+    World world;
+    const Entity leader = world.spawn();
+    const Entity wingman = world.spawn();
+    const Entity squad = world.spawn(rtype::test::world::Squad{.members = {leader, wingman, leader}});
+    world.despawn(leader);
+    const std::array<Entity, 3>& members = world.get<rtype::test::world::Squad>(squad)->members;
+    EXPECT_TRUE(members[0].isNull());
+    EXPECT_EQ(members[1], wingman);
+    EXPECT_TRUE(members[2].isNull());
+}
+
+TEST(World, AClearedValueIsMarkedChanged) {
+    World world;
+    const Entity ship = world.spawn();
+    const Entity bullet = world.spawn(rtype::test::world::Bullet{.owner = ship, .speed = 1.0F});
+    const Entity stray = world.spawn(rtype::test::world::Bullet{.owner = Entity{}, .speed = 1.0F});
+    world.advanceChangeTick(5);
+    world.despawn(ship);
+    EXPECT_EQ(world.getTicks<rtype::test::world::Bullet>(bullet)->changed, 5U);  // the network must send the null
+    EXPECT_EQ(world.getTicks<rtype::test::world::Bullet>(stray)->changed, 0U);   // untouched
+}
+
+TEST(World, DespawnClearsEntityFieldsOfRunTimeComponents) {
+    World world;
+    const ComponentId homing = *world.registerComponent(rtype::ecs::ComponentInfo{
+        .name = "test.world.Homing",
+        .size = sizeof(Entity),
+        .alignment = alignof(Entity),
+        .fields = {{.name = "target", .type = rtype::ecs::FieldType::kEntity, .offset = 0}},
+    });
+    const Entity target = world.spawn();
+    const Entity missile = world.spawn();
+    world.add(missile, homing, bytesOf(target));
+    world.despawn(target);
+    EXPECT_TRUE(rtype::ecs::storage::viewAs<Entity>(world.get(missile, homing))->isNull());
+}
+
+TEST(World, DespawnLeavesStaleHandlesOfTheSameIndexAlone) {
+    World world;
+    const Entity first = world.spawn();
+    world.despawn(first);
+    const Entity second = world.spawn();  // same index, newer generation
+    ASSERT_EQ(second.getIndex(), first.getIndex());
+    const Entity bullet = world.spawn(rtype::test::world::Bullet{.owner = first, .speed = 1.0F});
+    world.despawn(second);
+    EXPECT_EQ(world.get<rtype::test::world::Bullet>(bullet)->owner, first);  // not the despawned handle
+}
+
+TEST(World, DespawningADeadEntityChangesNoField) {
+    World world;
+    const Entity ship = world.spawn();
+    const Entity bullet = world.spawn(rtype::test::world::Bullet{.owner = ship, .speed = 1.0F});
+    EXPECT_FALSE(world.despawn(Entity{ship.getIndex(), ship.getGeneration() + 1}));
+    EXPECT_EQ(world.get<rtype::test::world::Bullet>(bullet)->owner, ship);
 }

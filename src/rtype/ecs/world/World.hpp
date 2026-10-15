@@ -81,9 +81,11 @@ class RTYPE_ECS_API World {
     template <Component First, Component... Rest>
     Entity spawn(First first, Rest... rest);
 
-    /// @brief Destroys an entity: removes it from every pool (destroying its values), then frees its index.
-    /// @details Every handle to it becomes stale, and its index can be reused under a new generation. Entity fields
-    /// of other components that pointed to it are not cleared yet.
+    /// @brief Destroys an entity: removes it from every pool (destroying its values), clears the entity fields of
+    /// other components that pointed to it, then frees its index.
+    /// @details Every handle to it becomes stale, and its index can be reused under a new generation. A cleared field
+    /// reads as the null entity and its value is marked changed. Clearing looks at every value of the components
+    /// that have entity fields, so its cost grows with them, not with the whole world.
     /// @return False, doing nothing, if the entity is not alive.
     bool despawn(Entity entity) noexcept;
 
@@ -170,6 +172,10 @@ class RTYPE_ECS_API World {
   private:
     /// @brief Creates the pools of every registered component up to `id` that has none yet.
     void createPools(ComponentId id);
+
+    /// @brief Sets to null every entity field, in every pool, that holds exactly `entity`, and marks those values
+    /// changed. A stale handle of the same index (an older generation) is left alone.
+    void clearReferencesTo(Entity entity) noexcept;
 
     /// @return The pool of the component, or nullptr if the id is not registered in this world.
     [[nodiscard]] storage::SparseSetStorage* findPool(ComponentId id) noexcept;
