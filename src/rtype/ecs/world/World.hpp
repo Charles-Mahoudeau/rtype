@@ -53,6 +53,18 @@ class RTYPE_ECS_API World {
     /// @return The number of entities alive.
     [[nodiscard]] std::size_t getEntityCount() const noexcept;
 
+    /// @brief Moves the world's change tick forward; values added or written from now on get the new tick.
+    /// @details Called once per system run by the scheduler. Every kCheckTickThreshold ticks it also clamps the
+    /// ticks stored in the pools (checkChangeTicks()), so comparisons stay right when the 32-bit tick wraps around.
+    /// @param count How many ticks to move forward (the scheduler runs several systems; tests jump far ahead).
+    /// @return The new change tick.
+    Tick advanceChangeTick(Tick count = 1) noexcept;
+
+    /// @brief Clamps every added and changed tick of every pool to at most kMaxChangeAge old.
+    /// @details Runs automatically from advanceChangeTick(); calling it more often is harmless. Ticks kept outside
+    /// the world (a system's last run, a client's acknowledged tick) must be clamped by their owner the same way.
+    void checkChangeTicks() noexcept;
+
     /// @brief Creates an entity with no component.
     /// @throws exceptions::EntityLimitException When every entity index is in use or retired.
     [[nodiscard]] Entity spawn();
@@ -143,7 +155,8 @@ class RTYPE_ECS_API World {
     EntityAllocator _entities;                      ///< Entity indices and generations.
     ComponentRegistry _registry;                    ///< Components of this world, by id and name.
     std::vector<storage::SparseSetStorage> _pools;  ///< One pool per component, indexed by ComponentId.
-    Tick _changeTick{0};                            ///< Current tick; advanced by the scheduler later.
+    Tick _changeTick{0};                            ///< Current tick, stamped on every value added or written.
+    Tick _lastCheckTick{0};                         ///< Change tick at the last checkChangeTicks().
 };
 }  // namespace rtype::ecs
 

@@ -28,6 +28,26 @@ Tick World::getChangeTick() const noexcept { return _changeTick; }
 
 std::size_t World::getEntityCount() const noexcept { return _entities.getAliveCount(); }
 
+Tick World::advanceChangeTick(Tick count) noexcept {
+    _changeTick += count;  // wraps around after 2^32 ticks: comparisons and clamping are built for it
+    if (_changeTick - _lastCheckTick >= kCheckTickThreshold) {
+        checkChangeTicks();
+    }
+    return _changeTick;
+}
+
+void World::checkChangeTicks() noexcept {
+    for (storage::SparseSetStorage& pool : _pools) {
+        for (Tick& tick : pool.getAddedTicks()) {
+            clampTick(tick, _changeTick);
+        }
+        for (Tick& tick : pool.getChangedTicks()) {
+            clampTick(tick, _changeTick);
+        }
+    }
+    _lastCheckTick = _changeTick;
+}
+
 Entity World::spawn() { return _entities.allocate(); }
 
 bool World::despawn(Entity entity) noexcept {
