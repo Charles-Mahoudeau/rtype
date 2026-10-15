@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <iterator>
 #include <optional>
 #include <span>
@@ -60,6 +61,7 @@ bool World::despawn(Entity entity) noexcept {
     for (storage::SparseSetStorage& pool : _pools) {
         pool.remove(entity);
     }
+    clearReferencesTo(entity);
     _entities.release(entity);
     return true;
 }
@@ -139,6 +141,34 @@ void World::createPools(ComponentId id) {
     // A loop, not a single push: if creating a pool ever threw, the next registration catches up.
     while (_pools.size() <= id) {
         _pools.emplace_back(*_registry.findById(static_cast<ComponentId>(_pools.size())));
+    }
+}
+
+void World::clearReferencesTo(Entity entity) noexcept {
+    for (storage::SparseSetStorage& pool : _pools) {
+        for (const FieldInfo& field : pool.getInfo().fields) {
+            if (field.type != FieldType::kEntity) {
+                continue;
+            }
+            for (std::size_t position = 0; position < pool.getSize(); ++position) {
+                const std::span<std::byte> value = pool.at(position);
+                bool cleared = false;
+                for (std::uint32_t element = 0; element < field.count; ++element) {
+                    const std::span<std::byte> bytes =
+                        value.subspan(field.offset + (element * sizeof(Entity)), sizeof(Entity));
+                    Entity held;
+                    std::memcpy(&held, bytes.data(), sizeof(Entity));
+                    if (held == entity) {
+                        const Entity null;
+                        std::memcpy(bytes.data(), &null, sizeof(Entity));
+                        cleared = true;
+                    }
+                }
+                if (cleared) {
+                    *std::next(pool.getChangedTicks().begin(), static_cast<std::ptrdiff_t>(position)) = _changeTick;
+                }
+            }
+        }
     }
 }
 
