@@ -105,6 +105,10 @@ Result<void> validateType(const TypeInfo& info, std::string_view kind) {
     if (info.size == 0 && !info.fields.empty()) {
         return invalid(kind, info.name, "a tag (size 0) cannot declare fields");
     }
+    const bool plainBytes = info.hooks.move == nullptr && info.hooks.destruct == nullptr;
+    if (info.copyable && info.hooks.copy == nullptr && !plainBytes) {
+        return invalid(kind, info.name, "it is copyable but has no copy hook");
+    }
     if (info.presence == Presence::kClientOnly && info.replication != ReplicationMode::kNone) {
         return invalid(kind, info.name, std::format("a client-only {} cannot be replicated", kind));
     }

@@ -190,6 +190,7 @@ TEST(ComponentRegistry, RefusesTheSameLayoutWithOtherHooks) {
     ASSERT_TRUE(registry.registerType(makeShield()));
     rtype::ecs::ComponentInfo managed = makeShield();  // same name, size and fields, but needs destroying
     managed.type.hooks.destruct = [](void* /*target*/) noexcept {};
+    managed.type.hooks.copy = [](void* /*destination*/, const void* /*source*/) {};  // consistent: valid on its own
     const rtype::ecs::Result<rtype::ecs::ComponentId> id = registry.registerType(std::move(managed));
     ASSERT_FALSE(id);
     EXPECT_EQ(id.error().getKind(), rtype::ecs::ErrorKind::kLayoutMismatch);
