@@ -54,3 +54,13 @@ TEST(TypeInfo, MessagesNameTheKindWhenTheNameIsMissing) {
     ASSERT_FALSE(result);
     EXPECT_NE(std::string{result.error().getMessage()}.find("A resource needs a name"), std::string::npos);
 }
+
+TEST(TypeInfo, RejectsACopyableTypeWithoutCopyHook) {
+    rtype::ecs::TypeInfo info = makeScore();
+    info.hooks.destruct = [](void* /*target*/) noexcept {};  // owns memory: memcpy would not copy it
+    const rtype::ecs::Result<void> result = rtype::ecs::validateType(info, "resource");
+    ASSERT_FALSE(result);
+    EXPECT_NE(std::string{result.error().getMessage()}.find("no copy hook"), std::string::npos);
+    info.copyable = false;  // the same type, declared move-only, is fine
+    EXPECT_TRUE(rtype::ecs::validateType(info, "resource"));
+}
