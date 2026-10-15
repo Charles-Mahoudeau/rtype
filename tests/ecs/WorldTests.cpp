@@ -368,7 +368,7 @@ TEST(World, MovesNonTrivialCppValuesIn) {
 TEST(World, DespawnKillsTheEntity) {
     World world;
     const Entity entity = world.spawn();
-    world.spawn();
+    static_cast<void>(world.spawn());
     EXPECT_TRUE(world.despawn(entity));
     EXPECT_FALSE(world.isAlive(entity));
     EXPECT_EQ(world.getEntityCount(), 1U);
