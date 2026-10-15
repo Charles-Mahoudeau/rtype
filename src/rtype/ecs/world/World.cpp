@@ -30,6 +30,18 @@ std::size_t World::getEntityCount() const noexcept { return _entities.getAliveCo
 
 Entity World::spawn() { return _entities.allocate(); }
 
+bool World::despawn(Entity entity) noexcept {
+    if (!isAlive(entity)) {
+        return false;
+    }
+    // Every pool is checked: an O(1) lookup each. A per-entity list of its pools may replace the scan later.
+    for (storage::SparseSetStorage& pool : _pools) {
+        pool.remove(entity);
+    }
+    _entities.release(entity);
+    return true;
+}
+
 bool World::isAlive(Entity entity) const noexcept { return _entities.isAlive(entity); }
 
 Result<ComponentId> World::registerComponent(ComponentInfo info) {

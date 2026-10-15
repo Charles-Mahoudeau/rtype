@@ -57,6 +57,12 @@ class RTYPE_ECS_API World {
     /// @throws exceptions::EntityLimitException When every entity index is in use or retired.
     [[nodiscard]] Entity spawn();
 
+    /// @brief Destroys an entity: removes it from every pool (destroying its values), then frees its index.
+    /// @details Every handle to it becomes stale, and its index can be reused under a new generation. Entity fields
+    /// of other components that pointed to it are not cleared yet.
+    /// @return False, doing nothing, if the entity is not alive.
+    bool despawn(Entity entity) noexcept;
+
     /// @return Whether the entity was spawned in this world and not despawned since.
     [[nodiscard]] bool isAlive(Entity entity) const noexcept;
 
