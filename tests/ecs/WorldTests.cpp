@@ -364,3 +364,66 @@ TEST(World, MovesNonTrivialCppValuesIn) {
     }
     EXPECT_EQ(liveCounters, 0);
 }
+
+TEST(World, DespawnKillsTheEntity) {
+    World world;
+    const Entity entity = world.spawn();
+    world.spawn();
+    EXPECT_TRUE(world.despawn(entity));
+    EXPECT_FALSE(world.isAlive(entity));
+    EXPECT_EQ(world.getEntityCount(), 1U);
+    EXPECT_FALSE(world.despawn(entity));  // already despawned
+}
+
+TEST(World, DespawnOfAnEntityThatIsNotAliveDoesNothing) {
+    World world;
+    const Entity entity = world.spawn();
+    EXPECT_FALSE(world.despawn(Entity{}));
+    EXPECT_FALSE(world.despawn(Entity{42, 1}));
+    EXPECT_FALSE(world.despawn(Entity{entity.getIndex(), entity.getGeneration() + 1}));
+    EXPECT_TRUE(world.isAlive(entity));
+}
+
+TEST(World, DespawnRemovesTheEntityFromEveryPool) {
+    World world;
+    const ComponentId brain = *world.registerComponent(makeBrain());
+    const Entity doomed = world.spawn();
+    const Entity survivor = world.spawn();
+    for (const Entity entity : {doomed, survivor}) {
+        world.add(entity, Position{.x = 1.0F, .y = 1.0F});
+        world.add(entity, Health{.value = 5});
+        world.add(entity, rtype::test::world::Dead{});
+        world.add(entity, brain, bytesOf(BrainValue{.health = 1, .iq = 0.0F}));
+    }
+    world.despawn(doomed);
+    for (ComponentId id = 0; id < world.getRegistry().getCount(); ++id) {
+        EXPECT_FALSE(world.has(doomed, id)) << "component " << id;
+        EXPECT_TRUE(world.has(survivor, id)) << "component " << id;
+    }
+    EXPECT_EQ(world.get<Health>(survivor)->value, 5);
+}
+
+TEST(World, AReusedIndexStartsWithoutComponents) {
+    World world;
+    const Entity old = world.spawn();
+    world.add(old, Health{.value = 5});
+    world.despawn(old);
+    const Entity reused = world.spawn();
+    ASSERT_EQ(reused.getIndex(), old.getIndex());  // the freed index is reused first
+    EXPECT_NE(reused, old);                        // under a new generation
+    EXPECT_FALSE(world.has<Health>(reused));
+    EXPECT_TRUE(world.add(reused, Health{.value = 9}));  // the index is free in the pool
+    EXPECT_EQ(world.get<Health>(reused)->value, 9);
+    EXPECT_EQ(world.get<Health>(old), nullptr);  // the stale handle sees nothing
+    EXPECT_FALSE(world.add(old, Health{.value = 1}));
+}
+
+TEST(World, DespawnDestroysNonTrivialValues) {
+    liveCounters = 0;
+    World world;
+    const Entity entity = world.spawn();
+    world.add(entity, rtype::test::world::Inventory{.items = {1}});
+    EXPECT_EQ(liveCounters, 1);
+    world.despawn(entity);
+    EXPECT_EQ(liveCounters, 0);  // destroyed by despawn, not only when the world goes away
+}
