@@ -113,6 +113,8 @@ class RTYPE_ECS_API World {
     /// @details Registers `T` with the default options if it is not registered yet, then moves `value` in. Stamps
     /// the world's change tick (only as the changed tick when replacing).
     /// @return False, doing nothing (not even registering `T`), if the entity is not alive.
+    /// @throws exceptions::ComponentRegistrationException When `T` is not registered and its name is already taken
+    /// by another layout (a run-time component with the same name).
     template <Component T>
     bool add(Entity entity, T value);
 
