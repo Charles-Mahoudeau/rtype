@@ -110,6 +110,6 @@ Result<void> validate(const ComponentInfo& info) {
 }
 
 std::uint64_t computeLayoutHash(const ComponentInfo& info) noexcept {
-    return hashLayout(info.name, info.size, info.alignment, info.fields);
+    return hashLayout(info.name, info.size, info.alignment, info.hooks, info.fields);
 }
 }  // namespace rtype::ecs
