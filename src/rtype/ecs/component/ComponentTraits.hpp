@@ -11,8 +11,10 @@
 #include <cstddef>  // offsetof, used by RTYPE_ECS_COMPONENT
 #include <cstdint>
 #include <string_view>
+#include <type_traits>
 
 #include "rtype/ecs/component/ComponentInfo.hpp"
+#include "rtype/ecs/component/LayoutHash.hpp"
 #include "rtype/ecs/component/NameHash.hpp"
 #include "rtype/ecs/detail/ForEach.hpp"
 
@@ -72,6 +74,11 @@ struct ComponentTraits {
 
     /// @brief Lifecycle hooks, `nullptr` where the operation is trivial.
     static constexpr ComponentHooks kHooks = detail::makeHooks<T>();
+
+    /// @brief computeLayoutHash() of makeInfo(), known at compile time: tells whether a registered description is
+    /// really this type's.
+    static constexpr std::uint64_t kLayoutHash =
+        hashLayout(kName, std::is_empty_v<T> ? 0 : sizeof(T), alignof(T), kFields);
 
     /// @return A ComponentInfo with the name, size (0 for an empty struct: a tag), alignment, hooks and fields. The
     /// id, presence, replication and layout hash are left for the registry to set.
