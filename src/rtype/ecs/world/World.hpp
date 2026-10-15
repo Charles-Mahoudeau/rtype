@@ -29,6 +29,7 @@
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 #include "rtype/ecs/storage/ResourceStorage.hpp"
 #include "rtype/ecs/storage/SparseSetStorage.hpp"
+#include "rtype/ecs/type/TypeTraits.hpp"
 
 namespace rtype::ecs {
 /// @brief The container of one simulation: its entities, its components, its resources and their values.
@@ -105,8 +106,8 @@ class RTYPE_ECS_API World {
     /// @brief Registers a C++ component, or returns its id if it is already registered with the same options.
     /// @details Call it before the component is first added to set non-default options: adding registers the
     /// component with the default ones.
-    /// @throws exceptions::ComponentRegistrationException When the name is taken by another layout or other
-    /// options.
+    /// @throws exceptions::ComponentRegistrationException When the name is taken by another layout, other
+    /// options, or a resource.
     template <Component T>
     ComponentId component(ComponentOptions options = {});
 
@@ -182,8 +183,8 @@ class RTYPE_ECS_API World {
     /// @brief Registers a C++ resource, or returns its id if it is already registered with the same options.
     /// @details insertResource() and insertNonSendResource() register the resource themselves; call this to know
     /// its id, or to register it before its value exists.
-    /// @throws exceptions::ResourceRegistrationException When the name is taken by another layout, or is registered
-    /// with the other main-thread flag.
+    /// @throws exceptions::ResourceRegistrationException When the name is taken by another layout, by a component,
+    /// or is registered with the other main-thread flag.
     template <Resource T>
     ResourceId resource(ResourceOptions options = {});
 
@@ -280,6 +281,12 @@ class RTYPE_ECS_API World {
   private:
     /// @brief Creates the pools of every registered component up to `id` that has none yet.
     void createPools(ComponentId id);
+
+    /// @brief Checks that `name` is not used by the other kind: a name is either a component or a resource, so the
+    /// Luau bridge, the network manifest and save files can resolve it alone.
+    /// @param kind The kind being registered.
+    /// @return Nothing when the name is free for this kind, or an ErrorKind::kNameCollision error naming both kinds.
+    [[nodiscard]] Result<void> checkNameFree(std::string_view name, TypeKind kind) const;
 
     /// @brief Sets to null every entity field, in every pool, that holds exactly `entity`, and marks those values
     /// changed. A stale handle of the same index (an older generation) is left alone.

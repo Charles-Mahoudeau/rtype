@@ -10,10 +10,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <format>
 #include <iterator>
 #include <optional>
 #include <span>
 #include <string_view>
+#include <tl/expected.hpp>
 #include <utility>
 
 #include "rtype/ecs/change/ComponentTicks.hpp"
@@ -21,12 +23,14 @@
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/ComponentRegistry.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/error/Error.hpp"
 #include "rtype/ecs/error/Result.hpp"
 #include "rtype/ecs/resource/ResourceInfo.hpp"
 #include "rtype/ecs/resource/ResourceRegistry.hpp"
 #include "rtype/ecs/storage/ResourceStorage.hpp"
 #include "rtype/ecs/storage/SparseSetStorage.hpp"
 #include "rtype/ecs/type/Field.hpp"
+#include "rtype/ecs/type/TypeTraits.hpp"
 
 namespace rtype::ecs {
 const ComponentRegistry& World::getRegistry() const noexcept { return _registry; }
@@ -78,6 +82,9 @@ bool World::despawn(Entity entity) noexcept {
 bool World::isAlive(Entity entity) const noexcept { return _entities.isAlive(entity); }
 
 Result<ComponentId> World::registerComponent(ComponentInfo info) {
+    if (Result<void> free = checkNameFree(info.type.name, TypeKind::kComponent); !free) {
+        return tl::unexpected<Error>{std::move(free.error())};
+    }
     Result<ComponentId> id = _registry.registerType(std::move(info));
     if (id) {
         createPools(*id);
@@ -146,6 +153,18 @@ std::optional<ComponentTicks> World::getTicks(Entity entity, ComponentId id) con
                           .changed = *std::next(pool->getChangedTicks().begin(), *position)};
 }
 
+Result<void> World::checkNameFree(std::string_view name, TypeKind kind) const {
+    const bool component = kind == TypeKind::kComponent;
+    const bool taken =
+        component ? _resourceRegistry.findByName(name) != nullptr : _registry.findByName(name) != nullptr;
+    if (taken) {
+        return fail(ErrorKind::kNameCollision,
+                    std::format("{} '{}': the name is already used by a {}", component ? "Component" : "Resource", name,
+                                component ? "resource" : "component"));
+    }
+    return {};
+}
+
 void World::createPools(ComponentId id) {
     // A loop, not a single push: if creating a pool ever threw, the next registration catches up.
     while (_pools.size() <= id) {
@@ -190,6 +209,9 @@ const storage::SparseSetStorage* World::findPool(ComponentId id) const noexcept 
 }
 
 Result<ResourceId> World::registerResource(ResourceInfo info) {
+    if (Result<void> free = checkNameFree(info.type.name, TypeKind::kResource); !free) {
+        return tl::unexpected<Error>{std::move(free.error())};
+    }
     Result<ResourceId> id = _resourceRegistry.registerType(std::move(info));
     if (id) {
         createResourceStorages(*id);

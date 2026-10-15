@@ -10,15 +10,20 @@
 #include <iterator>
 #include <optional>
 #include <span>
+#include <string>
 #include <type_traits>
 #include <utility>
 
 #include "rtype/ecs/exceptions/MissingResourceException.hpp"
+#include "rtype/ecs/exceptions/TypeExceptions.hpp"
 #include "rtype/ecs/storage/ViewAs.hpp"
 
 namespace rtype::ecs {
 template <Component T>
 ComponentId World::component(ComponentOptions options) {
+    if (Result<void> free = checkNameFree(ComponentTraits<T>::kName, TypeKind::kComponent); !free) {
+        throw exceptions::TypeRegistrationException{std::string{free.error().getMessage()}};
+    }
     const ComponentId id = _registry.registerType<T>(options);
     createPools(id);
     return id;
@@ -100,6 +105,9 @@ std::optional<ComponentTicks> World::getTicks(Entity entity) const noexcept {
 
 template <Resource T>
 ResourceId World::resource(ResourceOptions options) {
+    if (Result<void> free = checkNameFree(ResourceTraits<T>::kName, TypeKind::kResource); !free) {
+        throw exceptions::TypeRegistrationException{std::string{free.error().getMessage()}};
+    }
     const ResourceId id = _resourceRegistry.registerType<T>(options);
     createResourceStorages(id);
     return id;
