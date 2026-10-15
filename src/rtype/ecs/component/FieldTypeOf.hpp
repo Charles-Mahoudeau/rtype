@@ -14,6 +14,7 @@
 #include <type_traits>
 
 #include "rtype/ecs/component/ComponentInfo.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
 
 namespace rtype::ecs {
 /// @brief Maps a C++ type to the FieldType it is reflected as, in `value`. Empty for unsupported types.
@@ -51,6 +52,10 @@ template <>
 struct FieldTypeOf<float> : std::integral_constant<FieldType, FieldType::kF32> {};
 template <>
 struct FieldTypeOf<double> : std::integral_constant<FieldType, FieldType::kF64> {};
+
+/// @brief A reference to another entity: cleared when that entity is despawned, remapped by the network.
+template <>
+struct FieldTypeOf<Entity> : std::integral_constant<FieldType, FieldType::kEntity> {};
 
 /// @brief True when a FieldTypeOf specialization reflects `T`.
 template <typename T>
