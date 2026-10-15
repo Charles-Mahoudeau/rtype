@@ -406,3 +406,56 @@ TEST(SparseSetStorage, AFailedCopyLeavesThePoolUnchanged) {
     pool.emplaceCopy(Entity{2, 1}, std::as_bytes(std::span{&source, 1}), 0);  // the index is free again
     EXPECT_EQ(rtype::ecs::storage::viewAs<rtype::test::pool::Brittle>(pool.get(Entity{2, 1}))->value, 7);
 }
+
+TEST(SparseSetStorage, ReplaceCopySwapsTheValueInPlace) {
+    SparseSetStorage pool{infoOf<Position>()};
+    addPosition(pool, Entity{1, 1}, 1.0F, 2);
+    addPosition(pool, Entity{2, 1}, 2.0F, 2);
+    addPosition(pool, Entity{3, 1}, 3.0F, 2);
+    const Position replacement{.x = 9.0F, .y = 8.0F};
+    EXPECT_TRUE(pool.replaceCopy(Entity{1, 1}, std::as_bytes(std::span{&replacement, 1}), 5));
+    EXPECT_EQ(pool.getSize(), 3U);
+    EXPECT_EQ(pool.find(Entity{1, 1}), std::optional<std::uint32_t>{0});  // dense order unchanged
+    EXPECT_EQ(rtype::ecs::storage::viewAs<Position>(pool.get(Entity{1, 1}))->y, 8.0F);
+    EXPECT_EQ(xOf(pool, Entity{2, 1}), 2.0F);
+    EXPECT_EQ(xOf(pool, Entity{3, 1}), 3.0F);
+    EXPECT_EQ(pool.getAddedTicks()[0], 2U);    // kept
+    EXPECT_EQ(pool.getChangedTicks()[0], 5U);  // stamped
+}
+
+TEST(SparseSetStorage, ReplaceMoveMovesTheValueIn) {
+    liveCounters = 0;
+    {
+        SparseSetStorage pool{infoOf<rtype::test::pool::Tracked>()};
+        pool.emplace(Entity{1, 1}, 0);
+        pool.emplace(Entity{2, 1}, 0);
+        rtype::test::pool::Tracked source{.items = {7, 8}};
+        EXPECT_TRUE(pool.replaceMove(Entity{2, 1}, std::as_writable_bytes(std::span{&source, 1}), 1));
+        EXPECT_EQ(rtype::ecs::storage::viewAs<rtype::test::pool::Tracked>(pool.get(Entity{2, 1}))->items,
+                  (std::vector<std::int32_t>{7, 8}));
+        EXPECT_EQ(liveCounters, 3);  // two in the pool, the moved-from source
+    }
+    EXPECT_EQ(liveCounters, 0);  // the old value was destroyed, nothing leaked
+}
+
+TEST(SparseSetStorage, ReplaceOfAnAbsentEntityDoesNothing) {
+    SparseSetStorage pool{infoOf<Position>()};
+    addPosition(pool, Entity{5, 1}, 5.0F);
+    const Position replacement{.x = 1.0F, .y = 1.0F};
+    EXPECT_FALSE(pool.replaceCopy(Entity{4, 1}, std::as_bytes(std::span{&replacement, 1}), 0));
+    EXPECT_FALSE(pool.replaceCopy(Entity{5, 2}, std::as_bytes(std::span{&replacement, 1}), 0));
+    EXPECT_EQ(pool.getSize(), 1U);
+    EXPECT_EQ(xOf(pool, Entity{5, 1}), 5.0F);
+}
+
+TEST(SparseSetStorage, AFailedReplacementKeepsTheOldValue) {
+    SparseSetStorage pool{infoOf<rtype::test::pool::Brittle>()};
+    const rtype::test::pool::Brittle original{.value = 1, .fragile = {}};
+    const rtype::test::pool::Brittle replacement{.value = 2, .fragile = {}};
+    pool.emplaceCopy(Entity{1, 1}, std::as_bytes(std::span{&original, 1}), 3);
+    failNextCopy = true;
+    EXPECT_THROW(pool.replaceCopy(Entity{1, 1}, std::as_bytes(std::span{&replacement, 1}), 4), std::runtime_error);
+    EXPECT_EQ(pool.getSize(), 1U);
+    EXPECT_EQ(rtype::ecs::storage::viewAs<rtype::test::pool::Brittle>(pool.get(Entity{1, 1}))->value, 1);
+    EXPECT_EQ(pool.getChangedTicks()[0], 3U);
+}

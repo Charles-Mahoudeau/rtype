@@ -74,9 +74,10 @@ template <typename Option>
                     std::format("Components '{}' and '{}' have the same name hash", registered.name, requested.name));
     }
     if (registered.layoutHash != requested.layoutHash) {
-        return fail(ErrorKind::kLayoutMismatch,
-                    std::format("Component '{}' is already registered with another layout (size, alignment or fields)",
-                                requested.name));
+        return fail(
+            ErrorKind::kLayoutMismatch,
+            std::format("Component '{}' is already registered with another layout (size, alignment, hooks or fields)",
+                        requested.name));
     }
     if (registered.storage != requested.storage) {
         return optionsMismatch(requested.name, "storage", registered.storage, requested.storage);

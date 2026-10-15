@@ -66,20 +66,26 @@ if (const Position* position = world.get<Position>(ship); position != nullptr) {
 
 // Type-erased (what the Luau bridge and the replication plugin use)
 const std::optional<rtype::ecs::ComponentId> id = world.findComponent("rtype.Position");
-const bool added = world.add(ship, *id, &bytes);   // false if the entity is dead or the id unknown
-const void* raw = world.get(ship, *id);            // nullptr if absent
+const bool added = world.add(ship, *id, bytes);           // false if the entity is dead, the id unknown or the size wrong
+std::span<const std::byte> raw = world.get(ship, *id);   // empty if absent
 ```
 
 | Operation | Typed | Type-erased |
 |---|---|---|
 | Spawn / despawn | `spawn()`, `despawn(e)` | same |
 | Add / remove | `add<T>(e, value)`, `remove<T>(e)` | `add(e, id, bytes)`, `remove(e, id)` |
-| Read | `get<T>(e)` → `const T*` | `get(e, id)` → `const void*` |
-| Write | `getMut<T>(e)` → `Mut<T>` | `getMut(e, id)` → `void*` (marks changed) |
+| Test (tags included) | `has<T>(e)` | `has(e, id)` |
+| Read | `get<T>(e)` → `const T*` | `get(e, id)` → `std::span<const std::byte>` |
+| Write | `getMut<T>(e)` → `Mut<T>` | `getMut(e, id)` → `std::span<std::byte>` (marks changed) |
 | Register | `component<T>()` | `registerComponent(descriptor)` |
 
 Typed calls are thin wrappers that resolve `T` to an id and forward to the type-erased path, so there is
 one implementation to test.
+
+- **`add` on a component the entity already has replaces its value** (stamps `changed`, keeps `added`).
+- **`add<T>` registers `T`** with default options the first time; call `component<T>(options)` before to set
+  replication options. Reading (`has`, `get`, `remove`) never registers.
+- Values are exchanged as byte spans of exactly the component's size; `viewAs<T>` turns them into a `T`.
 
 ### Despawning
 
