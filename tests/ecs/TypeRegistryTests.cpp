@@ -56,8 +56,8 @@ struct rtype::ecs::KindTraits<gadget::GadgetInfo> {
                                                        const gadget::GadgetInfo& requested) {
         if (registered.charges != requested.charges) {
             return tl::unexpected<Error>{detail::optionsMismatch(kLabel, requested.type.name, "charges",
-                                                                 std::to_string(registered.charges),
-                                                                 std::to_string(requested.charges))};
+                                                                 std::format("{}", registered.charges),
+                                                                 std::format("{}", requested.charges))};
         }
         return {};
     }
