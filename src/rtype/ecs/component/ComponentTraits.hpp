@@ -17,6 +17,7 @@
 #include "rtype/ecs/component/LayoutHash.hpp"
 #include "rtype/ecs/component/NameHash.hpp"
 #include "rtype/ecs/detail/ForEach.hpp"
+#include "rtype/ecs/type/Field.hpp"
 
 namespace rtype::ecs {
 /// @brief One reflected field, known at compile time: the constexpr counterpart of FieldInfo.

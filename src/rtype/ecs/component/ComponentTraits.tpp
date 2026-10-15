@@ -13,7 +13,7 @@
 #include <type_traits>
 #include <utility>
 
-#include "rtype/ecs/component/FieldTypeOf.hpp"
+#include "rtype/ecs/type/FieldTypeOf.hpp"
 
 namespace rtype::ecs {
 namespace detail {

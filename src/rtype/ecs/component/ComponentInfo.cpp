@@ -21,6 +21,7 @@
 #include "rtype/ecs/component/LayoutHash.hpp"
 #include "rtype/ecs/error/Error.hpp"
 #include "rtype/ecs/error/Result.hpp"
+#include "rtype/ecs/type/Field.hpp"
 
 namespace rtype::ecs {
 namespace {

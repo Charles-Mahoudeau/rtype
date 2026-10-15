@@ -23,6 +23,7 @@
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/error/Result.hpp"
 #include "rtype/ecs/storage/SparseSetStorage.hpp"
+#include "rtype/ecs/type/Field.hpp"
 
 namespace rtype::ecs {
 const ComponentRegistry& World::getRegistry() const noexcept { return _registry; }
