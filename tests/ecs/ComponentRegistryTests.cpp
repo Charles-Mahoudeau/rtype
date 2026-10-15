@@ -162,6 +162,17 @@ TEST(ComponentRegistry, RefusesTheSameNameWithAnotherLayout) {
     EXPECT_EQ(registry.getCount(), 1U);
 }
 
+TEST(ComponentRegistry, RefusesTheSameLayoutWithOtherHooks) {
+    rtype::ecs::ComponentRegistry registry;
+    ASSERT_TRUE(registry.registerComponent(makeShield()));
+    rtype::ecs::ComponentInfo managed = makeShield();  // same name, size and fields, but needs destroying
+    managed.hooks.destruct = [](void* /*target*/) noexcept {};
+    const rtype::ecs::Result<rtype::ecs::ComponentId> id = registry.registerComponent(std::move(managed));
+    ASSERT_FALSE(id);
+    EXPECT_EQ(id.error().getKind(), rtype::ecs::ErrorKind::kLayoutMismatch);
+    EXPECT_EQ(registry.getCount(), 1U);
+}
+
 TEST(ComponentRegistry, RefusesTheSameNameWithOtherOptions) {
     rtype::ecs::ComponentRegistry registry;
     ASSERT_TRUE(registry.registerComponent(makeShield()));

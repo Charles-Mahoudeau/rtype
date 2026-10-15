@@ -213,6 +213,10 @@ TEST(LayoutHash, ChangesWithTheLayout) {
     rtype::ecs::ComponentInfo array = makeHealth();
     array.fields.at(1).count = 2;
     EXPECT_NE(rtype::ecs::computeLayoutHash(array), original);
+
+    rtype::ecs::ComponentInfo destroyed = makeHealth();
+    destroyed.hooks.destruct = [](void* /*target*/) noexcept {};
+    EXPECT_NE(rtype::ecs::computeLayoutHash(destroyed), original);
 }
 
 TEST(LayoutHash, IgnoresTheOptions) {
@@ -221,4 +225,14 @@ TEST(LayoutHash, IgnoresTheOptions) {
     info.presence = rtype::ecs::Presence::kServerOnly;
     info.replication = rtype::ecs::ReplicationMode::kEveryChange;
     EXPECT_EQ(rtype::ecs::computeLayoutHash(info), rtype::ecs::computeLayoutHash(makeHealth()));
+}
+
+TEST(LayoutHash, DependsOnWhichHooksExistNotOnTheirAddress) {
+    rtype::ecs::ComponentInfo first = makeHealth();
+    rtype::ecs::ComponentInfo second = makeHealth();
+    first.hooks.destruct = [](void* /*target*/) noexcept {};
+    second.hooks.destruct = [](void* target) noexcept { static_cast<void>(target); };  // another function
+    EXPECT_EQ(rtype::ecs::computeLayoutHash(first), rtype::ecs::computeLayoutHash(second));
+    second.hooks.copy = [](void* /*destination*/, const void* /*source*/) {};
+    EXPECT_NE(rtype::ecs::computeLayoutHash(first), rtype::ecs::computeLayoutHash(second));
 }
