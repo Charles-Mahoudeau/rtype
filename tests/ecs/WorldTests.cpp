@@ -56,6 +56,9 @@ struct Inventory {
     Counter counter;
 };
 RTYPE_ECS_COMPONENT(Inventory, "test.world.Inventory");
+
+struct Dead {};
+RTYPE_ECS_COMPONENT(Dead, "test.world.Dead");
 }  // namespace rtype::test::world
 
 namespace {
@@ -258,6 +261,106 @@ TEST(World, CopiesNonTrivialValuesById) {
         EXPECT_EQ(rtype::ecs::storage::viewAs<rtype::test::world::Inventory>(world.get(entity, inventory))->items,
                   (std::vector<std::int32_t>{3}));
         EXPECT_EQ(liveCounters, 3);  // source, replacement, the stored copy
+    }
+    EXPECT_EQ(liveCounters, 0);
+}
+
+TEST(World, AddsAndGetsCppComponents) {
+    World world;
+    const Entity entity = world.spawn();
+    EXPECT_TRUE(world.add(entity, Position{.x = 1.0F, .y = 2.0F}));
+    EXPECT_TRUE(world.has<Position>(entity));
+    const Position* position = world.get<Position>(entity);
+    ASSERT_NE(position, nullptr);
+    EXPECT_EQ(position->x, 1.0F);
+    EXPECT_EQ(position->y, 2.0F);
+    EXPECT_EQ(world.getRegistry().getCount(), 1U);  // registered by the first add
+}
+
+TEST(World, AddOnADeadEntityRegistersNothing) {
+    World world;
+    EXPECT_FALSE(world.add(Entity{3, 1}, Position{.x = 0.0F, .y = 0.0F}));
+    EXPECT_EQ(world.getRegistry().getCount(), 0U);
+}
+
+TEST(World, AddReplacesACppValue) {
+    World world;
+    const Entity entity = world.spawn();
+    world.add(entity, Health{.value = 10});
+    EXPECT_TRUE(world.add(entity, Health{.value = 3}));
+    EXPECT_EQ(world.get<Health>(entity)->value, 3);
+}
+
+TEST(World, AnswersNothingForAnUnregisteredType) {
+    World world;
+    const Entity entity = world.spawn();
+    EXPECT_FALSE(world.has<Health>(entity));
+    EXPECT_EQ(world.get<Health>(entity), nullptr);
+    EXPECT_FALSE(world.remove<Health>(entity));
+    EXPECT_EQ(world.getRegistry().getCount(), 0U);  // reading never registers
+}
+
+TEST(World, GetReturnsNullForAnEntityWithoutTheComponent) {
+    World world;
+    const Entity with = world.spawn();
+    const Entity without = world.spawn();
+    world.add(with, Health{.value = 1});
+    EXPECT_EQ(world.get<Health>(without), nullptr);
+    EXPECT_FALSE(world.has<Health>(without));
+}
+
+TEST(World, RemovesACppComponent) {
+    World world;
+    const Entity entity = world.spawn();
+    world.add(entity, Health{.value = 1});
+    EXPECT_TRUE(world.remove<Health>(entity));
+    EXPECT_FALSE(world.has<Health>(entity));
+    EXPECT_FALSE(world.remove<Health>(entity));
+}
+
+TEST(World, TypedAndErasedCallsSeeTheSameData) {
+    World world;
+    const Entity first = world.spawn();
+    const Entity second = world.spawn();
+    world.add(first, Health{.value = 7});
+    const ComponentId health = *world.findComponent("test.world.Health");
+    EXPECT_TRUE(world.has(first, health));
+    EXPECT_EQ(rtype::ecs::storage::viewAs<Health>(world.get(first, health))->value, 7);
+    world.add(second, health, bytesOf(Health{.value = 8}));
+    EXPECT_EQ(world.get<Health>(second)->value, 8);
+    world.remove(first, health);
+    EXPECT_FALSE(world.has<Health>(first));
+}
+
+TEST(World, KeepsTheOptionsOfAnExplicitRegistration) {
+    World world;
+    const ComponentId health =
+        world.component<Health>(rtype::ecs::ComponentOptions{.replication = rtype::ecs::ReplicationMode::kEveryChange});
+    const Entity entity = world.spawn();
+    EXPECT_TRUE(world.add(entity, Health{.value = 1}));  // finds the registration, does not register again
+    EXPECT_EQ(world.getRegistry().findById(health)->replication, rtype::ecs::ReplicationMode::kEveryChange);
+}
+
+TEST(World, AddsCppTags) {
+    World world;
+    const Entity entity = world.spawn();
+    EXPECT_TRUE(world.add(entity, rtype::test::world::Dead{}));
+    EXPECT_TRUE(world.has<rtype::test::world::Dead>(entity));
+    EXPECT_TRUE(world.remove<rtype::test::world::Dead>(entity));
+    EXPECT_FALSE(world.has<rtype::test::world::Dead>(entity));
+}
+
+TEST(World, MovesNonTrivialCppValuesIn) {
+    liveCounters = 0;
+    {
+        World world;
+        const Entity entity = world.spawn();
+        rtype::test::world::Inventory source{.items = {1, 2, 3}};
+        world.add(entity, std::move(source));
+        EXPECT_EQ(world.get<rtype::test::world::Inventory>(entity)->items, (std::vector<std::int32_t>{1, 2, 3}));
+        world.add(entity, rtype::test::world::Inventory{.items = {4}});
+        EXPECT_EQ(world.get<rtype::test::world::Inventory>(entity)->items, (std::vector<std::int32_t>{4}));
+        EXPECT_EQ(liveCounters, 2);  // the stored value and the moved-from `source`
     }
     EXPECT_EQ(liveCounters, 0);
 }
