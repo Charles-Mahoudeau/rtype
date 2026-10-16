@@ -25,6 +25,7 @@ namespace rtype::ecs {
 enum class TypeKind : std::uint8_t {
     kComponent,  ///< Declared with RTYPE_ECS_COMPONENT: one value per entity that has it.
     kResource,   ///< Declared with RTYPE_ECS_RESOURCE: one value per world.
+    kEvent,      ///< Declared with RTYPE_ECS_EVENT: a message sent between systems, kept for two updates.
 };
 
 /// @brief One reflected field, known at compile time: the constexpr counterpart of FieldInfo.
