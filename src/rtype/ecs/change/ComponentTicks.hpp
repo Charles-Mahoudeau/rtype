@@ -12,7 +12,7 @@
 namespace rtype::ecs {
 /// @brief When one component value was added and last written.
 /// @code
-/// if (const std::optional<rtype::ecs::ComponentTicks> ticks = world.getTicks<Health>(ship);
+/// if (const std::optional<rtype::ecs::ComponentTicks> ticks = world.getComponents().getTicks<Health>(ship);
 ///     ticks && ticks->isChanged(lastRun, world.getChangeTick())) {
 ///     // the ship's health changed since lastRun
 /// }
