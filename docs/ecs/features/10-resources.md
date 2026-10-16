@@ -55,23 +55,32 @@ RTYPE_ECS_RESOURCE(Score, "game.Score", value);   // reflected: replicable, reac
 
 A name is either a component or a resource, never both: the World refuses the second registration.
 
-### World API
+### Resources API
+
+Resources live in a `Resources` object owned by the world, reached with `world.getResources()` (like
+`world.getComponents()` for components, see [World](06-world.md)):
+
+```c++
+rtype::ecs::Resources& resources = world.getResources();
+resources.insert(Time{.fixedDelta = 1.F / 60.F});
+const Time& time = resources.require<Time>();
+```
 
 | Typed (C++) | Type-erased (Luau, network) |
 |---|---|
-| `resource<T>(options)`: registers (like `component<T>()`) | `registerResource(ResourceInfo)`, `findResource(name)` |
-| `insertResource(value)`, `insertNonSendResource(value)` | `insertResource(id, bytes)` |
-| `hasResource<T>()`, `getResource<T>()` (`nullptr` if missing) | `hasResource(id)`, `getResource(id)` |
-| `requireResource<T>()`: throws `MissingResourceException` naming it | |
-| `getResourceMut<T>()`, `requireResourceMut<T>()`: `Mut<T>`, marks changed on write | `getResourceMut(id)`: marks changed on access |
-| `removeResource<T>()`, `getResourceTicks<T>()` | `removeResource(id)`, `getResourceTicks(id)` |
+| `registerType<T>(options)`: registers (like `getComponents().registerType<T>()`) | `registerType(ResourceInfo)`, `find(name)` |
+| `insert(value)`, `insertNonSend(value)` | `insert(id, bytes)` |
+| `has<T>()`, `get<T>()` (`nullptr` if missing) | `has(id)`, `get(id)` |
+| `require<T>()`: throws `MissingResourceException` naming it | |
+| `getMut<T>()`, `requireMut<T>()`: `Mut<T>`, marks changed on write | `getMut(id)`: marks changed on access |
+| `remove<T>()`, `getTicks<T>()` | `remove(id)`, `getTicks(id)` |
 
 Resource ticks are clamped with the pools' by `checkChangeTicks()`, so change detection survives the tick
 wrap.
 
 ### System parameters (#120)
 
-Systems will read resources through parameters, filled by the scheduler with `requireResource`:
+Systems will read resources through parameters, filled by the scheduler with `getResources().require<T>()`:
 
 ```c++
 app.insertResource(Time{.fixedDelta = 1.F / 60.F});
@@ -133,9 +142,9 @@ replicated resource is sent like a component of a hidden singleton entity.
   entity, not in a resource map; otherwise queries, replication and despawning do not see it.
 - **Hidden ordering.** Two systems writing the same resource must be ordered explicitly; the scheduler
   rejects ambiguous orders (see [Scheduler](13-scheduler.md)).
-- **Missing resource.** `requireResource<T>()` throws `MissingResourceException` naming the resource
+- **Missing resource.** `require<T>()` throws `MissingResourceException` naming the resource
   ("Resource 'rtype.Time' is not in the world: insert it (or add the plugin that does) before using it");
-  with #120, a system asking for `Res<T>` reports it the same way. `getResource<T>()` returns `nullptr` for
+  with #120, a system asking for `Res<T>` reports it the same way. `get<T>()` returns `nullptr` for
   resources that are genuinely optional.
 
 ## Open questions

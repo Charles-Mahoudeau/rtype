@@ -10,7 +10,7 @@ Each [pool](04-pool.md) owns one sparse array.
 
 ## Why we need it
 
-- **Fast lookups:** `world.get<Health>(e)`, `contains`, and the joins inside [queries](07-queries.md)
+- **Fast lookups:** `world.getComponents().get<Health>(e)`, `contains`, and the joins inside [queries](07-queries.md)
   all start with a sparse-array lookup.
 - **R2 / R4:** Luau games can declare many component types. A naive sparse array per type would cost
   memory proportional to *the highest entity index* for *every* type. Paging keeps that cost tied to

@@ -61,7 +61,7 @@ flowchart LR
     parse --> desc["ComponentDescriptor<br/>name, fields, presence,<br/>replication, defaults"]
     file --> run["Run the chunk<br/>options + defaults"]
     run --> desc
-    desc --> reg["world.registerComponent()"]
+    desc --> reg["world.getComponents().registerType()"]
     reg --> layout["Deterministic layout + layoutHash"]
 ```
 

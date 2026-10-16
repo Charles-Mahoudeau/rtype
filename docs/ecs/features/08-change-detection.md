@@ -70,9 +70,9 @@ A writable query term yields `Mut<T>`. Reading through `get()` is free; using `-
 `changed = currentTick`. So a system that iterates `Query<Health>` but only modifies the damaged
 entities marks only those.
 
-The type-erased `world.getMut(e, id)` (used by Luau and the network) returns the value's bytes
+The type-erased `world.getComponents().getMut(e, id)` (used by Luau and the network) returns the value's bytes
 (`std::span<std::byte>`) and marks on access, since it cannot know what the caller will do with them.
-`world.getTicks(e, id)` / `getTicks<T>(e)` return a `ComponentTicks` (`added`, `changed`) with
+`getComponents().getTicks(e, id)` / `getTicks<T>(e)` return a `ComponentTicks` (`added`, `changed`) with
 `isAdded(lastRun, thisRun)` and `isChanged(lastRun, thisRun)`.
 
 ### Wraparound
