@@ -20,6 +20,7 @@ enum class ErrorKind : std::uint8_t {
     kLayoutMismatch,   ///< A type name is already registered with another layout.
     kOptionsMismatch,  ///< A type name is already registered with other options (storage, presence, replication...).
     kNameCollision,    ///< Two different type names have the same hash, or a name is used by two kinds.
+    kInvalidQuery,     ///< A query's terms are inconsistent: unknown component, no required term, conflicting terms.
 };
 
 /// @brief Describes a recoverable failure: the error side of Result.
