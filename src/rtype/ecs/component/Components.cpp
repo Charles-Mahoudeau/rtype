@@ -26,6 +26,7 @@
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/error/Error.hpp"
 #include "rtype/ecs/error/Result.hpp"
+#include "rtype/ecs/resource/Resources.hpp"
 #include "rtype/ecs/storage/SparseSetStorage.hpp"
 #include "rtype/ecs/type/Field.hpp"
 
@@ -157,7 +158,7 @@ bool Components::isAlive(Entity entity) const noexcept { return _state->entities
 Tick Components::getChangeTick() const noexcept { return _state->changeTick; }
 
 Result<void> Components::checkNameFree(std::string_view name) const {
-    if (_state->resourceRegistry.findByName(name) != nullptr) {
+    if (_state->resources.getRegistry().findByName(name) != nullptr) {
         return fail(ErrorKind::kNameCollision,
                     std::format("Component '{}': the name is already used by a resource", name));
     }
