@@ -8,13 +8,19 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
+#include <limits>
 #include <span>
 #include <vector>
 
 #include "rtype/ecs/Export.hpp"
+#include "rtype/ecs/change/Tick.hpp"
 #include "rtype/ecs/component/Components.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/error/Result.hpp"
+#include "rtype/ecs/query/QueryIteration.hpp"
 #include "rtype/ecs/query/QueryTerm.hpp"
+#include "rtype/ecs/storage/SparseSetStorage.hpp"
 
 namespace rtype::ecs {
 /// @brief A query built from component ids: the single query engine, used by the Luau bridge, the network and the
@@ -25,6 +31,10 @@ namespace rtype::ecs {
 /// outlive it. Build one with QueryBuilder.
 class RTYPE_ECS_API DynamicQuery {
   public:
+    /// @brief Position recorded for a term whose component the matched entity does not have (absent optional,
+    /// without).
+    static constexpr std::uint32_t kNoPosition = std::numeric_limits<std::uint32_t>::max();
+
     /// @brief Checks the terms and builds the query.
     /// @details Rejected: an id not registered in `components`, no required term (read, write, with, added or
     /// changed: a query of optional terms only would match every entity), a component in two data terms (read,
@@ -47,9 +57,39 @@ class RTYPE_ECS_API DynamicQuery {
     /// term, numbered in the order the terms were given.
     [[nodiscard]] std::size_t getDataTermCount() const noexcept;
 
+    /// @return The index in getTerms() of each data term, in order.
+    [[nodiscard]] std::span<const std::size_t> getDataTerms() const noexcept;
+
     /// @return Each component whose values the query reads or writes, once (written wins over read). With and
     /// without access no value; added and changed read the ticks, so they count as reads.
     [[nodiscard]] std::span<const ComponentAccess> getAccess() const noexcept;
+
+    /// @brief Starts a pass over the world's matching entities.
+    /// @details The world's current change tick is `thisRun`: added and changed filters keep the values stamped in
+    /// (lastRun, thisRun], and values written through QueryMatch::getMut() are stamped with it. The caller keeps
+    /// `lastRun` (a system stores the `thisRun` of its previous run).
+    /// @code
+    /// for (rtype::ecs::QueryMatch& match : query.iter(lastRun)) {
+    ///     std::span<std::byte> shield = match.getMut(0);
+    /// }
+    /// @endcode
+    [[nodiscard]] QueryIteration iter(Tick lastRun) const;
+
+    /// @brief Looks up the pool of every term, in term order. Pools are looked up at each pass, not kept: the world's
+    /// pool list may have grown (and moved) since the query was built.
+    /// @param pools One slot per term.
+    void resolvePools(std::span<storage::SparseSetStorage*> pools) const noexcept;
+
+    /// @return The index of the required term with the fewest entities: the pass walks its pool.
+    [[nodiscard]] std::size_t findDriver(std::span<storage::SparseSetStorage* const> pools) const noexcept;
+
+    /// @brief Checks every term against one entity: required pools contain it (with their tick filters), without
+    /// pools do not.
+    /// @param pools The pool of each term, from resolvePools().
+    /// @param positions Filled with the entity's position in each term's pool, or kNoPosition.
+    /// @return Whether the entity matches; `positions` is only complete when it does.
+    [[nodiscard]] bool match(Entity entity, std::span<storage::SparseSetStorage* const> pools,
+                             std::span<std::uint32_t> positions, Tick lastRun, Tick thisRun) const noexcept;
 
   private:
     DynamicQuery(Components& components, std::vector<QueryTerm> terms);

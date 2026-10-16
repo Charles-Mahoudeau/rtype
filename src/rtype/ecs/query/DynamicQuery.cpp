@@ -9,19 +9,26 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <format>
 #include <iterator>
+#include <limits>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <tl/expected.hpp>
 #include <utility>
 #include <vector>
 
+#include "rtype/ecs/change/Tick.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/Components.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/error/Error.hpp"
 #include "rtype/ecs/error/Result.hpp"
+#include "rtype/ecs/query/QueryIteration.hpp"
 #include "rtype/ecs/query/QueryTerm.hpp"
+#include "rtype/ecs/storage/SparseSetStorage.hpp"
 
 namespace rtype::ecs {
 namespace {
@@ -103,5 +110,66 @@ std::span<const QueryTerm> DynamicQuery::getTerms() const noexcept { return _ter
 
 std::size_t DynamicQuery::getDataTermCount() const noexcept { return _dataTerms.size(); }
 
+std::span<const std::size_t> DynamicQuery::getDataTerms() const noexcept { return _dataTerms; }
+
 std::span<const ComponentAccess> DynamicQuery::getAccess() const noexcept { return _access; }
+
+QueryIteration DynamicQuery::iter(Tick lastRun) const {
+    return QueryIteration{*this, lastRun, _components->getChangeTick()};
+}
+
+void DynamicQuery::resolvePools(std::span<storage::SparseSetStorage*> pools) const noexcept {
+    auto pool = pools.begin();
+    for (const QueryTerm& term : _terms) {
+        *pool = _components->findPool(term.id);  // never null: create() checked every id, and pools are never removed
+        ++pool;
+    }
+}
+
+std::size_t DynamicQuery::findDriver(std::span<storage::SparseSetStorage* const> pools) const noexcept {
+    std::size_t driver = 0;
+    std::size_t driverSize = std::numeric_limits<std::size_t>::max();
+    std::size_t index = 0;
+    auto pool = pools.begin();
+    for (const QueryTerm& term : _terms) {
+        if (isRequiredTerm(term.kind) && (*pool)->getSize() < driverSize) {
+            driver = index;
+            driverSize = (*pool)->getSize();
+        }
+        ++index;
+        ++pool;
+    }
+    return driver;  // create() guarantees at least one required term
+}
+
+bool DynamicQuery::match(Entity entity, std::span<storage::SparseSetStorage* const> pools,
+                         std::span<std::uint32_t> positions, Tick lastRun, Tick thisRun) const noexcept {
+    auto pool = pools.begin();
+    auto position = positions.begin();
+    for (const QueryTerm& term : _terms) {
+        const storage::SparseSetStorage& storage = **pool;
+        const std::optional<std::uint32_t> found = storage.find(entity);
+        *position = found.value_or(kNoPosition);
+        if (term.kind == TermKind::kWithout) {
+            if (found) {
+                return false;
+            }
+        } else if (isRequiredTerm(term.kind)) {
+            if (!found) {
+                return false;
+            }
+            if (term.kind == TermKind::kAdded &&
+                !isNewerThan(*std::next(storage.getAddedTicks().begin(), *found), lastRun, thisRun)) {
+                return false;
+            }
+            if (term.kind == TermKind::kChanged &&
+                !isNewerThan(*std::next(storage.getChangedTicks().begin(), *found), lastRun, thisRun)) {
+                return false;
+            }
+        }
+        ++pool;
+        ++position;
+    }
+    return true;
+}
 }  // namespace rtype::ecs
