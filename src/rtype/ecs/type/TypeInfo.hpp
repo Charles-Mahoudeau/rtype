@@ -61,8 +61,9 @@ struct TypeInfo {
 /// @brief Checks the rules every kind of type follows.
 /// @param kind The kind of the type, lowercase ("component"), used in the messages.
 /// @return Nothing on success, or an ErrorKind::kInvalidType error naming the type and the problem: an empty
-/// name, a bad alignment or size, fields on an empty type, a client-only replicated type, a replicated type without
-/// fields, or a field that is unnamed, duplicated, empty, misaligned, out of bounds or overlapping another.
+/// name, a bad alignment or size, fields on an empty type, copyable without a copy hook, a client-only replicated
+/// type, a replicated type without fields, or a field that is unnamed, duplicated, empty, misaligned, out of bounds or
+/// overlapping another.
 [[nodiscard]] RTYPE_ECS_API Result<void> validateType(const TypeInfo& info, std::string_view kind);
 
 /// @brief Fingerprint of a type's layout: its name, size, alignment, which lifecycle hooks it has, whether it is

@@ -99,7 +99,7 @@ RTYPE_ECS_COMPONENT(Dead, "test.Dead");
 namespace {
 template <typename T>
 rtype::ecs::storage::ByteColumn makeColumn() {
-    return rtype::ecs::storage::ByteColumn{rtype::ecs::ComponentTraits<T>::makeInfo()};
+    return rtype::ecs::storage::ByteColumn{rtype::ecs::ComponentTraits<T>::makeInfo().type};
 }
 
 template <typename T>
@@ -222,7 +222,7 @@ TEST(ByteColumn, KeepsValuesAlignedAfterGrowth) {
 TEST(ByteColumn, TagsOnlyCount) {
     CountingResource resource;
     {
-        rtype::ecs::storage::ByteColumn column{rtype::ecs::ComponentTraits<rtype::test::column::Dead>::makeInfo(),
+        rtype::ecs::storage::ByteColumn column{rtype::ecs::ComponentTraits<rtype::test::column::Dead>::makeInfo().type,
                                                &resource};
         EXPECT_TRUE(column.emplaceBack().empty());
         column.emplaceBackCopy({});
@@ -237,7 +237,7 @@ TEST(ByteColumn, TagsOnlyCount) {
 TEST(ByteColumn, GivesMemoryBackToItsResource) {
     CountingResource resource;
     {
-        rtype::ecs::storage::ByteColumn column{rtype::ecs::ComponentTraits<rtype::test::column::Plain>::makeInfo(),
+        rtype::ecs::storage::ByteColumn column{rtype::ecs::ComponentTraits<rtype::test::column::Plain>::makeInfo().type,
                                                &resource};
         for (int i = 0; i < 100; ++i) {
             column.emplaceBack();

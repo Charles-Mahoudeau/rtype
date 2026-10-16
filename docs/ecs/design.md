@@ -272,17 +272,21 @@ struct ComponentInfo {
 
 #### The type core
 
-Components are one **kind** of ECS data; resources (#118) are another, and events may follow. Everything
+Components are one **kind** of ECS data; resources are another, and events may follow. Everything
 that means the same for every kind lives once in `type/`, and each kind adds only what is specific to it,
 **by composition**:
 
-| Shared (`type/`) | Specific to a kind |
-|---|---|
-| `TypeInfo` (name, layout, hooks, copyability, fields, presence, replication), `validateType()`, `computeLayoutHash()` | `ComponentInfo { TypeInfo type; StorageKind storage; }` and `validate()`: a component must also be copyable |
-| `TypeHooks` and `makeHooks<T>()` (skips `construct` / `copy` when unsupported) | |
-| `TypeTraits<T>` (name, kind, hashes, fields, hooks, `makeTypeInfo()`), `RTYPE_ECS_DETAIL_DESCRIBE` | `ComponentTraits<T>` (`makeInfo()`), `RTYPE_ECS_COMPONENT` and `describeComponent` (its rules) |
-| `TypeRegistry<Info>`: ids, lookups, layout check, the checks every kind shares | `KindTraits<ComponentInfo>`: options, label, `validate`, storage check, `make<T>()`; `ComponentRegistry = TypeRegistry<ComponentInfo>` |
-| `ErrorKind` (`kInvalidType`, `kLayoutMismatch`, ...), `TypeRegistrationException` | messages name the kind: "Component 'rtype.Health': ..." |
+| Shared (`type/`) | Components | Resources |
+|---|---|---|
+| `TypeInfo` (name, layout, hooks, copyability, fields, presence, replication), `validateType()`, `computeLayoutHash()` | `ComponentInfo { TypeInfo type; StorageKind storage; }`; `validate()`: must also be copyable | `ResourceInfo { TypeInfo type; bool nonSend; }`; `validate()`: may be move-only |
+| `TypeHooks` and `makeHooks<T>()` (skips `construct` / `copy` when unsupported) | | |
+| `TypeTraits<T>` (name, kind, hashes, fields, hooks, `makeTypeInfo()`), `RTYPE_ECS_DETAIL_DESCRIBE` | `ComponentTraits<T>`, `RTYPE_ECS_COMPONENT` (plain copyable aggregates) | `ResourceTraits<T>`, `RTYPE_ECS_RESOURCE` (any movable type; fields optional) |
+| `TypeRegistry<Info>`: ids, lookups, layout check, the checks every kind shares | `KindTraits<ComponentInfo>` (storage), `ComponentRegistry` | `KindTraits<ResourceInfo>` (main thread), `ResourceRegistry` |
+| `ByteColumn` (built from a `TypeInfo`) | `SparseSetStorage`: one value per entity | `ResourceStorage`: zero or one value |
+| `ErrorKind` (`kInvalidType`, `kLayoutMismatch`, `kNameCollision`, ...), `TypeRegistrationException` | "Component 'rtype.Health': ..." | "Resource 'rtype.Time': ..." |
+
+A name is either a component or a resource: the World refuses registering a name the other kind uses, so
+the Luau bridge, the network manifest and save files resolve it alone.
 
 A new kind is a description struct holding a `TypeInfo`, a `KindTraits` specialization, a declaring macro
 on `RTYPE_ECS_DETAIL_DESCRIBE`, and its own storage; `tests/ecs/TypeRegistryTests.cpp` builds one in a
@@ -1352,7 +1356,8 @@ is the same idea as Bevy's modules with a short prelude.
 | `entity/` | `rtype::ecs` | `Entity.hpp`, `EntityAllocator.hpp/.cpp`: generational ids, free list, reservation |
 | `type/` | `rtype::ecs` | The core shared by every kind: `Field.hpp` (`FieldType`, `FieldInfo`), `FieldTypeOf.hpp`, `TypeHooks`, `TypeInfo` (`TypeId`, `Presence`, `ReplicationMode`, validation, layout hash), `NameHash`, `LayoutHash`, `TypeTraits`, `TypeRegistry<Info>` |
 | `component/` | `rtype::ecs` | `ComponentInfo.hpp` (`ComponentId`, `StorageKind`, `ComponentInfo`), `ComponentTraits.hpp` (`RTYPE_ECS_COMPONENT`), `ComponentRegistry.hpp/.cpp` (`KindTraits<ComponentInfo>`, `ComponentRegistry`) |
-| `storage/` | `rtype::ecs::storage` | `PagedSparseArray`, `ByteColumn`, `SparseSetStorage` (the pool), `Table` (v3) |
+| `resource/` | `rtype::ecs` | `ResourceInfo.hpp` (`ResourceId`, `ResourceInfo`), `ResourceTraits.hpp` (`RTYPE_ECS_RESOURCE`), `ResourceRegistry.hpp/.cpp` (`ResourceOptions`, `KindTraits<ResourceInfo>`, `ResourceRegistry`) |
+| `storage/` | `rtype::ecs::storage` | `PagedSparseArray`, `ByteColumn`, `SparseSetStorage` (the pool), `ResourceStorage` (a resource slot), `Table` (v3) |
 | `world/` | `rtype::ecs` | `World.hpp/.tpp/.cpp`: typed and type-erased API |
 | `query/` | `rtype::ecs` | `DynamicQuery` (the single query engine), `Query` (typed queries and filters), `Mut` (write access stamping ticks) |
 | `system/` | `rtype::ecs` | `System` (parameter deduction, access sets), `Commands`, `Resources` (`Res`, `ResMut`, `NonSend`, `NonSendMut`), `Events` |

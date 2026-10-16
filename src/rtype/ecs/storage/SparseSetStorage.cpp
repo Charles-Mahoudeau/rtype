@@ -28,7 +28,7 @@ namespace {
 }  // namespace
 
 SparseSetStorage::SparseSetStorage(const ComponentInfo& info, std::pmr::memory_resource* resource)
-    : _info{&info}, _data{info, resource} {}
+    : _info{&info}, _data{info.type, resource} {}
 
 const ComponentInfo& SparseSetStorage::getInfo() const noexcept { return *_info; }
 

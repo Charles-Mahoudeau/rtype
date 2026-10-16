@@ -32,6 +32,47 @@ Luau can reach them.
 
 ## How it works
 
+### Declaring and storing
+
+A resource is a C++ type declared with `RTYPE_ECS_RESOURCE`, or a run-time (Luau) description. It is a second
+kind of the [type core](../design.md) (see "The type core"): `ResourceInfo { TypeInfo type; bool nonSend; }`,
+registered in a `ResourceRegistry` (`TypeRegistry<ResourceInfo>`), its value kept in a `ResourceStorage` slot
+(zero or one value in a `ByteColumn`, with its `added` / `changed` ticks). Unlike a component, a resource may
+be any movable class: constructors, private members, move-only (the platform and the renderer).
+
+```c++
+struct Time {
+    float delta;
+    float fixedDelta;
+};
+RTYPE_ECS_RESOURCE(Time, "rtype.Time");
+
+struct Score {
+    std::int32_t value;
+};
+RTYPE_ECS_RESOURCE(Score, "game.Score", value);   // reflected: replicable, reachable from Luau
+```
+
+A name is either a component or a resource, never both: the World refuses the second registration.
+
+### World API
+
+| Typed (C++) | Type-erased (Luau, network) |
+|---|---|
+| `resource<T>(options)`: registers (like `component<T>()`) | `registerResource(ResourceInfo)`, `findResource(name)` |
+| `insertResource(value)`, `insertNonSendResource(value)` | `insertResource(id, bytes)` |
+| `hasResource<T>()`, `getResource<T>()` (`nullptr` if missing) | `hasResource(id)`, `getResource(id)` |
+| `requireResource<T>()`: throws `MissingResourceException` naming it | |
+| `getResourceMut<T>()`, `requireResourceMut<T>()`: `Mut<T>`, marks changed on write | `getResourceMut(id)`: marks changed on access |
+| `removeResource<T>()`, `getResourceTicks<T>()` | `removeResource(id)`, `getResourceTicks(id)` |
+
+Resource ticks are clamped with the pools' by `checkChangeTicks()`, so change detection survives the tick
+wrap.
+
+### System parameters (#120)
+
+Systems will read resources through parameters, filled by the scheduler with `requireResource`:
+
 ```c++
 app.insertResource(Time{.fixedDelta = 1.F / 60.F});
 app.insertResource(std::move(settings));               // Ethan's engine::config::Settings
@@ -92,8 +133,10 @@ replicated resource is sent like a component of a hidden singleton entity.
   entity, not in a resource map; otherwise queries, replication and despawning do not see it.
 - **Hidden ordering.** Two systems writing the same resource must be ordered explicitly; the scheduler
   rejects ambiguous orders (see [Scheduler](13-scheduler.md)).
-- **Missing resource.** A system asking for `Res<T>` when nothing inserted `T` is a registration error,
-  reported when the schedule is built, not in the middle of a frame.
+- **Missing resource.** `requireResource<T>()` throws `MissingResourceException` naming the resource
+  ("Resource 'rtype.Time' is not in the world: insert it (or add the plugin that does) before using it");
+  with #120, a system asking for `Res<T>` reports it the same way. `getResource<T>()` returns `nullptr` for
+  resources that are genuinely optional.
 
 ## Open questions
 

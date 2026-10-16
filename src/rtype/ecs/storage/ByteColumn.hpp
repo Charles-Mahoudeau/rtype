@@ -13,26 +13,26 @@
 #include <span>
 
 #include "rtype/ecs/Export.hpp"
-#include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/type/TypeHooks.hpp"
+#include "rtype/ecs/type/TypeInfo.hpp"
 
 namespace rtype::ecs::storage {
-/// @brief A growable array of the values of one component type, stored as raw bytes.
+/// @brief A growable array of the values of one type (a component, a resource), stored as raw bytes.
 ///
-/// @details The column knows a component only through its ComponentInfo: the size and alignment of a value, and
-/// its lifecycle hooks. It constructs, moves and destroys values through those hooks, or with plain byte copies when
-/// a hook is `nullptr` (plain data, and every Luau component). That is what lets pools store components that have
-/// no C++ type.
+/// @details The column knows a type only through its TypeInfo: the size and alignment of a value, and its
+/// lifecycle hooks. It constructs, moves and destroys values through those hooks, or with plain byte copies when a
+/// hook is `nullptr` (plain data, and every Luau type). That is what lets pools and resource slots store types that
+/// have no C++ type.
 ///
 /// Memory comes from a `std::pmr::memory_resource` (the default heap unless another one is given), allocated with
-/// the component's alignment, so every value is correctly aligned. A tag (size 0) never allocates: the column only
+/// the type's alignment, so every value is correctly aligned. A tag (size 0) never allocates: the column only
 /// counts its elements.
 ///
 /// Values are exchanged as byte spans of exactly getElementSize() bytes (empty for a tag); viewAs() turns one into
 /// the C++ type it holds. Spans returned by the column are invalidated by any insertion (the buffer may grow) and by
 /// swapRemove() (the last value moves).
 /// @code
-/// rtype::ecs::storage::ByteColumn column{rtype::ecs::ComponentTraits<Health>::makeInfo()};
+/// rtype::ecs::storage::ByteColumn column{rtype::ecs::ComponentTraits<Health>::makeInfo().type};
 /// Health* health = rtype::ecs::storage::viewAs<Health>(column.emplaceBack());
 /// column.emplaceBackCopy(std::as_bytes(std::span{&otherHealth, 1}));
 /// column.swapRemove(0);
@@ -42,8 +42,7 @@ class RTYPE_ECS_API ByteColumn {
     /// @brief An empty column for the described component.
     /// @param info Only its size, alignment and hooks are used; they are copied, so `info` may go away.
     /// @param resource Where the buffer comes from; it must outlive the column.
-    explicit ByteColumn(const ComponentInfo& info,
-                        std::pmr::memory_resource* resource = std::pmr::get_default_resource());
+    explicit ByteColumn(const TypeInfo& info, std::pmr::memory_resource* resource = std::pmr::get_default_resource());
     /// @brief Destroys every value and gives the buffer back to its resource.
     ~ByteColumn();
     ByteColumn(const ByteColumn& other) = delete;

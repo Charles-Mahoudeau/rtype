@@ -19,7 +19,7 @@ enum class ErrorKind : std::uint8_t {
     kInvalidType,      ///< A type description (component, resource) is inconsistent: layout, fields, replication.
     kLayoutMismatch,   ///< A type name is already registered with another layout.
     kOptionsMismatch,  ///< A type name is already registered with other options (storage, presence, replication...).
-    kNameCollision,    ///< Two different type names have the same hash.
+    kNameCollision,    ///< Two different type names have the same hash, or a name is used by two kinds.
 };
 
 /// @brief Describes a recoverable failure: the error side of Result.
