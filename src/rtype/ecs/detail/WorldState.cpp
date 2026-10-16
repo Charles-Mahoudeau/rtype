@@ -53,6 +53,8 @@ Result<void> WorldState::checkNameFree(std::string_view name, TypeKind kind) con
         owner = TypeKind::kComponent;
     } else if (kind != TypeKind::kResource && resources.getRegistry().findByName(name) != nullptr) {
         owner = TypeKind::kResource;
+    } else if (kind != TypeKind::kEvent && events.getRegistry().findByName(name) != nullptr) {
+        owner = TypeKind::kEvent;
     }
     if (owner != kind) {
         return fail(ErrorKind::kNameCollision,

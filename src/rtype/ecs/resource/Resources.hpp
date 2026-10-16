@@ -55,8 +55,8 @@ class RTYPE_ECS_API Resources {
     /// @brief Registers a C++ resource, or returns its id if it is already registered with the same options.
     /// @details insert() and insertNonSend() register the resource themselves; call this to know its id, or to
     /// register it before its value exists.
-    /// @throws exceptions::ResourceRegistrationException When the name is taken by another layout, by a component,
-    /// or is registered with the other main-thread flag.
+    /// @throws exceptions::ResourceRegistrationException When the name is taken by another layout, by a component or
+    /// an event, or is registered with the other main-thread flag.
     template <Resource T>
     ResourceId registerType(ResourceOptions options = {});
 

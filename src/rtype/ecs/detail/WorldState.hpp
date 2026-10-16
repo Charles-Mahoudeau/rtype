@@ -13,6 +13,7 @@
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/EntityAllocator.hpp"
 #include "rtype/ecs/error/Result.hpp"
+#include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
 #include "rtype/ecs/type/TypeTraits.hpp"
 
@@ -37,6 +38,7 @@ struct WorldState {
     EntityAllocator entities;      ///< Entity indices and generations.
     Components components{*this};  ///< Component registry, pools and values.
     Resources resources{*this};    ///< Resource registry, slots and values.
+    Events events{*this};          ///< Event registry and queues.
     Tick changeTick{0};            ///< Current tick, stamped on every value added or written.
     Tick lastCheckTick{0};         ///< Change tick at the last World::checkChangeTicks().
 };

@@ -56,7 +56,7 @@ class RTYPE_ECS_API Components {
     /// @details Call it before the component is first added to set non-default options: adding registers the
     /// component with the default ones.
     /// @throws exceptions::ComponentRegistrationException When the name is taken by another layout, other
-    /// options, or a resource.
+    /// options, a resource or an event.
     template <Component T>
     ComponentId registerType(ComponentOptions options = {});
 
