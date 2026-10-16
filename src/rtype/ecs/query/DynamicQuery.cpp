@@ -39,15 +39,16 @@ namespace {
 
 /// @return Why two terms on the same component cannot be in one query, or nothing if they can.
 [[nodiscard]] Result<void> checkPair(std::string_view name, TermKind first, TermKind second) {
-    if (first == second) {
-        return fail(ErrorKind::kInvalidQuery, std::format("Query: component '{}' has the same term twice", name));
-    }
-    if (isDataTerm(first) && isDataTerm(second)) {
-        return fail(ErrorKind::kInvalidQuery, std::format("Query: component '{}' is in two data terms", name));
-    }
-    if (first == TermKind::kWithout || second == TermKind::kWithout) {
-        return fail(ErrorKind::kInvalidQuery,
-                    std::format("Query: component '{}' is excluded by without() and used by another term", name));
+    switch (findConflict(first, second)) {
+        case TermConflict::kNone:
+            return {};
+        case TermConflict::kSameTerm:
+            return fail(ErrorKind::kInvalidQuery, std::format("Query: component '{}' has the same term twice", name));
+        case TermConflict::kTwoDataTerms:
+            return fail(ErrorKind::kInvalidQuery, std::format("Query: component '{}' is in two data terms", name));
+        case TermConflict::kExcluded:
+            return fail(ErrorKind::kInvalidQuery,
+                        std::format("Query: component '{}' is excluded by without() and used by another term", name));
     }
     return {};
 }

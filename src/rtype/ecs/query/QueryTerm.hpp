@@ -56,4 +56,26 @@ struct ComponentAccess {
 [[nodiscard]] constexpr bool isWriteTerm(TermKind kind) noexcept {
     return kind == TermKind::kWrite || kind == TermKind::kOptionalWrite;
 }
+
+/// @brief Why two terms on the same component cannot be in one query.
+enum class TermConflict : std::uint8_t {
+    kNone,          ///< They can: a data term with with, added or changed, or added with changed.
+    kSameTerm,      ///< The same term twice (two writes, with twice...).
+    kTwoDataTerms,  ///< Two data terms (a read and a write...): which one gives the value?
+    kExcluded,      ///< One is without: the query could never match.
+};
+
+/// @return Why two terms on the same component cannot be in one query; the rule shared by dynamic and typed queries.
+[[nodiscard]] constexpr TermConflict findConflict(TermKind first, TermKind second) noexcept {
+    if (first == second) {
+        return TermConflict::kSameTerm;
+    }
+    if (isDataTerm(first) && isDataTerm(second)) {
+        return TermConflict::kTwoDataTerms;
+    }
+    if (first == TermKind::kWithout || second == TermKind::kWithout) {
+        return TermConflict::kExcluded;
+    }
+    return TermConflict::kNone;
+}
 }  // namespace rtype::ecs
