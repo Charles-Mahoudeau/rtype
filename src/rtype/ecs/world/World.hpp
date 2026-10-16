@@ -17,9 +17,8 @@
 #include "rtype/ecs/change/ComponentTicks.hpp"
 #include "rtype/ecs/change/Mut.hpp"
 #include "rtype/ecs/change/Tick.hpp"
-#include "rtype/ecs/component/ComponentInfo.hpp"
-#include "rtype/ecs/component/ComponentRegistry.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
+#include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/detail/WorldState.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/error/Result.hpp"
@@ -27,21 +26,19 @@
 #include "rtype/ecs/resource/ResourceRegistry.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 #include "rtype/ecs/storage/ResourceStorage.hpp"
-#include "rtype/ecs/storage/SparseSetStorage.hpp"
-#include "rtype/ecs/type/TypeTraits.hpp"
 
 namespace rtype::ecs {
 /// @brief The container of one simulation: its entities, its components, its resources and their values.
 ///
-/// @details A world owns an entity allocator, a component registry and one pool per registered component, and a
-/// resource registry and one slot per registered resource (a single value owned by the world: the time, the input,
-/// the renderer). Nothing is static, so several worlds coexist (a server and a client world, one world per game
+/// @details A world owns an entity allocator, its Components (a registry and one pool per registered component),
+/// and a resource registry and one slot per registered resource (a single value owned by the world: the time, the
+/// input, the renderer). Nothing is static, so several worlds coexist (a server and a client world, one world per game
 /// room, one per test); component and resource ids are per world, and only names are shared across worlds and
 /// processes.
 /// @code
 /// rtype::ecs::World world;
 /// const rtype::ecs::Entity ship = world.spawn();
-/// const rtype::ecs::ComponentId health = world.component<Health>();
+/// world.getComponents().add(ship, Health{.value = 100});
 /// @endcode
 class RTYPE_ECS_API World {
   public:
@@ -53,8 +50,9 @@ class RTYPE_ECS_API World {
     World(World&& other) noexcept = default;
     World& operator=(World&& other) noexcept = default;
 
-    /// @return The components registered in this world.
-    [[nodiscard]] const ComponentRegistry& getRegistry() const noexcept;
+    /// @return The components of this world: their registry, pools and values.
+    [[nodiscard]] Components& getComponents() noexcept;
+    [[nodiscard]] const Components& getComponents() const noexcept;
 
     /// @return The resources registered in this world.
     [[nodiscard]] const ResourceRegistry& getResourceRegistry() const noexcept;
@@ -101,83 +99,6 @@ class RTYPE_ECS_API World {
 
     /// @return Whether the entity was spawned in this world and not despawned since.
     [[nodiscard]] bool isAlive(Entity entity) const noexcept;
-
-    /// @brief Registers a C++ component, or returns its id if it is already registered with the same options.
-    /// @details Call it before the component is first added to set non-default options: adding registers the
-    /// component with the default ones.
-    /// @throws exceptions::ComponentRegistrationException When the name is taken by another layout, other
-    /// options, or a resource.
-    template <Component T>
-    ComponentId component(ComponentOptions options = {});
-
-    /// @brief Registers a component described at run time (a Luau component), and creates its pool.
-    /// @return Its id (the existing one if the same description was registered before), or why it was refused.
-    [[nodiscard]] Result<ComponentId> registerComponent(ComponentInfo info);
-
-    /// @return The id of the component with this name in this world, or nothing if it is not registered.
-    [[nodiscard]] std::optional<ComponentId> findComponent(std::string_view name) const noexcept;
-
-    /// @brief Gives the entity a copy of a value, or replaces its value if it already has the component.
-    /// @details Used by the Luau bridge and the network, which only know components by id: failures they can cause
-    /// are return values. Stamps the world's change tick (only as the changed tick when replacing).
-    /// @param value The bytes of a live value of the component, exactly its size (empty for a tag).
-    /// @return False, doing nothing, if the entity is not alive, the id is unknown, or `value` has the wrong size.
-    bool add(Entity entity, ComponentId id, std::span<const std::byte> value);
-
-    /// @return Whether the entity has the component; false for an unknown id.
-    [[nodiscard]] bool has(Entity entity, ComponentId id) const noexcept;
-
-    /// @return The bytes of the entity's value; empty if it does not have the component or the id is unknown, and
-    /// always for a tag (use has() to test a tag). Invalidated by the next change to the component's pool.
-    [[nodiscard]] std::span<const std::byte> get(Entity entity, ComponentId id) const noexcept;
-
-    /// @brief Write access to the entity's value, marked changed now: the caller only has bytes, so the World cannot
-    /// tell a read from a write. Use get() to only read.
-    /// @return The bytes of the value; empty if it does not have the component or the id is unknown, and always for
-    /// a tag. Invalidated by the next change to the component's pool.
-    [[nodiscard]] std::span<std::byte> getMut(Entity entity, ComponentId id) noexcept;
-
-    /// @brief Removes the component from the entity, destroying its value.
-    /// @return False, doing nothing, if the entity does not have the component or the id is unknown.
-    bool remove(Entity entity, ComponentId id) noexcept;
-
-    /// @return When the entity's value was added and last written, or nothing if it does not have the component or
-    /// the id is unknown. Compare them with ComponentTicks::isAdded() / isChanged().
-    [[nodiscard]] std::optional<ComponentTicks> getTicks(Entity entity, ComponentId id) const noexcept;
-
-    /// @brief Gives the entity a C++ component, or replaces its value if it already has it.
-    /// @details Registers `T` with the default options if it is not registered yet, then moves `value` in. Stamps
-    /// the world's change tick (only as the changed tick when replacing).
-    /// @return False, doing nothing (not even registering `T`), if the entity is not alive.
-    /// @throws exceptions::ComponentRegistrationException When `T` is not registered and its name is already taken
-    /// by another layout (a run-time component with the same name).
-    template <Component T>
-    bool add(Entity entity, T value);
-
-    /// @return Whether the entity has the component; false if `T` is not registered in this world.
-    template <Component T>
-    [[nodiscard]] bool has(Entity entity) const noexcept;
-
-    /// @return The entity's value, or nullptr if it does not have the component or `T` is not registered.
-    /// Invalidated by the next change to the component's pool. Tags have no value: test them with has().
-    template <Component T>
-    [[nodiscard]] const T* get(Entity entity) const noexcept;
-
-    /// @return Write access to the entity's value, which marks it changed only when written through (`->`, `*`);
-    /// an empty Mut if it does not have the component or `T` is not registered. Invalidated by the next change to
-    /// the component's pool. Tags have no value: test them with has().
-    template <Component T>
-    [[nodiscard]] Mut<T> getMut(Entity entity) noexcept;
-
-    /// @brief Removes the C++ component from the entity, destroying its value.
-    /// @return False, doing nothing, if the entity does not have the component or `T` is not registered.
-    template <Component T>
-    bool remove(Entity entity) noexcept;
-
-    /// @return When the entity's value was added and last written, or nothing if it does not have the component or
-    /// `T` is not registered.
-    template <Component T>
-    [[nodiscard]] std::optional<ComponentTicks> getTicks(Entity entity) const noexcept;
 
     /// @brief Registers a C++ resource, or returns its id if it is already registered with the same options.
     /// @details insertResource() and insertNonSendResource() register the resource themselves; call this to know
@@ -278,22 +199,10 @@ class RTYPE_ECS_API World {
     [[nodiscard]] std::optional<ComponentTicks> getResourceTicks() const noexcept;
 
   private:
-    /// @brief Creates the pools of every registered component up to `id` that has none yet.
-    void createPools(ComponentId id);
-
-    /// @brief Checks that `name` is not used by the other kind: a name is either a component or a resource, so the
-    /// Luau bridge, the network manifest and save files can resolve it alone.
-    /// @param kind The kind being registered.
-    /// @return Nothing when the name is free for this kind, or an ErrorKind::kNameCollision error naming both kinds.
-    [[nodiscard]] Result<void> checkNameFree(std::string_view name, TypeKind kind) const;
-
-    /// @brief Sets to null every entity field, in every pool, that holds exactly `entity`, and marks those values
-    /// changed. A stale handle of the same index (an older generation) is left alone.
-    void clearReferencesTo(Entity entity) noexcept;
-
-    /// @return The pool of the component, or nullptr if the id is not registered in this world.
-    [[nodiscard]] storage::SparseSetStorage* findPool(ComponentId id) noexcept;
-    [[nodiscard]] const storage::SparseSetStorage* findPool(ComponentId id) const noexcept;
+    /// @brief Checks that `name` is not a component: a name is either a component or a resource, so the Luau
+    /// bridge, the network manifest and save files can resolve it alone.
+    /// @return Nothing when the name is free, or an ErrorKind::kNameCollision error.
+    [[nodiscard]] Result<void> checkNameFree(std::string_view name) const;
 
     /// @brief Moves `value` into the slot of `T`, registering `T` with `options` if needed.
     template <Resource T>

@@ -188,7 +188,7 @@ TEST(WorldResource, StoresEmptyResources) {
 
 TEST(WorldResource, ANameUsedByAComponentCannotBeAResource) {
     rtype::ecs::World world;
-    world.component<wres::TimeComponent>();
+    world.getComponents().registerType<wres::TimeComponent>();
     try {
         world.insertResource(wres::Time{.delta = 3.F, .fixedDelta = 0.F});
         FAIL() << "expected the resource to be refused";
@@ -196,22 +196,24 @@ TEST(WorldResource, ANameUsedByAComponentCannotBeAResource) {
         EXPECT_NE(std::string{error.what()}.find("already used by a component"), std::string::npos) << error.what();
     }
     EXPECT_FALSE(world.findResource("test.worldres.Time"));
-    EXPECT_TRUE(world.findComponent("test.worldres.Time"));
+    EXPECT_TRUE(world.getComponents().find("test.worldres.Time"));
 }
 
 TEST(WorldResource, ANameUsedByAResourceCannotBeAComponent) {
     rtype::ecs::World world;
     world.insertResource(wres::Time{.delta = 3.F, .fixedDelta = 0.F});
-    EXPECT_THROW(world.component<wres::TimeComponent>(), rtype::ecs::exceptions::ComponentRegistrationException);
+    EXPECT_THROW(world.getComponents().registerType<wres::TimeComponent>(),
+                 rtype::ecs::exceptions::ComponentRegistrationException);
     const rtype::ecs::Entity entity = world.spawn();
-    EXPECT_THROW(world.add(entity, wres::TimeComponent{}), rtype::ecs::exceptions::ComponentRegistrationException);
-    EXPECT_FALSE(world.findComponent("test.worldres.Time"));
+    EXPECT_THROW(world.getComponents().add(entity, wres::TimeComponent{}),
+                 rtype::ecs::exceptions::ComponentRegistrationException);
+    EXPECT_FALSE(world.getComponents().find("test.worldres.Time"));
     EXPECT_FLOAT_EQ(world.getResource<wres::Time>()->delta, 3.F);  // the resource is untouched
 }
 
 TEST(WorldResource, RunTimeRegistrationsRefuseTheOtherKindsNames) {
     rtype::ecs::World world;
-    world.component<wres::TimeComponent>();
+    world.getComponents().registerType<wres::TimeComponent>();
     world.insertResource(wres::Paused{});
     const rtype::ecs::Result<rtype::ecs::ResourceId> resource = world.registerResource(
         rtype::ecs::ResourceInfo{.type = {.name = "test.worldres.Time", .size = 4, .alignment = 4}});
@@ -219,7 +221,7 @@ TEST(WorldResource, RunTimeRegistrationsRefuseTheOtherKindsNames) {
     EXPECT_EQ(resource.error().getKind(), rtype::ecs::ErrorKind::kNameCollision);
     EXPECT_EQ(std::string{resource.error().getMessage()},
               "Resource 'test.worldres.Time': the name is already used by a component");
-    const rtype::ecs::Result<rtype::ecs::ComponentId> component = world.registerComponent(
+    const rtype::ecs::Result<rtype::ecs::ComponentId> component = world.getComponents().registerType(
         rtype::ecs::ComponentInfo{.type = {.name = "test.worldres.Paused", .size = 4, .alignment = 4}});
     ASSERT_FALSE(component);
     EXPECT_EQ(component.error().getKind(), rtype::ecs::ErrorKind::kNameCollision);
