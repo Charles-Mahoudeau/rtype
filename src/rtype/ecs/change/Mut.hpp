@@ -17,7 +17,7 @@ namespace rtype::ecs {
 /// actually touches are seen as changed by queries and replication. A Mut does not own the value: it is
 /// invalidated, like any address into a pool, by the next insertion into or removal from that pool.
 /// @code
-/// rtype::ecs::Mut<Health> health = world.getMut<Health>(ship);
+/// rtype::ecs::Mut<Health> health = world.getComponents().getMut<Health>(ship);
 /// if (health && health.get().value > 0) {  // reading: not marked
 ///     health->value -= 1;                    // writing: marked changed
 /// }

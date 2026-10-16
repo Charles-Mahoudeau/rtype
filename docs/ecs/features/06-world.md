@@ -24,11 +24,18 @@ world.
 
 ## Our choice
 
-A `World` class with **two API surfaces** over the same data:
+A `World` class that **coordinates one part per kind of data**: `Components` (`world.getComponents()`)
+and `Resources` (`world.getResources()`), later the event queues. Each part owns its registry and its
+storage, and offers **two API surfaces** over the same data:
 
 - **Typed** (templates): convenient and checked at compile time, for C++ code.
-- **Type-erased** (by `ComponentId`, `noexcept`, failure by return value): for the Luau bridge, the
-  serializer and the network.
+- **Type-erased** (by id, `noexcept`, failure by return value): for the Luau bridge, the serializer and
+  the network.
+
+The World itself only does what involves several parts: spawning and despawning entities, the change
+tick that every part stamps, and the rule that a name is either a component or a resource. So a new kind
+of data adds a class next to the others instead of growing the World, and a feature that only needs
+components (queries) depends on `Components`, not on the whole World.
 
 Several worlds can exist at once. Each has its own registry, so **ids are per world**; names are shared
 across worlds and processes.
@@ -39,15 +46,20 @@ across worlds and processes.
 
 ```mermaid
 flowchart TB
-    world["World"]
-    world --> alloc["EntityAllocator<br/>generations, free list"]
-    world --> registry["ComponentRegistry<br/>ComponentInfo by id and name"]
-    world --> pools["Pools<br/>one per sparse-set component"]
-    world --> tables["Tables (v3)"]
-    world --> resources["Resources<br/>by name"]
-    world --> events["Event queues<br/>by name"]
-    world --> tick["Change tick counter"]
+    world["World"] --> state["WorldState (heap)"]
+    state --> alloc["EntityAllocator<br/>generations, free list"]
+    state --> components["Components<br/>ComponentRegistry, one pool per component,<br/>tables (v3)"]
+    state --> resources["Resources<br/>ResourceRegistry, one slot per resource"]
+    state --> events["Event queues (#119)"]
+    state --> tick["Change tick counter"]
+    components -. "alive checks, tick,<br/>resource names" .-> state
+    resources -. "tick, component names" .-> state
 ```
+
+Everything lives in one `detail::WorldState`, owned by a `std::unique_ptr`. Its address never changes,
+even when the World is moved, so `Components` and `Resources` keep a plain pointer back to it to check
+that an entity is alive, read the change tick and check names against the other kind. Moving a World
+moves one pointer; a moved-from World can only be destroyed or assigned to.
 
 The [scheduler](13-scheduler.md) and the systems are owned by the [App](14-app-and-plugins.md), not
 the world: a world is pure data plus the operations on it, which keeps it easy to create in tests.
@@ -57,33 +69,38 @@ the world: a world is pure data plus the operations on it, which keeps it easy t
 ```c++
 rtype::ecs::World world;
 
+rtype::ecs::Components& components = world.getComponents();
+
 // Typed
 const rtype::ecs::Entity ship = world.spawn();
-world.add(ship, Position{.x = 10.F, .y = 20.F});
-if (const Position* position = world.get<Position>(ship); position != nullptr) {
+components.add(ship, Position{.x = 10.F, .y = 20.F});
+if (const Position* position = components.get<Position>(ship); position != nullptr) {
     // ...
 }
 
 // Type-erased (what the Luau bridge and the replication plugin use)
-const std::optional<rtype::ecs::ComponentId> id = world.findComponent("rtype.Position");
-const bool added = world.add(ship, *id, bytes);           // false if the entity is dead, the id unknown or the size wrong
-std::span<const std::byte> raw = world.get(ship, *id);   // empty if absent
+const std::optional<rtype::ecs::ComponentId> id = components.find("rtype.Position");
+const bool added = components.add(ship, *id, bytes);          // false if the entity is dead, the id unknown or the size wrong
+std::span<const std::byte> raw = components.get(ship, *id);  // empty if absent
 ```
 
 | Operation | Typed | Type-erased |
 |---|---|---|
-| Spawn / despawn | `spawn()`, `despawn(e)` | same |
+| Spawn / despawn (on `World`) | `spawn()`, `spawn(values...)`, `despawn(e)` | `spawn()`, `despawn(e)` |
 | Add / remove | `add<T>(e, value)`, `remove<T>(e)` | `add(e, id, bytes)`, `remove(e, id)` |
 | Test (tags included) | `has<T>(e)` | `has(e, id)` |
 | Read | `get<T>(e)` → `const T*` | `get(e, id)` → `std::span<const std::byte>` |
 | Write | `getMut<T>(e)` → `Mut<T>` | `getMut(e, id)` → `std::span<std::byte>` (marks changed) |
-| Register | `component<T>()` | `registerComponent(descriptor)` |
+| Register / find | `registerType<T>(options)` | `registerType(info)`, `find(name)` |
+
+Every row but the first is on `world.getComponents()`. [Resources](10-resources.md) follow the same
+pattern on `world.getResources()`.
 
 Typed calls are thin wrappers that resolve `T` to an id and forward to the type-erased path, so there is
 one implementation to test.
 
 - **`add` on a component the entity already has replaces its value** (stamps `changed`, keeps `added`).
-- **`add<T>` registers `T`** with default options the first time; call `component<T>(options)` before to set
+- **`add<T>` registers `T`** with default options the first time; call `registerType<T>(options)` before to set
   replication options. Reading (`has`, `get`, `remove`) never registers.
 - Values are exchanged as byte spans of exactly the component's size; `viewAs<T>` turns them into a `T`.
 
@@ -133,7 +150,7 @@ version).
 
 - **Mixing ids between worlds.** `ComponentId` 5 in the server world is not 5 in the client world. Cross
   worlds by name only.
-- **Structural changes during iteration.** Calling `world.add` / `despawn` while a query iterates the
+- **Structural changes during iteration.** Calling `add` / `despawn` while a query iterates the
   same pool invalidates it. Inside systems, use [commands](09-commands.md).
 - **Global state.** The world must not rely on statics (see the DLL pitfall in
   [Component registry](02-component-registry.md)); everything lives in the world instance.

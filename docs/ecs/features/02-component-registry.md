@@ -175,7 +175,7 @@ script is hot-reloaded ([Luau bridge](19-luau-bridge.md)).
 ### From a C++ type to an id
 
 The typed layer needs `ComponentId` for `T`. It looks up `ComponentTraits<T>::kHash` in the world's
-`hash → id` map. Queries do it **once** when they are built; per-entity calls like `world.get<T>(e)`
+`hash → id` map. Queries do it **once** when they are built; per-entity calls like `world.getComponents().get<T>(e)`
 do a hash-map lookup, which can be cached per world later if it ever shows in a profile.
 
 ## Connections

@@ -69,7 +69,7 @@ The requirements are referenced as **R1–R4** in the rest of the document.
 
 The ECS is split in two layers. The **type-erased core** works with component *ids*, sizes and raw
 bytes, which is what makes Luau-defined components possible (R2). The **typed C++ layer** is a thin set
-of templates on top (`world.add<Position>(...)`, `Query<Position, const Velocity>`). The `App` and its
+of templates on top (`world.getComponents().add(e, Position{})`, `Query<Position, const Velocity>`). The `App` and its
 plugins sit above both (R1).
 
 **Games are written in Luau first.** A game is a set of **Luau plugins** (components, systems,
@@ -495,19 +495,21 @@ and schedules.
 **What exists.** EnTT's `registry`, Bevy's `World`, flecs's `world`. Bevy also has *sub-apps* with
 their own world (its render world).
 
-**Our choice.** A `World` class with two API surfaces: typed templates and a type-erased, `noexcept`
-API by `ComponentId` (used by Luau and the network). **Several worlds per process** are allowed: a
+**Our choice.** A `World` class that coordinates one part per kind of data: `Components`
+(`world.getComponents()`) and `Resources` (`world.getResources()`), each with two API surfaces: typed
+templates and a type-erased, `noexcept` API by id (used by Luau and the network). The World keeps only
+what crosses parts: spawning and despawning, the change tick and the component/resource name rule. **Several worlds per process** are allowed: a
 listen server runs a server world and a client world side by side, and tests create as many as they
 need. Each world has its own registry, so ids are per world; names are shared.
 
 ```c++
 rtype::ecs::World world;
 const rtype::ecs::Entity ship = world.spawn();
-world.add(ship, Position{.x = 10.F, .y = 20.F});
+world.getComponents().add(ship, Position{.x = 10.F, .y = 20.F});
 
 // Type-erased equivalent, used by the Luau bridge and the replication plugin.
-const std::optional<rtype::ecs::ComponentId> id = world.findComponent("rtype.Position");
-const bool added = world.add(ship, *id, &bytes);
+const std::optional<rtype::ecs::ComponentId> id = world.getComponents().find("rtype.Position");
+const bool added = world.getComponents().add(ship, *id, bytes);
 ```
 
 Serves: R2, R3 (server + client worlds), R4.
@@ -919,7 +921,7 @@ layout by running the script. Instead:
 2. When the file is loaded, the bridge **parses** it with `Luau.Ast`, the parser the compiler already
    uses (not the full type checker), finds the exported type and maps each field's annotation to a
    `FieldType`.
-3. It builds a `ComponentDescriptor` and calls `world.registerComponent()`. The ECS computes the layout
+3. It builds a `ComponentDescriptor` and calls `world.getComponents().registerType()`. The ECS computes the layout
    **deterministically** (fields sorted by alignment, then name), so every client and the server agree.
 
 ```mermaid
@@ -929,7 +931,7 @@ flowchart LR
     parse --> desc["ComponentDescriptor<br/>name, fields, presence,<br/>replication, defaults"]
     file --> run["Run the chunk<br/>options + defaults"]
     run --> desc
-    desc --> reg["world.registerComponent()"]
+    desc --> reg["world.getComponents().registerType()"]
     reg --> layout["Deterministic layout<br/>+ layoutHash"]
 ```
 
@@ -1355,15 +1357,15 @@ is the same idea as Bevy's modules with a short prelude.
 | *(root)* | `rtype::ecs` | `xmake.lua` (`target("ecs")`), `Export.hpp` (`RTYPE_ECS_API`), `Version.hpp/.cpp` |
 | `entity/` | `rtype::ecs` | `Entity.hpp`, `EntityAllocator.hpp/.cpp`: generational ids, free list, reservation |
 | `type/` | `rtype::ecs` | The core shared by every kind: `Field.hpp` (`FieldType`, `FieldInfo`), `FieldTypeOf.hpp`, `TypeHooks`, `TypeInfo` (`TypeId`, `Presence`, `ReplicationMode`, validation, layout hash), `NameHash`, `LayoutHash`, `TypeTraits`, `TypeRegistry<Info>` |
-| `component/` | `rtype::ecs` | `ComponentInfo.hpp` (`ComponentId`, `StorageKind`, `ComponentInfo`), `ComponentTraits.hpp` (`RTYPE_ECS_COMPONENT`), `ComponentRegistry.hpp/.cpp` (`KindTraits<ComponentInfo>`, `ComponentRegistry`) |
-| `resource/` | `rtype::ecs` | `ResourceInfo.hpp` (`ResourceId`, `ResourceInfo`), `ResourceTraits.hpp` (`RTYPE_ECS_RESOURCE`), `ResourceRegistry.hpp/.cpp` (`ResourceOptions`, `KindTraits<ResourceInfo>`, `ResourceRegistry`) |
+| `component/` | `rtype::ecs` | `ComponentInfo.hpp` (`ComponentId`, `StorageKind`, `ComponentInfo`), `ComponentTraits.hpp` (`RTYPE_ECS_COMPONENT`), `ComponentRegistry.hpp/.cpp` (`KindTraits<ComponentInfo>`, `ComponentRegistry`), `Components.hpp/.tpp/.cpp` (a world's registry, pools and component API) |
+| `resource/` | `rtype::ecs` | `ResourceInfo.hpp` (`ResourceId`, `ResourceInfo`), `ResourceTraits.hpp` (`RTYPE_ECS_RESOURCE`), `ResourceRegistry.hpp/.cpp` (`ResourceOptions`, `KindTraits<ResourceInfo>`, `ResourceRegistry`), `Resources.hpp/.tpp/.cpp` (a world's registry, slots and resource API) |
 | `storage/` | `rtype::ecs::storage` | `PagedSparseArray`, `ByteColumn`, `SparseSetStorage` (the pool), `ResourceStorage` (a resource slot), `Table` (v3) |
-| `world/` | `rtype::ecs` | `World.hpp/.tpp/.cpp`: typed and type-erased API |
+| `world/` | `rtype::ecs` | `World.hpp/.tpp/.cpp`: the coordinator (entities, change tick, `getComponents()`, `getResources()`) |
 | `query/` | `rtype::ecs` | `DynamicQuery` (the single query engine), `Query` (typed queries and filters), `Mut` (write access stamping ticks) |
-| `system/` | `rtype::ecs` | `System` (parameter deduction, access sets), `Commands`, `Resources` (`Res`, `ResMut`, `NonSend`, `NonSendMut`), `Events` |
+| `system/` | `rtype::ecs` | `System` (parameter deduction, access sets), `Commands`, `Res.hpp` (`Res`, `ResMut`, `NonSend`, `NonSendMut`), `Events` |
 | `schedule/` | `rtype::ecs` | `Scheduler` (phases, ordering), fixed timestep and `Time` |
 | `app/` | `rtype::ecs` | `App`, `Plugin` |
-| `detail/` | `rtype::ecs::detail` | Internal helpers shared by several features (e.g. `Generation.hpp`) |
+| `detail/` | `rtype::ecs::detail` | Internal helpers shared by several features (e.g. `Generation.hpp`), `WorldState.hpp` (everything a World owns, on the heap) |
 | `exceptions/` | `rtype::ecs::exceptions` | Every ECS exception (e.g. `EntityExceptions.hpp`) |
 
 **Elsewhere:**
