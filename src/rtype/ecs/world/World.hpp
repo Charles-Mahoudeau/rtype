@@ -8,11 +8,10 @@
 #pragma once
 
 #include <cstddef>
-#include <deque>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string_view>
-#include <vector>
 
 #include "rtype/ecs/Export.hpp"
 #include "rtype/ecs/change/ComponentTicks.hpp"
@@ -21,8 +20,8 @@
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/ComponentRegistry.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
+#include "rtype/ecs/detail/WorldState.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
-#include "rtype/ecs/entity/EntityAllocator.hpp"
 #include "rtype/ecs/error/Result.hpp"
 #include "rtype/ecs/resource/ResourceInfo.hpp"
 #include "rtype/ecs/resource/ResourceRegistry.hpp"
@@ -307,15 +306,9 @@ class RTYPE_ECS_API World {
     [[nodiscard]] storage::ResourceStorage* findResourceStorage(ResourceId id) noexcept;
     [[nodiscard]] const storage::ResourceStorage* findResourceStorage(ResourceId id) const noexcept;
 
-    EntityAllocator _entities;                      ///< Entity indices and generations.
-    ComponentRegistry _registry;                    ///< Components of this world, by id and name.
-    std::vector<storage::SparseSetStorage> _pools;  ///< One pool per component, indexed by ComponentId.
-    ResourceRegistry _resourceRegistry;             ///< Resources of this world, by id and name.
-    /// @brief One slot per resource, indexed by ResourceId; a deque keeps their addresses, so a Mut stays valid
-    /// when other resources are registered.
-    std::deque<storage::ResourceStorage> _resources;
-    Tick _changeTick{0};     ///< Current tick, stamped on every value added or written.
-    Tick _lastCheckTick{0};  ///< Change tick at the last checkChangeTicks().
+    /// @brief Everything the world owns, on the heap so that its address survives moves. A moved-from world has none:
+    /// it can only be destroyed or assigned to.
+    std::unique_ptr<detail::WorldState> _state{std::make_unique<detail::WorldState>()};
 };
 }  // namespace rtype::ecs
 

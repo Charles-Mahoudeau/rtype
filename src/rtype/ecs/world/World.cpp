@@ -33,59 +33,59 @@
 #include "rtype/ecs/type/TypeTraits.hpp"
 
 namespace rtype::ecs {
-const ComponentRegistry& World::getRegistry() const noexcept { return _registry; }
+const ComponentRegistry& World::getRegistry() const noexcept { return _state->registry; }
 
-const ResourceRegistry& World::getResourceRegistry() const noexcept { return _resourceRegistry; }
+const ResourceRegistry& World::getResourceRegistry() const noexcept { return _state->resourceRegistry; }
 
-Tick World::getChangeTick() const noexcept { return _changeTick; }
+Tick World::getChangeTick() const noexcept { return _state->changeTick; }
 
-std::size_t World::getEntityCount() const noexcept { return _entities.getAliveCount(); }
+std::size_t World::getEntityCount() const noexcept { return _state->entities.getAliveCount(); }
 
 Tick World::advanceChangeTick(Tick count) noexcept {
-    _changeTick += count;  // wraps around after 2^32 ticks: comparisons and clamping are built for it
-    if (_changeTick - _lastCheckTick >= kCheckTickThreshold) {
+    _state->changeTick += count;  // wraps around after 2^32 ticks: comparisons and clamping are built for it
+    if (_state->changeTick - _state->lastCheckTick >= kCheckTickThreshold) {
         checkChangeTicks();
     }
-    return _changeTick;
+    return _state->changeTick;
 }
 
 void World::checkChangeTicks() noexcept {
-    for (storage::SparseSetStorage& pool : _pools) {
+    for (storage::SparseSetStorage& pool : _state->pools) {
         for (Tick& tick : pool.getAddedTicks()) {
-            clampTick(tick, _changeTick);
+            clampTick(tick, _state->changeTick);
         }
         for (Tick& tick : pool.getChangedTicks()) {
-            clampTick(tick, _changeTick);
+            clampTick(tick, _state->changeTick);
         }
     }
-    for (storage::ResourceStorage& resource : _resources) {
-        resource.clampTicks(_changeTick);
+    for (storage::ResourceStorage& resource : _state->resources) {
+        resource.clampTicks(_state->changeTick);
     }
-    _lastCheckTick = _changeTick;
+    _state->lastCheckTick = _state->changeTick;
 }
 
-Entity World::spawn() { return _entities.allocate(); }
+Entity World::spawn() { return _state->entities.allocate(); }
 
 bool World::despawn(Entity entity) noexcept {
     if (!isAlive(entity)) {
         return false;
     }
     // Every pool is checked: an O(1) lookup each. A per-entity list of its pools may replace the scan later.
-    for (storage::SparseSetStorage& pool : _pools) {
+    for (storage::SparseSetStorage& pool : _state->pools) {
         pool.remove(entity);
     }
     clearReferencesTo(entity);
-    _entities.release(entity);
+    _state->entities.release(entity);
     return true;
 }
 
-bool World::isAlive(Entity entity) const noexcept { return _entities.isAlive(entity); }
+bool World::isAlive(Entity entity) const noexcept { return _state->entities.isAlive(entity); }
 
 Result<ComponentId> World::registerComponent(ComponentInfo info) {
     if (Result<void> free = checkNameFree(info.type.name, TypeKind::kComponent); !free) {
         return tl::unexpected<Error>{std::move(free.error())};
     }
-    Result<ComponentId> id = _registry.registerType(std::move(info));
+    Result<ComponentId> id = _state->registry.registerType(std::move(info));
     if (id) {
         createPools(*id);
     }
@@ -93,7 +93,7 @@ Result<ComponentId> World::registerComponent(ComponentInfo info) {
 }
 
 std::optional<ComponentId> World::findComponent(std::string_view name) const noexcept {
-    if (const ComponentInfo* info = _registry.findByName(name)) {
+    if (const ComponentInfo* info = _state->registry.findByName(name)) {
         return info->type.id;
     }
     return std::nullopt;
@@ -105,9 +105,9 @@ bool World::add(Entity entity, ComponentId id, std::span<const std::byte> value)
         return false;
     }
     if (pool->contains(entity)) {
-        pool->replaceCopy(entity, value, _changeTick);
+        pool->replaceCopy(entity, value, _state->changeTick);
     } else {
-        pool->emplaceCopy(entity, value, _changeTick);
+        pool->emplaceCopy(entity, value, _state->changeTick);
     }
     return true;
 }
@@ -131,7 +131,7 @@ std::span<std::byte> World::getMut(Entity entity, ComponentId id) noexcept {
     if (!position) {
         return {};
     }
-    *std::next(pool->getChangedTicks().begin(), *position) = _changeTick;
+    *std::next(pool->getChangedTicks().begin(), *position) = _state->changeTick;
     return pool->at(*position);
 }
 
@@ -156,7 +156,7 @@ std::optional<ComponentTicks> World::getTicks(Entity entity, ComponentId id) con
 Result<void> World::checkNameFree(std::string_view name, TypeKind kind) const {
     const bool component = kind == TypeKind::kComponent;
     const bool taken =
-        component ? _resourceRegistry.findByName(name) != nullptr : _registry.findByName(name) != nullptr;
+        component ? _state->resourceRegistry.findByName(name) != nullptr : _state->registry.findByName(name) != nullptr;
     if (taken) {
         return fail(ErrorKind::kNameCollision,
                     std::format("{} '{}': the name is already used by a {}", component ? "Component" : "Resource", name,
@@ -167,13 +167,13 @@ Result<void> World::checkNameFree(std::string_view name, TypeKind kind) const {
 
 void World::createPools(ComponentId id) {
     // A loop, not a single push: if creating a pool ever threw, the next registration catches up.
-    while (_pools.size() <= id) {
-        _pools.emplace_back(*_registry.findById(static_cast<ComponentId>(_pools.size())));
+    while (_state->pools.size() <= id) {
+        _state->pools.emplace_back(*_state->registry.findById(static_cast<ComponentId>(_state->pools.size())));
     }
 }
 
 void World::clearReferencesTo(Entity entity) noexcept {
-    for (storage::SparseSetStorage& pool : _pools) {
+    for (storage::SparseSetStorage& pool : _state->pools) {
         for (const FieldInfo& field : pool.getInfo().type.fields) {
             if (field.type != FieldType::kEntity) {
                 continue;
@@ -193,7 +193,8 @@ void World::clearReferencesTo(Entity entity) noexcept {
                     }
                 }
                 if (cleared) {
-                    *std::next(pool.getChangedTicks().begin(), static_cast<std::ptrdiff_t>(position)) = _changeTick;
+                    *std::next(pool.getChangedTicks().begin(), static_cast<std::ptrdiff_t>(position)) =
+                        _state->changeTick;
                 }
             }
         }
@@ -201,18 +202,18 @@ void World::clearReferencesTo(Entity entity) noexcept {
 }
 
 storage::SparseSetStorage* World::findPool(ComponentId id) noexcept {
-    return id < _pools.size() ? &*std::next(_pools.begin(), id) : nullptr;
+    return id < _state->pools.size() ? &*std::next(_state->pools.begin(), id) : nullptr;
 }
 
 const storage::SparseSetStorage* World::findPool(ComponentId id) const noexcept {
-    return id < _pools.size() ? &*std::next(_pools.begin(), id) : nullptr;
+    return id < _state->pools.size() ? &*std::next(_state->pools.begin(), id) : nullptr;
 }
 
 Result<ResourceId> World::registerResource(ResourceInfo info) {
     if (Result<void> free = checkNameFree(info.type.name, TypeKind::kResource); !free) {
         return tl::unexpected<Error>{std::move(free.error())};
     }
-    Result<ResourceId> id = _resourceRegistry.registerType(std::move(info));
+    Result<ResourceId> id = _state->resourceRegistry.registerType(std::move(info));
     if (id) {
         createResourceStorages(*id);
     }
@@ -220,7 +221,7 @@ Result<ResourceId> World::registerResource(ResourceInfo info) {
 }
 
 std::optional<ResourceId> World::findResource(std::string_view name) const noexcept {
-    if (const ResourceInfo* info = _resourceRegistry.findByName(name)) {
+    if (const ResourceInfo* info = _state->resourceRegistry.findByName(name)) {
         return info->type.id;
     }
     return std::nullopt;
@@ -231,7 +232,7 @@ bool World::insertResource(ResourceId id, std::span<const std::byte> value) {
     if (resource == nullptr || value.size() != resource->getInfo().type.size || !resource->getInfo().type.copyable) {
         return false;
     }
-    resource->insertCopy(value, _changeTick);
+    resource->insertCopy(value, _state->changeTick);
     return true;
 }
 
@@ -250,7 +251,7 @@ std::span<std::byte> World::getResourceMut(ResourceId id) noexcept {
     if (resource == nullptr || !resource->hasValue()) {
         return {};
     }
-    resource->getTicks().changed = _changeTick;
+    resource->getTicks().changed = _state->changeTick;
     return resource->get();
 }
 
@@ -269,16 +270,17 @@ std::optional<ComponentTicks> World::getResourceTicks(ResourceId id) const noexc
 
 void World::createResourceStorages(ResourceId id) {
     // A loop, not a single push: if creating a slot ever threw, the next registration catches up.
-    while (_resources.size() <= id) {
-        _resources.emplace_back(*_resourceRegistry.findById(static_cast<ResourceId>(_resources.size())));
+    while (_state->resources.size() <= id) {
+        _state->resources.emplace_back(
+            *_state->resourceRegistry.findById(static_cast<ResourceId>(_state->resources.size())));
     }
 }
 
 storage::ResourceStorage* World::findResourceStorage(ResourceId id) noexcept {
-    return id < _resources.size() ? &*std::next(_resources.begin(), id) : nullptr;
+    return id < _state->resources.size() ? &*std::next(_state->resources.begin(), id) : nullptr;
 }
 
 const storage::ResourceStorage* World::findResourceStorage(ResourceId id) const noexcept {
-    return id < _resources.size() ? &*std::next(_resources.begin(), id) : nullptr;
+    return id < _state->resources.size() ? &*std::next(_state->resources.begin(), id) : nullptr;
 }
 }  // namespace rtype::ecs

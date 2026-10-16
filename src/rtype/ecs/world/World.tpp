@@ -24,7 +24,7 @@ ComponentId World::component(ComponentOptions options) {
     if (Result<void> free = checkNameFree(ComponentTraits<T>::kName, TypeKind::kComponent); !free) {
         throw exceptions::TypeRegistrationException{std::string{free.error().getMessage()}};
     }
-    const ComponentId id = _registry.registerType<T>(options);
+    const ComponentId id = _state->registry.registerType<T>(options);
     createPools(id);
     return id;
 }
@@ -47,27 +47,27 @@ bool World::add(Entity entity, T value) {
     if (!isAlive(entity)) {
         return false;
     }
-    const ComponentInfo* info = _registry.find<T>();
+    const ComponentInfo* info = _state->registry.find<T>();
     storage::SparseSetStorage& pool = *findPool(info != nullptr ? info->type.id : component<T>());
     const std::span<std::byte> bytes = std::as_writable_bytes(std::span{&value, 1}).first(pool.getInfo().type.size);
     if (pool.contains(entity)) {
-        pool.replaceMove(entity, bytes, _changeTick);
+        pool.replaceMove(entity, bytes, _state->changeTick);
     } else {
-        pool.emplaceMove(entity, bytes, _changeTick);
+        pool.emplaceMove(entity, bytes, _state->changeTick);
     }
     return true;  // `value`, now moved-from, is destroyed when this function returns
 }
 
 template <Component T>
 bool World::has(Entity entity) const noexcept {
-    const ComponentInfo* info = _registry.find<T>();
+    const ComponentInfo* info = _state->registry.find<T>();
     return info != nullptr && has(entity, info->type.id);
 }
 
 template <Component T>
 const T* World::get(Entity entity) const noexcept {
     static_assert(!std::is_empty_v<T>, "a tag has no value: test it with has<T>()");
-    const ComponentInfo* info = _registry.find<T>();
+    const ComponentInfo* info = _state->registry.find<T>();
     if (info == nullptr) {
         return nullptr;
     }
@@ -78,7 +78,7 @@ const T* World::get(Entity entity) const noexcept {
 template <Component T>
 Mut<T> World::getMut(Entity entity) noexcept {
     static_assert(!std::is_empty_v<T>, "a tag has no value: test it with has<T>()");
-    const ComponentInfo* info = _registry.find<T>();
+    const ComponentInfo* info = _state->registry.find<T>();
     if (info == nullptr) {
         return {};
     }
@@ -88,18 +88,18 @@ Mut<T> World::getMut(Entity entity) noexcept {
         return {};
     }
     return Mut<T>{storage::viewAs<T>(pool.at(*position)), &*std::next(pool.getChangedTicks().begin(), *position),
-                  _changeTick};
+                  _state->changeTick};
 }
 
 template <Component T>
 bool World::remove(Entity entity) noexcept {
-    const ComponentInfo* info = _registry.find<T>();
+    const ComponentInfo* info = _state->registry.find<T>();
     return info != nullptr && remove(entity, info->type.id);
 }
 
 template <Component T>
 std::optional<ComponentTicks> World::getTicks(Entity entity) const noexcept {
-    const ComponentInfo* info = _registry.find<T>();
+    const ComponentInfo* info = _state->registry.find<T>();
     return info != nullptr ? getTicks(entity, info->type.id) : std::nullopt;
 }
 
@@ -108,7 +108,7 @@ ResourceId World::resource(ResourceOptions options) {
     if (Result<void> free = checkNameFree(ResourceTraits<T>::kName, TypeKind::kResource); !free) {
         throw exceptions::TypeRegistrationException{std::string{free.error().getMessage()}};
     }
-    const ResourceId id = _resourceRegistry.registerType<T>(options);
+    const ResourceId id = _state->resourceRegistry.registerType<T>(options);
     createResourceStorages(id);
     return id;
 }
@@ -125,14 +125,14 @@ void World::insertNonSendResource(T value) {
 
 template <Resource T>
 bool World::hasResource() const noexcept {
-    const ResourceInfo* info = _resourceRegistry.find<T>();
+    const ResourceInfo* info = _state->resourceRegistry.find<T>();
     return info != nullptr && hasResource(info->type.id);
 }
 
 template <Resource T>
 const T* World::getResource() const noexcept {
     static_assert(!std::is_empty_v<T>, "an empty resource has no value: test it with hasResource<T>()");
-    const ResourceInfo* info = _resourceRegistry.find<T>();
+    const ResourceInfo* info = _state->resourceRegistry.find<T>();
     if (info == nullptr) {
         return nullptr;
     }
@@ -143,7 +143,7 @@ const T* World::getResource() const noexcept {
 template <Resource T>
 Mut<T> World::getResourceMut() noexcept {
     static_assert(!std::is_empty_v<T>, "an empty resource has no value: test it with hasResource<T>()");
-    const ResourceInfo* info = _resourceRegistry.find<T>();
+    const ResourceInfo* info = _state->resourceRegistry.find<T>();
     if (info == nullptr) {
         return {};
     }
@@ -151,7 +151,7 @@ Mut<T> World::getResourceMut() noexcept {
     if (!resource.hasValue()) {
         return {};
     }
-    return Mut<T>{storage::viewAs<T>(resource.get()), &resource.getTicks().changed, _changeTick};
+    return Mut<T>{storage::viewAs<T>(resource.get()), &resource.getTicks().changed, _state->changeTick};
 }
 
 template <Resource T>
@@ -172,21 +172,22 @@ Mut<T> World::requireResourceMut() {
 
 template <Resource T>
 bool World::removeResource() noexcept {
-    const ResourceInfo* info = _resourceRegistry.find<T>();
+    const ResourceInfo* info = _state->resourceRegistry.find<T>();
     return info != nullptr && removeResource(info->type.id);
 }
 
 template <Resource T>
 std::optional<ComponentTicks> World::getResourceTicks() const noexcept {
-    const ResourceInfo* info = _resourceRegistry.find<T>();
+    const ResourceInfo* info = _state->resourceRegistry.find<T>();
     return info != nullptr ? getResourceTicks(info->type.id) : std::nullopt;
 }
 
 template <Resource T>
 void World::insertResourceWith(T value, ResourceOptions options) {
-    const ResourceInfo* info = _resourceRegistry.find<T>();
+    const ResourceInfo* info = _state->resourceRegistry.find<T>();
     const ResourceId id = info != nullptr && info->nonSend == options.nonSend ? info->type.id : resource<T>(options);
     storage::ResourceStorage& resource = *findResourceStorage(id);
-    resource.insertMove(std::as_writable_bytes(std::span{&value, 1}).first(resource.getInfo().type.size), _changeTick);
+    resource.insertMove(std::as_writable_bytes(std::span{&value, 1}).first(resource.getInfo().type.size),
+                        _state->changeTick);
 }
 }  // namespace rtype::ecs
