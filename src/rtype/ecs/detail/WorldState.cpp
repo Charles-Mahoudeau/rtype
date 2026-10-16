@@ -47,7 +47,6 @@ namespace {
 }  // namespace
 
 Result<void> WorldState::checkNameFree(std::string_view name, TypeKind kind) const {
-    // The owner of the name, if another kind has it; the kind registering it checks its own registry itself.
     TypeKind owner = kind;
     if (kind != TypeKind::kComponent && components.getRegistry().findByName(name) != nullptr) {
         owner = TypeKind::kComponent;
