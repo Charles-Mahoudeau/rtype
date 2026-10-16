@@ -8,7 +8,6 @@
 #include "Resources.hpp"
 
 #include <cstddef>
-#include <format>
 #include <iterator>
 #include <optional>
 #include <span>
@@ -24,6 +23,7 @@
 #include "rtype/ecs/resource/ResourceInfo.hpp"
 #include "rtype/ecs/resource/ResourceRegistry.hpp"
 #include "rtype/ecs/storage/ResourceStorage.hpp"
+#include "rtype/ecs/type/TypeTraits.hpp"
 
 namespace rtype::ecs {
 Resources::Resources(const detail::WorldState& state) noexcept : _state{&state} {}
@@ -98,11 +98,7 @@ void Resources::clampTicks(Tick now) noexcept {
 Tick Resources::getChangeTick() const noexcept { return _state->changeTick; }
 
 Result<void> Resources::checkNameFree(std::string_view name) const {
-    if (_state->components.getRegistry().findByName(name) != nullptr) {
-        return fail(ErrorKind::kNameCollision,
-                    std::format("Resource '{}': the name is already used by a component", name));
-    }
-    return {};
+    return _state->checkNameFree(name, TypeKind::kResource);
 }
 
 void Resources::createStorages(ResourceId id) {

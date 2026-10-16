@@ -10,7 +10,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <format>
 #include <iterator>
 #include <optional>
 #include <span>
@@ -29,6 +28,7 @@
 #include "rtype/ecs/resource/Resources.hpp"
 #include "rtype/ecs/storage/SparseSetStorage.hpp"
 #include "rtype/ecs/type/Field.hpp"
+#include "rtype/ecs/type/TypeTraits.hpp"
 
 namespace rtype::ecs {
 Components::Components(const detail::WorldState& state) noexcept : _state{&state} {}
@@ -158,11 +158,7 @@ bool Components::isAlive(Entity entity) const noexcept { return _state->entities
 Tick Components::getChangeTick() const noexcept { return _state->changeTick; }
 
 Result<void> Components::checkNameFree(std::string_view name) const {
-    if (_state->resources.getRegistry().findByName(name) != nullptr) {
-        return fail(ErrorKind::kNameCollision,
-                    std::format("Component '{}': the name is already used by a resource", name));
-    }
-    return {};
+    return _state->checkNameFree(name, TypeKind::kComponent);
 }
 
 void Components::createPools(ComponentId id) {

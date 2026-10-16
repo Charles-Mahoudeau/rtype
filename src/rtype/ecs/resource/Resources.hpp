@@ -157,8 +157,8 @@ class RTYPE_ECS_API Resources {
     /// @return The world's change tick, stamped on every value inserted or written.
     [[nodiscard]] Tick getChangeTick() const noexcept;
 
-    /// @brief Checks that `name` is not a component: a name is either a component or a resource, so the Luau
-    /// bridge, the network manifest and save files can resolve it alone.
+    /// @brief Checks that `name` is not taken by another kind of type (WorldState::checkNameFree()). A member, so the
+    /// templates, which only see a declaration of WorldState, can call it.
     /// @return Nothing when the name is free, or an ErrorKind::kNameCollision error.
     [[nodiscard]] Result<void> checkNameFree(std::string_view name) const;
 
