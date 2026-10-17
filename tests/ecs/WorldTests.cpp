@@ -279,6 +279,39 @@ TEST(World, CopiesNonTrivialValuesById) {
     EXPECT_EQ(liveCounters, 0);
 }
 
+TEST(World, MovesNonTrivialValuesInById) {
+    liveCounters = 0;
+    {
+        World world;
+        const ComponentId inventory = world.getComponents().registerType<rtype::test::world::Inventory>();
+        const Entity entity = world.spawn();
+        rtype::test::world::Inventory source{.items = {1, 2}};
+        EXPECT_TRUE(world.getComponents().addMove(entity, inventory, std::as_writable_bytes(std::span{&source, 1})));
+        EXPECT_TRUE(source.items.empty());  // moved from, still alive: destroyed with `source`
+        rtype::test::world::Inventory replacement{.items = {3}};
+        EXPECT_TRUE(
+            world.getComponents().addMove(entity, inventory, std::as_writable_bytes(std::span{&replacement, 1})));
+        EXPECT_TRUE(replacement.items.empty());
+        EXPECT_EQ(world.getComponents().get<rtype::test::world::Inventory>(entity)->items,
+                  (std::vector<std::int32_t>{3}));
+        EXPECT_EQ(liveCounters, 3);  // source, replacement (both moved from), the stored value
+    }
+    EXPECT_EQ(liveCounters, 0);
+}
+
+TEST(World, RefusesInvalidMovesWithoutMovingFrom) {
+    World world;
+    const ComponentId inventory = world.getComponents().registerType<rtype::test::world::Inventory>();
+    const Entity entity = world.spawn();
+    rtype::test::world::Inventory source{.items = {1, 2}};
+    const std::span<std::byte> bytes = std::as_writable_bytes(std::span{&source, 1});
+    EXPECT_FALSE(world.getComponents().addMove(Entity{42, 1}, inventory, bytes));    // not alive
+    EXPECT_FALSE(world.getComponents().addMove(entity, inventory + 1, bytes));       // unknown id
+    EXPECT_FALSE(world.getComponents().addMove(entity, inventory, bytes.first(1)));  // wrong size
+    EXPECT_EQ(source.items.size(), 2U);  // a refused move leaves the value untouched
+    EXPECT_FALSE(world.getComponents().has(entity, inventory));
+}
+
 TEST(World, AddsAndGetsCppComponents) {
     World world;
     const Entity entity = world.spawn();
