@@ -52,6 +52,9 @@ class RTYPE_ECS_API Components {
     /// @return The components registered in this world.
     [[nodiscard]] const ComponentRegistry& getRegistry() const noexcept;
 
+    /// @return The world's change tick, stamped on every value added or written; a query's `thisRun`.
+    [[nodiscard]] Tick getChangeTick() const noexcept;
+
     /// @brief Registers a C++ component, or returns its id if it is already registered with the same options.
     /// @details Call it before the component is first added to set non-default options: adding registers the
     /// component with the default ones.
@@ -129,6 +132,11 @@ class RTYPE_ECS_API Components {
     template <Component T>
     [[nodiscard]] std::optional<ComponentTicks> getTicks(Entity entity) const noexcept;
 
+    /// @return The pool of the component, or nullptr if the id is not registered in this world. Used by queries, which
+    /// read the pools directly; the address is invalidated when a new component is registered.
+    [[nodiscard]] storage::SparseSetStorage* findPool(ComponentId id) noexcept;
+    [[nodiscard]] const storage::SparseSetStorage* findPool(ComponentId id) const noexcept;
+
     /// @brief Removes the entity from every pool, destroying its values. Called by World::despawn().
     void removeAll(Entity entity) noexcept;
 
@@ -144,9 +152,6 @@ class RTYPE_ECS_API Components {
     /// @return Whether the entity is alive in the world.
     [[nodiscard]] bool isAlive(Entity entity) const noexcept;
 
-    /// @return The world's change tick, stamped on every value added or written.
-    [[nodiscard]] Tick getChangeTick() const noexcept;
-
     /// @brief Checks that `name` is not taken by another kind of type (WorldState::checkNameFree()). A member, so the
     /// templates, which only see a declaration of WorldState, can call it.
     /// @return Nothing when the name is free, or an ErrorKind::kNameCollision error.
@@ -154,10 +159,6 @@ class RTYPE_ECS_API Components {
 
     /// @brief Creates the pools of every registered component up to `id` that has none yet.
     void createPools(ComponentId id);
-
-    /// @return The pool of the component, or nullptr if the id is not registered in this world.
-    [[nodiscard]] storage::SparseSetStorage* findPool(ComponentId id) noexcept;
-    [[nodiscard]] const storage::SparseSetStorage* findPool(ComponentId id) const noexcept;
 
     const detail::WorldState* _state;               ///< The world's state, read for its entities and change tick.
     ComponentRegistry _registry;                    ///< Components of this world, by id and name.
