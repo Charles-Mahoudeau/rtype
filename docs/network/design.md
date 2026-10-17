@@ -41,11 +41,12 @@ something the ECS docs say, the change is listed in [Differences with the ECS do
 |---|---|---|---|
 | N1 | The server notifies every client when a monster spawns, moves, is destroyed, fires, kills a player, and of the other clients' actions | Subject | [Snapshots](#74-snapshots-server--client) (spawns, updates, despawns; a shot is a bullet spawn) and [custom packets](#8-custom-packets) (`PlayerKilled`...) |
 | N2 | The server is multithreaded: it never blocks or waits for client messages, the game runs frame after frame regardless of clients | Subject | One I/O thread plus one thread per room; rooms never wait on the network ([Threads](#5-threads)) |
-| N3 | If a client crashes, the server keeps working and notifies the other clients of the same game | Subject | Timeouts, `kClientLeft` broadcast, `ClientDisconnected` event ([Connection lifecycle](#63-connection-lifecycle)) |
+| N3 | If a client crashes, the server keeps working and notifies the other clients of the same game | Subject | Timeouts, a grace period before removal, `kClientLeft` broadcast, `ClientDisconnected` event ([Connection lifecycle](#63-connection-lifecycle), [6.8](#68-reconnecting-after-a-connection-loss)) |
 | N4 | The server is robust: it keeps running whatever goes wrong | Subject | [Robustness and security](#10-robustness-and-security) |
 | N5 | Networking uses Asio or the OS socket API | Subject | Standalone Asio; the reliability layer is written in-house (ENet and similar libraries are not allowed) |
 | N6 | Authoritative server, inputs up, state down, with client prediction and server reconciliation for the local player | ECS R3, changed ([13](#13-differences-with-the-ecs-docs)) | The whole design; [7.6](#76-client-prediction-and-reconciliation) |
 | N7 | Builds and runs on Linux, macOS and Windows with Clang, Apple Clang and MSVC | `CLAUDE.md` | No compiler extensions; [Windows pitfall](#windows-connection_reset) handled |
+| N8 | A client that loses its connection for a short time (lost wifi, network change) can rejoin the game in progress, with fresh session credentials | Design review | Lingering sessions and resume tokens ([6.8](#68-reconnecting-after-a-connection-loss)); the game decides what happens meanwhile |
 
 ## 2. Principles
 
@@ -144,9 +145,10 @@ passed to the `RoomManager` and the I/O thread. The values written in this docum
 | `snapshotRate` | 60 Hz, a divisor of the tick rate (60, 30, 20...) | A room sends a snapshot every `tickRate / snapshotRate` ticks ([7.4](#74-snapshots-server--client)) |
 | `maxPlayersPerRoom` | 4 | Room capacity in `kRoomList` and `kJoinRoom` ([9](#9-lobby-and-rooms)) |
 | `maxRooms` | 16 | `kMaxRooms`, `kTooManyRooms` |
-| `maxClients` | 64 | Sessions, `kServerFull` |
+| `maxClients` | 64 | Sessions (lingering ones included), `kServerFull` |
 | `port` | 4242 | The server's UDP port |
 | `timeout`, `keepalive`, `resendInterval` | 2 s, 100 ms, `max(1.25 × RTT, 50 ms)` | [6.3](#63-connection-lifecycle), [6.5](#65-messages-and-channels) |
+| `reconnectGrace` | 60 s, `0` disables reconnection | How long a lost session waits for its client ([6.8](#68-reconnecting-after-a-connection-loss)) |
 | Rate limits and error budgets | see [10](#10-robustness-and-security) | Per-session limits |
 
 The client learns the `snapshotRate` from the server (it is sent with the manifest), so interpolation always
@@ -187,7 +189,8 @@ The `RoomManager` lives in `replication`, so the listen server reuses it. The ex
 that builds a room's `App` with the game's plugins.
 
 - **Rooms only see messages.** A room never sees sequence numbers, acks or datagrams. It receives
-  `ClientJoined`, `ClientLeft` and `Message{client, channel, bytes}` from its inbox, and pushes
+  `ClientJoined`, `ClientLost`, `ClientReconnected`, `ClientLeft` and `Message{client, channel, bytes}` from its
+  inbox, and pushes
   `Send{client or everyone, channel, bytes}` and `Kick{client, reason}` into its outbox.
 - **The lobby runs on the I/O thread**, because it changes `Session::roomId`, which the I/O thread reads to
   route every packet.
@@ -266,11 +269,11 @@ Every datagram starts with a **packet kind** byte.
 
 | Value | Kind | Direction | Content after the kind byte |
 |---|---|---|---|
-| `0x01` | `kConnectRequest` | C → S | protocol id `u32` (`0x52545950`, "RTYP"), protocol version `u16`, zero padding up to 64 bytes in total |
+| `0x01` | `kConnectRequest` | C → S | protocol id `u32` (`0x52545950`, "RTYP"), protocol version `u16`, resume client id `u32` and resume token `u64` (both 0 for a new connection, [6.8](#68-reconnecting-after-a-connection-loss)), zero padding up to 64 bytes in total |
 | `0x02` | `kChallenge` | S → C | challenge `u64` |
 | `0x03` | `kChallengeResponse` | C → S | challenge `u64`, zero padding up to 64 bytes in total |
-| `0x04` | `kAccepted` | S → C | session token `u32`, client id `u32` |
-| `0x05` | `kRejected` | S → C | reason `u8` (`kVersionMismatch`, `kServerFull`) |
+| `0x04` | `kAccepted` | S → C | session token `u32`, client id `u32`, resume token `u64` |
+| `0x05` | `kRejected` | S → C | reason `u8` (`kVersionMismatch`, `kServerFull`, `kSessionExpired`) |
 | `0x06` | `kData` | both | session token `u32`, sequence `u16`, ack `u16`, ack bits `u32`, then messages ([6.5](#65-messages-and-channels)) |
 | `0x07` | `kDisconnect` | both | session token `u32`, reason `u8` |
 
@@ -294,7 +297,7 @@ sequenceDiagram
     S->>C: kChallenge (random u64)
     C->>S: kChallengeResponse (same u64, padding)
     Note over S: matches the pending challenge of this ip:port → create Session
-    S->>C: kAccepted (session token, client id)
+    S->>C: kAccepted (session token, client id, resume token)
     S->>C: welcome messages: the manifest (reliable)
     C->>C: check the manifest, refuse on mismatch
     C->>S: kReady (reliable)
@@ -303,8 +306,8 @@ sequenceDiagram
         C-->>S: kData
         S-->>C: kData
     end
-    C->>S: kDisconnect (graceful), or nothing for 2 s (timeout)
-    Note over S: kClientLeft to the room, ClientLeft to the room's inbox
+    C->>S: kDisconnect (graceful)
+    Note over S: kClientLeft to the other clients, ClientLeft to the room's inbox
 ```
 
 - **Challenge.** The server answers a connect request with a random `u64` and remembers it in a bounded
@@ -326,12 +329,15 @@ sequenceDiagram
   and gives up after 5 s ("server unreachable"). If `kAccepted` is lost, the client resends its response; the
   server sees a session created with that same challenge and resends `kAccepted`.
 - **Keepalive.** If a side has sent no `kData` for 100 ms, it sends an empty one, which also carries its acks.
-- **Timeout.** A session that receives nothing for 2 s is closed with reason `kTimeout`. This is how a
-  crashed client is detected (N3).
+- **Timeout.** A session that receives nothing for 2 s is considered lost. This is how a crashed client or a
+  dropped connection is detected (N3). The session is not closed right away: it lingers for `reconnectGrace` so
+  the client can come back ([6.8](#68-reconnecting-after-a-connection-loss)). Only when that grace expires is it
+  closed, with reason `kTimeout`.
 - **Disconnect.** A graceful `kDisconnect` is sent 3 times, since nothing acks it. Reasons: `kGraceful`,
-  `kTimeout`, `kKicked`, `kProtocolError`, `kManifestMismatch`, `kOverflow`, `kServerShutdown`.
+  `kTimeout`, `kKicked`, `kProtocolError`, `kManifestMismatch`, `kOverflow`, `kServerShutdown`. A graceful `kDisconnect`, a kick and a protocol error close the session at once, with no grace
+period.
 
-When a session closes for any reason, the I/O thread sends a reliable `kClientLeft{clientId, reason}` to the
+When a session closes for good (any of the above, or the end of the grace period), the I/O thread sends a reliable `kClientLeft{clientId, reason}` to the
 other clients of its room and pushes `ClientLeft` to the room's inbox. The server keeps running either way.
 
 ### 6.4 Sequence numbers, acks and RTT
@@ -384,7 +390,7 @@ layer that owns it: `0x00`–`0x1F` by `rtype-network` (lobby, [9](#9-lobby-and-
 | Channel | Guarantee | Used for |
 |---|---|---|
 | `kUnreliable` (`0`) | None: can be lost, duplicated or reordered | Snapshots and inputs. They carry ticks, so the layer above drops old ones itself. |
-| `kReliable` (`1`) | Delivered exactly once, in order | Manifest, `kReady`, lobby messages, `kClientLeft`, reliable custom packets (`PlayerKilled`) |
+| `kReliable` (`1`) | Delivered exactly once, in order | Manifest, `kReady`, lobby messages (`kClientLeft`, `kClientLost`...), reliable custom packets (`PlayerKilled`) |
 
 There is no reliable unordered channel. Its only benefit is avoiding head-of-line blocking, which does not
 matter once spawns and despawns travel in snapshots and reliable traffic is rare.
@@ -435,6 +441,94 @@ piece carries a "more follows" flag and the receiver concatenates them.
 - On Windows, `_WIN32_WINNT` is defined to silence Asio's warning, and the socket gets `SIO_UDP_CONNRESET`
   turned off (see [Windows `connection_reset`](#windows-connection_reset)).
 
+### 6.8 Reconnecting after a connection loss
+
+A short loss (wifi drop, switching networks, a router restart) must not throw a player out of a game in
+progress. A timeout therefore does not end the session at once: the session **lingers** for a grace period, and
+the client can resume it with a secret. The engine only provides the mechanism; what a lost player's entity
+does meanwhile is the game's choice ([below](#what-the-game-decides)).
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: kAccepted
+    Active --> Lingering: silence for timeout (2 s)
+    Lingering --> Resuming: valid resume request
+    Active --> Resuming: valid resume request
+    Resuming --> Active: kReady
+    Resuming --> Lingering: silence for timeout, same deadline
+    Lingering --> Closed: reconnectGrace expired
+    Active --> Closed: kDisconnect, kick, error
+    Closed --> [*]
+```
+
+**Server side (I/O thread):**
+
+- **Lingering.** After `timeout` of silence the session stops being sent to, but keeps its client id, room id and
+  confirmed-entity bookkeeping. `ClientLost` is pushed to the room's inbox. Its deadline is `reconnectGrace` after
+  the loss (default 60 s; `0` disables reconnection and keeps the immediate close of [6.3](#63-connection-lifecycle)).
+  The deadline is never extended. A lingering session still counts against `maxClients`, so memory stays bounded.
+- **Resume token.** `kAccepted` carries a random `u64` besides the session token. The session token identifies
+  one *connection*, the resume token identifies the *player's session*. The resume token is only sent in
+  `kConnectRequest` of a resume and in `kAccepted`, never in `kData`.
+- **Resume request.** The client sends `kConnectRequest` with its client id and resume token. The server answers
+  with a challenge like for any new connection (the pending challenge remembers the request), so a forged address
+  can neither resume a session nor learn whether one exists. When the challenge response comes back, the server
+  looks up the session by client id and compares the token. If they match, the session is resumed, whatever its
+  state: it may still be `Active` if the client noticed a network change before the 2 s timeout. Otherwise the
+  server answers `kRejected{kSessionExpired}`.
+- **A resume starts a fresh connection.** The server issues a **new session token and a new resume token** in
+  `kAccepted`; the old ones die, so packets captured from the lost connection are dropped. Sequence numbers,
+  acks, RTT and reliable queues start from scratch, and the endpoint → session map points to the new `ip:port`
+  (the old one is removed), so a client that changed network is accepted.
+- **Back in the game.** The manifest is sent again and checked. On `kReady` the server sends `kRoomJoined` (the
+  client was in a room) and pushes `ClientReconnected` to the room's inbox; a client that was in the lobby stays
+  in the lobby. `knownEntities` is cleared, so the next snapshots are full spawns, spread over a few snapshots by
+  the size budget ([7.4](#74-snapshots-server--client)).
+- **Inputs.** Inputs buffered before the loss are discarded. The client's input sequence keeps counting, so
+  "sequences already applied are ignored" ([7.5](#75-inputs-client--server)) still holds. While the session
+  lingers, `net.applyInputs` applies a neutral input to the client's entity, so a held button is not held for the
+  whole grace period.
+- **Expiry.** When the deadline passes, the session is closed with `kTimeout`, exactly as in
+  [6.3](#63-connection-lifecycle): `kClientLeft` to the other clients, `ClientLeft` to the room, which raises
+  `ClientDisconnected`.
+
+**Client side:**
+
+- After 2 s without a datagram, the client raises `ConnectionLost` and starts sending resume requests, one every
+  500 ms (below the connect-request rate limit). It keeps showing its last state meanwhile, so the game can draw
+  a "reconnecting" overlay.
+- It stops after the `reconnectGrace` the server announced in `kManifestEnd`, or on a `kRejected`
+  (`kSessionExpired`, `kVersionMismatch`, `kServerFull`), and raises `Disconnected{reason}`: the game goes back
+  to its menu.
+- On `kRoomJoined` after a resume, the client drops every replicated entity (those with a `NetworkId`) and clears
+  its `NetworkId → Entity` map, its interpolation buffers, its ring of unconfirmed inputs
+  ([7.6](#76-client-prediction-and-reconciliation)) and its last applied snapshot tick. The full state then
+  arrives as spawns, which also removes anything that was despawned during the outage. It raises `Reconnected`.
+
+**ECS events:**
+
+| Event | Side | Raised when |
+|---|---|---|
+| `ClientLost{clientId}` | server, and the other clients of the room | A session starts lingering (on the other clients, from `kClientLost`) |
+| `ClientReconnected{clientId}` | server, and the other clients of the room | A lingering session is resumed and ready (on the other clients, from `kClientReconnected`) |
+| `ClientDisconnected{clientId, reason}` | server | A session closes for good, including at the end of the grace |
+| `ConnectionLost` | client | 2 s without a datagram; the client is retrying |
+| `Reconnected` | client | The session was resumed |
+| `Disconnected{reason}` | client | The client gave up or was refused |
+
+#### What the game decides
+
+The engine is generic, so it does not decide what a lost player means. It keeps the player's entity in the
+world, applies a neutral input and raises the events above. Everything else is a game system reacting to
+`ClientLost` and `ClientReconnected`: make the entity invulnerable or frozen, remove it after some seconds,
+pause the whole room, or nothing at all.
+
+**The other players are told by default.** The I/O thread sends the other clients of the room the reliable
+messages `kClientLost{clientId}` when the session starts lingering and `kClientReconnected{clientId}` when it is
+back ([9](#9-lobby-and-rooms)), next to `kClientLeft` when it is gone for good. Each client raises the matching
+`ClientLost{clientId}` / `ClientReconnected{clientId}` ECS event, so a game shows a "player X lost connection"
+notice with an ordinary system and no custom packet. A game that does not want it ignores the events.
+
 ## 7. Replication: `rtype-replication`
 
 This library implements [`20-replication.md`](../ecs/features/20-replication.md) on top of `rtype-network`.
@@ -482,7 +576,7 @@ server's game.
 | `0x21` | `kManifestPacket` | reliable | S → C | short id `u16`, name, schema hash `u64` |
 | `0x22` | `kManifestPrefab` | reliable | S → C | short id `u16`, name |
 | `0x23` | `kManifestInputAction` | reliable | S → C | index `u8`, name, kind `u8` |
-| `0x24` | `kManifestEnd` | reliable | S → C | entry count `u16`, manifest hash `u64`, tick rate `u8`, snapshot rate `u8` (Hz, [Configuration](#configuration)) |
+| `0x24` | `kManifestEnd` | reliable | S → C | entry count `u16`, manifest hash `u64`, tick rate `u8`, snapshot rate `u8` (Hz, [Configuration](#configuration)), reconnect grace `u16` (seconds) |
 | `0x30` | `kSnapshot` | unreliable | S → C | [7.4](#74-snapshots-server--client) |
 | `0x31` | `kInput` | unreliable | C → S | [7.5](#75-inputs-client--server) |
 | `0x32` | `kCustomPacket` | packet's channel | packet's direction | short id `u16`, fields ([8](#8-custom-packets)) |
@@ -595,7 +689,8 @@ u8   input count (1 to 3)
 2. Every `FixedUpdate`, `net.applyInputs` takes the next input of each client, in sequence order, and writes it
    to the `PlayerInput` of the entity with that client's `Owner`. The sequence of the last input applied is
    remembered as the client's *last processed input* and sent back in every snapshot ([7.4](#74-snapshots-server--client)).
-   If none arrived, the last one is repeated, and the last processed input does not advance.
+   If none arrived, the last one is repeated, and the last processed input does not advance. A client that is
+   lingering ([6.8](#68-reconnecting-after-a-connection-loss)) gets a neutral input instead (buttons released, axes 0).
 3. If the buffer grows beyond 4 inputs (the client runs slightly fast or sent a burst), the oldest are
    dropped down to 2.
 
@@ -804,7 +899,9 @@ thread with these reliable messages:
 | `0x06` | `kRoomJoined` | S → C | room id `u32` |
 | `0x07` | `kRoomError` | S → C | reason `u8` (`kFull`, `kNotFound`, `kClosed`, `kTooManyRooms`) |
 | `0x08` | `kClientLeft` | S → C | client id `u32`, reason `u8` |
-| `0x09` | `kReady` | C → S | (sent once, after the manifest is checked) |
+| `0x09` | `kReady` | C → S | (sent once per connection, after the manifest is checked; also after a reconnection) |
+| `0x0A` | `kClientLost` | S → C | client id `u32` (sent to the other clients of the room when a session starts lingering) |
+| `0x0B` | `kClientReconnected` | S → C | client id `u32` (sent to the other clients of the room when a lingering session is resumed) |
 
 - **Capacity:** the maximum number of players per room and of rooms are settings, not constants
   ([Configuration](#configuration)).
@@ -817,9 +914,14 @@ thread with these reliable messages:
   joined to it.
 - **Open or closed:** a room can close itself to new players (a game in progress) through an outbox command.
   `open` in `kRoomList` reflects it.
-- **Leaving** (by `kLeaveRoom`, disconnect or timeout): `ClientLeft` goes to the room, which raises the ECS
-  event `ClientDisconnected{clientId, reason}` so the game removes the ship, and `kClientLeft` goes to the
-  other clients of the room. A room with no players left is stopped by the `RoomManager`.
+- **Leaving** (by `kLeaveRoom`, graceful disconnect, kick, or the end of the reconnection grace): `ClientLeft`
+  goes to the room, which raises the ECS event `ClientDisconnected{clientId, reason}` so the game removes the
+  ship, and `kClientLeft` goes to the other clients of the room. A room with no players left, lingering ones
+  included, is stopped by the `RoomManager`.
+- **Connection loss** (silence for `timeout`): the player stays in the room as a lingering session and the room
+  raises `ClientLost{clientId}`, and `kClientLost` goes to the other clients of the room. If the client comes
+  back, the room raises `ClientReconnected{clientId}` and the others receive `kClientReconnected`
+  ([6.8](#68-reconnecting-after-a-connection-loss)).
 
 ## 10. Robustness and security
 
@@ -842,7 +944,7 @@ thread with these reliable messages:
 | Datagrams per second per session | 120, bursts of 20 | Dropped |
 | Connect requests per second per IP | 10 | Dropped |
 | Pending challenges | 256, 5 s expiry | Oldest dropped |
-| Sessions | `kMaxClients` (64) | `kRejected{kServerFull}` |
+| Sessions, lingering ones included | `kMaxClients` (64) | `kRejected{kServerFull}` |
 | Pending reliable messages | 1024 | Disconnect `kOverflow` |
 | Protocol errors (bad messages, bad packets) | 20 per 10 s | Disconnect `kProtocolError` |
 
@@ -874,7 +976,9 @@ and, on every platform, re-arms the receive after any error except `operation_ab
 The challenge and the session token protect against forged source addresses and amplification, so they must
 be unpredictable: both come from `std::random_device` ([6.3](#63-connection-lifecycle)). **Encryption
 and authentication are out of scope:** the session token protects against spoofing only, not against an
-attacker who can read the traffic. Cheating is limited by design (the server only accepts inputs), not by
+attacker who can read the traffic. The resume token has the same scope: it is a secret `u64` from
+`std::random_device`, so it cannot be guessed (attempts are also limited by the connect-request rate limit), but
+anyone who can read the traffic can steal it and take over the session. Cheating is limited by design (the server only accepts inputs), not by
 cryptography.
 
 ## 11. Bandwidth estimate
@@ -900,14 +1004,16 @@ compression library.
   `Connection`s through a **simulated link** (loss, duplication, reordering, delay) with a fake clock.
 - **Unit tests** (`tests/network/`): `ByteWriter` / `ByteReader` bounds, `isNewer` across the wrap, ack bits,
   reliable delivery (exactly once and in order under 30 % loss), handshake (challenge, token, version,
-  padding), timeouts.
+  padding), timeouts, reconnection (valid and wrong resume token, expired grace, new endpoint).
 - **Fuzz test:** random and truncated bytes fed to every parser must never crash, read out of bounds or
   throw.
 - **Replication tests** (`tests/replication/`): two worlds connected through the simulated link; check that
   spawns, updates, removals and despawns converge under loss, that a snapshot over budget is completed over
   the next ones, and that a manifest mismatch is refused.
 - **Integration:** a `server` and two `client` processes on localhost; kill a client and check that the
-  other one receives `kClientLeft` and that the server keeps its tick rate.
+  other one receives `kClientLeft` and that the server keeps its tick rate. Cut a client's traffic for a few
+  seconds and check that it resumes the same entity with new tokens; cut it for longer than `reconnectGrace` and
+  check that the others receive `kClientLeft`.
 - **Prediction tests:** with the simulated link, a client that predicts must end on the same position as the
   server under loss and delay; a forced server-side push must be corrected without a jump above the
   threshold; replaying zero inputs must change nothing.
@@ -957,6 +1063,11 @@ later:
     visible lie. Predict only the local entity's own movement.
 12. **A predicted system that is not deterministic.** Random numbers or wall-clock time in it make every
     snapshot a correction. Use the fixed step and the input only.
+13. **Reusing the old connection state on a resume.** The sequences, acks, reliable queues and tokens of the lost
+    connection mean nothing to the new one: carrying them over delivers stale reliable messages or rejects the
+    new packets. A resume starts a fresh `Connection` ([6.8](#68-reconnecting-after-a-connection-loss)).
+14. **Repeating the last input of a lingering client.** A held fire button would stay held for the whole grace
+    period. A lingering client gets a neutral input.
 
 ## 15. Build order
 
@@ -967,7 +1078,8 @@ later:
 3. `replication`: manifest, then snapshots with spawns only: the client sees the server world.
 4. Inputs up: the ship moves on the server and on the client.
 5. Updates, removals, despawns, per-entity confirmations, size budget, `kSpawnOnly`: scales to many bullets.
-6. Lobby and rooms, custom packets, interpolation, quantization.
+6. Lobby and rooms, reconnection ([6.8](#68-reconnecting-after-a-connection-loss)), custom packets, interpolation,
+   quantization.
 7. Client prediction and reconciliation of the local ship ([7.6](#76-client-prediction-and-reconciliation)).
 8. Benchmarks, then tune the defaults of [Configuration](#configuration).
 
@@ -986,6 +1098,8 @@ later:
 | Different games in different rooms | No: one server hosts one game (one manifest) for now |
 | Timeout, resend and rate-limit values | Benchmark later ([12](#12-testing)); the current values are defaults |
 | Written protocol description beyond this document | Yes, required (see below) |
+| Reconnection after a short connection loss | The session lingers and is resumed with a secret resume token; fresh session token on every resume; `reconnectGrace` is a setting, default 60 s ([6.8](#68-reconnecting-after-a-connection-loss)) |
+| What happens to a player while lost, and whether the others are told | The engine raises ECS events (`ClientLost`, `ClientReconnected`, and `ConnectionLost`, `Reconnected` on the client), applies a neutral input and tells the other players by default (`kClientLost`, `kClientReconnected`); the game decides what the lost entity does and what to display |
 
 ### Still open
 
