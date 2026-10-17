@@ -16,22 +16,25 @@
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/detail/WorldState.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
 
 namespace rtype::ecs {
-/// @brief The container of one simulation: its entities, its components, its resources and their values.
+/// @brief The container of one simulation: its entities, its components, its resources, its events and their values.
 ///
-/// @details A world owns an entity allocator, its Components (a registry and one pool per registered component)
-/// and its Resources (a registry and one slot per registered resource: a single value owned by the world, like the
-/// time, the input or the renderer). The world itself does what involves several of them: spawning and despawning
-/// entities, and moving the change tick that every part stamps. Nothing is static, so several worlds coexist (a server
-/// and a client world, one world per game room, one per test); component and resource ids are per world, and only names
-/// are shared across worlds and processes.
+/// @details A world owns an entity allocator, its Components (a registry and one pool per registered component), its
+/// Resources (a registry and one slot per registered resource: a single value owned by the world, like the time, the
+/// input or the renderer) and its Events (a registry and one queue per registered event: the messages systems send to
+/// each other). The world itself does what involves several of them: spawning and despawning entities, and moving the
+/// change tick that every part stamps. Nothing is static, so several worlds coexist (a server and a client world, one
+/// world per game room, one per test); component, resource and event ids are per world, and only names are shared
+/// across worlds and processes.
 /// @code
 /// rtype::ecs::World world;
 /// const rtype::ecs::Entity ship = world.spawn();
 /// world.getComponents().add(ship, Health{.value = 100});
 /// world.getResources().insert(Time{});
+/// world.getEvents().send(Collision{.a = ship, .b = enemy});
 /// @endcode
 class RTYPE_ECS_API World {
   public:
@@ -50,6 +53,10 @@ class RTYPE_ECS_API World {
     /// @return The resources of this world: their registry and values.
     [[nodiscard]] Resources& getResources() noexcept;
     [[nodiscard]] const Resources& getResources() const noexcept;
+
+    /// @return The events of this world: their registry and queues.
+    [[nodiscard]] Events& getEvents() noexcept;
+    [[nodiscard]] const Events& getEvents() const noexcept;
 
     /// @return The world's change tick, stamped on every component added or replaced.
     [[nodiscard]] Tick getChangeTick() const noexcept;
