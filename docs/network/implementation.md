@@ -10,6 +10,11 @@ The plan is cut so that a **working prototype** (a server and several clients pl
 can be built in **one to two days** with the ECS as it is today, then grown into the full design without throwing
 code away.
 
+> **Review status: only M1 is reviewed.** The M1 tasks (NET-01 to NET-18) are reviewed and ready to be filed as
+> issues. The tasks of M2 to M8 (NET-19 to NET-45) are a draft kept for later: they give the direction and the
+> order, but they have not been reviewed and will change, in content and in detail, once M1 is built. Do not file
+> them as issues before they are reviewed.
+
 > **Based on the state of the code on 2026-10-18** (`main` at `0692618`): the ECS then had its world, components,
 > resources, events and change ticks, but no queries, systems, scheduler, commands, `App`, prefabs or Luau bridge
 > ([Starting point](#1-starting-point)). When those land, re-check the tasks that work around them (NET-12, NET-16,
@@ -70,7 +75,7 @@ Consequences for the plan:
 
 | Milestone | Goal | Delivers | Blocked by external work |
 |---|---|---|---|
-| **M1 · Prototype** | A tiny game played by several clients on localhost | Transport (bytes, acks, reliable channel, handshake, timeouts), UDP socket, manifest, inputs, full-state snapshots, a demo in `examples/network/Prototype/` | No |
+| **M1 · Prototype** (reviewed) | A tiny game played by several clients on localhost | Transport (bytes, acks, reliable channel, handshake, timeouts), UDP socket, manifest, inputs, full-state snapshots, a demo in `examples/network/Prototype/` | No |
 | **M2 · Scalable replication** | Hundreds of bullets, smooth display | Per-entity confirmations, delta snapshots, `kSpawnOnly`, size budget, interpolation, statistics | No |
 | **M3 · Server architecture and robustness** | The subject's server requirements (N2, N3, N4) | I/O thread, one thread per room, lobby, rate limits, error budget, fuzz and integration tests | No |
 | **M4 · Reconnection** | A short connection loss does not end a game (N8) | Lingering sessions, resume tokens, client retry, ECS events | No |
@@ -1335,6 +1340,9 @@ the server spawns a ship (`Body`, `Owner`, `PlayerInput`) and tracks it; on `Cli
 
 ## 9. M2: Scalable replication
 
+> **Draft, not reviewed.** These tasks are kept for later and will change once M1 is built (see the review
+> status at the top).
+
 ### NET-19 · Snapshot confirmations
 
 | Milestone | Size | Blocked by | Design |
@@ -1427,6 +1435,9 @@ prototype's text dump.
 - [ ] Tests through `SimulatedLink`: loss estimate within 3 % of the link's.
 
 ## 10. M3: Server architecture and robustness
+
+> **Draft, not reviewed.** These tasks are kept for later and will change once M1 is built (see the review
+> status at the top).
 
 ### NET-24 · I/O thread and room queues
 
@@ -1578,6 +1589,9 @@ requirements end to end.
 
 ## 11. M4: Reconnection
 
+> **Draft, not reviewed.** These tasks are kept for later and will change once M1 is built (see the review
+> status at the top).
+
 ### NET-30 · Server: lingering sessions and resume
 
 | Milestone | Size | Blocked by | Design |
@@ -1630,6 +1644,9 @@ connection with new tokens.
 
 ## 12. M5: Custom packets
 
+> **Draft, not reviewed.** These tasks are kept for later and will change once M1 is built (see the review
+> status at the top).
+
 ### NET-33 · Packet schemas
 
 | Milestone | Size | Blocked by | Design |
@@ -1680,6 +1697,9 @@ connection with new tokens.
 
 ## 13. M6: Client prediction
 
+> **Draft, not reviewed.** These tasks are kept for later and will change once M1 is built (see the review
+> status at the top).
+
 ### NET-36 · Prediction and reconciliation
 
 | Milestone | Size | Blocked by | Design |
@@ -1717,6 +1737,9 @@ clientReplicator.setPrediction({componentIds...}, step);   // the same step runs
 - [ ] Tests: small correction fades, large one snaps.
 
 ## 14. M7: Engine integration
+
+> **Draft, not reviewed.** These tasks are kept for later and will change once M1 is built (see the review
+> status at the top).
 
 These tasks wait for the ECS `App`. Until then, M1–M6 run in hand-written loops.
 
@@ -1779,6 +1802,9 @@ These tasks wait for the ECS `App`. Until then, M1–M6 run in hand-written loop
 
 ## 15. M8: Protocol document, docs and tuning
 
+> **Draft, not reviewed.** These tasks are kept for later and will change once M1 is built (see the review
+> status at the top).
+
 ### NET-43 · Protocol document (RFC style)
 
 | Milestone | Size | Blocked by | Design |
@@ -1828,7 +1854,7 @@ Work owned by other modules that some network tasks wait for. None of them block
 
 ## 17. Filing the issues
 
-- One issue per `NET-xx` task, with the **Network Feature** template (`.github/ISSUE_TEMPLATE/network-feature.yml`).
+- File only reviewed tasks (M1 for now). One issue per `NET-xx` task, with the **Network Feature** template (`.github/ISSUE_TEMPLATE/network-feature.yml`).
 - Title: `[Network] NET-xx <task title>` (e.g. `[Network] NET-06 Connection: acks, RTT and message packing`).
 - One epic issue per milestone (`[Network] M1 · Prototype`...), with its tasks as sub-issues.
 - *Blocked by* relationships from the **Blocked by** column; external blockers link to the ECS / render / Luau
