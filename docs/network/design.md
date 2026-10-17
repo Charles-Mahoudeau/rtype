@@ -49,8 +49,9 @@ something the ECS docs say, the change is listed in [Differences with the ECS do
 
 ## 2. Principles
 
-- **The server decides, clients display.** Clients send inputs and never state. The server never trusts what
-  a client sends beyond "these buttons are held".
+- **The server decides, clients display.** Clients send input states (buttons and axes) and permitted
+  intentions (custom packets), never authoritative world state. The server never trusts what a client sends
+  beyond that.
 - **The transport knows nothing about the ECS.** `rtype-network` moves bytes and messages between endpoints.
   Only `rtype-replication` knows both sides.
 - **One owner per piece of data.** Every variable is written by exactly one thread. Threads talk through
@@ -291,8 +292,11 @@ sequenceDiagram
   server can never be used to send more bytes to a forged address than it received (amplification).
 - **Session token.** A random `u32` given in `kAccepted`, carried by every `kData` and `kDisconnect`. A
   packet whose token does not match its endpoint's session is dropped, so forged inputs are rejected. Tokens
-  and challenges come from a `std::mt19937_64` seeded by `std::random_device`; that is not cryptographic, but
-  enough for this scope (see [Security scope](#security-scope)).
+  and challenges are drawn directly from `std::random_device`, never from a seeded pseudo-random generator
+  such as `std::mt19937_64`, whose output a client could use to predict other sessions' values. The standard
+  does not require `random_device` to be secure, but it is backed by the OS on Linux, macOS and MSVC; a
+  platform without a secure source must use the OS call (`getrandom`, `BCryptGenRandom`) instead (see
+  [Security scope](#security-scope)).
 - **Version.** A `kConnectRequest` with another protocol version gets `kRejected{kVersionMismatch}`, so the
   client can show a clear message.
 - **Lost handshake packets.** The client resends `kConnectRequest`, then `kChallengeResponse`, every 100 ms
@@ -434,7 +438,7 @@ server's game.
 | Component | short id `u16`, name, `layoutHash` `u64` | The client's `ComponentInfo::layoutHash` for that name |
 | Custom packet | short id `u16`, name, schema hash `u64` | The client's schema hash for that name ([8](#8-custom-packets)) |
 | Prefab | short id `u16`, name | The client knows the name |
-| Input action | index `u8`, name, kind `u8` (`kButton`, `kAxis`, `kVector2`) | Same name and kind at the same index |
+| Input action | index `u8`, name, kind `u8` (`kButton`, `kAxis`, `kVector2`) | Same name and kind at the same index. At most 32 `kButton` actions (one bit each in `kInput`'s `u32`): the server refuses to start with a larger manifest |
 
 - Short ids are indices in the manifest, entries sorted by name. They are **not** the world's dense
   `ComponentId`s: each world maps short id → its own `ComponentId` by name.
@@ -490,13 +494,18 @@ last confirmed each entity (`knownEntities: NetworkId → Tick`):
 |---|---|
 | Not in `knownEntities` (never confirmed) | **spawn**, with all its replicated components (`kEveryChange` and `kSpawnOnly`) |
 | Known, a `kEveryChange` component changed after its known tick | **update** with those components; a component added since is sent the same way |
-| Known, a replicated component removed after its known tick | **removal** |
+| Known, a replicated component removed after its known tick, and absent now | **removal** |
 | Despawned, and it was sent to this client at least once | **despawn**, until confirmed |
 
 So spawns and despawns are **in the snapshot**, not on a reliable channel. A spawn is repeated in every
 snapshot until the client confirms it (about one round trip, so 1 to 3 times), then never again. Lost
 packets are repaired automatically, and one lost bullet spawn never delays anything else. An entity that
 spawns and despawns before any snapshot includes it is never sent at all.
+
+The diff is computed from the **current** state of each entity compared to its known tick, never from a log of
+operations. A component that was removed and then added again before the client confirmed is present now, so it
+is sent as an update and never as a removal. Otherwise the client, which applies updates before removals,
+would end without the component, and the server would not resend it after the confirmation.
 
 **Confirmations are application-level.** Each `kInput` carries the tick of the last snapshot the client
 **applied** ([7.5](#75-inputs-client--server)). For the last 64 snapshots sent to each client, the server
@@ -541,8 +550,8 @@ u8   input count (1 to 3)
      input × { sequence u32, buttons u32, axes i16 × n }
 ```
 
-- `buttons` has one bit per `kButton` action, in manifest order; bits beyond the number of button actions
-  must be 0. `axes` has one `i16` per `kAxis` action and two per `kVector2` action, in manifest order, mapping
+- `buttons` has one bit per `kButton` action, in manifest order (at most 32, see [7.2](#72-manifest)); bits
+  beyond the number of button actions must be 0. `axes` has one `i16` per `kAxis` action and two per `kVector2` action, in manifest order, mapping
   [-1, 1] to [-32767, 32767].
 - `sequence` is the client's own input counter, incremented once per fixed tick on the client.
 - **Each message carries the last 3 inputs.** If one datagram is lost, the next one still contains its
@@ -761,7 +770,8 @@ and, on every platform, re-arms the receive after any error except `operation_ab
 
 ### Security scope
 
-The challenge and the session token protect against forged source addresses and amplification. **Encryption
+The challenge and the session token protect against forged source addresses and amplification, so they must
+be unpredictable: both come from `std::random_device` ([6.3](#63-connection-lifecycle)). **Encryption
 and authentication are out of scope:** the session token protects against spoofing only, not against an
 attacker who can read the traffic. Cheating is limited by design (the server only accepts inputs), not by
 cryptography.
@@ -773,7 +783,11 @@ cryptography.
 | Approach | Bytes per entity per snapshot | Snapshot | Upload, 20 Hz × 4 clients |
 |---|---|---|---|
 | Naive: `u32` net id and `u32` name hash per component, raw `Transform` (20 B) and `Velocity` (8 B), every entity every time | ~40 | ~12 KB (10 datagrams) | ~7.7 Mbit/s |
-| This design: bullets `kSpawnOnly` (one ~20 B spawn each); the 50 others with `u32` net id, `u16` short id, positions quantized to `i16` | ~11 for the 50 | ~0.6 KB (1 datagram) | ~0.4 Mbit/s |
+| This design: bullets `kSpawnOnly` (one ~20 B spawn each); the 50 others with `u32` net id, `u16` short id, positions quantized to `i16` | ~11 for the 50 | ~0.6 KB in steady state (1 datagram) | ~0.4 Mbit/s |
+
+The 0.6 KB is a steady-state snapshot: it excludes the spawn records of bullets that appeared since the last
+confirmation. Each new bullet costs about 20 B and is repeated in 1 to 3 snapshots, so a burst of spawns adds
+to the snapshot, and what does not fit goes in the next one ([7.4](#74-snapshots-server--client)).
 
 Most of the gain comes from `kSpawnOnly` and quantization, not from compression, which is why there is no
 compression library.

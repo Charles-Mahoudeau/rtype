@@ -6,9 +6,9 @@ Nothing here is implemented yet.
 
 ## In one paragraph
 
-The **server decides everything**; clients only send which buttons are held and display what the server sends
-back. Everything goes over **UDP on a single port**, with a small reliability layer written by us on top of
-**Asio**. The server runs **one thread for the network and one thread per game room**. Each room is a complete
+The **server decides everything**; clients only send their input states (buttons and axes) and permitted
+intentions, never world state, and display what the server sends back. Everything goes over **UDP on a
+single port**, with a small reliability layer written by us on top of **Asio**. The server runs **one thread for the network and one thread per game room**. Each room is a complete
 ECS `App` with its own world and Luau VM. About 60 times per second, each client receives a **snapshot**: the
 entities that appeared, changed or disappeared since the last snapshot it confirmed.
 
@@ -98,13 +98,14 @@ Details: [Connection lifecycle](design.md#63-connection-lifecycle), [Manifest](d
 
 ## Packets and reliability
 
-Every datagram is at most **1200 bytes** (bigger ones get split by the network along the way, and lose
-everything if one piece is lost). It contains a 13-byte header and a list of **messages** on one of two
-channels:
+Every datagram is at most **1200 bytes** (bigger ones would be fragmented by the network, and lose
+everything if one piece is lost: the protocol never fragments, senders split large reliable payloads into
+messages, and an oversized datagram is dropped). It contains a 13-byte header and a list of **messages** on
+one of two channels:
 
 | Channel | Guarantee | Used for |
 |---|---|---|
-| Unreliable | May be lost | Snapshots, inputs: a newer one replaces a lost one anyway |
+| Unreliable | May be lost | Snapshots (a newer one replaces a lost one) and inputs (each datagram repeats the last 3 per-tick samples, so the next one recovers a lost one) |
 | Reliable | Arrives exactly once, in order | Manifest, lobby, "player X left", game events like `PlayerKilled` |
 
 Each datagram confirms the last 33 datagrams it received from the other side (`ack` and `ackBits`). Reliable
@@ -146,7 +147,8 @@ Spawns and despawns are **in the snapshot**, not on the reliable channel: one lo
 anything else. If a snapshot would be too big, what does not fit simply goes in the next one.
 
 **Bullets** are `kSpawnOnly`: sent once when they appear, then moved by the same system on both sides. With
-positions packed into 16-bit integers, 300 entities fit in one datagram instead of ten.
+positions packed into 16-bit integers, a steady-state snapshot of 300 entities fits in one datagram instead of
+ten; a burst of new bullets (about 20 bytes each) spreads over the next snapshots.
 
 On the client, entities are drawn about **100 ms in the past**, smoothly interpolated between two snapshots,
 so motion does not stutter.
