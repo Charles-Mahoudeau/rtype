@@ -90,12 +90,23 @@ class RTYPE_ECS_API World {
     template <Component First, Component... Rest>
     Entity spawn(First first, Rest... rest);
 
+    /// @brief Hands out an entity that becomes alive at the next flushReserved(): commands use it to give a spawned
+    /// entity an id at once, while its creation waits for the flush.
+    /// @details Until then it is not alive: components cannot be added to it, and it is not counted. despawn()
+    /// cancels it.
+    /// @throws exceptions::EntityLimitException When every entity index is in use or retired.
+    [[nodiscard]] Entity reserve();
+
+    /// @brief Makes every entity reserved since the last flush alive, except the ones cancelled in between.
+    void flushReserved();
+
     /// @brief Destroys an entity: removes it from every pool (destroying its values), clears the entity fields of
     /// other components that pointed to it, then frees its index.
     /// @details Every handle to it becomes stale, and its index can be reused under a new generation. A cleared field
     /// reads as the null entity and its value is marked changed. Clearing looks at every value of the components
     /// that have entity fields, so its cost grows with them, not with the whole world.
-    /// @return False, doing nothing, if the entity is not alive.
+    /// A reserved entity (reserve()) is cancelled instead: it has no component yet, and it never becomes alive.
+    /// @return False, doing nothing, if the entity is neither alive nor reserved.
     bool despawn(Entity entity) noexcept;
 
     /// @return Whether the entity was spawned in this world and not despawned since.

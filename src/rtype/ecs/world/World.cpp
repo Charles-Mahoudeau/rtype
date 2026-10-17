@@ -49,7 +49,14 @@ void World::checkChangeTicks() noexcept {
 
 Entity World::spawn() { return _state->entities.allocate(); }
 
+Entity World::reserve() { return _state->entities.reserve(); }
+
+void World::flushReserved() { _state->entities.flushReserved(); }
+
 bool World::despawn(Entity entity) noexcept {
+    if (_state->entities.isReserved(entity)) {
+        return _state->entities.release(entity);  // cancels it: a reserved entity has no component yet
+    }
     if (!isAlive(entity)) {
         return false;
     }
