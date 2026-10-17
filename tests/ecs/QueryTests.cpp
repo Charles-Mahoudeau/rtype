@@ -9,7 +9,9 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <random>
+#include <ranges>
 #include <tuple>
 #include <type_traits>
 #include <vector>
@@ -24,6 +26,7 @@
 #include "rtype/ecs/query/DynamicQuery.hpp"
 #include "rtype/ecs/query/Query.hpp"
 #include "rtype/ecs/query/QueryBuilder.hpp"
+#include "rtype/ecs/query/QueryIteration.hpp"
 #include "rtype/ecs/query/QueryMatch.hpp"
 #include "rtype/ecs/query/QueryTerm.hpp"
 #include "rtype/ecs/query/QueryTerms.hpp"
@@ -241,4 +244,26 @@ TEST(Query, MatchesTheSameEntitiesAsTheDynamicQuery) {
     const std::vector<Entity> expected = matchesOf(*dynamic, 0);
     EXPECT_FALSE(expected.empty());
     EXPECT_EQ(matchesOf(typed), expected);
+}
+
+// Both passes are C++20 input ranges: std::ranges algorithms and views work on them.
+static_assert(std::input_iterator<rtype::ecs::QueryIteration::Iterator>);
+static_assert(std::sentinel_for<std::default_sentinel_t, rtype::ecs::QueryIteration::Iterator>);
+static_assert(std::ranges::input_range<rtype::ecs::QueryIteration>);
+static_assert(std::input_iterator<Query<Position, const Velocity>::Iteration::Iterator>);
+static_assert(std::ranges::input_range<Query<Position, const Velocity>::Iteration>);
+
+TEST(Query, WorksWithRangesAlgorithms) {
+    World world;
+    world.spawn(Health{.value = 5});
+    world.spawn(Health{.value = 50});
+    world.spawn(Health{.value = 500});
+    const Query<const Health> typed{world.getComponents()};
+    EXPECT_EQ(std::ranges::distance(typed.iter(0)), 3);
+    EXPECT_EQ(std::ranges::count_if(typed.iter(0), [](const auto& match) { return std::get<1>(match).value > 10; }), 2);
+
+    const rtype::ecs::Result<rtype::ecs::DynamicQuery> dynamic =
+        rtype::ecs::QueryBuilder{}.read(*world.getComponents().find("test.query.Health")).build(world.getComponents());
+    ASSERT_TRUE(dynamic);
+    EXPECT_EQ(std::ranges::distance(dynamic->iter(0)), 3);
 }
