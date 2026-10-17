@@ -151,7 +151,8 @@ positions packed into 16-bit integers, a steady-state snapshot of 300 entities f
 ten; a burst of new bullets (about 20 bytes each) spreads over the next snapshots.
 
 On the client, entities are drawn about **100 ms in the past**, smoothly interpolated between two snapshots,
-so motion does not stutter.
+so motion does not stutter. The player's own ship is the exception: the client moves it immediately from the
+inputs and the server corrects it if they disagree.
 
 Details: [Snapshots](design.md#74-snapshots-server--client), [Bandwidth estimate](design.md#11-bandwidth-estimate).
 
@@ -233,9 +234,12 @@ Details: [Robustness and security](design.md#10-robustness-and-security).
 4. Inputs: the ship moves.
 5. Updates, despawns, the size limit, `kSpawnOnly`: many bullets.
 6. Lobby and rooms, custom packets, interpolation.
+7. Client prediction of the local ship, then benchmarks to tune the defaults.
 
 ## Still to decide
 
-Snapshot rate (60 or 30 Hz), players per room, whether the local ship skips the 100 ms display delay, and a
-few more: see [Open questions](design.md#16-open-questions). Points where this design differs from the ECS
+The snapshot rate, players per room and the timeouts are settings, tuned later from benchmarks. The local ship is
+predicted by the client and corrected by the server (design [7.6](design.md#76-client-prediction-and-reconciliation)),
+so it does not wait for the 100 ms display delay. What remains is the written protocol description and a few
+tuning values: see [Decisions and open questions](design.md#16-decisions-and-open-questions). Points where this design differs from the ECS
 docs are listed in [Differences with the ECS docs](design.md#13-differences-with-the-ecs-docs).
