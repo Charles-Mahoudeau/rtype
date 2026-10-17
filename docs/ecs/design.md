@@ -535,17 +535,17 @@ void movement(rtype::ecs::Query<Position, const Velocity> query, rtype::ecs::Res
     }
 }
 
-rtype::ecs::DynamicQuery shields = world.queryBuilder()
+rtype::ecs::Result<rtype::ecs::DynamicQuery> shields = rtype::ecs::QueryBuilder{}
     .write(shieldId)
     .without(deadId)
-    .build();
+    .build(world.getComponents());
 ```
 
 | Filter | Matches entities that... |
 |---|---|
 | `With<T>` / `Without<T>` | have / do not have `T` (data not accessed) |
 | `Added<T>` / `Changed<T>` | got / wrote `T` since this system last ran |
-| `Optional<T>` | may lack `T`; yields `nullptr` then |
+| `Optional<T>` | may lack `T`; yields an empty `Mut<T>` (`nullptr` for `Optional<const T>`) then |
 
 Execution: iterate the **smallest** pool among the required components, and check the others.
 
@@ -1360,8 +1360,9 @@ is the same idea as Bevy's modules with a short prelude.
 | `component/` | `rtype::ecs` | `ComponentInfo.hpp` (`ComponentId`, `StorageKind`, `ComponentInfo`), `ComponentTraits.hpp` (`RTYPE_ECS_COMPONENT`), `ComponentRegistry.hpp/.cpp` (`KindTraits<ComponentInfo>`, `ComponentRegistry`), `Components.hpp/.tpp/.cpp` (a world's registry, pools and component API) |
 | `resource/` | `rtype::ecs` | `ResourceInfo.hpp` (`ResourceId`, `ResourceInfo`), `ResourceTraits.hpp` (`RTYPE_ECS_RESOURCE`), `ResourceRegistry.hpp/.cpp` (`ResourceOptions`, `KindTraits<ResourceInfo>`, `ResourceRegistry`), `Resources.hpp/.tpp/.cpp` (a world's registry, slots and resource API) |
 | `storage/` | `rtype::ecs::storage` | `PagedSparseArray`, `ByteColumn`, `SparseSetStorage` (the pool), `ResourceStorage` (a resource slot), `Table` (v3) |
+| `change/` | `rtype::ecs` | `Tick.hpp` (`Tick`, `isNewerThan`, `clampTick`, the check thresholds), `ComponentTicks`, `Mut` (write access stamping ticks) |
 | `world/` | `rtype::ecs` | `World.hpp/.tpp/.cpp`: the coordinator (entities, change tick, `getComponents()`, `getResources()`) |
-| `query/` | `rtype::ecs` | `DynamicQuery` (the single query engine), `Query` (typed queries and filters), `Mut` (write access stamping ticks) |
+| `query/` | `rtype::ecs` | `QueryTerm`, `QueryBuilder`, `DynamicQuery` (the single query engine), `QueryIteration` / `QueryMatch`, `QueryTerms` (`Optional`, `With`, `Without`, `Added`, `Changed`), `TermTraits`, `Query` (typed); `detail::` `QueryMatcher` and `QueryCursor` (the join and the walk, shared) |
 | `system/` | `rtype::ecs` | `System` (parameter deduction, access sets), `Commands`, `Res.hpp` (`Res`, `ResMut`, `NonSend`, `NonSendMut`), `Events` |
 | `schedule/` | `rtype::ecs` | `Scheduler` (phases, ordering), fixed timestep and `Time` |
 | `app/` | `rtype::ecs` | `App`, `Plugin` |
