@@ -135,9 +135,9 @@ src/rtype/network/                rtype::network — rtype-network (shared), Asi
 ├── NetworkSettings.hpp           every transport setting, with the design's defaults
 ├── RandomSource.hpp              std::random_device by default, replaceable in tests
 ├── bytes/                        rtype::network::bytes
-│   └── ByteWriter, ByteReader
+│   └── ByteWriter, ByteReader, WriteStream, ReadStream, Codec (.tpp), Overloaded (NET-04)
 ├── protocol/                     rtype::network::protocol
-│   └── Constants (kProtocolId, kMaxPacketSize...), Sequence (isNewer), SequenceBuffer (.tpp), packets (NET-04)
+│   └── Constants (kProtocolId, kMaxPacketSize...), Sequence (isNewer), SequenceBuffer (.tpp), Packets + PacketCodec
 ├── connection/                   rtype::network::connection
 │   └── Connection, ReliableSender, ReliableReceiver, ConnectionStats
 ├── io/                           rtype::network::io  (the only folder whose .cpp files include Asio)
@@ -270,7 +270,7 @@ flowchart LR
         N01[NET-01 scaffolding]
         N02[NET-02 bytes]
         N03[NET-03 sequences]
-        N04[NET-04 packets]
+        N04[NET-04 codec + packets]
         N05[NET-05 simulated link]
         N06[NET-06 connection]
         N07[NET-07 reliable]
@@ -352,7 +352,7 @@ later task only adds files.
   and `Export.hpp` (`RTYPE_REPLICATION_API`).
 - [ ] `network/Types.hpp`, `network/protocol/Constants.hpp`, `network/NetworkSettings.hpp` with the values of
   [5](#5-values-fixed-by-this-spec) and the design's limits (`kMaxPacketSize = 1200`, `kMaxMessageSize = 1000`,
-  `kProtocolId = 0x52545950`...).
+  `kProtocolId = 0x52545950`, `kHandshakePadding = 64`...).
 - [ ] Root `xmake.lua`: `includes` both modules and add them to the `rtype` phony target.
 - [ ] `tests/network/` (`network-tests`) and `tests/replication/` (`replication-tests`) with one placeholder test
   each, included from `tests/xmake.lua`.
@@ -456,42 +456,173 @@ class SequenceBuffer {
 - [ ] Tests: `isNewer(3, 65530)`, `isNewer(65530, 3) == false`, equal values, the half-range boundary
   (`32768` apart); buffer insert / find / overwrite after `N` sequences / remove, across the wrap.
 
-### NET-04 · Packet codec
+### NET-04 · Generic codec and transport packets
 
 | Milestone | Size | Blocked by | Design |
 |---|---|---|---|
-| M1 | M | NET-02 | [6.2](design.md#62-packets) |
+| M1 | L | NET-02 | [6.1](design.md#61-bytes-on-the-wire), [6.2](design.md#62-packets) |
 
-**Summary.** One struct per packet kind with `encode` and `decode`, so the cores never touch raw bytes.
+**Summary.** One generic codec for every message with a fixed layout: each message type lists its fields **once**,
+in a single `serialize` function used both to write and to read, and a `Codec` gives one `encode` and one `decode`
+for a whole family of messages. The transport packets of design 6.2 are its first user; the manifest (NET-14) and
+the lobby messages (NET-26) reuse it.
 
-**API.**
+**Why not a runtime factory.** A factory where each packet registers an encode and a decode lambda gives one entry
+point too, but the transport's packet kinds are a closed set known at compile time: registering them at runtime
+only moves errors (a missing or duplicated kind) from compile time to run time, adds `std::function` calls, and
+`decode` would still have to return a variant or a type-erased value. A runtime registry is the right tool for an
+open set, which is what custom packets are (NET-33). Writing and reading from the same function also removes the
+classic bug where the encoder and the decoder disagree on the field order.
+
+**API: streams** (`bytes/`, on top of `ByteWriter` / `ByteReader`).
 ```c++
+namespace rtype::network::bytes {
+/// @brief Writing side of a serialize() function. Every call is a no-op once the stream is invalid.
+class RTYPE_NETWORK_API WriteStream {
+  public:
+    explicit WriteStream(ByteWriter& writer) noexcept;
+    template <typename T> void value(const T& value) noexcept;             // integers, floats, wire enums
+    template <typename T> void constant(T expected) noexcept;              // writes `expected`
+    void bytes(std::span<const std::byte> bytes) noexcept;                 // fixed size, known by both sides
+    void string(const std::string& text, std::size_t maxLength) noexcept;  // u8 length + bytes
+    template <typename Count, typename T>
+    void list(const std::vector<T>& items, std::size_t maxCount) noexcept; // Count (u8/u16) + items
+    void padTo(std::size_t size) noexcept;               // zeros until the message is `size` bytes long
+    void rest(std::span<const std::byte> bytes) noexcept; // a trailing payload, until the end of the message
+    [[nodiscard]] bool isValid() const noexcept;
+};
+
+/// @brief Reading side: same functions, taking references to fill. Any failed check makes the stream invalid.
+class RTYPE_NETWORK_API ReadStream {
+  public:
+    explicit ReadStream(ByteReader& reader) noexcept;
+    template <typename T> void value(T& value) noexcept;          // an enum must pass isValidWireValue (below)
+    template <typename T> void constant(T expected) noexcept;     // invalid if the value read differs
+    void bytes(std::span<std::byte> destination) noexcept;
+    void string(std::string& text, std::size_t maxLength) noexcept;
+    template <typename Count, typename T>
+    void list(std::vector<T>& items, std::size_t maxCount) noexcept;   // count above maxCount: invalid
+    void padTo(std::size_t size) noexcept;                // skips the padding (its content is not checked)
+    void rest(std::span<const std::byte>& bytes) noexcept; // points into the decoded buffer, no copy
+    [[nodiscard]] bool isValid() const noexcept;
+};
+
+/// @brief Declared next to every wire enum, found by ADL: `value()` on an enum does not compile without it.
+[[nodiscard]] constexpr bool isValidWireValue(DisconnectReason reason) noexcept;   // 1 to 7, never 0
+}  // namespace rtype::network::bytes
+```
+
+**API: the codec** (`bytes/Codec.hpp` + `Codec.tpp`).
+```c++
+namespace rtype::network::bytes {
+/// @brief A message of a codec: its kind and its fields, listed once for both directions.
+template <typename M, typename Kind>
+concept CodecMessage = std::is_default_constructible_v<M> && requires {
+    { M::kKind } -> std::convertible_to<Kind>;
+};  // + M::serialize(self, stream) callable with a const M& and a WriteStream, and with an M& and a ReadStream
+
+/// @brief Encodes and decodes a closed family of messages: a kind byte, then the message's fields.
+template <typename Kind, typename Variant>
+class Codec;
+
+template <typename Kind, typename... Messages>
+class Codec<Kind, std::variant<Messages...>> {
+    // static_assert: every Messages is a CodecMessage, and no two share a kKind
+  public:
+    using Message = std::variant<Messages...>;
+
+    /// @return False (writer invalid) if it does not fit.
+    template <typename M> static bool encode(const M& message, ByteWriter& writer) noexcept;
+    template <typename M> [[nodiscard]] static Bytes encode(const M& message);
+    [[nodiscard]] static std::optional<Kind> peekKind(std::span<const std::byte> bytes) noexcept;
+    /// @return Nullopt on an unknown kind, a failed check, missing bytes or bytes left over.
+    [[nodiscard]] static std::optional<Message> decode(std::span<const std::byte> bytes) noexcept;
+};
+}  // namespace rtype::network::bytes
+```
+
+`decode` reads the kind byte and jumps to the matching alternative through a table built at compile time from the
+variant (no chain of `if`s). Callers handle the result with `std::visit` or `std::get_if`.
+
+**API: the transport packets** (`protocol/Packets.hpp`).
+```c++
+namespace rtype::network::protocol {
 enum class PacketKind : std::uint8_t {
     kConnectRequest = 0x01, kChallenge = 0x02, kChallengeResponse = 0x03,
     kAccepted = 0x04, kRejected = 0x05, kData = 0x06, kDisconnect = 0x07,
 };
-struct ConnectRequest { std::uint16_t version; ClientId resumeClient; std::uint64_t resumeToken; };
-struct Challenge { std::uint64_t value; };
-struct ChallengeResponse { std::uint64_t value; };
-struct Accepted { std::uint32_t sessionToken; ClientId client; std::uint64_t resumeToken; };
-struct Rejected { RejectReason reason; };
-struct DataHeader { std::uint32_t sessionToken; std::uint16_t sequence; std::uint16_t ack; std::uint32_t ackBits; };
-struct Disconnect { std::uint32_t sessionToken; DisconnectReason reason; };
 
-[[nodiscard]] RTYPE_NETWORK_API std::optional<PacketKind> peekKind(std::span<const std::byte> datagram) noexcept;
-[[nodiscard]] RTYPE_NETWORK_API Bytes encode(const ConnectRequest& packet);   // one overload per struct
-[[nodiscard]] RTYPE_NETWORK_API std::optional<ConnectRequest> decodeConnectRequest(std::span<const std::byte> datagram) noexcept;
-// ... decode for each kind; kData: decodeDataHeader returns the header and the message bytes after it
+struct ConnectRequest {
+    static constexpr PacketKind kKind = PacketKind::kConnectRequest;
+    std::uint16_t version{0};
+    ClientId resumeClient{kNoClient};
+    std::uint64_t resumeToken{0};
+
+    template <typename Self, typename Stream>  // Self is const when writing
+    static void serialize(Self& self, Stream& stream) {
+        stream.constant(kProtocolId);          // wrong protocol id: the datagram is dropped
+        stream.value(self.version);            // a field, so that a mismatch can be answered
+        stream.value(self.resumeClient);
+        stream.value(self.resumeToken);
+        stream.padTo(kHandshakePadding);       // 64 bytes in total, anti-amplification
+    }
+};
+
+struct Data {
+    static constexpr PacketKind kKind = PacketKind::kData;
+    std::uint32_t sessionToken{0};
+    std::uint16_t sequence{0};
+    std::uint16_t ack{0};
+    std::uint32_t ackBits{0};
+    std::span<const std::byte> messages;      // decoded: points into the datagram
+
+    template <typename Self, typename Stream>
+    static void serialize(Self& self, Stream& stream) {
+        stream.value(self.sessionToken);
+        stream.value(self.sequence);
+        stream.value(self.ack);
+        stream.value(self.ackBits);
+        stream.rest(self.messages);
+    }
+};
+// Challenge, ChallengeResponse, Accepted, Rejected, Disconnect: same pattern.
+
+using Packet = std::variant<ConnectRequest, Challenge, ChallengeResponse, Accepted, Rejected, Data, Disconnect>;
+using PacketCodec = bytes::Codec<PacketKind, Packet>;
+}  // namespace rtype::network::protocol
+```
+
+```c++
+// Usage in the cores
+const network::Bytes datagram = PacketCodec::encode(Accepted{.sessionToken = token, .client = id, .resumeToken = resume});
+
+if (const std::optional<Packet> packet = PacketCodec::decode(datagram)) {
+    std::visit(Overloaded{
+        [&](const ConnectRequest& request) { ... },
+        [&](const Data& data) { connection.receive(data, now); },
+        [](const auto&) {},  // kinds this side never receives: dropped
+    }, *packet);
+}
 ```
 
 **Tasks.**
-- [ ] Layouts exactly as design 6.2; protocol id checked in `kConnectRequest` (wrong id: drop).
-- [ ] `kConnectRequest` and `kChallengeResponse` are padded with zeros to 64 bytes; on decode, a size other than 64
-  is rejected (padding content is not checked).
-- [ ] Every decode rejects: wrong kind byte, wrong size for fixed-size kinds, size above `kMaxPacketSize`, enum
-  values out of range (including 0).
-- [ ] Tests: round trip of each kind, exact sizes (`kData` header is 13 bytes), each rejection case, and that every
-  server reply is smaller than 64 bytes (anti-amplification, a `static_assert` on the encoded sizes).
+- [ ] `bytes/WriteStream`, `bytes/ReadStream`, `bytes/Codec.hpp/.tpp`, and a small `Overloaded` helper for
+  `std::visit`.
+- [ ] `isValidWireValue` for every wire enum of [5](#5-values-fixed-by-this-spec) (`DisconnectReason`,
+  `RejectReason`, `PacketKind`...), next to the enum; `value()` on an enum without it is a compile error.
+- [ ] `Codec` checks at compile time that every message has a `kKind` and a `serialize`, and that no two share a
+  kind (`static_assert` with a clear message).
+- [ ] Packet layouts exactly as design 6.2: `kConnectRequest` and `kChallengeResponse` padded to
+  `kHandshakePadding = 64` bytes (any other size is rejected by `padTo` and the leftover check), `kData` header of
+  13 bytes followed by the messages.
+- [ ] No `serialize` contains an `if` on the direction: a message whose layout cannot be written that way does not
+  belong in a codec (snapshots and custom packets, whose fields come from runtime descriptions, have their own
+  serializers, NET-13 and NET-33, and only use the streams).
+- [ ] Tests (`CodecTests.cpp`, with toy messages): round trip; unknown kind; truncated at every byte; one byte left
+  over; enum out of range and 0; `constant` mismatch; `list` above `maxCount`; `string` above `maxLength`;
+  `padTo` on both sides; `rest` empty and full; encode into a buffer too small.
+- [ ] Tests (`PacketsTests.cpp`): round trip of each packet, exact encoded sizes, wrong protocol id, wrong padded
+  size, and that every server reply is smaller than 64 bytes (anti-amplification, `static_assert` on sizes).
 
 ### NET-05 · Simulated link and fake clock
 
@@ -541,8 +672,9 @@ class RTYPE_NETWORK_API Connection {
 
     /// @return False (and nothing queued) if the payload is empty or above kMaxMessageSize.
     bool send(Channel channel, std::span<const std::byte> payload);
-    /// @brief Processes one kData datagram whose token was already checked. Returns false if it is malformed.
-    bool receive(std::span<const std::byte> datagram, TimePoint now);
+    /// @brief Processes one decoded kData packet whose token was already checked. Returns false if its messages
+    /// are malformed.
+    bool receive(const protocol::Data& packet, TimePoint now);
     /// @brief Datagrams to send now: queued messages, and an empty keepalive if nothing was sent for `keepalive`.
     [[nodiscard]] std::vector<Bytes> buildPackets(TimePoint now);
     [[nodiscard]] std::vector<ReceivedMessage> takeMessages();
@@ -898,6 +1030,8 @@ class RTYPE_REPLICATION_API ManifestReceiver {
 ```
 
 **Tasks.**
+- [ ] The manifest messages (`kManifestComponent`, `kManifestInputAction`, `kManifestEnd`...) are messages of a
+  `ManifestCodec = network::bytes::Codec<MessageType, std::variant<...>>` (NET-04); no hand-written encoder.
 - [ ] Replicated components: `TypeRegistry::getReplicatedIds()`, excluding `Presence::kClientOnly`, sorted by name;
   short id = index.
 - [ ] Manifest hash: FNV-1a (`hashString` / `hashInteger`) over every entry in order (entry type, short id, name,
@@ -949,6 +1083,8 @@ class InputBuffer {
 ```
 
 **Tasks.**
+- [ ] `kInput` is written with the NET-04 streams but not through a `Codec`: its number of axes comes from the
+  `InputLayout`, which a `serialize` function cannot know. `encode` / `decode` take the layout.
 - [ ] Actions sorted by name; button `i` is the `i`-th `kButton` action; axis slots in order, two per `kVector2`;
   at most `kMaxInputAxes` slots.
 - [ ] Axes on the wire as `i16`, `[-1, 1] ↔ [-32767, 32767]`, clamped on encode; on decode, `-32768` is clamped to
@@ -1015,7 +1151,7 @@ applies them, NET-17).
   component it has), until `kMaxMessageSize`; `kComplete` if all fit; `last processed input` per client.
 - [ ] Log (rate-limited) when a snapshot does not fit; never send more than one snapshot per client per tick.
 - [ ] Tests (no socket: events in, commands out): ids increasing and never reused; connect / disconnect events;
-  inputs applied to the right entity; repeated input; snapshot content decoded by NET-04/13 helpers; `kComplete`
+  inputs applied to the right entity; repeated input; snapshot content decoded with `snapshot::Snapshot`; `kComplete`
   cleared above the budget.
 
 ### NET-17 · Client replicator
@@ -1271,7 +1407,8 @@ reliable messages.
 
 **Tasks.**
 - [ ] Message types `0x01`–`0x08` of design 9 (`kRoomListRequest`, `kRoomList`, `kCreateRoom`, `kJoinRoom`,
-  `kLeaveRoom`, `kRoomJoined`, `kRoomError`, `kClientLeft`), handled on the I/O thread; `kCreateRoom` forwarded to
+  `kLeaveRoom`, `kRoomJoined`, `kRoomError`, `kClientLeft`) as messages of a `LobbyCodec` (NET-04), handled on the
+  I/O thread; `kCreateRoom` forwarded to
   the main thread's `RoomManager` and the creator joined when it is registered.
 - [ ] `ClientJoined` now pushed on join (no auto-join); leave / disconnect → `ClientLeft` to the room and
   `kClientLeft` to the other clients of the room.
@@ -1309,7 +1446,7 @@ reliable messages.
 **Summary.** Random and truncated bytes fed to every parser must never crash, throw or read out of bounds.
 
 **Tasks.**
-- [ ] A GoogleTest suite that, for each parser (packet decoders, `Connection::receive`, `ServerCore::receive`,
+- [ ] A GoogleTest suite that, for each parser (every `Codec::decode`, `Connection::receive`, `ServerCore::receive`,
   `ClientCore::receive`, manifest, input, snapshot, custom packet), feeds 100 000 random buffers and every
   truncation and single-byte mutation of a valid one. Seeded and reproducible.
 - [ ] Optional libFuzzer targets behind an xmake option (`--Fuzz=y`, Clang only), not in CI.
