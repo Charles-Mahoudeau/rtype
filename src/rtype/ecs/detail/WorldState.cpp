@@ -10,10 +10,13 @@
 #include <format>
 #include <string_view>
 
+#include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/ComponentRegistry.hpp"
 #include "rtype/ecs/error/Error.hpp"
 #include "rtype/ecs/error/Result.hpp"
+#include "rtype/ecs/event/EventInfo.hpp"
 #include "rtype/ecs/event/EventRegistry.hpp"
+#include "rtype/ecs/resource/ResourceInfo.hpp"
 #include "rtype/ecs/resource/ResourceRegistry.hpp"
 #include "rtype/ecs/type/TypeTraits.hpp"
 
