@@ -402,6 +402,43 @@ TEST(World, DespawnOfAnEntityThatIsNotAliveDoesNothing) {
     EXPECT_TRUE(world.isAlive(entity));
 }
 
+TEST(World, AReservedEntityIsAliveOnlyAfterTheFlush) {
+    World world;
+    const Entity reserved = world.reserve();
+    EXPECT_FALSE(reserved.isNull());
+    EXPECT_FALSE(world.isAlive(reserved));
+    EXPECT_EQ(world.getEntityCount(), 0U);
+    EXPECT_FALSE(world.getComponents().add(reserved, Position{}));  // not alive yet
+
+    world.flushReserved();
+    EXPECT_TRUE(world.isAlive(reserved));
+    EXPECT_EQ(world.getEntityCount(), 1U);
+    EXPECT_TRUE(world.getComponents().add(reserved, Position{}));
+}
+
+TEST(World, ReservedAndSpawnedEntitiesAreDistinct) {
+    World world;
+    const Entity reserved = world.reserve();
+    const Entity spawned = world.spawn();
+    EXPECT_NE(reserved, spawned);
+    world.flushReserved();
+    EXPECT_TRUE(world.isAlive(reserved));
+    EXPECT_TRUE(world.isAlive(spawned));
+}
+
+TEST(World, DespawnCancelsAReservedEntity) {
+    World world;
+    const Entity cancelled = world.reserve();
+    const Entity kept = world.reserve();
+    EXPECT_TRUE(world.despawn(cancelled));
+    EXPECT_FALSE(world.despawn(cancelled));  // already cancelled
+
+    world.flushReserved();
+    EXPECT_FALSE(world.isAlive(cancelled));  // a cancelled entity never becomes alive
+    EXPECT_TRUE(world.isAlive(kept));
+    EXPECT_EQ(world.getEntityCount(), 1U);
+}
+
 TEST(World, DespawnRemovesTheEntityFromEveryPool) {
     World world;
     const ComponentId brain = *world.getComponents().registerType(makeBrain());
