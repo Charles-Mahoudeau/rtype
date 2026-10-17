@@ -80,7 +80,7 @@ sequenceDiagram
     C->>S: connect request (protocol version)
     S->>C: challenge (random number)
     C->>S: same number back
-    S->>C: accepted (session token, client id)
+    S->>C: accepted (session token, resume token, client id)
     S->>C: manifest (every component, packet, prefab, input action)
     C->>S: ready → lobby
 ```
@@ -91,10 +91,29 @@ sequenceDiagram
 - **Manifest:** the list of every component and packet the server knows, each with a hash of its layout. If
   the client's scripts differ ("update your game"), the client refuses to connect instead of misreading
   data later. After that, the wire uses 2-byte ids instead of names.
-- **Crash detection:** a client silent for 2 seconds is disconnected, and the other players of its room are
-  told (`kClientLeft`).
+- **Crash detection:** a client silent for 2 seconds is considered lost. It then has a grace period (60 s by
+  default, a setting) to reconnect; if it does not, it is removed and the other players of its room are told
+  (`kClientLeft`).
 
 Details: [Connection lifecycle](design.md#63-connection-lifecycle), [Manifest](design.md#72-manifest).
+
+## Reconnecting
+
+A lost wifi must not end the game. After 2 s of silence, the server keeps the player's session **lingering**
+instead of closing it, and the client keeps retrying with a secret **resume token** it received when it
+connected.
+
+- On a valid token the server rebinds the session to the client's new address (a network change is fine), gives
+  it **fresh session and resume tokens**, and sends the whole world again as spawns. The old tokens are dead.
+- After the grace period (`reconnectGrace`, 60 s by default, `0` to disable) the session is closed as for any
+  departure.
+- The other players of the room are told by default (`kClientLost`, `kClientReconnected`), and every side
+  gets an ECS event (`ClientLost`, `ClientReconnected`; `ConnectionLost`, `Reconnected` for the client's own
+  connection) that the game can use or ignore.
+- The engine is generic: it keeps the ship in the world with a neutral input. Whether it freezes, is invulnerable
+  or disappears is up to the game.
+
+Details: [Reconnecting after a connection loss](design.md#68-reconnecting-after-a-connection-loss).
 
 ## Packets and reliability
 
@@ -221,7 +240,7 @@ Details: [Robustness and security](design.md#10-robustness-and-security).
 |---|---|
 | Notify clients of spawns, moves, deaths, shots, kills, other players' actions | Snapshots, plus custom packets like `PlayerKilled` |
 | The server is multithreaded and never waits for clients | Network thread plus one thread per room |
-| A client crash does not stop the server, and the others are told | 2 s timeout, `kClientLeft` to the room |
+| A client crash does not stop the server, and the others are told | 2 s timeout, a grace period to reconnect, then `kClientLeft` to the room |
 | The server is robust | Checked parsing, limits, the Windows fix, fuzz tests |
 | Asio or OS sockets | Asio, with our own reliability layer (no ENet) |
 
