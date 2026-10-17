@@ -55,8 +55,8 @@ class RTYPE_ECS_API Resources {
     /// @brief Registers a C++ resource, or returns its id if it is already registered with the same options.
     /// @details insert() and insertNonSend() register the resource themselves; call this to know its id, or to
     /// register it before its value exists.
-    /// @throws exceptions::ResourceRegistrationException When the name is taken by another layout, by a component,
-    /// or is registered with the other main-thread flag.
+    /// @throws exceptions::ResourceRegistrationException When the name is taken by another layout, by a component or
+    /// an event, or is registered with the other main-thread flag.
     template <Resource T>
     ResourceId registerType(ResourceOptions options = {});
 
@@ -157,8 +157,8 @@ class RTYPE_ECS_API Resources {
     /// @return The world's change tick, stamped on every value inserted or written.
     [[nodiscard]] Tick getChangeTick() const noexcept;
 
-    /// @brief Checks that `name` is not a component: a name is either a component or a resource, so the Luau
-    /// bridge, the network manifest and save files can resolve it alone.
+    /// @brief Checks that `name` is not taken by another kind of type (WorldState::checkNameFree()). A member, so the
+    /// templates, which only see a declaration of WorldState, can call it.
     /// @return Nothing when the name is free, or an ErrorKind::kNameCollision error.
     [[nodiscard]] Result<void> checkNameFree(std::string_view name) const;
 

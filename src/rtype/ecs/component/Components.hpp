@@ -59,7 +59,7 @@ class RTYPE_ECS_API Components {
     /// @details Call it before the component is first added to set non-default options: adding registers the
     /// component with the default ones.
     /// @throws exceptions::ComponentRegistrationException When the name is taken by another layout, other
-    /// options, or a resource.
+    /// options, a resource or an event.
     template <Component T>
     ComponentId registerType(ComponentOptions options = {});
 
@@ -152,8 +152,8 @@ class RTYPE_ECS_API Components {
     /// @return Whether the entity is alive in the world.
     [[nodiscard]] bool isAlive(Entity entity) const noexcept;
 
-    /// @brief Checks that `name` is not a resource: a name is either a component or a resource, so the Luau bridge,
-    /// the network manifest and save files can resolve it alone.
+    /// @brief Checks that `name` is not taken by another kind of type (WorldState::checkNameFree()). A member, so the
+    /// templates, which only see a declaration of WorldState, can call it.
     /// @return Nothing when the name is free, or an ErrorKind::kNameCollision error.
     [[nodiscard]] Result<void> checkNameFree(std::string_view name) const;
 

@@ -13,6 +13,7 @@
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/detail/WorldState.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
 
 namespace rtype::ecs {
@@ -23,6 +24,10 @@ const Components& World::getComponents() const noexcept { return _state->compone
 Resources& World::getResources() noexcept { return _state->resources; }
 
 const Resources& World::getResources() const noexcept { return _state->resources; }
+
+Events& World::getEvents() noexcept { return _state->events; }
+
+const Events& World::getEvents() const noexcept { return _state->events; }
 
 Tick World::getChangeTick() const noexcept { return _state->changeTick; }
 
