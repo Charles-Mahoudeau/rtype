@@ -35,6 +35,8 @@ Components::Components(const detail::WorldState& state) noexcept : _state{&state
 
 const ComponentRegistry& Components::getRegistry() const noexcept { return _registry; }
 
+Tick Components::getChangeTick() const noexcept { return _state->changeTick; }
+
 Result<ComponentId> Components::registerType(ComponentInfo info) {
     if (Result<void> free = checkNameFree(info.type.name); !free) {
         return tl::unexpected<Error>{std::move(free.error())};
@@ -120,6 +122,14 @@ std::optional<ComponentTicks> Components::getTicks(Entity entity, ComponentId id
                           .changed = *std::next(pool->getChangedTicks().begin(), *position)};
 }
 
+storage::SparseSetStorage* Components::findPool(ComponentId id) noexcept {
+    return id < _pools.size() ? &*std::next(_pools.begin(), id) : nullptr;
+}
+
+const storage::SparseSetStorage* Components::findPool(ComponentId id) const noexcept {
+    return id < _pools.size() ? &*std::next(_pools.begin(), id) : nullptr;
+}
+
 void Components::removeAll(Entity entity) noexcept {
     // Every pool is checked: an O(1) lookup each. A per-entity list of its pools may replace the scan later.
     for (storage::SparseSetStorage& pool : _pools) {
@@ -168,8 +178,6 @@ void Components::clampTicks(Tick now) noexcept {
 
 bool Components::isAlive(Entity entity) const noexcept { return _state->entities.isAlive(entity); }
 
-Tick Components::getChangeTick() const noexcept { return _state->changeTick; }
-
 Result<void> Components::checkNameFree(std::string_view name) const {
     return _state->checkNameFree(name, TypeKind::kComponent);
 }
@@ -179,13 +187,5 @@ void Components::createPools(ComponentId id) {
     while (_pools.size() <= id) {
         _pools.emplace_back(*_registry.findById(static_cast<ComponentId>(_pools.size())));
     }
-}
-
-storage::SparseSetStorage* Components::findPool(ComponentId id) noexcept {
-    return id < _pools.size() ? &*std::next(_pools.begin(), id) : nullptr;
-}
-
-const storage::SparseSetStorage* Components::findPool(ComponentId id) const noexcept {
-    return id < _pools.size() ? &*std::next(_pools.begin(), id) : nullptr;
 }
 }  // namespace rtype::ecs

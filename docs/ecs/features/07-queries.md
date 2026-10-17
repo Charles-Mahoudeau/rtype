@@ -51,23 +51,57 @@ void cleanup(rtype::ecs::Query<const Transform, rtype::ecs::With<Enemy>, rtype::
 |---|---|---|
 | `T` | required, written | `Mut<T>` (see [Change detection](08-change-detection.md)) |
 | `const T` | required, read | `const T&` |
-| `Optional<T>` | may be absent | `const T*` / `Mut<T>` that may be empty |
+| `Optional<T>` / `Optional<const T>` | may be absent | `Mut<T>` that may be empty / `const T*` that may be null |
 | `With<T>` / `Without<T>` | presence / absence, no access | nothing |
 | `Added<T>` / `Changed<T>` | added / written since this system last ran | nothing |
+
+Until systems exist (#121), a query is built from the world's components and iterated with the tick the
+caller last ran at; the scheduler will do both for system parameters:
+
+```c++
+const rtype::ecs::Query<Position, const Velocity, rtype::ecs::Without<Dead>> movement{world.getComponents()};
+
+for (auto [entity, position, velocity] : movement.iter(lastRun)) {  // Mut<Position>, const Velocity&
+    position->x += velocity.x;
+}
+lastRun = world.getChangeTick();
+```
+
+- **A match is a `std::tuple`** of the entity and one item per term that has one (filters yield nothing),
+  in term order; bind it with `auto [...]`.
+- **Building registers** each term's component with the default options if it is not registered yet
+  (one already registered keeps its options), so a query can exist before its first entity.
+- **Invalid combinations do not compile** (`ValidQuery<Terms...>`, see [Rules](#rules)).
+- **No allocation:** the typed pass keeps its buffers in `std::array`s sized by the term count.
 
 ### Dynamic
 
 ```c++
-rtype::ecs::DynamicQuery query = world.queryBuilder()
+rtype::ecs::Result<rtype::ecs::DynamicQuery> query = rtype::ecs::QueryBuilder{}
     .write(shieldId)
     .read(positionId)
     .without(deadId)
-    .build();
+    .build(world.getComponents());          // an Error (kInvalidQuery) instead of an exception
 
-query.each([](rtype::ecs::Entity entity, std::span<void* const> components) {
-    // components[0] -> game.Shield bytes, components[1] -> rtype.Position bytes
-});
+for (rtype::ecs::QueryMatch& match : query->iter(lastRun)) {
+    rtype::ecs::Entity entity = match.getEntity();
+    std::span<std::byte> shield = match.getMut(0);         // data term 0: game.Shield, marked changed
+    std::span<const std::byte> position = match.get(1);    // data term 1: rtype.Position, read only
+}
 ```
+
+| Builder call | Term | Data term |
+|---|---|---|
+| `read(id)` / `write(id)` | required | yes |
+| `optionalRead(id)` / `optionalWrite(id)` | may be absent (empty bytes then) | yes |
+| `with(id)` / `without(id)` | presence / absence | no |
+| `added(id)` / `changed(id)` | required, stamped after `lastRun` | no |
+
+- **Values are numbered by data term**, in the order given; filters are not numbered.
+- **`get(i)` never marks anything; `getMut(i)` marks the value changed** (it only has bytes, so it
+  cannot tell a read from a write) and returns empty for a read term: the bridge cannot write what the
+  script declared read-only.
+- **The pass allocates its two small buffers once**, when `iter()` starts; stepping never allocates.
 
 The [Luau bridge](19-luau-bridge.md) wraps this so a script iterates `for entity, shield, position in
 ctx.query do`.
@@ -105,14 +139,46 @@ list of matching tables, and sparse components are checked per entity.
 
 ### Building once
 
-Resolving `T` to ids, checking access conflicts and (v3) matching tables happen **when the query is
-built**, which for a system is when it is registered. Per frame, only the iteration runs.
+Resolving `T` to ids, checking the terms and (v3) matching tables happen **when the query is built**,
+which for a system is when it is registered. Per frame, only the iteration runs: `iter()` looks the pools
+up again (registering a component may move them), picks the driver, and walks.
+
+A query keeps a pointer to the world's components, so it only iterates the world it was built for, and
+**the world must outlive its queries** (the App will own both).
+
+### Rules
+
+The same rules for both kinds, from one function (`findConflict()`): `DynamicQuery::create()` returns an
+error naming the component, and `Query<Terms...>` does not compile.
+
+| Rejected | Example | Why |
+|---|---|---|
+| No required term | `Optional<Position>` alone, `Without<Dead>` alone | it would mean "every entity", with no pool to walk |
+| Two data terms on one component | `Position, const Position` | which one gives the value? |
+| The same term twice | `Position, Position`, `Changed<A>, Changed<A>` | two writable terms of one type are a compile error |
+| `Without<T>` with another term on `T` | `const Position, Without<Position>` | it could never match |
+| A data term on a tag (typed only) | `Query<Dead>` | a tag has no value: use `With<Dead>` |
+| An unknown id (dynamic only) | `read(42)` | not registered in this world |
+
+Allowed on purpose: a data term with a filter on the same component (`Position, Changed<Position>`:
+"write the positions that changed"), and `Added<T>` with `Changed<T>`.
 
 ### Access and conflicts
 
-A query's access set (reads and writes per component) is what the [scheduler](13-scheduler.md) uses to
-order systems, and later to run disjoint ones in parallel. Two terms that write the same component in
-one query are rejected at build time.
+A query's access set (`getAccess()`: each component it reads or writes, once, a write winning over a read)
+is what the [scheduler](13-scheduler.md) uses to order systems, and later to run disjoint ones in
+parallel. `Added` / `Changed` count as reads (they read the ticks); `With` / `Without` access nothing.
+
+### How the code is split
+
+| Piece | Role |
+|---|---|
+| `QueryTerm` | a component id and a `TermKind`; the term classifications and `findConflict()` |
+| `QueryBuilder` / `DynamicQuery` | collect and check the terms; data term numbering; access set; `iter()` |
+| `detail::QueryMatcher` | `findDriver()` and `matchEntity()`: the one join algorithm |
+| `detail::QueryCursor<Pools, Positions>` | the walk over the driver pool, shared by both passes (vectors or arrays) |
+| `QueryIteration` / `QueryMatch` | the dynamic pass and what its loop body sees |
+| `QueryTerms` / `TermTraits` / `Query` | the C++ terms, their mapping to `TermKind`s and items, the typed pass |
 
 ## Connections
 
@@ -130,7 +196,11 @@ one query are rejected at build time.
 - **Writing through a read-only term.** `const T` gives `const T&`; for Luau the bridge enforces it by
   refusing writes to components declared as `read`.
 - **Marking everything changed.** Iterating `Query<Position>` without writing must not stamp ticks;
-  `Mut<T>` only stamps on mutable access.
+  `Mut<T>` only stamps on mutable access. By id, prefer `get(i)` and call `getMut(i)` only to write.
+- **A query outliving its world.** It keeps a plain pointer to the world's components: destroy queries
+  first (the App will).
+- **Iterating a pass twice.** A pass is single: a second `begin()` continues where the first stopped. Call
+  `iter()` again for a new pass.
 
 ## Open questions
 
