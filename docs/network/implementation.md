@@ -612,6 +612,108 @@ if (const std::optional<Packet> packet = PacketCodec::decode(datagram)) {
 }
 ```
 
+**How the templates expand.** The templates only save writing code by hand. Here is what the compiler generates
+from them, written out.
+
+*`serialize`: one function written, two generated.* A template is a recipe; the compiler fills in the types at
+each call. `Codec::encode` calls `Accepted::serialize` with a `const Accepted` and a `WriteStream`, and
+`Codec::decode` calls it with an `Accepted` and a `ReadStream`, so the compiler produces two ordinary functions:
+
+```c++
+// Self = const Accepted, Stream = WriteStream: used by encode
+static void serialize(const Accepted& self, WriteStream& stream) {
+    stream.value(self.sessionToken);  // WriteStream::value: writes 4 bytes
+    stream.value(self.client);
+    stream.value(self.resumeToken);
+}
+
+// Self = Accepted, Stream = ReadStream: used by decode
+static void serialize(Accepted& self, ReadStream& stream) {
+    stream.value(self.sessionToken);  // ReadStream::value: reads 4 bytes into self.sessionToken
+    stream.value(self.client);
+    stream.value(self.resumeToken);
+}
+```
+
+The body is the same text; because both streams have a `value` function, the same line writes in one version and
+reads in the other. The field list exists once, so the two directions cannot disagree. `value` is itself a
+template: `value(self.sessionToken)` with a `std::uint32_t` generates a version that writes (or reads) 4 bytes, with
+a `std::uint64_t` one that handles 8, and so on.
+
+*The decode table: a `switch` written by the compiler.* When a datagram arrives, only its first byte says which
+message it is, and that byte is only known at run time. Written by hand, decoding would be a `switch`:
+
+```c++
+switch (reader.readU8()) {
+    case 0x01: return decodeAs<ConnectRequest>(reader);
+    case 0x02: return decodeAs<Challenge>(reader);
+    // ... one case per packet
+    default: return std::nullopt;
+}
+```
+
+This works, but every codec (packets, manifest, lobby) needs its own `switch`, and a message added to the variant
+but forgotten in the `switch` compiles and is silently dropped at run time. The codec builds the same dispatch from
+the variant instead:
+
+```c++
+template <typename M>
+static std::optional<Message> decodeAs(ByteReader& reader) {
+    M message{};
+    ReadStream stream{reader};
+    M::serialize(message, stream);
+    if (!stream.isValid() || !reader.isFinished()) {  // failed check, truncated, or bytes left over
+        return std::nullopt;
+    }
+    return Message{std::move(message)};
+}
+
+using DecodeFn = std::optional<Message> (*)(ByteReader&);
+
+static constexpr std::array<DecodeFn, 256> kTable = [] {
+    std::array<DecodeFn, 256> table{};  // nullptr: unknown kind
+    ((table[static_cast<std::uint8_t>(Messages::kKind)] = &decodeAs<Messages>), ...);
+    return table;
+}();
+
+static std::optional<Message> decode(std::span<const std::byte> bytes) noexcept {
+    ByteReader reader{bytes};
+    const DecodeFn decoder = kTable[reader.readU8()];
+    return (reader.isValid() && decoder != nullptr) ? decoder(reader) : std::nullopt;
+}
+```
+
+The line with `, ...)` is a *fold expression*: it repeats the statement once per type of `Messages...`, the list
+of the variant's alternatives. For the packet codec it expands to exactly:
+
+```c++
+table[0x01] = &decodeAs<ConnectRequest>;
+table[0x02] = &decodeAs<Challenge>;
+table[0x03] = &decodeAs<ChallengeResponse>;
+table[0x04] = &decodeAs<Accepted>;
+table[0x05] = &decodeAs<Rejected>;
+table[0x06] = &decodeAs<Data>;
+table[0x07] = &decodeAs<Disconnect>;
+```
+
+So `kTable` holds the same lines as the hand-written `switch`, built at compile time (the lambda is `constexpr`),
+and `decode` is one array lookup. A message is listed in one place only, the variant, and a duplicated `kKind` is
+caught by a `static_assert` built the same way. This is why the template is kept rather than one `switch` per
+codec: three codecs (packets, manifest, lobby) share it, and forgetting a message is impossible.
+
+*Example.* `Accepted{.sessionToken = 0xA1B2C3D4, .client = 7, .resumeToken = 1}` encodes to 17 bytes:
+
+```
+04                         kKind (kAccepted), written by Codec::encode
+D4 C3 B2 A1                sessionToken, u32 little-endian
+07 00 00 00                client
+01 00 00 00 00 00 00 00    resumeToken
+```
+
+Decoding: byte `04` selects `decodeAs<Accepted>`, `serialize` reads the three fields, `isFinished()` confirms that
+nothing is left. With an 18th byte, or a datagram cut at 12 bytes, `decode` returns `std::nullopt` and the datagram
+is dropped.
+
 **Tasks.**
 - [ ] `bytes/WriteStream`, `bytes/ReadStream`, `bytes/Codec.hpp/.tpp`, and a small `Overloaded` helper for
   `std::visit`.
