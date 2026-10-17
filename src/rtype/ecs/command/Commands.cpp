@@ -22,6 +22,13 @@
 #include "rtype/ecs/world/World.hpp"
 
 namespace rtype::ecs {
+Commands::EntityCommands::EntityCommands(Commands& commands, Entity entity) noexcept
+    : _commands{&commands}, _entity{entity} {}
+
+Entity Commands::EntityCommands::getEntity() const noexcept { return _entity; }
+
+void Commands::EntityCommands::despawn() { _commands->despawn(_entity); }
+
 Commands::Commands(World& world) noexcept : _world{&world} {}
 
 Commands::~Commands() { clear(); }
@@ -54,7 +61,7 @@ std::size_t Commands::getCount() const noexcept { return _records.size(); }
 
 bool Commands::isEmpty() const noexcept { return _records.empty(); }
 
-Entity Commands::spawn() {
+Commands::EntityCommands Commands::spawn() {
     const Entity entity = _world->reserve();
     try {
         _reserved.push_back(entity);
@@ -62,8 +69,10 @@ Entity Commands::spawn() {
         _world->despawn(entity);  // cancels the reservation this buffer could not track
         throw;
     }
-    return entity;
+    return EntityCommands{*this, entity};
 }
+
+Commands::EntityCommands Commands::entity(Entity entity) noexcept { return EntityCommands{*this, entity}; }
 
 bool Commands::add(Entity entity, ComponentId id, std::span<const std::byte> value) {
     const std::optional<std::uint32_t> column = columnOf(id);

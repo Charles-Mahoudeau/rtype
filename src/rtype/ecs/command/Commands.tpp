@@ -10,6 +10,7 @@
 #include <iterator>
 #include <optional>
 #include <span>
+#include <utility>
 
 #include "rtype/ecs/type/TypeTraits.hpp"
 
@@ -29,6 +30,18 @@ void Commands::add(Entity entity, T value) {
 template <Component T>
 void Commands::remove(Entity entity) {
     _records.push_back(Record{.kind = Kind::kRemove, .entity = entity, .column = columnOf<T>(), .index = 0});
+}
+
+template <Component T>
+Commands::EntityCommands& Commands::EntityCommands::add(T value) {
+    _commands->add(_entity, std::move(value));
+    return *this;
+}
+
+template <Component T>
+Commands::EntityCommands& Commands::EntityCommands::remove() {
+    _commands->remove<T>(_entity);
+    return *this;
 }
 
 template <Component T>

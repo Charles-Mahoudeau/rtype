@@ -84,7 +84,7 @@ TEST(Commands, StartsEmpty) {
 TEST(Commands, ASpawnedEntityIsUsableBeforeTheFlushAndAliveAfter) {
     World world;
     Commands commands{world};
-    const Entity ship = commands.spawn();
+    const Entity ship = commands.spawn().getEntity();
     EXPECT_FALSE(world.isAlive(ship));
     commands.add(ship, Position{.x = 1.F, .y = 2.F});  // usable at once
     EXPECT_FALSE(world.getComponents().has<Position>(ship));
@@ -217,7 +217,7 @@ TEST(Commands, DespawnsAndCancelsSpawns) {
     World world;
     const Entity enemy = world.spawn();
     Commands commands{world};
-    const Entity bullet = commands.spawn();
+    const Entity bullet = commands.spawn().getEntity();
     commands.despawn(bullet);  // spawned then despawned in the same buffer
     commands.despawn(enemy);
     commands.flush();
@@ -248,7 +248,7 @@ TEST(Commands, DiscardingDestroysValuesAndCancelsSpawns) {
     Entity reserved;
     {
         Commands commands{world};
-        reserved = commands.spawn();
+        reserved = commands.spawn().getEntity();
         commands.add(entity, Tracked{.name = "lost"});
         commands.add(reserved, Tracked{.name = "lost too"});
         EXPECT_EQ(liveTracked, 2);
@@ -265,7 +265,7 @@ TEST(Commands, ClearDiscardsAndTheBufferStaysUsable) {
     World world;
     const Entity entity = world.spawn();
     Commands commands{world};
-    const Entity reserved = commands.spawn();
+    const Entity reserved = commands.spawn().getEntity();
     commands.add(entity, Tracked{.name = "lost"});
     commands.clear();
     EXPECT_TRUE(commands.isEmpty());
@@ -281,7 +281,7 @@ TEST(Commands, DiscardDespawnsAnEntityAnotherFlushMadeAlive) {
     World world;
     Commands first{world};
     Commands second{world};
-    const Entity orphan = first.spawn();
+    const Entity orphan = first.spawn().getEntity();
     second.flush();  // flushes every reservation of the world, including `first`'s
     EXPECT_TRUE(world.isAlive(orphan));
     first.clear();
@@ -292,7 +292,7 @@ TEST(Commands, MovingLeavesTheSourceEmpty) {
     World world;
     const Entity entity = world.spawn();
     Commands source{world};
-    const Entity reserved = source.spawn();
+    const Entity reserved = source.spawn().getEntity();
     source.add(entity, Health{.value = 5});
     Commands target{std::move(source)};
     EXPECT_TRUE(source.isEmpty());  // NOLINT(bugprone-use-after-move): checking the moved-from state is the point
@@ -307,7 +307,7 @@ TEST(Commands, MoveAssignmentDiscardsTheTarget) {
     World world;
     const Entity entity = world.spawn();
     Commands target{world};
-    const Entity dropped = target.spawn();
+    const Entity dropped = target.spawn().getEntity();
     target.add(entity, Tracked{.name = "overwritten"});
     Commands source{world};
     source.add(entity, Health{.value = 6});

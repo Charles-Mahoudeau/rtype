@@ -34,13 +34,46 @@ class World;
 /// cancels the entities it reserved. It keeps a pointer to the world: the world must outlive it.
 /// @code
 /// rtype::ecs::Commands commands{world};
-/// const rtype::ecs::Entity bullet = commands.spawn();
-/// commands.add(bullet, Velocity{.x = 600.F});
+/// const rtype::ecs::Entity bullet = commands.spawn().add(Position{}).add(Velocity{.x = 600.F}).getEntity();
 /// commands.despawn(enemy);
 /// commands.flush();  // the scheduler flushes between phases
 /// @endcode
 class RTYPE_ECS_API Commands {
   public:
+    /// @brief The commands of one entity, chained: what spawn() and entity() return.
+    /// @code
+    /// const rtype::ecs::Entity bullet = commands.spawn().add(Position{}).add(Velocity{.x = 600.F}).getEntity();
+    /// commands.entity(enemy).remove<Shield>().add(Dead{});
+    /// @endcode
+    class RTYPE_ECS_API EntityCommands {
+      public:
+        /// @param commands The buffer recording the commands; it must outlive this builder.
+        EntityCommands(Commands& commands, Entity entity) noexcept;
+        ~EntityCommands() = default;
+        EntityCommands(const EntityCommands& other) noexcept = default;
+        EntityCommands& operator=(const EntityCommands& other) noexcept = default;
+        EntityCommands(EntityCommands&& other) noexcept = default;
+        EntityCommands& operator=(EntityCommands&& other) noexcept = default;
+
+        /// @return The entity the commands apply to.
+        [[nodiscard]] Entity getEntity() const noexcept;
+
+        /// @brief Records giving the entity a C++ component (Commands::add()).
+        template <Component T>
+        EntityCommands& add(T value);
+
+        /// @brief Records removing a C++ component from the entity (Commands::remove()).
+        template <Component T>
+        EntityCommands& remove();
+
+        /// @brief Records despawning the entity (Commands::despawn()).
+        void despawn();
+
+      private:
+        Commands* _commands;  ///< The buffer recording the commands.
+        Entity _entity;       ///< The entity the commands apply to.
+    };
+
     /// @param world The world the commands apply to; it must outlive the buffer.
     explicit Commands(World& world) noexcept;
     /// @brief Discards the commands not flushed (see clear()).
@@ -58,9 +91,13 @@ class RTYPE_ECS_API Commands {
     /// @return Whether no command is waiting (a spawn with no component counts as none, but its entity is reserved).
     [[nodiscard]] bool isEmpty() const noexcept;
 
-    /// @return A new entity, usable at once in other commands, alive from the next flush.
+    /// @return The commands of a new entity, usable at once in other commands, alive from the next flush; its
+    /// getEntity() gives the entity.
     /// @throws exceptions::EntityLimitException When every entity index is in use or retired.
-    [[nodiscard]] Entity spawn();
+    [[nodiscard]] EntityCommands spawn();
+
+    /// @return The commands of an existing entity, to chain several commands on it.
+    [[nodiscard]] EntityCommands entity(Entity entity) noexcept;
 
     /// @brief Records giving the entity a C++ component, moved in, or replacing its value.
     /// @details `T` is registered at the flush if it is not registered yet.
@@ -138,6 +175,9 @@ class RTYPE_ECS_API Commands {
     std::vector<Column> _columns;   ///< The values, one column per component used.
     std::vector<Entity> _reserved;  ///< Entities this buffer reserved and has not flushed.
 };
+
+/// @brief The commands of one entity, chained (Commands::EntityCommands).
+using EntityCommands = Commands::EntityCommands;
 }  // namespace rtype::ecs
 
 #include "Commands.tpp"
