@@ -320,6 +320,7 @@ flowchart LR
     N15 --> N16
     N11 --> N17
     N15 --> N17
+    N16 --> N17
     N16 --> N18
     N17 --> N18
 
@@ -349,47 +350,118 @@ each task.
 
 | Milestone | Size | Blocked by | Design |
 |---|---|---|---|
-| M1 | S | — | [3](design.md#3-targets-and-dependencies) |
+| M1 | S | — | [3](design.md#3-targets-and-dependencies), [Configuration](design.md#configuration) |
 
-**Summary.** Create the `network` and `replication` targets, their export macros and their test targets, so every
-later task only adds files.
+**Summary.** Create the `network` and `replication` libraries, their test targets, and the few types, constants
+and settings that every later task uses, so that every other task only adds files.
 
-**Tasks.**
-- [ ] `src/rtype/network/xmake.lua`: `target("network")`, `set_kind("shared")`, `set_basename("rtype-network")`,
-  globs `**.cpp`, `add_requires("asio 1.36.x")` with the package private to the target (no Asio in public
-  headers), `RTYPE_NETWORK_BUILD` define, include dir `$(projectdir)/src` public.
-- [ ] On Windows: define `_WIN32_WINNT=0x0A00` privately and link `ws2_32` (and `mswsock` if Asio needs it).
-- [ ] `src/rtype/network/Export.hpp` (`RTYPE_NETWORK_API`), modelled on `src/rtype/ecs/Export.hpp`.
-- [ ] `src/rtype/replication/xmake.lua` (`rtype-replication`, shared, `add_deps("ecs", "network")`, both public)
-  and `Export.hpp` (`RTYPE_REPLICATION_API`).
-- [ ] `network/Types.hpp`, `network/protocol/Constants.hpp`, `network/NetworkSettings.hpp` with the values of
-  [5](#5-values-fixed-by-this-spec) and the design's limits (`kMaxPacketSize = 1200`, `kMaxMessageSize = 1000`,
-  `kProtocolId = 0x52545950`, `kHandshakePadding = 64`...).
-- [ ] Root `xmake.lua`: `includes` both modules and add them to the `rtype` phony target.
-- [ ] `tests/network/` (`network-tests`) and `tests/replication/` (`replication-tests`) with one placeholder test
-  each, included from `tests/xmake.lua`.
-- [ ] Create the feature folders of [4](#folders-and-namespaces) as they are needed (no empty folders).
-- [ ] `CLAUDE.md`: describe both modules and their feature folders / sub-namespaces in *Project structure*, and the
-  dependency rule (`network` ← `replication` ← executables; `ecs` ← `replication`).
+**What it is for.** The network is two libraries with a strict split ([design 3](design.md#3-targets-and-dependencies)):
 
+- `rtype-network` moves bytes between machines: sockets, connections, acks, reliability. It knows nothing about the
+  ECS, so it can be tested alone and reused by anything.
+- `rtype-replication` is the only code that knows both the ECS and the network: it turns a `World` into messages
+  and back.
+
+This task creates the empty shells and the vocabulary they share:
+
+- **`Types.hpp`**: the small types that appear in almost every signature of the transport. `ClientId` names a
+  connected player; `TimePoint` is how every class receives the current time (classes never read the clock
+  themselves, so tests can drive time, see [4](#rules-every-task-follows)); `Bytes` is an owned byte buffer;
+  `Channel` and the reason enums are wire values.
+- **`protocol/Constants.hpp`**: values that are **part of the protocol**. Both sides must agree on them, so they are
+  `constexpr`, and changing one changes `kProtocolVersion`.
+- **`NetworkSettings.hpp`**: values that are **tuning**, chosen per deployment from the command line or a config
+  file (port, timeouts, limits). Nothing tunable is hard-coded anywhere else.
+- **`RandomSource.hpp`**: where challenges and tokens come from. Production uses the OS (`std::random_device`);
+  tests inject a fixed sequence so that a handshake test is reproducible.
+
+**What it must do.**
+
+1. `network` builds as a shared library `rtype-network` that depends on Asio only. Asio is a **private** package:
+   no public header includes it, so the libraries and executables that use `network` never see Asio
+   (as GLFW never leaves `platform/glfw/`).
+2. `replication` builds as a shared library `rtype-replication` that depends on `ecs` and `network`, both public
+   (its headers use their types).
+3. Exported symbols use `RTYPE_NETWORK_API` / `RTYPE_REPLICATION_API`, defined like `RTYPE_ECS_API`.
+4. `Types.hpp` defines:
+
+   | Type | Meaning |
+   |---|---|
+   | `ClientId` (`u32`) | A connected player, given by the server from 1 upwards and never reused; `kNoClient = 0` |
+   | `Clock`, `TimePoint` | `std::chrono::steady_clock` and its time point: monotonic, never jumps with the wall clock |
+   | `Bytes` | `std::vector<std::byte>` |
+   | `Channel` | `kUnreliable = 0`, `kReliable = 1` ([design 6.5](design.md#65-messages-and-channels)) |
+   | `DisconnectReason`, `RejectReason` | Wire values of [5](#5-values-fixed-by-this-spec) |
+
+5. `protocol/Constants.hpp` defines `kProtocolId = 0x52545950` ("RTYP"), `kProtocolVersion = 1`,
+   `kMaxPacketSize = 1200`, `kMaxMessageSize = 1000`, `kHandshakePadding = 64`, `kReliableWindow = 256`,
+   `kMaxPendingReliable = 1024`, `kMaxDatagramsPerFlush = 8`, `kSentPacketHistory = 1024`.
+6. `NetworkSettings` holds every tunable transport value with the design's default:
+
+   | Field | Default | Used by |
+   |---|---|---|
+   | `port` | 4242 | NET-11 (server) |
+   | `maxClients` | 64 | NET-09 |
+   | `timeout` | 2 s | NET-09, NET-10 |
+   | `keepalive` | 100 ms | NET-06 |
+   | `minResendInterval` | 50 ms | NET-07 |
+   | `initialRtt` | 100 ms | NET-06 |
+   | `handshakeRetry`, `handshakeTimeout` | 100 ms, 5 s | NET-10 |
+   | `challengeExpiry`, `maxPendingChallenges` | 5 s, 256 | NET-09 |
+
+   Later tasks add their own fields (reconnection grace in NET-30, rate limits in NET-27).
+7. `RandomSource` is `std::function<std::uint64_t()>`; `makeSystemRandom()` returns one backed by
+   `std::random_device` (never a seeded pseudo-random generator, [design 6.3](design.md#63-connection-lifecycle)).
+8. `network-tests` and `replication-tests` build and run with `xmake test`, like `ecs-tests`.
+
+**API (recommendation).**
 ```c++
 namespace rtype::network {
-using ClientId = std::uint32_t;  ///< Given by the server, starting at 1.
+using ClientId = std::uint32_t;
 inline constexpr ClientId kNoClient = 0;
 using Clock = std::chrono::steady_clock;
 using TimePoint = Clock::time_point;
 using Bytes = std::vector<std::byte>;
 enum class Channel : std::uint8_t { kUnreliable = 0, kReliable = 1 };
-enum class DisconnectReason : std::uint8_t { kGraceful = 1, kTimeout, kKicked, kProtocolError, kManifestMismatch, kOverflow, kServerShutdown };
+enum class DisconnectReason : std::uint8_t {
+    kGraceful = 1, kTimeout, kKicked, kProtocolError, kManifestMismatch, kOverflow, kServerShutdown,
+};
 enum class RejectReason : std::uint8_t { kVersionMismatch = 1, kServerFull, kSessionExpired };
+
+using RandomSource = std::function<std::uint64_t()>;
+[[nodiscard]] RTYPE_NETWORK_API RandomSource makeSystemRandom();
+
+struct NetworkSettings {
+    std::uint16_t port{4242};
+    std::uint32_t maxClients{64};
+    std::chrono::milliseconds timeout{2000};
+    std::chrono::milliseconds keepalive{100};
+    // ... every field of the table above
+};
 }  // namespace rtype::network
 ```
 
+**Tasks.**
+- [ ] `src/rtype/network/xmake.lua`: shared target `network` (`rtype-network`), globs `**.cpp`,
+  `add_requires("asio 1.36.x")` used privately, `RTYPE_NETWORK_BUILD` define, `$(projectdir)/src` include dir
+  public. On Windows: `_WIN32_WINNT=0x0A00` (private) and `ws2_32` (plus `mswsock` if Asio needs it).
+- [ ] `src/rtype/replication/xmake.lua`: shared target `replication` (`rtype-replication`), `add_deps("ecs", "network")`.
+- [ ] `Export.hpp` of both, modelled on `src/rtype/ecs/Export.hpp`.
+- [ ] `network/Types.hpp`, `network/protocol/Constants.hpp`, `network/NetworkSettings.hpp`,
+  `network/RandomSource.hpp/.cpp`.
+- [ ] Root `xmake.lua`: `includes` both modules and add them to the `rtype` phony target.
+- [ ] `tests/network/` (`network-tests`) and `tests/replication/` (`replication-tests`), included from
+  `tests/xmake.lua`, with a test that includes every public header of the module.
+- [ ] Create the feature folders of [4](#folders-and-namespaces) only when a file goes in them.
+- [ ] `CLAUDE.md`: describe both modules, their feature folders and sub-namespaces in *Project structure*, and the
+  dependency rule (`network` ← `replication` ← executables; `ecs` ← `replication`).
+
 **Acceptance.**
-- [ ] `xmake build -y` builds both (empty) libraries on the three platforms; `xmake test -v network-tests/*` and
+- [ ] `xmake build -y` builds both libraries on the three platforms; `xmake test -v network-tests/*` and
   `replication-tests/*` run.
-- [ ] No public header of `network` includes Asio: Asio is a private package of `network`, so `network-tests`
-  has no Asio include path and fails to build if one does (a test file includes every public header).
+- [ ] No public header of `network` includes Asio: `network-tests` has no Asio include path, so the
+  every-header test fails to build if one does.
+- [ ] `makeSystemRandom()` returns different values on two calls (smoke test).
 
 ### NET-02 · `ByteWriter` and `ByteReader`
 
@@ -397,48 +469,114 @@ enum class RejectReason : std::uint8_t { kVersionMismatch = 1, kServerFull, kSes
 |---|---|---|---|
 | M1 | S | NET-01 | [6.1](design.md#61-bytes-on-the-wire) |
 
-**Summary.** Little-endian writer into a fixed buffer and bounds-checked reader, both invalid for good after the
-first overflow.
+**Summary.** A writer that puts numbers into a byte buffer in a fixed byte order, and a reader that takes them back
+out and can never read past the end of what it was given.
 
-**API.**
+**What it is for.** Everything the network sends is a sequence of bytes, and both machines must agree on what each
+byte means. Copying a C++ struct into a packet (`memcpy`, `reinterpret_cast`) does not work: the byte order depends
+on the CPU, the compiler inserts padding between fields, and two compilers may lay the same struct out differently.
+So every value is written and read **one at a time, in little-endian order**, through these two classes. They are
+the lowest layer: the codec (NET-04), the field serializer (NET-13), snapshots and inputs all go through them.
+
+The reader is also the first line of defence against bad input ([design 10](design.md#10-robustness-and-security)).
+Bytes from the network can be truncated, corrupted or crafted. Instead of checking the remaining size before every
+read, a parser reads every field it expects and asks once at the end "was everything there?". Reading past the end
+never touches memory outside the buffer: it returns 0 and marks the reader invalid **for good**. The writer works
+the same way, so an encoder can write a whole message and check once whether it fitted.
+
+**What `ByteWriter` must do.**
+
+1. Write into a buffer that the caller owns (`std::span<std::byte>`). It never allocates and never grows the buffer.
+2. Write every multi-byte value lowest byte first, with shifts (`value >> 8`...), never by copying memory, so the
+   result is the same on every CPU. `0x04030201` as a `u32` becomes `01 02 03 04`.
+3. Signed integers are written as the unsigned value of the same size (two's complement); floats as the bits of
+   the IEEE 754 value (`std::bit_cast`), so a NaN or `-0.0` keeps its exact bits. Checking that floats are finite
+   is not its job (NET-13 does it).
+4. A write that does not fit **writes nothing** and makes the writer invalid. From then on, every write does
+   nothing, `isValid()` is false, and `getSize()` stays at the size reached before the failure.
+5. `writeString(text)` writes the length as a `u8`, then the bytes. A text longer than 255 bytes makes the writer
+   invalid (nothing written).
+6. `writeZeros(count)` writes `count` zero bytes (handshake padding).
+7. `getWritten()` returns the bytes written so far, as a view of the caller's buffer.
+
+**What `ByteReader` must do.**
+
+1. Read from a buffer that the caller owns (`std::span<const std::byte>`), from its start, moving forward.
+2. Read values with the same byte order and encodings as the writer: whatever `ByteWriter` wrote, `ByteReader`
+   reads back identically.
+3. A read that needs more bytes than remain returns 0 (or an empty span or string), consumes nothing, and makes the
+   reader invalid. From then on, **every** read returns 0, even if bytes remain: there is no way to "resume" after
+   a failure.
+4. `readBytes(count)` returns a view **into the caller's buffer** (no copy): it is only valid while that buffer
+   lives.
+5. `readString(maxLength)` reads the `u8` length; a length above `maxLength`, or bytes missing, makes the reader
+   invalid. The bytes are not checked as UTF-8 (the value is only displayed, never interpreted).
+6. `skip(count)` moves forward without reading; past the end, it makes the reader invalid.
+7. `getRemaining()` is the number of bytes not read yet; `isFinished()` is true when the reader is valid **and**
+   nothing remains. Decoders use it to reject messages with bytes left over.
+8. No input, of any size or content, can make it read outside the buffer, throw, or crash.
+
+**Used by.** NET-04 (the streams wrap them), NET-06 (message headers inside `kData`), NET-13 (component fields),
+NET-15 (inputs), NET-16 / NET-17 (snapshots).
+
+**API (recommendation).**
 ```c++
+namespace rtype::network::bytes {
+/// @brief Writes little-endian values into a buffer owned by the caller. Invalid for good after a write that
+/// does not fit.
 class RTYPE_NETWORK_API ByteWriter {
   public:
     explicit ByteWriter(std::span<std::byte> buffer) noexcept;
-    void writeU8(std::uint8_t value) noexcept;   // + U16, U32, U64, I8, I16, I32, I64
-    void writeF32(float value) noexcept;         // std::bit_cast<std::uint32_t>
+
+    void writeU8(std::uint8_t value) noexcept;  // + writeU16, writeU32, writeU64, writeI8 ... writeI64
+    void writeF32(float value) noexcept;
     void writeF64(double value) noexcept;
     void writeBytes(std::span<const std::byte> bytes) noexcept;
-    void writeString(std::string_view text) noexcept;  // u8 length + bytes; invalid if longer than 255
-    void writeZeros(std::size_t count) noexcept;       // handshake padding
+    void writeString(std::string_view text) noexcept;
+    void writeZeros(std::size_t count) noexcept;
+
     [[nodiscard]] bool isValid() const noexcept;
     [[nodiscard]] std::size_t getSize() const noexcept;
     [[nodiscard]] std::span<const std::byte> getWritten() const noexcept;
+
+  private:
+    std::span<std::byte> _buffer;  ///< Owned by the caller.
+    std::size_t _size{0};          ///< Bytes written so far.
+    bool _valid{true};             ///< False after the first write that did not fit.
 };
 
+/// @brief Reads little-endian values from a buffer owned by the caller. Invalid for good after a read past the end.
 class RTYPE_NETWORK_API ByteReader {
   public:
     explicit ByteReader(std::span<const std::byte> data) noexcept;
+
     [[nodiscard]] std::uint8_t readU8() noexcept;  // + every type of the writer; 0 once invalid
-    [[nodiscard]] std::span<const std::byte> readBytes(std::size_t count) noexcept;
-    [[nodiscard]] std::string readString(std::size_t maxLength) noexcept;  // invalid if longer
+    [[nodiscard]] float readF32() noexcept;
+    [[nodiscard]] std::span<const std::byte> readBytes(std::size_t count) noexcept;  // view into the buffer
+    [[nodiscard]] std::string readString(std::size_t maxLength) noexcept;
     void skip(std::size_t count) noexcept;
+
     [[nodiscard]] bool isValid() const noexcept;
     [[nodiscard]] std::size_t getRemaining() const noexcept;
-    [[nodiscard]] bool isFinished() const noexcept;  // valid and nothing left
+    [[nodiscard]] bool isFinished() const noexcept;
+
+  private:
+    std::span<const std::byte> _data;  ///< Owned by the caller.
+    std::size_t _position{0};          ///< Next byte to read.
+    bool _valid{true};                 ///< False after the first read past the end.
 };
+}  // namespace rtype::network::bytes
 ```
 
 **Tasks.**
-- [ ] Write each value byte by byte with shifts; never `memcpy` a multi-byte value (endianness).
-- [ ] A write that does not fit writes nothing and invalidates the writer; a read past the end returns 0 (or empty)
-  and invalidates the reader.
-- [ ] Tests: round trip of every type at its limits (`INT16_MIN`, `UINT64_MAX`, `-0.0F`, NaN bit patterns kept as
-  is), exact byte layout of a `u32` (`0x04030201` → `01 02 03 04`), overflow at each size, string of 255 and 256
-  bytes, reading from an empty span.
+- [ ] `bytes/ByteWriter.hpp/.cpp`, `bytes/ByteReader.hpp/.cpp`.
+- [ ] Tests: round trip of every type at its limits (`INT16_MIN`, `UINT64_MAX`, `-0.0F`, a NaN payload kept bit for
+  bit); exact bytes of `0x04030201`; a write that does not fit leaves `getSize()` unchanged and every later write
+  ignored; reads after a failure return 0 even with bytes left; strings of 0, 255 and 256 bytes; `readString`
+  above `maxLength`; `readBytes` view points into the original buffer; reading from an empty span; `isFinished`.
 
 **Acceptance.**
-- [ ] No read or write can touch memory outside the span (tests under `-fsanitize=address` locally).
+- [ ] The tests pass under AddressSanitizer locally (noted in the PR).
 
 ### NET-03 · Sequence numbers
 
@@ -446,27 +584,110 @@ class RTYPE_NETWORK_API ByteReader {
 |---|---|---|---|
 | M1 | S | NET-01 | [6.4](design.md#64-sequence-numbers-acks-and-rtt) |
 
-**Summary.** `isNewer` and a fixed ring indexed by sequence, used by acks, sent-packet records, the reliable
-receiver and (later) the snapshot ring.
+**Summary.** Two small tools for numbers that wrap around: `isNewer`, which compares two sequence numbers
+correctly after the counter wraps from 65535 to 0, and `SequenceBuffer`, which remembers some data about each of
+the last `N` numbers in a fixed array.
 
-**API.**
+**What it is for.** Every `kData` datagram carries a `u16` sequence number, one more than the previous datagram
+sent to that peer. Sequence numbers are how the transport knows what arrived and what was lost: the receiver
+reports the newest number it saw plus the 32 before it (acks, NET-06), and the sender matches those acks against
+what it sent to measure the RTT and to know which reliable messages to resend (NET-06, NET-07). Reliable messages
+have their own `u16` id with the same needs (NET-07).
+
+A `u16` wraps around after 65 536 values: about 18 minutes at 60 datagrams per second, so in every long game.
+Two problems follow, and each tool solves one:
+
+- **Comparing.** "Is datagram 3 newer than datagram 65530?" With `<` the answer is no, although 3 came 9 steps
+  later. The receiver would then treat every new datagram as old, stop acking, and the connection would die
+  (design pitfall 7). `isNewer` gives the right answer across the wrap. **Every** comparison of a sequence number
+  or a reliable message id in the project goes through it; a `<` on one of them is a bug.
+- **Remembering per number.** The transport keeps data per number for a short while: the send time and contents of
+  each of the last 1024 datagrams sent (NET-06), the reliable messages that arrived ahead of their turn (NET-07).
+  A `std::map` would allocate on every packet and grow without bound if a peer stops acking. `SequenceBuffer` is a
+  fixed array where number `s` lives in slot `s % N`: no allocation after construction, constant-time access, and
+  old entries are forgotten automatically when a newer number takes their slot.
+
+Neither tool knows anything about packets, sockets or time; they are pure data structures, which is why they come
+first and are tested on their own.
+
+**What `isNewer(a, b)` must do.**
+
+1. Return true when `a` is ahead of `b` by 1 to 32 767 steps, counting forward with wraparound, and false otherwise.
+   `isNewer(3, 65530)` is true (9 steps ahead); `isNewer(65530, 3)` is false.
+2. Return false for equal values: a number is not newer than itself.
+3. At exactly half the range (`a - b == 32768`) the order is undefined, so return false **both ways**. The protocol
+   never compares numbers that far apart: acks cover 33 datagrams and the reliable window is 256 messages.
+4. Be `constexpr` and `noexcept`, with no branches on platform: the formula of design 6.4 (difference in `u16`,
+   read as `int16`, compared to 0).
+
+**What `SequenceBuffer<T, N>` must do.** It stores at most one `T` per slot, tagged with the sequence that wrote it.
+
+1. **Starts empty.** On a new buffer, `find(s)` returns `nullptr` for every `s`, including 0. An entry must therefore
+   carry an "occupied" flag; using the stored sequence alone would make `find(0)` match an untouched slot.
+2. **`insert(s)`** takes slot `s % N`, resets its value to `T{}`, tags it with `s`, marks it occupied and returns a
+   reference to the value. Whatever was in that slot before (sequence `s - N`, or any other) is overwritten: that
+   older number is now forgotten.
+3. **`find(s)`** returns a pointer to the value if slot `s % N` is occupied **by `s`**, `nullptr` otherwise. This tag
+   check is what makes a late lookup safe: an ack for datagram 4 that arrives after datagram 1028 took its slot
+   (with `N = 1024`) finds nothing, instead of marking datagram 1028 as acked.
+4. **`remove(s)`** empties the slot if it holds `s`, and does nothing otherwise (so it never erases a newer entry).
+5. **`N` is a power of two**, checked by a `static_assert`. 65 536 must be a multiple of `N`, or two numbers fewer
+   than `N` apart could share a slot across the wrap (with `N = 1000`, sequences 0 and 65 000 are only 536 apart
+   but both map to slot 0).
+6. It never compares sequences itself and never decides what is "too old": that is the caller's job, with
+   `isNewer`. It only answers "do you still have `s`?".
+
+**Used by.**
+
+| User | Stores, per number | `N` |
+|---|---|---|
+| NET-06 sent-packet records | send time, acked flag, ids of the reliable messages it carried | 1024 |
+| NET-07 reliable receiver | a message that arrived ahead of the next expected id | 256 |
+| NET-19 snapshot history | snapshot ticks are `u32`, so NET-19 uses its own ring; see its task | — |
+
+**API (recommendation).**
 ```c++
-[[nodiscard]] constexpr bool isNewer(std::uint16_t a, std::uint16_t b) noexcept;  // as in the design
+namespace rtype::network::protocol {
+/// @return True if sequence `a` is newer than `b`, across the wrap from 65535 to 0.
+[[nodiscard]] constexpr bool isNewer(std::uint16_t a, std::uint16_t b) noexcept;
 
-/// @brief N entries indexed by sequence % N; an entry is only valid for the sequence that wrote it.
+/// @brief Data about each of the last N sequence numbers, in a fixed array: number `s` lives in slot `s % N`.
 template <typename T, std::size_t N>
 class SequenceBuffer {
+    static_assert(N > 0 && (N & (N - 1)) == 0, "SequenceBuffer: N must be a power of two");
+
   public:
-    T& insert(std::uint16_t sequence);                       // resets the entry, marks it as `sequence`
-    [[nodiscard]] T* find(std::uint16_t sequence) noexcept;  // nullptr if the slot holds another sequence
+    /// @brief Takes the slot of `sequence`, forgetting what was there, and returns its value reset to T{}.
+    T& insert(std::uint16_t sequence);
+    /// @return The value stored for `sequence`, or nullptr if its slot is empty or holds another number.
+    [[nodiscard]] T* find(std::uint16_t sequence) noexcept;
+    [[nodiscard]] const T* find(std::uint16_t sequence) const noexcept;
+    /// @brief Empties the slot of `sequence` if it still holds `sequence`.
     void remove(std::uint16_t sequence) noexcept;
+
+  private:
+    struct Entry {
+        T value{};
+        std::uint16_t sequence{0};  ///< The number that wrote this slot.
+        bool occupied{false};       ///< False until the first insert, and after a remove.
+    };
+    std::array<Entry, N> _entries{};  ///< Slot `s % N` for sequence `s`.
 };
+}  // namespace rtype::network::protocol
 ```
 
 **Tasks.**
-- [ ] `protocol/Sequence.hpp` (`constexpr`, so also `static_assert` tests) and `SequenceBuffer.hpp/.tpp`.
-- [ ] Tests: `isNewer(3, 65530)`, `isNewer(65530, 3) == false`, equal values, the half-range boundary
-  (`32768` apart); buffer insert / find / overwrite after `N` sequences / remove, across the wrap.
+- [ ] `protocol/Sequence.hpp` with `isNewer`.
+- [ ] `protocol/SequenceBuffer.hpp` and `SequenceBuffer.tpp`.
+- [ ] Tests for `isNewer`, as `static_assert`s where possible: 1 step ahead, across the wrap (`(3, 65530)` both ways),
+  equal values, 32 767 ahead (true), 32 768 apart (false both ways).
+- [ ] Tests for `SequenceBuffer`: `find` on a new buffer (including 0); insert then find; insert resets a reused
+  slot to `T{}`; insert of `s + N` makes `find(s)` return `nullptr`; `remove(s)` after `s + N` took the slot leaves
+  `s + N` in place; all of this across the wrap (sequences 65 530 to 10).
+
+**Acceptance.**
+- [ ] No `<`, `>` or `-` comparison of sequence numbers outside `isNewer` (reviewers check this rule in every later
+  transport PR).
 
 ### NET-04 · Generic codec and transport packets
 
@@ -474,19 +695,100 @@ class SequenceBuffer {
 |---|---|---|---|
 | M1 | L | NET-02 | [6.1](design.md#61-bytes-on-the-wire), [6.2](design.md#62-packets) |
 
-**Summary.** One generic codec for every message with a fixed layout: each message type lists its fields **once**,
-in a single `serialize` function used both to write and to read, and a `Codec` gives one `encode` and one `decode`
-for a whole family of messages. The transport packets of design 6.2 are its first user; the manifest (NET-14) and
-the lobby messages (NET-26) reuse it.
+**Summary.** One generic way to turn a message struct into bytes and back: each message lists its fields once, in
+a `serialize` function used for both directions, and a `Codec` gives a single `encode` and a single `decode` for a
+whole family of messages. The seven transport packets of design 6.2 are its first users.
+
+**What it is for.** The protocol has many small messages with a fixed layout: the seven packet kinds of the
+transport (connect request, challenge, accepted...), then the manifest entries (NET-14) and the lobby messages
+(NET-26). For each one, the program needs to write it and to read it back, and both must agree byte for byte.
+Writing an encoder and a decoder by hand for each message doubles the code and invites the classic bug where the
+two disagree on a field's order or size, which only shows up as garbage on the other machine.
+
+The codec removes that duplication:
+
+- **One field list per message.** A message's `serialize` function names its fields in wire order. The same
+  function writes them when given a `WriteStream` and reads them when given a `ReadStream`, so the two directions
+  cannot disagree. Adding a field is one line.
+- **One entry point per family.** A family is a closed list of message types, each with its kind byte
+  (`PacketKind::kAccepted = 0x04`...). `Codec::encode(message)` writes the kind byte then the fields;
+  `Codec::decode(bytes)` reads the kind byte, finds the matching type, reads its fields, and returns the message
+  as a `std::variant` of the family's types.
+- **One place for the checks.** The streams check every value as they read it (enum ranges, string lengths, list
+  sizes, constants), and `decode` rejects bytes left over. A message type gets all of this by listing its fields;
+  it never writes a check by hand.
+
+The cores (NET-09, NET-10) never touch raw bytes for packets: they build a struct and encode it, or decode a
+datagram and `std::visit` the result.
 
 **Why not a runtime factory.** A factory where each packet registers an encode and a decode lambda gives one entry
 point too, but the transport's packet kinds are a closed set known at compile time: registering them at runtime
 only moves errors (a missing or duplicated kind) from compile time to run time, adds `std::function` calls, and
 `decode` would still have to return a variant or a type-erased value. A runtime registry is the right tool for an
-open set, which is what custom packets are (NET-33). Writing and reading from the same function also removes the
-classic bug where the encoder and the decoder disagree on the field order.
+open set, which is what custom packets are (NET-33).
 
-**API: streams** (`bytes/`, on top of `ByteWriter` / `ByteReader`).
+**What the streams must do.** `WriteStream` and `ReadStream` have the **same function names**, so one `serialize`
+compiles with both. Each wraps a `ByteWriter` / `ByteReader` and becomes invalid with it; once invalid, every call
+does nothing.
+
+| Function | `WriteStream` | `ReadStream` |
+|---|---|---|
+| `value(x)` | Writes `x`: integers and floats as in NET-02, `bool` as `u8` 0/1, enums as their underlying integer | Reads `x`. A `bool` must be 0 or 1; an enum must pass `isValidWireValue(x)` (below), else invalid |
+| `constant(k)` | Writes `k` | Reads a value of the same type; invalid if it is not `k` (the protocol id: not our protocol) |
+| `bytes(span)` | Writes the span (a size both sides know) | Fills the span; invalid if bytes are missing |
+| `string(s, max)` | Writes `u8` length and bytes; invalid if longer than `max` | Invalid if the length is above `max` or bytes are missing |
+| `list<Count>(v, max)` | Writes the size as `Count` (`u8` or `u16`), then each item; invalid if above `max` | Reads the count; invalid if above `max` (checked **before** allocating); then each item |
+| `padTo(n)` | Writes zeros until the message (kind byte included) is `n` bytes; invalid if already longer | Skips until byte `n`; invalid if the message is shorter |
+| `rest(span)` | Writes the span; must be the last call | Sets the span to every remaining byte (possibly none), as a view into the input; must be the last call |
+
+- List items are serialized with their own `serialize` when they are structs, with `value` otherwise.
+- `isValidWireValue(e)` is a `constexpr` function declared next to each wire enum and found by argument-dependent
+  lookup. Calling `value()` on an enum that has none is a compile error, so no enum can skip its range check. Every
+  wire enum treats 0 as invalid ([5](#5-values-fixed-by-this-spec)).
+- A third stream, `SizeStream`, has the same functions but only counts bytes. `Codec::encode(message)` uses it to
+  know the exact size before allocating the result.
+
+**What the codec must do.**
+
+1. Accept as messages only types that have a `static constexpr Kind kKind` and a `serialize` function usable in both
+   directions, and that are default-constructible. Two messages of a family with the same `kKind` are a compile
+   error (`static_assert` with a message naming the problem).
+2. `encode(message, writer)` writes `kKind` as one byte, then the fields; returns false if the writer became invalid
+   (the message did not fit). `encode(message)` returns a `Bytes` of exactly the right size.
+3. `decode(bytes)` returns `std::nullopt` when: the input is empty, the kind byte is not one of the family, a stream
+   check fails, bytes are missing, or **bytes are left over**. Otherwise it returns the message in the family's
+   variant.
+4. `decode` finds the type from the kind byte with one table lookup built at compile time, not a chain of `if`s
+   (explained below).
+5. `peekKind(bytes)` returns the first byte as a `Kind` if it is one of the family, without decoding the rest.
+6. Nothing in the codec allocates more than the message needs, throws on bad input, or reads outside the input.
+7. A message whose layout depends on outside data (the number of input axes, a component's fields) does **not**
+   belong in a codec: its `serialize` could not know that data. Such messages use the streams directly (NET-13,
+   NET-15, snapshots), so no `serialize` ever contains an `if` on the direction.
+
+**What the transport packets are** (`protocol/Packets.hpp`, layouts of [design 6.2](design.md#62-packets)):
+
+| Packet | Kind | Sent by | Fields after the kind byte | Size | Purpose |
+|---|---|---|---|---|---|
+| `ConnectRequest` | `0x01` | client | `constant(kProtocolId)` `u32`, version `u16`, resume client `u32`, resume token `u64`, `padTo(64)` | 64 | "I want to connect"; padded so that the server's answer is never bigger (anti-amplification) |
+| `Challenge` | `0x02` | server | challenge `u64` | 9 | Proves the client really owns its address: only the real address receives it |
+| `ChallengeResponse` | `0x03` | client | challenge `u64`, `padTo(64)` | 64 | Echoes the challenge |
+| `Accepted` | `0x04` | server | session token `u32`, client id `u32`, resume token `u64` | 17 | The session exists; the token must be in every later packet |
+| `Rejected` | `0x05` | server | reason `u8` (`RejectReason`) | 2 | Why the connection is refused |
+| `Data` | `0x06` | both | session token `u32`, sequence `u16`, ack `u16`, ack bits `u32`, `rest` (messages) | 13 + messages | Everything once connected (NET-06) |
+| `Disconnect` | `0x07` | both | session token `u32`, reason `u8` (`DisconnectReason`) | 6 | Closing |
+
+- The protocol id is a `constant`: a datagram from another program is dropped without an answer. The version is a
+  field, not a constant, so that the server can answer `kVersionMismatch` instead of staying silent.
+- The packets only check their own layout. Whether a token is right, a version accepted or a challenge known is the
+  cores' job (NET-09, NET-10).
+- `Data::messages` points into the received datagram: it is valid only while that buffer lives, so
+  `Connection::receive` reads it at once and never stores it.
+
+**Used by.** NET-06 (`Data`), NET-09 and NET-10 (every packet), NET-14 (`ManifestCodec`), NET-26 (`LobbyCodec`);
+the streams alone by NET-13, NET-15 and the snapshot code; NET-28 fuzzes every `decode`.
+
+**API (recommendation): streams** (`bytes/`, on top of `ByteWriter` / `ByteReader`).
 ```c++
 namespace rtype::network::bytes {
 /// @brief Writing side of a serialize() function. Every call is a no-op once the stream is invalid.
@@ -524,7 +826,7 @@ class RTYPE_NETWORK_API ReadStream {
 }  // namespace rtype::network::bytes
 ```
 
-**API: the codec** (`bytes/Codec.hpp` + `Codec.tpp`).
+**API (recommendation): the codec** (`bytes/Codec.hpp` + `Codec.tpp`).
 ```c++
 namespace rtype::network::bytes {
 /// @brief A message of a codec: its kind and its fields, listed once for both directions.
@@ -556,7 +858,7 @@ class Codec<Kind, std::variant<Messages...>> {
 `decode` reads the kind byte and jumps to the matching alternative through a table built at compile time from the
 variant (no chain of `if`s). Callers handle the result with `std::visit` or `std::get_if`.
 
-**API: the transport packets** (`protocol/Packets.hpp`).
+**API (recommendation): the transport packets** (`protocol/Packets.hpp`).
 ```c++
 namespace rtype::network::protocol {
 enum class PacketKind : std::uint8_t {
@@ -720,23 +1022,17 @@ nothing is left. With an 18th byte, or a datagram cut at 12 bytes, `decode` retu
 is dropped.
 
 **Tasks.**
-- [ ] `bytes/WriteStream`, `bytes/ReadStream`, `bytes/Codec.hpp/.tpp`, and a small `Overloaded` helper for
-  `std::visit`.
+- [ ] `bytes/WriteStream`, `bytes/ReadStream`, `bytes/SizeStream`, `bytes/Codec.hpp/.tpp`, and a small
+  `Overloaded` helper for `std::visit`.
 - [ ] `isValidWireValue` for every wire enum of [5](#5-values-fixed-by-this-spec) (`DisconnectReason`,
-  `RejectReason`, `PacketKind`...), next to the enum; `value()` on an enum without it is a compile error.
-- [ ] `Codec` checks at compile time that every message has a `kKind` and a `serialize`, and that no two share a
-  kind (`static_assert` with a clear message).
-- [ ] Packet layouts exactly as design 6.2: `kConnectRequest` and `kChallengeResponse` padded to
-  `kHandshakePadding = 64` bytes (any other size is rejected by `padTo` and the leftover check), `kData` header of
-  13 bytes followed by the messages.
-- [ ] No `serialize` contains an `if` on the direction: a message whose layout cannot be written that way does not
-  belong in a codec (snapshots and custom packets, whose fields come from runtime descriptions, have their own
-  serializers, NET-13 and NET-33, and only use the streams).
+  `RejectReason`, `PacketKind`...), next to the enum.
+- [ ] `protocol/Packets.hpp`: the seven packets of the table, `Packet` and `PacketCodec`.
 - [ ] Tests (`CodecTests.cpp`, with toy messages): round trip; unknown kind; truncated at every byte; one byte left
-  over; enum out of range and 0; `constant` mismatch; `list` above `maxCount`; `string` above `maxLength`;
-  `padTo` on both sides; `rest` empty and full; encode into a buffer too small.
-- [ ] Tests (`PacketsTests.cpp`): round trip of each packet, exact encoded sizes, wrong protocol id, wrong padded
-  size, and that every server reply is smaller than 64 bytes (anti-amplification, `static_assert` on sizes).
+  over; enum out of range and 0; `bool` value 2; `constant` mismatch; `list` above `maxCount`; `string` above
+  `maxLength`; `padTo` on both sides (too short, too long); `rest` empty and full; encode into a buffer too small;
+  `encode(message)` size equals `SizeStream`'s count.
+- [ ] Tests (`PacketsTests.cpp`): round trip of each packet, the exact sizes of the table, wrong protocol id, padded
+  packets of 63 and 65 bytes rejected, and a `static_assert` that every server reply is smaller than 64 bytes.
 
 ### NET-05 · Simulated link and fake clock
 
@@ -744,27 +1040,169 @@ is dropped.
 |---|---|---|---|
 | M1 | S | NET-01 | [12](design.md#12-testing) |
 
-**Summary.** A test-only helper in `tests/network/` that carries datagrams between two endpoints with loss,
-duplication, reordering and delay, driven by a fake clock. Used by NET-06, NET-07, NET-21 and NET-36.
+**Summary.** A test-only fake network between two endpoints that can lose, duplicate, reorder and delay datagrams,
+driven by a fake clock, so that the transport is tested under bad conditions in a reproducible way.
 
-**API.**
+**What it is for.** The hard parts of the transport (acks, resends, ordering, timeouts) only matter when the
+network misbehaves, and localhost never does: real sockets on one machine deliver everything, in order, at once.
+Bugs in loss handling would therefore only appear during real play, on a bad wifi, impossible to reproduce. The
+simulated link replaces the socket in tests: the code under test hands it datagrams, and the link decides, from a
+seeded random generator, which ones arrive, when, in which order and how many times.
+
+The fake clock goes with it. Every protocol class receives the current time as a parameter (sans-IO), so a test
+can make two seconds pass instantly to check a timeout, and the same test run twice sees exactly the same times.
+
+It lives in `tests/network/` and is never shipped. It knows nothing about packets: it carries opaque `Bytes`.
+
+**How it replaces the network.** The link does not intercept a socket or mock any operating-system function. It
+works because the classes it tests never touch a socket: `Connection`, `ServerCore` and `ClientCore` take bytes in
+(`receive`) and give bytes out (`buildPackets`, `takeDatagrams`). In production, `NetServer` / `NetClient` carry
+those bytes through a `UdpSocket`; in a test, **the test itself carries them**, through the link:
+
+```
+Production:  ClientCore ──takeDatagrams──► UdpSocket ~~ internet ~~ UdpSocket ──receive──► ServerCore
+Test:        ClientCore ──takeDatagrams──► SimulatedLink ───────────────────────receive──► ServerCore
+                                           (decides: lose it? delay it? duplicate it?)
+```
+
+A test is a loop that moves the fake clock forward and shuttles bytes between the two sides:
+
 ```c++
-struct LinkConditions { double loss{0.0}; double duplicate{0.0}; double reorder{0.0};
-                        std::chrono::milliseconds delay{0}; std::chrono::milliseconds jitter{0}; };
+TEST(ConnectionTests, ReliableUnderLoss) {
+    FakeClock clock;
+    SimulatedLink link{{.loss = 0.3, .delay = 50ms, .jitter = 10ms}, /*seed=*/42};
+    Connection a{token, settings, clock.now()};  // endpoint 0
+    Connection b{token, settings, clock.now()};  // endpoint 1
+    // ... a.send(Channel::kReliable, ...) 5000 times
+
+    for (int step = 0; step < 10'000; ++step) {  // 10 000 steps of 1 ms: 10 s of simulated time
+        // 1. Each side builds what it would send now and gives it to the link instead of a socket.
+        for (Bytes& datagram : a.buildPackets(clock.now())) { link.send(1, std::move(datagram), clock.now()); }
+        for (Bytes& datagram : b.buildPackets(clock.now())) { link.send(0, std::move(datagram), clock.now()); }
+        // 2. The link gives each side what has "arrived" by now.
+        for (const Bytes& datagram : link.receive(1, clock.now())) { b.receive(decodeData(datagram), clock.now()); }
+        for (const Bytes& datagram : link.receive(0, clock.now())) { a.receive(decodeData(datagram), clock.now()); }
+        // 3. Collect what was delivered, then move time forward.
+        collect(b.takeMessages());
+        clock.advance(1ms);
+    }
+    // every message delivered exactly once and in order, despite 30 % loss
+}
+```
+
+Nothing waits for real time: the 10 simulated seconds take a few milliseconds, and every run is identical.
+
+Inside, the link is a list of datagrams **in flight**, each with the time it arrives. `send` decides each
+datagram's fate once, when it is sent; `receive` hands over the ones whose arrival time has passed:
+
+```c++
+void SimulatedLink::send(int to, Bytes datagram, TimePoint now) {
+    if (roll() < _conditions.loss) {
+        return;                                              // lost: never added
+    }
+    TimePoint arrival = now + _conditions.delay + randomJitter();
+    if (roll() < _conditions.reorder) {
+        arrival += std::max(_conditions.delay, 1ms);         // held back: later datagrams overtake it
+    }
+    if (roll() < _conditions.duplicate) {
+        _inFlight.push_back({to, now + _conditions.delay + randomJitter(), _nextOrder++, datagram});  // a copy
+    }
+    _inFlight.push_back({to, arrival, _nextOrder++, std::move(datagram)});
+}
+
+std::vector<Bytes> SimulatedLink::receive(int at, TimePoint now) {
+    // remove from _inFlight every datagram for `at` with arrival <= now,
+    // and return them sorted by (arrival, send order)
+}
+```
+
+Each network fault is one line of `send`:
+
+| Real network | Simulated link |
+|---|---|
+| Loss | The datagram is not added |
+| Latency | Arrival = `now + delay` |
+| Jitter | A random 0 to `jitter` added to the arrival |
+| Reordering | Some datagrams get an extra delay, so later ones arrive first |
+| Duplication | A second copy is added |
+| Cut cable | The test calls `setConditions({.loss = 1.0})` for a while, then restores the conditions |
+
+`receive` is what makes time matter: a datagram sent at t = 0 with 50 ms of delay is not returned by
+`receive(at, t = 20 ms)`, only by a call at t ≥ 50 ms.
+
+The same loop connects a `ClientCore` and a `ServerCore` (NET-10), or two replicators (NET-21): only the
+functions that produce and consume bytes change.
+
+**What it must do.**
+
+1. Connect two endpoints, `0` and `1`. `send(to, datagram, now)` hands a datagram to the link for endpoint `to`;
+   `receive(at, now)` returns every datagram for endpoint `at` whose delivery time is at or before `now`, ordered by
+   delivery time (ties in the order they were sent), and forgets them.
+2. Decide each datagram's fate when it is sent, from `LinkConditions`:
+   - **loss**: dropped with probability `loss`;
+   - **delay** and **jitter**: delivered at `now + delay + random(0, jitter)`;
+   - **duplicate**: with probability `duplicate`, a second copy is scheduled with its own jitter;
+   - **reorder**: with probability `reorder`, the datagram gets an extra delay of one `delay` (at least 1 ms), so
+     later datagrams overtake it.
+3. Be deterministic: the same seed and the same sequence of calls give the same results on every platform. Use
+   `std::mt19937` with explicit distributions computed by hand (the standard distributions are not guaranteed to
+   give the same numbers on every standard library).
+4. Allow changing the conditions at any time (`setConditions`), e.g. `loss = 1.0` for three seconds to simulate a
+   cut cable, then back.
+5. Count sent, dropped and duplicated datagrams, so tests can assert on what happened.
+6. `FakeClock` holds a `TimePoint` that only moves when the test calls `advance(duration)`; `now()` returns it.
+
+**Used by.** NET-06 and NET-07 (acks and reliability under loss), NET-10 (handshake under loss), NET-21
+(replication convergence), NET-36 (prediction under delay).
+
+**API (recommendation).**
+```c++
+struct LinkConditions {
+    double loss{0.0};       ///< Probability that a datagram is dropped.
+    double duplicate{0.0};  ///< Probability that a datagram is delivered twice.
+    double reorder{0.0};    ///< Probability that a datagram is held back so that later ones overtake it.
+    std::chrono::milliseconds delay{0};
+    std::chrono::milliseconds jitter{0};
+};
 
 class SimulatedLink {
   public:
-    SimulatedLink(LinkConditions conditions, std::uint32_t seed);  // seeded: a failing test is reproducible
-    void send(int to, rtype::network::Bytes datagram, rtype::network::TimePoint now);  // to = 0 or 1
+    SimulatedLink(LinkConditions conditions, std::uint32_t seed);
+    void setConditions(LinkConditions conditions) noexcept;
+    void send(int to, rtype::network::Bytes datagram, rtype::network::TimePoint now);
     [[nodiscard]] std::vector<rtype::network::Bytes> receive(int at, rtype::network::TimePoint now);
+    [[nodiscard]] LinkStats getStats() const noexcept;
+
+  private:
+    struct InFlight {
+        int to;                             ///< Endpoint 0 or 1.
+        rtype::network::TimePoint arrival;  ///< When receive() may return it.
+        std::uint64_t order;                ///< Send order, to break ties between equal arrival times.
+        rtype::network::Bytes bytes;
+    };
+    /// @return A number in [0, 1) from _random, converted by hand: (_random() >> 8) * 2^-24. The standard
+    /// distributions may give other numbers on another standard library; this gives the same everywhere.
+    [[nodiscard]] double roll();
+
+    LinkConditions _conditions;
+    std::mt19937 _random;               ///< Seeded by the test; mt19937's output is fixed by the standard.
+    std::vector<InFlight> _inFlight;    ///< Datagrams sent but not received yet.
+    std::uint64_t _nextOrder{0};
+    LinkStats _stats;
+};
+
+class FakeClock {
+  public:
+    [[nodiscard]] rtype::network::TimePoint now() const noexcept;
+    void advance(std::chrono::nanoseconds duration) noexcept;
 };
 ```
 
 **Tasks.**
-- [ ] Header-only (or a `.cpp` in the test target), `std::mt19937` seeded by the test (tests may use a seeded
-  generator; production code may not).
-- [ ] Tests of the link itself: 0 % loss delivers everything in order after `delay`; 100 % loss delivers nothing;
-  the observed loss over 10 000 datagrams is within 2 % of the setting.
+- [ ] `tests/network/SimulatedLink.hpp/.cpp`, `tests/network/FakeClock.hpp` (in the test target only).
+- [ ] Tests of the link itself: perfect conditions deliver everything in order after `delay`; `loss = 1` delivers
+  nothing; observed loss over 10 000 datagrams within 2 % of the setting; duplicates and reordering happen at the
+  configured rates; two links with the same seed give identical results.
 
 ### NET-06 · Connection: acks, RTT and message packing
 
@@ -772,47 +1210,123 @@ class SimulatedLink {
 |---|---|---|---|
 | M1 | L | NET-03, NET-04, NET-05 | [6.4](design.md#64-sequence-numbers-acks-and-rtt), [6.5](design.md#65-messages-and-channels) |
 
-**Summary.** The sans-IO per-peer state: numbers outgoing `kData` datagrams, builds `ack` / `ackBits`, records
-sent datagrams, measures the RTT, packs queued messages into datagrams and splits received datagrams into
-messages. Unreliable channel only; NET-07 adds the reliable one.
+**Summary.** The state the transport keeps for one peer: it packs outgoing messages into numbered `kData`
+datagrams, tells the peer which datagrams arrived (acks), learns which of its own datagrams arrived, measures the
+round-trip time, and splits received datagrams back into messages. This task covers the unreliable channel; NET-07
+adds the reliable one on top.
 
-**API.**
+**What it is for.** Once a client is connected, everything between it and the server travels in `kData`
+datagrams. The layers above think in **messages** (one snapshot, one input, one manifest entry); the network carries
+**datagrams**. `Connection` sits between the two:
+
+- **Packing.** Many small messages share one datagram (an input, a lobby message and an ack fit together), up to
+  1200 bytes, which saves bandwidth and per-datagram overhead.
+- **Acks.** Every datagram carries the newest sequence number received from the peer and a 32-bit mask of the 32
+  before it ([design 6.4](design.md#64-sequence-numbers-acks-and-rtt)). There are no separate ack packets: acks ride
+  on normal traffic, and each one is repeated in 33 datagrams, so a lost ack is repaired for free. From the acks it
+  receives, the connection learns which of its own datagrams arrived. That is what the reliable channel needs to
+  know what to resend (NET-07) and how the RTT is measured.
+- **RTT.** The round-trip time (send time to ack time) sets how long to wait before resending and is shown in the
+  statistics.
+- **Keepalive.** If nothing was sent for 100 ms, an empty datagram goes out anyway, so that the peer keeps receiving
+  acks and does not time out.
+
+There is one `Connection` per peer: one per session on the server (NET-09), one on the client (NET-10). It is
+**sans-IO**: it never touches a socket or a clock. It does not know the peer's address, and it does not check the
+session token of incoming datagrams; the core does that before calling it. This is what makes it testable through
+the simulated link.
+
+**What it must do.**
+
+*Sending.*
+
+1. `send(channel, payload)` queues a copy of the payload. An empty payload or one above `kMaxMessageSize` is
+   refused (returns false, nothing queued). In this task only `kUnreliable` is handled.
+2. `buildPackets(now)` turns the queue into datagrams:
+   - each datagram is the `Data` header (session token, next sequence number, current `ack` and `ackBits`) followed
+     by messages back to back, each as `channel u8 | length u16 | payload`;
+   - messages are added in queue order until the next one does not fit in `kMaxPacketSize`; a message is never split
+     between datagrams;
+   - at most `kMaxDatagramsPerFlush` datagrams per call. Unreliable messages that did not fit are **dropped** (they
+     are time-sensitive: a stale snapshot or input is useless), and counted;
+   - if the queue is empty and nothing was sent for `keepalive`, one header-only datagram is built;
+   - otherwise, with nothing to send, it returns no datagram.
+3. Every datagram built takes the next sequence number (+1, wrapping) and gets a record in a
+   `SequenceBuffer<SentPacket, kSentPacketHistory>`: send time, `acked = false`, and (NET-07) the reliable message
+   ids it carries.
+
+*Receiving.*
+
+4. `receive(data, now)` first parses **all** the messages of the datagram. If any is malformed (unknown channel,
+   length 0, length above `kMaxMessageSize`, length past the end), the whole datagram is rejected: it returns false
+   and changes nothing (no acks processed, no message delivered, no receive time updated).
+5. It updates what it will ack:
+   - a sequence newer than `ack` (by `isNewer`): shift `ackBits` left by the distance, set the bit of the previous
+     `ack`, and make the new number `ack`. A distance above 32 clears the bits;
+   - an older sequence within 32 of `ack`: set its bit (bit `N` means `ack - 1 - N` was received);
+   - older than that, or a duplicate: nothing to update, but its messages are still delivered (unreliable messages
+     may arrive twice; the layers above handle it).
+6. It processes the peer's `ack` and `ackBits`: for each of the 33 sequence numbers they confirm, if the record is
+   still in the buffer and not yet acked, mark it acked. On that **first** ack, take an RTT sample
+   (`now - sendTime`) and update `rtt += (sample - rtt) * 0.1`, starting from `initialRtt`. Later acks of the same
+   datagram change nothing.
+7. It sets the last receive time to `now` (used by the cores for timeouts) and queues the messages for
+   `takeMessages()`, in datagram order.
+8. `takeMessages()` returns the delivered messages and empties the list.
+
+**Used by.** NET-07 (extends it), NET-09 (one per session), NET-10 (one per client), NET-23 (statistics).
+
+**API (recommendation).**
 ```c++
-struct ReceivedMessage { Channel channel; Bytes payload; };
+namespace rtype::network::connection {
+struct ReceivedMessage {
+    Channel channel;
+    Bytes payload;
+};
 
+/// @brief Transport state for one peer: sequence numbers, acks, RTT, message packing. Never touches a socket or a
+/// clock.
 class RTYPE_NETWORK_API Connection {
   public:
     Connection(std::uint32_t sessionToken, const NetworkSettings& settings, TimePoint now);
 
-    /// @return False (and nothing queued) if the payload is empty or above kMaxMessageSize.
+    /// @return False, and nothing queued, if the payload is empty or above kMaxMessageSize.
     bool send(Channel channel, std::span<const std::byte> payload);
-    /// @brief Processes one decoded kData packet whose token was already checked. Returns false if its messages
-    /// are malformed.
-    bool receive(const protocol::Data& packet, TimePoint now);
-    /// @brief Datagrams to send now: queued messages, and an empty keepalive if nothing was sent for `keepalive`.
+    /// @brief Processes one kData packet whose session token the caller already checked.
+    /// @return False, and nothing changed, if one of its messages is malformed.
+    bool receive(const protocol::Data& data, TimePoint now);
+    /// @return The datagrams to send now, possibly none.
     [[nodiscard]] std::vector<Bytes> buildPackets(TimePoint now);
     [[nodiscard]] std::vector<ReceivedMessage> takeMessages();
 
     [[nodiscard]] TimePoint getLastReceiveTime() const noexcept;
     [[nodiscard]] std::chrono::duration<float, std::milli> getRtt() const noexcept;
+
+  private:
+    struct SentPacket {
+        TimePoint sendTime;
+        bool acked{false};
+        std::vector<std::uint16_t> reliableIds;  ///< NET-07.
+    };
+    std::uint32_t _sessionToken;
+    std::uint16_t _nextSequence{0};
+    std::uint16_t _ack{0};         ///< Newest sequence received from the peer.
+    std::uint32_t _ackBits{0};     ///< Bit N: sequence _ack - 1 - N was received too.
+    bool _receivedAny{false};      ///< False until the first datagram: nothing to ack yet.
+    protocol::SequenceBuffer<SentPacket, kSentPacketHistory> _sent;
+    std::vector<std::pair<Channel, Bytes>> _queue;
+    std::vector<ReceivedMessage> _received;
+    // rtt, last send time, last receive time...
 };
+}  // namespace rtype::network::connection
 ```
 
 **Tasks.**
-- [ ] Outgoing sequence starts at 0 and increments per datagram; incoming: keep the newest sequence (`ack`) and
-  the 32-bit history (`ackBits`), shifting correctly when a newer sequence arrives (including a jump of more than
-  32), setting the right bit when an older one arrives.
-- [ ] Sent-packet records in a `SequenceBuffer<SentPacket, 1024>` (send time, acked flag, reliable ids for NET-07).
-  On every received header, mark `ack` and each set bit of `ackBits` as acked; on the *first* ack of a record,
-  update the RTT (`rtt += (sample - rtt) * 0.1`, initial 100 ms).
-- [ ] Packing: header, then messages back to back (`channel u8 | length u16 | payload` for unreliable), up to
-  `kMaxPacketSize`; at most `kMaxDatagramsPerFlush` datagrams per call; unreliable messages left over are dropped.
-- [ ] Parsing: a message with an unknown channel, a length of 0, above `kMaxMessageSize` or past the end makes the
-  whole datagram malformed: nothing from it is delivered (acks included).
-- [ ] Keepalive: an empty datagram (header only) when nothing was sent for `settings.keepalive` (100 ms).
-- [ ] Tests (through `SimulatedLink`): ack bits after in-order, out-of-order, duplicated and lost datagrams; ack
-  across the 65535 → 0 wrap (send 70 000 datagrams); RTT converges to the link delay × 2 within 10 %; keepalive
-  timing; malformed datagrams rejected whole.
+- [ ] `connection/Connection.hpp/.cpp`.
+- [ ] Tests, two connections through `SimulatedLink` and `FakeClock`: ack bits after in-order, out-of-order,
+  duplicated and lost datagrams; a jump of more than 32; ack across the 65535 → 0 wrap (70 000 datagrams); RTT
+  converges to twice the link delay within 10 %; keepalive sent after 100 ms of silence and not before; overflowing
+  unreliable messages dropped and counted; a malformed message rejects the whole datagram and changes nothing.
 
 ### NET-07 · Connection: reliable channel
 
@@ -820,20 +1334,86 @@ class RTYPE_NETWORK_API Connection {
 |---|---|---|---|
 | M1 | M | NET-06 | [6.5](design.md#65-messages-and-channels), [6.6](design.md#66-large-data) |
 
-**Summary.** Exactly-once, in-order delivery for `Channel::kReliable`, by message id, resent until a datagram
-carrying it is acked.
+**Summary.** The reliable channel of `Connection`: a message sent on `Channel::kReliable` is delivered exactly once
+and in order, by resending it in later datagrams until one of them is acked.
+
+**What it is for.** Some messages must arrive: the manifest (a client cannot play without it), `kReady`, the lobby
+messages, a kill-feed event. UDP loses datagrams, so these messages are resent until the peer confirms them. Two
+choices from [design 6.5](design.md#65-messages-and-channels) shape how:
+
+- **The message is resent, not the datagram.** A lost datagram is never sent again as is; its reliable messages
+  are put into the next datagrams, next to whatever else is going out. Each datagram keeps its own new sequence
+  number, so acks stay unambiguous.
+- **Each reliable message has its own id** (`u16`). The receiver uses it to deliver messages in order and to drop
+  the duplicates that resending creates: if a datagram arrived but its ack was lost, the message is sent again,
+  and without an id it would be delivered twice (two kill-feed lines).
+
+The channel is split in two classes owned by `Connection`: `ReliableSender` (what to send and resend) and
+`ReliableReceiver` (what to deliver and when).
+
+**What `ReliableSender` must do.**
+
+1. A message sent on `kReliable` gets the next id (from 0, +1, wrapping) and waits in the pending list.
+2. A message can go into a datagram only if its id is less than `kReliableWindow` (256) ahead of the oldest
+   unacked one. The window keeps the ids comparable with `isNewer`; newer messages wait their turn.
+3. A message is **due** when it was never sent, or when it was last sent at least
+   `max(1.25 × RTT, minResendInterval)` ago.
+4. `Connection::buildPackets` puts reliable messages first: due messages already sent once (oldest first), then
+   messages never sent, then unreliable ones. Each reliable message is written as
+   `channel u8 = 1 | id u16 | length u16 | payload`, and its id is added to the datagram's `SentPacket` record. The
+   same message may be in several datagrams in flight; that is fine.
+5. When a datagram's record is acked (NET-06 rule 6), every reliable id it carries is acknowledged: the message
+   leaves the pending list and is never sent again. Acknowledging an id twice does nothing.
+6. If more than `kMaxPendingReliable` (1024) messages are pending, the peer is not keeping up:
+   `Connection::isOverflowed()` becomes true and stays true. The connection never throws; the core disconnects the
+   peer with `kOverflow` (NET-09).
+
+**What `ReliableReceiver` must do.**
+
+1. It keeps the next id it expects, starting at 0.
+2. A message with the expected id is delivered, then every message already kept aside with the following ids,
+   in order, and the expected id moves past them.
+3. A message less than 256 ids ahead of the expected one is kept aside (in a `SequenceBuffer<Bytes, 256>`), unless
+   it already is.
+4. A message older than the expected id was already delivered: it is a duplicate from a resend, dropped silently.
+   This is normal traffic, not an error.
+5. A message 256 or more ids ahead cannot come from a correct peer: it is dropped and counted as a protocol error
+   (used by NET-27).
+6. Reliable messages are delivered in id order among themselves. Their order relative to unreliable messages is
+   not guaranteed.
+
+**Used by.** NET-09 and NET-10 (`kReady`, welcome messages), NET-14 (manifest), NET-26 (lobby), NET-34 (reliable
+custom packets).
+
+**API (recommendation).**
+```c++
+namespace rtype::network::connection {
+class ReliableSender {
+  public:
+    std::uint16_t push(Bytes payload);                                    // assigns the id
+    /// @return Messages due at `now`, oldest first, within the window.
+    [[nodiscard]] std::vector<const PendingMessage*> collectDue(TimePoint now, std::chrono::milliseconds interval);
+    void markSent(std::uint16_t id, TimePoint now);
+    void acknowledge(std::uint16_t id) noexcept;
+    [[nodiscard]] bool isOverflowed() const noexcept;
+};
+
+class ReliableReceiver {
+  public:
+    /// @return False on an id beyond the window (protocol error).
+    bool receive(std::uint16_t id, std::span<const std::byte> payload);
+    [[nodiscard]] std::vector<Bytes> takeDelivered();
+};
+}  // namespace rtype::network::connection
+```
 
 **Tasks.**
-- [ ] `ReliableSender`: next id (`u16`), resend queue, at most `kReliableWindow = 256` ids in flight (newer messages
-  wait), resend a message not sent within `max(1.25 × RTT, 50 ms)`, remove the ids of an acked datagram.
-- [ ] More than `kMaxPendingReliable = 1024` pending messages: `Connection::isOverflowed()` becomes true (the core
-  then disconnects with `kOverflow`; the connection itself never throws).
-- [ ] `ReliableReceiver`: next expected id; deliver it and the consecutive ones kept aside; keep aside ids within
-  `[expected, expected + 256)`; drop older ids (duplicates) and ids beyond the window (a protocol error, counted).
-- [ ] Packing order in `buildPackets`: reliable messages due for resend, then new reliable messages, then
-  unreliable ones. Reliable header: `channel u8 = 1 | id u16 | length u16`.
-- [ ] Tests: exactly once and in order under 30 % loss, 10 % duplication and reordering, for 5 000 messages; across
-  the id wrap; overflow detection; a 64-message burst spread over several datagrams.
+- [ ] `connection/ReliableSender.hpp/.cpp`, `connection/ReliableReceiver.hpp/.cpp`, wired into `Connection`
+  (`send(kReliable, ...)`, packing order, ack handling, `isOverflowed()`).
+- [ ] Tests: 5 000 messages delivered exactly once and in order under 30 % loss, 10 % duplication and 10 %
+  reordering; across the id wrap (70 000 messages); a message is not resent before the interval and is resent
+  after it; the window holds back message 257 until message 1 is acked; overflow at 1025 pending; an id far beyond
+  the window counted as an error; a 64-message burst spread over several datagrams.
 
 **Acceptance.**
 - [ ] The 30 % loss test passes for 20 different seeds.
@@ -844,149 +1424,321 @@ carrying it is acked.
 |---|---|---|---|
 | M1 | M | NET-01 | [6.7](design.md#67-socket-and-io), [10](design.md#windows-connection_reset) |
 
-**Summary.** The only Asio code (`io/`): a UDP socket that receives asynchronously on an `io_context`, never stops its
-receive loop on an error, and an `Address` type that hides `asio::ip::udp::endpoint`.
+**Summary.** The only code that talks to the operating system's network, through Asio: a UDP socket that keeps
+receiving whatever happens, and an `Address` type that names a peer without exposing Asio.
 
-**API.**
+**What it is for.** Everything above this task is sans-IO and works on bytes and addresses. Something has to move
+those bytes through a real socket, and that is the only place where Asio is used. Keeping it in one folder (`io/`)
+means no other header includes Asio, so the rest of the project builds without it and stays easy to test.
+
+- **`Address`** identifies a peer: an IP address and a port. The server uses it as the key of its session table
+  (which session does this datagram belong to?), so it must be comparable and hashable; logs print it. It hides
+  `asio::ip::udp::endpoint` so that headers do not need Asio.
+- **`UdpSocket`** sends and receives datagrams. The server uses one socket for every client
+  ([design 6.7](design.md#67-socket-and-io)); each client has its own. Receiving is asynchronous on an Asio
+  `io_context`. In M1 the caller polls it once per tick; NET-24 runs the same `io_context` on the I/O thread without
+  changing this class.
+
+It must also survive the **Windows trap** ([design 10](design.md#windows-connection_reset)): on Windows, after the
+server sends a datagram to a client that crashed, the next receive fails with `connection_reset`. A receive loop that
+stops on errors would then stop receiving for every player. The socket turns that report off and, on every platform,
+keeps receiving after any error.
+
+**What `Address` must do.**
+
+1. `resolve(host, port)` turns a host name or an IP literal into an address, using Asio's resolver (blocking: it is
+   only called at startup). It prefers IPv4 and returns `std::nullopt` if nothing resolves.
+2. Two addresses are equal when the IP and the port are equal. IPv4 addresses are stored as IPv4-mapped IPv6, so
+   one IP has one representation.
+3. `std::hash<Address>` is consistent with equality.
+4. `toString()` gives `"127.0.0.1:4242"` (IPv4) or `"[::1]:4242"` (IPv6), for logs and messages.
+5. A default-constructed address is `0.0.0.0:0`, which no real peer has.
+
+**What `UdpSocket` must do.**
+
+1. The constructor opens an IPv4 UDP socket and binds it to `0.0.0.0:port` (`port = 0`: any free port, for clients).
+   If that fails (port in use, no permission) it throws `exceptions::SocketException` with the port and the
+   system's message. This is the only exception of the module, a local setup error.
+2. On Windows, right after opening, it disables `SIO_UDP_CONNRESET` (`WSAIoctl`, as in the design).
+3. It starts an `async_receive_from` at once, into a buffer of `kMaxPacketSize + 1` bytes. On each completion:
+   - success, at most `kMaxPacketSize` bytes: the datagram and its sender are added to the received list;
+   - success, more than `kMaxPacketSize` bytes: dropped (the extra byte detects it) and counted;
+   - any error except `operation_aborted` (including `connection_reset`, `message_size`...): counted and ignored;
+   - then, **in every case except `operation_aborted`**, the next receive is started.
+4. `poll()` runs the handlers that are ready and returns at once; it never blocks.
+5. `sendTo(address, bytes)` sends synchronously. A failure (`would_block`, unreachable network...) is counted,
+   never thrown: the transport resends what matters anyway.
+6. `takeReceived()` returns the received datagrams and empties the list.
+7. `run()` blocks and processes completions until `stop()` (used from NET-24). `stop()` cancels the pending receive
+   (the handler sees `operation_aborted` and does not re-arm).
+8. Counters for received, oversized, receive errors and send errors, for the statistics.
+9. It is not thread-safe: one thread owns it.
+
+**Used by.** NET-11 (`NetServer`, `NetClient`), NET-24 (I/O thread); `Address` by NET-09 (session table) and every
+log line about a peer.
+
+**API (recommendation).**
 ```c++
+namespace rtype::network::io {
 class RTYPE_NETWORK_API Address {
   public:
     [[nodiscard]] static std::optional<Address> resolve(std::string_view host, std::uint16_t port);
-    [[nodiscard]] std::string toString() const;   // "127.0.0.1:4242", "[::1]:4242"
+    [[nodiscard]] std::string toString() const;
     [[nodiscard]] std::uint16_t getPort() const noexcept;
-    friend bool operator==(const Address&, const Address&) = default;
+    friend bool operator==(const Address& left, const Address& right) = default;
+
   private:
-    std::array<std::uint8_t, 16> _bytes{};  ///< IPv4 stored as IPv4-mapped IPv6.
+    std::array<std::uint8_t, 16> _bytes{};  ///< IPv6, or IPv4 mapped into IPv6.
     std::uint16_t _port{0};
 };
-// + std::hash<Address>
+
+struct Datagram {
+    Address from;
+    Bytes bytes;
+};
 
 class RTYPE_NETWORK_API UdpSocket {
   public:
-    struct Datagram { Address from; Bytes bytes; };
     /// @throws exceptions::SocketException if the port cannot be bound.
-    explicit UdpSocket(std::uint16_t port);   // 0: any free port (clients)
-    void sendTo(const Address& to, std::span<const std::byte> bytes) noexcept;  // errors counted, never thrown
-    void poll();                              // runs ready handlers, never blocks
-    void run();                               // blocks until stop() (I/O thread, NET-24)
+    explicit UdpSocket(std::uint16_t port);
+    void sendTo(const Address& to, std::span<const std::byte> bytes) noexcept;
+    void poll();
+    void run();
     void stop() noexcept;
     [[nodiscard]] std::vector<Datagram> takeReceived();
     [[nodiscard]] std::uint16_t getLocalPort() const;
+    [[nodiscard]] SocketStats getStats() const noexcept;
+
   private:
-    struct Impl;
-    std::unique_ptr<Impl> _impl;  ///< io_context, socket, receive buffer.
+    struct Impl;                  ///< io_context, socket, receive buffer: the only place Asio appears.
+    std::unique_ptr<Impl> _impl;
 };
+}  // namespace rtype::network::io
+// + template <> struct std::hash<rtype::network::io::Address>
 ```
 
 **Tasks.**
-- [ ] `async_receive_from` re-armed after **every** completion, success or error, except
-  `asio::error::operation_aborted`. Datagrams larger than `kMaxPacketSize` are dropped (receive buffer of
-  `kMaxPacketSize + 1` to detect them).
-- [ ] Windows: `WSAIoctl(SIO_UDP_CONNRESET, FALSE)` right after opening, as in the design.
-- [ ] Bind on `0.0.0.0` (IPv4) for the server in M1; dual-stack is out of scope.
-- [ ] Tests on loopback: two sockets exchange datagrams; an oversized datagram is dropped; sending to a closed port
-  then receiving keeps working (the regression test for the Windows trap, run on every platform); binding a port
-  already in use throws `SocketException`.
+- [ ] `io/Address.hpp/.cpp`, `io/UdpSocket.hpp/.cpp`, `exceptions/NetworkExceptions.hpp`.
+- [ ] Tests on loopback: two sockets exchange datagrams both ways; an oversized datagram is dropped; sending to a
+  closed port, then receiving from another socket, still works (the regression test of the Windows trap, run on
+  every platform); binding a port in use throws `SocketException`; `Address` equality, hashing, `toString`, and
+  `resolve("localhost", 4242)`.
 
 ### NET-09 · Server protocol core
 
 | Milestone | Size | Blocked by | Design |
 |---|---|---|---|
-| M1 | L | NET-07 | [6.3](design.md#63-connection-lifecycle), [5](design.md#5-threads) |
+| M1 | L | NET-04, NET-07 | [6.3](design.md#63-connection-lifecycle), [5](design.md#5-threads) |
 
-**Summary.** The sans-IO server: handshake with challenge, session table, token check, welcome messages,
-`kReady`, keepalives, timeouts and disconnects. It turns datagrams into the events a room sees and room commands
-into datagrams.
+**Summary.** All the server's connection logic, without a socket or a clock: the handshake with its challenge, the
+table of connected clients, routing datagrams to the right `Connection`, timeouts and disconnections. It turns
+datagrams into events for the game and the game's commands into datagrams.
 
-**API.**
+**What it is for.** A server receives datagrams from anyone on the internet. Before a datagram can reach the game,
+the server must know who sent it, whether that peer really completed the handshake, and which connection state it
+belongs to. `ServerCore` holds that logic:
+
+- **Handshake** ([design 6.3](design.md#63-connection-lifecycle)): a client asks to connect, the server answers with
+  a random challenge, the client echoes it. Only the real owner of an address receives the challenge, so someone
+  forging another player's address cannot create a session. Only after the echo does the server spend memory on a
+  session.
+- **Sessions.** Each accepted client gets a `Session`: its address, a client id, a random session token that every
+  later datagram must carry (so forged datagrams are dropped), and its `Connection`.
+- **Welcome and ready.** Right after acceptance, the server sends the welcome messages (the manifest, given by
+  replication) on the reliable channel. The client checks them and answers `kReady`; only then does the game hear
+  about the client (`ClientJoined`).
+- **Leaving.** A client leaves by `kDisconnect`, by being kicked, by overflowing its reliable queue, or by staying
+  silent for 2 s (a crash or a cut cable, requirement N3). Each way produces one `ClientLeft` event, so the game
+  removes the player's ship.
+
+The room (the game) never sees datagrams, addresses or sequence numbers: it receives `ServerEvent`s and sends
+`ServerCommand`s ([design 5](design.md#5-threads)). Those two types are defined here and reused unchanged by the
+room queues of NET-24.
+
+`ServerCore` is sans-IO: datagrams, time and random numbers come in as parameters, outgoing datagrams come out of
+`takeDatagrams`. `NetServer` (NET-11) connects it to a socket.
+
+**What it must do.**
+
+*Handshake.*
+
+1. `kConnectRequest` from an address:
+   - wrong version → reply `Rejected{kVersionMismatch}`;
+   - a challenge is already pending for that address → resend the **same** `Challenge` (the first answer was lost);
+   - sessions (all of them) ≥ `maxClients` → reply `Rejected{kServerFull}`;
+   - otherwise create a pending challenge (random `u64`, creation time, the resume fields for M4) and reply
+     `Challenge`. When `maxPendingChallenges` are pending, the oldest is dropped.
+2. `kChallengeResponse` from an address:
+   - if a session of that address was created by this same challenge value → resend its `Accepted` (the first was
+     lost);
+   - else, if a pending challenge of that address has this value and has not expired → remove it; if the server is
+     full, reply `Rejected{kServerFull}`; if the address already has a session, close that one as a graceful
+     disconnect ([deviation 6](#6-deviations-from-the-design)); then create the session: next client id (from 1,
+     never reused), random non-zero session token and resume token, a new `Connection`, state `kWelcoming`; reply
+     `Accepted` and queue every welcome message on the reliable channel;
+   - otherwise drop it silently (no answer that would tell an attacker anything).
+3. Pending challenges older than `challengeExpiry` are removed by `update`.
+4. Every reply is smaller than the request that caused it (guaranteed by the packet sizes of NET-04).
+
+*Connected traffic.*
+
+5. `kData` and `kDisconnect` are processed only if the address has a session **and** the token matches; anything
+   else is dropped silently. A malformed `kData` is dropped (and counted for NET-27).
+6. Messages delivered by the session's `Connection`, by session state:
+   - `kWelcoming`: only `kReady` (type `0x09`, reliable) is accepted: the session becomes `kReady` and
+     `ClientJoined` is emitted (in M1 there is no lobby: ready means in the game; NET-26 changes this). Anything else
+     is dropped and counted;
+   - `kReady`: types `0x00`–`0x1F` belong to the transport and lobby (in M1, a second `kReady` is ignored, others
+     counted); types `0x20` and above are emitted as `ClientMessage` for the game.
+7. `kDisconnect` with the right token closes the session with the reason it carries.
+
+*Closing.* A session closes in exactly one of these ways, and `ClientLeft{client, reason}` is emitted once, only if
+`ClientJoined` was emitted for it (the game never heard of a client that was still in `kWelcoming`):
+
+8. Silence: `update(now)` closes every session whose last receive is older than `timeout`, with `kTimeout`.
+9. Kick (`KickClient` command) and overflow (`Connection::isOverflowed()`, reason `kOverflow`): send
+   `Disconnect{reason}` three times (nothing acks it), then close.
+10. `shutdown(now)`: send `Disconnect{kServerShutdown}` three times to every session, close them all, and ignore
+    every datagram afterwards.
+11. A closed session is removed from every table; its client id is never given again.
+
+*Commands and output.*
+
+12. `SendMessage{client, channel, payload}` queues the message on that client's connection; `kAllClients` sends it to
+    every `kReady` session. A client that no longer exists is ignored (it may have left during the same tick).
+13. `takeDatagrams(now)` returns the handshake replies and disconnects queued since the last call, then, for every
+    session, the datagrams of `Connection::buildPackets(now)`, each with the session's address.
+14. With the same `RandomSource`, the same datagrams and the same times, the output is identical (reproducible
+    tests).
+
+**Used by.** NET-11 (`NetServer` wraps it), NET-24 (moved onto the I/O thread), NET-26 (lobby on top), NET-27 (rate
+limits inside), NET-30 (lingering sessions). The event and command types are used by every room (NET-16, NET-25).
+
+**API (recommendation).**
 ```c++
-// server/RoomMessages.hpp: what a room receives and sends (the same types are used by the room queues of NET-24).
+namespace rtype::network::server {
+// RoomMessages.hpp: what a room receives and sends.
 struct ClientJoined { ClientId client; };
 struct ClientMessage { ClientId client; Channel channel; Bytes payload; };
 struct ClientLeft { ClientId client; DisconnectReason reason; };
-using ServerEvent = std::variant<ClientJoined, ClientMessage, ClientLeft>;   // + ClientLost, ClientReconnected (M4)
+using ServerEvent = std::variant<ClientJoined, ClientMessage, ClientLeft>;  // + ClientLost, ClientReconnected (M4)
 
 inline constexpr ClientId kAllClients = std::numeric_limits<ClientId>::max();
-struct SendMessage { ClientId client; Channel channel; Bytes payload; };       // client or kAllClients
+struct SendMessage { ClientId client; Channel channel; Bytes payload; };  // client or kAllClients
 struct KickClient { ClientId client; DisconnectReason reason; };
-using ServerCommand = std::variant<SendMessage, KickClient>;                   // + SetRoomOpen (NET-26)
+using ServerCommand = std::variant<SendMessage, KickClient>;              // + SetRoomOpen (NET-26)
 
-struct OutgoingDatagram { Address to; Bytes bytes; };
+struct OutgoingDatagram { io::Address to; Bytes bytes; };
 
 class RTYPE_NETWORK_API ServerCore {
   public:
     ServerCore(NetworkSettings settings, RandomSource random);
-    void setWelcomeMessages(std::vector<Bytes> messages);   // sent reliably right after kAccepted
-    void receive(const Address& from, std::span<const std::byte> datagram, TimePoint now);
+    void setWelcomeMessages(std::vector<Bytes> messages);
+    void receive(const io::Address& from, std::span<const std::byte> datagram, TimePoint now);
     void execute(ServerCommand command);
-    void update(TimePoint now);                              // timeouts, challenge expiry, overflow
-    void shutdown(TimePoint now);                            // kDisconnect{kServerShutdown} to everyone, 3 times
-    [[nodiscard]] std::vector<OutgoingDatagram> takeDatagrams(TimePoint now);   // flushes every connection
+    void update(TimePoint now);
+    void shutdown(TimePoint now);
+    [[nodiscard]] std::vector<OutgoingDatagram> takeDatagrams(TimePoint now);
     [[nodiscard]] std::vector<ServerEvent> takeEvents();
+
+  private:
+    struct PendingChallenge { std::uint64_t value; TimePoint created; /* resume fields (M4) */ };
+    std::unordered_map<io::Address, PendingChallenge> _pending;
+    std::unordered_map<io::Address, ClientId> _clientsByAddress;
+    std::unordered_map<ClientId, Session> _sessions;  // Session: address, tokens, challenge, state, Connection
+    ClientId _nextClient{1};
+    // queued handshake replies, events, settings, random source...
 };
+}  // namespace rtype::network::server
 ```
 
 **Tasks.**
-- [ ] Pending challenges: map `Address → {challenge, created, resume fields}`, at most 256 (oldest dropped), 5 s
-  expiry. A repeated `kConnectRequest` from the same address gets the same challenge.
-- [ ] `kConnectRequest` with another version → `kRejected{kVersionMismatch}`; server full (sessions ≥
-  `maxClients`) → `kRejected{kServerFull}`, checked on the request and again on the response.
-- [ ] Matching `kChallengeResponse` → new `Session` (client id from 1, increasing, never reused; random session
-  token and resume token), `kAccepted`, welcome messages queued on the reliable channel. A repeated response for
-  the session created by that challenge resends `kAccepted`.
-- [ ] Deviation 6: a valid new connection from an address that has a session closes the old one (`kGraceful`).
-- [ ] `kData` / `kDisconnect`: dropped unless the address has a session **and** the token matches.
-- [ ] Session states `kWelcoming → kReady`. In `kWelcoming`, the only accepted message is `kReady` (`0x09`, reliable),
-  which emits `ClientJoined` (M1 has no lobby; NET-26 moves this to `kJoinRoom`). Messages of types
-  `0x00–0x1F` are handled by the core; others are emitted as `ClientMessage` once ready.
-- [ ] Timeout: no datagram for `timeout` (2 s) → close with `kTimeout` (M1; NET-30 makes it linger).
-- [ ] `kDisconnect` received → close with its reason; `KickClient` → send `kDisconnect{reason}` 3 times, close.
-  Connection overflow → close with `kOverflow`. Every close emits `ClientLeft` once.
-- [ ] `SendMessage{kAllClients}` goes to every ready session.
-- [ ] Tests (sans-IO, fake clock, fake random): full handshake; wrong challenge; challenge from another address;
-  expired challenge; version mismatch; server full; wrong token dropped; duplicated `kChallengeResponse`; timeout;
-  graceful disconnect; kick; messages before `kReady` dropped; 257 pending challenges.
+- [ ] `server/RoomMessages.hpp`, `server/Session.hpp`, `server/ServerCore.hpp/.cpp`.
+- [ ] Tests (sans-IO, `FakeClock`, a fixed `RandomSource`): full handshake to `ClientJoined`; wrong challenge value;
+  challenge echoed from another address; expired challenge; version mismatch; server full (on request and on
+  response); repeated `kConnectRequest` gets the same challenge; repeated `kChallengeResponse` gets the same
+  `Accepted`; wrong token dropped; messages before `kReady` dropped; game messages emitted after `kReady`;
+  timeout; graceful disconnect; kick; overflow; shutdown; 257 pending challenges; `ClientLeft` not emitted for a
+  session that never sent `kReady`; a new connection from an address with a session replaces it.
 
 ### NET-10 · Client protocol core
 
 | Milestone | Size | Blocked by | Design |
 |---|---|---|---|
-| M1 | M | NET-07 | [6.3](design.md#63-connection-lifecycle) |
+| M1 | M | NET-04, NET-07 | [6.3](design.md#63-connection-lifecycle) |
 
-**Summary.** The sans-IO client state machine: connect, answer the challenge, receive the welcome messages, send
-`kReady` when told to, keep the connection alive, detect the timeout, disconnect.
+**Summary.** The client's connection logic, without a socket or a clock: it runs the handshake (with retries),
+holds the `Connection` once accepted, detects that the server went silent, and turns everything into events for the
+client application.
 
-**API.**
+**What it is for.** The client side of the handshake has to cope with loss too: any of its packets or the server's
+answers can disappear, so it retries until it gets an answer or gives up. Once connected, it needs the same
+`Connection` machinery as the server, plus a timeout to notice that the server is gone. `ClientCore` does all of
+this and reports what happened as `ClientEvent`s: accepted, a message from the server, disconnected (with a reason
+the game can show), or connection failed. The application decides what to do with each.
+
+Like `ServerCore`, it is sans-IO; `NetClient` (NET-11) connects it to a socket.
+
+**What it must do.**
+
+It goes through the states `kIdle → kRequesting → kResponding → kConnected → kClosed`.
+
+1. `connect(now)` (from `kIdle` or `kClosed`) starts from scratch: state `kRequesting`, sends `ConnectRequest`
+   (current version, resume fields 0) at once and then every `handshakeRetry` (100 ms).
+2. `Challenge` received in `kRequesting` or `kResponding`: store its value (a new value replaces the old one: the
+   server restarted or the first challenge expired), state `kResponding`, send `ChallengeResponse` at once and then
+   every `handshakeRetry`.
+3. `Accepted` received in `kResponding`: create the `Connection` with the session token, store the client id and the
+   resume token, state `kConnected`, emit `ConnectionAccepted{client}`. A duplicate `Accepted` later is ignored.
+4. `Rejected` received before `kConnected`: emit `ConnectFailed{reason}`, state `kClosed`.
+5. No `Accepted` within `handshakeTimeout` (5 s) of `connect`: emit `ConnectFailed{}` (server unreachable), state
+   `kClosed`.
+6. In `kConnected`, `Data` with our token goes to the `Connection`; every delivered message becomes
+   `ServerMessage{channel, payload}`. The client core does not interpret message types: the application and the
+   replicator do.
+7. In `kConnected`, `Disconnect` with our token: emit `Disconnected{reason}`, state `kClosed`.
+8. In `kConnected`, no valid datagram for `timeout` (2 s): emit `Disconnected{kTimeout}`, state `kClosed`.
+9. `send(channel, payload)` works only in `kConnected` (returns false otherwise). `sendReady()` sends the `kReady`
+   message (type `0x09`) on the reliable channel, once.
+10. `disconnect(now)` in `kConnected`: send `Disconnect{kGraceful}` three times, state `kClosed`, no event (the
+    application asked for it).
+11. Any packet that does not fit the current state, or carries another token, is dropped silently.
+12. `takeDatagrams(now)` returns the handshake packets due and, once connected, `Connection::buildPackets(now)`.
+
+**Used by.** NET-11 (`NetClient` wraps it), NET-17 (the replicator consumes its events), NET-31 (reconnection
+extends the state machine).
+
+**API (recommendation).**
 ```c++
+namespace rtype::network::client {
 struct ConnectionAccepted { ClientId client; };
 struct ServerMessage { Channel channel; Bytes payload; };
-struct Disconnected { DisconnectReason reason; };        // reason from the server, or kTimeout locally
-struct ConnectFailed { std::optional<RejectReason> reason; };   // nullopt: server unreachable (5 s)
+struct Disconnected { DisconnectReason reason; };
+struct ConnectFailed { std::optional<RejectReason> reason; };  ///< nullopt: no answer within 5 s.
 using ClientEvent = std::variant<ConnectionAccepted, ServerMessage, Disconnected, ConnectFailed>;
 
 class RTYPE_NETWORK_API ClientCore {
   public:
-    ClientCore(NetworkSettings settings);
+    explicit ClientCore(NetworkSettings settings);
     void connect(TimePoint now);
-    void receive(std::span<const std::byte> datagram, TimePoint now);   // from the server address only
-    bool send(Channel channel, std::span<const std::byte> payload);    // false before ConnectionAccepted
-    void sendReady();                                                   // after the manifest check
-    void disconnect(TimePoint now);                                     // kGraceful, 3 times
+    void receive(std::span<const std::byte> datagram, TimePoint now);
+    bool send(Channel channel, std::span<const std::byte> payload);
+    void sendReady();
+    void disconnect(TimePoint now);
     void update(TimePoint now);
     [[nodiscard]] std::vector<Bytes> takeDatagrams(TimePoint now);
     [[nodiscard]] std::vector<ClientEvent> takeEvents();
     [[nodiscard]] ClientId getClientId() const noexcept;
 };
+}  // namespace rtype::network::client
 ```
 
 **Tasks.**
-- [ ] States `kIdle → kRequesting → kResponding → kConnected → kClosed`; resend the current handshake packet every
-  100 ms; `ConnectFailed{}` after 5 s; `ConnectFailed{reason}` on `kRejected`.
-- [ ] A `kChallenge` in `kResponding` with a different value replaces the stored one (the server restarted).
-- [ ] Datagrams with an unknown kind, or `kData` / `kDisconnect` with a token other than ours, are dropped.
-- [ ] Timeout after 2 s of silence once connected → `Disconnected{kTimeout}`.
-- [ ] Tests: driven together with a `ServerCore` through `SimulatedLink` (handshake under 50 % loss, version
-  mismatch, server full, server never answers, server shutdown reaches the client).
+- [ ] `client/ClientEvent.hpp`, `client/ClientCore.hpp/.cpp`.
+- [ ] Tests, a `ClientCore` and a `ServerCore` through `SimulatedLink`: handshake under 50 % loss; version mismatch;
+  server full; server never answers (5 s); a new challenge value replaces the old one; messages both ways after
+  `kReady`; server shutdown reaches the client as `Disconnected{kServerShutdown}`; server silence gives
+  `Disconnected{kTimeout}`; `send` before acceptance returns false.
 
 ### NET-11 · `NetServer` and `NetClient`
 
@@ -994,37 +1746,76 @@ class RTYPE_NETWORK_API ClientCore {
 |---|---|---|---|
 | M1 | S | NET-08, NET-09, NET-10 | [6.7](design.md#67-socket-and-io) |
 
-**Summary.** Glue a `UdpSocket` to each core, polled by the caller. This is the API the prototype and the
-replicators use; NET-24 runs `NetServer` on its own thread without changing it.
+**Summary.** The two classes applications use: a real UDP socket glued to `ServerCore` or `ClientCore`, driven by
+one `poll` call per tick.
 
-**API.**
+**What it is for.** The cores are pure logic and the socket is pure I/O; something has to connect them, and that
+glue should be written once rather than in every executable. `NetServer` and `NetClient` own a socket and a core,
+move received datagrams into the core and the core's datagrams out of the socket. Applications (the prototype,
+then the rooms) only see events and commands.
+
+In M1 the server is single-threaded: its game loop calls `poll` once per tick (60 Hz). That is often enough for
+keepalives (100 ms) and resends (at least 50 ms). NET-24 later runs the same `NetServer` on its own thread.
+
+**What `NetServer` must do.**
+
+1. The constructor binds the socket on `settings.port` (a bind failure throws `SocketException`) and creates the
+   core.
+2. `poll(now)`: run the socket's ready handlers, hand every received datagram to `ServerCore::receive`, call
+   `update(now)`, then send everything `takeDatagrams(now)` returns.
+3. `execute(command)` forwards to the core. `flush(now)` sends what the commands queued right away, so a snapshot
+   built this tick leaves this tick instead of waiting for the next `poll`.
+4. `takeEvents()` returns the core's events.
+5. `shutdown(now)` calls the core's `shutdown` and flushes.
+
+**What `NetClient` must do.**
+
+1. The constructor binds a socket on any free port and remembers the server's address; `connect(now)` starts the
+   handshake.
+2. `poll(now)`: like the server, but datagrams from any address other than the server's are dropped.
+3. `send`, `sendReady` forward to the core (sent at the next `poll` or `flush`); `disconnect(now)` sends the three
+   `Disconnect` at once.
+4. `takeEvents()` returns the core's events.
+
+Neither class is thread-safe.
+
+**Used by.** NET-16 / NET-17 (through the application loop), NET-18 (prototype), NET-24 (`NetServer` on the I/O
+thread).
+
+**API (recommendation).**
 ```c++
+namespace rtype::network::server {
 class RTYPE_NETWORK_API NetServer {
   public:
-    explicit NetServer(NetworkSettings settings);   // binds settings.port
+    explicit NetServer(NetworkSettings settings);
     void setWelcomeMessages(std::vector<Bytes> messages);
-    void poll(TimePoint now);                        // receive all, update, flush
+    void poll(TimePoint now);
     void execute(ServerCommand command);
-    [[nodiscard]] std::vector<ServerEvent> takeEvents();
-    void flush(TimePoint now);                       // send what execute() queued, right away
+    void flush(TimePoint now);
     void shutdown(TimePoint now);
+    [[nodiscard]] std::vector<ServerEvent> takeEvents();
 };
+}  // namespace rtype::network::server
 
+namespace rtype::network::client {
 class RTYPE_NETWORK_API NetClient {
   public:
-    NetClient(Address server, NetworkSettings settings);  // binds port 0
+    NetClient(io::Address server, NetworkSettings settings);
+    void connect(TimePoint now);
     void poll(TimePoint now);
     bool send(Channel channel, std::span<const std::byte> payload);
     void sendReady();
     void disconnect(TimePoint now);
     [[nodiscard]] std::vector<ClientEvent> takeEvents();
 };
+}  // namespace rtype::network::client
 ```
 
 **Tasks.**
-- [ ] Datagrams from an address other than the server's are dropped by `NetClient`.
-- [ ] A small `examples/network/Echo/` (or a test) where a client sends a reliable message and the server echoes
-  it, over real loopback sockets.
+- [ ] `server/NetServer.hpp/.cpp`, `client/NetClient.hpp/.cpp`.
+- [ ] A test over real loopback sockets: a client connects, sends `kReady`, sends a reliable message, and the server
+  echoes it back; a datagram from a third socket is ignored by the client.
+- [ ] `examples/network/Echo/`: the same exchange as two programs (server and client), for the manual check below.
 
 **Acceptance.**
 - [ ] Two processes exchange messages on localhost on the three platforms (manual check, noted in the PR).
@@ -1035,35 +1826,78 @@ class RTYPE_NETWORK_API NetClient {
 |---|---|---|---|
 | M1 | S | NET-01 | [7.1](design.md#71-identity), [ECS 20](../ecs/features/20-replication.md#what-lives-in-the-ecs) |
 
-**Summary.** The ECS components and events every replicated game uses.
+**Summary.** The ECS components and events through which a game takes part in replication: `NetworkId`, `Owner`,
+`PlayerInput`, `ClientConnected`, `ClientDisconnected`, and the function that registers them in a world.
 
-**API.**
+**What it is for.** Replication is meant to be invisible to gameplay code: a game marks its components as replicated
+and works with ordinary ECS data. These few types are the meeting point:
+
+- **`NetworkId`** gives an entity an identity that both machines share. An `Entity` is a slot in one world
+  (entity 15 on the server is something else on the client), so it can never be sent. The server gives every
+  replicated entity a number, sends that number, and each client keeps a `NetworkId → Entity` map
+  ([design 7.1](design.md#71-identity)).
+- **`Owner`** says which client controls an entity. The server uses it to apply each client's inputs to the right
+  ship; each client uses it to find its own ship (to center the camera, or later to predict it).
+- **`PlayerInput`** is the input state that drives a controlled entity for one tick: which buttons are held and the
+  value of each axis. Gameplay systems read it next to the ship's other components, and never know whether it came
+  from the network (server), from the local keyboard (single player) or from a replayed input (prediction, M6).
+  It is a component because the input belongs to the entity it controls: each ship of a room has its own.
+- **`ClientConnected` / `ClientDisconnected`** are ECS events: the game reacts to them with ordinary code (spawn a
+  ship for the new player, remove it when they leave), with no network code.
+
+`registerReplicationTypes(world)` registers all of them. Both the server and the client call it, because the
+manifest (NET-14) compares the replicated types of both worlds.
+
+**What the types must be.**
+
+| Type | Kind, ECS name | Presence | Replication | Fields and rules |
+|---|---|---|---|---|
+| `NetworkId` | component `net.NetworkId` | both | `kNone` | `value` `u32`; 0 means none. Given only by the server (NET-16), never changed afterwards. Not sent as a component: snapshots carry it in each record's header; the client adds it when it creates the entity |
+| `Owner` | component `net.Owner` | both | `kEveryChange` | `client` `u32` (a `ClientId`). Set by the game on the server; replicated so that every client knows who controls what |
+| `PlayerInput` | component `net.PlayerInput` | both | `kNone` | `buttons` `u32` (bit `i`: button action `i` held), `previousButtons` `u32` (the buttons of the input applied before, so "pressed this tick" = held now and not before), `axes` 16 × `f32` (slots of NET-15), `sequence` `u32` (the client input it came from, used by M6). All zeros is the neutral input. Never in snapshots: inputs travel in `kInput` (NET-15) |
+| `ClientConnected` | event `net.ClientConnected` | server | — | `client` `u32`. Raised on the server when a client joins the game |
+| `ClientDisconnected` | event `net.ClientDisconnected` | server | — | `client` `u32`, `reason` `u8` (a `DisconnectReason`). Raised on the server when a client leaves for good |
+
+- All names start with `net.`, so they cannot collide with the game's.
+- `registerReplicationTypes` can be called twice on the same world (the ECS accepts re-registering an identical
+  type).
+
+**Used by.** NET-13 (entity fields go through `NetworkId`), NET-14 (`Owner` is in the manifest), NET-15
+(`PlayerInput` layout), NET-16 / NET-17 (everything), NET-18 (the game).
+
+**API (recommendation).**
 ```c++
-namespace rtype::replication {
-struct NetworkId { std::uint32_t value; };             // "net.NetworkId", kBoth, kNone; 0 = none
-struct Owner { std::uint32_t client; };                // "net.Owner", kEveryChange (the client finds its ship)
+namespace rtype::replication::component {
+struct NetworkId { std::uint32_t value; };
+struct Owner { std::uint32_t client; };
 inline constexpr std::size_t kMaxInputAxes = 16;
-struct PlayerInput {                                   // "net.PlayerInput", kBoth, kNone
-    std::uint32_t buttons;            ///< Bit i: button action i of the InputLayout is held.
-    std::uint32_t previousButtons;    ///< Buttons of the previous applied input: pressed = held now, not before.
+struct PlayerInput {
+    std::uint32_t buttons;
+    std::uint32_t previousButtons;
     std::array<float, kMaxInputAxes> axes;
-    std::uint32_t sequence;           ///< Client input sequence that produced this value.
+    std::uint32_t sequence;
 };
-struct ClientConnected { std::uint32_t client; };                    // ECS event "net.ClientConnected"
-struct ClientDisconnected { std::uint32_t client; std::uint8_t reason; };   // "net.ClientDisconnected"
+}  // namespace rtype::replication::component
+// RTYPE_ECS_COMPONENT(NetworkId, "net.NetworkId", value); ... with their presence and replication options
 
-/// @brief Registers every type above in the world. Both sides call it before building or checking the manifest.
+namespace rtype::replication::event {
+struct ClientConnected { std::uint32_t client; };
+struct ClientDisconnected { std::uint32_t client; std::uint8_t reason; };
+}  // namespace rtype::replication::event
+
+namespace rtype::replication {
+/// @brief Registers every replication component and event in the world. Both sides call it.
 RTYPE_REPLICATION_API void registerReplicationTypes(ecs::World& world);
-}
+}  // namespace rtype::replication
 ```
 
 **Tasks.**
-- [ ] Declare with `RTYPE_ECS_COMPONENT` / `RTYPE_ECS_EVENT` and the right `Presence` / `ReplicationMode`. Raw
-  network ids are plain `std::uint32_t` in function signatures; `NetworkId` is the component.
-- [ ] Check that `std::array<float, N>` is supported by `FieldTypeOf` as a fixed array (`count = N`); otherwise use
-  a C array or add the support in `ecs` in the same PR (small `feat(ecs)` commit first).
-- [ ] Tests: registration in a fresh world, names and layout hashes stable (hard-coded expected hashes, so a layout
-  change is noticed).
+- [ ] `component/NetworkId.hpp`, `component/Owner.hpp`, `component/PlayerInput.hpp`, `event/ClientConnected.hpp`,
+  `event/ClientDisconnected.hpp`, `Registration.hpp/.cpp`.
+- [ ] Check that `std::array<float, N>` is reflected by `FieldTypeOf` as one field with `count = N`; if not, add that
+  support to `ecs` first, in its own `feat(ecs)` commit.
+- [ ] Tests: registration in a fresh world, twice; names, presence and replication modes; layout hashes compared to
+  hard-coded values, so that a change of layout is noticed in review.
 
 ### NET-13 · Field serializer
 
@@ -1071,142 +1905,313 @@ RTYPE_REPLICATION_API void registerReplicationTypes(ecs::World& world);
 |---|---|---|---|
 | M1 | M | NET-02, NET-12 | [7.4](design.md#74-snapshots-server--client), [ECS 15](../ecs/features/15-reflection-and-serialization.md) |
 
-**Summary.** Write and read the bytes of any replicated component by walking its `FieldInfo` list, so C++ and
-(later) Luau components need no network code.
+**Summary.** Writes the value of any replicated component into bytes, and reads it back, by walking the field list
+the ECS already keeps for every type, so no component needs network code of its own.
 
-**API.**
+**What it is for.** Snapshots carry component values: a ship's position, its health, its owner. There are many
+component types, some written in C++, later some in Luau, and the network must handle all of them the same way.
+The ECS already describes every type: its `TypeInfo` lists the fields with their name, type, offset and count
+(`FieldInfo`, filled by `RTYPE_ECS_COMPONENT`). The serializer walks that list and writes each field with the
+right encoding. Adding a replicated component then needs no network code at all.
+
+Copying the component's bytes as they are in memory would not work: the byte order may differ, padding bytes would
+be sent, and `Entity` fields hold local slot numbers that mean nothing on the other machine. Field by field, each
+value is written in a fixed form, and entity references are translated to `NetworkId`s and back through an
+`EntityMapper` given by the caller (the server maps with its tracking table, the client with its
+`NetworkId → Entity` map).
+
+Reading is also where component values from the network are checked: a NaN position or a `bool` of 7 would poison
+the game, so they make the read fail.
+
+**What it must do.**
+
+1. `writeFields(writer, info, value, mapper)` writes every field of `info.fields`, in that order, and for each field
+   its `count` values in order. Each value is read from `value` at `offset + i × size` (copied into a local variable,
+   so unaligned access is never a problem) and written as:
+
+   | `FieldType` | On the wire |
+   |---|---|
+   | `kBool` | `u8`: 1 if the byte in memory is non-zero, else 0 |
+   | `kI8` … `kU64` | Integer of the same size, little-endian |
+   | `kF32`, `kF64` | IEEE 754, little-endian |
+   | `kVec2`, `kVec3`, `kVec4` | 2, 3 or 4 × `f32` |
+   | `kEntity` | `u32`: `mapper.toNetwork(entity)`, 0 for a null or untracked entity |
+   | `kAssetId` | `u64`, as is (asset ids are the same in every process) |
+
+   Padding bytes are never written.
+2. `readFields(reader, info, value, mapper)` first zeroes `value` (so padding is always zero), then reads every value
+   in the same order and encoding. It returns false if:
+   - a `bool` is not 0 or 1;
+   - an `f32`/`f64`, or any component of a vector, is NaN or infinite;
+   - bytes are missing.
+   On false, the content of `value` is unspecified and must be thrown away.
+3. An entity field is read as a `u32` and translated with `mapper.toLocal(id)`: 0 gives the null entity, and so does an
+   id the mapper does not know (the target may not exist on this client yet).
+4. `getWireSize(info)` returns the number of bytes `writeFields` writes for that type. It is the same for every value,
+   since no field has a variable size; the snapshot builder uses it to know whether a record fits.
+5. `isSerializable(info)` is true when the type has at least one field and no lifecycle hooks (it is plain data that
+   can be built from zeroed bytes). The manifest refuses to replicate a type that is not (NET-14).
+6. Nothing allocates or throws.
+
+**Used by.** NET-14 (`isSerializable`), NET-16 (writing snapshots), NET-17 (reading them), later NET-34 (custom
+packets) and NET-42 (quantization changes the encodings of this table).
+
+**API (recommendation).**
 ```c++
-/// @brief Translates entity fields: Entity → NetworkId when writing, NetworkId → Entity when reading.
+namespace rtype::replication::serialization {
+/// @brief Translates entity references between the local world and the network.
 class EntityMapper {
   public:
     virtual ~EntityMapper() = default;
-    [[nodiscard]] virtual std::uint32_t toNetwork(ecs::Entity entity) const noexcept = 0;   // 0 if unknown/null
-    [[nodiscard]] virtual ecs::Entity toLocal(std::uint32_t networkId) const noexcept = 0;  // null if unknown
+    /// @return The NetworkId of the entity, 0 if it is null or not replicated.
+    [[nodiscard]] virtual std::uint32_t toNetwork(ecs::Entity entity) const noexcept = 0;
+    /// @return The local entity of a NetworkId, the null entity if unknown or 0.
+    [[nodiscard]] virtual ecs::Entity toLocal(std::uint32_t networkId) const noexcept = 0;
 };
 
-/// @return False if the type cannot be replicated in v1 (it has lifecycle hooks).
 [[nodiscard]] RTYPE_REPLICATION_API bool isSerializable(const ecs::TypeInfo& info) noexcept;
+[[nodiscard]] RTYPE_REPLICATION_API std::size_t getWireSize(const ecs::TypeInfo& info) noexcept;
 RTYPE_REPLICATION_API void writeFields(network::bytes::ByteWriter& writer, const ecs::TypeInfo& info,
                                        std::span<const std::byte> value, const EntityMapper& mapper) noexcept;
-/// @return False (value unspecified) if a field fails its check or bytes are missing.
 [[nodiscard]] RTYPE_REPLICATION_API bool readFields(network::bytes::ByteReader& reader, const ecs::TypeInfo& info,
                                                     std::span<std::byte> value, const EntityMapper& mapper) noexcept;
+}  // namespace rtype::replication::serialization
 ```
 
 **Tasks.**
-- [ ] Every `FieldType`, `count` values per field, in `fields` order; `kEntity` as `u32` NetworkId, `kAssetId` as
-  `u64`, `bool` as `u8`; padding is never written; `readFields` starts from a zeroed value.
-- [ ] Checks on read: `bool` is 0 or 1; `f32`/`f64` and every vector component finite.
-- [ ] `isSerializable`: no `TypeHooks` (plain data), at least one field.
-- [ ] Tests: round trip of a component with every field type and a fixed array; NaN and infinity rejected; `bool`
-  value 2 rejected; truncated input rejected; entity mapping both ways, unknown id → null entity.
+- [ ] `serialization/EntityMapper.hpp`, `serialization/FieldSerializer.hpp/.cpp`.
+- [ ] Tests: round trip of a component with one field of every type and a fixed array; exact bytes of a small
+  component; NaN, +∞ and −∞ rejected (in a scalar and in a vector); `bool` 2 rejected; truncated input rejected at
+  every length; entity mapping both ways, unknown id → null entity; `getWireSize` equals the bytes written; a type
+  with hooks is not serializable.
 
 ### NET-14 · Manifest
 
 | Milestone | Size | Blocked by | Design |
 |---|---|---|---|
-| M1 | M | NET-13 | [7.2](design.md#72-manifest), [7.3](design.md#73-message-types) |
+| M1 | M | NET-04, NET-13 | [7.2](design.md#72-manifest), [7.3](design.md#73-message-types) |
 
-**Summary.** Build the manifest from the server's world, send it as welcome messages, rebuild and check it on the
-client. M1 covers components and input actions; NET-33 adds packets and NET-41 prefabs.
+**Summary.** The list of everything the server replicates (components, input actions), with a hash of each layout,
+sent to every client at connection. The client compares it with its own registrations and refuses to play on any
+difference; afterwards both sides use the list's short ids instead of names.
 
-**API.**
+**What it is for.** A snapshot says "component 3 of entity 42 is these 12 bytes". That only works if both machines
+agree on what component 3 is and on its exact layout. They might not: a client may run older scripts than the
+server, or register its types in another order. Without a check, the client would silently read garbage.
+
+The manifest settles it once, at connection ([design 7.2](design.md#72-manifest)):
+
+- The server lists every replicated component by **name**, sorted, with the `layoutHash` the ECS computes for it, and
+  every input action with its kind. A component's position in the sorted list is its **short id**, a `u16` used on
+  the wire instead of the name.
+- The client receives the list and compares it with its own world. Any difference (an unknown name, a different
+  layout, a missing or extra entry) refuses the connection with a message that names the entry
+  (`` `game.Health` differs between client and server: update your game ``). Otherwise it sends `kReady`.
+- The short ids are **not** the world's `ComponentId`s, which depend on registration order and differ between
+  processes. Each side maps short id → its own `ComponentId` by name.
+
+The last manifest message also carries the server's settings the client needs: tick rate, snapshot rate and
+reconnection grace.
+
+**What it must do.**
+
+*Building, on the server.*
+
+1. Take the world's replicated components (`TypeRegistry::getReplicatedIds()`), sort them by name, and give each its
+   index as short id. More than 65 535 is a `ManifestException`.
+2. Every replicated component must be serializable (NET-13); otherwise throw `ManifestException` naming it. This is a
+   setup error: the server does not start.
+3. Take the input actions from the `InputLayout` (NET-15), which orders them by name; their index is their position.
+4. Compute the manifest hash: FNV-1a 64 (`hashString` / `hashInteger` of the ECS) over every entry in order: entry
+   type, short id or index, name, then layout hash (component) or kind (action).
+5. `encode(settings)` produces the welcome messages, all on the reliable channel: one `kManifestComponent` per
+   component, one `kManifestInputAction` per action, then `kManifestEnd` with the entry count, the hash, the tick
+   rate, the snapshot rate and the reconnection grace in seconds ([design 7.3](design.md#73-message-types)). They are
+   messages of a `ManifestCodec` (NET-04): no hand-written encoder.
+6. `toLocal(shortId)` and `toShort(componentId)` translate both ways; unknown values give `std::nullopt`.
+
+*Receiving and checking, on the client.*
+
+7. `ManifestReceiver::receive(message)` accepts entries until `kManifestEnd`. It returns false (malformed) on a
+   message that does not decode, a duplicated short id or index, an entry after the end, or an end whose count does
+   not match the entries received. Messages arrive in order (reliable channel), so no reordering is needed.
+8. `isComplete()` is true once a valid `kManifestEnd` was received.
+9. `check(world, layout)` builds the client's own manifest the same way and compares:
+   - same hash → success: the result maps every short id to the client's `ComponentId` by name;
+   - different → find the first difference in sorted order and describe it: present on one side only, different
+     layout hash, or an input action with another kind or index. The client's set must equal the server's: an extra
+     replicated component on the client is a difference too.
+10. A mismatch is network input, not a setup error: it is returned in `ManifestCheck`, never thrown.
+11. `getServerSettings()` returns the settings of `kManifestEnd`.
+
+**Used by.** NET-15 (input actions), NET-16 (server: welcome messages, short ids when writing), NET-17 (client:
+check, short ids when reading), later NET-33 (packets) and NET-41 (prefabs) add entry types.
+
+**API (recommendation).**
 ```c++
+namespace rtype::replication {
 enum class MessageType : std::uint8_t {
     kManifestComponent = 0x20, kManifestPacket = 0x21, kManifestPrefab = 0x22, kManifestInputAction = 0x23,
     kManifestEnd = 0x24, kSnapshot = 0x30, kInput = 0x31, kCustomPacket = 0x32,
 };
+}  // namespace rtype::replication
 
+namespace rtype::replication::manifest {
 class RTYPE_REPLICATION_API Manifest {
   public:
-    /// @throws exceptions::ManifestException on a non-serializable replicated type or more than 32 button actions.
-    [[nodiscard]] static Manifest build(const ecs::World& world, const InputLayout& inputs);
+    /// @throws exceptions::ManifestException on a non-serializable replicated type or too many entries.
+    [[nodiscard]] static Manifest build(const ecs::World& world, const input::InputLayout& inputs);
     [[nodiscard]] std::vector<network::Bytes> encode(const ReplicationSettings& settings) const;
     [[nodiscard]] std::uint64_t getHash() const noexcept;
     [[nodiscard]] std::optional<ecs::ComponentId> toLocal(std::uint16_t shortId) const noexcept;
     [[nodiscard]] std::optional<std::uint16_t> toShort(ecs::ComponentId id) const noexcept;
-    [[nodiscard]] std::span<const ecs::ComponentId> getComponents() const noexcept;  // in short id order
+    [[nodiscard]] std::span<const ecs::ComponentId> getComponents() const noexcept;  // by short id
 };
 
-/// @brief Result of the client's check: the manifest mapped to the local world, or the first difference.
-struct ManifestCheck { std::optional<Manifest> manifest; std::string mismatch; };
+struct ManifestCheck {
+    std::optional<Manifest> manifest;  ///< Set on success, mapped to the local world.
+    std::string mismatch;              ///< Set on failure: the first difference, for the player.
+};
 
-/// @brief Client side: collects the manifest messages, then compares them with the local world.
 class RTYPE_REPLICATION_API ManifestReceiver {
   public:
-    /// @return False on a malformed or unexpected message.
     bool receive(std::span<const std::byte> message);
     [[nodiscard]] bool isComplete() const noexcept;
-    /// @return The manifest mapped to the local world, or the description of the first difference.
-    [[nodiscard]] ManifestCheck check(const ecs::World& world, const InputLayout& inputs) const;
-    [[nodiscard]] const ReplicationSettings& getServerSettings() const noexcept;  // from kManifestEnd
+    [[nodiscard]] ManifestCheck check(const ecs::World& world, const input::InputLayout& inputs) const;
+    [[nodiscard]] const ReplicationSettings& getServerSettings() const noexcept;
 };
+}  // namespace rtype::replication::manifest
 ```
 
 **Tasks.**
-- [ ] The manifest messages (`kManifestComponent`, `kManifestInputAction`, `kManifestEnd`...) are messages of a
-  `ManifestCodec = network::bytes::Codec<MessageType, std::variant<...>>` (NET-04); no hand-written encoder.
-- [ ] Replicated components: `TypeRegistry::getReplicatedIds()`, excluding `Presence::kClientOnly`, sorted by name;
-  short id = index.
-- [ ] Manifest hash: FNV-1a (`hashString` / `hashInteger`) over every entry in order (entry type, short id, name,
-  layout hash or kind).
-- [ ] `kManifestEnd`: entry count, hash, tick rate, snapshot rate, reconnect grace (seconds), as design 7.3.
-- [ ] Client check: same count and hash, every name known locally with the same layout hash, every input action at
-  the same index with the same kind. Error text names the first differing entry
-  (`` `game.Health` differs between client and server ``).
-- [ ] A mismatch is network input, not a setup error: it is returned in `ManifestCheck`, never thrown.
-- [ ] Tests: build → encode → receive → check round trip; each kind of mismatch; malformed messages; entry count
-  mismatch; more than 32 buttons refused at build.
+- [ ] `MessageType.hpp`, `ReplicationSettings.hpp` (tick rate 60, snapshot rate 60, reconnection grace 60 s),
+  `manifest/ManifestMessages.hpp` (the codec messages), `manifest/Manifest.hpp/.cpp`,
+  `manifest/ManifestReceiver.hpp/.cpp`, `exceptions/ReplicationExceptions.hpp`.
+- [ ] Tests: build → encode → receive → check on two worlds registered in different orders (same short ids by
+  name); each kind of difference and its message; malformed, duplicated and late messages; wrong count; a
+  non-serializable replicated type refused at build.
 
 ### NET-15 · Inputs
 
 | Milestone | Size | Blocked by | Design |
 |---|---|---|---|
-| M1 | M | NET-14 | [7.5](design.md#75-inputs-client--server) |
+| M1 | M | NET-12, NET-14 | [7.5](design.md#75-inputs-client--server) |
 
-**Summary.** The game's input actions, the `kInput` message (last 3 inputs) and the server's per-client input
-buffer.
+**Summary.** Everything about player inputs on the wire: the game's list of input actions (`InputLayout`), the
+`kInput` message that carries the last three inputs from client to server, and the server's per-client
+`InputBuffer` that hands out one input per tick.
 
-**API.**
+**What it is for.** Clients never send positions or actions with coordinates: they send what the player is pressing,
+and the server decides what happens ([design 7.5](design.md#75-inputs-client--server)). Three pieces make that work:
+
+- **`InputLayout`** is the game's list of named actions (`"move"` is a 2D vector, `"fire"` a button), the same on
+  both sides (checked by the manifest). It decides where each action lives in a `PlayerInput`: which bit for a
+  button, which slots for an axis. Gameplay code reads actions by name through it (`isPressed(input, "fire")`) and
+  never deals with bits.
+- **`kInput`** carries, every client tick, the **last three** inputs. A datagram can be lost, but its input is
+  repeated in the next two, so it still arrives, with no resend delay. A resend through the reliable channel would
+  arrive after that tick is over, which is useless. Inputs are **held states**, not events: "fire is held", never
+  "fire was pressed", so a lost datagram can never swallow a press that is still held. The message also carries the
+  tick of the last snapshot the client applied (used from M2 on).
+- **`InputBuffer`** smooths arrival on the server. Datagrams arrive in bursts, late or twice; the game wants exactly
+  one input per tick, in order, each at most once. The buffer orders them by the client's input sequence and gives
+  the next one each tick, or repeats the last one when none arrived.
+
+**What `InputLayout` must do.**
+
+1. `add(name, kind)` declares an action. Names are unique. Adding after `freeze()` (called when the manifest is
+   built) throws: actions are declared at startup only.
+2. Actions are ordered **by name**, whatever the order of `add` calls. Button `i` is the `i`-th `kButton` action in
+   that order; axis slots are given in that order, one for a `kAxis`, two for a `kVector2`.
+3. More than 32 buttons or more than `kMaxInputAxes` (16) axis slots throws at `add`.
+4. Reading helpers, on a `PlayerInput`: `isHeld` (bit set), `isPressed` (set now, not in `previousButtons`),
+   `isReleased` (the reverse), `readAxis` (one slot), `readVector` (two slots). An unknown action name throws (a
+   programming error, not network input). `find(name)` returns a handle so that hot code avoids looking names up
+   every tick.
+5. Writing helpers, for the client's glue: `setButton`, `setAxis`, `setVector`. Axis values are clamped to [-1, 1];
+   NaN becomes 0.
+
+**What the `kInput` message must be.**
+
+```
+u8   type = kInput (0x31)
+u32  last applied snapshot tick
+u8   input count (1 to 3), oldest first, sequences strictly increasing
+     input × { sequence u32, buttons u32, axes i16 × (number of axis slots) }
+```
+
+6. Axes are quantized: `round(value × 32767)`, so [-1, 1] maps to [-32767, 32767]. On reading, -32768 is clamped to
+   -1.
+7. Decoding fails when: the count is 0 or above 3, sequences are not strictly increasing, a button bit beyond the
+   number of button actions is set, or bytes are missing or left over.
+8. `kInput` is written with the streams of NET-04 but **not** through a `Codec`: its number of axes comes from the
+   `InputLayout`, which a `serialize` function cannot know. `encode` and `decode` take the layout as a parameter.
+
+**What `InputBuffer` must do** (one per client, on the server).
+
+9. `push(sample)` ignores a sequence that was already applied or is already buffered, and otherwise inserts it in
+   sequence order.
+10. `next()` returns the lowest buffered input and remembers it as the current one and its sequence as the **last
+    processed input**. With nothing buffered, it returns the current one again and the last processed input does
+    not move. Before any input, the current one is neutral (all zeros).
+11. If more than 4 inputs are buffered after a push (the client runs slightly fast, or sent a burst), the oldest are
+    dropped until 2 remain. They are never applied.
+12. `reset()` empties it and makes the current input neutral (used when a client is lost, M4).
+
+**Used by.** NET-14 (actions in the manifest), NET-16 (server: buffers and `applyInputs`), NET-17 (client:
+`sendInput`), NET-18 (the game declares its actions and reads them), later M6 (prediction replays inputs by
+sequence).
+
+**API (recommendation).**
 ```c++
+namespace rtype::replication::input {
 enum class InputKind : std::uint8_t { kButton = 1, kAxis = 2, kVector2 = 3 };
 
 class RTYPE_REPLICATION_API InputLayout {
   public:
-    void add(std::string name, InputKind kind);   // before the manifest is built; order does not matter
-    [[nodiscard]] bool isHeld(const PlayerInput& input, std::string_view action) const;
-    [[nodiscard]] bool isPressed(const PlayerInput& input, std::string_view action) const;  // held, not before
-    [[nodiscard]] float readAxis(const PlayerInput& input, std::string_view action) const;
-    [[nodiscard]] std::array<float, 2> readVector(const PlayerInput& input, std::string_view action) const;
-    void setButton(PlayerInput& input, std::string_view action, bool held) const;   // client: fill from devices
-    void setAxis(PlayerInput& input, std::string_view action, float value) const;
+    void add(std::string name, InputKind kind);
+    void freeze() noexcept;
+    [[nodiscard]] bool isHeld(const component::PlayerInput& input, std::string_view action) const;
+    [[nodiscard]] bool isPressed(const component::PlayerInput& input, std::string_view action) const;
+    [[nodiscard]] bool isReleased(const component::PlayerInput& input, std::string_view action) const;
+    [[nodiscard]] float readAxis(const component::PlayerInput& input, std::string_view action) const;
+    [[nodiscard]] std::array<float, 2> readVector(const component::PlayerInput& input, std::string_view action) const;
+    void setButton(component::PlayerInput& input, std::string_view action, bool held) const;
+    void setAxis(component::PlayerInput& input, std::string_view action, float value) const;
+    void setVector(component::PlayerInput& input, std::string_view action, std::array<float, 2> value) const;
+    [[nodiscard]] std::size_t getButtonCount() const noexcept;
+    [[nodiscard]] std::size_t getAxisSlotCount() const noexcept;
 };
 
-struct InputSample { std::uint32_t sequence; std::uint32_t buttons; std::vector<float> axes; };
-struct InputMessage { std::uint32_t lastAppliedSnapshot; std::vector<InputSample> inputs; };   // 1 to 3 inputs
-[[nodiscard]] network::Bytes encode(const InputMessage& message, const InputLayout& layout);
-[[nodiscard]] std::optional<InputMessage> decodeInput(std::span<const std::byte> message, const InputLayout& layout);
+struct InputSample {
+    std::uint32_t sequence;
+    std::uint32_t buttons;
+    std::array<float, component::kMaxInputAxes> axes;
+};
+struct InputMessage {
+    std::uint32_t lastAppliedSnapshot;
+    std::vector<InputSample> inputs;  ///< 1 to 3, oldest first.
+};
+[[nodiscard]] RTYPE_REPLICATION_API network::Bytes encodeInput(const InputMessage& message, const InputLayout& layout);
+[[nodiscard]] RTYPE_REPLICATION_API std::optional<InputMessage> decodeInput(std::span<const std::byte> message,
+                                                                            const InputLayout& layout) noexcept;
 
-/// @brief Server side, one per client.
-class InputBuffer {
+class RTYPE_REPLICATION_API InputBuffer {
   public:
-    void push(const InputSample& sample);              // ignores sequences already applied or buffered
-    [[nodiscard]] InputSample next();                  // the next one, or the last one repeated
+    void push(const InputSample& sample);
+    [[nodiscard]] const InputSample& next();
+    void reset() noexcept;
     [[nodiscard]] std::uint32_t getLastProcessed() const noexcept;
 };
+}  // namespace rtype::replication::input
 ```
 
 **Tasks.**
-- [ ] `kInput` is written with the NET-04 streams but not through a `Codec`: its number of axes comes from the
-  `InputLayout`, which a `serialize` function cannot know. `encode` / `decode` take the layout.
-- [ ] Actions sorted by name; button `i` is the `i`-th `kButton` action; axis slots in order, two per `kVector2`;
-  at most `kMaxInputAxes` slots.
-- [ ] Axes on the wire as `i16`, `[-1, 1] ↔ [-32767, 32767]`, clamped on encode; on decode, `-32768` is clamped to
-  `-1`. Button bits beyond the button count must be 0 (else the message is dropped).
-- [ ] `InputBuffer`: kept by sequence; above 4 buffered, drop the oldest down to 2; `next()` with an empty buffer
-  repeats the last input and does not advance `getLastProcessed()`.
-- [ ] Tests: encode / decode of 1 and 3 inputs; bad counts (0, 4); extra button bits; buffer ordering, duplicates,
-  overflow, repetition; `isPressed` edge detection through `previousButtons`.
+- [ ] `input/InputKind.hpp`, `input/InputLayout.hpp/.cpp`, `input/InputMessage.hpp/.cpp`, `input/InputBuffer.hpp/.cpp`.
+- [ ] Tests: two layouts built in different `add` orders give the same bits and slots; limits; `isPressed` /
+  `isReleased` through `previousButtons`; clamping and NaN; encode / decode of 1 and 3 inputs; counts 0 and 4;
+  non-increasing sequences; extra button bits; -32768; buffer ordering, duplicates, already-applied sequences,
+  repetition without advancing the last processed input, overflow down to 2, reset.
 
 ### NET-16 · Server replicator with complete snapshots
 
@@ -1214,28 +2219,84 @@ class InputBuffer {
 |---|---|---|---|
 | M1 | L | NET-11, NET-15 | [7.4](design.md#74-snapshots-server--client), [7.5](design.md#75-inputs-client--server), deviation [1](#6-deviations-from-the-design) |
 
-**Summary.** The server half of replication: assigns `NetworkId`s, raises connection events, applies inputs and
-sends a complete snapshot to every joined client.
+**Summary.** The server's half of replication, one per game world: it gives replicated entities their
+`NetworkId`, tells the game when players join and leave, writes each player's inputs into their ship, and sends
+every client a snapshot of the world after each tick.
 
-**API.**
-```c++
-struct ReplicationSettings { std::uint8_t tickRate{60}; std::uint8_t snapshotRate{60}; std::uint16_t reconnectGraceSeconds{60}; };
+**What it is for.** The game's world lives on the server; clients only show copies. Something has to sit between the
+world and the network on the server, and that is the `ServerReplicator`. Each tick, the game loop calls it at fixed
+points:
 
-class RTYPE_REPLICATION_API ServerReplicator {
-  public:
-    ServerReplicator(ecs::World& world, const InputLayout& inputs, ReplicationSettings settings);
-    [[nodiscard]] std::vector<network::Bytes> getWelcomeMessages() const;   // the encoded manifest
-    std::uint32_t track(ecs::Entity entity);      // assigns the next id, adds the NetworkId component
-    void handle(const network::server::ServerEvent& event);
-    void applyInputs();                          // once per fixed tick, before the game step
-    void endTick();                              // after the game step and advanceChangeTick(): builds snapshots
-    [[nodiscard]] std::vector<network::server::ServerCommand> takeCommands();
-    [[nodiscard]] std::uint32_t getServerTick() const noexcept;
-};
+```
+events from NetServer ──► handle()       ClientJoined → ECS event ClientConnected, kInput → input buffer
+                          applyInputs()  each controlled entity's PlayerInput ← its client's next input
+game step                                gameplay reads PlayerInput, moves things, spawns, despawns
+World::advanceChangeTick()
+                          endTick()      builds a snapshot per client (every N ticks)
+NetServer ◄── takeCommands()             the snapshots, as SendMessage commands
 ```
 
-**Snapshot layout** (design 7.4 plus the `flags` byte of deviation 1; this is the final layout, M2 only changes
-what the server puts in it):
+It never touches the socket: it consumes `ServerEvent`s and produces `ServerCommand`s, so it is tested without
+network, and NET-24 / NET-25 can run it in a room thread unchanged.
+
+In M1 every snapshot is **complete** ([deviation 1](#6-deviations-from-the-design)): it lists every replicated
+entity with all its replicated components. That is simple and correct, and fits a few dozen entities. M2 replaces it
+with deltas (only what each client has not confirmed yet), keeping the same message layout.
+
+**What it must do.**
+
+*Setup.*
+
+1. The constructor takes a world where the replication types (NET-12) and every game type are registered, and the
+   game's `InputLayout`. It builds the manifest (a `ManifestException` stops the server: setup error) and checks that
+   `snapshotRate` divides `tickRate` (otherwise it throws).
+2. `getWelcomeMessages()` returns the encoded manifest, given to `NetServer::setWelcomeMessages`.
+
+*Tracking entities.* Without ECS queries, the replicator cannot find replicated entities by itself, so the game
+registers them ([1](#1-starting-point)).
+
+3. `track(entity)` gives an alive entity the next `NetworkId` (from 1, increasing, never reused), adds the
+   `NetworkId` component, and remembers the entity both ways (`NetworkId → Entity`, `Entity → NetworkId`). Tracking
+   an entity already tracked returns its id.
+4. At each `endTick`, entities that are no longer alive (`World::isAlive`) are forgotten. In M1 nothing else is
+   needed for despawns: the next complete snapshot does not list them, so clients remove them.
+
+*Players.*
+
+5. `handle(ClientJoined)` creates the client's record (its `InputBuffer`, its last applied snapshot) and sends the
+   ECS event `ClientConnected`. The game reacts by spawning a ship with an `Owner` and tracking it.
+6. `handle(ClientLeft)` deletes the record and sends `ClientDisconnected{client, reason}`. The game despawns the
+   ship.
+7. `handle(ClientMessage)` of type `kInput` from a known client: decode it with the layout; on failure drop it
+   (counted for NET-27); otherwise push its inputs into the client's buffer and remember its last applied snapshot
+   tick (unused until M2). Other message types are ignored in M1 (counted).
+
+*Inputs.*
+
+8. `applyInputs()`, once per fixed tick before the game step: for every tracked entity with an `Owner`, take
+   `next()` from that client's buffer and write it into the entity's `PlayerInput` (added if missing):
+   `previousButtons` = the buttons it had, then `buttons`, `axes` and `sequence` from the input. An entity whose
+   owner is not connected gets the neutral input.
+
+*Snapshots.*
+
+9. `endTick()` advances the server tick by one. Every `tickRate / snapshotRate` ticks, it builds one snapshot per
+   connected client, with the layout below:
+   - the header: the server tick, **that client's** last processed input (`InputBuffer::getLastProcessed`), the
+     flags;
+   - one spawn record per tracked entity, in increasing `NetworkId` order: the id, prefab `0xFFFF` (none in M1), and
+     every replicated component the entity has, in short id order, written with NET-13 (entity fields through the
+     tracking table);
+   - records are added while the message stays within `kMaxMessageSize` (`getWireSize` tells the size in advance).
+     An entity is written whole or not at all. If every entity fits, the `kComplete` flag is set; if not, the flag is
+     cleared (clients then remove nothing) and a rate-limited warning is logged;
+   - updates, removals and despawns are empty in M1.
+   The body is the same for every client: build it once and only change the header.
+10. Each snapshot becomes a `SendMessage{client, kUnreliable, bytes}` command. Never more than one snapshot per client
+    per tick.
+
+**Snapshot layout** (design 7.4 plus the `flags` byte of deviation 1; this is the final layout, M2 only changes what
+the server puts in it):
 
 ```
 u8   type = kSnapshot (0x30)
@@ -1248,65 +2309,152 @@ u16  removal count  × { netId u32, short id u16 }
 u16  despawn count  × { netId u32 }
 ```
 
-In M1 the server only writes spawn records; updates, removals and despawns are empty (but the client already
-applies them, NET-17).
+`snapshot/Snapshot.hpp` holds a decoded `Snapshot` (header and the four lists, component values as bytes per
+short id) with its encoder and decoder, shared by both replicators. The decoder fails on: counts larger than the
+remaining bytes allow, an unknown short id, a component listed twice in one record, a net id listed twice in one
+list, a net id of 0, reserved flag bits set, or bytes left over.
+
+**Used by.** NET-18 (the prototype server), NET-19 / NET-20 (M2 replaces the snapshot selection), NET-25 (runs in a
+room), NET-38 (wrapped in ECS systems).
+
+**API (recommendation).**
+```c++
+namespace rtype::replication::server {
+class RTYPE_REPLICATION_API ServerReplicator {
+  public:
+    ServerReplicator(ecs::World& world, const input::InputLayout& inputs, ReplicationSettings settings);
+    [[nodiscard]] std::vector<network::Bytes> getWelcomeMessages() const;
+    std::uint32_t track(ecs::Entity entity);
+    void handle(const network::server::ServerEvent& event);
+    void applyInputs();
+    void endTick();
+    [[nodiscard]] std::vector<network::server::ServerCommand> takeCommands();
+    [[nodiscard]] std::uint32_t getServerTick() const noexcept;
+
+  private:
+    struct ClientRecord {
+        input::InputBuffer inputs;
+        std::uint32_t lastAppliedSnapshot{0};
+    };
+    ecs::World& _world;
+    manifest::Manifest _manifest;
+    std::unordered_map<network::ClientId, ClientRecord> _clients;
+    std::map<std::uint32_t, ecs::Entity> _entities;  ///< By NetworkId, in id order for snapshots.
+    std::uint32_t _nextNetworkId{1};
+    std::uint32_t _serverTick{0};
+};
+}  // namespace rtype::replication::server
+```
 
 **Tasks.**
-- [ ] `snapshot/Snapshot.hpp/.cpp`: a decoded `Snapshot` struct and its encoder / decoder (the decoder checks counts against
-  the remaining bytes, unknown short ids, duplicate net ids in one list, and reserved flag bits).
-- [ ] `ClientJoined` → ECS event `ClientConnected`, client added to the snapshot list. `ClientLeft` → event
-  `ClientDisconnected`, client removed. `ClientMessage` of type `kInput` → that client's `InputBuffer`, other types
-  ignored in M1 (malformed ones counted for NET-27).
-- [ ] `applyInputs`: for every tracked entity with an `Owner`, write `next()` of that client's buffer into its
-  `PlayerInput` (adding it if missing), keeping `previousButtons`.
-- [ ] Untrack entities that are no longer alive (`World::isAlive`) at each `endTick`.
-- [ ] Snapshot every `tickRate / snapshotRate` ticks (check the divisor at construction, throw otherwise). Layout
-  of design 7.4 with the `flags` byte: every tracked entity as a spawn record (prefab `0xFFFF`, every replicated
-  component it has), until `kMaxMessageSize`; `kComplete` if all fit; `last processed input` per client.
-- [ ] Log (rate-limited) when a snapshot does not fit; never send more than one snapshot per client per tick.
-- [ ] Tests (no socket: events in, commands out): ids increasing and never reused; connect / disconnect events;
-  inputs applied to the right entity; repeated input; snapshot content decoded with `snapshot::Snapshot`; `kComplete`
-  cleared above the budget.
+- [ ] `snapshot/Snapshot.hpp/.cpp`, `server/ServerReplicator.hpp/.cpp`.
+- [ ] Tests (no socket: events in, commands out, decoded with `snapshot::Snapshot`): ids increasing and never reused;
+  `ClientConnected` / `ClientDisconnected` events; inputs reach the owner's entity, `previousButtons` correct,
+  repeated when none arrive, neutral without a connected owner; snapshot rate divisor; snapshot content (entities,
+  components, entity fields as ids); `kComplete` set when everything fits and cleared above the budget; dead
+  entities disappear from the next snapshot; snapshot decoder failure cases.
 
 ### NET-17 · Client replicator
 
 | Milestone | Size | Blocked by | Design |
 |---|---|---|---|
-| M1 | L | NET-11, NET-15 | [7.2](design.md#72-manifest), [7.4](design.md#74-snapshots-server--client), [7.5](design.md#75-inputs-client--server) |
+| M1 | L | NET-11, NET-15, NET-16 (`Snapshot`) | [7.2](design.md#72-manifest), [7.4](design.md#74-snapshots-server--client), [7.5](design.md#75-inputs-client--server) |
 
-**Summary.** The client half: checks the manifest, applies snapshots to the local world through a
-`NetworkId → Entity` map, sends inputs.
+**Summary.** The client's half of replication: it checks the manifest, keeps the local world a copy of the server's
+by applying snapshots through a `NetworkId → Entity` map, and sends the player's inputs.
 
-**API.**
+**What it is for.** The client's world is a mirror: it has the same component types as the server's, and its
+replicated entities must follow what the server says. The `ClientReplicator` is the only thing that writes them:
+
+- At connection, it collects the manifest and checks it against the client's own world; the application then sends
+  `kReady` or disconnects with the reason.
+- For each snapshot, it creates the entities the client does not have yet, overwrites their replicated components
+  with the server's values, removes what the server removed, and destroys what the server destroyed. It keeps the
+  `NetworkId → Entity` map, since the client's `Entity` values have nothing to do with the server's.
+- Each client tick, it numbers the player's input and sends it with the two previous ones, plus the tick of the last
+  snapshot it applied.
+
+Like the server side, it never touches the socket: it consumes `ClientEvent`s and produces messages for
+`NetClient`.
+
+**What it must do.**
+
+*Manifest.*
+
+1. `ServerMessage`s of the manifest types go to a `ManifestReceiver`. When it is complete, `check` runs once: the
+   status becomes `kAccepted` (the short id mapping is kept) or `kMismatch` (the text is kept for the player). The
+   application then calls `NetClient::sendReady()` or disconnects with `kManifestMismatch`.
+2. Before `kAccepted`, snapshots are dropped and `sendInput` does nothing.
+
+*Applying a snapshot.*
+
+3. A snapshot whose tick is not newer than the last one applied is dropped (it arrived late; a newer state is
+   already shown).
+4. A snapshot is applied **all or nothing**. It is first decoded and validated completely without touching the world
+   (with a mapper that turns every entity reference into the null entity). Only if that succeeds is it applied. A
+   malformed snapshot leaves the world exactly as it was.
+5. Applying, in this order:
+   1. **spawns**: for every record whose net id is unknown (or whose entity is no longer alive), create an entity,
+      add `NetworkId`, and add it to the map. This happens for all spawns **before** any value is read, so that
+      entity fields can refer to entities spawned by the same snapshot;
+   2. the component values of spawns and updates are then decoded again with the real mapper and written: added if
+      the entity does not have the component, overwritten otherwise. An update for an unknown net id is ignored;
+   3. **removals**: remove the component if present;
+   4. **despawns**: destroy the entity and remove it from the map;
+   5. if `kComplete` is set: destroy every mapped entity that is not in the spawn list, and remove from each listed
+      entity every replicated component the record did not list.
+6. Then remember the snapshot's tick (sent back in every `kInput`) and its last processed input (kept for M6).
+
+*Inputs.*
+
+7. `sendInput(input)` gives the input the next sequence (from 1), keeps the last three, and queues a `kInput`
+   message (unreliable) with them, oldest first, and the last applied snapshot tick.
+
+*Lookups.*
+
+8. `find(networkId)` returns the local entity, or the null entity. `getLocalPlayer()` returns the entity whose `Owner`
+   is this client's id, if there is one.
+9. Nothing coming from the network throws; malformed messages are dropped and counted.
+
+**Used by.** NET-18 (the prototype client), NET-22 (interpolation hooks into the apply step), NET-32 (reset on
+reconnection), NET-36 (prediction uses the last processed input), NET-38 (wrapped in ECS systems).
+
+**API (recommendation).**
 ```c++
+namespace rtype::replication::client {
 enum class ManifestStatus : std::uint8_t { kWaiting, kAccepted, kMismatch };
 
 class RTYPE_REPLICATION_API ClientReplicator {
   public:
-    ClientReplicator(ecs::World& world, const InputLayout& inputs);
+    ClientReplicator(ecs::World& world, const input::InputLayout& inputs);
     void handle(const network::client::ClientEvent& event);
     [[nodiscard]] ManifestStatus getManifestStatus() const noexcept;
-    [[nodiscard]] std::string_view getMismatch() const noexcept;     // text for the player
-    /// @brief Numbers the input with the next sequence and queues a kInput with the last 3.
-    void sendInput(const PlayerInput& input);
+    [[nodiscard]] std::string_view getMismatch() const noexcept;
+    void sendInput(const component::PlayerInput& input);
+    /// @return Messages for NetClient::send, in order.
     [[nodiscard]] std::vector<std::pair<network::Channel, network::Bytes>> takeOutgoing();
-    [[nodiscard]] ecs::Entity find(std::uint32_t networkId) const noexcept;   // null if unknown
-    [[nodiscard]] std::optional<ecs::Entity> getLocalPlayer() const noexcept;   // Owner == our client id
+    [[nodiscard]] ecs::Entity find(std::uint32_t networkId) const noexcept;
+    [[nodiscard]] std::optional<ecs::Entity> getLocalPlayer() const noexcept;
+
+  private:
+    ecs::World& _world;
+    manifest::ManifestReceiver _receiver;
+    std::optional<manifest::Manifest> _manifest;
+    std::unordered_map<std::uint32_t, ecs::Entity> _entities;  ///< NetworkId → local entity.
+    std::uint32_t _lastAppliedTick{0};
+    std::uint32_t _nextInputSequence{1};
+    std::deque<input::InputSample> _recentInputs;  ///< The last three, oldest first.
 };
+}  // namespace rtype::replication::client
 ```
 
 **Tasks.**
-- [ ] Manifest messages go to a `ManifestReceiver`; when complete, check it; on success the caller sends `kReady`
-  (`NetClient::sendReady`), on mismatch the caller disconnects with `kManifestMismatch` and shows the text.
-- [ ] Snapshots: drop if the tick is not newer than the last applied; apply spawns (create if unknown, add the
-  `NetworkId` component, set components), updates, removals, despawns in that order; resolve `kEntity` fields after
-  spawns (read in two passes, or defer entity fields); with `kComplete`, despawn absent entities and remove absent
-  replicated components.
-- [ ] Any malformed part drops the **whole** snapshot before touching the world (decode first, then apply).
-- [ ] The tick of the last applied snapshot goes in every `kInput`.
-- [ ] Tests: apply a hand-built snapshot to an empty world; older tick dropped; entity references between two
-  entities spawned by the same snapshot; complete-snapshot removal; malformed snapshot leaves the world unchanged;
-  manifest mismatch status.
+- [ ] `client/ClientReplicator.hpp/.cpp`.
+- [ ] Tests (snapshots built with `snapshot::Snapshot`, no socket): manifest accepted and mismatched; snapshots
+  before acceptance dropped; a snapshot applied to an empty world; an older tick dropped; two entities spawned by
+  the same snapshot referring to each other; update, removal and despawn; `kComplete` removes absent entities and
+  components; a malformed snapshot (at every truncation) leaves the world unchanged; `kInput` content (sequences,
+  last three, last applied tick); `getLocalPlayer`.
 
 ### NET-18 · Prototype game
 
@@ -1314,29 +2462,62 @@ class RTYPE_REPLICATION_API ClientReplicator {
 |---|---|---|---|
 | M1 | M | NET-16, NET-17 | [3](#3-the-prototype-in-two-days) of this spec |
 
-**Summary.** `examples/network/Prototype/`: a server and a client of a tiny shooter, wired by hand-written loops,
-that proves the whole M1 pipeline.
+**Summary.** `examples/network/Prototype/`: a server and a client of a tiny shooter, written with plain loops, that
+runs the whole M1 pipeline and serves as the demo.
 
-**Game.** Components `Body { vec2 position; vec2 size; u32 color; }` (`kEveryChange`) and `Velocity { vec2 value; }`
-(server-only presence, not replicated); actions `move` (`kVector2`) and `fire` (`kButton`). On `ClientConnected`
-the server spawns a ship (`Body`, `Owner`, `PlayerInput`) and tracks it; on `ClientDisconnected` it despawns it.
-`fire` pressed spawns a bullet moving right, despawned when it leaves an 800 × 600 area.
+**What it is for.** It proves that every M1 piece works together on real sockets, between real processes, and gives
+the team a reference for how to wire them (the order of the calls in a tick matters). It is also the test bed used
+for every later milestone: deltas, rooms and reconnection are all checked first in this game. It lives in
+`examples/` because the real `client` and `server` executables need the ECS `App` (NET-39).
+
+**What the game is.**
+
+- An 800 × 600 area. Each player has a square ship; arrows / WASD move it, Space fires.
+- Components: `Body { vec2 position; vec2 size; u32 color; }` (replicated, `kEveryChange`) and
+  `Velocity { vec2 value; }` (server only, not replicated).
+- Actions: `move` (`kVector2`) and `fire` (`kButton`).
+- On `ClientConnected`, the server spawns a ship (`Body` with a color from the client id, `Owner`, `PlayerInput`) and
+  tracks it. On `ClientDisconnected`, it despawns that ship.
+- When `fire` is pressed (not held), a bullet (`Body` and `Velocity`) spawns in front of the ship, moving right; it
+  is despawned when it leaves the area. Ships move at a fixed speed from `move`, clamped to the area.
+
+**What it must do.**
+
+*`prototype-server`* (no window).
+
+1. Options: `--port` (4242), `--snapshot-rate` (60).
+2. Registers the replication types and the game's types, declares the actions, creates the `ServerReplicator`, then
+   the `NetServer` with the welcome messages.
+3. Runs a fixed 60 Hz loop (`sleep_until` the next tick, never sleeping a fixed duration), each tick in this order:
+   `NetServer::poll` → `ServerReplicator::handle` for each event → `applyInputs` → game step (react to the ECS
+   events, move, fire, despawn) → `World::advanceChangeTick` → `endTick` → `NetServer::execute` each command →
+   `NetServer::flush` → `Events::update`.
+4. Prints its tick count and connected players every 5 s (shows that the tick rate holds).
+5. SIGINT: `NetServer::shutdown`, then exit.
+
+*`prototype-client`*.
+
+6. Arguments: server host and port; `--bot` for a scripted player without a window.
+7. Connects with `NetClient`, feeds every event to the `ClientReplicator`, sends `kReady` when the manifest is
+   accepted. On a mismatch, a failed connection or a disconnection, prints the reason and exits.
+8. Every 1/60 s, fills a `PlayerInput` from the devices (GLFW window and `engine::input::Input`, bound to the
+   actions) or, with `--bot`, from a script (moves in a circle, fires every second), and calls `sendInput`.
+9. Display: draws every `Body` with `IRenderer::draw(RectShape)` when the renderer implements it; until then, prints
+   every `Body` (net id, position, owner) twice per second. The window still opens, for the keyboard.
+
+**Used by.** Every later milestone as its manual test bed; NET-25 moves its server into a room.
 
 **Tasks.**
-- [ ] `prototype-server`: `NetServer` + `ServerReplicator` + game step in a fixed 60 Hz loop
-  (`sleep_until` the next tick), command line `--port`, `--snapshot-rate`; SIGINT → `shutdown()`.
-- [ ] `prototype-client`: `NetClient` + `ClientReplicator`; GLFW window and `engine::input::Input` to fill
-  `PlayerInput` every 1/60 s; display: `IRenderer::draw(RectShape)` for every `Body` when the renderer implements
-  it, otherwise a text dump of every `Body` twice per second; `--bot` mode with no window (moves in a circle, fires
-  every second); shows the manifest mismatch or disconnect reason and exits.
-- [ ] The server loop: `poll` → `handle` events → `applyInputs` → game step → `World::advanceChangeTick()` →
-  `endTick` → `execute` commands → `flush` → `Events::update()`.
-- [ ] A `README.md` in the example with the demo steps of [3](#demo).
+- [ ] `examples/network/Prototype/xmake.lua` with the two targets, enabled by `--Prototype=y`.
+- [ ] Shared game code (components, actions, rules) used by both targets.
+- [ ] `prototype-server` and `prototype-client` as above.
+- [ ] `README.md` in the example with the demo steps of [3](#demo).
 
 **Acceptance.**
 - [ ] The [demo](#demo) works on Linux and on one other platform (noted in the PR).
-- [ ] `kill -9` of a client: the other clients see its ship disappear after about 2 s; the server's tick rate is
-  unchanged (it prints its tick count every 5 s).
+- [ ] Two bot clients and one keyboard client play together for 10 minutes without a disconnection.
+- [ ] `kill -9` of a client: the other clients see its ship disappear after about 2 s, and the server's printed tick
+  rate does not change.
 
 ## 9. M2: Scalable replication
 
