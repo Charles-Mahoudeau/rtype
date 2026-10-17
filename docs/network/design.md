@@ -32,7 +32,7 @@ something the ECS docs say, the change is listed in [Differences with the ECS do
 13. [Differences with the ECS docs](#13-differences-with-the-ecs-docs)
 14. [Pitfalls](#14-pitfalls)
 15. [Build order](#15-build-order)
-16. [Open questions](#16-open-questions)
+16. [Decisions and open questions](#16-decisions-and-open-questions)
 17. [References](#17-references)
 
 ## 1. Requirements
@@ -44,14 +44,15 @@ something the ECS docs say, the change is listed in [Differences with the ECS do
 | N3 | If a client crashes, the server keeps working and notifies the other clients of the same game | Subject | Timeouts, `kClientLeft` broadcast, `ClientDisconnected` event ([Connection lifecycle](#63-connection-lifecycle)) |
 | N4 | The server is robust: it keeps running whatever goes wrong | Subject | [Robustness and security](#10-robustness-and-security) |
 | N5 | Networking uses Asio or the OS socket API | Subject | Standalone Asio; the reliability layer is written in-house (ENet and similar libraries are not allowed) |
-| N6 | Authoritative server, inputs up, state down, no client prediction | ECS R3 | The whole design |
+| N6 | Authoritative server, inputs up, state down, with client prediction and server reconciliation for the local player | ECS R3, changed ([13](#13-differences-with-the-ecs-docs)) | The whole design; [7.6](#76-client-prediction-and-reconciliation) |
 | N7 | Builds and runs on Linux, macOS and Windows with Clang, Apple Clang and MSVC | `CLAUDE.md` | No compiler extensions; [Windows pitfall](#windows-connection_reset) handled |
 
 ## 2. Principles
 
 - **The server decides, clients display.** Clients send input states (buttons and axes) and permitted
   intentions (custom packets), never authoritative world state. The server never trusts what a client sends
-  beyond that.
+  beyond that. The client may *predict* the result of its own inputs to feel instant, but the server's state
+  always wins ([7.6](#76-client-prediction-and-reconciliation)).
 - **The transport knows nothing about the ECS.** `rtype-network` moves bytes and messages between endpoints.
   Only `rtype-replication` knows both sides.
 - **One owner per piece of data.** Every variable is written by exactly one thread. Threads talk through
@@ -97,8 +98,8 @@ An arrow means "is used by".
 
 | Target | Kind | Folder / namespace | Contains | Depends on |
 |---|---|---|---|---|
-| `network` | library (`rtype-network`) | `src/rtype/network/`, `rtype::network` | UDP socket and I/O thread, handshake and sessions, sequence numbers and acks, reliable channel, message packing, `ByteWriter` / `ByteReader`, lobby routing | Asio only. No ECS, no engine. |
-| `replication` | library (`rtype-replication`) | `src/rtype/replication/`, `rtype::replication` | `ServerPlugin` / `ClientPlugin` and their systems, `NetworkId` / `Owner` / `PlayerInput` / `Interpolated`, manifest, snapshot writer and reader, per-client ack bookkeeping, input buffers, custom packet registry | `ecs`, `network` |
+| `network` | shared library (`rtype-network`) | `src/rtype/network/`, `rtype::network` | UDP socket and I/O thread, handshake and sessions, sequence numbers and acks, reliable channel, message packing, `ByteWriter` / `ByteReader`, lobby routing | Asio only. No ECS, no engine. |
+| `replication` | shared library (`rtype-replication`) | `src/rtype/replication/`, `rtype::replication` | `ServerPlugin` / `ClientPlugin` and their systems, `NetworkId` / `Owner` / `PlayerInput` / `Interpolated`, manifest, snapshot writer and reader, per-client ack bookkeeping, input buffers, custom packet registry | `ecs`, `network` |
 | `engine` | library (today the executable) | `src/rtype/engine/` | The engine shared by both executables | `engine-core`, `ecs`, `luau` |
 | `client` | executable | | The game with a window. Can also host a game ([listen server](#4-topology-and-run-modes)). | `engine`, `replication`, `platform-glfw`, `render-vulkan` |
 | `server` | executable, headless | | The dedicated server | `engine`, `replication`. **Never** `platform-glfw` or `render-vulkan`, so it starts on a machine with no display or GPU. |
@@ -107,7 +108,10 @@ Rules, in the spirit of the existing dependency rules:
 
 - `network` and `ecs` never include each other's headers. The glue lives in `replication`.
 - `network` is declared with `add_requires("asio 1.36.x")` in its own `xmake.lua`. Exported symbols use
-  `RTYPE_NETWORK_API` / `RTYPE_REPLICATION_API` if the libraries are shared.
+  `RTYPE_NETWORK_API` / `RTYPE_REPLICATION_API`, like `ecs` and `luau`: both libraries are shared for now (they
+  can be switched to static later, as `ecs` allows).
+- The Luau `net` bindings (`net.packet`, `ctx.net`) live in the engine's Luau plugin, which depends on `luau` and
+  `replication`. `luau` and `replication` never include each other's headers.
 - No header outside `network/` includes `<asio.hpp>`, just as GLFW never leaves `platform/glfw/`.
 - Tests: `tests/network/` (`network-tests`) and `tests/replication/` (`replication-tests`).
 
@@ -128,6 +132,25 @@ packet blocks everything behind it until it is resent (head-of-line blocking), w
 The listen server runs in a thread rather than a child process: there is no executable to locate, no
 per-OS process API (`CreateProcess`, `posix_spawn`), and no orphaned server left running if the client
 crashes. It works because the ECS keeps no global state and each `luau::Runtime` owns its own `lua_State`.
+
+### Configuration
+
+Nothing below is hardcoded. Every tunable value is a field of a `NetworkSettings` struct (in `network` for the
+transport values, in `replication` for the others), filled from the executable's command line or config file and
+passed to the `RoomManager` and the I/O thread. The values written in this document are only the defaults.
+
+| Setting | Default | Where it is used |
+|---|---|---|
+| `snapshotRate` | 60 Hz, a divisor of the tick rate (60, 30, 20...) | A room sends a snapshot every `tickRate / snapshotRate` ticks ([7.4](#74-snapshots-server--client)) |
+| `maxPlayersPerRoom` | 4 | Room capacity in `kRoomList` and `kJoinRoom` ([9](#9-lobby-and-rooms)) |
+| `maxRooms` | 16 | `kMaxRooms`, `kTooManyRooms` |
+| `maxClients` | 64 | Sessions, `kServerFull` |
+| `port` | 4242 | The server's UDP port |
+| `timeout`, `keepalive`, `resendInterval` | 2 s, 100 ms, `max(1.25 × RTT, 50 ms)` | [6.3](#63-connection-lifecycle), [6.5](#65-messages-and-channels) |
+| Rate limits and error budgets | see [10](#10-robustness-and-security) | Per-session limits |
+
+The client learns the `snapshotRate` from the server (it is sent with the manifest), so interpolation always
+uses the rate in force. The default values are tuned later from benchmarks ([12](#12-testing)).
 
 ## 5. Threads
 
@@ -459,7 +482,7 @@ server's game.
 | `0x21` | `kManifestPacket` | reliable | S → C | short id `u16`, name, schema hash `u64` |
 | `0x22` | `kManifestPrefab` | reliable | S → C | short id `u16`, name |
 | `0x23` | `kManifestInputAction` | reliable | S → C | index `u8`, name, kind `u8` |
-| `0x24` | `kManifestEnd` | reliable | S → C | entry count `u16`, manifest hash `u64` |
+| `0x24` | `kManifestEnd` | reliable | S → C | entry count `u16`, manifest hash `u64`, tick rate `u8`, snapshot rate `u8` (Hz, [Configuration](#configuration)) |
 | `0x30` | `kSnapshot` | unreliable | S → C | [7.4](#74-snapshots-server--client) |
 | `0x31` | `kInput` | unreliable | C → S | [7.5](#75-inputs-client--server) |
 | `0x32` | `kCustomPacket` | packet's channel | packet's direction | short id `u16`, fields ([8](#8-custom-packets)) |
@@ -471,6 +494,7 @@ server's game.
 ```
 u8   type = kSnapshot
 u32  tick                    server tick of this snapshot
+u32  last processed input    sequence of the last input of this client applied by the server (7.6)
 u16  spawn count
      spawn   × { netId u32, prefab u16 (0xFFFF = none), component count u8,
                  component count × { component u16, fields } }
@@ -530,14 +554,19 @@ lost, and nothing starves.
 3. `kEntity` fields are resolved after the spawns, so they can refer to entities spawned by the same
    snapshot.
 4. Components that are interpolated are written to their `Interpolated` buffer instead of being displayed
-   directly.
+   directly. The entity the local player controls is the exception: it is predicted and reconciled instead
+   ([7.6](#76-client-prediction-and-reconciliation)).
 
 **Interpolation.** The client keeps a display clock about 100 ms behind the newest snapshot tick received,
 advanced every frame by the frame time and gently corrected when it drifts. Entities are drawn
 interpolated between the two snapshots around that time. Ticks, not arrival times, give the spacing between
 snapshots, so network jitter does not make motion speed up and slow down.
 
-**Snapshot rate:** one snapshot per server tick (60 Hz) to begin with; see [Open questions](#16-open-questions).
+**Snapshot rate:** set by the `snapshotRate` setting ([Configuration](#configuration)), not fixed in code. It
+must divide the tick rate (60 Hz): a room builds a snapshot every `tickRate / snapshotRate` ticks. The server
+sends the rate to the client with the manifest, and the interpolation delay is derived from it (at least two
+snapshot intervals, so there is always a snapshot to interpolate towards). The default is 60 Hz until
+benchmarks say otherwise ([12](#12-testing)).
 
 ### 7.5 Inputs (client → server)
 
@@ -563,10 +592,67 @@ u8   input count (1 to 3)
 **Server side:**
 
 1. Inputs are kept in a small buffer per client, by sequence; sequences already applied are ignored.
-2. Every `FixedUpdate`, `net.applyInputs` takes the next input of each client and writes it to the
-   `PlayerInput` of the entity with that client's `Owner`. If none arrived, the last one is repeated.
+2. Every `FixedUpdate`, `net.applyInputs` takes the next input of each client, in sequence order, and writes it
+   to the `PlayerInput` of the entity with that client's `Owner`. The sequence of the last input applied is
+   remembered as the client's *last processed input* and sent back in every snapshot ([7.4](#74-snapshots-server--client)).
+   If none arrived, the last one is repeated, and the last processed input does not advance.
 3. If the buffer grows beyond 4 inputs (the client runs slightly fast or sent a burst), the oldest are
    dropped down to 2.
+
+Every input is applied at most once and in order, which is what lets the client replay exactly the inputs the
+server has not processed yet.
+
+### 7.6 Client prediction and reconciliation
+
+Without prediction, the local player's ship reacts only after a round trip plus the interpolation delay (100 ms
+or more), which feels sluggish in a shooter. The client therefore **predicts its own entity** and corrects it
+with the server's answer. Every other entity stays interpolated. The server stays authoritative: prediction is a
+local guess that is replaced as soon as the truth arrives.
+
+**What is predicted.** Only entities that carry the `Predicted` marker, which `rtype-replication` adds on the
+client to the entity whose `Owner` is the local client id. Only the movement of that entity is predicted, by
+systems declared as predictable (`predicted = true`, next to the `side` of
+[`12-systems.md`](../ecs/features/12-systems.md)). They run on the server and on the client from the same code,
+so both compute the same result from the same input. Everything with consequences is not predicted and comes
+only from the server: damage, deaths, scores, pickups, and bullets (a bullet appears when its spawn arrives; a
+local muzzle flash or sound can play at once, without a bullet entity).
+
+**Each client tick:**
+
+1. Read the input devices, number the input with the next input sequence, and send it ([7.5](#75-inputs-client--server)).
+2. Keep the input in a ring of *unconfirmed inputs* (sequence and input state).
+3. Write it to the `PlayerInput` of the `Predicted` entity and run the predicted systems on it, right away.
+
+**When a snapshot is applied:**
+
+1. Take its `last processed input` `S`. Drop every unconfirmed input with a sequence up to `S`.
+2. Overwrite the `Predicted` entity's replicated components with the snapshot's values: this is the server's
+   state *after* input `S`.
+3. **Replay** the remaining unconfirmed inputs in order, running the predicted systems on that one entity for
+   each. The result is where the server will put the ship once it receives them.
+4. Compare the replayed result with what was displayed. A small difference is hidden by a visual offset that
+   fades out over a few frames, so the ship never jumps; a difference above `kPredictionSnapDistance` snaps
+   directly (teleport, respawn).
+
+When prediction and server agree (the common case, since the same code runs on the same inputs), the replay
+lands where the client already was and nothing is visible. A correction only appears when the server knew
+something the client did not: another ship that pushed it, a wall, damage that slowed it.
+
+**Rules for predicted systems:**
+
+- They read only the `Predicted` entity's own components and the input. Collisions with other entities use
+  their interpolated (past) positions, so a rare mismatch is corrected by the server. They never write to
+  other entities.
+- They are deterministic from the component values and the input: no random numbers, no wall clock, a fixed
+  step. Floating-point differences between machines stay below the correction threshold.
+- Replaying runs only these systems, on one entity, `N` times in one frame (`N` is the number of unconfirmed
+  inputs, about RTT × 60 Hz, so 6 at 100 ms). It does not run the rest of the schedule.
+
+**The listen server's own player and standalone mode** have no network delay, so they apply the input directly
+and never reconcile.
+
+**Cost.** One `u32` per snapshot, a ring of unconfirmed inputs (at most 64) per client, and the replay of a few
+cheap steps per snapshot.
 
 ## 8. Custom packets
 
@@ -619,8 +705,21 @@ packet after it.
 **Wire size of `PlayerKilled`:** type `1` + short id `2` + victim `4` + killer `4` = **11 bytes**, plus the
 3-byte message header on the reliable channel (and its 2-byte id).
 
-C++ packets use the same descriptor (name, direction, channel, fields) and the same serializer; how C++
-structs declare their fields is an [open question](#16-open-questions).
+C++ packets use the same descriptor (name, direction, channel, fields) and the same serializer. A C++ struct
+declares its fields with a macro that mirrors `RTYPE_ECS_COMPONENT`, so there is one way to describe a type
+for the engine:
+
+```c++
+struct PlayerKilled {
+    rtype::ecs::Entity victim;
+    rtype::ecs::Entity killer;
+};
+RTYPE_REPLICATION_PACKET(PlayerKilled, "game.PlayerKilled", kToClients, kReliable, victim, killer);
+```
+
+The macro builds the `FieldInfo` list from the members (types deduced, `Entity` written as a `NetworkId`) and
+registers the descriptor, so the schema hash and the manifest entry come out identical to those of the
+equivalent Luau declaration. Registration happens at startup, before the manifest is built.
 
 ### 8.2 Sending
 
@@ -707,6 +806,8 @@ thread with these reliable messages:
 | `0x08` | `kClientLeft` | S → C | client id `u32`, reason `u8` |
 | `0x09` | `kReady` | C → S | (sent once, after the manifest is checked) |
 
+- **Capacity:** the maximum number of players per room and of rooms are settings, not constants
+  ([Configuration](#configuration)).
 - **Joining:** the I/O thread checks the room's capacity, sets `Session::roomId`, pushes `ClientJoined` to
   the room's inbox and answers `kRoomJoined`. The room's `net.receive` turns `ClientJoined` into the ECS
   event `ClientConnected`; the game spawns the player's ship, and the client starts receiving snapshots
@@ -745,7 +846,7 @@ thread with these reliable messages:
 | Pending reliable messages | 1024 | Disconnect `kOverflow` |
 | Protocol errors (bad messages, bad packets) | 20 per 10 s | Disconnect `kProtocolError` |
 
-All values are starting points, to tune with measurements.
+All values are starting points and settings ([Configuration](#configuration)), to tune with benchmarks.
 
 ### Windows `connection_reset`
 
@@ -807,6 +908,11 @@ compression library.
   the next ones, and that a manifest mismatch is refused.
 - **Integration:** a `server` and two `client` processes on localhost; kill a client and check that the
   other one receives `kClientLeft` and that the server keeps its tick rate.
+- **Prediction tests:** with the simulated link, a client that predicts must end on the same position as the
+  server under loss and delay; a forced server-side push must be corrected without a jump above the
+  threshold; replaying zero inputs must change nothing.
+- **Benchmarks** (later): bandwidth and CPU per room as a function of players, entities and `snapshotRate`,
+  to choose the defaults of [Configuration](#configuration) and the timeouts, resend and rate-limit values.
 - **Statistics** per session (RTT, loss, bytes per second in and out), readable by a debug overlay.
 
 ## 13. Differences with the ECS docs
@@ -818,6 +924,7 @@ later:
 |---|---|---|
 | [`20-replication.md`](../ecs/features/20-replication.md), packet layout | Header: protocol id `u16`, type `u8`, tick `u32`, ack `u32`, ack bits `u32` | Transport header of [6.2](#62-packets) (`u16` sequence and ack, session token); the tick moves into the snapshot |
 | [`08-change-detection.md`](../ecs/features/08-change-detection.md), "Replication's own last run" | One acked tick per client | One confirmed tick **per client and per entity**, so a snapshot over budget can be completed later ([7.4](#74-snapshots-server--client)) |
+| [`20-replication.md`](../ecs/features/20-replication.md), requirement R3 | No client prediction | Prediction and reconciliation for the local player's entity ([7.6](#76-client-prediction-and-reconciliation)); the snapshot carries the last processed input |
 | `20-replication.md`, update layout | Field mask per update | Whole components in v1, field masks later |
 | `20-replication.md`, inputs | Inputs numbered by tick | Inputs numbered by a client input sequence; the message also carries the snapshot confirmation |
 | `20-replication.md`, open questions | Transport details, packet size, encryption | Settled: [6](#6-transport-rtype-network), 1200 bytes, no encryption |
@@ -846,6 +953,10 @@ later:
    Clients send inputs and intentions only.
 10. **Sending differences instead of states.** "Health −10" breaks when a packet is lost or duplicated;
     "health = 40" does not.
+11. **Predicting more than movement.** A predicted death, damage or pickup that the server then denies is a
+    visible lie. Predict only the local entity's own movement.
+12. **A predicted system that is not deterministic.** Random numbers or wall-clock time in it make every
+    snapshot a correction. Use the fixed step and the input only.
 
 ## 15. Build order
 
@@ -857,20 +968,31 @@ later:
 4. Inputs up: the ship moves on the server and on the client.
 5. Updates, removals, despawns, per-entity confirmations, size budget, `kSpawnOnly`: scales to many bullets.
 6. Lobby and rooms, custom packets, interpolation, quantization.
+7. Client prediction and reconciliation of the local ship ([7.6](#76-client-prediction-and-reconciliation)).
+8. Benchmarks, then tune the defaults of [Configuration](#configuration).
 
-## 16. Open questions
+## 16. Decisions and open questions
+
+### Decided
+
+| Question | Decision |
+|---|---|
+| Library kind of `network` and `replication` | Shared libraries, like `ecs` and `luau`, for now; can change later ([3](#3-targets-and-dependencies)) |
+| Snapshot rate | A setting, not fixed in code; default 60 Hz ([Configuration](#configuration), [7.4](#74-snapshots-server--client)) |
+| Local player's ship latency | Client prediction with server reconciliation ([7.6](#76-client-prediction-and-reconciliation)) |
+| How C++ structs declare packet fields | `RTYPE_REPLICATION_PACKET` macro, mirroring `RTYPE_ECS_COMPONENT` ([8.1](#81-declaring-a-packet)) |
+| Where the Luau `net` bindings live | In the engine's Luau plugin, not in `luau` or `replication` ([3](#3-targets-and-dependencies)) |
+| Maximum players per room and maximum rooms | Settings, not hardcoded ([Configuration](#configuration)) |
+| Different games in different rooms | No: one server hosts one game (one manifest) for now |
+| Timeout, resend and rate-limit values | Benchmark later ([12](#12-testing)); the current values are defaults |
+| Written protocol description beyond this document | Yes, required (see below) |
+
+### Still open
 
 | Question | Owner |
 |---|---|
-| Library kind of `network` and `replication`: shared like `ecs` and `luau`, or static? | Team |
-| Snapshot rate: 60 Hz (every tick) or 30 Hz, from bandwidth measurements | Team |
-| The local player's ship waits RTT + interpolation delay (100 ms or more): draw it from the newest snapshot without delay? Client prediction for it later? | Team |
-| How C++ structs declare packet fields (a macro like `RTYPE_ECS_COMPONENT`?) | Network + ECS |
-| Where the Luau `net` bindings (`net.packet`, `ctx.net`) live: in `replication` (which would then depend on `luau`) or in the engine's script plugin | Network + Charles |
-| Maximum players per room (4?) and maximum rooms | Team |
-| Can different rooms run different games (different manifests)? v1 assumes one manifest for the server. | Team |
-| Timeout, resend and rate-limit values, to tune with the statistics of [12](#12-testing) | Network |
-| Does the subject require a written protocol description (RFC style) beyond this document? | Team |
+| Write the protocol description (RFC style): packet kinds, handshake, reliability, messages. [6](#6-transport-rtype-network) and [7](#7-replication-rtype-replication) are the base for it. | Network |
+| Exact value of `kPredictionSnapDistance` and the fade-out time of the visual correction, to tune by play-testing | Network + gameplay |
 
 ## 17. References
 
