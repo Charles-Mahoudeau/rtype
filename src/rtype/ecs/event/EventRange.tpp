@@ -32,6 +32,13 @@ auto EventRange<T>::Iterator::operator++() noexcept -> Iterator& {
 }
 
 template <Event T>
+auto EventRange<T>::Iterator::operator++(int) noexcept -> Iterator {
+    Iterator old{*this};
+    ++*this;
+    return old;
+}
+
+template <Event T>
 bool EventRange<T>::Iterator::operator==(const Iterator& other) const noexcept {
     return _raw == other._raw;
 }

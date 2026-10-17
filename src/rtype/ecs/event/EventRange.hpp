@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstddef>
+#include <iterator>
 #include <span>
 
 #include "rtype/ecs/Export.hpp"
@@ -28,12 +29,19 @@ namespace rtype::ecs {
 /// @endcode
 class RTYPE_ECS_API RawEventRange {
   public:
-    /// @brief Walks the events of the range in the order they were sent.
+    /// @brief Walks the events of the range in the order they were sent: a forward iterator, so the range is a
+    /// std::ranges::forward_range.
     class RTYPE_ECS_API Iterator {
       public:
+        using iterator_concept = std::forward_iterator_tag;  ///< Multi-pass, one direction.
+        using difference_type = std::ptrdiff_t;              ///< Distance between two iterators.
+        using value_type = std::span<const std::byte>;       ///< The bytes of one event.
+
         /// @param queue The queue read; nullptr only for an empty range.
         /// @param sequence The number of the event this iterator is at.
         Iterator(const storage::EventStorage* queue, EventSequence sequence) noexcept;
+        /// @brief An iterator of no range, only good to be assigned to.
+        Iterator() noexcept = default;
         ~Iterator() = default;
         Iterator(const Iterator& other) noexcept = default;
         Iterator& operator=(const Iterator& other) noexcept = default;
@@ -46,12 +54,16 @@ class RTYPE_ECS_API RawEventRange {
         /// @brief Moves to the next event.
         Iterator& operator++() noexcept;
 
+        /// @brief Moves to the next event.
+        /// @return A copy of the iterator before it moved.
+        Iterator operator++(int) noexcept;
+
         /// @return Whether both iterators are at the same event.
         [[nodiscard]] bool operator==(const Iterator& other) const noexcept;
 
       private:
-        const storage::EventStorage* _queue;  ///< The queue read.
-        EventSequence _sequence;              ///< Number of the current event.
+        const storage::EventStorage* _queue{nullptr};  ///< The queue read; null for an iterator of no range.
+        EventSequence _sequence{0};                    ///< Number of the current event.
     };
 
     /// @param queue The queue read; nullptr for an empty range (an unknown event).
@@ -96,11 +108,18 @@ class RTYPE_ECS_API RawEventRange {
 template <Event T>
 class EventRange {
   public:
-    /// @brief Walks the events of the range in the order they were sent.
+    /// @brief Walks the events of the range in the order they were sent: a forward iterator, so the range is a
+    /// std::ranges::forward_range.
     class Iterator {
       public:
+        using iterator_concept = std::forward_iterator_tag;  ///< Multi-pass, one direction.
+        using difference_type = std::ptrdiff_t;              ///< Distance between two iterators.
+        using value_type = T;                                ///< One event.
+
         /// @param raw The same position, over raw bytes.
         explicit Iterator(RawEventRange::Iterator raw) noexcept;
+        /// @brief An iterator of no range, only good to be assigned to.
+        Iterator() noexcept = default;
         ~Iterator() = default;
         Iterator(const Iterator& other) noexcept = default;
         Iterator& operator=(const Iterator& other) noexcept = default;
@@ -115,6 +134,10 @@ class EventRange {
 
         /// @brief Moves to the next event.
         Iterator& operator++() noexcept;
+
+        /// @brief Moves to the next event.
+        /// @return A copy of the iterator before it moved.
+        Iterator operator++(int) noexcept;
 
         /// @return Whether both iterators are at the same event.
         [[nodiscard]] bool operator==(const Iterator& other) const noexcept;

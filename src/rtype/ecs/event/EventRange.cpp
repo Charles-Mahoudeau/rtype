@@ -24,6 +24,12 @@ RawEventRange::Iterator& RawEventRange::Iterator::operator++() noexcept {
     return *this;
 }
 
+RawEventRange::Iterator RawEventRange::Iterator::operator++(int) noexcept {
+    Iterator old{*this};
+    ++*this;
+    return old;
+}
+
 bool RawEventRange::Iterator::operator==(const Iterator& other) const noexcept {
     return _queue == other._queue && _sequence == other._sequence;
 }
