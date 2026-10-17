@@ -13,6 +13,15 @@
 
 namespace rtype::ecs {
 /// @brief What a query term asks of one component.
+/// @details A query is a list of terms, and each term is one condition on one component: "the entity must have
+/// `Position` and the query writes it", "the entity must not have `Dead`", "`Health` changed since the last run".
+/// An entity matches the query when it satisfies every term. Data terms (read, write and their optional forms) also
+/// give the query access to the component's value; the others (with, without, added, changed) are filters that only
+/// decide which entities match.
+/// @code
+/// // Query<Position, const Velocity, Without<Dead>> is three terms:
+/// // {Position, kWrite}, {Velocity, kRead}, {Dead, kWithout}
+/// @endcode
 enum class TermKind : std::uint8_t {
     kRead,           ///< The entity must have it; its value is read.
     kWrite,          ///< The entity must have it; its value is written.
@@ -24,7 +33,15 @@ enum class TermKind : std::uint8_t {
     kChanged,        ///< The entity must have it, added or written since the query last ran.
 };
 
-/// @brief One term of a query: a component and what the query asks of it.
+/// @brief Why two terms on the same component cannot be in one query.
+enum class TermConflict : std::uint8_t {
+    kNone,          ///< They can: a data term with with, added or changed, or added with changed.
+    kSameTerm,      ///< The same term twice (two writes, with twice...).
+    kTwoDataTerms,  ///< Two data terms (a read and a write...): which one gives the value?
+    kExcluded,      ///< One is without: the query could never match.
+};
+
+/// @brief One term of a query: a component, and what the query asks of it (see TermKind).
 struct QueryTerm {
     ComponentId id{0};               ///< The component.
     TermKind kind{TermKind::kRead};  ///< What the query asks of it.
@@ -39,6 +56,10 @@ struct ComponentAccess {
 
     [[nodiscard]] constexpr bool operator==(const ComponentAccess& other) const noexcept = default;
 };
+
+// The functions below are constexpr and defined here, not in a .cpp: the typed Query checks its terms at compile
+// time with them (ValidQuery, in TermTraits.hpp), and DynamicQuery::create() checks them at run time with the same
+// functions, so both kinds of query follow one set of rules.
 
 /// @return Whether the term gives access to the component's value (read, write and their optional forms).
 [[nodiscard]] constexpr bool isDataTerm(TermKind kind) noexcept {
@@ -56,14 +77,6 @@ struct ComponentAccess {
 [[nodiscard]] constexpr bool isWriteTerm(TermKind kind) noexcept {
     return kind == TermKind::kWrite || kind == TermKind::kOptionalWrite;
 }
-
-/// @brief Why two terms on the same component cannot be in one query.
-enum class TermConflict : std::uint8_t {
-    kNone,          ///< They can: a data term with with, added or changed, or added with changed.
-    kSameTerm,      ///< The same term twice (two writes, with twice...).
-    kTwoDataTerms,  ///< Two data terms (a read and a write...): which one gives the value?
-    kExcluded,      ///< One is without: the query could never match.
-};
 
 /// @return Why two terms on the same component cannot be in one query; the rule shared by dynamic and typed queries.
 [[nodiscard]] constexpr TermConflict findConflict(TermKind first, TermKind second) noexcept {
