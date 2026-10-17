@@ -6,6 +6,7 @@
 */
 
 #include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <span>
 #include <utility>
@@ -63,7 +64,8 @@ void QueryCursor<Pools, Positions>::skipToMatch() noexcept {
         (*std::next(_pools.begin(), static_cast<std::ptrdiff_t>(_driver)))->getEntities();
     for (; _index < entities.size(); ++_index) {
         const Entity entity = *std::next(entities.begin(), static_cast<std::ptrdiff_t>(_index));
-        if (matchEntity(_terms, entity, _pools, _positions, _lastRun, _thisRun)) {
+        if (matchEntity(_terms, entity, _driver, static_cast<std::uint32_t>(_index), _pools, _positions, _lastRun,
+                        _thisRun)) {
             _entity = entity;
             return;
         }
