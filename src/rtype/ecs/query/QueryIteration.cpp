@@ -7,13 +7,11 @@
 
 #include "QueryIteration.hpp"
 
-#include <cstddef>
+#include <cstdint>
 #include <iterator>
-#include <span>
 #include <vector>
 
 #include "rtype/ecs/change/Tick.hpp"
-#include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/query/DynamicQuery.hpp"
 #include "rtype/ecs/query/QueryMatch.hpp"
 #include "rtype/ecs/storage/SparseSetStorage.hpp"
@@ -28,48 +26,28 @@ namespace {
 }
 }  // namespace
 
-QueryIteration::Iterator::Iterator(QueryIteration& iteration, std::size_t index) noexcept
-    : _iteration{&iteration}, _index{index} {
-    skipToMatch();
+QueryIteration::Iterator::Iterator(QueryIteration& iteration) noexcept : _iteration{&iteration} {}
+
+QueryMatch& QueryIteration::Iterator::operator*() const noexcept {
+    _iteration->_match.setEntity(_iteration->_cursor.getEntity());
+    return _iteration->_match;
 }
 
-QueryMatch& QueryIteration::Iterator::operator*() const noexcept { return _iteration->_match; }
-
 QueryIteration::Iterator& QueryIteration::Iterator::operator++() noexcept {
-    ++_index;
-    skipToMatch();
+    _iteration->_cursor.advance();
     return *this;
 }
 
 bool QueryIteration::Iterator::operator==(std::default_sentinel_t /*sentinel*/) const noexcept {
-    return _index >=
-           (*std::next(_iteration->_pools.begin(), static_cast<std::ptrdiff_t>(_iteration->_driver)))->getSize();
-}
-
-void QueryIteration::Iterator::skipToMatch() noexcept {
-    QueryIteration& iteration = *_iteration;
-    const std::span<const Entity> entities =
-        (*std::next(iteration._pools.begin(), static_cast<std::ptrdiff_t>(iteration._driver)))->getEntities();
-    for (; _index < entities.size(); ++_index) {
-        const Entity entity = *std::next(entities.begin(), static_cast<std::ptrdiff_t>(_index));
-        if (iteration._query->match(entity, iteration._pools, iteration._positions, iteration._lastRun,
-                                    iteration._thisRun)) {
-            iteration._match.setEntity(entity);
-            return;
-        }
-    }
+    return _iteration->_cursor.isDone();
 }
 
 QueryIteration::QueryIteration(const DynamicQuery& query, Tick lastRun, Tick thisRun)
-    : _query{&query},
-      _pools{resolvePools(query)},
-      _positions(query.getTerms().size(), DynamicQuery::kNoPosition),
-      _driver{query.findDriver(_pools)},
-      _lastRun{lastRun},
-      _thisRun{thisRun},
-      _match{query, _pools, _positions, thisRun} {}
+    : _cursor{query.getTerms(), resolvePools(query),
+              std::vector<std::uint32_t>(query.getTerms().size(), DynamicQuery::kNoPosition), lastRun, thisRun},
+      _match{query, _cursor.getPools(), _cursor.getPositions(), thisRun} {}
 
-QueryIteration::Iterator QueryIteration::begin() noexcept { return Iterator{*this, 0}; }
+QueryIteration::Iterator QueryIteration::begin() noexcept { return Iterator{*this}; }
 
 std::default_sentinel_t QueryIteration::end() noexcept { return std::default_sentinel; }
 }  // namespace rtype::ecs

@@ -27,6 +27,7 @@
 #include "rtype/ecs/query/DynamicQuery.hpp"
 #include "rtype/ecs/query/QueryBuilder.hpp"
 #include "rtype/ecs/query/QueryMatch.hpp"
+#include "rtype/ecs/query/QueryMatcher.hpp"
 #include "rtype/ecs/query/QueryTerm.hpp"
 #include "rtype/ecs/storage/SparseSetStorage.hpp"
 #include "rtype/ecs/storage/ViewAs.hpp"
@@ -241,7 +242,8 @@ TEST_F(DynamicQueryTest, DrivesFromTheSmallestRequiredPool) {
     ASSERT_TRUE(query);
     std::array<rtype::ecs::storage::SparseSetStorage*, 4> pools{};
     query->resolvePools(pools);
-    EXPECT_EQ(query->findDriver(pools), 3U);  // the health pool (1 entity); the empty dead pool is optional
+    EXPECT_EQ(rtype::ecs::detail::findDriver(query->getTerms(), pools),
+              3U);  // the health pool (1 entity); the empty dead pool is optional
 }
 
 TEST_F(DynamicQueryTest, SeesPoolsAfterTheWorldRegistersMore) {
