@@ -29,7 +29,26 @@ iteration safe.
 ## Our choice
 
 A `Commands` buffer given to each system that asks for it, **flushed in recording order at the end of
-each phase**. `spawn()` returns a **reserved** entity right away.
+each phase**. `spawn()` returns a **reserved** entity right away. Until systems exist (#121), a buffer is
+made from a world and flushed by hand:
+
+```c++
+rtype::ecs::Commands commands{world};
+const rtype::ecs::Entity bullet = commands.spawn().add(Position{}).add(Velocity{.x = 600.F}).getEntity();
+commands.entity(enemy).remove<Shield>().add(Dead{});
+commands.despawn(other);
+commands.add(enemy, shieldId, bytes);   // by id (Luau, network): copied; false for an unknown id or a wrong size
+commands.flush();                        // the scheduler will flush between phases
+```
+
+| Typed (C++) | Type-erased (Luau, network) |
+|---|---|
+| `spawn()` → `EntityCommands` (`add<T>`, `remove<T>`, `despawn()`, `getEntity()`, chained) | `spawn().getEntity()` |
+| `entity(e)` → `EntityCommands` | |
+| `add(e, value)`: moved in | `add(e, id, bytes)`: copied |
+| `remove<T>(e)` | `remove(e, id)` |
+| `despawn(e)` | same |
+| `flush()`, `clear()`, `getCount()`, `isEmpty()` | same |
 
 ## How it works
 
@@ -75,13 +94,32 @@ sequenceDiagram
 
 ### Rules
 
-- **Order is preserved.** `add(e, A)` then `remove(e, A)` leaves `e` without `A`.
+- **Order is preserved.** `add(e, A)` then `remove(e, A)` leaves `e` without `A`; two adds keep the last.
 - **Commands on dead entities are skipped**, not errors: a bullet may have been despawned by another
   system earlier in the same flush.
-- **Values are moved into the buffer** (type-erased bytes + `ComponentId`), so the buffer can be applied
-  without knowing C++ types; Luau commands use the same path.
+- **Values are moved into the buffer** (type-erased bytes), so the buffer can be applied without knowing
+  C++ types; Luau commands use the same path (their bytes are copied in, since the script keeps them).
+- **Registering waits for the flush.** `add<T>` of a component not registered yet does not touch the
+  registry: registering inside a query loop can move every pool under the running query. `T` is
+  registered at the flush (an already registered `T` keeps its options).
+- **Discarding is safe.** A buffer destroyed or `clear()`ed before its flush destroys its values and
+  cancels the entities it reserved (or despawns them, if another buffer's flush already made them alive).
 - **Flush points:** after each phase (see [Scheduler](13-scheduler.md)), and on demand in tests. A
   system cannot see its own commands' effects until the next phase.
+
+### How a buffer stores and applies its commands
+
+- **One `ByteColumn` per component it uses**, keyed by the component's layout hash (so a C++ type and its
+  id share one column), holding the recorded values with their alignment and lifecycle hooks.
+- **One ordered list of small records**: `{kind (add, remove, despawn), entity, column, index}`.
+- **`flush()`**, in this order:
+  1. registers the C++ components the buffer needs (if that throws, nothing is applied and the buffer is
+     kept);
+  2. `World::flushReserved()`: the spawned entities become alive;
+  3. replays the records: add → `Components::addMove()` (the value is moved from its column into the
+     pool), remove → `Components::remove()`, despawn → `World::despawn()`; each is skipped on a dead entity;
+  4. clears the columns (destroying the moved-from values) but **keeps their capacity**, so a buffer
+     reused every frame does not allocate in steady state.
 
 ### From Luau
 
@@ -102,12 +140,14 @@ end
 
 ## Pitfalls
 
+- **A buffer outliving its world.** It keeps a plain pointer to the world: destroy buffers first (the App
+  will own both).
 - **Expecting immediate effects.** A system that spawns then queries in the same run will not find the
   new entity. That is by design; split the work across phases if needed.
 - **Unbounded buffers.** A buggy system spawning every frame fills memory quickly; debug builds can warn
   above a threshold.
 - **Reserved but never applied.** If a buffer is discarded (an error in a Luau system), its reserved ids
-  must be returned to the allocator.
+  must be returned to the allocator: the destructor and `clear()` do it.
 
 ## Open questions
 

@@ -107,9 +107,16 @@ one implementation to test.
   replication options. Reading (`has`, `get`, `remove`) never registers.
 - Values are exchanged as byte spans of exactly the component's size; `viewAs<T>` turns them into a `T`.
 
+### Reserved entities
+
+`reserve()` hands out an entity that only becomes alive at the next `flushReserved()`. It is how
+[commands](09-commands.md) give a spawned entity an id at once while its creation waits for the flush:
+until then it is not alive, not counted, and `add` refuses it. `despawn()` cancels a reserved entity, which
+then never becomes alive.
+
 ### Despawning
 
-`despawn(e)`, in this order:
+`despawn(e)`, in this order (a reserved entity is only cancelled: it has no component yet):
 
 1. **Removes `e` from every pool** (and its table row in v3), destroying its values.
 2. **Clears the `kEntity` fields that pointed to it**: in every component with entity fields (C++
