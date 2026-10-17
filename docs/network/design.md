@@ -715,14 +715,28 @@ local muzzle flash or sound can play at once, without a bullet entity).
 **Each client tick:**
 
 1. Read the input devices, number the input with the next input sequence, and send it ([7.5](#75-inputs-client--server)).
-2. Keep the input in a ring of *unconfirmed inputs* (sequence and input state).
+2. Keep the input in a ring of *unconfirmed inputs* (sequence and input state), 64 entries.
 3. Write it to the `PlayerInput` of the `Predicted` entity and run the predicted systems on it, right away.
+
+**Ring overflow.** 64 inputs are about 1 s at 60 Hz, so prediction supports a round trip up to roughly 1 s; the
+session times out at 2 s of silence anyway ([6.8](#68-reconnecting-after-a-connection-loss)). If the ring is
+full when a new input is made (no snapshot has confirmed any input for 64 ticks), the client never drops an
+input silently, and never overwrites the oldest one: it **suspends prediction**. It keeps numbering and sending
+inputs (the server still needs them), stops storing them and stops running the predicted systems, and the
+entity is displayed as an ordinary interpolated one. The next snapshot applied resumes prediction from an empty
+ring: the entity is restored from the authoritative state and snaps without the fading offset, since the
+inputs sent during the suspension cannot be replayed. Every input newer than the acknowledged sequence was
+therefore either kept for the replay or covered by this explicit resynchronization.
 
 **When a snapshot is applied:**
 
 1. Take its `last processed input` `S`. Drop every unconfirmed input with a sequence up to `S`.
-2. Overwrite the `Predicted` entity's replicated components with the snapshot's values: this is the server's
-   state *after* input `S`.
+2. Restore **every** predicted component of the `Predicted` entity to the server's state *after* input `S`.
+   A snapshot only carries the components that changed since the client's known tick, so a component it omits
+   is unchanged on the server but may have been moved by the prediction. The client therefore keeps, for
+   the `Predicted` entity, a copy of the last authoritative value of each predicted component, updated by
+   every snapshot it applies. The restore writes the whole copy, not only the values present in this
+   snapshot.
 3. **Replay** the remaining unconfirmed inputs in order, running the predicted systems on that one entity for
    each. The result is where the server will put the ship once it receives them.
 4. Compare the replayed result with what was displayed. A small difference is hidden by a visual offset that
@@ -746,7 +760,7 @@ something the client did not: another ship that pushed it, a wall, damage that s
 **The listen server's own player and standalone mode** have no network delay, so they apply the input directly
 and never reconcile.
 
-**Cost.** One `u32` per snapshot, a ring of unconfirmed inputs (at most 64) per client, and the replay of a few
+**Cost.** One `u32` per snapshot, a ring of unconfirmed inputs (64 entries) per client, plus a copy of the predicted components, and the replay of a few
 cheap steps per snapshot.
 
 ## 8. Custom packets
