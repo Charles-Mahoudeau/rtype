@@ -68,6 +68,19 @@ bool Components::add(Entity entity, ComponentId id, std::span<const std::byte> v
     return true;
 }
 
+bool Components::addMove(Entity entity, ComponentId id, std::span<std::byte> value) {
+    storage::SparseSetStorage* pool = findPool(id);
+    if (pool == nullptr || !isAlive(entity) || value.size() != pool->getInfo().type.size) {
+        return false;
+    }
+    if (pool->contains(entity)) {
+        pool->replaceMove(entity, value, getChangeTick());
+    } else {
+        pool->emplaceMove(entity, value, getChangeTick());
+    }
+    return true;
+}
+
 bool Components::has(Entity entity, ComponentId id) const noexcept {
     const storage::SparseSetStorage* pool = findPool(id);
     return pool != nullptr && pool->contains(entity);

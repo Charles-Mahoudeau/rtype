@@ -643,7 +643,9 @@ point, because doing them during iteration would invalidate the pools being read
 buffer.
 
 **Our choice.** A `Commands` buffer per system, applied in recording order between phases. `spawn()`
-reserves an `Entity` immediately, so it can be stored before the flush.
+reserves an `Entity` immediately, so it can be stored before the flush. Values are moved into the buffer, a
+component not registered yet is registered at the flush only, and a buffer discarded before its flush
+cancels its reservations.
 
 ```c++
 void shoot(rtype::ecs::Query<const Position, const Weapon, const PlayerInput> players,
@@ -1370,9 +1372,10 @@ is the same idea as Bevy's modules with a short prelude.
 | `event/` | `rtype::ecs` | `EventInfo.hpp/.cpp` (`EventId`, `EventInfo`), `EventTraits.hpp` (`RTYPE_ECS_EVENT`), `EventRegistry.hpp` (`EventOptions`, `KindTraits<EventInfo>`, `EventRegistry`), `EventCursor.hpp` (`EventSequence`, `EventCursor`), `EventRange.hpp/.tpp/.cpp` (`RawEventRange`, `EventRange<T>`), `Events.hpp/.tpp/.cpp` (a world's registry, queues and event API) |
 | `storage/` | `rtype::ecs::storage` | `PagedSparseArray`, `ByteColumn`, `SparseSetStorage` (the pool), `ResourceStorage` (a resource slot), `EventStorage` (an event queue), `Table` (v3) |
 | `change/` | `rtype::ecs` | `Tick.hpp` (`Tick`, `isNewerThan`, `clampTick`, the check thresholds), `ComponentTicks`, `Mut` (write access stamping ticks) |
+| `command/` | `rtype::ecs` | `Commands.hpp/.tpp/.cpp` (`Commands`, `EntityCommands`: deferred spawn, add, remove, despawn) |
 | `world/` | `rtype::ecs` | `World.hpp/.tpp/.cpp`: the coordinator (entities, change tick, `getComponents()`, `getResources()`, `getEvents()`) |
 | `query/` | `rtype::ecs` | `QueryTerm`, `QueryBuilder`, `DynamicQuery` (the single query engine), `QueryIteration` / `QueryMatch`, `QueryTerms` (`Optional`, `With`, `Without`, `Added`, `Changed`), `TermTraits`, `Query` (typed); `detail::` `QueryMatcher` and `QueryCursor` (the join and the walk, shared) |
-| `system/` | `rtype::ecs` | `System` (parameter deduction, access sets), `Commands`, `Res.hpp` (`Res`, `ResMut`, `NonSend`, `NonSendMut`), `EventReader` / `EventWriter` |
+| `system/` | `rtype::ecs` | `System` (parameter deduction, access sets), `Res.hpp` (`Res`, `ResMut`, `NonSend`, `NonSendMut`), `EventReader` / `EventWriter` |
 | `schedule/` | `rtype::ecs` | `Scheduler` (phases, ordering), fixed timestep and `Time` |
 | `app/` | `rtype::ecs` | `App`, `Plugin` |
 | `detail/` | `rtype::ecs::detail` | Internal helpers shared by several features (e.g. `Generation.hpp`), `WorldState.hpp/.cpp` (everything a World owns, on the heap; `checkNameFree()`) |

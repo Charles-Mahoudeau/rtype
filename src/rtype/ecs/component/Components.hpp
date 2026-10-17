@@ -77,6 +77,15 @@ class RTYPE_ECS_API Components {
     /// @return False, doing nothing, if the entity is not alive, the id is unknown, or `value` has the wrong size.
     bool add(Entity entity, ComponentId id, std::span<const std::byte> value);
 
+    /// @brief Gives the entity a value moved from `value`, or replaces its value if it already has the component.
+    /// @details The type-erased move path: commands move the values they recorded into the pools at the flush. Stamps
+    /// the world's change tick (only as the changed tick when replacing). `value` stays a valid, moved-from value: its
+    /// owner must still destroy it.
+    /// @param value The bytes of a live value of the component, exactly its size (empty for a tag).
+    /// @return False, doing nothing (`value` is not moved from), if the entity is not alive, the id is unknown, or
+    /// `value` has the wrong size.
+    bool addMove(Entity entity, ComponentId id, std::span<std::byte> value);
+
     /// @return Whether the entity has the component; false for an unknown id.
     [[nodiscard]] bool has(Entity entity, ComponentId id) const noexcept;
 
