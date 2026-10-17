@@ -36,6 +36,12 @@ typename Query<Terms...>::Iteration::Iterator& Query<Terms...>::Iteration::Itera
 
 template <typename... Terms>
     requires ValidQuery<Terms...>
+void Query<Terms...>::Iteration::Iterator::operator++(int) noexcept {
+    ++*this;
+}
+
+template <typename... Terms>
+    requires ValidQuery<Terms...>
 bool Query<Terms...>::Iteration::Iterator::operator==(std::default_sentinel_t /*sentinel*/) const noexcept {
     return _iteration->_cursor.isDone();
 }

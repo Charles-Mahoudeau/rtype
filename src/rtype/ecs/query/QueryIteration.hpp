@@ -38,6 +38,7 @@ class RTYPE_ECS_API QueryIteration {
     /// @brief Steps the pass's cursor and shows its current match.
     class RTYPE_ECS_API Iterator {
       public:
+        using iterator_concept = std::input_iterator_tag;  ///< Single pass: it satisfies std::input_iterator.
         using difference_type = std::ptrdiff_t;
         using value_type = QueryMatch;
 
@@ -54,6 +55,9 @@ class RTYPE_ECS_API QueryIteration {
 
         /// @brief Moves to the next match.
         Iterator& operator++() noexcept;
+
+        /// @brief Moves to the next match; returns nothing, as single-pass iterators may.
+        void operator++(int) noexcept;
 
         /// @return Whether every entity of the driver pool has been visited.
         [[nodiscard]] bool operator==(std::default_sentinel_t sentinel) const noexcept;

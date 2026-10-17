@@ -38,6 +38,8 @@ QueryIteration::Iterator& QueryIteration::Iterator::operator++() noexcept {
     return *this;
 }
 
+void QueryIteration::Iterator::operator++(int) noexcept { ++*this; }
+
 bool QueryIteration::Iterator::operator==(std::default_sentinel_t /*sentinel*/) const noexcept {
     return _iteration->_cursor.isDone();
 }
