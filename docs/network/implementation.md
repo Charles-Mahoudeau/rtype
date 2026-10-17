@@ -10,9 +10,16 @@ The plan is cut so that a **working prototype** (a server and several clients pl
 can be built in **one to two days** with the ECS as it is today, then grown into the full design without throwing
 code away.
 
-> Snippets are indicative: names and signatures may change during implementation if the reviewer agrees. They
-> omit the Epitech header, the rule-of-five members and most `[[nodiscard]]`/`noexcept`. The real code follows
-> every rule in `CLAUDE.md`.
+> **Based on the state of the code on 2026-10-18** (`main` at `0692618`): the ECS then had its world, components,
+> resources, events and change ticks, but no queries, systems, scheduler, commands, `App`, prefabs or Luau bridge
+> ([Starting point](#1-starting-point)). When those land, re-check the tasks that work around them (NET-12, NET-16,
+> NET-36, M7) and the [external blockers](#16-external-blockers).
+
+> **Every C++ snippet is a recommendation, not an obligation.** Class names, signatures, file splits and data
+> structures show one way to meet the task; the developer may choose another, as long as the task's behaviour, the
+> wire format of [`design.md`](design.md) and [5](#5-values-fixed-by-this-spec), and the acceptance criteria are
+> met, and the reviewer agrees. Snippets omit the Epitech header, the rule-of-five members and most
+> `[[nodiscard]]`/`noexcept`; the real code follows every rule in `CLAUDE.md`.
 
 ## Contents
 
@@ -36,7 +43,7 @@ code away.
 
 ## 1. Starting point
 
-What the network can rely on **today** (October 2026):
+What the network can rely on as of **2026-10-18** (`main` at `0692618`):
 
 | Part | State | What the network uses from it |
 |---|---|---|
