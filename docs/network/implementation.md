@@ -121,50 +121,69 @@ Sizes used below: **S** about 1–2 hours, **M** about half a day, **L** about a
 
 ## 4. Module layout and shared rules
 
-### Folders
+### Folders and namespaces
 
-Both libraries use a flat folder like `luau/`, with `exceptions/` for local setup errors. Namespaces follow the
-folders: `rtype::network`, `rtype::network::exceptions`, `rtype::replication`, `rtype::replication::exceptions`.
+Each library is split in one folder per feature, and **namespaces mirror the folders**, as the `CLAUDE.md` rule
+says (no flat-namespace exception as in `ecs`). Only what every feature shares stays at the root of the library.
+`exceptions/` holds local setup errors.
 
 ```
-src/rtype/network/                        rtype-network (shared), Asio only
+src/rtype/network/                rtype::network — rtype-network (shared), Asio only
 ├── xmake.lua
-├── Export.hpp                            RTYPE_NETWORK_API
-├── Types.hpp                             ClientId, Channel, reasons, Clock, TimePoint, Bytes
-├── Constants.hpp                         kProtocolId, kProtocolVersion, kMaxPacketSize, kMaxMessageSize...
-├── NetworkSettings.hpp                   every transport setting, with the design's defaults
-├── ByteWriter.hpp/.cpp, ByteReader.hpp/.cpp
-├── Sequence.hpp                          isNewer
-├── SequenceBuffer.hpp/.tpp               ring indexed by sequence % N
-├── Packet.hpp/.cpp                       packet kinds, encode / decode of each packet
-├── Connection.hpp/.cpp                   per-peer state: sequences, acks, RTT, channels (sans-IO)
-├── ReliableSender.hpp/.cpp, ReliableReceiver.hpp/.cpp
-├── Address.hpp/.cpp                      ip + port, hashable; no Asio in the header
-├── UdpSocket.hpp/.cpp                    pimpl around asio::ip::udp::socket
-├── RoomMessages.hpp                      ServerEvent / ServerCommand variants (what a room sees)
-├── ServerCore.hpp/.cpp, Session.hpp      server protocol, sans-IO
-├── ClientCore.hpp/.cpp                   client protocol, sans-IO
-├── NetServer.hpp/.cpp, NetClient.hpp/.cpp  socket + core
-└── exceptions/NetworkExceptions.hpp      bind failure, bad address
+├── Export.hpp                    RTYPE_NETWORK_API
+├── Types.hpp                     ClientId, Channel, DisconnectReason, RejectReason, Clock, TimePoint, Bytes
+├── NetworkSettings.hpp           every transport setting, with the design's defaults
+├── RandomSource.hpp              std::random_device by default, replaceable in tests
+├── bytes/                        rtype::network::bytes
+│   └── ByteWriter, ByteReader
+├── protocol/                     rtype::network::protocol
+│   └── Constants (kProtocolId, kMaxPacketSize...), Sequence (isNewer), SequenceBuffer (.tpp), packets (NET-04)
+├── connection/                   rtype::network::connection
+│   └── Connection, ReliableSender, ReliableReceiver, ConnectionStats
+├── io/                           rtype::network::io  (the only folder whose .cpp files include Asio)
+│   └── Address, UdpSocket, later IoThread pieces (NET-24)
+├── server/                       rtype::network::server
+│   └── ServerCore, Session, NetServer, RoomMessages (ServerEvent, ServerCommand), later NetServerThread,
+│       MessageQueue (.tpp), lobby messages (NET-24, NET-26)
+├── client/                       rtype::network::client
+│   └── ClientCore, ClientEvent, NetClient
+└── exceptions/                   rtype::network::exceptions
+    └── NetworkExceptions (SocketException...)
 
-src/rtype/replication/                    rtype-replication (shared), depends on ecs + network
-├── xmake.lua, Export.hpp                 RTYPE_REPLICATION_API
-├── Components.hpp                        NetworkId, Owner, PlayerInput (+ registration)
-├── Events.hpp                            ClientConnected, ClientDisconnected (later ClientLost...)
+src/rtype/replication/            rtype::replication — rtype-replication (shared), depends on ecs + network
+├── xmake.lua, Export.hpp         RTYPE_REPLICATION_API
 ├── ReplicationSettings.hpp
-├── MessageType.hpp                       0x20–0xFF
-├── FieldSerializer.hpp/.cpp
-├── InputLayout.hpp/.cpp, InputMessage.hpp/.cpp
-├── Manifest.hpp/.cpp
-├── Snapshot.hpp/.cpp                     snapshot encode / decode
-├── ServerReplicator.hpp/.cpp
-├── ClientReplicator.hpp/.cpp
-└── exceptions/ReplicationExceptions.hpp
+├── MessageType.hpp               0x20–0xFF
+├── Registration.hpp/.cpp         registerReplicationTypes(world): every component and event below
+├── component/                    rtype::replication::component
+│   └── NetworkId, Owner, PlayerInput
+├── event/                        rtype::replication::event
+│   └── ClientConnected, ClientDisconnected, later ClientLost, ClientReconnected... (M4)
+├── serialization/                rtype::replication::serialization
+│   └── EntityMapper, FieldSerializer
+├── manifest/                     rtype::replication::manifest
+│   └── Manifest, ManifestReceiver, ManifestCheck
+├── input/                        rtype::replication::input
+│   └── InputKind, InputLayout, InputMessage, InputBuffer
+├── snapshot/                     rtype::replication::snapshot
+│   └── Snapshot (encode / decode), later SnapshotHistory, KnownEntities (M2)
+├── server/                       rtype::replication::server
+│   └── ServerReplicator, later Room, RoomManager (NET-25)
+├── client/                       rtype::replication::client
+│   └── ClientReplicator, later Interpolator (NET-22), Predictor (NET-36, NET-37)
+├── packet/                       rtype::replication::packet  (M5)
+│   └── PacketDescriptor, PacketRegistry, RTYPE_REPLICATION_PACKET
+└── exceptions/                   rtype::replication::exceptions
+    └── ReplicationExceptions (ManifestException...)
 
 tests/network/      network-tests      (SimulatedLink.hpp lives here, test-only)
 tests/replication/  replication-tests
 examples/network/Prototype/            prototype-server, prototype-client
 ```
+
+Files are named after their class (`connection/Connection.hpp`, `.cpp`, `.tpp` for templates) and included as
+`rtype/network/<feature>/<File>.hpp`. The snippets of the tasks below omit the namespaces for brevity: each type
+lives in the namespace of the folder listed here.
 
 ### Rules every task follows
 
@@ -331,14 +350,15 @@ later task only adds files.
 - [ ] `src/rtype/network/Export.hpp` (`RTYPE_NETWORK_API`), modelled on `src/rtype/ecs/Export.hpp`.
 - [ ] `src/rtype/replication/xmake.lua` (`rtype-replication`, shared, `add_deps("ecs", "network")`, both public)
   and `Export.hpp` (`RTYPE_REPLICATION_API`).
-- [ ] `network/Types.hpp`, `network/Constants.hpp`, `network/NetworkSettings.hpp` with the values of
+- [ ] `network/Types.hpp`, `network/protocol/Constants.hpp`, `network/NetworkSettings.hpp` with the values of
   [5](#5-values-fixed-by-this-spec) and the design's limits (`kMaxPacketSize = 1200`, `kMaxMessageSize = 1000`,
   `kProtocolId = 0x52545950`...).
 - [ ] Root `xmake.lua`: `includes` both modules and add them to the `rtype` phony target.
 - [ ] `tests/network/` (`network-tests`) and `tests/replication/` (`replication-tests`) with one placeholder test
   each, included from `tests/xmake.lua`.
-- [ ] `CLAUDE.md`: describe both modules in *Project structure* and the dependency rule
-  (`network` ← `replication` ← executables; `ecs` ← `replication`).
+- [ ] Create the feature folders of [4](#folders-and-namespaces) as they are needed (no empty folders).
+- [ ] `CLAUDE.md`: describe both modules and their feature folders / sub-namespaces in *Project structure*, and the
+  dependency rule (`network` ← `replication` ← executables; `ecs` ← `replication`).
 
 ```c++
 namespace rtype::network {
@@ -432,7 +452,7 @@ class SequenceBuffer {
 ```
 
 **Tasks.**
-- [ ] `Sequence.hpp` (`constexpr`, so also `static_assert` tests) and `SequenceBuffer.hpp/.tpp`.
+- [ ] `protocol/Sequence.hpp` (`constexpr`, so also `static_assert` tests) and `SequenceBuffer.hpp/.tpp`.
 - [ ] Tests: `isNewer(3, 65530)`, `isNewer(65530, 3) == false`, equal values, the half-range boundary
   (`32768` apart); buffer insert / find / overwrite after `N` sequences / remove, across the wrap.
 
@@ -490,7 +510,7 @@ struct LinkConditions { double loss{0.0}; double duplicate{0.0}; double reorder{
 class SimulatedLink {
   public:
     SimulatedLink(LinkConditions conditions, std::uint32_t seed);  // seeded: a failing test is reproducible
-    void send(int to, rtype::network::Bytes datagram, rtype::network::TimePoint now);   // to = 0 or 1
+    void send(int to, rtype::network::Bytes datagram, rtype::network::TimePoint now);  // to = 0 or 1
     [[nodiscard]] std::vector<rtype::network::Bytes> receive(int at, rtype::network::TimePoint now);
 };
 ```
@@ -578,7 +598,7 @@ carrying it is acked.
 |---|---|---|---|
 | M1 | M | NET-01 | [6.7](design.md#67-socket-and-io), [10](design.md#windows-connection_reset) |
 
-**Summary.** The only Asio code: a UDP socket that receives asynchronously on an `io_context`, never stops its
+**Summary.** The only Asio code (`io/`): a UDP socket that receives asynchronously on an `io_context`, never stops its
 receive loop on an error, and an `Address` type that hides `asio::ip::udp::endpoint`.
 
 **API.**
@@ -634,7 +654,7 @@ into datagrams.
 
 **API.**
 ```c++
-// RoomMessages.hpp: what a room receives and sends (the same types are used by the room queues of NET-24).
+// server/RoomMessages.hpp: what a room receives and sends (the same types are used by the room queues of NET-24).
 struct ClientJoined { ClientId client; };
 struct ClientMessage { ClientId client; Channel channel; Bytes payload; };
 struct ClientLeft { ClientId client; DisconnectReason reason; };
@@ -820,10 +840,10 @@ class EntityMapper {
 
 /// @return False if the type cannot be replicated in v1 (it has lifecycle hooks).
 [[nodiscard]] RTYPE_REPLICATION_API bool isSerializable(const ecs::TypeInfo& info) noexcept;
-RTYPE_REPLICATION_API void writeFields(network::ByteWriter& writer, const ecs::TypeInfo& info,
+RTYPE_REPLICATION_API void writeFields(network::bytes::ByteWriter& writer, const ecs::TypeInfo& info,
                                        std::span<const std::byte> value, const EntityMapper& mapper) noexcept;
 /// @return False (value unspecified) if a field fails its check or bytes are missing.
-[[nodiscard]] RTYPE_REPLICATION_API bool readFields(network::ByteReader& reader, const ecs::TypeInfo& info,
+[[nodiscard]] RTYPE_REPLICATION_API bool readFields(network::bytes::ByteReader& reader, const ecs::TypeInfo& info,
                                                     std::span<std::byte> value, const EntityMapper& mapper) noexcept;
 ```
 
@@ -956,10 +976,10 @@ class RTYPE_REPLICATION_API ServerReplicator {
     ServerReplicator(ecs::World& world, const InputLayout& inputs, ReplicationSettings settings);
     [[nodiscard]] std::vector<network::Bytes> getWelcomeMessages() const;   // the encoded manifest
     std::uint32_t track(ecs::Entity entity);      // assigns the next id, adds the NetworkId component
-    void handle(const network::ServerEvent& event);
+    void handle(const network::server::ServerEvent& event);
     void applyInputs();                          // once per fixed tick, before the game step
     void endTick();                              // after the game step and advanceChangeTick(): builds snapshots
-    [[nodiscard]] std::vector<network::ServerCommand> takeCommands();
+    [[nodiscard]] std::vector<network::server::ServerCommand> takeCommands();
     [[nodiscard]] std::uint32_t getServerTick() const noexcept;
 };
 ```
@@ -982,7 +1002,7 @@ In M1 the server only writes spawn records; updates, removals and despawns are e
 applies them, NET-17).
 
 **Tasks.**
-- [ ] `Snapshot.hpp/.cpp`: a decoded `Snapshot` struct and its encoder / decoder (the decoder checks counts against
+- [ ] `snapshot/Snapshot.hpp/.cpp`: a decoded `Snapshot` struct and its encoder / decoder (the decoder checks counts against
   the remaining bytes, unknown short ids, duplicate net ids in one list, and reserved flag bits).
 - [ ] `ClientJoined` → ECS event `ClientConnected`, client added to the snapshot list. `ClientLeft` → event
   `ClientDisconnected`, client removed. `ClientMessage` of type `kInput` → that client's `InputBuffer`, other types
@@ -1014,7 +1034,7 @@ enum class ManifestStatus : std::uint8_t { kWaiting, kAccepted, kMismatch };
 class RTYPE_REPLICATION_API ClientReplicator {
   public:
     ClientReplicator(ecs::World& world, const InputLayout& inputs);
-    void handle(const network::ClientEvent& event);
+    void handle(const network::client::ClientEvent& event);
     [[nodiscard]] ManifestStatus getManifestStatus() const noexcept;
     [[nodiscard]] std::string_view getMismatch() const noexcept;     // text for the player
     /// @brief Numbers the input with the next sequence and queues a kInput with the last 3.
@@ -1218,15 +1238,16 @@ class RTYPE_NETWORK_API NetServerThread {
 class Room {   // implemented by the game (later: an App, NET-38)
   public:
     virtual ~Room() = default;
-    virtual void tick(std::span<const network::ServerEvent> events, std::vector<network::ServerCommand>& commands) = 0;
+    virtual void tick(std::span<const network::server::ServerEvent> events,
+                      std::vector<network::server::ServerCommand>& commands) = 0;
 };
-using RoomFactory = std::function<std::unique_ptr<Room>(network::RoomId)>;
+using RoomFactory = std::function<std::unique_ptr<Room>(network::server::RoomId)>;
 
 class RTYPE_REPLICATION_API RoomManager {
   public:
-    RoomManager(network::NetServerThread& server, RoomFactory factory, ReplicationSettings settings);
-    network::RoomId create();       // thread started, channel registered with the I/O thread
-    void stop(network::RoomId room);
+    RoomManager(network::server::NetServerThread& server, RoomFactory factory, ReplicationSettings settings);
+    network::server::RoomId create();       // thread started, channel registered with the I/O thread
+    void stop(network::server::RoomId room);
     void stopAll();                 // on shutdown
 };
 ```
