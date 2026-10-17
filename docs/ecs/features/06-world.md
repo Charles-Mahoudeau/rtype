@@ -24,8 +24,8 @@ world.
 
 ## Our choice
 
-A `World` class that **coordinates one part per kind of data**: `Components` (`world.getComponents()`)
-and `Resources` (`world.getResources()`), later the event queues. Each part owns its registry and its
+A `World` class that **coordinates one part per kind of data**: `Components` (`world.getComponents()`),
+`Resources` (`world.getResources()`) and `Events` (`world.getEvents()`). Each part owns its registry and its
 storage, and offers **two API surfaces** over the same data:
 
 - **Typed** (templates): convenient and checked at compile time, for C++ code.
@@ -33,7 +33,7 @@ storage, and offers **two API surfaces** over the same data:
   the network.
 
 The World itself only does what involves several parts: spawning and despawning entities, the change
-tick that every part stamps, and the rule that a name is either a component or a resource. So a new kind
+tick that every part stamps, and the rule that a name is one kind of type only. So a new kind
 of data adds a class next to the others instead of growing the World, and a feature that only needs
 components (queries) depends on `Components`, not on the whole World.
 
@@ -50,15 +50,17 @@ flowchart TB
     state --> alloc["EntityAllocator<br/>generations, free list"]
     state --> components["Components<br/>ComponentRegistry, one pool per component,<br/>tables (v3)"]
     state --> resources["Resources<br/>ResourceRegistry, one slot per resource"]
-    state --> events["Event queues (#119)"]
+    state --> events["Events<br/>EventRegistry, one queue per event"]
     state --> tick["Change tick counter"]
-    components -. "alive checks, tick,<br/>resource names" .-> state
-    resources -. "tick, component names" .-> state
+    components -. "alive checks, tick,<br/>names" .-> state
+    resources -. "tick, names" .-> state
+    events -. "names" .-> state
 ```
 
 Everything lives in one `detail::WorldState`, owned by a `std::unique_ptr`. Its address never changes,
-even when the World is moved, so `Components` and `Resources` keep a plain pointer back to it to check
-that an entity is alive, read the change tick and check names against the other kind. Moving a World
+even when the World is moved, so `Components`, `Resources` and `Events` keep a plain pointer back to it to
+check that an entity is alive, read the change tick and check names against the other kinds
+(`WorldState::checkNameFree()`, the one place that knows every registry). Moving a World
 moves one pointer; a moved-from World can only be destroyed or assigned to.
 
 The [scheduler](13-scheduler.md) and the systems are owned by the [App](14-app-and-plugins.md), not
@@ -94,7 +96,8 @@ std::span<const std::byte> raw = components.get(ship, *id);  // empty if absent
 | Register / find | `registerType<T>(options)` | `registerType(info)`, `find(name)` |
 
 Every row but the first is on `world.getComponents()`. [Resources](10-resources.md) follow the same
-pattern on `world.getResources()`.
+pattern on `world.getResources()`, and [events](11-events.md) on `world.getEvents()` (send and read with a
+cursor instead of add and get).
 
 Typed calls are thin wrappers that resolve `T` to an id and forward to the type-erased path, so there is
 one implementation to test.

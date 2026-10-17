@@ -53,7 +53,8 @@ struct Score {
 RTYPE_ECS_RESOURCE(Score, "game.Score", value);   // reflected: replicable, reachable from Luau
 ```
 
-A name is either a component or a resource, never both: the World refuses the second registration.
+A name is one kind of type only: registering a resource named like a component or an event is refused
+(`WorldState::checkNameFree()`), and the other way round.
 
 ### Resources API
 

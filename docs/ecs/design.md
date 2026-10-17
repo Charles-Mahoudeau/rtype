@@ -272,24 +272,25 @@ struct ComponentInfo {
 
 #### The type core
 
-Components are one **kind** of ECS data; resources are another, and events may follow. Everything
+Components are one **kind** of ECS data; resources and events are the two others. Everything
 that means the same for every kind lives once in `type/`, and each kind adds only what is specific to it,
 **by composition**:
 
-| Shared (`type/`) | Components | Resources |
-|---|---|---|
-| `TypeInfo` (name, layout, hooks, copyability, fields, presence, replication), `validateType()`, `computeLayoutHash()` | `ComponentInfo { TypeInfo type; StorageKind storage; }`; `validate()`: must also be copyable | `ResourceInfo { TypeInfo type; bool nonSend; }`; `validate()`: may be move-only |
-| `TypeHooks` and `makeHooks<T>()` (skips `construct` / `copy` when unsupported) | | |
-| `TypeTraits<T>` (name, kind, hashes, fields, hooks, `makeTypeInfo()`), `RTYPE_ECS_DETAIL_DESCRIBE` | `ComponentTraits<T>`, `RTYPE_ECS_COMPONENT` (plain copyable aggregates) | `ResourceTraits<T>`, `RTYPE_ECS_RESOURCE` (any movable type; fields optional) |
-| `TypeRegistry<Info>`: ids, lookups, layout check, the checks every kind shares | `KindTraits<ComponentInfo>` (storage), `ComponentRegistry` | `KindTraits<ResourceInfo>` (main thread), `ResourceRegistry` |
-| `ByteColumn` (built from a `TypeInfo`) | `SparseSetStorage`: one value per entity | `ResourceStorage`: zero or one value |
-| `ErrorKind` (`kInvalidType`, `kLayoutMismatch`, `kNameCollision`, ...), `TypeRegistrationException` | "Component 'rtype.Health': ..." | "Resource 'rtype.Time': ..." |
+| Shared (`type/`) | Components | Resources | Events |
+|---|---|---|---|
+| `TypeInfo` (name, layout, hooks, copyability, fields, presence, replication), `validateType()`, `computeLayoutHash()` | `ComponentInfo { TypeInfo type; StorageKind storage; }`; `validate()`: must also be copyable | `ResourceInfo { TypeInfo type; bool nonSend; }`; `validate()`: may be move-only | `EventInfo { TypeInfo type; }`; `validate()`: may be move-only, never replicated |
+| `TypeHooks` and `makeHooks<T>()` (skips `construct` / `copy` when unsupported) | | | |
+| `TypeTraits<T>` (name, kind, hashes, fields, hooks, `makeTypeInfo()`), `RTYPE_ECS_DETAIL_DESCRIBE` | `ComponentTraits<T>`, `RTYPE_ECS_COMPONENT` (plain copyable aggregates) | `ResourceTraits<T>`, `RTYPE_ECS_RESOURCE` (any movable type; fields optional) | `EventTraits<T>`, `RTYPE_ECS_EVENT` (any movable type; fields optional) |
+| `TypeRegistry<Info>`: ids, lookups, layout check, the checks every kind shares | `KindTraits<ComponentInfo>` (storage), `ComponentRegistry` | `KindTraits<ResourceInfo>` (main thread), `ResourceRegistry` | `KindTraits<EventInfo>` (presence only), `EventRegistry` |
+| `ByteColumn` (built from a `TypeInfo`) | `SparseSetStorage`: one value per entity | `ResourceStorage`: zero or one value | `EventStorage`: two buffers, events of the last two updates |
+| `ErrorKind` (`kInvalidType`, `kLayoutMismatch`, `kNameCollision`, ...), `TypeRegistrationException` | "Component 'rtype.Health': ..." | "Resource 'rtype.Time': ..." | "Event 'rtype.Collision': ..." |
 
-A name is either a component or a resource: the World refuses registering a name the other kind uses, so
-the Luau bridge, the network manifest and save files resolve it alone.
+A name is one kind of type only: `WorldState::checkNameFree(name, kind)` refuses registering a name another
+kind uses (it checks every registry but the one of the kind registering it), so the Luau bridge, the network
+manifest and save files resolve it alone.
 
-A new kind is a description struct holding a `TypeInfo`, a `KindTraits` specialization, a declaring macro
-on `RTYPE_ECS_DETAIL_DESCRIBE`, and its own storage; `tests/ecs/TypeRegistryTests.cpp` builds one in a
+A new kind is a `TypeKind` value, a description struct holding a `TypeInfo`, a `KindTraits` specialization, a
+declaring macro on `RTYPE_ECS_DETAIL_DESCRIBE`, its own storage, and one line in `WorldState::checkNameFree()`; `tests/ecs/TypeRegistryTests.cpp` builds one in a
 few lines.
 
 #### Why two enums instead of bit flags
@@ -496,7 +497,8 @@ and schedules.
 their own world (its render world).
 
 **Our choice.** A `World` class that coordinates one part per kind of data: `Components`
-(`world.getComponents()`) and `Resources` (`world.getResources()`), each with two API surfaces: typed
+(`world.getComponents()`), `Resources` (`world.getResources()`) and `Events` (`world.getEvents()`), each with
+two API surfaces: typed
 templates and a type-erased, `noexcept` API by id (used by Luau and the network). The World keeps only
 what crosses parts: spawning and despawning, the change tick and the component/resource name rule. **Several worlds per process** are allowed: a
 listen server runs a server world and a client world side by side, and tests create as many as they
@@ -703,17 +705,22 @@ window resizes, a player joining.
 **What exists.** Bevy events (double-buffered queues, read by `EventReader`), flecs and Bevy
 observers/triggers (immediate callbacks).
 
-**Our choice.** Double-buffered `Events<T>`: an event is readable the frame it is sent and the next,
-then dropped. Event types are registered by name, so Luau can declare and send its own. Ethan's
+**Our choice.** One double-buffered queue per event type, in the world's `Events`
+(`world.getEvents()`): an event is readable during the update it is sent in and the next, then dropped. Each
+reader keeps an `EventCursor`, so it reads each event once. Event types are a third kind of the type core
+(`RTYPE_ECS_EVENT`), registered by name, so Luau can declare, send and read its own. Ethan's
 `Event` variant is forwarded by the window plugin (one event type per alternative: `event::Resized`,
 `event::KeyPressed`...).
 
 ```c++
-void applyDamage(rtype::ecs::EventReader<Collision> collisions, rtype::ecs::Query<Health> health) {
-    for (const Collision& collision : collisions) {
-        // ...
-    }
+world.getEvents().send(Collision{.a = bullet, .b = enemy});
+
+rtype::ecs::EventCursor cursor;
+for (const Collision& collision : world.getEvents().read<Collision>(cursor)) {
+    // ...
 }
+
+// With the systems, a parameter keeps the cursor: EventReader<Collision>.
 ```
 
 Serves: R1, R2, R4.
@@ -1200,21 +1207,22 @@ flowchart LR
         direction TB
         prev["Previous buffer<br/>events of tick N-1"]
         curr["Current buffer<br/>events of tick N"]
-        counter["Event counter<br/>(id of the next event)"]
+        counter["Event numbering<br/>(number of the next event)"]
     end
-    writer["EventWriter::send<br/>push_back + counter++"] --> curr
-    readerA["Damage reader<br/>cursor = last id read"] --> prev
+    writer["send()<br/>push_back, next number"] --> curr
+    readerA["Damage reader<br/>cursor = next number to read"] --> prev
     readerA --> curr
-    readerB["Luau scoring reader<br/>cursor = last id read"] --> curr
+    readerB["Luau scoring reader<br/>cursor = next number to read"] --> curr
     swap["Swap at each FixedUpdate tick:<br/>previous is cleared (capacity kept),<br/>current becomes previous"] -.-> queue
 ```
 
-- **Writing** is a `push_back` into the current buffer and an increment of the event counter.
-- **Each reader keeps a cursor**: the id of the last event it read. Reading walks the previous buffer,
-  then the current one, skipping ids at or below the cursor, and moves the cursor to the end. Every
-  reader sees every event exactly once, whatever its order relative to the writer.
+- **Writing** (`Events::send()`) is a `push_back` into the current buffer; the event gets the next number.
+- **Each reader keeps an `EventCursor`**: the number of the next event it has not read. `Events::read()`
+  returns the events from the cursor to the newest, in the previous buffer then the current one, and moves
+  the cursor past them. Every reader sees every event exactly once, whatever its order relative to the
+  writer.
 - **The swap follows the phase that writes the event.** Collision events are written in `FixedUpdate`,
-  so their queue is swapped once per **fixed tick**, not once per frame. Otherwise, a frame that runs
+  so their queue is swapped (`Events::update(id)`) once per **fixed tick**, not once per frame. Otherwise, a frame that runs
   `FixedUpdate` three times would mix three ticks of collisions, or drop some.
 - **No allocation in steady state:** the buffers are cleared, not freed.
 
@@ -1359,13 +1367,14 @@ is the same idea as Bevy's modules with a short prelude.
 | `type/` | `rtype::ecs` | The core shared by every kind: `Field.hpp` (`FieldType`, `FieldInfo`), `FieldTypeOf.hpp`, `TypeHooks`, `TypeInfo` (`TypeId`, `Presence`, `ReplicationMode`, validation, layout hash), `NameHash`, `LayoutHash`, `TypeTraits`, `TypeRegistry<Info>` |
 | `component/` | `rtype::ecs` | `ComponentInfo.hpp` (`ComponentId`, `StorageKind`, `ComponentInfo`), `ComponentTraits.hpp` (`RTYPE_ECS_COMPONENT`), `ComponentRegistry.hpp/.cpp` (`KindTraits<ComponentInfo>`, `ComponentRegistry`), `Components.hpp/.tpp/.cpp` (a world's registry, pools and component API) |
 | `resource/` | `rtype::ecs` | `ResourceInfo.hpp` (`ResourceId`, `ResourceInfo`), `ResourceTraits.hpp` (`RTYPE_ECS_RESOURCE`), `ResourceRegistry.hpp/.cpp` (`ResourceOptions`, `KindTraits<ResourceInfo>`, `ResourceRegistry`), `Resources.hpp/.tpp/.cpp` (a world's registry, slots and resource API) |
-| `storage/` | `rtype::ecs::storage` | `PagedSparseArray`, `ByteColumn`, `SparseSetStorage` (the pool), `ResourceStorage` (a resource slot), `Table` (v3) |
-| `world/` | `rtype::ecs` | `World.hpp/.tpp/.cpp`: the coordinator (entities, change tick, `getComponents()`, `getResources()`) |
+| `event/` | `rtype::ecs` | `EventInfo.hpp/.cpp` (`EventId`, `EventInfo`), `EventTraits.hpp` (`RTYPE_ECS_EVENT`), `EventRegistry.hpp` (`EventOptions`, `KindTraits<EventInfo>`, `EventRegistry`), `EventCursor.hpp` (`EventSequence`, `EventCursor`), `EventRange.hpp/.tpp/.cpp` (`RawEventRange`, `EventRange<T>`), `Events.hpp/.tpp/.cpp` (a world's registry, queues and event API) |
+| `storage/` | `rtype::ecs::storage` | `PagedSparseArray`, `ByteColumn`, `SparseSetStorage` (the pool), `ResourceStorage` (a resource slot), `EventStorage` (an event queue), `Table` (v3) |
+| `world/` | `rtype::ecs` | `World.hpp/.tpp/.cpp`: the coordinator (entities, change tick, `getComponents()`, `getResources()`, `getEvents()`) |
 | `query/` | `rtype::ecs` | `DynamicQuery` (the single query engine), `Query` (typed queries and filters), `Mut` (write access stamping ticks) |
-| `system/` | `rtype::ecs` | `System` (parameter deduction, access sets), `Commands`, `Res.hpp` (`Res`, `ResMut`, `NonSend`, `NonSendMut`), `Events` |
+| `system/` | `rtype::ecs` | `System` (parameter deduction, access sets), `Commands`, `Res.hpp` (`Res`, `ResMut`, `NonSend`, `NonSendMut`), `EventReader` / `EventWriter` |
 | `schedule/` | `rtype::ecs` | `Scheduler` (phases, ordering), fixed timestep and `Time` |
 | `app/` | `rtype::ecs` | `App`, `Plugin` |
-| `detail/` | `rtype::ecs::detail` | Internal helpers shared by several features (e.g. `Generation.hpp`), `WorldState.hpp` (everything a World owns, on the heap) |
+| `detail/` | `rtype::ecs::detail` | Internal helpers shared by several features (e.g. `Generation.hpp`), `WorldState.hpp/.cpp` (everything a World owns, on the heap; `checkNameFree()`) |
 | `exceptions/` | `rtype::ecs::exceptions` | Every ECS exception (e.g. `EntityExceptions.hpp`) |
 
 **Elsewhere:**
