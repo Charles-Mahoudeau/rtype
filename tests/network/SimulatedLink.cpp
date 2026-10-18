@@ -46,7 +46,10 @@ void SimulatedLink::send(const int to, Bytes datagram, const TimePoint now) {
     }
     TimePoint arrival = now + delay + randomJitter();
     if (roll() < _conditions.reorder) {
-        arrival += std::max(delay, std::chrono::duration_cast<TimePoint::duration>(std::chrono::milliseconds{1}));
+        // Hold back by at least kMinHoldBack so that, even with no base delay, datagrams sent shortly after
+        // arrive strictly before this one instead of tying with it.
+        constexpr auto kMinHoldBack = std::chrono::duration_cast<TimePoint::duration>(std::chrono::milliseconds{10});
+        arrival += std::max(delay, kMinHoldBack);
         ++_stats.reordered;
     }
     if (roll() < _conditions.duplicate) {
