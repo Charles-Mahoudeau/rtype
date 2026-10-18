@@ -24,6 +24,8 @@
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/system/Side.hpp"
 #include "rtype/ecs/system/System.hpp"
+#include "rtype/ecs/system/SystemAccess.hpp"
+#include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/world/World.hpp"
 
 namespace rtype::ecs {
@@ -45,6 +47,40 @@ namespace {
             return "Render";
     }
     return "?";
+}
+
+/// @return The first type both lists use, one of them writing it; nothing if there is none.
+[[nodiscard]] std::optional<TypeId> findSharedWrite(std::span<const TypeAccess> first,
+                                                    std::span<const TypeAccess> second) {
+    for (const TypeAccess& access : first) {
+        const auto other = std::ranges::find(second, access.id, &TypeAccess::id);
+        if (other != second.end() && (access.write || other->write)) {
+            return access.id;
+        }
+    }
+    return std::nullopt;
+}
+
+/// @return The numbers 0..n-1 of `names`, sorted by name.
+[[nodiscard]] std::vector<std::size_t> sortByName(std::span<const std::string_view> names) {
+    std::vector<std::size_t> numbers;
+    numbers.reserve(names.size());
+    for (std::size_t number = 0; number < names.size(); ++number) {
+        numbers.push_back(number);
+    }
+    std::ranges::sort(numbers, {}, [&](std::size_t number) {
+        return *std::next(names.begin(), static_cast<std::ptrdiff_t>(number));
+    });
+    return numbers;
+}
+
+/// @return Each line on its own indented line, for a message listing problems.
+[[nodiscard]] std::string joinLines(std::span<const std::string> lines) {
+    std::string joined;
+    for (const std::string& line : lines) {
+        joined += std::format("\n  {}", line);
+    }
+    return joined;
 }
 
 /// @return The cycle's systems as `'a' -> 'b' -> 'a'`.
@@ -146,8 +182,55 @@ std::vector<std::size_t> Scheduler::sortPhase(Phase phase, const NameIndex& name
                                                         toString(phase),
                                                         describeCycle(graph.findCycle(), systems.names))};
     }
+    checkAmbiguities(phase, systems, graph);
     std::ranges::transform(*order, order->begin(), [&](std::size_t number) { return systems.positions.at(number); });
     return std::move(*order);
+}
+
+void Scheduler::checkAmbiguities(Phase phase, const PhaseSystems& systems, const detail::DependencyGraph& graph) const {
+    const std::vector<std::string> ambiguities = findAmbiguities(systems, graph);
+    if (!ambiguities.empty()) {
+        throw exceptions::ScheduleException{
+            std::format("Systems of phase {} touch the same data with no order between them, so their result would "
+                        "depend on the order they were added; order them with before / after:{}",
+                        toString(phase), joinLines(ambiguities))};
+    }
+}
+
+std::vector<std::string> Scheduler::findAmbiguities(const PhaseSystems& systems,
+                                                    const detail::DependencyGraph& graph) const {
+    // Pairs in name order, so the lines never depend on the order systems were added.
+    const std::vector<std::size_t> byName = sortByName(systems.names);
+    std::vector<std::string> ambiguities;
+    for (auto first = byName.begin(); first != byName.end(); ++first) {
+        for (auto second = std::next(first); second != byName.end(); ++second) {
+            if (graph.reaches(*first, *second) || graph.reaches(*second, *first)) {
+                continue;  // ordered: they always run in the same order
+            }
+            const std::optional<std::string> shared = findConflict(_entries.at(systems.positions.at(*first)).system,
+                                                                   _entries.at(systems.positions.at(*second)).system);
+            if (shared) {
+                ambiguities.push_back(std::format("'{}' and '{}' both use {}, one of them writing it",
+                                                  systems.names.at(*first), systems.names.at(*second), *shared));
+            }
+        }
+    }
+    return ambiguities;
+}
+
+std::optional<std::string> Scheduler::findConflict(const System& first, const System& second) const {
+    const SystemAccess& a = first.getAccess();
+    const SystemAccess& b = second.getAccess();
+    if (const std::optional<TypeId> id = findSharedWrite(a.getComponents(), b.getComponents())) {
+        return std::format("component '{}'", _world->getComponents().getRegistry().findById(*id)->type.name);
+    }
+    if (const std::optional<TypeId> id = findSharedWrite(a.getResources(), b.getResources())) {
+        return std::format("resource '{}'", _world->getResources().getRegistry().findById(*id)->type.name);
+    }
+    if (const std::optional<TypeId> id = findSharedWrite(a.getEvents(), b.getEvents())) {
+        return std::format("event '{}'", _world->getEvents().getRegistry().findById(*id)->type.name);
+    }
+    return std::nullopt;
 }
 
 Scheduler::PhaseSystems Scheduler::collect(Phase phase) const {

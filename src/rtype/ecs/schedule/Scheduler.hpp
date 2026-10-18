@@ -10,6 +10,7 @@
 #include <array>
 #include <cstddef>
 #include <limits>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -127,8 +128,8 @@ class RTYPE_ECS_API Scheduler {
     [[nodiscard]] NameIndex indexNames() const;
 
     /// @return The positions of the phase's systems, in run order.
-    /// @throws exceptions::ScheduleException When a constraint names an unknown system or one of another phase, or
-    /// constraints form a cycle.
+    /// @throws exceptions::ScheduleException When a constraint names an unknown system or one of another phase,
+    /// constraints form a cycle, or two systems touch the same data with no order between them.
     [[nodiscard]] std::vector<std::size_t> sortPhase(Phase phase, const NameIndex& names) const;
 
     /// @return The phase's systems, numbered in the order they were added.
@@ -138,6 +139,20 @@ class RTYPE_ECS_API Scheduler {
     /// @throws exceptions::ScheduleException When a constraint names an unknown system or one of another phase.
     [[nodiscard]] detail::DependencyGraph makeGraph(Phase phase, const PhaseSystems& systems,
                                                     const NameIndex& names) const;
+
+    /// @brief Checks that every two systems of the phase touching the same data, one of them writing it, are ordered
+    /// (one reaches the other in `graph`): otherwise their result would depend on the order they were added.
+    /// @throws exceptions::ScheduleException Listing every such pair and the component, resource or event type.
+    void checkAmbiguities(Phase phase, const PhaseSystems& systems, const detail::DependencyGraph& graph) const;
+
+    /// @return One line per pair of the phase's systems that touch the same data, one of them writing it, with no order
+    /// between them ("'a' and 'b' both use component 'x', one of them writing it"), the pairs in name order.
+    [[nodiscard]] std::vector<std::string> findAmbiguities(const PhaseSystems& systems,
+                                                           const detail::DependencyGraph& graph) const;
+
+    /// @return The name of the first type `first` and `second` both use, one of them writing it, as
+    /// "component 'rtype.Position'"; nothing if they do not conflict.
+    [[nodiscard]] std::optional<std::string> findConflict(const System& first, const System& second) const;
 
     /// @return The number in `systems` of the system named `target`, which `entry` runs before or after.
     /// @param relation "before" or "after", for the message.
