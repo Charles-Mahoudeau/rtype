@@ -53,4 +53,22 @@ enum class RejectReason : std::uint8_t {
     kSessionExpired = 3,
 };
 
+/// @brief Tells whether `channel` is a value of the wire; found by argument-dependent lookup by the streams.
+[[nodiscard]] constexpr bool isValidWireValue(const Channel channel) noexcept {
+    return channel == Channel::kUnreliable || channel == Channel::kReliable;
+}
+
+/// @brief Tells whether `reason` is a value of the wire (1 to 7, never 0).
+[[nodiscard]] constexpr bool isValidWireValue(const DisconnectReason reason) noexcept {
+    const auto value = static_cast<std::uint8_t>(reason);
+    return value >= static_cast<std::uint8_t>(DisconnectReason::kGraceful) &&
+           value <= static_cast<std::uint8_t>(DisconnectReason::kServerShutdown);
+}
+
+/// @brief Tells whether `reason` is a value of the wire (1 to 3, never 0).
+[[nodiscard]] constexpr bool isValidWireValue(const RejectReason reason) noexcept {
+    const auto value = static_cast<std::uint8_t>(reason);
+    return value >= static_cast<std::uint8_t>(RejectReason::kVersionMismatch) &&
+           value <= static_cast<std::uint8_t>(RejectReason::kSessionExpired);
+}
 }  // namespace rtype::network
