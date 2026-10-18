@@ -14,7 +14,6 @@
 #include <optional>
 #include <span>
 #include <type_traits>
-#include <utility>
 #include <variant>
 
 #include "rtype/network/Types.hpp"

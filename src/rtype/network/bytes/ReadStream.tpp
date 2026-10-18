@@ -5,6 +5,11 @@
 ** ReadStream
 */
 
+#include <bit>
+#include <cstdint>
+#include <type_traits>
+#include <utility>
+
 namespace rtype::network::bytes {
 namespace detail {
 /// @brief Reads an unsigned integer of the size given by the tag; the overload is picked by the tag's type.

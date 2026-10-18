@@ -5,6 +5,8 @@
 ** Codec
 */
 
+#include <utility>
+
 #pragma once
 
 namespace rtype::network::bytes {

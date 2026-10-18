@@ -5,6 +5,10 @@
 ** WriteStream
 */
 
+#include <bit>
+#include <cstdint>
+#include <limits>
+
 #pragma once
 
 namespace rtype::network::bytes {

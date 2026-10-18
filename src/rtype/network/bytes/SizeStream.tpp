@@ -5,6 +5,9 @@
 ** SizeStream
 */
 
+#include <cstdint>
+#include <limits>
+
 #pragma once
 
 namespace rtype::network::bytes {
