@@ -67,6 +67,25 @@ std::vector<std::size_t> DependencyGraph::findCycle() const {
     return {};
 }
 
+bool DependencyGraph::reaches(std::size_t from, std::size_t to) const {
+    std::vector<bool> seen(_next.size(), false);
+    std::vector<std::size_t> toVisit{from};  // an explicit stack, as in findCycleFrom()
+    while (!toVisit.empty()) {
+        const std::size_t node = toVisit.back();
+        toVisit.pop_back();
+        for (const std::size_t then : _next.at(node)) {
+            if (then == to) {
+                return true;
+            }
+            if (!seen.at(then)) {
+                seen.at(then) = true;
+                toVisit.push_back(then);
+            }
+        }
+    }
+    return false;
+}
+
 std::vector<std::size_t> DependencyGraph::findCycleFrom(std::size_t start, std::vector<Visit>& visits) const {
     // A depth-first search with an explicit stack, so a long chain of constraints cannot overflow the call stack.
     std::vector<std::pair<std::size_t, std::size_t>> path{{start, 0}};  // {node, next edge to follow}

@@ -50,6 +50,10 @@ class RTYPE_ECS_API DependencyGraph {
     /// @return The nodes of one cycle, the first repeated at the end (`{0, 2, 0}`); empty if there is none.
     [[nodiscard]] std::vector<std::size_t> findCycle() const;
 
+    /// @return Whether a chain of edges leads from `from` to `to`: `from` runs before `to`, directly or through other
+    /// nodes. False for a node and itself unless it is on a cycle.
+    [[nodiscard]] bool reaches(std::size_t from, std::size_t to) const;
+
   private:
     /// @brief Where the cycle search is with one node.
     enum class Visit : std::uint8_t {
