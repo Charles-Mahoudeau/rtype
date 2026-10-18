@@ -28,6 +28,7 @@
 #include "rtype/ecs/query/QueryBuilder.hpp"
 #include "rtype/ecs/query/QueryIteration.hpp"
 #include "rtype/ecs/query/QueryMatch.hpp"
+#include "rtype/ecs/query/QueryState.hpp"
 #include "rtype/ecs/query/QueryTerm.hpp"
 #include "rtype/ecs/query/QueryTerms.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
@@ -61,7 +62,7 @@ using rtype::ecs::Changed;
 using rtype::ecs::Entity;
 using rtype::ecs::Mut;
 using rtype::ecs::Optional;
-using rtype::ecs::Query;
+using rtype::ecs::QueryState;
 using rtype::ecs::Tick;
 using rtype::ecs::With;
 using rtype::ecs::Without;
@@ -72,15 +73,16 @@ using rtype::test::query::Position;
 using rtype::test::query::Velocity;
 
 // A match is the entity, then one item per term that has one: filters are left out.
-static_assert(std::is_same_v<Query<Position, const Velocity, With<Dead>>::Item,
+static_assert(std::is_same_v<QueryState<Position, const Velocity, With<Dead>>::Item,
                              std::tuple<Entity, Mut<Position>, const Velocity&>>);
-static_assert(std::is_same_v<Query<const Position, Without<Dead>, Optional<const Health>, Optional<Velocity>>::Item,
-                             std::tuple<Entity, const Position&, const Health*, Mut<Velocity>>>);
-static_assert(std::is_same_v<Query<With<Dead>>::Item, std::tuple<Entity>>);
+static_assert(
+    std::is_same_v<QueryState<const Position, Without<Dead>, Optional<const Health>, Optional<Velocity>>::Item,
+                   std::tuple<Entity, const Position&, const Health*, Mut<Velocity>>>);
+static_assert(std::is_same_v<QueryState<With<Dead>>::Item, std::tuple<Entity>>);
 
 /// @return The entities a typed query matches, sorted to compare sets.
 template <typename... Terms>
-std::vector<Entity> matchesOf(const Query<Terms...>& query, Tick lastRun = 0) {
+std::vector<Entity> matchesOf(const QueryState<Terms...>& query, Tick lastRun = 0) {
     std::vector<Entity> entities;
     for (auto match : query.iter(lastRun)) {
         entities.push_back(std::get<Entity>(match));
@@ -100,11 +102,11 @@ std::vector<Entity> matchesOf(const rtype::ecs::DynamicQuery& query, Tick lastRu
 }
 }  // namespace
 
-TEST(Query, MovesEntitiesWithStructuredBindings) {
+TEST(QueryState, MovesEntitiesWithStructuredBindings) {
     World world;
     const Entity ship = world.spawn(Position{.x = 0.F, .y = 0.F}, Velocity{.x = 1.F, .y = 2.F});
     const Entity rock = world.spawn(Position{.x = 5.F, .y = 5.F});
-    const Query<Position, const Velocity> movement{world.getComponents()};
+    const QueryState<Position, const Velocity> movement{world.getComponents()};
 
     for (auto [entity, position, velocity] : movement.iter(0)) {
         EXPECT_EQ(entity, ship);
@@ -116,12 +118,12 @@ TEST(Query, MovesEntitiesWithStructuredBindings) {
     EXPECT_EQ(world.getComponents().get<Position>(rock)->x, 5.F);  // no velocity: not matched
 }
 
-TEST(Query, IteratingWithoutWritingMarksNothingChanged) {
+TEST(QueryState, IteratingWithoutWritingMarksNothingChanged) {
     World world;
     const Entity first = world.spawn(Health{.value = 1});
     const Entity second = world.spawn(Health{.value = 2});
     world.advanceChangeTick(3);
-    const Query<Health> query{world.getComponents()};
+    const QueryState<Health> query{world.getComponents()};
 
     for (auto [entity, health] : query.iter(0)) {
         if (health.get().value == 2) {  // reading through get() does not stamp
@@ -133,11 +135,11 @@ TEST(Query, IteratingWithoutWritingMarksNothingChanged) {
     EXPECT_EQ(world.getComponents().get<Health>(second)->value, 20);
 }
 
-TEST(Query, YieldsOptionalItemsThatMayBeEmpty) {
+TEST(QueryState, YieldsOptionalItemsThatMayBeEmpty) {
     World world;
     const Entity full = world.spawn(Position{}, Health{.value = 7}, Velocity{.x = 1.F, .y = 0.F});
     const Entity bare = world.spawn(Position{});
-    const Query<const Position, Optional<const Health>, Optional<Velocity>> query{world.getComponents()};
+    const QueryState<const Position, Optional<const Health>, Optional<Velocity>> query{world.getComponents()};
 
     int count = 0;
     for (auto [entity, position, health, velocity] : query.iter(0)) {
@@ -157,15 +159,15 @@ TEST(Query, YieldsOptionalItemsThatMayBeEmpty) {
     EXPECT_EQ(world.getComponents().get<Velocity>(full)->x, 9.F);
 }
 
-TEST(Query, FiltersWithAndWithout) {
+TEST(QueryState, FiltersWithAndWithout) {
     World world;
     const Entity corpse = world.spawn(Position{}, Dead{});
     const Entity alive = world.spawn(Position{});
-    EXPECT_EQ(matchesOf(Query<const Position, With<Dead>>{world.getComponents()}), std::vector<Entity>{corpse});
-    EXPECT_EQ(matchesOf(Query<const Position, Without<Dead>>{world.getComponents()}), std::vector<Entity>{alive});
+    EXPECT_EQ(matchesOf(QueryState<const Position, With<Dead>>{world.getComponents()}), std::vector<Entity>{corpse});
+    EXPECT_EQ(matchesOf(QueryState<const Position, Without<Dead>>{world.getComponents()}), std::vector<Entity>{alive});
 }
 
-TEST(Query, FiltersAddedAndChanged) {
+TEST(QueryState, FiltersAddedAndChanged) {
     World world;
     const Entity old = world.spawn(Health{.value = 1});
     world.advanceChangeTick();
@@ -174,15 +176,15 @@ TEST(Query, FiltersAddedAndChanged) {
     const Entity recent = world.spawn(Health{.value = 2});
     world.getComponents().getMut<Health>(old)->value = 10;
 
-    EXPECT_EQ(matchesOf(Query<Added<Health>>{world.getComponents()}, lastRun), std::vector<Entity>{recent});
+    EXPECT_EQ(matchesOf(QueryState<Added<Health>>{world.getComponents()}, lastRun), std::vector<Entity>{recent});
     std::vector<Entity> both{old, recent};
     std::ranges::sort(both, {}, &Entity::getBits);
-    EXPECT_EQ(matchesOf(Query<const Health, Changed<Health>>{world.getComponents()}, lastRun), both);
+    EXPECT_EQ(matchesOf(QueryState<const Health, Changed<Health>>{world.getComponents()}, lastRun), both);
 }
 
-TEST(Query, RegistersItsComponents) {
+TEST(QueryState, RegistersItsComponents) {
     World world;
-    const Query<Position, With<Dead>> query{world.getComponents()};
+    const QueryState<Position, With<Dead>> query{world.getComponents()};
     EXPECT_TRUE(world.getComponents().getRegistry().find<Position>() != nullptr);
     EXPECT_TRUE(world.getComponents().getRegistry().find<Dead>() != nullptr);
 
@@ -190,18 +192,18 @@ TEST(Query, RegistersItsComponents) {
     EXPECT_EQ(matchesOf(query), std::vector<Entity>{later});
 }
 
-TEST(Query, KeepsTheOptionsOfAnAlreadyRegisteredComponent) {
+TEST(QueryState, KeepsTheOptionsOfAnAlreadyRegisteredComponent) {
     World world;
     world.getComponents().registerType<Position>(
         rtype::ecs::ComponentOptions{.replication = rtype::ecs::ReplicationMode::kEveryChange});
-    EXPECT_NO_THROW(Query<const Position>{world.getComponents()});
+    EXPECT_NO_THROW(QueryState<const Position>{world.getComponents()});
     EXPECT_EQ(world.getComponents().getRegistry().find<Position>()->type.replication,
               rtype::ecs::ReplicationMode::kEveryChange);
 }
 
-TEST(Query, CompilesDownToTheDynamicQuery) {
+TEST(QueryState, CompilesDownToTheDynamicQuery) {
     World world;
-    const Query<Position, const Velocity, Without<Dead>> query{world.getComponents()};
+    const QueryState<Position, const Velocity, Without<Dead>> query{world.getComponents()};
     const rtype::ecs::ComponentId position = world.getComponents().getRegistry().find<Position>()->type.id;
     const rtype::ecs::ComponentId velocity = world.getComponents().getRegistry().find<Velocity>()->type.id;
     const rtype::ecs::ComponentId dead = world.getComponents().getRegistry().find<Dead>()->type.id;
@@ -216,7 +218,7 @@ TEST(Query, CompilesDownToTheDynamicQuery) {
     EXPECT_EQ(std::vector<rtype::ecs::ComponentAccess>(query.getAccess().begin(), query.getAccess().end()), access);
 }
 
-TEST(Query, MatchesTheSameEntitiesAsTheDynamicQuery) {
+TEST(QueryState, MatchesTheSameEntitiesAsTheDynamicQuery) {
     World world;
     rtype::ecs::Components& components = world.getComponents();
     std::mt19937 random{99};
@@ -233,7 +235,7 @@ TEST(Query, MatchesTheSameEntitiesAsTheDynamicQuery) {
             components.add(entity, Dead{});
         }
     }
-    const Query<Position, Optional<const Velocity>, Without<Dead>> typed{components};
+    const QueryState<Position, Optional<const Velocity>, Without<Dead>> typed{components};
     const rtype::ecs::Result<rtype::ecs::DynamicQuery> dynamic =
         rtype::ecs::QueryBuilder{}
             .write(*components.find("test.query.Position"))
@@ -250,15 +252,15 @@ TEST(Query, MatchesTheSameEntitiesAsTheDynamicQuery) {
 static_assert(std::input_iterator<rtype::ecs::QueryIteration::Iterator>);
 static_assert(std::sentinel_for<std::default_sentinel_t, rtype::ecs::QueryIteration::Iterator>);
 static_assert(std::ranges::input_range<rtype::ecs::QueryIteration>);
-static_assert(std::input_iterator<Query<Position, const Velocity>::Iteration::Iterator>);
-static_assert(std::ranges::input_range<Query<Position, const Velocity>::Iteration>);
+static_assert(std::input_iterator<QueryState<Position, const Velocity>::Iteration::Iterator>);
+static_assert(std::ranges::input_range<QueryState<Position, const Velocity>::Iteration>);
 
-TEST(Query, WorksWithRangesAlgorithms) {
+TEST(QueryState, WorksWithRangesAlgorithms) {
     World world;
     world.spawn(Health{.value = 5});
     world.spawn(Health{.value = 50});
     world.spawn(Health{.value = 500});
-    const Query<const Health> typed{world.getComponents()};
+    const QueryState<const Health> typed{world.getComponents()};
     EXPECT_EQ(std::ranges::distance(typed.iter(0)), 3);
     EXPECT_EQ(std::ranges::count_if(typed.iter(0), [](const auto& match) { return std::get<1>(match).value > 10; }), 2);
 
@@ -266,4 +268,71 @@ TEST(Query, WorksWithRangesAlgorithms) {
         rtype::ecs::QueryBuilder{}.read(*world.getComponents().find("test.query.Health")).build(world.getComponents());
     ASSERT_TRUE(dynamic);
     EXPECT_EQ(std::ranges::distance(dynamic->iter(0)), 3);
+}
+
+// A view is iterated directly, and it is an input range like a pass.
+static_assert(std::ranges::input_range<rtype::ecs::Query<Position, const Velocity>>);
+static_assert(
+    std::is_same_v<rtype::ecs::Query<Position, const Velocity>::Item, QueryState<Position, const Velocity>::Item>);
+
+TEST(Query, IteratesTheStateWithStructuredBindings) {
+    World world;
+    const Entity ship = world.spawn(Position{.x = 0.F, .y = 0.F}, Velocity{.x = 1.F, .y = 2.F});
+    world.spawn(Position{});  // no velocity: not matched
+    const QueryState<Position, const Velocity> state{world.getComponents()};
+
+    rtype::ecs::Query<Position, const Velocity> query{state, 0};
+    int count = 0;
+    for (auto [entity, position, velocity] : query) {
+        EXPECT_EQ(entity, ship);
+        position->x += velocity.x;
+        ++count;
+    }
+    EXPECT_EQ(count, 1);
+    EXPECT_EQ(world.getComponents().get<Position>(ship)->x, 1.F);
+}
+
+TEST(Query, FiltersAgainstItsLastRun) {
+    World world;
+    world.spawn(Health{.value = 1});  // added before lastRun: filtered out
+    world.advanceChangeTick();
+    const Tick lastRun = world.getChangeTick();
+    world.advanceChangeTick();
+    const Entity recent = world.spawn(Health{.value = 2});
+    const QueryState<const Health, Added<Health>> state{world.getComponents()};
+
+    rtype::ecs::Query<const Health, Added<Health>> query{state, lastRun};
+    EXPECT_EQ(query.getLastRun(), lastRun);
+    std::vector<Entity> matched;
+    for (auto [entity, health] : query) {
+        matched.push_back(entity);
+    }
+    EXPECT_EQ(matched, std::vector<Entity>{recent});
+}
+
+TEST(Query, EachBeginStartsANewPass) {
+    World world;
+    world.spawn(Health{.value = 1});
+    world.spawn(Health{.value = 2});
+    const QueryState<const Health> state{world.getComponents()};
+
+    rtype::ecs::Query<const Health> query{state, 0};
+    EXPECT_EQ(std::ranges::distance(query), 2);
+    EXPECT_EQ(std::ranges::distance(query), 2);  // walked again from the start
+}
+
+TEST(Query, WritesStampTheWorldTickOnlyWhenWritten) {
+    World world;
+    const Entity first = world.spawn(Health{.value = 1});
+    const Entity second = world.spawn(Health{.value = 2});
+    world.advanceChangeTick(4);
+    const QueryState<Health> state{world.getComponents()};
+
+    for (auto [entity, health] : rtype::ecs::Query<Health>{state, 0}) {
+        if (entity == second) {
+            health->value = 20;
+        }
+    }
+    EXPECT_EQ(world.getComponents().getTicks<Health>(first)->changed, 0U);
+    EXPECT_EQ(world.getComponents().getTicks<Health>(second)->changed, 4U);
 }

@@ -140,11 +140,12 @@ For a complete example (collision detection producing `Collision` events, step b
 keep it fast), see [Collisions: From Overlap to Event](../design.md#collisions-from-overlap-to-event)
 in the design.
 
-### System parameters (later)
+### System parameters
 
-Systems will send and read events through parameters, filled by the scheduler on top of this API:
-`EventWriter<T>` wraps `send()`, and `EventReader<T>` keeps its `EventCursor` inside and calls `read()`. They
-also tell the scheduler which queues a system writes and reads.
+Systems send and read events through parameters (`system/EventReader.hpp`, `system/EventWriter.hpp`) on top
+of this API: `EventWriter<T>` wraps `send()`; for `EventReader<T>` the system keeps an `EventCursor`, and each
+run's reader takes (with `read()`) the events not read yet, as a range of `const T&`. They also tell the
+scheduler which queues a system writes and reads.
 
 ```c++
 void detectCollisions(/* queries... */ rtype::ecs::EventWriter<Collision> collisions) {

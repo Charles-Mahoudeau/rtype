@@ -55,16 +55,20 @@ void cleanup(rtype::ecs::Query<const Transform, rtype::ecs::With<Enemy>, rtype::
 | `With<T>` / `Without<T>` | presence / absence, no access | nothing |
 | `Added<T>` / `Changed<T>` | added / written since this system last ran | nothing |
 
-Until systems exist (#121), a query is built from the world's components and iterated with the tick the
-caller last ran at; the scheduler will do both for system parameters:
+A typed query has two parts. The **`QueryState<Terms...>`** is built once (it resolves and checks the terms,
+registering their components); a system keeps one per `Query` parameter. The **`Query<Terms...>`** a system
+receives is a light view of it, made for each run with the system's `lastRun` and iterated directly. Outside
+a system, iterate the state with an explicit `lastRun`:
 
 ```c++
-const rtype::ecs::Query<Position, const Velocity, rtype::ecs::Without<Dead>> movement{world.getComponents()};
+const rtype::ecs::QueryState<Position, const Velocity, rtype::ecs::Without<Dead>> movement{world.getComponents()};
 
 for (auto [entity, position, velocity] : movement.iter(lastRun)) {  // Mut<Position>, const Velocity&
     position->x += velocity.x;
 }
-lastRun = world.getChangeTick();
+
+rtype::ecs::Query<Position, const Velocity, rtype::ecs::Without<Dead>> view{movement, lastRun};
+for (auto [entity, position, velocity] : view) { /* what a system's body does */ }
 ```
 
 - **A match is a `std::tuple`** of the entity and one item per term that has one (filters yield nothing),
@@ -178,7 +182,8 @@ parallel. `Added` / `Changed` count as reads (they read the ticks); `With` / `Wi
 | `detail::QueryMatcher` | `findDriver()` and `matchEntity()`: the one join algorithm |
 | `detail::QueryCursor<Pools, Positions>` | the walk over the driver pool, shared by both passes (vectors or arrays) |
 | `QueryIteration` / `QueryMatch` | the dynamic pass and what its loop body sees |
-| `QueryTerms` / `TermTraits` / `Query` | the C++ terms, their mapping to `TermKind`s and items, the typed pass |
+| `QueryTerms` / `TermTraits` / `QueryState` | the C++ terms, their mapping to `TermKind`s and items, the typed query and its pass |
+| `Query` | the per-run view a system receives (state + `lastRun`) |
 
 ## Connections
 
