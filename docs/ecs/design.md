@@ -623,8 +623,9 @@ flowchart LR
 - **Phases** run in order; [commands](#8-commands) are flushed between phases.
 - Inside a phase, `before`/`after` constraints are sorted topologically; a cycle is an error when the
   schedule is built.
-- **`FixedUpdate`** runs 0..N times per frame from a time accumulator, so the simulation does not depend
-  on the frame rate. The server runs only `PreUpdate`, `FixedUpdate` and `PostUpdate` (R3).
+- **`FixedUpdate`** runs 0..N times per frame from a time accumulator (60 ticks per second and at most 5
+  per frame by default, counted in integers so every machine counts the same ticks), so the simulation does
+  not depend on the frame rate. The server runs only `PreUpdate`, `FixedUpdate` and `PostUpdate` (R3).
 - **Run conditions** (v2): `.runIf(&inState<GameState::kPlaying>)`.
 - **States** (v2): a `State<T>` resource with `OnEnter` / `OnExit` schedules, for menu → lobby →
   in-game → game over. This is the natural place for multiplayer session flow.
@@ -1376,7 +1377,8 @@ is the same idea as Bevy's modules with a short prelude.
 | `world/` | `rtype::ecs` | `World.hpp/.tpp/.cpp`: the coordinator (entities, change tick, `getComponents()`, `getResources()`, `getEvents()`) |
 | `query/` | `rtype::ecs` | `QueryTerm`, `QueryBuilder`, `DynamicQuery` (the single query engine), `QueryIteration` / `QueryMatch`, `QueryTerms` (`Optional`, `With`, `Without`, `Added`, `Changed`), `TermTraits`, `QueryState` (typed) and `Query` (its per-run view); `detail::` `QueryMatcher` and `QueryCursor` (the join and the walk, shared) |
 | `system/` | `rtype::ecs` | `System` (type-erased, run, flush), `SystemParam` (parameter deduction), `SystemAccess`, `Side`, `ResourceParam` (`Res`, `ResMut`, `NonSend`, `NonSendMut`), `EventReader` / `EventWriter` |
-| `schedule/` | `rtype::ecs` | `Phase`, `RunMode`, `Scheduler` (ordering, ambiguity checks, run, flush), `detail::DependencyGraph` (sort, cycles, reachability); later the fixed timestep and `Time` |
+| `schedule/` | `rtype::ecs` | `Phase`, `RunMode`, `Scheduler` (ordering, ambiguity checks, run, flush, whole frames with the fixed timestep and per-phase event updates), `detail::DependencyGraph` (sort, cycles, reachability) |
+| `time/` | `rtype::ecs` | `Time` (the time resource), `FixedTimestep` (the accumulator: ticks per frame, cap, alpha); later `TimePlugin` |
 | `app/` | `rtype::ecs` | `App`, `Plugin` |
 | `detail/` | `rtype::ecs::detail` | Internal helpers shared by several features (e.g. `Generation.hpp`), `WorldState.hpp/.cpp` (everything a World owns, on the heap; `checkNameFree()`) |
 | `exceptions/` | `rtype::ecs::exceptions` | Every ECS exception (e.g. `EntityExceptions.hpp`) |

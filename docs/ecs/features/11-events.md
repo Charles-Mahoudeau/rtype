@@ -130,8 +130,9 @@ current one.
 **The swap follows the phase that writes the event.** Events written in `FixedUpdate` (collisions, damage)
 must move forward once per **fixed tick**, not once per frame: a frame that runs `FixedUpdate` three times
 would otherwise mix three ticks of events, or drop some. That is why `update(id)` exists next to `update()`:
-the [scheduler](13-scheduler.md) will update each queue with the phase that writes it. Until then, the caller
-(tests, the game loop) calls `update()`.
+`Scheduler::runFrame()` ([scheduler](13-scheduler.md#fixed-timestep)) moves the queues written by
+`FixedUpdate` systems forward after each fixed tick, and every other queue at the end of the frame. A game
+loop that runs phases by hand calls `update()` itself.
 
 Sending is a `push_back`; the buffers are swapped and cleared rather than freed, and `clear()` keeps the
 numbering, so cursors stay valid and there is no allocation in steady state.
@@ -209,7 +210,8 @@ replicated automatically, so gameplay never depends on whether a message arrived
 ## Pitfalls
 
 - **Reading too late.** A system that runs only every few frames (a run condition) misses events older
-  than two frames.
+  than two frames. Likewise, an `Update` system reading a `FixedUpdate` event misses it when the frame runs
+  3 fixed ticks or more: read those in `FixedUpdate`.
 - **Using events for state.** "Is the boss dead?" is state (a component or resource); "the boss just
   died" is an event.
 - **Keeping a range.** A range returned by `read()` is invalidated by the next `update()` or `clear()` of its

@@ -114,7 +114,7 @@ this changes nothing at runtime; it is there so a parallel scheduler later knows
 
 | Resource | Inserted by | Kind |
 |---|---|---|
-| `Time` | core | `Res` |
+| `Time` | the scheduler (`Scheduler::runFrame()`), later `TimePlugin` | `Res` |
 | `Settings` | core (from the config file) | `Res` |
 | `Backend` (platform + renderer) | `WindowPlugin` / `RenderPlugin` | `NonSend` |
 | `Input` | `InputPlugin` | `Res` |
