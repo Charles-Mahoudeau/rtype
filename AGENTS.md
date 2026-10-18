@@ -17,8 +17,8 @@ are added.
   kind and defining `RTYPE_ECS_STATIC` publicly (see `Export.hpp`).
   - Files are grouped in one folder per feature (`entity/`, `type/` (the core shared by every kind of ECS
     data: fields, hooks, descriptions, registry), `component/`, `resource/`, `event/`, `storage/`, `change/`
-    (change ticks), `world/`, `command/` (deferred structural changes), `query/`, `system/`, and later
-    `schedule/`, `app/`), included as `rtype/ecs/<feature>/<File>.hpp`.
+    (change ticks), `world/`, `command/` (deferred structural changes), `query/`, `system/`, `schedule/`, and
+    later `app/`), included as `rtype/ecs/<feature>/<File>.hpp`.
   - Exception to the namespace rule: the types users write every day stay in the flat `rtype::ecs`
     namespace whatever their folder (`rtype/ecs/entity/Entity.hpp` declares `rtype::ecs::Entity`).
     Only internal parts get a sub-namespace, named after their folder: `rtype::ecs::storage`,
