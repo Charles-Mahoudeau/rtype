@@ -22,12 +22,12 @@ bool EventReader<T>::empty() const noexcept {
 }
 
 template <Event T>
-typename EventRange<T>::Iterator EventReader<T>::begin() const noexcept {
+auto EventReader<T>::begin() const noexcept -> EventRange<T>::Iterator {
     return _events.begin();
 }
 
 template <Event T>
-typename EventRange<T>::Iterator EventReader<T>::end() const noexcept {
+auto EventReader<T>::end() const noexcept -> EventRange<T>::Iterator {
     return _events.end();
 }
 }  // namespace rtype::ecs

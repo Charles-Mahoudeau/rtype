@@ -20,7 +20,7 @@ Tick Query<Terms...>::getLastRun() const noexcept {
 
 template <typename... Terms>
     requires ValidQuery<Terms...>
-typename Query<Terms...>::State::Iteration::Iterator Query<Terms...>::begin() noexcept {
+auto Query<Terms...>::begin() noexcept -> Iterator {
     _pass.emplace(_state->iter(_lastRun));
     return _pass->begin();
 }

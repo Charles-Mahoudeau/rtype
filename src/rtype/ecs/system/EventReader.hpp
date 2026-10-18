@@ -49,10 +49,10 @@ class EventReader {
     [[nodiscard]] bool empty() const noexcept;
 
     /// @return An iterator at the oldest event taken.
-    [[nodiscard]] typename EventRange<T>::Iterator begin() const noexcept;
+    [[nodiscard]] EventRange<T>::Iterator begin() const noexcept;
 
     /// @return An iterator one past the newest event taken.
-    [[nodiscard]] typename EventRange<T>::Iterator end() const noexcept;
+    [[nodiscard]] EventRange<T>::Iterator end() const noexcept;
 
   private:
     EventRange<T> _events;  ///< The events taken at the start of the run.

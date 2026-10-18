@@ -32,8 +32,9 @@ template <typename... Terms>
     requires ValidQuery<Terms...>
 class Query {
   public:
-    using State = QueryState<Terms...>;  ///< The query built once, kept by the system.
-    using Item = typename State::Item;   ///< What one match yields: the entity, then one item per data term.
+    using State = QueryState<Terms...>;           ///< The query built once, kept by the system.
+    using Item = State::Item;                     ///< What one match yields: the entity, then one item per data term.
+    using Iterator = State::Iteration::Iterator;  ///< What begin() returns: walks the matches of one pass.
 
     /// @param state The query built once; it must outlive the view.
     /// @param lastRun Tick the system last ran at: added and changed filters keep values stamped after it.
@@ -48,7 +49,7 @@ class Query {
     [[nodiscard]] Tick getLastRun() const noexcept;
 
     /// @return An iterator on the first match of a new pass over the world.
-    [[nodiscard]] typename State::Iteration::Iterator begin() noexcept;
+    [[nodiscard]] Iterator begin() noexcept;
 
     /// @return The end of the pass.
     [[nodiscard]] static std::default_sentinel_t end() noexcept;
