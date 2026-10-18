@@ -76,3 +76,21 @@ TEST(DependencyGraph, HandlesALongChainWithoutRecursion) {
     graph.addEdge(kLength - 1, 0);  // closes one long cycle
     EXPECT_EQ(graph.findCycle().size(), kLength + 1);
 }
+
+TEST(DependencyGraph, TellsWhetherANodeReachesAnother) {
+    DependencyGraph graph{4};
+    graph.addEdge(0, 1);
+    graph.addEdge(1, 2);
+    EXPECT_TRUE(graph.reaches(0, 1));
+    EXPECT_TRUE(graph.reaches(0, 2));   // through 1
+    EXPECT_FALSE(graph.reaches(2, 0));  // edges have a direction
+    EXPECT_FALSE(graph.reaches(0, 3));  // 3 is not linked
+    EXPECT_FALSE(graph.reaches(1, 1));  // not on a cycle
+}
+
+TEST(DependencyGraph, ANodeOnACycleReachesItself) {
+    DependencyGraph graph{2};
+    graph.addEdge(0, 1);
+    graph.addEdge(1, 0);
+    EXPECT_TRUE(graph.reaches(0, 0));
+}
