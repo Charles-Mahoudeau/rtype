@@ -141,6 +141,19 @@ TEST(SimulatedLink, ReorderingMakesLaterDatagramsOvertake) {
     EXPECT_GT(inversions, 0U);
 }
 
+TEST(SimulatedLink, ReorderingWorksWithoutBaseDelay) {
+    constexpr std::uint32_t kCount = 10'000;
+    SimulatedLink link{{.reorder = 0.2}, 42};
+
+    const std::vector<std::uint32_t> received = run(link, kCount);
+    ASSERT_EQ(received.size(), kCount);
+    std::size_t inversions = 0;
+    for (std::size_t i = 1; i < received.size(); ++i) {
+        inversions += received[i] < received[i - 1] ? 1U : 0U;
+    }
+    EXPECT_GT(inversions, 0U);
+}
+
 TEST(SimulatedLink, WithoutReorderingTheOrderIsKept) {
     SimulatedLink link{{.delay = 5ms}, 42};
 
