@@ -8,7 +8,9 @@
 #include "Scheduler.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <format>
 #include <iterator>
 #include <optional>
@@ -18,13 +20,17 @@
 #include <utility>
 #include <vector>
 
+#include "rtype/ecs/change/Mut.hpp"
 #include "rtype/ecs/exceptions/ScheduleException.hpp"
+#include "rtype/ecs/resource/Resources.hpp"
 #include "rtype/ecs/schedule/DependencyGraph.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/system/Side.hpp"
 #include "rtype/ecs/system/System.hpp"
 #include "rtype/ecs/system/SystemAccess.hpp"
+#include "rtype/ecs/time/FixedTimestep.hpp"
+#include "rtype/ecs/time/Time.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/world/World.hpp"
 
@@ -120,6 +126,8 @@ Scheduler::Scheduler(World& world, RunMode mode) noexcept : _world{&world}, _mod
 
 RunMode Scheduler::getRunMode() const noexcept { return _mode; }
 
+const FixedTimestep& Scheduler::getFixedTimestep() const noexcept { return _timestep; }
+
 std::vector<std::string_view> Scheduler::getOrder(Phase phase) const {
     std::vector<std::string_view> names;
     for (const std::size_t index : _order.at(static_cast<std::size_t>(phase))) {
@@ -127,6 +135,8 @@ std::vector<std::string_view> Scheduler::getOrder(Phase phase) const {
     }
     return names;
 }
+
+void Scheduler::setFixedTimestep(FixedTimestep timestep) noexcept { _timestep = timestep; }
 
 Scheduler::SystemConfig Scheduler::addSystem(Phase phase, System system) {
     _entries.push_back(Entry{.system = std::move(system), .phase = phase, .after = {}, .before = {}});
@@ -160,6 +170,28 @@ void Scheduler::run(Phase phase) {
             system.flushCommands();
         }
     }
+}
+
+void Scheduler::runFrame(std::chrono::nanoseconds frameDelta) {
+    {
+        Mut<Time> time = getTime();  // before Startup, so that Startup systems can read it
+        time->delta = std::chrono::duration<float>{std::max(frameDelta, std::chrono::nanoseconds::zero())}.count();
+        time->fixedDelta = _timestep.getTickSeconds();
+    }
+    if (!_started) {
+        run(Phase::kStartup);
+        _started = true;  // after: if the schedule cannot be built, the next frame runs Startup again
+    }
+    run(Phase::kPreUpdate);
+    const std::uint32_t ticks = _timestep.advance(frameDelta);
+    for (std::uint32_t done = 0; done < ticks; ++done) {
+        run(Phase::kFixedUpdate);
+        ++getTime()->tick;  // got again: a system may have removed or replaced Time
+    }
+    getTime()->alpha = _timestep.getAlpha();
+    run(Phase::kUpdate);
+    run(Phase::kPostUpdate);
+    run(Phase::kRender);
 }
 
 Scheduler::NameIndex Scheduler::indexNames() const {
@@ -276,5 +308,13 @@ std::size_t Scheduler::resolve(Phase phase, const PhaseSystems& systems, const N
                         entry.system.getName(), relation, target, toString(targetPhase), toString(phase))};
     }
     return systems.numbers.at(found->second);
+}
+
+Mut<Time> Scheduler::getTime() {
+    Resources& resources = _world->getResources();
+    if (!resources.has<Time>()) {
+        resources.insert(Time{.delta = 0.F, .fixedDelta = _timestep.getTickSeconds(), .tick = 0, .alpha = 0.F});
+    }
+    return resources.getMut<Time>();
 }
 }  // namespace rtype::ecs
