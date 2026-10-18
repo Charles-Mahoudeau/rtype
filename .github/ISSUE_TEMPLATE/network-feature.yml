@@ -82,8 +82,8 @@ body:
     attributes:
       label: Tasks
       description: Checklist of concrete steps.
-      value: |
-        - [ ]
+      placeholder: |
+        - [ ] First step
     validations:
       required: true
 
