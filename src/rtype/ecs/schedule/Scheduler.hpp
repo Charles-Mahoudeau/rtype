@@ -19,6 +19,7 @@
 
 #include "rtype/ecs/Export.hpp"
 #include "rtype/ecs/change/Mut.hpp"
+#include "rtype/ecs/event/EventInfo.hpp"
 #include "rtype/ecs/schedule/DependencyGraph.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
@@ -40,7 +41,9 @@ namespace rtype::ecs {
 /// kept for a parallel scheduler later. It keeps a pointer to the world: the world must outlive it.
 ///
 /// runFrame() runs a whole frame: Startup on the first one, then PreUpdate, FixedUpdate as many times as the fixed
-/// timestep gives (zero or more), Update, PostUpdate and Render, keeping the Time resource up to date.
+/// timestep gives (zero or more), Update, PostUpdate and Render, keeping the Time resource up to date. It also moves
+/// the event queues forward with the phase that writes them: a queue written by a FixedUpdate system after each fixed
+/// tick, so its events are readable for two fixed ticks; every other queue at the end of the frame, for two frames.
 /// @code
 /// rtype::ecs::Scheduler scheduler{world, rtype::ecs::RunMode::kStandalone};
 /// scheduler.addSystem(rtype::ecs::Phase::kFixedUpdate, "rtype.movement", &movement);
@@ -105,7 +108,7 @@ class RTYPE_ECS_API Scheduler {
     /// @brief Adds a system to a phase. The schedule is built again before the next run.
     SystemConfig addSystem(Phase phase, System system);
 
-    /// @brief Checks the systems and sorts every phase.
+    /// @brief Checks the systems, sorts every phase and finds the events written in FixedUpdate.
     /// @throws exceptions::ScheduleException When two systems have the same name, a constraint names an unknown system
     /// or a system of another phase, or constraints form a cycle (the message lists its systems).
     void build();
@@ -119,7 +122,8 @@ class RTYPE_ECS_API Scheduler {
     /// frame completes (FixedTimestep::advance()), Update, PostUpdate, then Render, each followed by its commands.
     /// @details Inserts the Time resource if it has no value, then keeps it up to date: `delta` and `fixedDelta`
     /// before PreUpdate, `tick` after each FixedUpdate (so while FixedUpdate runs it is the current tick), `alpha`
-    /// before Update.
+    /// before Update. Moves the queues of the events written by FixedUpdate systems of this run mode forward after
+    /// each fixed tick, and every other queue at the end of the frame (Events::update()).
     /// @param frameDelta The time since the last frame, measured by the caller; a negative one counts as 0.
     /// @throws exceptions::ScheduleException When the schedule cannot be built.
     void runFrame(std::chrono::nanoseconds frameDelta);
@@ -183,6 +187,15 @@ class RTYPE_ECS_API Scheduler {
     [[nodiscard]] std::size_t resolve(Phase phase, const PhaseSystems& systems, const NameIndex& names,
                                       const Entry& entry, std::string_view relation, const std::string& target) const;
 
+    /// @return The events written by the FixedUpdate systems that run in this mode, sorted, without duplicates.
+    [[nodiscard]] std::vector<EventId> collectFixedEvents() const;
+
+    /// @brief Moves the queues of the events written in FixedUpdate forward: after each fixed tick.
+    void updateFixedEvents() noexcept;
+
+    /// @brief Moves every other queue forward: at the end of the frame.
+    void updateFrameEvents() noexcept;
+
     /// @return Write access to the Time resource, inserted first if it has no value.
     [[nodiscard]] Mut<Time> getTime();
 
@@ -191,8 +204,9 @@ class RTYPE_ECS_API Scheduler {
     FixedTimestep _timestep;                                   ///< How many times each frame runs FixedUpdate.
     std::vector<Entry> _entries;                               ///< Every system, in the order added.
     std::array<std::vector<std::size_t>, kPhaseCount> _order;  ///< Per phase, positions in _entries, in run order.
-    bool _built{false};                                        ///< Whether _order matches _entries.
-    bool _started{false};                                      ///< Whether runFrame() has run Startup.
+    std::vector<EventId> _fixedEvents;  ///< Events written in FixedUpdate, sorted, as of the last build().
+    bool _built{false};                 ///< Whether _order matches _entries.
+    bool _started{false};               ///< Whether runFrame() has run Startup.
 };
 }  // namespace rtype::ecs
 

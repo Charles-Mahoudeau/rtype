@@ -21,6 +21,8 @@
 #include <vector>
 
 #include "rtype/ecs/change/Mut.hpp"
+#include "rtype/ecs/event/EventInfo.hpp"
+#include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/exceptions/ScheduleException.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
 #include "rtype/ecs/schedule/DependencyGraph.hpp"
@@ -119,6 +121,7 @@ Scheduler::SystemConfig& Scheduler::SystemConfig::before(std::string name) {
 
 Scheduler::SystemConfig& Scheduler::SystemConfig::setSide(Side side) noexcept {
     std::next(_scheduler->_entries.begin(), static_cast<std::ptrdiff_t>(_index))->system.setSide(side);
+    _scheduler->_built = false;  // the side decides which events are written in FixedUpdate in this mode
     return *this;
 }
 
@@ -150,6 +153,7 @@ void Scheduler::build() {
     for (std::size_t phase = 0; phase < kPhaseCount; ++phase) {
         _order.at(phase) = sortPhase(static_cast<Phase>(phase), names);
     }
+    _fixedEvents = collectFixedEvents();
     _built = true;
 }
 
@@ -186,12 +190,14 @@ void Scheduler::runFrame(std::chrono::nanoseconds frameDelta) {
     const std::uint32_t ticks = _timestep.advance(frameDelta);
     for (std::uint32_t done = 0; done < ticks; ++done) {
         run(Phase::kFixedUpdate);
+        updateFixedEvents();
         ++getTime()->tick;  // got again: a system may have removed or replaced Time
     }
     getTime()->alpha = _timestep.getAlpha();
     run(Phase::kUpdate);
     run(Phase::kPostUpdate);
     run(Phase::kRender);
+    updateFrameEvents();
 }
 
 Scheduler::NameIndex Scheduler::indexNames() const {
@@ -308,6 +314,41 @@ std::size_t Scheduler::resolve(Phase phase, const PhaseSystems& systems, const N
                         entry.system.getName(), relation, target, toString(targetPhase), toString(phase))};
     }
     return systems.numbers.at(found->second);
+}
+
+std::vector<EventId> Scheduler::collectFixedEvents() const {
+    std::vector<EventId> events;
+    for (const Entry& entry : _entries) {
+        if (entry.phase != Phase::kFixedUpdate || !runsIn(entry.system.getSide(), _mode)) {
+            continue;
+        }
+        for (const TypeAccess& access : entry.system.getAccess().getEvents()) {
+            if (access.write) {
+                events.push_back(access.id);
+            }
+        }
+    }
+    std::ranges::sort(events);
+    const auto duplicates = std::ranges::unique(events);
+    events.erase(duplicates.begin(), duplicates.end());
+    return events;
+}
+
+void Scheduler::updateFixedEvents() noexcept {
+    for (const EventId id : _fixedEvents) {
+        static_cast<void>(_world->getEvents().update(id));
+    }
+}
+
+void Scheduler::updateFrameEvents() noexcept {
+    Events& events = _world->getEvents();
+    const std::size_t count = events.getRegistry().getCount();  // ids are 0 to count - 1
+    for (std::size_t index = 0; index < count; ++index) {
+        const auto id = static_cast<EventId>(index);
+        if (!std::ranges::binary_search(_fixedEvents, id)) {
+            static_cast<void>(events.update(id));
+        }
+    }
 }
 
 Mut<Time> Scheduler::getTime() {
