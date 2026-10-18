@@ -68,13 +68,44 @@ app.addSystem(rtype::ecs::Phase::kFixedUpdate, "rtype.collision", &detectCollisi
 app.addSystem(rtype::ecs::Phase::kFixedUpdate, "rtype.damage", &applyDamage).after("rtype.collision");
 ```
 
-When the schedule is built, `before` / `after` constraints become a graph that is sorted
-topologically:
+Until the App (#123) exists, the scheduler is made from a world and runs one phase at a time (repeating
+`FixedUpdate` per fixed tick is #122):
 
-- a **cycle** is an error, reported with the names of the systems involved;
-- an `after` naming an unknown system is an error;
-- two systems with **conflicting access** (both write `Health`) and **no order** between them are
-  reported as ambiguous, because their result would depend on registration order.
+```c++
+rtype::ecs::Scheduler scheduler{world, rtype::ecs::RunMode::kStandalone};
+scheduler.addSystem(rtype::ecs::Phase::kFixedUpdate, "rtype.movement", &movement);
+scheduler.addSystem(rtype::ecs::Phase::kFixedUpdate, "rtype.collision", &detect).after("rtype.movement");
+scheduler.addSystem(rtype::ecs::Phase::kUpdate, "rtype.camera", &follow).setSide(rtype::ecs::Side::kClient);
+scheduler.build();                                // checks and sorts every phase
+scheduler.run(rtype::ecs::Phase::kFixedUpdate);   // runs the phase's systems, then flushes their commands
+scheduler.getOrder(rtype::ecs::Phase::kFixedUpdate);
+```
+
+When the schedule is built (by `build()`, or by the first `run()` after a change), the `before` /
+`after` constraints of each phase become a graph (`detail::DependencyGraph`) that is sorted
+topologically. **Systems with no order between them run by name**, so the order depends only on names and
+constraints, never on the order plugins added the systems.
+
+Building throws a `ScheduleException` naming the systems involved for:
+
+| Problem | Message names |
+|---|---|
+| Two systems with the same name (in any phases) | the name |
+| `before` / `after` naming an unknown system | the system and the target |
+| `before` / `after` naming a system of another phase | both, and both phases: only systems of one phase can be ordered |
+| A **cycle** of constraints | the systems of the cycle, `'a' -> 'b' -> 'c' -> 'a'` |
+| Two systems with **conflicting access** and **no order** (direct or through other systems) | every such pair, in name order, and the component, resource or event they share |
+
+Access conflicts: one system writes a type the other reads or writes (two readers never conflict). Every
+system is checked whatever the run mode, so a schedule that builds on the server also builds on clients
+(standalone runs both kinds together).
+
+### Running a phase
+
+`run(phase)` runs the phase's systems in order, skipping those whose [side](12-systems.md#the-side-rule)
+does not run in the process's `RunMode` (`kServer`: server and both; `kClient`: client and both;
+`kStandalone`: everything). Then it flushes the commands of those systems, in the same order: a system's
+structural changes are visible from the next phase, never to the other systems of its own phase.
 
 ### Run conditions (v2)
 

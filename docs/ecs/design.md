@@ -1376,7 +1376,7 @@ is the same idea as Bevy's modules with a short prelude.
 | `world/` | `rtype::ecs` | `World.hpp/.tpp/.cpp`: the coordinator (entities, change tick, `getComponents()`, `getResources()`, `getEvents()`) |
 | `query/` | `rtype::ecs` | `QueryTerm`, `QueryBuilder`, `DynamicQuery` (the single query engine), `QueryIteration` / `QueryMatch`, `QueryTerms` (`Optional`, `With`, `Without`, `Added`, `Changed`), `TermTraits`, `QueryState` (typed) and `Query` (its per-run view); `detail::` `QueryMatcher` and `QueryCursor` (the join and the walk, shared) |
 | `system/` | `rtype::ecs` | `System` (type-erased, run, flush), `SystemParam` (parameter deduction), `SystemAccess`, `Side`, `ResourceParam` (`Res`, `ResMut`, `NonSend`, `NonSendMut`), `EventReader` / `EventWriter` |
-| `schedule/` | `rtype::ecs` | `Scheduler` (phases, ordering), fixed timestep and `Time` |
+| `schedule/` | `rtype::ecs` | `Phase`, `RunMode`, `Scheduler` (ordering, ambiguity checks, run, flush), `detail::DependencyGraph` (sort, cycles, reachability); later the fixed timestep and `Time` |
 | `app/` | `rtype::ecs` | `App`, `Plugin` |
 | `detail/` | `rtype::ecs::detail` | Internal helpers shared by several features (e.g. `Generation.hpp`), `WorldState.hpp/.cpp` (everything a World owns, on the heap; `checkNameFree()`) |
 | `exceptions/` | `rtype::ecs::exceptions` | Every ECS exception (e.g. `EntityExceptions.hpp`) |

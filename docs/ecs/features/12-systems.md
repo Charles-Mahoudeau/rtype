@@ -47,7 +47,8 @@ app.addSystem(rtype::ecs::Phase::kFixedUpdate, "rtype.movement", &movement)
     .side(rtype::ecs::Side::kBoth);
 ```
 
-Until the scheduler (#121) and the App (#123) exist, a system is made from a world and run by hand:
+Until the App (#123) exists, a system is made from a world and run by hand, or added to a
+[`Scheduler`](13-scheduler.md) which orders, runs and flushes the systems of each phase:
 
 ```c++
 rtype::ecs::System system{world, "rtype.movement", &movement};   // a function, or a lambda without captures
