@@ -59,7 +59,7 @@ Until systems exist (#121), a query is built from the world's components and ite
 caller last ran at; the scheduler will do both for system parameters:
 
 ```c++
-const rtype::ecs::Query<Position, const Velocity, rtype::ecs::Without<Dead>> movement{world.getComponents()};
+const rtype::ecs::QueryState<Position, const Velocity, rtype::ecs::Without<Dead>> movement{world.getComponents()};
 
 for (auto [entity, position, velocity] : movement.iter(lastRun)) {  // Mut<Position>, const Velocity&
     position->x += velocity.x;

@@ -2,7 +2,7 @@
 ** EPITECH PROJECT, 2026
 ** rtype
 ** File description:
-** Query
+** QueryState
 */
 
 #pragma once
@@ -41,23 +41,23 @@ struct ItemTuple<Term, true> {
 };
 }  // namespace detail
 
-/// @brief A query written with C++ types: the way C++ systems read and write the world.
+/// @brief A query written with C++ types, built once: its resolved terms, and the passes over the world.
 ///
-/// @details `T` yields a Mut<T> (marks the value changed only when written through), `const T` a `const T&`,
-/// `Optional<T>` a Mut<T> that may be empty, `Optional<const T>` a `const T*` that may be null; the filters With,
-/// Without, Added and Changed yield nothing. Each match is a tuple of the entity and those items, in term order, made
-/// for structured bindings. It compiles down to a DynamicQuery, built once; terms that cannot form a query (two writes
-/// of one component, only optional terms...) do not compile. It keeps a pointer to the world's components: the world
-/// must outlive it.
+/// @details A system keeps one per Query parameter and hands its body a Query view of it at each run. `T` yields a
+/// Mut<T> (marks the value changed only when written through), `const T` a `const T&`, `Optional<T>` a Mut<T> that may
+/// be empty, `Optional<const T>` a `const T*` that may be null; the filters With, Without, Added and Changed yield
+/// nothing. Each match is a tuple of the entity and those items, in term order, made for structured bindings. It
+/// compiles down to a DynamicQuery, built once; terms that cannot form a query (two writes of one component, only
+/// optional terms...) do not compile. It keeps a pointer to the world's components: the world must outlive it.
 /// @code
-/// rtype::ecs::Query<Position, const Velocity, rtype::ecs::Without<Dead>> query{world.getComponents()};
+/// rtype::ecs::QueryState<Position, const Velocity, rtype::ecs::Without<Dead>> query{world.getComponents()};
 /// for (auto [entity, position, velocity] : query.iter(lastRun)) {
 ///     position->x += velocity.x;
 /// }
 /// @endcode
 template <typename... Terms>
     requires ValidQuery<Terms...>
-class Query {
+class QueryState {
   public:
     /// @brief What one match yields: the entity, then the item of every term that has one, in term order.
     using Item = decltype(std::tuple_cat(std::declval<std::tuple<Entity>>(),
@@ -137,12 +137,12 @@ class Query {
     /// @param components The components of the world the query iterates; they must outlive the query.
     /// @throws exceptions::ComponentRegistrationException When a component must be registered and its name is taken
     /// (by another layout or a resource).
-    explicit Query(Components& components);
-    ~Query() = default;
-    Query(const Query& other) = default;
-    Query& operator=(const Query& other) = default;
-    Query(Query&& other) noexcept = default;
-    Query& operator=(Query&& other) noexcept = default;
+    explicit QueryState(Components& components);
+    ~QueryState() = default;
+    QueryState(const QueryState& other) = default;
+    QueryState& operator=(const QueryState& other) = default;
+    QueryState(QueryState&& other) noexcept = default;
+    QueryState& operator=(QueryState&& other) noexcept = default;
 
     /// @return The dynamic query this one compiles down to.
     [[nodiscard]] const DynamicQuery& getDynamic() const noexcept;
@@ -166,4 +166,4 @@ class Query {
 };
 }  // namespace rtype::ecs
 
-#include "Query.tpp"
+#include "QueryState.tpp"

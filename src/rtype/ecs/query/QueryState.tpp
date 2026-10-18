@@ -2,7 +2,7 @@
 ** EPITECH PROJECT, 2026
 ** rtype
 ** File description:
-** Query
+** QueryState
 */
 
 #include <array>
@@ -19,53 +19,53 @@
 namespace rtype::ecs {
 template <typename... Terms>
     requires ValidQuery<Terms...>
-Query<Terms...>::Iteration::Iterator::Iterator(Iteration& iteration) noexcept : _iteration{&iteration} {}
+QueryState<Terms...>::Iteration::Iterator::Iterator(Iteration& iteration) noexcept : _iteration{&iteration} {}
 
 template <typename... Terms>
     requires ValidQuery<Terms...>
-typename Query<Terms...>::Item Query<Terms...>::Iteration::Iterator::operator*() const noexcept {
+typename QueryState<Terms...>::Item QueryState<Terms...>::Iteration::Iterator::operator*() const noexcept {
     return _iteration->makeItem(std::index_sequence_for<Terms...>{});
 }
 
 template <typename... Terms>
     requires ValidQuery<Terms...>
-typename Query<Terms...>::Iteration::Iterator& Query<Terms...>::Iteration::Iterator::operator++() noexcept {
+typename QueryState<Terms...>::Iteration::Iterator& QueryState<Terms...>::Iteration::Iterator::operator++() noexcept {
     _iteration->_cursor.advance();
     return *this;
 }
 
 template <typename... Terms>
     requires ValidQuery<Terms...>
-void Query<Terms...>::Iteration::Iterator::operator++(int) noexcept {
+void QueryState<Terms...>::Iteration::Iterator::operator++(int) noexcept {
     ++*this;
 }
 
 template <typename... Terms>
     requires ValidQuery<Terms...>
-bool Query<Terms...>::Iteration::Iterator::operator==(std::default_sentinel_t /*sentinel*/) const noexcept {
+bool QueryState<Terms...>::Iteration::Iterator::operator==(std::default_sentinel_t /*sentinel*/) const noexcept {
     return _iteration->_cursor.isDone();
 }
 
 template <typename... Terms>
     requires ValidQuery<Terms...>
-Query<Terms...>::Iteration::Iteration(const DynamicQuery& query, Tick lastRun, Tick thisRun) noexcept
+QueryState<Terms...>::Iteration::Iteration(const DynamicQuery& query, Tick lastRun, Tick thisRun) noexcept
     : _cursor{query.getTerms(), resolvePools(query), {}, lastRun, thisRun} {}
 
 template <typename... Terms>
     requires ValidQuery<Terms...>
-typename Query<Terms...>::Iteration::Iterator Query<Terms...>::Iteration::begin() noexcept {
+typename QueryState<Terms...>::Iteration::Iterator QueryState<Terms...>::Iteration::begin() noexcept {
     return Iterator{*this};
 }
 
 template <typename... Terms>
     requires ValidQuery<Terms...>
-std::default_sentinel_t Query<Terms...>::Iteration::end() noexcept {
+std::default_sentinel_t QueryState<Terms...>::Iteration::end() noexcept {
     return std::default_sentinel;
 }
 
 template <typename... Terms>
     requires ValidQuery<Terms...>
-std::array<storage::SparseSetStorage*, sizeof...(Terms)> Query<Terms...>::Iteration::resolvePools(
+std::array<storage::SparseSetStorage*, sizeof...(Terms)> QueryState<Terms...>::Iteration::resolvePools(
     const DynamicQuery& query) noexcept {
     std::array<storage::SparseSetStorage*, sizeof...(Terms)> pools{};
     query.resolvePools(pools);
@@ -75,7 +75,7 @@ std::array<storage::SparseSetStorage*, sizeof...(Terms)> Query<Terms...>::Iterat
 template <typename... Terms>
     requires ValidQuery<Terms...>
 template <std::size_t... Indices>
-typename Query<Terms...>::Item Query<Terms...>::Iteration::makeItem(
+typename QueryState<Terms...>::Item QueryState<Terms...>::Iteration::makeItem(
     std::index_sequence<Indices...> /*indices*/) const noexcept {
     return std::tuple_cat(std::tuple<Entity>{_cursor.getEntity()}, fetch<Indices>()...);
 }
@@ -83,7 +83,7 @@ typename Query<Terms...>::Item Query<Terms...>::Iteration::makeItem(
 template <typename... Terms>
     requires ValidQuery<Terms...>
 template <std::size_t Index>
-auto Query<Terms...>::Iteration::fetch() const noexcept {
+auto QueryState<Terms...>::Iteration::fetch() const noexcept {
     using Term = std::tuple_element_t<Index, std::tuple<Terms...>>;
     if constexpr (TermTraits<Term>::kHasItem) {
         return std::tuple<typename TermTraits<Term>::Item>{TermTraits<Term>::fetch(
@@ -95,29 +95,29 @@ auto Query<Terms...>::Iteration::fetch() const noexcept {
 
 template <typename... Terms>
     requires ValidQuery<Terms...>
-Query<Terms...>::Query(Components& components) : _components{&components}, _query{build(components)} {}
+QueryState<Terms...>::QueryState(Components& components) : _components{&components}, _query{build(components)} {}
 
 template <typename... Terms>
     requires ValidQuery<Terms...>
-const DynamicQuery& Query<Terms...>::getDynamic() const noexcept {
+const DynamicQuery& QueryState<Terms...>::getDynamic() const noexcept {
     return _query;
 }
 
 template <typename... Terms>
     requires ValidQuery<Terms...>
-std::span<const ComponentAccess> Query<Terms...>::getAccess() const noexcept {
+std::span<const ComponentAccess> QueryState<Terms...>::getAccess() const noexcept {
     return _query.getAccess();
 }
 
 template <typename... Terms>
     requires ValidQuery<Terms...>
-typename Query<Terms...>::Iteration Query<Terms...>::iter(Tick lastRun) const noexcept {
+typename QueryState<Terms...>::Iteration QueryState<Terms...>::iter(Tick lastRun) const noexcept {
     return Iteration{_query, lastRun, _components->getChangeTick()};
 }
 
 template <typename... Terms>
     requires ValidQuery<Terms...>
-DynamicQuery Query<Terms...>::build(Components& components) {
+DynamicQuery QueryState<Terms...>::build(Components& components) {
     std::vector<QueryTerm> terms{
         QueryTerm{.id = idOf<typename TermTraits<Terms>::Type>(components), .kind = TermTraits<Terms>::kKind}...};
     // Cannot fail: ValidQuery checked the terms at compile time, and every component is now registered.
@@ -127,7 +127,7 @@ DynamicQuery Query<Terms...>::build(Components& components) {
 template <typename... Terms>
     requires ValidQuery<Terms...>
 template <Component T>
-ComponentId Query<Terms...>::idOf(Components& components) {
+ComponentId QueryState<Terms...>::idOf(Components& components) {
     if (const ComponentInfo* info = components.getRegistry().find<T>()) {
         return info->type.id;  // keeps the options it was registered with
     }
