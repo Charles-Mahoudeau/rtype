@@ -13,12 +13,15 @@
 
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
+#include "rtype/ecs/event/EventTraits.hpp"
 #include "rtype/ecs/exceptions/ScheduleException.hpp"
 #include "rtype/ecs/query/Query.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/schedule/Scheduler.hpp"
+#include "rtype/ecs/system/EventReader.hpp"
+#include "rtype/ecs/system/EventWriter.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/system/Side.hpp"
 #include "rtype/ecs/world/World.hpp"
@@ -51,6 +54,20 @@ struct SeenAfterPhase {
     int count;
 };
 RTYPE_ECS_RESOURCE(SeenAfterPhase, "test.scheduler.SeenAfterPhase", count);
+struct Health {
+    int value;
+};
+RTYPE_ECS_COMPONENT(Health, "test.scheduler.Health", value);
+
+struct Score {
+    int value;
+};
+RTYPE_ECS_RESOURCE(Score, "test.scheduler.Score", value);
+
+struct Hit {
+    int damage;
+};
+RTYPE_ECS_EVENT(Hit, "test.scheduler.Hit", damage);
 }  // namespace rtype::test::scheduler
 
 namespace {
@@ -89,6 +106,13 @@ void countAfterPhase(Query<rtype::ecs::With<Marker>> markers, ResMut<SeenAfterPh
         ++seen->count;
     }
 }
+
+void writeHealth(Query<rtype::test::scheduler::Health> /*healths*/) {}
+void readHealth(Query<const rtype::test::scheduler::Health> /*healths*/) {}
+void writeScore(ResMut<rtype::test::scheduler::Score> /*score*/) {}
+void readScore(rtype::ecs::Res<rtype::test::scheduler::Score> /*score*/) {}
+void sendHit(rtype::ecs::EventWriter<rtype::test::scheduler::Hit> /*hits*/) {}
+void readHit(rtype::ecs::EventReader<rtype::test::scheduler::Hit> /*hits*/) {}
 
 /// @return The order of a phase, as strings, to compare it.
 std::vector<std::string> orderOf(const Scheduler& scheduler, Phase phase) {
@@ -268,4 +292,79 @@ TEST(Scheduler, RunThrowsWhenTheScheduleCannotBeBuilt) {
     Scheduler scheduler{world, RunMode::kStandalone};
     scheduler.addSystem(Phase::kUpdate, "a", &noop).after("missing");
     EXPECT_THROW(scheduler.run(Phase::kUpdate), ScheduleException);
+}
+
+TEST(Scheduler, RejectsTwoWritersOfAComponentWithNoOrder) {
+    World world;
+    Scheduler scheduler{world, RunMode::kStandalone};
+    scheduler.addSystem(Phase::kFixedUpdate, "rtype.damage", &writeHealth);
+    scheduler.addSystem(Phase::kFixedUpdate, "rtype.regen", &writeHealth);
+    expectBuildError(scheduler, {"phase FixedUpdate",
+                                 "'rtype.damage' and 'rtype.regen' both use component "
+                                 "'test.scheduler.Health', one of them writing it"});
+}
+
+TEST(Scheduler, RejectsAReaderAndAWriterWithNoOrder) {
+    World world;
+    Scheduler scheduler{world, RunMode::kStandalone};
+    scheduler.addSystem(Phase::kUpdate, "ui", &readHealth);
+    scheduler.addSystem(Phase::kUpdate, "damage", &writeHealth);
+    expectBuildError(scheduler, {"'damage' and 'ui' both use component 'test.scheduler.Health'"});
+}
+
+TEST(Scheduler, RejectsConflictsOnResourcesAndEvents) {
+    World world;
+    Scheduler resources{world, RunMode::kStandalone};
+    resources.addSystem(Phase::kUpdate, "a", &writeScore);
+    resources.addSystem(Phase::kUpdate, "b", &readScore);
+    expectBuildError(resources, {"resource 'test.scheduler.Score'"});
+
+    Scheduler events{world, RunMode::kStandalone};
+    events.addSystem(Phase::kUpdate, "detect", &sendHit);
+    events.addSystem(Phase::kUpdate, "react", &readHit);
+    expectBuildError(events, {"event 'test.scheduler.Hit'"});
+}
+
+TEST(Scheduler, ListsEveryAmbiguousPair) {
+    World world;
+    Scheduler scheduler{world, RunMode::kStandalone};
+    scheduler.addSystem(Phase::kUpdate, "a", &writeHealth);
+    scheduler.addSystem(Phase::kUpdate, "b", &writeHealth);
+    scheduler.addSystem(Phase::kUpdate, "c", &writeScore);
+    scheduler.addSystem(Phase::kUpdate, "d", &readScore);
+    expectBuildError(scheduler, {"'a' and 'b'", "'c' and 'd'"});
+}
+
+TEST(Scheduler, AcceptsReadersSharingData) {
+    World world;
+    Scheduler scheduler{world, RunMode::kStandalone};
+    scheduler.addSystem(Phase::kUpdate, "a", &readHealth);
+    scheduler.addSystem(Phase::kUpdate, "b", &readHealth);
+    EXPECT_NO_THROW(scheduler.build());
+}
+
+TEST(Scheduler, AcceptsConflictingSystemsOnceOrdered) {
+    World world;
+    Scheduler scheduler{world, RunMode::kStandalone};
+    scheduler.addSystem(Phase::kUpdate, "damage", &writeHealth);
+    scheduler.addSystem(Phase::kUpdate, "move", &noop).after("damage");
+    scheduler.addSystem(Phase::kUpdate, "regen", &writeHealth).after("move");  // ordered through "move"
+    scheduler.addSystem(Phase::kUpdate, "ui", &readHealth).after("regen");
+    EXPECT_NO_THROW(scheduler.build());
+}
+
+TEST(Scheduler, AcceptsConflictingSystemsOfDifferentPhases) {
+    World world;
+    Scheduler scheduler{world, RunMode::kStandalone};
+    scheduler.addSystem(Phase::kFixedUpdate, "damage", &writeHealth);
+    scheduler.addSystem(Phase::kUpdate, "ui", &readHealth);  // phases already run in order
+    EXPECT_NO_THROW(scheduler.build());
+}
+
+TEST(Scheduler, ChecksAmbiguitiesWhateverTheRunMode) {
+    World world;
+    Scheduler scheduler{world, RunMode::kServer};
+    scheduler.addSystem(Phase::kUpdate, "server", &writeHealth);
+    scheduler.addSystem(Phase::kUpdate, "client", &writeHealth).setSide(Side::kClient);  // never run on a server
+    expectBuildError(scheduler, {"'client' and 'server'"});  // they do run together in standalone
 }
