@@ -14,5 +14,7 @@
 #include "rtype/network/RandomSource.hpp"
 #include "rtype/network/Types.hpp"
 #include "rtype/network/protocol/Constants.hpp"
+#include "rtype/network/protocol/Sequence.hpp"
+#include "rtype/network/protocol/SequenceBuffer.hpp"
 
 TEST(Headers, PublicHeadersCompileWithoutAsio) { SUCCEED(); }
