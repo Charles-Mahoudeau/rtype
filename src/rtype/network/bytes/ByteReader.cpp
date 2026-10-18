@@ -11,6 +11,7 @@
 #include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <new>
 #include <span>
 #include <string>
 
@@ -58,12 +59,18 @@ std::string ByteReader::readString() noexcept {
         return {};
     }
     const auto length = static_cast<std::size_t>(std::to_integer<std::uint8_t>(_data.subspan(_position).front()));
-    const std::span<const std::byte> region = claim(length + 1);
-    if (region.empty()) {
+    if (length + 1 > remainingSize()) {
+        _valid = false;
         return {};
     }
     std::string text;
-    text.resize(length);
+    try {
+        text.resize(length);
+    } catch (const std::bad_alloc&) {
+        _valid = false;
+        return {};
+    }
+    const std::span<const std::byte> region = claim(length + 1);
     std::ranges::transform(region.subspan(1), text.begin(),
                            [](const std::byte byte) { return static_cast<char>(byte); });
     return text;
