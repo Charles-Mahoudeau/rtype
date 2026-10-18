@@ -110,13 +110,13 @@ std::vector<Bytes> Connection::buildPackets(const TimePoint now) {
 
 std::vector<ReceivedMessage> Connection::takeMessages() { return std::exchange(_received, {}); }
 
-TimePoint Connection::getLastReceiveTime() const noexcept { return _lastReceiveTime; }
+TimePoint Connection::lastReceiveTime() const noexcept { return _lastReceiveTime; }
 
-std::chrono::duration<float, std::milli> Connection::getRtt() const noexcept {
+std::chrono::duration<float, std::milli> Connection::rtt() const noexcept {
     return std::chrono::duration<float, std::milli>{_rtt};
 }
 
-std::uint64_t Connection::getDroppedMessageCount() const noexcept { return _droppedMessages; }
+std::uint64_t Connection::droppedMessageCount() const noexcept { return _droppedMessages; }
 
 void Connection::registerReceived(const std::uint16_t sequence) noexcept {
     if (!_receivedAny) {

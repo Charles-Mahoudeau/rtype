@@ -22,7 +22,6 @@
 #include "rtype/network/protocol/SequenceBuffer.hpp"
 
 namespace rtype::network::connection {
-
 /// @brief A message taken out of a received datagram.
 struct ReceivedMessage {
     Channel channel;  ///< The channel the sender used.
@@ -83,15 +82,15 @@ class RTYPE_NETWORK_API Connection {
 
     /// @brief Gives the time of the last datagram accepted by `receive`, or of creation before the first one.
     /// @return The time, used by the cores for timeouts.
-    [[nodiscard]] TimePoint getLastReceiveTime() const noexcept;
+    [[nodiscard]] TimePoint lastReceiveTime() const noexcept;
 
     /// @brief Gives the smoothed round-trip time.
     /// @return The RTT in milliseconds; `initialRtt` until the first measure.
-    [[nodiscard]] std::chrono::duration<float, std::milli> getRtt() const noexcept;
+    [[nodiscard]] std::chrono::duration<float, std::milli> rtt() const noexcept;
 
     /// @brief Gives how many unreliable messages were dropped because they did not fit in a flush.
     /// @return The number of dropped messages since creation.
-    [[nodiscard]] std::uint64_t getDroppedMessageCount() const noexcept;
+    [[nodiscard]] std::uint64_t droppedMessageCount() const noexcept;
 
   private:
     /// @brief What is remembered of one datagram sent.
@@ -127,5 +126,4 @@ class RTYPE_NETWORK_API Connection {
     TimePoint _lastSendTime;                                                   ///< Last datagram built.
     TimePoint _lastReceiveTime;                                                ///< Last datagram accepted.
 };
-
 }  // namespace rtype::network::connection

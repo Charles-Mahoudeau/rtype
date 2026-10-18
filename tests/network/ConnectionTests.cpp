@@ -166,9 +166,9 @@ TEST(Connection, OverflowingUnreliableMessagesAreDroppedAndCounted) {
     const auto packets = connection.buildPackets(clock.now());
 
     EXPECT_EQ(packets.size(), protocol::kMaxDatagramsPerFlush);
-    EXPECT_EQ(connection.getDroppedMessageCount(), 20U - protocol::kMaxDatagramsPerFlush);
+    EXPECT_EQ(connection.droppedMessageCount(), 20U - protocol::kMaxDatagramsPerFlush);
     EXPECT_TRUE(connection.buildPackets(clock.now()).empty());
-    EXPECT_EQ(connection.getDroppedMessageCount(), 20U - protocol::kMaxDatagramsPerFlush);
+    EXPECT_EQ(connection.droppedMessageCount(), 20U - protocol::kMaxDatagramsPerFlush);
 }
 
 TEST(Connection, KeepaliveIsSentAfterTheIdleDelayAndNotBefore) {
@@ -358,7 +358,7 @@ TEST(Connection, AcksWorkAcrossTheSequenceWrap) {
 
     EXPECT_EQ(acked, kRounds);
     // Every datagram was acked, so each sample was 1 ms or less: the RTT left its initial 100 ms far behind.
-    EXPECT_LT(first.getRtt().count(), 1.5F);
+    EXPECT_LT(first.rtt().count(), 1.5F);
 }
 
 TEST(Connection, RttStartsAtTheInitialValueAndConvergesToTwiceTheDelay) {
@@ -368,7 +368,7 @@ TEST(Connection, RttStartsAtTheInitialValueAndConvergesToTwiceTheDelay) {
     tests::SimulatedLink link{tests::LinkConditions{.delay = std::chrono::milliseconds{25}}, 1};
     Connection first{kToken, settings, clock.now()};
     Connection second{kToken, settings, clock.now()};
-    EXPECT_FLOAT_EQ(first.getRtt().count(), 500.0F);
+    EXPECT_FLOAT_EQ(first.rtt().count(), 500.0F);
 
     for (int step = 0; step < 400; ++step) {
         static_cast<void>(first.send(network::Channel::kUnreliable, payloadOf(4)));
@@ -388,8 +388,8 @@ TEST(Connection, RttStartsAtTheInitialValueAndConvergesToTwiceTheDelay) {
         clock.advance(std::chrono::milliseconds{1});
     }
 
-    EXPECT_NEAR(first.getRtt().count(), 50.0F, 5.0F);
-    EXPECT_NEAR(second.getRtt().count(), 50.0F, 5.0F);
+    EXPECT_NEAR(first.rtt().count(), 50.0F, 5.0F);
+    EXPECT_NEAR(second.rtt().count(), 50.0F, 5.0F);
 }
 
 TEST(Connection, OnlyTheFirstAckOfADatagramTakesAnRttSample) {
@@ -403,11 +403,11 @@ TEST(Connection, OnlyTheFirstAckOfADatagramTakesAnRttSample) {
 
     ASSERT_TRUE(deliver(first, reply, clock.now()));
     // One sample of 20 ms from 100 ms: 100 + (20 - 100) * 0.1.
-    EXPECT_NEAR(first.getRtt().count(), 92.0F, 0.01F);
+    EXPECT_NEAR(first.rtt().count(), 92.0F, 0.01F);
     clock.advance(std::chrono::milliseconds{500});
     ASSERT_TRUE(deliver(first, reply, clock.now()));
 
-    EXPECT_NEAR(first.getRtt().count(), 92.0F, 0.01F);
+    EXPECT_NEAR(first.rtt().count(), 92.0F, 0.01F);
 }
 
 TEST(Connection, ReceivingUpdatesTheLastReceiveTime) {
@@ -416,12 +416,12 @@ TEST(Connection, ReceivingUpdatesTheLastReceiveTime) {
     Connection sender{kToken, settings, clock.now()};
     Connection receiver{kToken, settings, clock.now()};
     const network::TimePoint created = clock.now();
-    EXPECT_EQ(receiver.getLastReceiveTime(), created);
+    EXPECT_EQ(receiver.lastReceiveTime(), created);
 
     clock.advance(std::chrono::milliseconds{250});
     ASSERT_TRUE(deliver(receiver, sendOne(sender, clock.now()), clock.now()));
 
-    EXPECT_EQ(receiver.getLastReceiveTime(), clock.now());
+    EXPECT_EQ(receiver.lastReceiveTime(), clock.now());
 }
 
 TEST(Connection, AKeepaliveCarriesAcksAndNoMessage) {
@@ -463,8 +463,8 @@ TEST(Connection, AMalformedMessageRejectsTheWholeDatagramAndChangesNothing) {
         EXPECT_FALSE(receiveRaw(connection, messages, clock.now()));
         EXPECT_FALSE(receiveRaw(connection, toBytes(bytes), clock.now()));
         EXPECT_TRUE(connection.takeMessages().empty());
-        EXPECT_EQ(connection.getLastReceiveTime(), network::TimePoint{});
-        EXPECT_FLOAT_EQ(connection.getRtt().count(), 100.0F);
+        EXPECT_EQ(connection.lastReceiveTime(), network::TimePoint{});
+        EXPECT_FLOAT_EQ(connection.rtt().count(), 100.0F);
     }
     EXPECT_EQ(currentHeader(connection, clock).ack, kNothingAcked);
 }
