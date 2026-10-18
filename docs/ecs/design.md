@@ -1374,8 +1374,8 @@ is the same idea as Bevy's modules with a short prelude.
 | `change/` | `rtype::ecs` | `Tick.hpp` (`Tick`, `isNewerThan`, `clampTick`, the check thresholds), `ComponentTicks`, `Mut` (write access stamping ticks) |
 | `command/` | `rtype::ecs` | `Commands.hpp/.tpp/.cpp` (`Commands`, `EntityCommands`: deferred spawn, add, remove, despawn) |
 | `world/` | `rtype::ecs` | `World.hpp/.tpp/.cpp`: the coordinator (entities, change tick, `getComponents()`, `getResources()`, `getEvents()`) |
-| `query/` | `rtype::ecs` | `QueryTerm`, `QueryBuilder`, `DynamicQuery` (the single query engine), `QueryIteration` / `QueryMatch`, `QueryTerms` (`Optional`, `With`, `Without`, `Added`, `Changed`), `TermTraits`, `Query` (typed); `detail::` `QueryMatcher` and `QueryCursor` (the join and the walk, shared) |
-| `system/` | `rtype::ecs` | `System` (parameter deduction, access sets), `Res.hpp` (`Res`, `ResMut`, `NonSend`, `NonSendMut`), `EventReader` / `EventWriter` |
+| `query/` | `rtype::ecs` | `QueryTerm`, `QueryBuilder`, `DynamicQuery` (the single query engine), `QueryIteration` / `QueryMatch`, `QueryTerms` (`Optional`, `With`, `Without`, `Added`, `Changed`), `TermTraits`, `QueryState` (typed) and `Query` (its per-run view); `detail::` `QueryMatcher` and `QueryCursor` (the join and the walk, shared) |
+| `system/` | `rtype::ecs` | `System` (type-erased, run, flush), `SystemParam` (parameter deduction), `SystemAccess`, `Side`, `ResourceParam` (`Res`, `ResMut`, `NonSend`, `NonSendMut`), `EventReader` / `EventWriter` |
 | `schedule/` | `rtype::ecs` | `Scheduler` (phases, ordering), fixed timestep and `Time` |
 | `app/` | `rtype::ecs` | `App`, `Plugin` |
 | `detail/` | `rtype::ecs::detail` | Internal helpers shared by several features (e.g. `Generation.hpp`), `WorldState.hpp/.cpp` (everything a World owns, on the heap; `checkNameFree()`) |

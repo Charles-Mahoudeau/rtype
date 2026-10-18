@@ -79,9 +79,13 @@ const Time& time = resources.require<Time>();
 Resource ticks are clamped with the pools' by `checkChangeTicks()`, so change detection survives the tick
 wrap.
 
-### System parameters (#120)
+### System parameters
 
-Systems will read resources through parameters, filled by the scheduler with `getResources().require<T>()`:
+Systems read resources through parameters (`system/ResourceParam.hpp`), built at each run with
+`getResources().require<T>()` / `requireMut<T>()`. They give `->`, `*` and `get()`, and `isAdded()` /
+`isChanged()` against the system's last run; a written parameter marks the value changed only when written
+through `->` / `*` (like `Mut`). The four are aliases of one `ResourceParam<T, Access, Thread>` template, so a
+system's signature tells the scheduler what it reads, writes, and whether it needs the main thread:
 
 ```c++
 app.insertResource(Time{.fixedDelta = 1.F / 60.F});
