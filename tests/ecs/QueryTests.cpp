@@ -24,6 +24,7 @@
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/query/DynamicQuery.hpp"
+#include "rtype/ecs/query/Query.hpp"
 #include "rtype/ecs/query/QueryBuilder.hpp"
 #include "rtype/ecs/query/QueryIteration.hpp"
 #include "rtype/ecs/query/QueryMatch.hpp"
@@ -267,4 +268,71 @@ TEST(QueryState, WorksWithRangesAlgorithms) {
         rtype::ecs::QueryBuilder{}.read(*world.getComponents().find("test.query.Health")).build(world.getComponents());
     ASSERT_TRUE(dynamic);
     EXPECT_EQ(std::ranges::distance(dynamic->iter(0)), 3);
+}
+
+// A view is iterated directly, and it is an input range like a pass.
+static_assert(std::ranges::input_range<rtype::ecs::Query<Position, const Velocity>>);
+static_assert(
+    std::is_same_v<rtype::ecs::Query<Position, const Velocity>::Item, QueryState<Position, const Velocity>::Item>);
+
+TEST(Query, IteratesTheStateWithStructuredBindings) {
+    World world;
+    const Entity ship = world.spawn(Position{.x = 0.F, .y = 0.F}, Velocity{.x = 1.F, .y = 2.F});
+    world.spawn(Position{});  // no velocity: not matched
+    const QueryState<Position, const Velocity> state{world.getComponents()};
+
+    rtype::ecs::Query<Position, const Velocity> query{state, 0};
+    int count = 0;
+    for (auto [entity, position, velocity] : query) {
+        EXPECT_EQ(entity, ship);
+        position->x += velocity.x;
+        ++count;
+    }
+    EXPECT_EQ(count, 1);
+    EXPECT_EQ(world.getComponents().get<Position>(ship)->x, 1.F);
+}
+
+TEST(Query, FiltersAgainstItsLastRun) {
+    World world;
+    world.spawn(Health{.value = 1});  // added before lastRun: filtered out
+    world.advanceChangeTick();
+    const Tick lastRun = world.getChangeTick();
+    world.advanceChangeTick();
+    const Entity recent = world.spawn(Health{.value = 2});
+    const QueryState<const Health, Added<Health>> state{world.getComponents()};
+
+    rtype::ecs::Query<const Health, Added<Health>> query{state, lastRun};
+    EXPECT_EQ(query.getLastRun(), lastRun);
+    std::vector<Entity> matched;
+    for (auto [entity, health] : query) {
+        matched.push_back(entity);
+    }
+    EXPECT_EQ(matched, std::vector<Entity>{recent});
+}
+
+TEST(Query, EachBeginStartsANewPass) {
+    World world;
+    world.spawn(Health{.value = 1});
+    world.spawn(Health{.value = 2});
+    const QueryState<const Health> state{world.getComponents()};
+
+    rtype::ecs::Query<const Health> query{state, 0};
+    EXPECT_EQ(std::ranges::distance(query), 2);
+    EXPECT_EQ(std::ranges::distance(query), 2);  // walked again from the start
+}
+
+TEST(Query, WritesStampTheWorldTickOnlyWhenWritten) {
+    World world;
+    const Entity first = world.spawn(Health{.value = 1});
+    const Entity second = world.spawn(Health{.value = 2});
+    world.advanceChangeTick(4);
+    const QueryState<Health> state{world.getComponents()};
+
+    for (auto [entity, health] : rtype::ecs::Query<Health>{state, 0}) {
+        if (entity == second) {
+            health->value = 20;
+        }
+    }
+    EXPECT_EQ(world.getComponents().getTicks<Health>(first)->changed, 0U);
+    EXPECT_EQ(world.getComponents().getTicks<Health>(second)->changed, 4U);
 }
