@@ -50,15 +50,66 @@ flowchart LR
 ```mermaid
 flowchart TD
     frame["New frame"] --> add["accumulator += frame delta"]
-    add --> enough{"accumulator ≥ fixedDelta (1/60 s)<br/>and below the iteration cap?"}
-    enough -- "yes" --> run["Run FixedUpdate once<br/>tick counter + 1<br/>accumulator -= fixedDelta"]
-    run --> enough
-    enough -- "no" --> alpha["alpha = accumulator / fixedDelta<br/>(for render interpolation)"]
-    alpha --> rest["Update, PostUpdate, Render"]
+    add --> count["ticks = accumulator / fixedDelta"]
+    count --> cap{"ticks ≥ cap (5)?"}
+    cap -- "yes" --> drop["ticks = cap<br/>drop the time beyond it"]
+    cap -- "no" --> keep["accumulator -= ticks × fixedDelta"]
+    drop --> run
+    keep --> run["Run FixedUpdate ticks times<br/>after each: its event queues move forward, tick + 1"]
+    run --> alpha["alpha = accumulator / fixedDelta<br/>(for render interpolation)"]
+    alpha --> rest["Update, PostUpdate, Render<br/>then every other event queue moves forward"]
 ```
 
-A slow frame runs `FixedUpdate` several times; a fast one may run it zero times. A cap on iterations per
-frame avoids the "spiral of death" when the machine cannot keep up.
+A slow frame runs `FixedUpdate` several times; a fast one may run it zero times. A cap on ticks per frame
+avoids the "spiral of death" when the machine cannot keep up: the time beyond it is dropped, so the game
+slows down instead of spending ever longer catching up.
+
+`rtype::ecs::FixedTimestep` (`time/FixedTimestep.hpp`) is the accumulator, and `Scheduler::runFrame()` runs a
+whole frame with it. The caller measures the frame time and passes it in, so tests use simulated frame times:
+
+```c++
+rtype::ecs::Scheduler scheduler{world, rtype::ecs::RunMode::kStandalone};
+scheduler.setFixedTimestep(rtype::ecs::FixedTimestep{30, 5});  // 30 ticks per second, at most 5 per frame
+scheduler.runFrame(std::chrono::milliseconds{16});
+// Startup (first frame only), PreUpdate, FixedUpdate x N, Update, PostUpdate, Render
+```
+
+The default is **60 ticks per second, at most 5 per frame**. The accumulator counts in integers
+(nanoseconds × ticks per second, so one tick is exactly 10^9 units at any rate): every machine counts the
+same ticks for the same frame times, and 60 Hz gives exactly 60 ticks per second, with no float drift and no
+rounding of 1/60 s. With the defaults, 5 ms frames run a tick every 3 or 4 frames, 16 ms frames almost one
+per frame, and 50 ms frames 3 per frame.
+
+`runFrame()` inserts the `Time` resource (`time/Time.hpp`, `"rtype.Time"`) if it has no value, and keeps it
+up to date:
+
+| Field | Meaning | Set |
+|---|---|---|
+| `delta` | the last frame's duration, in seconds (a negative frame counts as 0) | before `PreUpdate` (and `Startup` on the first frame) |
+| `fixedDelta` | one fixed tick, in seconds (1/60 by default): what `FixedUpdate` systems multiply by | before `PreUpdate` |
+| `tick` | fixed ticks completed since the start; while `FixedUpdate` runs, the current tick (0, 1, 2...) | after each `FixedUpdate` |
+| `alpha` | how far the frame is into the next tick, in [0, 1): to interpolate what is drawn | before `Update` |
+
+```c++
+void movement(rtype::ecs::Query<Position, const Velocity> query, rtype::ecs::Res<rtype::ecs::Time> time) {
+    for (auto [entity, position, velocity] : query) {
+        position->x += velocity.x * time->fixedDelta;
+    }
+}
+```
+
+**Event queues move forward with the phase that writes them** ([Events](11-events.md)). When the schedule
+is built, the scheduler lists the events written (`EventWriter`) by the `FixedUpdate` systems that run in
+this mode. Their queues move forward after each fixed tick, so their events are readable for two fixed
+ticks. Every other queue (written in another phase, or from outside the systems: platform, network, Luau)
+moves forward at the end of the frame, so its events are readable for two frames. `run(phase)` alone
+neither updates `Time` nor moves any queue: it is for tests and special cases.
+
+**Where this goes with the App.** #122 asked for a `TimePlugin`, but the `Plugin` interface comes with
+the App (#123), so for now the scheduler inserts and updates `Time` itself. In #123, `TimePlugin` (in
+`MinimalPlugins`) will set the rate, measure the real clock and pass the frame time to `runFrame()`. If an
+App without it would make no sense, it can become a plugin the App always adds. The fixed loop itself
+stays in the scheduler: a system cannot run a phase.
 
 ### Ordering inside a phase
 
@@ -68,8 +119,8 @@ app.addSystem(rtype::ecs::Phase::kFixedUpdate, "rtype.collision", &detectCollisi
 app.addSystem(rtype::ecs::Phase::kFixedUpdate, "rtype.damage", &applyDamage).after("rtype.collision");
 ```
 
-Until the App (#123) exists, the scheduler is made from a world and runs one phase at a time (repeating
-`FixedUpdate` per fixed tick is #122):
+Until the App (#123) exists, the scheduler is made from a world. It runs a whole frame (`runFrame()`, above)
+or one phase at a time:
 
 ```c++
 rtype::ecs::Scheduler scheduler{world, rtype::ecs::RunMode::kStandalone};
@@ -158,8 +209,11 @@ and no ordering constraint links them. Nothing in the systems changes.
   at the frame rate, which differs per machine.
 - **Implicit order.** Relying on registration order works until a plugin is added. Declare `after`.
 - **Too many phases.** Prefer ordering inside a phase over inventing new phases.
+- **Reading `FixedUpdate` events in `Update`.** Their queues move forward once per fixed tick, so a frame that
+  runs 3 ticks or more drops the events of its first tick before `Update` runs. Read them in `FixedUpdate`.
+- **Frame time in gameplay.** `delta` changes with the frame rate: gameplay uses `fixedDelta`.
 
 ## Open questions
 
-- Fixed tick rate for R-Type: 60 Hz, or 30 Hz to halve network traffic? (Team)
-- Maximum `FixedUpdate` iterations per frame before dropping time. (ECS)
+- Fixed tick rate for R-Type: 60 Hz, or 30 Hz to halve network traffic? (Team) The default is 60 Hz;
+  `setFixedTimestep()` changes it.

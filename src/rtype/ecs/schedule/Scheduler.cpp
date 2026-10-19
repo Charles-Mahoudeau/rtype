@@ -8,7 +8,9 @@
 #include "Scheduler.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <format>
 #include <iterator>
 #include <optional>
@@ -18,13 +20,19 @@
 #include <utility>
 #include <vector>
 
+#include "rtype/ecs/change/Mut.hpp"
+#include "rtype/ecs/event/EventInfo.hpp"
+#include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/exceptions/ScheduleException.hpp"
+#include "rtype/ecs/resource/Resources.hpp"
 #include "rtype/ecs/schedule/DependencyGraph.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/system/Side.hpp"
 #include "rtype/ecs/system/System.hpp"
 #include "rtype/ecs/system/SystemAccess.hpp"
+#include "rtype/ecs/time/FixedTimestep.hpp"
+#include "rtype/ecs/time/Time.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/world/World.hpp"
 
@@ -113,12 +121,15 @@ Scheduler::SystemConfig& Scheduler::SystemConfig::before(std::string name) {
 
 Scheduler::SystemConfig& Scheduler::SystemConfig::setSide(Side side) noexcept {
     std::next(_scheduler->_entries.begin(), static_cast<std::ptrdiff_t>(_index))->system.setSide(side);
+    _scheduler->_built = false;  // the side decides which events are written in FixedUpdate in this mode
     return *this;
 }
 
 Scheduler::Scheduler(World& world, RunMode mode) noexcept : _world{&world}, _mode{mode} {}
 
 RunMode Scheduler::getRunMode() const noexcept { return _mode; }
+
+const FixedTimestep& Scheduler::getFixedTimestep() const noexcept { return _timestep; }
 
 std::vector<std::string_view> Scheduler::getOrder(Phase phase) const {
     std::vector<std::string_view> names;
@@ -127,6 +138,8 @@ std::vector<std::string_view> Scheduler::getOrder(Phase phase) const {
     }
     return names;
 }
+
+void Scheduler::setFixedTimestep(FixedTimestep timestep) noexcept { _timestep = timestep; }
 
 Scheduler::SystemConfig Scheduler::addSystem(Phase phase, System system) {
     _entries.push_back(Entry{.system = std::move(system), .phase = phase, .after = {}, .before = {}});
@@ -140,6 +153,7 @@ void Scheduler::build() {
     for (std::size_t phase = 0; phase < kPhaseCount; ++phase) {
         _order.at(phase) = sortPhase(static_cast<Phase>(phase), names);
     }
+    _fixedEvents = collectFixedEvents();
     _built = true;
 }
 
@@ -160,6 +174,30 @@ void Scheduler::run(Phase phase) {
             system.flushCommands();
         }
     }
+}
+
+void Scheduler::runFrame(std::chrono::nanoseconds frameDelta) {
+    {
+        Mut<Time> time = getTime();  // before Startup, so that Startup systems can read it
+        time->delta = std::chrono::duration<float>{std::max(frameDelta, std::chrono::nanoseconds::zero())}.count();
+        time->fixedDelta = _timestep.getTickSeconds();
+    }
+    if (!_started) {
+        run(Phase::kStartup);
+        _started = true;  // after: if the schedule cannot be built, the next frame runs Startup again
+    }
+    run(Phase::kPreUpdate);
+    const std::uint32_t ticks = _timestep.advance(frameDelta);
+    for (std::uint32_t done = 0; done < ticks; ++done) {
+        run(Phase::kFixedUpdate);
+        updateFixedEvents();
+        ++getTime()->tick;  // got again: a system may have removed or replaced Time
+    }
+    getTime()->alpha = _timestep.getAlpha();
+    run(Phase::kUpdate);
+    run(Phase::kPostUpdate);
+    run(Phase::kRender);
+    updateFrameEvents();
 }
 
 Scheduler::NameIndex Scheduler::indexNames() const {
@@ -276,5 +314,48 @@ std::size_t Scheduler::resolve(Phase phase, const PhaseSystems& systems, const N
                         entry.system.getName(), relation, target, toString(targetPhase), toString(phase))};
     }
     return systems.numbers.at(found->second);
+}
+
+std::vector<EventId> Scheduler::collectFixedEvents() const {
+    std::vector<EventId> events;
+    for (const Entry& entry : _entries) {
+        if (entry.phase != Phase::kFixedUpdate || !runsIn(entry.system.getSide(), _mode)) {
+            continue;
+        }
+        for (const TypeAccess& access : entry.system.getAccess().getEvents()) {
+            if (access.write) {
+                events.push_back(access.id);
+            }
+        }
+    }
+    std::ranges::sort(events);
+    const auto duplicates = std::ranges::unique(events);
+    events.erase(duplicates.begin(), duplicates.end());
+    return events;
+}
+
+void Scheduler::updateFixedEvents() noexcept {
+    for (const EventId id : _fixedEvents) {
+        static_cast<void>(_world->getEvents().update(id));
+    }
+}
+
+void Scheduler::updateFrameEvents() noexcept {
+    Events& events = _world->getEvents();
+    const std::size_t count = events.getRegistry().getCount();  // ids are 0 to count - 1
+    for (std::size_t index = 0; index < count; ++index) {
+        const auto id = static_cast<EventId>(index);
+        if (!std::ranges::binary_search(_fixedEvents, id)) {
+            static_cast<void>(events.update(id));
+        }
+    }
+}
+
+Mut<Time> Scheduler::getTime() {
+    Resources& resources = _world->getResources();
+    if (!resources.has<Time>()) {
+        resources.insert(Time{.delta = 0.F, .fixedDelta = _timestep.getTickSeconds(), .tick = 0, .alpha = 0.F});
+    }
+    return resources.getMut<Time>();
 }
 }  // namespace rtype::ecs
