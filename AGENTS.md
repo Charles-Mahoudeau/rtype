@@ -23,6 +23,20 @@ are added.
     namespace whatever their folder (`rtype/ecs/entity/Entity.hpp` declares `rtype::ecs::Entity`).
     Only internal parts get a sub-namespace, named after their folder: `rtype::ecs::storage`,
     `rtype::ecs::detail` (`detail/`), `rtype::ecs::exceptions` (`exceptions/`).
+- `src/rtype/network/` — `network` target, shared library (`rtype-network`): the transport, which moves bytes
+  between machines (sockets, connections, acks, reliability). It knows nothing about the ECS and depends on
+  Asio only, as a private package: no public header includes Asio, and only `.cpp` files of `io/` do.
+  Exported symbols are marked `RTYPE_NETWORK_API`. Design in `docs/network/design.md`, task plan in
+  `docs/network/implementation.md`.
+  - Namespaces mirror the folders (no flat-namespace exception as in `ecs`): `rtype::network` for the root
+    (`Types.hpp`, `NetworkSettings.hpp`, `RandomSource.hpp`), then one folder and sub-namespace per feature:
+    `protocol/` (`rtype::network::protocol`, wire constants, sequences, packets), `bytes/`, `connection/`,
+    `io/`, `server/`, `client/`, `exceptions/`. A folder is created only when a file goes in it.
+- `src/rtype/replication/` — `replication` target, shared library (`rtype-replication`): the only code that
+  knows both the ECS and the network; it turns a `World` into messages and back (`rtype::replication`).
+  Exported symbols are marked `RTYPE_REPLICATION_API`. Feature folders and sub-namespaces as in `network`:
+  `component/`, `event/`, `serialization/`, `manifest/`, `input/`, `snapshot/`, `server/`, `client/`,
+  `packet/`, `exceptions/`.
 - `src/rtype/engine/` — two targets defined in the same `xmake.lua`:
   - `engine-core`: static library (`rtype-engine-core`), the contracts the backends implement and the
     vocabulary they speak: events (`event/`, `rtype::engine::event`), input codes (`input/`: `Key`, `Control`,
@@ -62,7 +76,8 @@ are added.
 
 Each module has its own `xmake.lua`, included from the root `xmake.lua`. Add new sources under the
 matching module: `engine-core` globs `**.cpp` in `src/rtype/engine/` except `main.cpp`, while
-`plugins`, `ecs`, `platform-glfw`, `render-vulkan` and `luau` glob `**.cpp` in their own folder.
+`plugins`, `ecs`, `network`, `replication`, `platform-glfw`, `render-vulkan` and `luau` glob `**.cpp` in their own
+folder.
 
 ### Dependency rules
 
@@ -71,12 +86,17 @@ Dependencies always point towards `engine-core`, never away from it:
 ```
 engine-core, interop-*  ←  platform-*, render-*, luau  ←  engine (executable)
 ecs, engine-core        ←  plugins                     ←  engine (executable)
+network  ←  replication  ←  engine (executable)
+ecs      ←  replication
 ```
 
 - `ecs` depends on no other project target; only the plugins (and the executable, examples and tests)
   depend on it. The renderer, the platforms and `luau` never include ECS headers: the glue between
   them and the ECS lives in the plugins (`plugins`), the only target that depends on both `ecs` and
   `engine-core`.
+- `network` depends on Asio only (private): never on the ECS, `engine-core` or any other project target.
+  `replication` depends on `ecs` and `network` and is the only module that knows both; the renderer, the
+  platforms and `luau` never include its headers.
 - `engine-core` depends on nothing but glm. Never add a dependency on a `platform-*`, `render-*` or
   `luau` target to it: they depend on it, so it would create a cycle.
 - Modules exchange engine types only (`rtype::engine::Event`, `rtype::engine::input::Key`...).
@@ -106,8 +126,8 @@ The project uses `xmake` with the `clang` toolchain and C++23.
 - Format: `clang-format -i <files>` (style in `.clang-format`)
 - Lint: `clang-tidy -p . <files>` (checks in `.clang-tidy`)
 
-Tests live in `tests/<module>/` (e.g. `tests/ecs/`, target `ecs-tests`, or `tests/luau/`, target
-`luau-tests`), one folder per module with its own `xmake.lua` included from `tests/xmake.lua`. They
+Tests live in `tests/<module>/` (e.g. `tests/ecs/`, target `ecs-tests`, `tests/network/`, target
+`network-tests`, or `tests/luau/`, target `luau-tests`), one folder per module with its own `xmake.lua` included from `tests/xmake.lua`. They
 are opt-in (`--Tests=y`) and use GoogleTest; the shared `tests/main.cpp` provides `main`. The CI
 `test` job builds with `--Tests=y` and runs `xmake test -v`.
 
