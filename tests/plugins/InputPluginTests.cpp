@@ -14,7 +14,7 @@
 #include "engine/input/Key.hpp"
 #include "plugins/input/Input.hpp"
 #include "plugins/input/InputAction.hpp"
-#include "plugins/input/InputEvents.hpp"
+#include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/event/EventTraits.hpp"
