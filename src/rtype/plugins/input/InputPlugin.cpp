@@ -14,7 +14,7 @@
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/input/Input.hpp"
-#include "plugins/input/InputEvents.hpp"
+#include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"

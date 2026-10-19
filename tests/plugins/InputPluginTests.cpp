@@ -14,7 +14,7 @@
 #include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
 #include "plugins/input/InputAction.hpp"
-#include "plugins/input/InputEvents.hpp"
+#include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/event/EventTraits.hpp"
@@ -66,7 +66,7 @@ const rtype::plugins::backend::event::KeyReleased kSpaceReleased{.key = rtype::p
 TEST(InputPlugin, InsertsInputAndRegistersTheEvents) {
     rtype::ecs::App app;
     app.addPlugin(rtype::plugins::input::InputPlugin{});
-    EXPECT_TRUE(app.hasPlugin("rtype.input"));
+    EXPECT_TRUE(app.hasPlugin("rtype.Input"));
     EXPECT_TRUE(app.getWorld().getResources().has<rtype::plugins::input::Input>());
     EXPECT_TRUE(app.getWorld().getEvents().find("rtype.KeyPressed"));
     EXPECT_TRUE(app.getWorld().getEvents().find("rtype.GamepadAxisMoved"));
@@ -107,7 +107,7 @@ TEST(InputPlugin, AnEventIsFedOnce) {
     app.app().runFrame();
     app.send(kSpaceReleased);
     app.app().runFrame();
-    app.app().runFrame();  // the press is still kept by the queue, but already read
+    app.app().runFrame();
     EXPECT_FALSE(app.fire().isHeld());
 }
 

@@ -141,7 +141,7 @@ flowchart LR
 
 `InputPlugin` (`plugins/input/`) makes `Input` a resource of the world. It registers one ECS event per input
 alternative of `plugins::backend::Event` (`rtype.KeyPressed`, `rtype.MouseMoved`, `rtype.GamepadConnected`...), and adds the
-client system `rtype.input.update` in `PreUpdate`: it feeds the events of the frame to `Input`, then calls
+client system `rtype.Input.Update` in `PreUpdate`: it feeds the events of the frame to `Input`, then calls
 `update()`. The window plugin sends those events after polling the platform; in tests they are sent by hand.
 
 ```cpp
