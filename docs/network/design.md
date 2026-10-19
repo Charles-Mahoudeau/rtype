@@ -100,7 +100,7 @@ An arrow means "is used by".
 | Target | Kind | Folder / namespace | Contains | Depends on |
 |---|---|---|---|---|
 | `network` | shared library (`rtype-network`) | `src/rtype/network/`, `rtype::network` | UDP socket and I/O thread, handshake and sessions, sequence numbers and acks, reliable channel, message packing, `ByteWriter` / `ByteReader`, lobby routing | Asio only. No ECS, no engine. |
-| `replication` | shared library (`rtype-replication`) | `src/rtype/replication/`, `rtype::replication` | `ServerPlugin` / `ClientPlugin` and their systems, `NetworkId` / `Owner` / `PlayerInput` / `Interpolated`, manifest, snapshot writer and reader, per-client ack bookkeeping, input buffers, custom packet registry | `ecs`, `network` |
+| `replication` | shared library (`rtype-replication`) | `src/rtype/replication/`, `rtype::replication` | `ReplicationPlugin` (shared types, `InputLayout`), `ServerPlugin` / `ClientPlugin` and their systems, `NetworkId` / `Owner` / `PlayerInput` / `Interpolated`, manifest, snapshot writer and reader, per-client ack bookkeeping, input buffers, custom packet registry | `ecs`, `network` |
 | `engine` | library (today the executable) | `src/rtype/engine/` | The engine shared by both executables | `plugins`, `ecs`, `luau` |
 | `client` | executable | | The game with a window. Can also host a game ([listen server](#4-topology-and-run-modes)). | `engine`, `replication`, `platform-glfw`, `render-vulkan` |
 | `server` | executable, headless | | The dedicated server | `engine`, `replication`. **Never** `platform-glfw` or `render-vulkan`, so it starts on a machine with no display or GPU. |
@@ -1045,6 +1045,8 @@ later:
 | [`20-replication.md`](../ecs/features/20-replication.md), packet layout | Header: protocol id `u16`, type `u8`, tick `u32`, ack `u32`, ack bits `u32` | Transport header of [6.2](#62-packets) (`u16` sequence and ack, session token); the tick moves into the snapshot |
 | [`08-change-detection.md`](../ecs/features/08-change-detection.md), "Replication's own last run" | One acked tick per client | One confirmed tick **per client and per entity**, so a snapshot over budget can be completed later ([7.4](#74-snapshots-server--client)) |
 | [`20-replication.md`](../ecs/features/20-replication.md), requirement R3 | No client prediction | Prediction and reconciliation for the local player's entity ([7.6](#76-client-prediction-and-reconciliation)); the snapshot carries the last processed input |
+| `20-replication.md`, "What lives in the ECS" | Shared `ReplicationPlugin` named, `net.collectInput` a system of the client plugin | `ReplicationPlugin` registers the types and the `InputLayout` resource; `net.collectInput` is not in `ClientPlugin`: the game or the engine reads `plugins::input::Input` and calls `ClientState::setInput`, since `replication` never includes `plugins` |
+| `20-replication.md`, server systems | `net.snapshot` and `net.send` as two systems | One `net.snapshot` system builds and hands the snapshots to `NetServer`; `net.send` returns with the I/O thread ([NET-24](implementation.md#net-24--io-thread-and-room-queues)) |
 | `20-replication.md`, update layout | Field mask per update | Whole components in v1, field masks later |
 | `20-replication.md`, inputs | Inputs numbered by tick | Inputs numbered by a client input sequence; the message also carries the snapshot confirmation |
 | `20-replication.md`, open questions | Transport details, packet size, encryption | Settled: [6](#6-transport-rtype-network), 1200 bytes, no encryption |
