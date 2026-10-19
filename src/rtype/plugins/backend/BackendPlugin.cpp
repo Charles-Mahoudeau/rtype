@@ -22,6 +22,7 @@
 #include "plugins/backend/WindowEvents.hpp"  // IWYU pragma: keep
 #include "plugins/backend/config/Settings.hpp"
 #include "plugins/backend/event/Event.hpp"
+#include "plugins/backend/event/PlatformEvent.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
@@ -74,19 +75,19 @@ void forwardEvents(ecs::NonSendMut<plugins::backend::Backend> backend,
                    ecs::EventWriter<plugins::backend::event::GamepadButtonPressed> gamepadPressed,
                    ecs::EventWriter<plugins::backend::event::GamepadButtonReleased> gamepadReleased,
                    ecs::EventWriter<plugins::backend::event::GamepadAxisMoved> gamepadAxis,
+                   ecs::EventWriter<plugins::backend::event::PlatformEvent> platformEvents,
                    ecs::EventWriter<ecs::AppExit> exit) {
     plugins::backend::Backend& started = *backend;
     if (!isStarted(started)) {
         return;
     }
-    // One writer per alternative of plugins::backend::Event, found by the alternative's type.
     auto writers =
         std::tie(closed, resized, focus, keyPressed, keyReleased, text, mouseMoved, buttonPressed, buttonReleased,
                  scrolled, gamepadConnected, gamepadDisconnected, gamepadPressed, gamepadReleased, gamepadAxis);
-    // Minimized: nothing to render, so sleep until an event (restore, close) arrives instead of spinning.
     const std::vector<plugins::backend::Event> events =
         isMinimized(started) ? started.platform->waitEvents() : started.platform->pollEvents();
     for (const plugins::backend::Event& event : events) {
+        platformEvents.send(plugins::backend::event::PlatformEvent{.event = event});
         std::visit(
             [&writers, &started](const auto& alternative) {
                 using Alternative = std::decay_t<decltype(alternative)>;
@@ -149,7 +150,9 @@ BackendPlugin::BackendPlugin(std::unique_ptr<plugins::backend::BackendRegistry> 
 std::string_view BackendPlugin::getName() const noexcept { return kName; }
 
 void BackendPlugin::build(ecs::App& app) {
+    app.addPlugin(plugins::input::InputPlugin{});
     ecs::Events& events = app.getWorld().getEvents();
+    registerEvent<plugins::backend::event::PlatformEvent>(events);
     registerEvent<plugins::backend::event::Closed>(events);
     registerEvent<plugins::backend::event::Resized>(events);
     registerEvent<plugins::backend::event::TextEntered>(events);
@@ -179,13 +182,9 @@ void BackendPlugin::build(ecs::App& app) {
     static_cast<void>(app.getWorld().getComponents().registerType<graphics::Camera>());
 
     app.addSystem(ecs::Phase::kStartup, std::string{kCreateSystem}, &createBackend).setSide(ecs::Side::kClient);
-    ecs::Schedule::SystemConfig forward =
-        app.addSystem(ecs::Phase::kPreUpdate, std::string{kEventsSystem}, &forwardEvents).setSide(ecs::Side::kClient);
-    // Input reads the events this system sends, in the same phase. A constraint naming a missing system is an error,
-    // so it is set by whichever of the two plugins is added second.
-    if (app.hasPlugin(plugins::input::InputPlugin::kName)) {
-        forward.before(std::string{plugins::input::InputPlugin::kUpdateSystem});
-    }
+    app.addSystem(ecs::Phase::kPreUpdate, std::string{kEventsSystem}, &forwardEvents)
+        .before(std::string{plugins::input::InputPlugin::kUpdateSystem})
+        .setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kRender, std::string{kBeginFrameSystem}, &beginFrame).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kRender, std::string{kCameraSystem}, &applyCamera)
         .after(std::string{kBeginFrameSystem})

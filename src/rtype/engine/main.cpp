@@ -19,7 +19,6 @@
 #include "plugins/backend/input/Key.hpp"
 #include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
-#include "plugins/input/InputPlugin.hpp"
 #include "render/vulkan/Registration.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
@@ -63,8 +62,7 @@ int main() {
 
         rtype::ecs::App app;
         app.addPlugins(rtype::ecs::MinimalPlugins{})
-            .addPlugin(rtype::plugins::backend::BackendPlugin{std::move(registry), makeSettings()})
-            .addPlugin(rtype::plugins::input::InputPlugin{});
+            .addPlugin(rtype::plugins::backend::BackendPlugin{std::move(registry), makeSettings()});
         app.addSystem(rtype::ecs::Phase::kUpdate, "rtype.quitOnEscape", &quitOnEscape)
             .setSide(rtype::ecs::Side::kClient);
         return app.run();

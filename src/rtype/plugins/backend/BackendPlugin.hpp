@@ -27,17 +27,17 @@ namespace rtype::plugins::backend {
 /// - Startup "rtype.backend.create": creates the Backend (BackendRegistry::createBackend()) into the main-thread
 ///   resource "rtype.Backend".
 /// - PreUpdate "rtype.backend.events": polls the platform (or waits for an event while the window is minimized),
-///   sends every event as an ECS event (the input ones of InputEvents.hpp, and Closed, Resized, TextEntered), resizes
-///   the renderer, and sends AppExit once the window is closed. It runs before the InputPlugin's system when both
-///   plugins are added, whatever their order.
+///   sends every event as a PlatformEvent, in order, and as its typed ECS event (the input ones of InputEvents.hpp,
+///   and Closed, Resized, TextEntered), resizes the renderer, and sends AppExit once the window is closed. It runs
+///   before the InputPlugin's system.
 /// - Render "rtype.backend.beginFrame" and "rtype.backend.endFrame": clear with the ClearColor resource, and show the
 ///   frame. In between, "rtype.backend.camera" passes the Camera component with the highest priority to the renderer
 ///   (none: the renderer's default view, window pixels from the top-left corner). Drawing systems run between the two
 ///   (`.after("rtype.backend.beginFrame")`,
 ///   `.before("rtype.backend.endFrame")`). Both are skipped while the window is minimized.
 /// It also inserts the TextureAssets resource (the loaded textures) and registers the SpriteRenderer component; drawing
-/// the sprites will be a render system between the two frame systems. It does not add the InputPlugin: add it too to
-/// read the input as actions.
+/// the sprites will be a render system between the two frame systems. A window always comes with input: it adds the
+/// InputPlugin (nothing happens if the game added it first), which knows nothing of this plugin.
 /// @code
 /// auto registry = std::make_unique<rtype::plugins::backend::BackendRegistry>();
 /// rtype::platform::glfw::registerPlatform(*registry);
