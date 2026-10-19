@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <format>
+#include <iterator>
 #include <memory>
 #include <span>
 #include <string_view>
@@ -55,14 +56,12 @@ void Schedules::setClock(std::unique_ptr<FrameClock> clock) noexcept { _clock = 
 
 Schedule::SystemConfig Schedules::addSystem(Phase phase, System system) {
     const Schedule& target = getSchedule(phase);  // its own duplicates: reported by Schedule::addSystem()
-    const auto other = std::ranges::find_if(_schedules, [&](const Schedule& schedule) {
-        return &schedule != &target && schedule.contains(system.getName());
-    });
-    if (other != _schedules.end()) {
-        throw exceptions::ScheduleException{
-            std::format("Two systems are named '{}' (phases {} and {}): names must be "
-                        "unique",
-                        system.getName(), toString(other->getPhase()), toString(phase))};
+    for (const Schedule& schedule : _schedules) {
+        if (&schedule != &target && schedule.contains(system.getName())) {
+            throw exceptions::ScheduleException{
+                std::format("Two systems are named '{}' (phases {} and {}): names must be unique", system.getName(),
+                            toString(schedule.getPhase()), toString(phase))};
+        }
     }
     return at(phase).addSystem(std::move(system));
 }
