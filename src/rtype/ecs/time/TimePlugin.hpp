@@ -19,9 +19,11 @@ namespace rtype::ecs {
 /// @brief Time for an App: inserts the Time resource and installs the frame clock (TimeClock) that measures each
 /// frame, runs FixedUpdate at a fixed rate and keeps Time up to date.
 /// @details Every App has one: if none was added, the App adds one with the defaults (60 ticks per second, at most 5
-/// per frame) before its first frame. Adding one yourself, before or through MinimalPlugins, configures it. Frames
-/// are measured with std::chrono::steady_clock; manual() makes every frame last a fixed duration instead, for
-/// deterministic tests and replays.
+/// per frame) before its first frame; MinimalPlugins adds the same default. To configure it, add your own before
+/// MinimalPlugins and before the first frame: the default one is then skipped, by name. Frames are measured with
+/// std::chrono::steady_clock; manual() makes every frame last a fixed duration instead, for deterministic tests and
+/// replays. A clock installed directly on the schedules is replaced by the default plugin's on the first frame: a
+/// custom clock comes from a plugin named "rtype.time" added in place of this one.
 /// @code
 /// app.addPlugin(rtype::ecs::TimePlugin{rtype::ecs::FixedTimestep{30, 5}});                    // 30 Hz
 /// app.addPlugin(rtype::ecs::TimePlugin::manual(std::chrono::milliseconds{16}));               // tests
