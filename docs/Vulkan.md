@@ -41,17 +41,17 @@ The engine does not create `VulkanRenderer` itself: the `render-vulkan` target r
 the configuration picks it (see [`Backend.md`](Backend.md)):
 
 ```cpp
-rtype::engine::backend::BackendRegistry registry;
+rtype::plugins::backend::BackendRegistry registry;
 rtype::platform::glfw::registerPlatform(registry);   // "glfw"
 rtype::render::vulkan::registerRenderer(registry);  // "vulkan"
 
-rtype::engine::config::Settings config;
+rtype::plugins::backend::config::Settings config;
 config.set("platform", "glfw");
 config.set("renderer", "vulkan");
 config.set("vulkan.layers", std::vector<std::string>{"VK_LAYER_KHRONOS_validation"});  // debug builds
 config.set("vulkan.debugging", true);
 
-const rtype::engine::backend::Backend backend = registry.createBackend(config);
+const rtype::plugins::backend::Backend backend = registry.createBackend(config);
 ```
 
 The `vulkan` settings fill a `VulkanRenderer::Config`: `engineName`, `layers`, `extraExtensions`, `debugging` (the

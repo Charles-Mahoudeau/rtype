@@ -89,11 +89,11 @@ system's signature tells the scheduler what it reads, writes, and whether it nee
 
 ```c++
 app.insertResource(Time{.fixedDelta = 1.F / 60.F});
-app.insertResource(std::move(settings));               // Ethan's engine::config::Settings
-app.insertNonSendResource(std::move(backend));         // Ethan's engine::backend::Backend
+app.insertResource(std::move(settings));               // Ethan's plugins::backend::config::Settings
+app.insertNonSendResource(std::move(backend));         // Ethan's plugins::backend::Backend
 
 void tick(rtype::ecs::ResMut<Time> time);
-void drawSprites(/* queries... */ rtype::ecs::NonSendMut<rtype::engine::backend::Backend> backend);
+void drawSprites(/* queries... */ rtype::ecs::NonSendMut<rtype::plugins::backend::Backend> backend);
 ```
 
 | Parameter | Access | Thread |

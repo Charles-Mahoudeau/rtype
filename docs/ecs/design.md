@@ -105,15 +105,16 @@ flowchart TB
 flowchart LR
     engine["engine executable<br/>(client / server)"] --> plugins["engine plugins<br/>src/rtype/plugins"]
     plugins --> ecs["rtype-ecs"]
-    plugins --> core["engine-core<br/>IPlatform, IRenderer, Input..."]
     plugins --> glfw["platform-glfw"]
     plugins --> vulkan["render-vulkan"]
     plugins --> luau["rtype-luau"]
     plugins --> network["rtype-network<br/>(future)"]
 ```
 
-Only the plugins know both the ECS and a backend. `engine-core`, the platforms, the renderers and the
-Luau runtime stay usable without the ECS, as they are today.
+The plugins hold the engine: the contracts the backends implement (`plugins/backend/`: `IPlatform`, `IRenderer`,
+`Event`, `Settings`, `BackendRegistry`) and the plugins that run them in an App. The platforms and renderers implement
+those contracts, so they depend on the `plugins` target, but never include ECS headers; the Luau runtime stays usable
+without the ECS.
 
 ## The ECS, Part by Part
 
@@ -1091,7 +1092,7 @@ struct PlayerInput {
     std::array<glm::vec2, kMaxInputAxes> vectors;  ///< kAxis / kVector2 actions, in manifest order.
 };
 
-void collectInput(rtype::ecs::Res<rtype::engine::input::Input> input,
+void collectInput(rtype::ecs::Res<rtype::plugins::backend::input::Input> input,
                   rtype::ecs::Query<PlayerInput, rtype::ecs::With<LocalPlayer>> players) {
     for (auto [entity, playerInput] : players) {
         playerInput->vectors[0] = input->getAction("move").readVector();
@@ -1313,12 +1314,12 @@ Going Bevy-style now means the ECS owns the loop. Ethan's **interfaces stay**; w
 
 ```c++
 void drawSprites(rtype::ecs::Query<const GlobalTransform, const SpriteRenderer> sprites,
-                 rtype::ecs::Res<rtype::engine::assets::Assets<rtype::engine::graphics::Texture>> textures,
-                 rtype::ecs::NonSendMut<rtype::engine::backend::Backend> backend) {
-    rtype::engine::graphics::IRenderer& renderer = *backend->renderer;
-    renderer.beginFrame(rtype::engine::graphics::Color{0.F, 0.F, 0.F, 1.F});
+                 rtype::ecs::Res<rtype::plugins::backend::assets::Assets<rtype::plugins::backend::graphics::Texture>> textures,
+                 rtype::ecs::NonSendMut<rtype::plugins::backend::Backend> backend) {
+    rtype::plugins::backend::graphics::IRenderer& renderer = *backend->renderer;
+    renderer.beginFrame(rtype::plugins::backend::graphics::Color{0.F, 0.F, 0.F, 1.F});
     for (auto [entity, transform, sprite] : sprites) {
-        renderer.draw(rtype::engine::graphics::Sprite{
+        renderer.draw(rtype::plugins::backend::graphics::Sprite{
             .texture = textures->getId(sprite.texture),
             .source = sprite.source,
             .position = transform.position,

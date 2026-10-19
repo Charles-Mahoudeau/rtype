@@ -163,7 +163,7 @@ the only place that knows GLFW and Vulkan, fills a registry and hands it to the 
 plugins depend on no backend:
 
 ```c++
-auto registry = std::make_unique<rtype::engine::backend::BackendRegistry>();
+auto registry = std::make_unique<rtype::plugins::backend::BackendRegistry>();
 rtype::platform::glfw::registerPlatform(*registry);
 rtype::render::vulkan::registerRenderer(*registry);
 app.addPlugins(rtype::ecs::MinimalPlugins{})

@@ -18,7 +18,7 @@ Runnable examples:
 
 ```mermaid
 flowchart BT
-    subgraph CORE["engine-core: no window, graphics or scripting library"]
+    subgraph CORE["plugins/backend/ (plugins): the contracts, no window, graphics or scripting library"]
         IP["IPlatform"]
         IR["IRenderer"]
         ST["Settings"]
@@ -53,18 +53,20 @@ flowchart BT
     BR -- reads --> ST
 ```
 
-Dependencies keep pointing towards `engine-core` (see `AGENTS.md`): the interfaces, `Settings` and the registry live
-there, and know nothing of any library. What a renderer needs from a window that is specific to its graphics API
+Dependencies keep pointing towards the backend plugin (see `AGENTS.md`): the interfaces, `Settings` and the registry
+live in `plugins/backend/`, next to the `BackendPlugin` that starts them in an App, and know nothing of any windowing
+or graphics library. The platforms and renderers depend on the `plugins` target, and through it on the ECS, but never
+include ECS headers. What a renderer needs from a window that is specific to its graphics API
 lives in `interop/`, which both sides depend on: the platform and the renderer never depend on each other. Only the
 code that registers the backends (`main.cpp`, an example) names the modules.
 
 | File | Role |
 |---|---|
-| [`engine/platform/IPlatform.hpp`](../src/rtype/engine/platform/IPlatform.hpp) | The window and its events |
-| [`engine/platform/WindowConfig.hpp`](../src/rtype/engine/platform/WindowConfig.hpp) | How the window is created, read from the `window` settings |
-| [`engine/graphics/IRenderer.hpp`](../src/rtype/engine/graphics/IRenderer.hpp) | Textures, camera, sprites and rectangles |
-| [`engine/config/Settings.hpp`](../src/rtype/engine/config/Settings.hpp) | The configuration |
-| [`engine/backend/BackendRegistry.hpp`](../src/rtype/engine/backend/BackendRegistry.hpp) | Backends by name, and the start-up sequence |
+| [`plugins/backend/platform/IPlatform.hpp`](../src/rtype/plugins/backend/platform/IPlatform.hpp) | The window and its events |
+| [`plugins/backend/platform/WindowConfig.hpp`](../src/rtype/plugins/backend/platform/WindowConfig.hpp) | How the window is created, read from the `window` settings |
+| [`plugins/backend/graphics/IRenderer.hpp`](../src/rtype/plugins/backend/graphics/IRenderer.hpp) | Textures, camera, sprites and rectangles |
+| [`plugins/backend/config/Settings.hpp`](../src/rtype/plugins/backend/config/Settings.hpp) | The configuration |
+| [`plugins/backend/BackendRegistry.hpp`](../src/rtype/plugins/backend/BackendRegistry.hpp) | Backends by name, and the start-up sequence |
 | [`interop/vulkan/IVulkanSurfaceSource.hpp`](../src/rtype/interop/vulkan/IVulkanSurfaceSource.hpp) | What a Vulkan renderer needs from a window |
 | [`platform/glfw/Registration.hpp`](../src/rtype/platform/glfw/Registration.hpp) | Registers `glfw` |
 | [`render/vulkan/Registration.hpp`](../src/rtype/render/vulkan/Registration.hpp) | Registers `vulkan` |
@@ -73,12 +75,12 @@ code that registers the backends (`main.cpp`, an example) names the modules.
 
 ```cpp
 // 1. Every module registers its backends.
-rtype::engine::backend::BackendRegistry registry;
+rtype::plugins::backend::BackendRegistry registry;
 rtype::platform::glfw::registerPlatform(registry);   // "glfw"
 rtype::render::vulkan::registerRenderer(registry);  // "vulkan"
 
 // 2. The configuration picks the pair and sets it up.
-rtype::engine::config::Settings config;
+rtype::plugins::backend::config::Settings config;
 config.set("platform", "glfw");
 config.set("renderer", "vulkan");
 config.set("window.title", "R-Type");
@@ -86,7 +88,7 @@ config.set("window.size", std::vector<double>{1280, 720});
 config.set("vulkan.debugging", true);
 
 // 3. Start them, then only use the interfaces.
-const rtype::engine::backend::Backend backend = registry.createBackend(config);
+const rtype::plugins::backend::Backend backend = registry.createBackend(config);
 while (backend.platform->isOpen()) {
     for (const auto& event : backend.platform->pollEvents()) { /* ... */ }
     backend.renderer->beginFrame(color);
@@ -156,7 +158,7 @@ is defined **once per API**, in a header-only target of `interop/` that depends 
 | `interop-vulkan` | [`IVulkanSurfaceSource`](../src/rtype/interop/vulkan/IVulkanSurfaceSource.hpp) | `GlfwPlatform`, the SDL example's `SdlPlatform` | `VulkanRenderer` |
 
 ```cpp
-class GlfwPlatform final : public engine::platform::IPlatform, public interop::vulkan::IVulkanSurfaceSource { ... };
+class GlfwPlatform final : public plugins::backend::platform::IPlatform, public interop::vulkan::IVulkanSurfaceSource { ... };
 ```
 
 | `IVulkanSurfaceSource` | `GlfwPlatform` | Called by `VulkanRenderer` in |
@@ -167,7 +169,7 @@ class GlfwPlatform final : public engine::platform::IPlatform, public interop::v
 
 Why there:
 
-- **Not in `engine-core`**, which would then depend on Vulkan (or pass `void*`).
+- **Not in `plugins/backend/`**, which would then depend on Vulkan (or pass `void*`).
 - **Not in the renderer module**: the platform would depend on the whole renderer (a shared library) for one
   interface.
 - **Not in the platform module**: the renderer would depend on GLFW, and could not serve a platform written
@@ -283,7 +285,7 @@ Everything is reported by exceptions, before a window opens whenever possible:
 
 A backend can live in an engine module or in your own code, as the SDL and SFML examples do. In both cases:
 
-1. **Implement the interface.** `class MyPlatform final : public rtype::engine::platform::IPlatform`, or `IRenderer`.
+1. **Implement the interface.** `class MyPlatform final : public rtype::plugins::backend::platform::IPlatform`, or `IRenderer`.
    A platform also implements the interop interfaces of the renderers it serves (`IVulkanSurfaceSource` for
    `vulkan`, with `add_deps("interop-vulkan")`); a renderer overrides `setup()` if it must set the platform up
    before its window exists.
