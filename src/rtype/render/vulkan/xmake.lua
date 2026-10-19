@@ -15,6 +15,7 @@ end
 
 -- Embeds each shader (shaders/<name>.<stage>) as SPIR-V: generates <name>.<stage>.h, which defines
 -- const uint32_t rtype_shader_<name>_<stage>[] (other characters than letters and digits become '_').
+-- Shaders include from the include/ folder next to them, and from the folders of set_values("glsl.includedirs", ...).
 rule("glsl.spirv")
     set_extensions(".vert", ".frag", ".comp", ".geom", ".tesc", ".tese")
 
@@ -36,7 +37,11 @@ rule("glsl.spirv")
         local variable = "rtype_shader_" .. (filename:gsub("[^%w]", "_"))
         local includedir = path.join(path.directory(sourcefile), "include")
 
-        local argv = {"-V", "--target-env", "vulkan1.3", "-I" .. includedir}
+        local includedirs = table.join({includedir}, target:values("glsl.includedirs") or {})
+        local argv = {"-V", "--target-env", "vulkan1.3"}
+        for _, dir in ipairs(includedirs) do
+            table.insert(argv, "-I" .. dir)
+        end
         table.insert(argv, is_mode("debug") and "-g" or "-Os")
         table.join2(argv, {"--vn", variable, "-o", header, sourcefile})
 
@@ -45,7 +50,9 @@ rule("glsl.spirv")
         batchcmds:vrunv(glslang.program, argv)
 
         batchcmds:add_depfiles(sourcefile)
-        batchcmds:add_depfiles(os.files(path.join(includedir, "**")))
+        for _, dir in ipairs(includedirs) do
+            batchcmds:add_depfiles(os.files(path.join(dir, "**")))
+        end
         batchcmds:set_depmtime(os.mtime(header))
         batchcmds:set_depcache(target:dependfile(header))
     end)

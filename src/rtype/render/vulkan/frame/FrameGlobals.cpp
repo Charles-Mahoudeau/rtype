@@ -20,19 +20,17 @@
 #include "render/vulkan/memory/Allocator.hpp"
 #include "render/vulkan/pipeline/PipelineLayout.hpp"
 #include "render/vulkan/rendering/FrameUniforms.hpp"
+#include "render/vulkan/rendering/ShaderLayout.hpp"
 
 namespace rtype::render::vulkan::frame {
 
 namespace {
 
-/// @brief Binding of the uniform buffer in set 0; matches shaders/include/FrameUniforms.glsl.
-constexpr std::uint32_t kUniformsBinding = 0;
-
 /// @return The layout of set 0: one uniform buffer, readable by every shader stage the renderer uses.
 descriptor::DescriptorSetLayout createSetLayout(const core::Device& device) {
     return descriptor::DescriptorSetLayout::Builder{}
         .addBinding(
-            kUniformsBinding, vk::DescriptorType::eUniformBuffer,
+            rendering::kFrameUniformsBinding, vk::DescriptorType::eUniformBuffer,
             vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eCompute)
         .build(device);
 }
@@ -56,7 +54,7 @@ FrameGlobals::FrameGlobals(const core::Device& device, const memory::Allocator& 
                                   memory::Allocator::MemoryAccess::kStaging);
         const vk::raii::DescriptorSet& set = _sets.emplace_back(_pool.allocate(_setLayout));
         descriptor::DescriptorWriter{}
-            .writeBuffer(kUniformsBinding, *buffer.getBuffer(), 0, sizeof(rendering::FrameUniforms))
+            .writeBuffer(rendering::kFrameUniformsBinding, *buffer.getBuffer(), 0, sizeof(rendering::FrameUniforms))
             .update(device, *set);
     }
 }
@@ -67,8 +65,8 @@ void FrameGlobals::update(std::size_t frameIndex, const rendering::FrameUniforms
 
 void FrameGlobals::bind(const vk::raii::CommandBuffer& commandBuffer, const pipeline::PipelineLayout& layout,
                         std::size_t frameIndex) const {
-    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *layout.getLayout(), 0, *_sets.at(frameIndex),
-                                     {});
+    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *layout.getLayout(), rendering::kFrameSet,
+                                     *_sets.at(frameIndex), {});
 }
 
 }  // namespace rtype::render::vulkan::frame

@@ -77,6 +77,58 @@ hazards between commands, and is slow. The engine only loads the layer in debug 
 
 On macOS, `Instance` also enables `VK_KHR_portability_enumeration`, which MoltenVK requires.
 
+## Textures
+
+`createTexture()` takes RGBA8 pixels (decoded by the [`TextureAssets`](../src/rtype/plugins/backend/graphics/TextureAssets.hpp) resource) and
+returns a `TextureId`:
+
+1. A `memory::Image`: a `VkImage` from VMA (device local, one mip level), `R8G8B8A8_SRGB`, usage
+   `SAMPLED | TRANSFER_DST`, and its `VkImageView`.
+2. `Uploader::upload()` copies the pixels into a staging buffer and records, with Synchronization2 barriers:
+   `UNDEFINED` → `TRANSFER_DST_OPTIMAL`, `vkCmdCopyBufferToImage`, then `TRANSFER_DST_OPTIMAL` →
+   `SHADER_READ_ONLY_OPTIMAL` for the fragment and compute shaders.
+3. `Uploader::flush()` submits and waits: the texture is ready when `createTexture()` returns.
+4. The image goes into a `core::SlotMap`, which gives the `TextureId` (slot index and generation). Destroying a texture
+   bumps its slot's generation, so an id kept from before reaches nothing instead of the slot's next texture.
+
+`destroy()` forgets the id at once, and defers the image to the `DeletionQueue` bucket of the last recorded frame: it
+is freed once that frame's fence has signaled, so destroying a texture drawn this frame is safe. The textures left are
+destroyed with the renderer, before the allocator.
+
+### Samplers and descriptor sets
+
+A sampler says how a shader reads an image: filtering and what happens past its edges. `texture::SamplerCache` creates
+the four the textures need at `init()`, one per `TextureDesc` filter and repeat mode, shared by every texture:
+
+| | Clamp to edge | Repeat |
+|---|---|---|
+| `kNearest` (sharp pixels: pixel art) | nearest-clamp | nearest-repeat |
+| `kLinear` (smooth; anisotropic up to 16x when the device supports it) | linear-clamp | linear-repeat |
+
+Each texture also gets its descriptor set, written once by `createTexture()`: its image view and its sampler, as a
+combined image sampler at `VulkanRenderer::kTextureSet` (1), binding `kTextureBinding` (0). A fragment shader reads it
+as `layout(set = 1, binding = 0) uniform sampler2D`, next to the frame's uniforms at set 0, so drawing a texture only
+binds its set. The sets come from a `descriptor::DescriptorAllocator`, which adds a pool of 64 sets whenever the
+current one is full, so the number of textures has no fixed limit; a destroyed texture gives its set back to its pool.
+
+## Shader layout
+
+Every pipeline the renderer builds shares one layout (`VulkanRenderer`'s pipeline layout), with the data grouped by
+how often it changes, so binding from the least to the most frequent keeps the lower sets bound:
+
+| What | Where | Changes | GLSL | C++ |
+|---|---|---|---|---|
+| `FrameUniforms`: time, delta time, framebuffer size (later the camera) | set 0, binding 0 | once per frame | `frame` | `rendering::FrameUniforms` |
+| The texture and its sampler | set 1, binding 0 | per texture (batch) | `uTexture` (fragment) | the texture's set |
+| `DrawConstants`: `model` (unit quad to world), `color`, `uvRect` | push constants, 96 bytes | per draw | `draw` | `rendering::DrawConstants` |
+
+Per-object data fits in the push constants (at most 128 bytes, the minimum every device supports), so there is no
+set 2. The set and binding numbers are in `rendering/ShaderLayout.hpp`. A shader gets all of it with
+`#include "ShaderLayout.glsl"` (from `shaders/include/`, which includes `FrameUniforms.glsl`, `TextureSet.glsl` and
+`DrawConstants.glsl`). Each GLSL block mirrors its C++ struct field by field: `static_assert`s check the C++ offsets,
+and `vulkan-tests` embeds a shader that includes `ShaderLayout.glsl` (through `set_values("glsl.includedirs", ...)`),
+so a header that stops compiling fails the build.
+
 ## Shaders
 
 Shaders are written in GLSL and compiled to SPIR-V, then turned into `vk::raii::ShaderModule`s by
