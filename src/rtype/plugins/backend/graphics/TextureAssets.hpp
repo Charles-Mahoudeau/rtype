@@ -13,7 +13,7 @@
 #include <span>
 #include <string>
 
-#include "plugins/backend/Assets.hpp"
+#include "plugins/backend/graphics/Assets.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"

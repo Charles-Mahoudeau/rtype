@@ -26,8 +26,8 @@ struct Orthographic {
 using Projection = std::variant<Orthographic>;
 
 /// @brief The point of view the world is seen from, set with IRenderer::setCamera().
-/// @details In an App it is also a component ("rtype.Camera", declared in plugins/backend/BackendComponents.hpp): the
-/// backend plugin applies the camera of the entity that has the highest priority.
+/// @details In an App it is also a component ("rtype.Camera", declared below): the backend plugin applies the camera of
+/// the entity that has the highest priority.
 struct Camera {
     glm::vec3 position{0.0F};                ///< World point at the centre of the screen. Z is unused in 2D.
     float rotation = 0.0F;                   ///< Around the view axis, in radians, clockwise on screen.

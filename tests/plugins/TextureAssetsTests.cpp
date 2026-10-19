@@ -18,9 +18,9 @@
 
 #include "FakeBackend.hpp"
 #include "TestImages.hpp"
-#include "plugins/backend/TextureAssets.hpp"
 #include "plugins/backend/exceptions/AssetExceptions.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
+#include "plugins/backend/graphics/TextureAssets.hpp"
 
 namespace {
 /// @brief A file holding the test PNG, removed when the test ends.

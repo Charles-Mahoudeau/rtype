@@ -17,15 +17,14 @@
 #include <variant>
 #include <vector>
 
-#include "plugins/backend/BackendComponents.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
-#include "plugins/backend/SpriteRenderer.hpp"
-#include "plugins/backend/TextureAssets.hpp"
 #include "plugins/backend/WindowEvents.hpp"
 #include "plugins/backend/config/Settings.hpp"
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
+#include "plugins/backend/graphics/SpriteRenderer.hpp"
+#include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/input/InputEvents.hpp"
 #include "plugins/input/InputPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"

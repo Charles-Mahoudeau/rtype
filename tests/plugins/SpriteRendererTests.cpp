@@ -9,8 +9,8 @@
 
 #include <glm/ext/vector_float2.hpp>
 
-#include "plugins/backend/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/Color.hpp"
+#include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/math/Rect.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"

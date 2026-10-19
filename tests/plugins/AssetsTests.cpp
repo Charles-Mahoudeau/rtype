@@ -14,9 +14,9 @@
 #include <utility>
 
 #include "FakeBackend.hpp"
-#include "plugins/backend/Assets.hpp"
-#include "plugins/backend/TextureAssets.hpp"
+#include "plugins/backend/graphics/Assets.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
+#include "plugins/backend/graphics/TextureAssets.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 #include "rtype/ecs/world/World.hpp"
 

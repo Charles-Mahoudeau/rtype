@@ -12,14 +12,13 @@
 #include <vector>
 
 #include "FakeBackend.hpp"
-#include "plugins/backend/BackendComponents.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
-#include "plugins/backend/TextureAssets.hpp"
 #include "plugins/backend/WindowEvents.hpp"
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
+#include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/backend/input/Key.hpp"
 #include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
