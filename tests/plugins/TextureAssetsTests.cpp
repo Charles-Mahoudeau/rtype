@@ -122,3 +122,16 @@ TEST(TextureAssets, RefusesAMissingFile) {
         rtype::plugins::backend::exceptions::AssetLoadException);
     EXPECT_EQ(fixture.assets.getCount(), 0U);
 }
+
+TEST(TextureAssets, DestroysATextureWhoseIdIsAlreadyRecorded) {
+    Fixture fixture;
+    fixture.state->reuseTextureIds = true;
+    const auto first = rtype::plugins::backend::loadTexture(fixture.assets, fixture.renderer, "first.png",
+                                                            rtype::test::plugins::twoPixelPng());
+    EXPECT_THROW(static_cast<void>(rtype::plugins::backend::loadTexture(fixture.assets, fixture.renderer, "second.png",
+                                                                        rtype::test::plugins::twoPixelPng())),
+                 rtype::plugins::backend::exceptions::AssetLoadException);
+    ASSERT_EQ(fixture.state->destroyedTextures.size(), 1U);
+    EXPECT_EQ(fixture.state->destroyedTextures[0], first);
+    EXPECT_FALSE(fixture.assets.find("second.png"));
+}

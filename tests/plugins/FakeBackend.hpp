@@ -46,6 +46,7 @@ struct FakeBackendState {
     std::vector<std::vector<std::byte>> createdPixels;                            ///< Every createTexture() pixels.
     std::vector<rtype::plugins::backend::graphics::TextureId> destroyedTextures;  ///< Every destroy() call.
     std::vector<rtype::plugins::backend::graphics::Camera> cameras;               ///< Every setCamera() call.
+    bool reuseTextureIds{false};  ///< createTexture() always returns the first id, as a buggy renderer would.
 };
 
 /// @brief A window that returns scripted events.
@@ -114,7 +115,9 @@ class FakeRenderer : public rtype::plugins::backend::graphics::IRenderer {
         const rtype::plugins::backend::graphics::TextureDesc& desc, std::span<const std::byte> pixels) override {
         _state->createdTextures.push_back(desc);
         _state->createdPixels.emplace_back(pixels.begin(), pixels.end());
-        return {.index = static_cast<std::uint32_t>(_state->createdTextures.size() - 1), .generation = 1};
+        const auto index =
+            _state->reuseTextureIds ? 0U : static_cast<std::uint32_t>(_state->createdTextures.size() - 1);
+        return {.index = index, .generation = 1};
     }
     void destroy(rtype::plugins::backend::graphics::TextureId texture) override {
         _state->destroyedTextures.push_back(texture);
