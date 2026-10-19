@@ -40,6 +40,12 @@ struct SystemContext {
 /// @details Only the specializations below exist, one per accepted parameter type: `Query<Terms...>`, `Res<T>`,
 /// `ResMut<T>`, `NonSend<T>`, `NonSendMut<T>` (all ResourceParam), `Commands&`, `EventReader<T>` and `EventWriter<T>`.
 /// They are taken exactly as written: `Query` and the others by value, `Commands` by reference.
+///
+/// A parameter that needs more than the world to be built (which queries to run, chosen by the plugin adding the
+/// system) is **configured**: its specialization declares `using Config = ...;` and takes it in
+/// `init(World&, Config)` instead of `init(World&)`. The configuration is given after the function when the system is
+/// added, and each configured parameter takes the one of its `Config` type (ConfiguredParameter).
+/// `DynamicQueries` (system/DynamicQueries.hpp, configured with a QueryList) is one.
 template <typename Param>
 struct SystemParam;
 
@@ -130,6 +136,11 @@ struct SystemParam<EventWriter<T>> {
 /// `NonSendMut<T>`, `Commands&`, `EventReader<T>` or `EventWriter<T>`, exactly as written.
 template <typename Param>
 concept SystemParameter = requires { typename SystemParam<Param>::State; };
+
+/// @brief A system parameter built from a configuration given when the system is added (`SystemParam<Param>::Config`,
+/// taken by `init(World&, Config)`).
+template <typename Param>
+concept ConfiguredParameter = SystemParameter<Param> && requires { typename SystemParam<Param>::Config; };
 }  // namespace rtype::ecs
 
 #include "SystemParam.tpp"

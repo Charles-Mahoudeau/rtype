@@ -64,9 +64,10 @@ class RTYPE_ECS_API Schedules {
     void setClock(std::unique_ptr<FrameClock> clock) noexcept;
 
     /// @brief Makes a system of a function (or a lambda without captures) and adds it to a phase (System).
+    /// @param configs The configurations of its configured parameters (see SystemParam), if any.
     /// @throws exceptions::ScheduleException When a system of any phase already has this name.
-    template <typename Function>
-    Schedule::SystemConfig addSystem(Phase phase, std::string name, Function function);
+    template <typename Function, typename... Configs>
+    Schedule::SystemConfig addSystem(Phase phase, std::string name, Function function, Configs... configs);
 
     /// @brief Adds a system to a phase. Its schedule is built again before it next runs.
     /// @throws exceptions::ScheduleException When a system of any phase already has its name.

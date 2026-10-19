@@ -22,9 +22,9 @@ App& App::addPlugins(G group) {
     return *this;
 }
 
-template <typename Function>
-Schedule::SystemConfig App::addSystem(Phase phase, std::string name, Function function) {
-    return _schedules.addSystem(phase, std::move(name), function);
+template <typename Function, typename... Configs>
+Schedule::SystemConfig App::addSystem(Phase phase, std::string name, Function function, Configs... configs) {
+    return _schedules.addSystem(phase, std::move(name), std::move(function), std::move(configs)...);
 }
 
 template <Resource T>

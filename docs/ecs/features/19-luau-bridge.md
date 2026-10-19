@@ -114,8 +114,9 @@ end
 return ShieldRegen
 ```
 
-The bridge turns the declaration into a [dynamic query](07-queries.md) and an access set, and registers
-a type-erased system whose body calls `run`. `shield` is a **view** over the component bytes, valid only
+The bridge turns the declaration into a `QueryList` of [dynamic queries](07-queries.md) and adds a
+system made from a [`ScriptCallable`](12-systems.md#script-callables): a lambda capturing a handle to `run`,
+whose `DynamicQueries` parameter declares the access to the scheduler. `shield` is a **view** over the component bytes, valid only
 during `run`; writing a field stamps the changed tick.
 
 ### Plugins

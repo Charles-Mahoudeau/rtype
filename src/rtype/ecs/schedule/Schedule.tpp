@@ -9,8 +9,8 @@
 #include <utility>
 
 namespace rtype::ecs {
-template <typename Function>
-Schedule::SystemConfig Schedule::addSystem(std::string name, Function function) {
-    return addSystem(System{*_world, std::move(name), function});
+template <typename Function, typename... Configs>
+Schedule::SystemConfig Schedule::addSystem(std::string name, Function function, Configs... configs) {
+    return addSystem(System{*_world, std::move(name), std::move(function), std::move(configs)...});
 }
 }  // namespace rtype::ecs

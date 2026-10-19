@@ -75,9 +75,10 @@ class RTYPE_ECS_API App {
 
     /// @brief Makes a system of a function (or a lambda without captures) and adds it to a phase
     /// (Schedules::addSystem()).
+    /// @param configs The configurations of its configured parameters (see SystemParam), if any.
     /// @throws exceptions::ScheduleException When a system of any phase already has this name.
-    template <typename Function>
-    Schedule::SystemConfig addSystem(Phase phase, std::string name, Function function);
+    template <typename Function, typename... Configs>
+    Schedule::SystemConfig addSystem(Phase phase, std::string name, Function function, Configs... configs);
 
     /// @brief Sets a resource of the world, replacing its value if any (Resources::insert()).
     template <Resource T>
