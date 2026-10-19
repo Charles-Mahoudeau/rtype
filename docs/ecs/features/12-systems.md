@@ -147,6 +147,25 @@ access to what it declares as read): the scheduler orders systems only by what i
 `ReplicatedRead` (one `DynamicQuery` per replicated component) is one such parameter
 ([Replication](20-replication.md)).
 
+### Parameters from other libraries
+
+The list above is what the ECS provides, not a closed set. `SystemParam` is chosen by the compiler when a system is
+added: no runtime registration, so a library can add a parameter type of its own by specializing
+`rtype::ecs::SystemParam` for it, in the same header as the type. Every file that adds a system taking it must
+include that header. The specialization gives the same three members as the built-in ones:
+
+| Member | Called | Does |
+|---|---|---|
+| `State` | | What the system keeps for the parameter between runs |
+| `static State init(World&)` | once, when the system is added | Builds the state; only sees the types registered so far |
+| `static P get(State&, const SystemContext&)` | each run | Builds the parameter from the state, `context.world` and `context.lastRun` |
+| `static void addAccess(const State&, SystemAccess&)` | once, when the system is added | Declares every component, resource and event the parameter reads or writes |
+
+`addAccess` must declare everything `get` gives access to, and `P` must not allow more than it declares (no mutable
+access to what it declares as read): the scheduler orders systems only by what is declared. The network's
+`ReplicatedRead` (one `DynamicQuery` per replicated component) is one such parameter
+([Replication](20-replication.md)).
+
 ### Runs and change ticks
 
 `run()` reads the world's change tick (`thisRun`), builds the parameters against the system's `lastRun`,
