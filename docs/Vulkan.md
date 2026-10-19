@@ -93,8 +93,23 @@ returns a `TextureId`:
 
 `destroy()` forgets the id at once, and defers the image to the `DeletionQueue` bucket of the last recorded frame: it
 is freed once that frame's fence has signaled, so destroying a texture drawn this frame is safe. The textures left are
-destroyed with the renderer, before the allocator. Samplers (the `TextureDesc`'s filter and repeat mode) come with
-the descriptors that bind the textures.
+destroyed with the renderer, before the allocator.
+
+### Samplers and descriptor sets
+
+A sampler says how a shader reads an image: filtering and what happens past its edges. `texture::SamplerCache` creates
+the four the textures need at `init()`, one per `TextureDesc` filter and repeat mode, shared by every texture:
+
+| | Clamp to edge | Repeat |
+|---|---|---|
+| `kNearest` (sharp pixels: pixel art) | nearest-clamp | nearest-repeat |
+| `kLinear` (smooth; anisotropic up to 16x when the device supports it) | linear-clamp | linear-repeat |
+
+Each texture also gets its descriptor set, written once by `createTexture()`: its image view and its sampler, as a
+combined image sampler at `VulkanRenderer::kTextureSet` (1), binding `kTextureBinding` (0). A fragment shader reads it
+as `layout(set = 1, binding = 0) uniform sampler2D`, next to the frame's uniforms at set 0, so drawing a texture only
+binds its set. The sets come from a `descriptor::DescriptorAllocator`, which adds a pool of 64 sets whenever the
+current one is full, so the number of textures has no fixed limit; a destroyed texture gives its set back to its pool.
 
 ## Shaders
 
