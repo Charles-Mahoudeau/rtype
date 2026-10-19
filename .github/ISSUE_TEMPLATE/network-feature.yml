@@ -1,0 +1,120 @@
+name: Network Feature
+description: A unit of work on the network transport (rtype-network), replication (rtype-replication) or the client and server executables.
+title: "[Network] NET-xx "
+labels: ["enhancement", "network"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe one deliverable, usually one `NET-xx` task of `docs/network/implementation.md`. Keep it small enough to be reviewed in a single PR.
+        After submitting, add the matching milestone (`network:m1`...), priority (`critical`, `high`, `medium`, `low`) and `weight: *` labels, link the issue to its milestone epic as a sub-issue, and add the tasks it is blocked by in the issue's relationships.
+        `docs/network/design.md` is the reference for the protocol and the reasons behind it; `docs/network/implementation.md` fixes the API and the order of the work.
+
+  - type: input
+    id: task
+    attributes:
+      label: Task id
+      description: The id of the task in `docs/network/implementation.md`, or "none" for work outside the spec.
+      placeholder: NET-06
+    validations:
+      required: true
+
+  - type: dropdown
+    id: milestone
+    attributes:
+      label: Milestone
+      options:
+        - M1 · Prototype
+        - M2 · Scalable replication
+        - M3 · Server architecture and robustness
+        - M4 · Reconnection
+        - M5 · Custom packets
+        - M6 · Client prediction
+        - M7 · Engine integration
+        - M8 · Protocol document, docs and tuning
+    validations:
+      required: true
+
+  - type: dropdown
+    id: module
+    attributes:
+      label: Module
+      options:
+        - network (transport)
+        - replication
+        - executables / examples
+        - tests
+        - docs
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What must be built, in one or two sentences.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why it is needed and how it fits in the transport, replication or the executables.
+    validations:
+      required: true
+
+  - type: textarea
+    id: api
+    attributes:
+      label: C++ API and usage
+      description: The intended C++ API (indicative) and, for wire formats, the byte layout.
+      placeholder: |
+        ```c++
+        rtype::network::Connection connection{token, settings, now};
+        connection.send(rtype::network::Channel::kReliable, payload);
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: tasks
+    attributes:
+      label: Tasks
+      description: Checklist of concrete steps.
+      placeholder: |
+        - [ ] First step
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Observable conditions that make this issue done.
+      value: |
+        - [ ] Builds with `xmake` on Linux, Windows and macOS
+        - [ ] Unit tests in `tests/network/` or `tests/replication/` cover the success and failure paths
+        - [ ] Never throws, asserts or crashes on bytes from the network
+        - [ ] Passes `clang-format` and `clang-tidy`
+        - [ ] Follows the conventions in `CLAUDE.md` (rule of five, `.tpp` for templates, `RTYPE_NETWORK_API` / `RTYPE_REPLICATION_API` exports, no Asio in public headers)
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical
+    attributes:
+      label: Technical notes
+      description: Design choices, threads touched, wire compatibility (does it bump `kProtocolVersion`?), pitfalls.
+
+  - type: textarea
+    id: blockers
+    attributes:
+      label: Blocked by
+      description: Other `NET-xx` tasks, and external work (ECS, render, Luau) this issue waits for.
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Links to the task in `docs/network/implementation.md`, the sections of `docs/network/design.md`, or related issues and PRs.
