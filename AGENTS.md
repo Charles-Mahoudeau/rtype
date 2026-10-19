@@ -52,7 +52,8 @@ are added.
     fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the window events and the
     PreUpdate / Render systems that poll the window and frame the drawing.
   - `plugins/input/` (`rtype::plugins::input`) — `InputPlugin`: `Control`, `Input`, `InputAction`, `ButtonStates`,
-    the `rtype.Input` resource and the input events (`InputEvents.hpp`), fed to `Input` by a `PreUpdate` system.
+    the `rtype.Input` resource, fed by a `PreUpdate` system from the `PlatformEvent`s in order, and the typed input
+    events (`InputEvents.hpp`) for gameplay code. It knows nothing of the backend plugin, which adds it.
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
   `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
   (`IVulkanSurfaceSource`). See `docs/Backend.md`.

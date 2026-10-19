@@ -130,7 +130,7 @@ flowchart LR
 | [`plugins/input/InputAction.hpp`](../src/rtype/plugins/input/InputAction.hpp) | A named action and its bindings |
 | [`plugins/input/Input.hpp`](../src/rtype/plugins/input/Input.hpp) | Input state and the action registry; the `rtype.Input` ECS resource |
 | [`plugins/input/ButtonStates.hpp`](../src/rtype/plugins/input/ButtonStates.hpp) | Held / tapped / snapshot state of a family of buttons |
-| [`plugins/input/InputEvents.hpp`](../src/rtype/plugins/input/InputEvents.hpp) | The input events of `plugins::backend::Event` declared as ECS events (`rtype.KeyPressed`...) |
+| [`plugins/input/InputEvents.hpp`](../src/rtype/plugins/input/InputEvents.hpp) | The input events of `plugins::backend::Event` declared as typed ECS events (`rtype.KeyPressed`...), for gameplay code |
 | [`plugins/input/InputPlugin.hpp`](../src/rtype/plugins/input/InputPlugin.hpp) | Inserts `Input` and updates it in `PreUpdate` from the input events |
 | [`platform/glfw/GlfwPlatform.hpp`](../src/rtype/platform/glfw/GlfwPlatform.hpp) | The window, source of every event |
 | [`platform/glfw/GlfwPlatformCallbacks.cpp`](../src/rtype/platform/glfw/GlfwPlatformCallbacks.cpp) | GLFW callbacks → events |
@@ -139,10 +139,11 @@ flowchart LR
 
 ## In an App
 
-`InputPlugin` (`plugins/input/`) makes `Input` a resource of the world. It registers one ECS event per input
-alternative of `plugins::backend::Event` (`rtype.KeyPressed`, `rtype.MouseMoved`, `rtype.GamepadConnected`...), and adds the
-client system `rtype.Input.Update` in `PreUpdate`: it feeds the events of the frame to `Input`, then calls
-`update()`. The window plugin sends those events after polling the platform; in tests they are sent by hand.
+`InputPlugin` (`plugins/input/`) makes `Input` a resource of the world. It registers the `PlatformEvent` ECS event
+(`plugins/backend/event/PlatformEvent.hpp`: any `plugins::backend::Event`, one per event polled) and adds the client
+system `rtype.Input.Update` in `PreUpdate`: it feeds the frame's platform events to `Input` **in the order they
+happened**, then calls `update()`. The `BackendPlugin` sends them after polling the platform, and adds the
+`InputPlugin` itself; in tests they are sent by hand. The input plugin knows nothing of the backend plugin.
 
 ```cpp
 app.addPlugin(rtype::plugins::input::InputPlugin{});
@@ -154,9 +155,10 @@ void fire(rtype::ecs::Res<rtype::plugins::input::Input> input) {
 }
 ```
 
-The events of a frame are fed by kind (focus, keys, mouse, gamepad), not in the order they happened: a button released
-then pressed again within one frame reads as released until its next press. The system only runs on clients and in
-standalone: a dedicated server has no input.
+Since the order is kept, a button released then pressed again within one frame reads as held. The system only runs
+on clients and in standalone: a dedicated server has no input. Gameplay code that wants one kind of raw event reads
+its typed queue instead (`EventReader<KeyPressed>`, declared in `InputEvents.hpp`), which the backend fills from the
+same events.
 
 ## Usage
 

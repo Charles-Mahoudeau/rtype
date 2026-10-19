@@ -167,8 +167,7 @@ auto registry = std::make_unique<rtype::plugins::backend::BackendRegistry>();
 rtype::platform::glfw::registerPlatform(*registry);
 rtype::render::vulkan::registerRenderer(*registry);
 app.addPlugins(rtype::ecs::MinimalPlugins{})
-    .addPlugin(rtype::plugins::backend::BackendPlugin{std::move(registry), settings})
-    .addPlugin(rtype::plugins::input::InputPlugin{});
+    .addPlugin(rtype::plugins::backend::BackendPlugin{std::move(registry), settings});  // brings InputPlugin
 return app.run();
 ```
 
@@ -186,16 +185,17 @@ sequenceDiagram
     BP->>BR: createBackend(settings)
     BR-->>BP: Backend (platform + renderer)
     loop Every frame
-        App->>BP: PreUpdate: rtype.backend.events (pollEvents → one ECS event per alternative, resize, AppExit)
+        App->>BP: PreUpdate: rtype.backend.events (pollEvents → PlatformEvent in order + typed events, resize, AppExit)
         App->>BP: Render: rtype.backend.beginFrame (ClearColor), drawing systems, rtype.backend.endFrame
     end
 ```
 
 Between the two frame systems, `rtype.backend.camera` passes the `Camera` component with the highest `priority` to
 `renderer.setCamera()`; with no camera entity, the renderer keeps its default view. While the window is minimized,
-the events system waits for an event instead of polling, and the render systems skip the frame. The `InputPlugin` reads the input events the backend sends, in the same phase: whichever of the two
-plugins is added second orders its system against the other's, since a constraint naming a missing system is an
-error.
+the events system waits for an event instead of polling, and the render systems skip the frame. A window always comes with input: the `BackendPlugin` adds the `InputPlugin` and orders its events system
+before `rtype.Input.Update`, which reads the `PlatformEvent`s in order. The dependency goes one way only: the input
+plugin knows nothing of the backend. Named system sets ("send platform events" before "read platform events") will
+later replace the explicit ordering, so other producers (replays, the network) join without knowing the input plugin.
 
 ### Luau plugins
 
