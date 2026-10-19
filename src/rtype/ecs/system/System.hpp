@@ -12,11 +12,13 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include "rtype/ecs/Export.hpp"
 #include "rtype/ecs/change/Tick.hpp"
 #include "rtype/ecs/command/Commands.hpp"
+#include "rtype/ecs/system/ScriptCallable.hpp"
 #include "rtype/ecs/system/Side.hpp"
 #include "rtype/ecs/system/SystemAccess.hpp"
 #include "rtype/ecs/system/SystemParam.hpp"
@@ -38,16 +40,15 @@ class SystemBody {
     virtual void run(const SystemContext& context) = 0;
 };
 
-/// @brief The body of a system made from `void (*)(Params...)`: the function and the state of each parameter.
-template <typename... Params>
+/// @brief The body of a system called with `Params...`: its callable (a function pointer, or a ScriptCallable's
+/// callable) and the state of each parameter.
+template <typename Callable, typename... Params>
 class FunctionSystem final : public SystemBody {
   public:
-    using Function = void (*)(Params...);  ///< The system's function.
-
     /// @brief Builds each parameter's state (registering what it needs; a configured parameter from its
     /// configuration, moved out of `configs`) and adds what it reads and writes to `access`.
     template <typename... Configs>
-    FunctionSystem(World& world, Function function, SystemAccess& access, std::tuple<Configs...>& configs);
+    FunctionSystem(World& world, Callable function, SystemAccess& access, std::tuple<Configs...>& configs);
     ~FunctionSystem() override = default;
     FunctionSystem(const FunctionSystem& other) = delete;
     FunctionSystem& operator=(const FunctionSystem& other) = delete;
@@ -65,7 +66,7 @@ class FunctionSystem final : public SystemBody {
     template <std::size_t... Indices>
     void call(const SystemContext& context, std::index_sequence<Indices...> indices);
 
-    Function _function;                                          ///< The system's function.
+    Callable _function;                                          ///< The system's function.
     std::tuple<typename SystemParam<Params>::State...> _states;  ///< What each parameter keeps between runs.
 };
 }  // namespace detail
@@ -74,11 +75,11 @@ class FunctionSystem final : public SystemBody {
 /// when it is made.
 ///
 /// @details It is made from a function (or a lambda without captures: a system keeps no hidden state, its data lives
-/// in components and resources). Each parameter type says how to build it from the world at each run (see
-/// SystemParam); together they give the system's access set, which the scheduler orders systems by. run() builds the
-/// parameters and calls the function; the system's commands wait for flushCommands(), which the scheduler calls after
-/// each phase. A system does not see its own changes: its next run only reports what changed since this one. It keeps
-/// a pointer to the world: the world must outlive it.
+/// in components and resources), or, for a script runtime only, from a ScriptCallable. Each parameter type says how to
+/// build it from the world at each run (see SystemParam); together they give the system's access set, which the
+/// scheduler orders systems by. run() builds the parameters and calls the function; the system's commands wait for
+/// flushCommands(), which the scheduler calls after each phase. A system does not see its own changes: its next run
+/// only reports what changed since this one. It keeps a pointer to the world: the world must outlive it.
 /// @code
 /// void movement(rtype::ecs::Query<Position, const Velocity> query, rtype::ecs::Res<Time> time) {
 ///     for (auto [entity, position, velocity] : query) {
@@ -105,9 +106,16 @@ class RTYPE_ECS_API System {
     System(World& world, std::string name, void (*function)(Params...), Configs... configs);
 
     /// @brief Makes a system of a lambda without captures (converted to a function pointer). Any other callable
-    /// fails to compile: a system keeps no hidden state.
+    /// fails to compile: a system keeps no hidden state (a script runtime uses ScriptCallable).
     template <typename Function, typename... Configs>
     System(World& world, std::string name, Function function, Configs... configs);
+
+    /// @brief Makes a system of a callable that keeps state (a script runtime's), deducing its parameters from its
+    /// call operator.
+    /// @details Fails to compile, with a message, if the callable has no single call operator with explicit parameter
+    /// types, or does not return void; the parameters and configurations are checked as for a function.
+    template <typename Callable, typename... Configs>
+    System(World& world, std::string name, ScriptCallable<Callable> script, Configs... configs);
 
     ~System() = default;
     System(const System& other) = delete;
@@ -141,11 +149,18 @@ class RTYPE_ECS_API System {
     void flushCommands();
 
   private:
-    /// @return The body of a system of `function`; only compiles when every parameter is accepted and every
-    /// configured parameter has exactly its configuration in `configs`.
-    template <typename... Params, typename... Configs>
-    [[nodiscard]] static std::unique_ptr<detail::SystemBody> makeBody(World& world, void (*function)(Params...),
+    /// @return The body of a system calling `function` with `Params...`; only compiles when every parameter is
+    /// accepted and every configured parameter has exactly its configuration in `configs`.
+    template <typename Callable, typename... Params, typename... Configs>
+    [[nodiscard]] static std::unique_ptr<detail::SystemBody> makeBody(World& world, Callable function,
+                                                                      std::type_identity<void(Params...)> signature,
                                                                       SystemAccess& access, Configs... configs);
+
+    /// @return The body of a system of a ScriptCallable's callable; only compiles when its call operator is single,
+    /// has explicit parameter types and returns void.
+    template <typename Callable, typename... Configs>
+    [[nodiscard]] static std::unique_ptr<detail::SystemBody> makeScriptBody(World& world, Callable callable,
+                                                                            SystemAccess& access, Configs... configs);
 
     /// @return `function` as a function pointer; only compiles for a lambda without captures.
     template <typename Function>
