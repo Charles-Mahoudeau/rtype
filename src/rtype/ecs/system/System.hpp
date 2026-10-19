@@ -44,9 +44,10 @@ class FunctionSystem final : public SystemBody {
   public:
     using Function = void (*)(Params...);  ///< The system's function.
 
-    /// @brief Builds each parameter's state (registering what it needs) and adds what it reads and writes to
-    /// `access`.
-    FunctionSystem(World& world, Function function, SystemAccess& access);
+    /// @brief Builds each parameter's state (registering what it needs; a configured parameter from its
+    /// configuration, moved out of `configs`) and adds what it reads and writes to `access`.
+    template <typename... Configs>
+    FunctionSystem(World& world, Function function, SystemAccess& access, std::tuple<Configs...>& configs);
     ~FunctionSystem() override = default;
     FunctionSystem(const FunctionSystem& other) = delete;
     FunctionSystem& operator=(const FunctionSystem& other) = delete;
@@ -95,16 +96,18 @@ class RTYPE_ECS_API System {
     /// @brief Makes a system of a function, deducing its parameters and their access.
     /// @details Fails to compile, with a message listing the accepted types, if a parameter is not one of
     /// `Query<Terms...>`, `Res<T>`, `ResMut<T>`, `NonSend<T>`, `NonSendMut<T>`, `Commands&`, `EventReader<T>`,
-    /// `EventWriter<T>`.
+    /// `EventWriter<T>`, or a configured parameter. Also fails to compile, with a message, if a configured parameter
+    /// has no configuration in `configs`, or a configuration is the `Config` of no parameter or of two.
     /// @param world The world it runs on; it must outlive the system.
     /// @param name Its stable name, such as "rtype.movement".
-    template <typename... Params>
-    System(World& world, std::string name, void (*function)(Params...));
+    /// @param configs The configurations of the configured parameters, one per parameter, in any order.
+    template <typename... Params, typename... Configs>
+    System(World& world, std::string name, void (*function)(Params...), Configs... configs);
 
     /// @brief Makes a system of a lambda without captures (converted to a function pointer). Any other callable
     /// fails to compile: a system keeps no hidden state.
-    template <typename Function>
-    System(World& world, std::string name, Function function);
+    template <typename Function, typename... Configs>
+    System(World& world, std::string name, Function function, Configs... configs);
 
     ~System() = default;
     System(const System& other) = delete;
@@ -138,10 +141,11 @@ class RTYPE_ECS_API System {
     void flushCommands();
 
   private:
-    /// @return The body of a system of `function`; only compiles when every parameter is accepted.
-    template <typename... Params>
+    /// @return The body of a system of `function`; only compiles when every parameter is accepted and every
+    /// configured parameter has exactly its configuration in `configs`.
+    template <typename... Params, typename... Configs>
     [[nodiscard]] static std::unique_ptr<detail::SystemBody> makeBody(World& world, void (*function)(Params...),
-                                                                      SystemAccess& access);
+                                                                      SystemAccess& access, Configs... configs);
 
     /// @return `function` as a function pointer; only compiles for a lambda without captures.
     template <typename Function>
