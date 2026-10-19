@@ -12,8 +12,8 @@
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
 namespace rtype::ecs {
-/// @brief The time of the frame and of the fixed ticks: a resource the scheduler inserts on its first frame and keeps
-/// up to date (Scheduler::runFrame()).
+/// @brief The time of the frame and of the fixed ticks: a resource the time plugin's frame clock (TimeClock) inserts on
+/// the first frame and keeps up to date.
 /// @details Gameplay that must give the same result on every machine (movement, physics, network) runs in FixedUpdate
 /// and uses fixedDelta; what follows the screen (camera, animation, UI) uses delta.
 /// @code
