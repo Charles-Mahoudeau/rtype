@@ -23,6 +23,20 @@ are added.
     namespace whatever their folder (`rtype/ecs/entity/Entity.hpp` declares `rtype::ecs::Entity`).
     Only internal parts get a sub-namespace, named after their folder: `rtype::ecs::storage`,
     `rtype::ecs::detail` (`detail/`), `rtype::ecs::exceptions` (`exceptions/`).
+- `src/rtype/network/` — `network` target, shared library (`rtype-network`): the transport, which moves bytes
+  between machines (sockets, connections, acks, reliability). It knows nothing about the ECS and depends on
+  Asio only, as a private package: no public header includes Asio, and only `.cpp` files of `io/` do.
+  Exported symbols are marked `RTYPE_NETWORK_API`. Design in `docs/network/design.md`, task plan in
+  `docs/network/implementation.md`.
+  - Namespaces mirror the folders (no flat-namespace exception as in `ecs`): `rtype::network` for the root
+    (`Types.hpp`, `NetworkSettings.hpp`, `RandomSource.hpp`), then one folder and sub-namespace per feature:
+    `protocol/` (`rtype::network::protocol`, wire constants, sequences, packets), `bytes/`, `connection/`,
+    `io/`, `server/`, `client/`, `exceptions/`. A folder is created only when a file goes in it.
+- `src/rtype/replication/` — `replication` target, shared library (`rtype-replication`): the only code that
+  knows both the ECS and the network; it turns a `World` into messages and back (`rtype::replication`).
+  Exported symbols are marked `RTYPE_REPLICATION_API`. Feature folders and sub-namespaces as in `network`:
+  `component/`, `event/`, `serialization/`, `manifest/`, `input/`, `snapshot/`, `server/`, `client/`,
+  `packet/`, `exceptions/`.
 - `src/rtype/engine/` — `engine` target: the executable, built from `main.cpp` only. It fills the backend registry
   with `platform-glfw` and `render-vulkan` and runs an `App` with the plugins.
 - `src/rtype/plugins/` — `plugins` target, static library (`rtype-plugins`): the engine, as ECS plugins, one folder
@@ -31,10 +45,9 @@ are added.
   `RTYPE_PLUGINS_API`, which keeps the RTTI of the backend interfaces visible across binaries.
   - `plugins/backend/` (`rtype::plugins::backend`) — the contracts the backends implement and the vocabulary they
     speak, in sub-folders whose namespaces follow them: `platform/` (`IPlatform`, `WindowConfig`), `graphics/`
-    (`IRenderer`, `Sprite`, `Texture`...), `event/` (the `Event` variant), `input/` (`Key`,
-    `MouseButton`...), `config/` (`Settings`), `exceptions/`, `math/`, `system/`; the `SpriteRenderer` and `Camera`
-    (`BackendComponents.hpp`) components and
-    the `TextureAssets` resource (`Assets<TextureId>`: the loaded textures, by path, decoded with stb); plus
+    (`IRenderer`, `Sprite`, `Texture`..., the `Camera` and `SpriteRenderer` components, and the `TextureAssets`
+    resource: `Assets<TextureId>`, the loaded textures by path, decoded with stb), `event/` (the `Event` variant),
+    `input/` (`Key`, `MouseButton`...), `config/` (`Settings`), `exceptions/`, `math/`, `system/`; plus
     `BackendRegistry` and `BackendPlugin`, which starts the platform and the renderer from a registry the executable
     fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the window events and the
     PreUpdate / Render systems that poll the window and frame the drawing.
@@ -65,7 +78,8 @@ are added.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
 
 Each module has its own `xmake.lua`, included from the root `xmake.lua`. Add new sources under the
-matching module: `plugins`, `ecs`, `platform-glfw`, `render-vulkan` and `luau` glob `**.cpp` in their own folder.
+matching module: `plugins`, `ecs`, `network`, `replication`, `platform-glfw`, `render-vulkan` and `luau` glob
+`**.cpp` in their own folder.
 
 ### Dependency rules
 
@@ -74,9 +88,14 @@ Dependencies always point towards `ecs` and `plugins`, never away from them:
 ```
 ecs  ←  plugins, interop-*  ←  platform-*, render-*  ←  engine (executable)
 luau                                                 ←  engine (executable)
+network  ←  replication  ←  engine (executable)
+ecs      ←  replication
 ```
 
 - `ecs` depends on no other project target.
+- `network` depends on Asio only (private): never on the ECS, `plugins` or any other project target.
+  `replication` depends on `ecs` and `network` and is the only module that knows both; the renderer, the
+  platforms and `luau` never include its headers.
 - `plugins` depends on nothing but `ecs` and glm. Never add a dependency on a `platform-*`, `render-*` or `luau`
   target to it: the platforms and renderers implement its contracts (`plugins/backend/`), so it would create a cycle.
   The executable fills the backend registry instead.
@@ -109,8 +128,8 @@ The project uses `xmake` with the `clang` toolchain and C++23.
 - Format: `clang-format -i <files>` (style in `.clang-format`)
 - Lint: `clang-tidy -p . <files>` (checks in `.clang-tidy`)
 
-Tests live in `tests/<module>/` (e.g. `tests/ecs/`, target `ecs-tests`, or `tests/luau/`, target
-`luau-tests`), one folder per module with its own `xmake.lua` included from `tests/xmake.lua`. They
+Tests live in `tests/<module>/` (e.g. `tests/ecs/`, target `ecs-tests`, `tests/network/`, target
+`network-tests`, or `tests/luau/`, target `luau-tests`), one folder per module with its own `xmake.lua` included from `tests/xmake.lua`. They
 are opt-in (`--Tests=y`) and use GoogleTest; the shared `tests/main.cpp` provides `main`. The CI
 `test` job builds with `--Tests=y` and runs `xmake test -v`.
 

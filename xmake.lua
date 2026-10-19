@@ -14,6 +14,8 @@ add_requires("vulkan-headers 1.4.x", {alias = "vulkan-headers"})
 add_requires("stb", {alias = "stb"})
 
 includes("src/rtype/ecs")
+includes("src/rtype/network")
+includes("src/rtype/replication")
 includes("src/rtype/engine")
 includes("src/rtype/plugins")
 includes("src/rtype/interop")
@@ -24,7 +26,7 @@ includes("src/rtype/render/vulkan")
 target("rtype")
     set_kind("phony")
     set_default(true)
-    add_deps("ecs", "engine", "plugins", "platform-glfw", "luau", "render-vulkan")
+    add_deps("ecs", "network", "replication", "engine", "plugins", "platform-glfw", "luau", "render-vulkan")
 
 
 local ALL_EXAMPLES_FLAG = "AllExamples"
