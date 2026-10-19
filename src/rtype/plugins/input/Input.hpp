@@ -18,6 +18,7 @@
 #include "engine/input/Key.hpp"
 #include "plugins/input/ButtonStates.hpp"
 #include "plugins/input/InputAction.hpp"
+#include "rtype/ecs/resource/ResourceTraits.hpp"
 
 namespace rtype::plugins::input {
 
@@ -119,6 +120,9 @@ class Input {
     glm::vec2 _pendingScroll{0.0F};      ///< Scroll accumulated since the last update().
     glm::vec2 _scroll{0.0F};             ///< Scroll read during the current frame.
 };
+
+/// @brief Input is a resource of the world, inserted by the InputPlugin.
+RTYPE_ECS_RESOURCE(Input, "rtype.Input");
 }  // namespace rtype::plugins::input
 
 #include "Input.tpp"
