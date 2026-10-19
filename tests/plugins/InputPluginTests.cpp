@@ -10,11 +10,11 @@
 #include <glm/ext/vector_float2.hpp>
 
 #include "plugins/backend/event/Event.hpp"
+#include "plugins/backend/event/PlatformEvent.hpp"
 #include "plugins/backend/input/Key.hpp"
 #include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
 #include "plugins/input/InputAction.hpp"
-#include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/event/EventTraits.hpp"
@@ -22,8 +22,7 @@
 #include "rtype/ecs/schedule/RunMode.hpp"
 
 static_assert(rtype::ecs::Resource<rtype::plugins::input::Input>);
-static_assert(rtype::ecs::Event<rtype::plugins::backend::event::KeyPressed>);
-static_assert(rtype::ecs::Event<rtype::plugins::backend::event::GamepadConnected>);
+static_assert(rtype::ecs::Event<rtype::plugins::backend::event::PlatformEvent>);
 
 namespace {
 /// @brief An App with the InputPlugin and a "fire" action bound to Space.
@@ -50,7 +49,7 @@ class InputApp {
     /// @brief Sends an event, as the window plugin does after polling the platform.
     template <typename T>
     void send(T event) {
-        _app.getWorld().getEvents().send(event);
+        _app.getWorld().getEvents().send(rtype::plugins::backend::event::PlatformEvent{.event = event});
     }
 
     [[nodiscard]] const rtype::plugins::input::InputAction& fire() { return input().getAction("fire"); }
@@ -68,8 +67,7 @@ TEST(InputPlugin, InsertsInputAndRegistersTheEvents) {
     app.addPlugin(rtype::plugins::input::InputPlugin{});
     EXPECT_TRUE(app.hasPlugin("rtype.Input"));
     EXPECT_TRUE(app.getWorld().getResources().has<rtype::plugins::input::Input>());
-    EXPECT_TRUE(app.getWorld().getEvents().find("rtype.KeyPressed"));
-    EXPECT_TRUE(app.getWorld().getEvents().find("rtype.GamepadAxisMoved"));
+    EXPECT_TRUE(app.getWorld().getEvents().find("rtype.PlatformEvent"));
 }
 
 TEST(InputPlugin, AKeyPressedThisFrameIsPressedThenHeld) {
@@ -99,6 +97,16 @@ TEST(InputPlugin, ATapWithinOneFrameStillCounts) {
     app.send(kSpaceReleased);
     app.app().runFrame();
     EXPECT_TRUE(app.fire().isPressed());
+}
+
+TEST(InputPlugin, AReleaseThenPressWithinOneFrameReadsAsHeld) {
+    InputApp app;
+    app.send(kSpacePressed);
+    app.app().runFrame();
+    app.send(kSpaceReleased);
+    app.send(kSpacePressed);
+    app.app().runFrame();
+    EXPECT_TRUE(app.fire().isHeld());
 }
 
 TEST(InputPlugin, AnEventIsFedOnce) {

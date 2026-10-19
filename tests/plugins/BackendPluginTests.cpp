@@ -9,6 +9,7 @@
 
 #include <glm/ext/vector_uint2.hpp>
 #include <memory>
+#include <variant>
 #include <vector>
 
 #include "FakeBackend.hpp"
@@ -17,6 +18,7 @@
 #include "plugins/backend/BackendResources.hpp"
 #include "plugins/backend/WindowEvents.hpp"
 #include "plugins/backend/event/Event.hpp"
+#include "plugins/backend/event/PlatformEvent.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/backend/input/Key.hpp"
@@ -25,6 +27,7 @@
 #include "plugins/input/InputEvents.hpp"
 #include "plugins/input/InputPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/event/EventCursor.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/world/World.hpp"
 
@@ -175,4 +178,25 @@ TEST(BackendPlugin, AppliesTheCameraEveryFrameItIsDrawn) {
     app.state().framebufferSize = {0, 0};
     app.app().runFrame();
     EXPECT_EQ(app.state().cameras.size(), 2U);
+}
+
+TEST(BackendPlugin, BringsTheInputPlugin) {
+    BackendApp app;
+    EXPECT_TRUE(app.app().hasPlugin(rtype::plugins::input::InputPlugin::kName));
+    EXPECT_TRUE(app.app().getWorld().getResources().has<rtype::plugins::input::Input>());
+}
+
+TEST(BackendPlugin, SendsThePlatformEventsInOrder) {
+    BackendApp app;
+    app.state().frames.push_back(
+        {rtype::plugins::backend::event::KeyReleased{.key = rtype::plugins::backend::input::Key::kA},
+         rtype::plugins::backend::event::KeyPressed{.key = rtype::plugins::backend::input::Key::kA}});
+    app.app().runFrame();
+    rtype::ecs::EventCursor cursor;
+    const auto events = app.app().getWorld().getEvents().read<rtype::plugins::backend::event::PlatformEvent>(cursor);
+    ASSERT_EQ(events.size(), 2U);
+    auto it = events.begin();
+    EXPECT_TRUE(std::holds_alternative<rtype::plugins::backend::event::KeyReleased>(it->event));
+    ++it;
+    EXPECT_TRUE(std::holds_alternative<rtype::plugins::backend::event::KeyPressed>(it->event));
 }
