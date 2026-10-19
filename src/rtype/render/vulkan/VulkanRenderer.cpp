@@ -29,6 +29,9 @@
 
 #include "core/DebugMessenger.hpp"
 #include "core/Instance.hpp"
+#include "descriptor/DescriptorAllocator.hpp"
+#include "descriptor/DescriptorSetLayout.hpp"
+#include "descriptor/DescriptorWriter.hpp"
 #include "frame/FrameData.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
 #include "memory/Image.hpp"
@@ -42,6 +45,7 @@
 #include "plugins/backend/system/ExecutablePath.hpp"
 #include "rendering/DynamicRendering.hpp"
 #include "rendering/FrameUniforms.hpp"
+#include "texture/SamplerCache.hpp"
 #include "texture/Texture.hpp"
 
 namespace rtype::render::vulkan {
@@ -53,6 +57,9 @@ constexpr std::uint64_t kNoTimeout = std::numeric_limits<std::uint64_t>::max();
 
 /// @brief Format of every texture: the RGBA8 pixels IRenderer::createTexture() takes, decoded from sRGB when sampled.
 constexpr vk::Format kTextureFormat = vk::Format::eR8G8B8A8Srgb;
+
+/// @brief Texture sets per descriptor pool: a new pool is added each time this many textures are alive.
+constexpr std::uint32_t kTextureSetsPerPool = 64;
 
 /// @return @p color (x, y, z, w = red, green, blue, alpha) as a Vulkan clear value: linear, an sRGB swapchain encodes
 /// it.
@@ -126,6 +133,15 @@ void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
                                                 : plugins::backend::system::getExecutableDirectory() / shaderDirectory);
     _pipelineCache = std::make_unique<pipeline::PipelineCache>(*_device);
     _globals = std::make_unique<frame::FrameGlobals>(*_device, *_allocator, kFramesInFlight);
+    _samplers = std::make_unique<texture::SamplerCache>(*_device, *_physicalDevice);
+    _textureSetLayout = std::make_unique<descriptor::DescriptorSetLayout>(
+        descriptor::DescriptorSetLayout::Builder{}
+            .addBinding(kTextureBinding, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment)
+            .build(*_device));
+    const std::array textureSizes{
+        vk::DescriptorPoolSize{vk::DescriptorType::eCombinedImageSampler, kTextureSetsPerPool}};
+    _textureDescriptors =
+        std::make_unique<descriptor::DescriptorAllocator>(*_device, kTextureSetsPerPool, textureSizes);
     _startTime = std::chrono::steady_clock::now();
     _lastFrameTime = _startTime;
 }
@@ -189,7 +205,12 @@ plugins::backend::graphics::TextureId VulkanRenderer::createTexture(const plugin
                         vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst};
     _uploader->upload(pixels, image);
     _uploader->flush();
-    return _textures.insert(texture::Texture{.image = std::move(image), .desc = desc});
+    vk::raii::DescriptorSet set = _textureDescriptors->allocate(*_textureSetLayout);
+    descriptor::DescriptorWriter{}
+        .writeImage(kTextureBinding, *image.getImageView(), *_samplers->get(desc.filter, desc.repeat),
+                    vk::ImageLayout::eShaderReadOnlyOptimal)
+        .update(*_device, *set);
+    return _textures.insert(texture::Texture{.image = std::move(image), .desc = desc, .set = std::move(set)});
 }
 
 void VulkanRenderer::destroy(plugins::backend::graphics::TextureId texture) {

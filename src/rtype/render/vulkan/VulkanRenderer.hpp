@@ -28,6 +28,8 @@
 #include "core/Instance.hpp"
 #include "core/PhysicalDevice.hpp"
 #include "core/SlotMap.hpp"
+#include "descriptor/DescriptorAllocator.hpp"
+#include "descriptor/DescriptorSetLayout.hpp"
 #include "frame/FrameGlobals.hpp"
 #include "frame/FrameResources.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
@@ -43,6 +45,7 @@
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
 #include "presentation/Swapchain.hpp"
+#include "texture/SamplerCache.hpp"
 #include "texture/Texture.hpp"
 
 namespace rtype::render::vulkan {
@@ -85,6 +88,12 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
                                                             ///< the working directory. Built-in shaders are embedded.
     };
 
+    /// @brief Descriptor set of the textures: a pipeline that samples one binds the texture's set here.
+    static constexpr std::uint32_t kTextureSet = 1;
+    /// @brief Binding of the texture's combined image sampler in kTextureSet, read by the fragment shader as
+    /// `layout(set = 1, binding = 0) uniform sampler2D`.
+    static constexpr std::uint32_t kTextureBinding = 0;
+
     /// @brief Called after each swapchain recreation with the new swapchain: recreate there what depends on its size
     /// or format (depth, MSAA, HDR targets...).
     using SwapchainListener = std::function<void(const presentation::Swapchain&)>;
@@ -125,8 +134,9 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// @brief Ends rendering, submits the frame and presents the image. Does nothing if beginFrame() skipped it.
     void endFrame() override;
 
-    /// @brief Creates a sampled R8G8B8A8_SRGB image of @p desc's size, and uploads @p pixels into it before returning
-    /// (one round trip to the GPU).
+    /// @brief Creates a sampled R8G8B8A8_SRGB image of @p desc's size, uploads @p pixels into it before returning
+    /// (one round trip to the GPU), and its descriptor set: the image with the sampler of desc's filter and repeat
+    /// mode, at kTextureSet, kTextureBinding.
     /// @throws std::logic_error If init() was not called.
     /// @throws std::invalid_argument If a side of desc.size is 0 or above the GPU's limit, or @p pixels is not
     /// desc.size.x * desc.size.y * 4 bytes.
@@ -177,7 +187,8 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     //   3. Swapchain and its image views.
     //   4. Sync objects (fences, semaphores) and command pools / buffers.
     //   5. Allocator, then buffers, images and samplers (they must die before it).
-    //   6. Pipelines, pipeline layouts, descriptor pools / sets, shader modules.   (shader modules only for now)
+    //   6. Pipelines, pipeline layouts, descriptor pools / sets, shader modules. The textures come last: each holds
+    //      an image (group 5) and a descriptor set from _textureDescriptors.
     //   7. Deletion queue: last declared, so it is flushed first, while everything it may hold is still alive.
     // The window outlives the renderer: Backend declares its platform before its renderer.
 
@@ -207,12 +218,15 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     // 5. Memory: the allocator first, then the resources allocated from it.
     std::unique_ptr<memory::Allocator> _allocator;  ///< VMA allocator, destroyed after every buffer and image.
     std::unique_ptr<memory::Uploader> _uploader;    ///< Fills device local buffers and images through staging buffers.
-    core::SlotMap<plugins::backend::graphics::TextureId, texture::Texture> _textures;  ///< By TextureId.
+    std::unique_ptr<texture::SamplerCache> _samplers;  ///< One sampler per filter and repeat mode.
 
     // 6. Pipelines, descriptors and shaders.
     std::unique_ptr<pipeline::ShaderCache> _shaders;          ///< Shader modules, built-in and from the game.
     std::unique_ptr<pipeline::PipelineCache> _pipelineCache;  ///< Shared by every pipeline the renderer builds.
     std::unique_ptr<frame::FrameGlobals> _globals;            ///< Per-frame uniforms, at set 0, binding 0.
+    std::unique_ptr<descriptor::DescriptorSetLayout> _textureSetLayout;    ///< kTextureSet: one combined image sampler.
+    std::unique_ptr<descriptor::DescriptorAllocator> _textureDescriptors;  ///< Allocates the textures' sets.
+    core::SlotMap<plugins::backend::graphics::TextureId, texture::Texture> _textures;  ///< By TextureId.
 
     // 7. Deferred deletion.
     core::DeletionQueue _deletionQueue{kFramesInFlight};  ///< Resources the GPU may still use, one bucket per frame.
