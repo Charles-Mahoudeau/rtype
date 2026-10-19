@@ -56,7 +56,8 @@ const rtype::plugins::backend::Backend backend = registry.createBackend(config);
 
 The `vulkan` settings fill a `VulkanRenderer::Config`: `engineName`, `layers`, `extraExtensions`, `debugging` (the
 DebugMessenger), `minSeverity`, `preferredDeviceType` (the type of GPU favored when several are suitable,
-`"discrete_gpu"` by default), `synchronizationValidation`, `bestPractices` and `presentMode` (the swapchain's
+`"discrete_gpu"` by default), `synchronizationValidation`, `bestPractices`, `virtualResolution` (`{ width, height }`,
+the resolution the game is designed for, see [Camera and sprites](#camera-and-sprites)) and `presentMode` (the swapchain's
 present mode: `"fifo"` by default, synchronized to the vertical blank and always supported; `"mailbox"`, also
 synchronized to the vertical blank, but a newer image replaces the pending one instead of waiting for it;
 `"immediate"`, not synchronized and may tear, for benchmarks; FIFO when the surface does not support the requested
@@ -118,7 +119,7 @@ how often it changes, so binding from the least to the most frequent keeps the l
 
 | What | Where | Changes | GLSL | C++ |
 |---|---|---|---|---|
-| `FrameUniforms`: time, delta time, framebuffer size (later the camera) | set 0, binding 0 | once per frame | `frame` | `rendering::FrameUniforms` |
+| `FrameUniforms`: time, delta time, framebuffer size, the camera's `viewProjection` | set 0, binding 0 | once per frame | `frame` | `rendering::FrameUniforms` |
 | The texture and its sampler | set 1, binding 0 | per texture (batch) | `uTexture` (fragment) | the texture's set |
 | `DrawConstants`: `model` (unit quad to world), `color`, `uvRect` | push constants, 96 bytes | per draw | `draw` | `rendering::DrawConstants` |
 
@@ -128,6 +129,34 @@ set 2. The set and binding numbers are in `rendering/ShaderLayout.hpp`. A shader
 `DrawConstants.glsl`). Each GLSL block mirrors its C++ struct field by field: `static_assert`s check the C++ offsets,
 and `vulkan-tests` embeds a shader that includes `ShaderLayout.glsl` (through `set_values("glsl.includedirs", ...)`),
 so a header that stops compiling fails the build.
+
+## Camera and sprites
+
+`setCamera()` sets the frame's camera; the last one set before `endFrame()` applies to the whole frame, and without
+one the frame shows the view from the world's origin at its top-left corner. `graphics::CameraView` (in
+`plugins/backend/graphics/`, so games use the same math to convert the mouse to world coordinates) turns it into what
+the frame shows:
+
+- **Virtual resolution**: `Config::virtualResolution` (setting `vulkan.virtualResolution = { 1920, 1080 }`) is the
+  resolution the game is designed for. The camera shows that many world units divided by its zoom, centred on its
+  position, whatever the window size; the viewport is the largest rectangle of that aspect ratio in the window,
+  centred, and the rest is left to the clear colour (letterboxing), so resizing never stretches anything. Unset (0x0),
+  the view is the framebuffer: one world unit per framebuffer pixel, which on a HiDPI screen (Retina: 1600x1200 for an
+  800x600 window) is not a window pixel. The engine sets it to the window's size, so world units do not depend on
+  the screen.
+- **Projection**: `glm::orthoRH_ZO`, X right, Y down, depth 0 to 1, after the camera's rotation (clockwise on screen)
+  around its position. The matrix goes in `FrameUniforms::viewProjection`, written by `endFrame()`.
+- **Conversions**: `screenToWorld()` and `worldToScreen()`, in framebuffer pixels from the top-left corner.
+
+`draw(Sprite)` does not record anything: it turns the sprite into a 64-byte `rendering::SpriteInstance` (position,
+size and origin scaled, rotation, UV rect from the source and the texture size, colour) and adds it to the frame's
+`rendering::SpriteBatch`, where consecutive sprites of the same texture form one batch. `endFrame()` then hands the
+batch to `rendering::SpritePass`, which copies the instances into the frame's instance buffer (one per frame in
+flight, doubled when too small) and records, for each batch, the texture's set and one instanced draw of a 6-vertex
+quad (`shaders/sprite.vert` builds it from `gl_VertexIndex`; `sprite.frag` multiplies the texture by the colour,
+alpha blended). Only consecutive sprites merge, so the draw order is kept: sort by layer, then by texture within a
+layer, for fewer draw calls. A debug build with the validation layer draws 10,000 sprites in about 8 ms a frame on an
+Apple M-series GPU.
 
 ## Shaders
 
