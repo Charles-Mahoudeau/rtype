@@ -7,11 +7,13 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <memory>
 #include <string_view>
 
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
+#include "rtype/ecs/app/MinimalPlugins.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 #include "rtype/ecs/app/PluginGroup.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
@@ -20,6 +22,10 @@
 #include "rtype/ecs/system/EventWriter.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/system/Side.hpp"
+#include "rtype/ecs/time/FixedTimestep.hpp"
+#include "rtype/ecs/time/Time.hpp"
+#include "rtype/ecs/time/TimeClock.hpp"
+#include "rtype/ecs/time/TimePlugin.hpp"
 
 namespace rtype::test::app {
 /// @brief Frames run so far, and when the counting system asks to stop.
@@ -36,12 +42,19 @@ struct Started {
     int framesBefore;  ///< Frames counted when Startup ran.
 };
 RTYPE_ECS_RESOURCE(Started, "test.app.Started", count, framesBefore);
+
+struct FixedRuns {
+    int count;
+};
+RTYPE_ECS_RESOURCE(FixedRuns, "test.app.FixedRuns", count);
 }  // namespace rtype::test::app
 
 namespace {
 using rtype::ecs::App;
 using rtype::ecs::AppExit;
 using rtype::ecs::EventWriter;
+using rtype::ecs::FixedTimestep;
+using rtype::ecs::MinimalPlugins;
 using rtype::ecs::Phase;
 using rtype::ecs::Plugin;
 using rtype::ecs::PluginGroup;
@@ -49,6 +62,10 @@ using rtype::ecs::Res;
 using rtype::ecs::ResMut;
 using rtype::ecs::RunMode;
 using rtype::ecs::Side;
+using rtype::ecs::Time;
+using rtype::ecs::TimeClock;
+using rtype::ecs::TimePlugin;
+using rtype::test::app::FixedRuns;
 using rtype::test::app::Frames;
 using rtype::test::app::Started;
 
@@ -63,6 +80,11 @@ void markStarted(ResMut<Started> started, Res<Frames> frames) {
     ++started->count;
     started->framesBefore = frames->count;
 }
+
+void countFixed(ResMut<FixedRuns> runs) { ++runs->count; }
+
+/// @return The App's clock as a TimeClock, or nullptr if it is another clock or none.
+const TimeClock* timeClockOf(const App& app) { return dynamic_cast<const TimeClock*>(app.getSchedules().getClock()); }
 
 void sendTwoExits(EventWriter<AppExit> exit) {
     exit.send(AppExit{.code = 3});
@@ -218,4 +240,52 @@ TEST(App, RunsOneFrameAtATime) {
     app.runFrame();
     EXPECT_EQ(app.getWorld().getResources().require<Frames>().count, 2);
     EXPECT_EQ(app.getWorld().getResources().require<Started>().count, 1);
+}
+
+TEST(App, AddsTheDefaultTimePluginBeforeItsFirstFrame) {
+    App app;
+    EXPECT_FALSE(app.hasPlugin(TimePlugin::kName));
+    app.runFrame();
+    EXPECT_TRUE(app.hasPlugin(TimePlugin::kName));
+    EXPECT_TRUE(app.getWorld().getResources().has<Time>());
+    const TimeClock* clock = timeClockOf(app);
+    ASSERT_NE(clock, nullptr);
+    EXPECT_EQ(clock->getFixedTimestep().getRate(), 60U);
+    EXPECT_FALSE(clock->getManualFrame());
+}
+
+TEST(App, KeepsAConfiguredTimePlugin) {
+    App app;
+    app.addPlugin(TimePlugin::manual(std::chrono::milliseconds{50}, FixedTimestep{30, 5}));
+    app.runFrame();
+    const TimeClock* clock = timeClockOf(app);
+    ASSERT_NE(clock, nullptr);
+    EXPECT_EQ(clock->getFixedTimestep().getRate(), 30U);
+    EXPECT_EQ(clock->getManualFrame(), std::chrono::milliseconds{50});
+}
+
+TEST(App, GetsTimeFromMinimalPlugins) {
+    App app;
+    app.addPlugins(MinimalPlugins{});
+    EXPECT_TRUE(app.hasPlugin(TimePlugin::kName));
+    EXPECT_NE(timeClockOf(app), nullptr);
+}
+
+TEST(App, KeepsATimePluginAddedBeforeMinimalPlugins) {
+    App app;
+    app.addPlugin(TimePlugin{FixedTimestep{30, 5}}).addPlugins(MinimalPlugins{});
+    const TimeClock* clock = timeClockOf(app);
+    ASSERT_NE(clock, nullptr);
+    EXPECT_EQ(clock->getFixedTimestep().getRate(), 30U);  // the group's default one was skipped
+}
+
+TEST(App, RunsAFixedNumberOfFramesAndTicksWithManualTime) {
+    App app;
+    app.addPlugin(TimePlugin::manual(std::chrono::milliseconds{50})).addPlugin(FramesPlugin{4, 0});
+    app.insertResource(FixedRuns{.count = 0});
+    app.addSystem(Phase::kFixedUpdate, "test.countFixed", &countFixed);
+    EXPECT_EQ(app.run(), 0);
+    EXPECT_EQ(app.getWorld().getResources().require<Frames>().count, 4);
+    EXPECT_EQ(app.getWorld().getResources().require<FixedRuns>().count, 12);  // 3 ticks in each 50 ms frame
+    EXPECT_EQ(app.getWorld().getResources().require<Time>().tick, 12U);
 }
