@@ -71,7 +71,6 @@ graphics::TextureId loadTexture(TextureAssets& assets, graphics::IRenderer& rend
     int width = 0;
     int height = 0;
     int fileChannels = 0;
-    // stb_image reads unsigned bytes: std::byte and stbi_uc are both raw bytes.
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
     const std::unique_ptr<stbi_uc, StbFree> pixels{
         stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(encoded.data()), static_cast<int>(encoded.size()),
@@ -88,8 +87,6 @@ graphics::TextureId loadTexture(TextureAssets& assets, graphics::IRenderer& rend
     const std::span<const std::byte> rgba{reinterpret_cast<const std::byte*>(pixels.get()), byteCount};
     const graphics::TextureId id = renderer.createTexture(desc, rgba);
     if (!assets.add(name, id, TextureInfo{.size = desc.size})) {
-        // The name was free (checked above), so the renderer returned the id of a texture already recorded: it reused
-        // a slot without bumping its generation. Destroying it would destroy that texture too, so it is left as is.
         throw exceptions::AssetLoadException{
             std::format("Texture '{}': the renderer returned an id already in use", name)};
     }
