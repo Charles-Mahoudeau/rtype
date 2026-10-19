@@ -130,7 +130,7 @@ current one.
 **The swap follows the phase that writes the event.** Events written in `FixedUpdate` (collisions, damage)
 must move forward once per **fixed tick**, not once per frame: a frame that runs `FixedUpdate` three times
 would otherwise mix three ticks of events, or drop some. That is why `update(id)` exists next to `update()`:
-`Scheduler::runFrame()` ([scheduler](13-scheduler.md#fixed-timestep)) moves the queues written by
+`Schedules::runFrame()` ([scheduler](13-scheduler.md#the-frame-and-its-clock)) moves the queues written by
 `FixedUpdate` systems forward after each fixed tick, and every other queue at the end of the frame. A game
 loop that runs phases by hand calls `update()` itself.
 

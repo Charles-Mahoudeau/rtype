@@ -64,14 +64,13 @@ A slow frame runs `FixedUpdate` several times; a fast one may run it zero times.
 avoids the "spiral of death" when the machine cannot keep up: the time beyond it is dropped, so the game
 slows down instead of spending ever longer catching up.
 
-`rtype::ecs::FixedTimestep` (`time/FixedTimestep.hpp`) is the accumulator, and `Scheduler::runFrame()` runs a
-whole frame with it. The caller measures the frame time and passes it in, so tests use simulated frame times:
+`rtype::ecs::FixedTimestep` (`time/FixedTimestep.hpp`) is the accumulator. It belongs to the **time plugin**
+(`time/TimePlugin.hpp`), which every App has: if none was added, the App adds one with the defaults before its
+first frame ([App and plugins](14-app-and-plugins.md#time)). Adding one yourself configures it:
 
 ```c++
-rtype::ecs::Scheduler scheduler{world, rtype::ecs::RunMode::kStandalone};
-scheduler.setFixedTimestep(rtype::ecs::FixedTimestep{30, 5});  // 30 ticks per second, at most 5 per frame
-scheduler.runFrame(std::chrono::milliseconds{16});
-// Startup (first frame only), PreUpdate, FixedUpdate x N, Update, PostUpdate, Render
+app.addPlugin(rtype::ecs::TimePlugin{rtype::ecs::FixedTimestep{30, 5}});  // 30 ticks per second, at most 5 per frame
+app.addPlugin(rtype::ecs::TimePlugin::manual(std::chrono::milliseconds{16}));  // tests: every frame lasts 16 ms
 ```
 
 The default is **60 ticks per second, at most 5 per frame**. The accumulator counts in integers
@@ -80,8 +79,8 @@ same ticks for the same frame times, and 60 Hz gives exactly 60 ticks per second
 rounding of 1/60 s. With the defaults, 5 ms frames run a tick every 3 or 4 frames, 16 ms frames almost one
 per frame, and 50 ms frames 3 per frame.
 
-`runFrame()` inserts the `Time` resource (`time/Time.hpp`, `"rtype.Time"`) if it has no value, and keeps it
-up to date:
+The time plugin inserts the `Time` resource (`time/Time.hpp`, `"rtype.Time"`), and its clock keeps it up to
+date:
 
 | Field | Meaning | Set |
 |---|---|---|
@@ -98,18 +97,43 @@ void movement(rtype::ecs::Query<Position, const Velocity> query, rtype::ecs::Res
 }
 ```
 
-**Event queues move forward with the phase that writes them** ([Events](11-events.md)). When the schedule
-is built, the scheduler lists the events written (`EventWriter`) by the `FixedUpdate` systems that run in
-this mode. Their queues move forward after each fixed tick, so their events are readable for two fixed
+**Event queues move forward with the phase that writes them** ([Events](11-events.md)). When a schedule
+is built, it lists the events written (`EventWriter`) by its systems that run in this mode. The queues of
+those written in `FixedUpdate` move forward after each fixed tick, so their events are readable for two fixed
 ticks. Every other queue (written in another phase, or from outside the systems: platform, network, Luau)
-moves forward at the end of the frame, so its events are readable for two frames. `run(phase)` alone
-neither updates `Time` nor moves any queue: it is for tests and special cases.
+moves forward at the end of the frame, so its events are readable for two frames.
 
-**Where this goes with the App.** #122 asked for a `TimePlugin`, but the `Plugin` interface comes with
-the App (#123), so for now the scheduler inserts and updates `Time` itself. In #123, `TimePlugin` (in
-`MinimalPlugins`) will set the rate, measure the real clock and pass the frame time to `runFrame()`. If an
-App without it would make no sense, it can become a plugin the App always adds. The fixed loop itself
-stays in the scheduler: a system cannot run a phase.
+### The frame and its clock
+
+The schedules run the frame; a **frame clock** (`schedule/FrameClock.hpp`) decides how many fixed ticks it
+has. The schedules know nothing about time: the time plugin installs its clock (`time/TimeClock.hpp`), and
+tests install one that returns the ticks they want.
+
+```c++
+class FrameClock {
+  public:
+    virtual std::uint32_t startFrame(World& world) = 0;  // first thing of a frame: measure it, return the ticks
+    virtual void finishFixedTick(World& world) = 0;      // after each FixedUpdate (and its event queues)
+    virtual void startUpdate(World& world) = 0;          // after the fixed ticks, before Update
+};
+```
+
+`Schedules::runFrame()`, called once per frame by the App:
+
+```mermaid
+flowchart TD
+    build["Build the schedules that changed<br/>(a bad schedule throws before the frame starts)"] --> start
+    start["ticks = clock.startFrame()"] --> startup["Startup (first frame only)"]
+    startup --> pre["PreUpdate"]
+    pre --> fixed{"ticks left?"}
+    fixed -- "yes" --> tick["FixedUpdate<br/>its event queues move forward<br/>clock.finishFixedTick()"]
+    tick --> fixed
+    fixed -- "no" --> update["clock.startUpdate()<br/>Update, PostUpdate, Render"]
+    update --> events["every other event queue moves forward"]
+```
+
+`TimeClock` measures `std::chrono::steady_clock` (the first frame counts 0) or uses the fixed duration of a
+manual plugin, runs the fixed timestep on it and writes `Time`. Without a clock, `FixedUpdate` never runs.
 
 ### Ordering inside a phase
 
@@ -119,31 +143,36 @@ app.addSystem(rtype::ecs::Phase::kFixedUpdate, "rtype.collision", &detectCollisi
 app.addSystem(rtype::ecs::Phase::kFixedUpdate, "rtype.damage", &applyDamage).after("rtype.collision");
 ```
 
-Until the App (#123) exists, the scheduler is made from a world. It runs a whole frame (`runFrame()`, above)
-or one phase at a time:
+Systems live in **one `Schedule` per phase** (`schedule/Schedule.hpp`): a schedule orders, checks and runs
+the systems of its phase. A world's six schedules, the frame and its clock are held by **`Schedules`**
+(`schedule/Schedules.hpp`), which the App owns: one App has one world, one `Schedules` and one run mode.
+Systems are added through `Schedules` (the App forwards `app.addSystem` to it), which checks that a name is
+used in no other phase before handing the system to the phase's schedule. Without an App, tests use them
+directly:
 
 ```c++
-rtype::ecs::Scheduler scheduler{world, rtype::ecs::RunMode::kStandalone};
-scheduler.addSystem(rtype::ecs::Phase::kFixedUpdate, "rtype.movement", &movement);
-scheduler.addSystem(rtype::ecs::Phase::kFixedUpdate, "rtype.collision", &detect).after("rtype.movement");
-scheduler.addSystem(rtype::ecs::Phase::kUpdate, "rtype.camera", &follow).setSide(rtype::ecs::Side::kClient);
-scheduler.build();                                // checks and sorts every phase
-scheduler.run(rtype::ecs::Phase::kFixedUpdate);   // runs the phase's systems, then flushes their commands
-scheduler.getOrder(rtype::ecs::Phase::kFixedUpdate);
+rtype::ecs::Schedules schedules{world, rtype::ecs::RunMode::kStandalone};
+schedules.addSystem(rtype::ecs::Phase::kFixedUpdate, "rtype.movement", &movement);
+schedules.addSystem(rtype::ecs::Phase::kFixedUpdate, "rtype.collision", &detect).after("rtype.movement");
+schedules.addSystem(rtype::ecs::Phase::kUpdate, "rtype.camera", &follow).setSide(rtype::ecs::Side::kClient);
+schedules.build();                                // checks and sorts every schedule
+schedules.run(rtype::ecs::Phase::kFixedUpdate);   // one phase: its systems, then their commands
+schedules.runFrame();                             // a whole frame (above)
+schedules.getOrder(rtype::ecs::Phase::kFixedUpdate);
 ```
 
-When the schedule is built (by `build()`, or by the first `run()` after a change), the `before` /
-`after` constraints of each phase become a graph (`detail::DependencyGraph`) that is sorted
-topologically. **Systems with no order between them run by name**, so the order depends only on names and
+The schedules are keyed by `Phase` for now; named schedules (States' `OnEnter` / `OnExit`) come with v2.
+
+When a schedule is built (by `build()`, or before it runs after a change), the `before` / `after`
+constraints of its systems become a graph (`detail::DependencyGraph`) that is sorted topologically. **Systems with no order between them run by name**, so the order depends only on names and
 constraints, never on the order plugins added the systems.
 
-Building throws a `ScheduleException` naming the systems involved for:
+Adding a system whose name is already used, in any phase, throws a `ScheduleException` naming it and both
+phases; the system is not added. Building throws one naming the systems involved for:
 
 | Problem | Message names |
 |---|---|
-| Two systems with the same name (in any phases) | the name |
-| `before` / `after` naming an unknown system | the system and the target |
-| `before` / `after` naming a system of another phase | both, and both phases: only systems of one phase can be ordered |
+| `before` / `after` naming a system that is not in the same phase (unknown, or in another phase) | the system, the target and the phase: only systems of one phase can be ordered |
 | A **cycle** of constraints | the systems of the cycle, `'a' -> 'b' -> 'c' -> 'a'` |
 | Two systems with **conflicting access** and **no order** (direct or through other systems) | every such pair, in name order, and the component, resource or event they share |
 
@@ -153,7 +182,7 @@ system is checked whatever the run mode, so a schedule that builds on the server
 
 ### Running a phase
 
-`run(phase)` runs the phase's systems in order, skipping those whose [side](12-systems.md#the-side-rule)
+`Schedule::run()` (or `Schedules::run(phase)`) runs the phase's systems in order, skipping those whose [side](12-systems.md#the-side-rule)
 does not run in the process's `RunMode` (`kServer`: server and both; `kClient`: client and both;
 `kStandalone`: everything). Then it flushes the commands of those systems, in the same order: a system's
 structural changes are visible from the next phase, never to the other systems of its own phase.
@@ -201,7 +230,8 @@ and no ordering constraint links them. Nothing in the systems changes.
 
 - Uses: [Systems](12-systems.md) (access sets, sides), [Commands](09-commands.md) (flushes),
   [Resources](10-resources.md) (`Time`, `State<T>`, main-thread flags).
-- Used by: [App and plugins](14-app-and-plugins.md) (owns the schedule and runs it).
+- Used by: [App and plugins](14-app-and-plugins.md) (owns the `Schedules` and runs a frame until `AppExit`;
+  the time plugin installs the frame clock).
 
 ## Pitfalls
 
