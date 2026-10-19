@@ -45,6 +45,7 @@ class RTYPE_RENDER_VULKAN_API PhysicalDevice {
         std::uint32_t maxPushConstantsSize = 0;              ///< Maximum size of push constants, in bytes.
         vk::SampleCountFlags framebufferColorSampleCounts;   ///< MSAA sample counts supported by color attachments.
         float timestampPeriod = 0.0F;                        ///< Nanoseconds per timestamp query tick.
+        std::uint32_t maxImageDimension2D = 0;               ///< Largest width or height of a 2D image, in texels.
     };
 
     /// @brief Details of the swap chain support of a physical device.
