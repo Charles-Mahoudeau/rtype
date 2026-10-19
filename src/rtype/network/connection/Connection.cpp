@@ -8,6 +8,7 @@
 #include "rtype/network/connection/Connection.hpp"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -20,6 +21,7 @@
 #include "rtype/network/NetworkSettings.hpp"
 #include "rtype/network/Types.hpp"
 #include "rtype/network/bytes/ByteReader.hpp"
+#include "rtype/network/bytes/ByteWriter.hpp"
 #include "rtype/network/connection/ReliableSender.hpp"
 #include "rtype/network/protocol/Constants.hpp"
 #include "rtype/network/protocol/Packets.hpp"
@@ -38,12 +40,6 @@ constexpr std::size_t kReliableHeaderSize = 5;
 
 /// @brief Weight of the RTT in the delay before a reliable message is sent again.
 constexpr float kResendRttFactor = 1.25F;
-
-/// @brief Appends a little-endian u16.
-void writeU16(Bytes& body, const std::size_t value) {
-    body.push_back(static_cast<std::byte>(value & 0xFFU));
-    body.push_back(static_cast<std::byte>(value >> 8U));
-}
 
 /// @brief Room left for messages in a datagram.
 constexpr std::size_t kMessagesCapacity = protocol::kMaxPacketSize - kDataHeaderSize;
@@ -126,32 +122,32 @@ std::vector<Bytes> Connection::buildPackets(const TimePoint now) {
     std::ranges::stable_partition(due, [](const PendingMessage* message) { return message->sent; });
 
     std::vector<Bytes> datagrams;
+    std::array<std::byte, kMessagesCapacity> body{};
     auto nextReliable = due.begin();
     auto nextUnreliable = _queue.begin();
     while ((nextReliable != due.end() || nextUnreliable != _queue.end()) &&
            datagrams.size() < protocol::kMaxDatagramsPerFlush) {
-        Bytes body;
-        body.reserve(kMessagesCapacity);
+        bytes::ByteWriter writer{body};
         std::vector<std::uint16_t> reliableIds;
         while (nextReliable != due.end() &&
-               body.size() + kReliableHeaderSize + (*nextReliable)->payload.size() <= kMessagesCapacity) {
+               writer.bytesWritten() + kReliableHeaderSize + (*nextReliable)->payload.size() <= kMessagesCapacity) {
             const PendingMessage& message = **nextReliable;
-            body.push_back(static_cast<std::byte>(Channel::kReliable));
-            writeU16(body, message.id);
-            writeU16(body, message.payload.size());
-            body.insert(body.end(), message.payload.begin(), message.payload.end());
+            writer.writeU8(static_cast<std::uint8_t>(Channel::kReliable));
+            writer.writeU16(message.id);
+            writer.writeU16(static_cast<std::uint16_t>(message.payload.size()));
+            writer.writeBytes(message.payload);
             reliableIds.push_back(message.id);
             ++nextReliable;
         }
         while (nextReliable == due.end() && nextUnreliable != _queue.end() &&
-               body.size() + kUnreliableHeaderSize + nextUnreliable->second.size() <= kMessagesCapacity) {
+               writer.bytesWritten() + kUnreliableHeaderSize + nextUnreliable->second.size() <= kMessagesCapacity) {
             const auto& [channel, payload] = *nextUnreliable;
-            body.push_back(static_cast<std::byte>(channel));
-            writeU16(body, payload.size());
-            body.insert(body.end(), payload.begin(), payload.end());
+            writer.writeU8(static_cast<std::uint8_t>(channel));
+            writer.writeU16(static_cast<std::uint16_t>(payload.size()));
+            writer.writeBytes(payload);
             ++nextUnreliable;
         }
-        datagrams.push_back(makeDatagram(body, std::move(reliableIds), now));
+        datagrams.push_back(makeDatagram(writer.writtenBytes(), std::move(reliableIds), now));
     }
     _droppedMessages += static_cast<std::uint64_t>(std::distance(nextUnreliable, _queue.end()));
     _queue.clear();
