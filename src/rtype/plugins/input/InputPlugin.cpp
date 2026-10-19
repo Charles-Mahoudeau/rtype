@@ -11,8 +11,8 @@
 #include <string>
 #include <string_view>
 
-#include "engine/event/Event.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
+#include "plugins/backend/event/Event.hpp"
 #include "plugins/input/Input.hpp"
 #include "plugins/input/InputEvents.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -29,7 +29,7 @@ namespace {
 template <typename Reader>
 void feed(Input& input, const Reader& reader) {
     for (const auto& event : reader) {
-        input.handleEvent(engine::Event{event});
+        input.handleEvent(plugins::backend::Event{event});
     }
 }
 
@@ -37,24 +37,24 @@ void feed(Input& input, const Reader& reader) {
 template <typename Event, typename Reader>
 void feedEmpty(Input& input, const Reader& reader) {
     for (std::size_t index = 0; index < reader.size(); ++index) {
-        input.handleEvent(engine::Event{Event{}});
+        input.handleEvent(plugins::backend::Event{Event{}});
     }
 }
 
 /// @brief Feeds the input events of the frame to Input, then updates its actions. Losing the focus comes first, so
 /// what is pressed after it in the same frame still counts.
-void updateInput(ecs::ResMut<Input> input, ecs::EventReader<engine::event::FocusChanged> focus,
-                 ecs::EventReader<engine::event::KeyPressed> keysPressed,
-                 ecs::EventReader<engine::event::KeyReleased> keysReleased,
-                 ecs::EventReader<engine::event::MouseButtonPressed> buttonsPressed,
-                 ecs::EventReader<engine::event::MouseButtonReleased> buttonsReleased,
-                 ecs::EventReader<engine::event::MouseMoved> mouseMoved,
-                 ecs::EventReader<engine::event::MouseScrolled> mouseScrolled,
-                 ecs::EventReader<engine::event::GamepadConnected> gamepadConnected,
-                 ecs::EventReader<engine::event::GamepadButtonPressed> gamepadPressed,
-                 ecs::EventReader<engine::event::GamepadButtonReleased> gamepadReleased,
-                 ecs::EventReader<engine::event::GamepadAxisMoved> gamepadAxes,
-                 ecs::EventReader<engine::event::GamepadDisconnected> gamepadDisconnected) {
+void updateInput(ecs::ResMut<Input> input, ecs::EventReader<plugins::backend::event::FocusChanged> focus,
+                 ecs::EventReader<plugins::backend::event::KeyPressed> keysPressed,
+                 ecs::EventReader<plugins::backend::event::KeyReleased> keysReleased,
+                 ecs::EventReader<plugins::backend::event::MouseButtonPressed> buttonsPressed,
+                 ecs::EventReader<plugins::backend::event::MouseButtonReleased> buttonsReleased,
+                 ecs::EventReader<plugins::backend::event::MouseMoved> mouseMoved,
+                 ecs::EventReader<plugins::backend::event::MouseScrolled> mouseScrolled,
+                 ecs::EventReader<plugins::backend::event::GamepadConnected> gamepadConnected,
+                 ecs::EventReader<plugins::backend::event::GamepadButtonPressed> gamepadPressed,
+                 ecs::EventReader<plugins::backend::event::GamepadButtonReleased> gamepadReleased,
+                 ecs::EventReader<plugins::backend::event::GamepadAxisMoved> gamepadAxes,
+                 ecs::EventReader<plugins::backend::event::GamepadDisconnected> gamepadDisconnected) {
     Input& state = *input;
     feed(state, focus);
     feed(state, keysPressed);
@@ -63,11 +63,11 @@ void updateInput(ecs::ResMut<Input> input, ecs::EventReader<engine::event::Focus
     feed(state, buttonsReleased);
     feed(state, mouseMoved);
     feed(state, mouseScrolled);
-    feedEmpty<engine::event::GamepadConnected>(state, gamepadConnected);
+    feedEmpty<plugins::backend::event::GamepadConnected>(state, gamepadConnected);
     feed(state, gamepadPressed);
     feed(state, gamepadReleased);
     feed(state, gamepadAxes);
-    feedEmpty<engine::event::GamepadDisconnected>(state, gamepadDisconnected);
+    feedEmpty<plugins::backend::event::GamepadDisconnected>(state, gamepadDisconnected);
     state.update();
 }
 
@@ -82,18 +82,18 @@ std::string_view InputPlugin::getName() const noexcept { return kName; }
 
 void InputPlugin::build(ecs::App& app) {
     ecs::Events& events = app.getWorld().getEvents();
-    registerEvent<engine::event::KeyPressed>(events);
-    registerEvent<engine::event::KeyReleased>(events);
-    registerEvent<engine::event::MouseButtonPressed>(events);
-    registerEvent<engine::event::MouseButtonReleased>(events);
-    registerEvent<engine::event::MouseMoved>(events);
-    registerEvent<engine::event::MouseScrolled>(events);
-    registerEvent<engine::event::FocusChanged>(events);
-    registerEvent<engine::event::GamepadConnected>(events);
-    registerEvent<engine::event::GamepadDisconnected>(events);
-    registerEvent<engine::event::GamepadButtonPressed>(events);
-    registerEvent<engine::event::GamepadButtonReleased>(events);
-    registerEvent<engine::event::GamepadAxisMoved>(events);
+    registerEvent<plugins::backend::event::KeyPressed>(events);
+    registerEvent<plugins::backend::event::KeyReleased>(events);
+    registerEvent<plugins::backend::event::MouseButtonPressed>(events);
+    registerEvent<plugins::backend::event::MouseButtonReleased>(events);
+    registerEvent<plugins::backend::event::MouseMoved>(events);
+    registerEvent<plugins::backend::event::MouseScrolled>(events);
+    registerEvent<plugins::backend::event::FocusChanged>(events);
+    registerEvent<plugins::backend::event::GamepadConnected>(events);
+    registerEvent<plugins::backend::event::GamepadDisconnected>(events);
+    registerEvent<plugins::backend::event::GamepadButtonPressed>(events);
+    registerEvent<plugins::backend::event::GamepadButtonReleased>(events);
+    registerEvent<plugins::backend::event::GamepadAxisMoved>(events);
     app.insertResource(Input{});
     ecs::Schedule::SystemConfig update =
         app.addSystem(ecs::Phase::kPreUpdate, std::string{kUpdateSystem}, &updateInput).setSide(ecs::Side::kClient);

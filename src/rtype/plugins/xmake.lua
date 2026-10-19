@@ -1,6 +1,6 @@
--- Plugins: the engine's features as ECS plugins (input, later the window and the renderer). Each plugin keeps its
--- code and declares its own components, resources and events. The only target that sees both the ECS and the engine
--- core, so neither depends on the other.
+-- Plugins: the engine as ECS plugins, one folder per plugin. Each plugin keeps its own code (the backend plugin also
+-- holds the contracts the platforms and renderers implement: IPlatform, IRenderer, Event, Settings...) and declares
+-- its own components, resources and events.
 target("plugins")
     set_kind("static")
     set_basename("rtype-plugins")
@@ -8,4 +8,9 @@ target("plugins")
     add_headerfiles("**.hpp", "**.tpp")
     -- Headers are included as "plugins/...".
     add_includedirs("..", {public = true})
-    add_deps("ecs", "engine-core", {public = true})
+    add_deps("ecs", {public = true})
+    add_packages("glm", {public = true})
+    -- Plain x/y/z/w members instead of unions (cppcoreguidelines-pro-type-union-access).
+    add_defines("GLM_FORCE_XYZW_ONLY", {public = true})
+    -- Linked into the shared modules (render-vulkan).
+    add_cxflags("-fPIC", {tools = {"clang", "gcc"}})

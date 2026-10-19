@@ -25,15 +25,15 @@
 #include <variant>
 
 #include "SfmlPlatform.hpp"
-#include "engine/exceptions/PlatformExceptions.hpp"
-#include "engine/graphics/Camera.hpp"
-#include "engine/graphics/Color.hpp"
-#include "engine/graphics/RectShape.hpp"
-#include "engine/graphics/Sprite.hpp"
-#include "engine/graphics/Texture.hpp"
-#include "engine/platform/IPlatform.hpp"
+#include "plugins/backend/exceptions/PlatformExceptions.hpp"
+#include "plugins/backend/graphics/Camera.hpp"
+#include "plugins/backend/graphics/Color.hpp"
+#include "plugins/backend/graphics/RectShape.hpp"
+#include "plugins/backend/graphics/Sprite.hpp"
+#include "plugins/backend/graphics/Texture.hpp"
+#include "plugins/backend/platform/IPlatform.hpp"
 
-using namespace rtype::engine;
+using namespace rtype::plugins::backend;
 
 namespace {
 

@@ -11,18 +11,18 @@
 #include <variant>
 #include <vector>
 
-#include "engine/backend/BackendRegistry.hpp"
-#include "engine/config/Settings.hpp"
-#include "engine/event/Event.hpp"
-#include "engine/input/Key.hpp"
 #include "platform/glfw/Registration.hpp"
+#include "plugins/backend/BackendRegistry.hpp"
+#include "plugins/backend/config/Settings.hpp"
+#include "plugins/backend/event/Event.hpp"
+#include "plugins/backend/input/Key.hpp"
 #include "render/vulkan/Registration.hpp"
 
-using namespace rtype::engine::event;
-using rtype::engine::backend::Backend;
-using rtype::engine::backend::BackendRegistry;
-using rtype::engine::config::Settings;
-using rtype::engine::input::Key;
+using namespace rtype::plugins::backend::event;
+using rtype::plugins::backend::Backend;
+using rtype::plugins::backend::BackendRegistry;
+using rtype::plugins::backend::config::Settings;
+using rtype::plugins::backend::input::Key;
 
 /// @warning FOR MACOS ONLY: brew install molten-vk vulkan-loader (+ vulkan-validationlayers in debug builds)
 

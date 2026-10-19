@@ -18,8 +18,8 @@ namespace rtype::plugins::input {
 /// snapshot that the frame reads: held now, or pressed at least once since the last
 /// frame, so a tap shorter than a frame is never missed.
 ///
-/// @tparam Button A button enum ending with a `kCount` enumerator (engine::input::Key, engine::input::MouseButton,
-/// engine::input::GamepadButton).
+/// @tparam Button A button enum ending with a `kCount` enumerator (plugins::backend::input::Key,
+/// plugins::backend::input::MouseButton, plugins::backend::input::GamepadButton).
 template <typename Button>
 class ButtonStates {
   public:

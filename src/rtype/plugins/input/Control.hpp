@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-#include "engine/input/Key.hpp"
+#include "plugins/backend/input/Key.hpp"
 
 namespace rtype::plugins::input {
 
@@ -30,17 +30,16 @@ struct Control {
         kGamepadAxis
     };
 
-    Source source{};  ///< Device and kind of control.
-    std::uint8_t code =
-        0;  ///< Engine Key / MouseButton / GamepadButton / engine::input::GamepadAxis value, depending on source.
-    float scale = 1.0F;  ///< Multiplier applied to the raw value (sensitivity, inversion).
+    Source source{};        ///< Device and kind of control.
+    std::uint8_t code = 0;  ///< Engine Key / MouseButton / GamepadButton / GamepadAxis value, depending on source.
+    float scale = 1.0F;     ///< Multiplier applied to the raw value (sensitivity, inversion).
 
     /// @brief Keyboard key, e.g. Control::key(Key::kW).
-    [[nodiscard]] static constexpr Control key(engine::input::Key key) noexcept {
+    [[nodiscard]] static constexpr Control key(plugins::backend::input::Key key) noexcept {
         return {.source = Source::kKey, .code = static_cast<std::uint8_t>(key)};
     }
     /// @brief Mouse button, e.g. Control::mouseButton(MouseButton::kLeft).
-    [[nodiscard]] static constexpr Control mouseButton(engine::input::MouseButton button) noexcept {
+    [[nodiscard]] static constexpr Control mouseButton(plugins::backend::input::MouseButton button) noexcept {
         return {.source = Source::kMouseButton, .code = static_cast<std::uint8_t>(button)};
     }
     /// @brief Horizontal mouse movement since the previous frame, in pixels.
@@ -60,11 +59,12 @@ struct Control {
         return {.source = Source::kMouseScrollY, .code = 0, .scale = scale};
     }
     /// @brief Gamepad button, e.g. Control::gamepadButton(GamepadButton::kSouth).
-    [[nodiscard]] static constexpr Control gamepadButton(engine::input::GamepadButton button) noexcept {
+    [[nodiscard]] static constexpr Control gamepadButton(plugins::backend::input::GamepadButton button) noexcept {
         return {.source = Source::kGamepadButton, .code = static_cast<std::uint8_t>(button)};
     }
     /// @brief Gamepad axis, e.g. Control::gamepadAxis(GamepadAxis::kLeftX).
-    [[nodiscard]] static constexpr Control gamepadAxis(engine::input::GamepadAxis axis, float scale = 1.0F) noexcept {
+    [[nodiscard]] static constexpr Control gamepadAxis(plugins::backend::input::GamepadAxis axis,
+                                                       float scale = 1.0F) noexcept {
         return {.source = Source::kGamepadAxis, .code = static_cast<std::uint8_t>(axis), .scale = scale};
     }
 

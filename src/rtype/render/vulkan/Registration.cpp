@@ -16,17 +16,17 @@
 #include <vulkan/vulkan_raii.hpp>
 
 #include "VulkanRenderer.hpp"
-#include "engine/backend/BackendRegistry.hpp"
-#include "engine/config/Settings.hpp"
-#include "engine/exceptions/ConfigExceptions.hpp"
-#include "engine/graphics/IRenderer.hpp"
+#include "plugins/backend/BackendRegistry.hpp"
+#include "plugins/backend/config/Settings.hpp"
+#include "plugins/backend/exceptions/ConfigExceptions.hpp"
+#include "plugins/backend/graphics/IRenderer.hpp"
 
 namespace rtype::render::vulkan {
 
 namespace {
 
 /// @return The severity named in the config.
-/// @throws engine::exceptions::SettingsException If the name is unknown.
+/// @throws plugins::backend::exceptions::SettingsException If the name is unknown.
 vk::DebugUtilsMessageSeverityFlagBitsEXT toSeverity(std::string_view name) {
     using Severity = vk::DebugUtilsMessageSeverityFlagBitsEXT;
     using Entry = std::pair<std::string_view, Severity>;
@@ -42,12 +42,12 @@ vk::DebugUtilsMessageSeverityFlagBitsEXT toSeverity(std::string_view name) {
             return severity;
         }
     }
-    throw engine::exceptions::SettingsException(
+    throw plugins::backend::exceptions::SettingsException(
         std::format(R"(Setting 'vulkan.minSeverity' must be "verbose", "info", "warning" or "error", not "{}")", name));
 }
 
 /// @return The physical device type named in the config.
-/// @throws engine::exceptions::SettingsException If the name is unknown.
+/// @throws plugins::backend::exceptions::SettingsException If the name is unknown.
 vk::PhysicalDeviceType toDeviceType(std::string_view name) {
     using Type = vk::PhysicalDeviceType;
     using Entry = std::pair<std::string_view, Type>;
@@ -64,14 +64,14 @@ vk::PhysicalDeviceType toDeviceType(std::string_view name) {
             return type;
         }
     }
-    throw engine::exceptions::SettingsException(std::format(
+    throw plugins::backend::exceptions::SettingsException(std::format(
         R"(Setting 'vulkan.preferredDeviceType' must be "discrete_gpu", "integrated_gpu", "virtual_gpu", "cpu" or )"
         R"("other", not "{}")",
         name));
 }
 
 /// @return The present mode named in the config.
-/// @throws engine::exceptions::SettingsException If the name is unknown.
+/// @throws plugins::backend::exceptions::SettingsException If the name is unknown.
 vk::PresentModeKHR toPresentMode(std::string_view name) {
     using Mode = vk::PresentModeKHR;
     using Entry = std::pair<std::string_view, Mode>;
@@ -86,12 +86,12 @@ vk::PresentModeKHR toPresentMode(std::string_view name) {
             return mode;
         }
     }
-    throw engine::exceptions::SettingsException(
+    throw plugins::backend::exceptions::SettingsException(
         std::format(R"(Setting 'vulkan.presentMode' must be "fifo", "mailbox" or "immediate", not "{}")", name));
 }
 
 /// @return The Config described by the "vulkan" section; missing keys keep the Config defaults.
-VulkanRenderer::Config toConfig(const engine::config::Settings& settings) {
+VulkanRenderer::Config toConfig(const plugins::backend::config::Settings& settings) {
     settings.checkKeys({"engineName", "layers", "extraExtensions", "debugging", "minSeverity", "preferredDeviceType",
                         "synchronizationValidation", "bestPractices", "presentMode", "shaderDirectory"},
                        "vulkan");
@@ -119,9 +119,10 @@ VulkanRenderer::Config toConfig(const engine::config::Settings& settings) {
 
 }  // namespace
 
-void registerRenderer(engine::backend::BackendRegistry& registry) {
+void registerRenderer(plugins::backend::BackendRegistry& registry) {
     registry.addRenderer("vulkan",
-                         [](const engine::config::Settings& settings) -> std::unique_ptr<engine::graphics::IRenderer> {
+                         [](const plugins::backend::config::Settings& settings)
+                             -> std::unique_ptr<plugins::backend::graphics::IRenderer> {
                              return std::make_unique<VulkanRenderer>(toConfig(settings));
                          });
 }

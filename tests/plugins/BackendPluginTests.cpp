@@ -12,12 +12,12 @@
 #include <vector>
 
 #include "FakeBackend.hpp"
-#include "engine/backend/BackendRegistry.hpp"
-#include "engine/event/Event.hpp"
-#include "engine/input/Key.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
+#include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
 #include "plugins/backend/WindowEvents.hpp"
+#include "plugins/backend/event/Event.hpp"
+#include "plugins/backend/input/Key.hpp"
 #include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
 #include "plugins/input/InputEvents.hpp"
@@ -52,15 +52,15 @@ class BackendApp {
 TEST(BackendPlugin, CreatesNothingBeforeTheFirstFrame) {
     BackendApp app;
     EXPECT_EQ(app.state().initCount, 0);
-    EXPECT_TRUE(app.app().getWorld().getResources().has<rtype::engine::backend::Backend>());
-    EXPECT_EQ(app.app().getWorld().getResources().get<rtype::engine::backend::Backend>()->platform, nullptr);
+    EXPECT_TRUE(app.app().getWorld().getResources().has<rtype::plugins::backend::Backend>());
+    EXPECT_EQ(app.app().getWorld().getResources().get<rtype::plugins::backend::Backend>()->platform, nullptr);
 }
 
 TEST(BackendPlugin, CreatesTheBackendAtStartup) {
     BackendApp app;
     app.app().runFrame();
     EXPECT_EQ(app.state().initCount, 1);
-    const auto* backend = app.app().getWorld().getResources().get<rtype::engine::backend::Backend>();
+    const auto* backend = app.app().getWorld().getResources().get<rtype::plugins::backend::Backend>();
     ASSERT_NE(backend, nullptr);
     EXPECT_NE(backend->platform, nullptr);
     EXPECT_NE(backend->renderer, nullptr);
@@ -74,21 +74,22 @@ TEST(BackendPlugin, FramesEveryFrameWithTheClearColor) {
     app.app().runFrame();
     EXPECT_EQ(app.state().beginFrames, 2);
     EXPECT_EQ(app.state().endFrames, 2);
-    EXPECT_EQ(app.state().clearColor, (rtype::engine::graphics::Color{1.0F, 0.0F, 0.0F, 1.0F}));
+    EXPECT_EQ(app.state().clearColor, (rtype::plugins::backend::graphics::Color{1.0F, 0.0F, 0.0F, 1.0F}));
 }
 
 TEST(BackendPlugin, SendsThePlatformEventsAsEcsEvents) {
     BackendApp app;
-    app.state().frames.push_back({rtype::engine::event::KeyPressed{.key = rtype::engine::input::Key::kA},
-                                  rtype::engine::event::TextEntered{.codepoint = U'a'}});
+    app.state().frames.push_back(
+        {rtype::plugins::backend::event::KeyPressed{.key = rtype::plugins::backend::input::Key::kA},
+         rtype::plugins::backend::event::TextEntered{.codepoint = U'a'}});
     app.app().runFrame();
-    EXPECT_EQ(app.app().getWorld().getEvents().getCount<rtype::engine::event::KeyPressed>(), 1U);
-    EXPECT_EQ(app.app().getWorld().getEvents().getCount<rtype::engine::event::TextEntered>(), 1U);
+    EXPECT_EQ(app.app().getWorld().getEvents().getCount<rtype::plugins::backend::event::KeyPressed>(), 1U);
+    EXPECT_EQ(app.app().getWorld().getEvents().getCount<rtype::plugins::backend::event::TextEntered>(), 1U);
 }
 
 TEST(BackendPlugin, ResizesTheRenderer) {
     BackendApp app;
-    app.state().frames.push_back({rtype::engine::event::Resized{.width = 1024, .height = 768}});
+    app.state().frames.push_back({rtype::plugins::backend::event::Resized{.width = 1024, .height = 768}});
     app.app().runFrame();
     ASSERT_EQ(app.state().resizes.size(), 1U);
     EXPECT_EQ(app.state().resizes[0], glm::uvec2(1024, 768));
@@ -129,10 +130,11 @@ TEST(BackendPlugin, FeedsInputWhicheverPluginIsAddedFirst) {
         } else {
             app.addPlugin(std::move(backend)).addPlugin(rtype::plugins::input::InputPlugin{});
         }
-        state->frames.push_back({rtype::engine::event::KeyPressed{.key = rtype::engine::input::Key::kSpace}});
+        state->frames.push_back(
+            {rtype::plugins::backend::event::KeyPressed{.key = rtype::plugins::backend::input::Key::kSpace}});
         app.runFrame();
         const auto& input = app.getWorld().getResources().require<rtype::plugins::input::Input>();
-        EXPECT_GT(input.read(rtype::plugins::input::Control::key(rtype::engine::input::Key::kSpace)), 0.0F)
+        EXPECT_GT(input.read(rtype::plugins::input::Control::key(rtype::plugins::backend::input::Key::kSpace)), 0.0F)
             << (inputFirst ? "InputPlugin added first" : "BackendPlugin added first");
     }
 }

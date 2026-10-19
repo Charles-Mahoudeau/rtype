@@ -9,18 +9,18 @@
 #include <iostream>
 #include <variant>
 
-#include "engine/event/Event.hpp"
-#include "engine/input/Key.hpp"
 #include "platform/glfw/GlfwPlatform.hpp"
+#include "plugins/backend/event/Event.hpp"
+#include "plugins/backend/input/Key.hpp"
 #include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
 #include "plugins/input/InputAction.hpp"
 
-using rtype::engine::input::GamepadAxis;
-using rtype::engine::input::GamepadButton;
-using rtype::engine::input::Key;
-using rtype::engine::input::MouseButton;
-using namespace rtype::engine::event;
+using rtype::plugins::backend::input::GamepadAxis;
+using rtype::plugins::backend::input::GamepadButton;
+using rtype::plugins::backend::input::Key;
+using rtype::plugins::backend::input::MouseButton;
+using namespace rtype::plugins::backend::event;
 using rtype::plugins::input::ActionType;
 using rtype::plugins::input::Control;
 

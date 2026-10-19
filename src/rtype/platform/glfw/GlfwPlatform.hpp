@@ -14,11 +14,11 @@
 #include <string>
 #include <vector>
 
-#include "engine/event/Event.hpp"
-#include "engine/input/Key.hpp"
-#include "engine/platform/IPlatform.hpp"
-#include "engine/platform/WindowConfig.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
+#include "plugins/backend/event/Event.hpp"
+#include "plugins/backend/input/Key.hpp"
+#include "plugins/backend/platform/IPlatform.hpp"
+#include "plugins/backend/platform/WindowConfig.hpp"
 
 struct GLFWwindow;
 
@@ -27,13 +27,13 @@ namespace rtype::platform::glfw {
 /// @brief The GLFW implementation of IPlatform: the application window, and the source of every engine event.
 ///
 /// @details GLFW stays an implementation detail: this header does not include it, and every callback is
-/// translated into an engine::Event returned by pollEvents(). The window has no graphics context
+/// translated into an plugins::backend::Event returned by pollEvents(). The window has no graphics context
 /// (GLFW_NO_API): a Vulkan renderer attaches to it through IVulkanSurfaceSource.
 ///
 /// @warning On macOS 11.3+, controllers natively handled by Apple's GameController
 /// framework (e.g. Switch Pro Controller) are detected by GLFW but never send updates,
 /// so they read as idle.
-class GlfwPlatform final : public engine::platform::IPlatform, public interop::vulkan::IVulkanSurfaceSource {
+class GlfwPlatform final : public plugins::backend::platform::IPlatform, public interop::vulkan::IVulkanSurfaceSource {
   public:
     /// @brief Does not touch GLFW yet: the renderer may call initLoader() first, then the engine calls init().
     GlfwPlatform() = default;
@@ -50,11 +50,11 @@ class GlfwPlatform final : public engine::platform::IPlatform, public interop::v
     void setSize(glm::uvec2 size) override;
 
     /// @throws GLFWWindowException If GLFW or the window cannot be initialized, or init() was already called.
-    void init(const engine::platform::WindowConfig& config) override;
+    void init(const plugins::backend::platform::WindowConfig& config) override;
 
-    [[nodiscard]] std::vector<engine::Event> pollEvents() override;
+    [[nodiscard]] std::vector<plugins::backend::Event> pollEvents() override;
     /// @brief Blocks in glfwWaitEvents() until an event arrives, then returns the events like pollEvents().
-    [[nodiscard]] std::vector<engine::Event> waitEvents() override;
+    [[nodiscard]] std::vector<plugins::backend::Event> waitEvents() override;
     [[nodiscard]] bool isOpen() const noexcept override;
     void close() override;
     void setCursorLocked(bool locked) override;
@@ -75,8 +75,10 @@ class GlfwPlatform final : public engine::platform::IPlatform, public interop::v
     /// @}
 
   private:
-    static constexpr std::size_t kGamepadButtonCount = static_cast<std::size_t>(engine::input::GamepadButton::kCount);
-    static constexpr std::size_t kGamepadAxisCount = static_cast<std::size_t>(engine::input::GamepadAxis::kCount);
+    static constexpr std::size_t kGamepadButtonCount =
+        static_cast<std::size_t>(plugins::backend::input::GamepadButton::kCount);
+    static constexpr std::size_t kGamepadAxisCount =
+        static_cast<std::size_t>(plugins::backend::input::GamepadAxis::kCount);
 
     /// @brief Binds this instance to the GLFW handle and installs every event callback.
     void registerCallbacks();
@@ -102,14 +104,14 @@ class GlfwPlatform final : public engine::platform::IPlatform, public interop::v
     /// @brief Releases every button and axis, then emits GamepadDisconnected.
     void disconnectGamepad();
 
-    bool _isOpen{false};                 ///< True between init() and the window closing.
-    bool _glfwInitialized{false};        ///< True once glfwInit() succeeded, used to call glfwTerminate().
-    GLFWwindow* _window{nullptr};        ///< The GLFW window instance, created by init().
-    std::string _title;                  ///< Window title.
-    std::vector<engine::Event> _events;  ///< Events received since the last poll.
-    glm::vec2 _cursorPosition{0.0F};     ///< Last cursor position, to compute MouseMoved::delta.
-    bool _hasCursorPosition{false};      ///< False until the first cursor event, to avoid a first jump.
-    int _gamepadId{-1};                  ///< GLFW joystick id of the reported gamepad, -1 if none.
+    bool _isOpen{false};                           ///< True between init() and the window closing.
+    bool _glfwInitialized{false};                  ///< True once glfwInit() succeeded, used to call glfwTerminate().
+    GLFWwindow* _window{nullptr};                  ///< The GLFW window instance, created by init().
+    std::string _title;                            ///< Window title.
+    std::vector<plugins::backend::Event> _events;  ///< Events received since the last poll.
+    glm::vec2 _cursorPosition{0.0F};               ///< Last cursor position, to compute MouseMoved::delta.
+    bool _hasCursorPosition{false};                ///< False until the first cursor event, to avoid a first jump.
+    int _gamepadId{-1};                            ///< GLFW joystick id of the reported gamepad, -1 if none.
     std::array<bool, kGamepadButtonCount> _gamepadButtons{};  ///< Button state sent in the last events.
     std::array<float, kGamepadAxisCount> _gamepadAxes{};      ///< Axis values sent in the last events.
 };

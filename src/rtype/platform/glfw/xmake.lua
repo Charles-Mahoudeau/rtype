@@ -2,7 +2,7 @@
 target("platform-glfw")
     set_kind("static")
     set_basename("rtype-platform-glfw")
-    add_deps("engine-core")
+    add_deps("plugins")
     add_packages("glfw")
     -- GlfwPlatform implements IVulkanSurfaceSource. Public: GlfwPlatform.hpp includes it.
     add_deps("interop-vulkan", {public = true})

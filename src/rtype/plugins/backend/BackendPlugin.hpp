@@ -10,8 +10,8 @@
 #include <memory>
 #include <string_view>
 
-#include "engine/backend/BackendRegistry.hpp"
-#include "engine/config/Settings.hpp"
+#include "plugins/backend/BackendRegistry.hpp"
+#include "plugins/backend/config/Settings.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -35,7 +35,7 @@ namespace rtype::plugins::backend {
 ///   `.before("rtype.backend.endFrame")`). Both are skipped while the window is minimized.
 /// It does not add the InputPlugin: add it too to read the input as actions.
 /// @code
-/// auto registry = std::make_unique<rtype::engine::backend::BackendRegistry>();
+/// auto registry = std::make_unique<rtype::plugins::backend::BackendRegistry>();
 /// rtype::platform::glfw::registerPlatform(*registry);
 /// rtype::render::vulkan::registerRenderer(*registry);
 /// app.addPlugin(rtype::plugins::backend::BackendPlugin{std::move(registry), settings});
@@ -50,7 +50,8 @@ class BackendPlugin : public ecs::Plugin {
 
     /// @param registry The platforms and renderers, registered by the executable.
     /// @param settings The configuration: `platform`, `renderer`, `window` and a section per backend.
-    BackendPlugin(std::unique_ptr<engine::backend::BackendRegistry> registry, engine::config::Settings settings);
+    BackendPlugin(std::unique_ptr<plugins::backend::BackendRegistry> registry,
+                  plugins::backend::config::Settings settings);
     ~BackendPlugin() override = default;
     BackendPlugin(const BackendPlugin& other) = delete;
     BackendPlugin& operator=(const BackendPlugin& other) = delete;
@@ -65,7 +66,7 @@ class BackendPlugin : public ecs::Plugin {
     void build(ecs::App& app) override;
 
   private:
-    std::unique_ptr<engine::backend::BackendRegistry> _registry;  ///< Handed to the Startup system by build().
-    engine::config::Settings _settings;                           ///< Handed to the Startup system by build().
+    std::unique_ptr<plugins::backend::BackendRegistry> _registry;  ///< Handed to the Startup system by build().
+    plugins::backend::config::Settings _settings;                  ///< Handed to the Startup system by build().
 };
 }  // namespace rtype::plugins::backend

@@ -27,13 +27,6 @@
 #include "core/Device.hpp"
 #include "core/Instance.hpp"
 #include "core/PhysicalDevice.hpp"
-#include "engine/graphics/Camera.hpp"
-#include "engine/graphics/Color.hpp"
-#include "engine/graphics/IRenderer.hpp"
-#include "engine/graphics/RectShape.hpp"
-#include "engine/graphics/Sprite.hpp"
-#include "engine/graphics/Texture.hpp"
-#include "engine/platform/IPlatform.hpp"
 #include "frame/FrameGlobals.hpp"
 #include "frame/FrameResources.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
@@ -41,6 +34,13 @@
 #include "memory/Uploader.hpp"
 #include "pipeline/PipelineCache.hpp"
 #include "pipeline/ShaderCache.hpp"
+#include "plugins/backend/graphics/Camera.hpp"
+#include "plugins/backend/graphics/Color.hpp"
+#include "plugins/backend/graphics/IRenderer.hpp"
+#include "plugins/backend/graphics/RectShape.hpp"
+#include "plugins/backend/graphics/Sprite.hpp"
+#include "plugins/backend/graphics/Texture.hpp"
+#include "plugins/backend/platform/IPlatform.hpp"
 #include "presentation/Swapchain.hpp"
 
 namespace rtype::render::vulkan {
@@ -52,7 +52,7 @@ namespace rtype::render::vulkan {
 /// endFrame() presents it. Drawing functions throw UnsupportedFeatureException until they are implemented.
 ///
 /// Needs a platform that implements interop::vulkan::IVulkanSurfaceSource (GlfwPlatform does).
-class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IRenderer {
+class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::graphics::IRenderer {
   public:
     /// @brief Settings of the Vulkan backend, given at construction. Set only what differs from the defaults:
     /// @code
@@ -97,12 +97,12 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
 
     /// @brief Finds the platform's IVulkanSurfaceSource, and makes it use this library's Vulkan loader.
     /// @throws exceptions::UnsupportedFeatureException If the platform does not implement IVulkanSurfaceSource.
-    void setup(engine::platform::IPlatform& platform) override;
+    void setup(plugins::backend::platform::IPlatform& platform) override;
 
     /// @brief Creates the instance (with the platform's extensions), the debug messenger and the window surface.
     /// @throws exceptions::UnsupportedFeatureException If the platform does not implement IVulkanSurfaceSource.
     /// @throws std::runtime_error If a layer or an extension is missing, or init() was already called.
-    void init(engine::platform::IPlatform& platform) override;
+    void init(plugins::backend::platform::IPlatform& platform) override;
 
     /// @brief Records the new framebuffer size; the next beginFrame() recreates the swapchain (or skips frames while it
     /// is 0x0, i.e. minimized).
@@ -117,26 +117,26 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public engine::graphics::IR
     /// VK_SUBOPTIMAL_KHR). The frame is skipped, and endFrame() then does nothing, while the window is minimized or
     /// when the acquire reports the swapchain out of date.
     /// @throws std::logic_error If init() was not called, or the previous frame was not ended.
-    void beginFrame(const engine::graphics::Color& clearColor) override;
+    void beginFrame(const plugins::backend::graphics::Color& clearColor) override;
 
     /// @brief Ends rendering, submits the frame and presents the image. Does nothing if beginFrame() skipped it.
     void endFrame() override;
 
     /// @name Not implemented yet: throw UnsupportedFeatureException
     /// @{
-    [[nodiscard]] engine::graphics::TextureId createTexture(const engine::graphics::TextureDesc& desc,
-                                                            std::span<const std::byte> pixels) override;
-    void destroy(engine::graphics::TextureId texture) override;
-    void setCamera(const engine::graphics::Camera& camera) override;
-    void draw(const engine::graphics::Sprite& sprite) override;
-    void draw(const engine::graphics::RectShape& rect) override;
+    [[nodiscard]] plugins::backend::graphics::TextureId createTexture(
+        const plugins::backend::graphics::TextureDesc& desc, std::span<const std::byte> pixels) override;
+    void destroy(plugins::backend::graphics::TextureId texture) override;
+    void setCamera(const plugins::backend::graphics::Camera& camera) override;
+    void draw(const plugins::backend::graphics::Sprite& sprite) override;
+    void draw(const plugins::backend::graphics::RectShape& rect) override;
     /// @}
 
   private:
     /// @throws exceptions::UnsupportedFeatureException Always, naming the function.
     /// @return The platform's IVulkanSurfaceSource.
     /// @throws exceptions::UnsupportedFeatureException If the platform does not implement it.
-    static interop::vulkan::IVulkanSurfaceSource& surfaceSourceOf(engine::platform::IPlatform& platform);
+    static interop::vulkan::IVulkanSurfaceSource& surfaceSourceOf(plugins::backend::platform::IPlatform& platform);
 
     [[noreturn]] static void notImplemented(std::string_view function);
 

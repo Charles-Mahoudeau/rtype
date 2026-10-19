@@ -29,16 +29,16 @@
 
 #include "core/DebugMessenger.hpp"
 #include "core/Instance.hpp"
-#include "engine/exceptions/PlatformExceptions.hpp"
-#include "engine/graphics/Camera.hpp"
-#include "engine/graphics/Color.hpp"
-#include "engine/graphics/RectShape.hpp"
-#include "engine/graphics/Sprite.hpp"
-#include "engine/graphics/Texture.hpp"
-#include "engine/platform/IPlatform.hpp"
-#include "engine/system/ExecutablePath.hpp"
 #include "frame/FrameData.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
+#include "plugins/backend/exceptions/PlatformExceptions.hpp"
+#include "plugins/backend/graphics/Camera.hpp"
+#include "plugins/backend/graphics/Color.hpp"
+#include "plugins/backend/graphics/RectShape.hpp"
+#include "plugins/backend/graphics/Sprite.hpp"
+#include "plugins/backend/graphics/Texture.hpp"
+#include "plugins/backend/platform/IPlatform.hpp"
+#include "plugins/backend/system/ExecutablePath.hpp"
 #include "rendering/DynamicRendering.hpp"
 #include "rendering/FrameUniforms.hpp"
 
@@ -51,7 +51,7 @@ constexpr std::uint64_t kNoTimeout = std::numeric_limits<std::uint64_t>::max();
 
 /// @return @p color (x, y, z, w = red, green, blue, alpha) as a Vulkan clear value: linear, an sRGB swapchain encodes
 /// it.
-vk::ClearColorValue toClearColor(const engine::graphics::Color& color) {
+vk::ClearColorValue toClearColor(const plugins::backend::graphics::Color& color) {
     return vk::ClearColorValue{std::array{color.x, color.y, color.z, color.w}};
 }
 
@@ -72,11 +72,11 @@ VulkanRenderer::~VulkanRenderer() {
     }
 }
 
-void VulkanRenderer::setup(engine::platform::IPlatform& platform) {
+void VulkanRenderer::setup(plugins::backend::platform::IPlatform& platform) {
     surfaceSourceOf(platform).initLoader(core::Instance::getLoaderEntryPoint());
 }
 
-void VulkanRenderer::init(engine::platform::IPlatform& platform) {
+void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
     if (_instance) {
         throw std::runtime_error("VulkanRenderer::init() called twice");
     }
@@ -117,8 +117,8 @@ void VulkanRenderer::init(engine::platform::IPlatform& platform) {
     _uploader = std::make_unique<memory::Uploader>(*_device, *_allocator);
     const std::filesystem::path& shaderDirectory = _config.shaderDirectory;
     _shaders = std::make_unique<pipeline::ShaderCache>(
-        *_device,
-        shaderDirectory.is_absolute() ? shaderDirectory : engine::system::getExecutableDirectory() / shaderDirectory);
+        *_device, shaderDirectory.is_absolute() ? shaderDirectory
+                                                : plugins::backend::system::getExecutableDirectory() / shaderDirectory);
     _pipelineCache = std::make_unique<pipeline::PipelineCache>(*_device);
     _globals = std::make_unique<frame::FrameGlobals>(*_device, *_allocator, kFramesInFlight);
     _startTime = std::chrono::steady_clock::now();
@@ -164,14 +164,14 @@ void VulkanRenderer::updateFrameUniforms() {
     _lastFrameTime = now;
 }
 
-engine::graphics::TextureId VulkanRenderer::createTexture(const engine::graphics::TextureDesc& /*desc*/,
-                                                          std::span<const std::byte> /*pixels*/) {
+plugins::backend::graphics::TextureId VulkanRenderer::createTexture(
+    const plugins::backend::graphics::TextureDesc& /*desc*/, std::span<const std::byte> /*pixels*/) {
     notImplemented("createTexture");
 }
 
-void VulkanRenderer::destroy(engine::graphics::TextureId /*texture*/) { notImplemented("destroy"); }
+void VulkanRenderer::destroy(plugins::backend::graphics::TextureId /*texture*/) { notImplemented("destroy"); }
 
-void VulkanRenderer::beginFrame(const engine::graphics::Color& clearColor) {
+void VulkanRenderer::beginFrame(const plugins::backend::graphics::Color& clearColor) {
     if (!_frames) {
         throw std::logic_error("VulkanRenderer::beginFrame() called before init()");
     }
@@ -249,23 +249,24 @@ void VulkanRenderer::endFrame() {
     _frames->advance();
 }
 
-void VulkanRenderer::setCamera(const engine::graphics::Camera& /*camera*/) { notImplemented("setCamera"); }
+void VulkanRenderer::setCamera(const plugins::backend::graphics::Camera& /*camera*/) { notImplemented("setCamera"); }
 
-void VulkanRenderer::draw(const engine::graphics::Sprite& /*sprite*/) { notImplemented("draw(Sprite)"); }
+void VulkanRenderer::draw(const plugins::backend::graphics::Sprite& /*sprite*/) { notImplemented("draw(Sprite)"); }
 
-void VulkanRenderer::draw(const engine::graphics::RectShape& /*rect*/) { notImplemented("draw(RectShape)"); }
+void VulkanRenderer::draw(const plugins::backend::graphics::RectShape& /*rect*/) { notImplemented("draw(RectShape)"); }
 
-interop::vulkan::IVulkanSurfaceSource& VulkanRenderer::surfaceSourceOf(engine::platform::IPlatform& platform) {
+interop::vulkan::IVulkanSurfaceSource& VulkanRenderer::surfaceSourceOf(
+    plugins::backend::platform::IPlatform& platform) {
     auto* surfaceSource = dynamic_cast<interop::vulkan::IVulkanSurfaceSource*>(&platform);
     if (surfaceSource == nullptr) {
-        throw engine::exceptions::UnsupportedFeatureException(
+        throw plugins::backend::exceptions::UnsupportedFeatureException(
             "VulkanRenderer needs a platform that implements IVulkanSurfaceSource (glfw, sdl...)");
     }
     return *surfaceSource;
 }
 
 void VulkanRenderer::notImplemented(std::string_view function) {
-    throw engine::exceptions::UnsupportedFeatureException(
+    throw plugins::backend::exceptions::UnsupportedFeatureException(
         std::format("VulkanRenderer::{} is not implemented yet", function));
 }
 

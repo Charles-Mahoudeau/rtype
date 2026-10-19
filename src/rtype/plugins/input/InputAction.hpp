@@ -30,11 +30,12 @@ enum class ActionType : std::uint8_t {
 ///
 /// @code
 /// input.addAction("move", ActionType::kVector2)
-///     .bindVector(plugins::input::Control::key(engine::input::Key::kW),
-///     plugins::input::Control::key(engine::input::Key::kS), plugins::input::Control::key(engine::input::Key::kA),
-///     plugins::input::Control::key(engine::input::Key::kD))
-///     .bindVector(plugins::input::Control::gamepadAxis(engine::input::GamepadAxis::kLeftX),
-///     plugins::input::Control::gamepadAxis(engine::input::GamepadAxis::kLeftY));
+///     .bindVector(plugins::input::Control::key(plugins::backend::input::Key::kW),
+///     plugins::input::Control::key(plugins::backend::input::Key::kS),
+///     plugins::input::Control::key(plugins::backend::input::Key::kA),
+///     plugins::input::Control::key(plugins::backend::input::Key::kD))
+///     .bindVector(plugins::input::Control::gamepadAxis(plugins::backend::input::GamepadAxis::kLeftX),
+///     plugins::input::Control::gamepadAxis(plugins::backend::input::GamepadAxis::kLeftY));
 /// @endcode
 class InputAction {
   public:

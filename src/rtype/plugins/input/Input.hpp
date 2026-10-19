@@ -13,8 +13,8 @@
 #include <string>
 #include <unordered_map>
 
-#include "engine/event/Event.hpp"
-#include "engine/input/Key.hpp"
+#include "plugins/backend/event/Event.hpp"
+#include "plugins/backend/input/Key.hpp"
 #include "plugins/input/ButtonStates.hpp"
 #include "plugins/input/Control.hpp"
 #include "plugins/input/InputAction.hpp"
@@ -48,7 +48,7 @@ class Input {
     Input& operator=(Input&& other) noexcept = default;
 
     /// @brief Feeds one event. Call it for every event of the frame, before update().
-    void handleEvent(const engine::Event& event);
+    void handleEvent(const plugins::backend::Event& event);
 
     /// @brief Updates every action from the events received since the last call. Call once per frame.
     void update();
@@ -84,32 +84,32 @@ class Input {
   private:
     /// @name Event handlers, dispatched by handleEvent().
     /// @{
-    void onEvent(const engine::event::KeyPressed& event);
-    void onEvent(const engine::event::KeyReleased& event);
-    void onEvent(const engine::event::MouseButtonPressed& event);
-    void onEvent(const engine::event::MouseButtonReleased& event);
-    void onEvent(const engine::event::MouseMoved& event) noexcept;
-    void onEvent(const engine::event::MouseScrolled& event) noexcept;
-    void onEvent(const engine::event::FocusChanged& event) noexcept;
-    void onEvent(const engine::event::GamepadConnected& event) noexcept;
-    void onEvent(const engine::event::GamepadDisconnected& event) noexcept;
-    void onEvent(const engine::event::GamepadButtonPressed& event);
-    void onEvent(const engine::event::GamepadButtonReleased& event);
-    void onEvent(const engine::event::GamepadAxisMoved& event);
+    void onEvent(const plugins::backend::event::KeyPressed& event);
+    void onEvent(const plugins::backend::event::KeyReleased& event);
+    void onEvent(const plugins::backend::event::MouseButtonPressed& event);
+    void onEvent(const plugins::backend::event::MouseButtonReleased& event);
+    void onEvent(const plugins::backend::event::MouseMoved& event) noexcept;
+    void onEvent(const plugins::backend::event::MouseScrolled& event) noexcept;
+    void onEvent(const plugins::backend::event::FocusChanged& event) noexcept;
+    void onEvent(const plugins::backend::event::GamepadConnected& event) noexcept;
+    void onEvent(const plugins::backend::event::GamepadDisconnected& event) noexcept;
+    void onEvent(const plugins::backend::event::GamepadButtonPressed& event);
+    void onEvent(const plugins::backend::event::GamepadButtonReleased& event);
+    void onEvent(const plugins::backend::event::GamepadAxisMoved& event);
     /// @brief Events Input does not use (Closed, Resized, TextEntered...).
     template <typename Unused>
     void onEvent(const Unused& event) noexcept;
     /// @}
 
-    [[nodiscard]] float readGamepadAxis(engine::input::GamepadAxis axis) const;
+    [[nodiscard]] float readGamepadAxis(plugins::backend::input::GamepadAxis axis) const;
     [[nodiscard]] glm::vec2 evaluate(const InputAction::Binding& binding) const;
 
     std::unordered_map<std::string, InputAction> _actions;  ///< Actions by name.
 
-    ButtonStates<engine::input::Key> _keys;
-    ButtonStates<engine::input::MouseButton> _mouseButtons;
-    ButtonStates<engine::input::GamepadButton> _gamepadButtons;
-    std::array<float, static_cast<std::size_t>(engine::input::GamepadAxis::kCount)>
+    ButtonStates<plugins::backend::input::Key> _keys;
+    ButtonStates<plugins::backend::input::MouseButton> _mouseButtons;
+    ButtonStates<plugins::backend::input::GamepadButton> _gamepadButtons;
+    std::array<float, static_cast<std::size_t>(plugins::backend::input::GamepadAxis::kCount)>
         _gamepadAxes{};  ///< Raw values, no deadzone.
     bool _gamepadConnected = false;
     float _deadzone = 0.15F;  ///< Stick values below this are read as 0.
