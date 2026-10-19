@@ -158,25 +158,43 @@ fills `PlayerInput` directly from local input instead of from the network. Becau
 
 ### Wiring Ethan's backends
 
-`WindowPlugin` and `RenderPlugin` reuse `BackendRegistry` unchanged: a `Startup` system reads the
-`Settings` resource, calls `registry.createBackend(settings)` (which keeps the `prepare → init → init`
-order) and inserts the resulting `Backend` as a [main-thread resource](10-resources.md).
+`BackendPlugin` (`plugins/backend/`, `rtype::plugins::backend`) reuses `BackendRegistry` unchanged. The executable,
+the only place that knows GLFW and Vulkan, fills a registry and hands it to the plugin with the `Settings`, so the
+plugins depend on no backend:
+
+```c++
+auto registry = std::make_unique<rtype::engine::backend::BackendRegistry>();
+rtype::platform::glfw::registerPlatform(*registry);
+rtype::render::vulkan::registerRenderer(*registry);
+app.addPlugins(rtype::ecs::MinimalPlugins{})
+    .addPlugin(rtype::plugins::backend::BackendPlugin{std::move(registry), settings})
+    .addPlugin(rtype::plugins::input::InputPlugin{});
+return app.run();
+```
+
+`build()` only registers: the window opens in the `Startup` system, which calls `registry.createBackend(settings)`
+(keeping the `setup → init → init` order) into the `Backend` [main-thread resource](10-resources.md). Every system
+of the plugin is a client one, so a dedicated server has no window.
 
 ```mermaid
 sequenceDiagram
     participant App
-    participant WP as WindowPlugin / RenderPlugin
+    participant BP as BackendPlugin
     participant BR as BackendRegistry
-    App->>WP: build(app): register systems
-    App->>WP: Startup: createBackend system
-    WP->>BR: createBackend(settings)
-    BR-->>WP: Backend (platform + renderer)
-    WP->>App: insertNonSendResource(backend)
+    App->>BP: build(app): resources, events, systems
+    App->>BP: Startup: rtype.backend.create
+    BP->>BR: createBackend(settings)
+    BR-->>BP: Backend (platform + renderer)
     loop Every frame
-        App->>WP: PreUpdate: pollEvents → Events, Input
-        App->>WP: Render: beginFrame, draw sprites, endFrame
+        App->>BP: PreUpdate: rtype.backend.events (pollEvents → one ECS event per alternative, resize, AppExit)
+        App->>BP: Render: rtype.backend.beginFrame (ClearColor), drawing systems, rtype.backend.endFrame
     end
 ```
+
+While the window is minimized, the events system waits for an event instead of polling, and both render systems
+skip the frame. The `InputPlugin` reads the input events the backend sends, in the same phase: whichever of the two
+plugins is added second orders its system against the other's, since a constraint naming a missing system is an
+error.
 
 ### Luau plugins
 

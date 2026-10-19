@@ -1391,7 +1391,7 @@ is the same idea as Bevy's modules with a short prelude.
 
 | Path | Contents |
 |---|---|
-| `src/rtype/plugins/` (target `plugins`) | One folder per plugin, which keeps its code and declares its own components, resources and events (`rtype::plugins::<name>`): `input/` (`InputPlugin`, `Input`, done), later `WindowPlugin`, `RenderPlugin`, `AudioPlugin`, `AssetPlugin`, `TransformPlugin`, `CollisionPlugin`, `ScriptPlugin`, `LuauPlugin`, `ClientPlugin`, `ServerPlugin`, `StandalonePlugin`, plugin groups (`rtype::plugins`) |
+| `src/rtype/plugins/` (target `plugins`) | One folder per plugin, which keeps its code and declares its own components, resources and events (`rtype::plugins::<name>`): `input/` (`InputPlugin`, `Input`, done), `backend/` (`BackendPlugin`: window, events and frame, done), later `RenderPlugin` (sprites), `AudioPlugin`, `AssetPlugin`, `TransformPlugin`, `CollisionPlugin`, `ScriptPlugin`, `LuauPlugin`, `ClientPlugin`, `ServerPlugin`, `StandalonePlugin`, plugin groups (`rtype::plugins`) |
 | `tests/ecs/` | gtest, same setup as `tests/luau` (`xmake f --Tests=y`) |
 
 The public include path is `src/`: `#include <rtype/ecs/world/World.hpp>`.
