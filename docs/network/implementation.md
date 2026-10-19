@@ -2312,6 +2312,28 @@ In M1 every snapshot is **complete** ([deviation 1](#6-deviations-from-the-desig
 entity with all its replicated components. That is simple and correct, and fits a few dozen entities. M2 replaces it
 with deltas (only what each client has not confirmed yet), keeping the same message layout.
 
+**How the snapshot reads the game's components.** The replicated components (`Body`, `Health`...) are declared by the
+game, so no typed `Query` of `replication` can name them. `net.snapshot` takes a `ReplicatedRead` parameter instead,
+which does two things:
+
+- **It gives the system the data**: one `DynamicQuery` per replicated component, and each component's description
+  (name, fields). The system iterates them, reads each value as bytes (`QueryMatch::get`) and serializes it field by
+  field (NET-13).
+- **It tells the scheduler what the system reads**: every replicated component. A game system that writes one of them
+  in `PostUpdate` must be ordered against `net.snapshot`, or the schedule refuses to build; once ordered, the snapshot
+  carries that frame's value, instead of this frame's or the last one's depending on the order systems were added.
+
+Only `net.snapshot` takes it. The other server systems use types the network knows (`PlayerInput`, `Owner`,
+`NetworkId`) through typed queries, and the client never reads replicated components: it writes them through
+`Commands` (NET-17).
+
+`net.snapshot` runs every frame, but `ReplicatedRead` reads nothing by itself: the values are read only when the system
+iterates, and it returns at once unless a snapshot is due (step 10). A frame with no fixed tick sends nothing. In M1, a
+snapshot that is due reads and sends every replicated entity with all its replicated components. From M2 on, the same
+queries are iterated, but each value is compared with the tick that client last confirmed (`Components::getTicks`), so
+only what that client lacks is sent; the system's `lastRun` is not used for this, since each client confirms at its
+own pace.
+
 **What it must do.**
 
 *Plugin and setup.*
