@@ -28,7 +28,8 @@ namespace rtype::plugins::backend {
 ///   resource "rtype.Backend".
 /// - PreUpdate "rtype.backend.events": polls the platform (or waits for an event while the window is minimized),
 ///   sends every event as an ECS event (the input ones of InputEvents.hpp, and Closed, Resized, TextEntered), resizes
-///   the renderer, and sends AppExit once the window is closed.
+///   the renderer, and sends AppExit once the window is closed. It runs before the InputPlugin's system when both
+///   plugins are added, whatever their order.
 /// - Render "rtype.backend.beginFrame" and "rtype.backend.endFrame": clear with the ClearColor resource, and show the
 ///   frame. Drawing systems run between the two (`.after("rtype.backend.beginFrame")`,
 ///   `.before("rtype.backend.endFrame")`). Both are skipped while the window is minimized.

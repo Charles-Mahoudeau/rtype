@@ -23,10 +23,12 @@
 #include "plugins/backend/BackendResources.hpp"
 #include "plugins/backend/WindowEvents.hpp"
 #include "plugins/input/InputEvents.hpp"
+#include "plugins/input/InputPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
+#include "rtype/ecs/schedule/Schedule.hpp"
 #include "rtype/ecs/system/EventWriter.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/system/Side.hpp"
@@ -148,7 +150,13 @@ void BackendPlugin::build(ecs::App& app) {
     }
 
     app.addSystem(ecs::Phase::kStartup, std::string{kCreateSystem}, &createBackend).setSide(ecs::Side::kClient);
-    app.addSystem(ecs::Phase::kPreUpdate, std::string{kEventsSystem}, &forwardEvents).setSide(ecs::Side::kClient);
+    ecs::Schedule::SystemConfig forward =
+        app.addSystem(ecs::Phase::kPreUpdate, std::string{kEventsSystem}, &forwardEvents).setSide(ecs::Side::kClient);
+    // Input reads the events this system sends, in the same phase. A constraint naming a missing system is an error,
+    // so it is set by whichever of the two plugins is added second.
+    if (app.hasPlugin(input::InputPlugin::kName)) {
+        forward.before(std::string{input::InputPlugin::kUpdateSystem});
+    }
     app.addSystem(ecs::Phase::kRender, std::string{kBeginFrameSystem}, &beginFrame).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kRender, std::string{kEndFrameSystem}, &endFrame)
         .after(std::string{kBeginFrameSystem})

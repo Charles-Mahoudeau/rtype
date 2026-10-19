@@ -8,14 +8,17 @@
 #include "InputPlugin.hpp"
 
 #include <cstddef>
+#include <string>
 #include <string_view>
 
 #include "engine/event/Event.hpp"
+#include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/input/Input.hpp"
 #include "plugins/input/InputEvents.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
+#include "rtype/ecs/schedule/Schedule.hpp"
 #include "rtype/ecs/system/EventReader.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/system/Side.hpp"
@@ -92,6 +95,12 @@ void InputPlugin::build(ecs::App& app) {
     registerEvent<engine::event::GamepadButtonReleased>(events);
     registerEvent<engine::event::GamepadAxisMoved>(events);
     app.insertResource(Input{});
-    app.addSystem(ecs::Phase::kPreUpdate, "rtype.input.update", &updateInput).setSide(ecs::Side::kClient);
+    ecs::Schedule::SystemConfig update =
+        app.addSystem(ecs::Phase::kPreUpdate, std::string{kUpdateSystem}, &updateInput).setSide(ecs::Side::kClient);
+    // The backend sends the events Input reads, in the same phase. A constraint naming a missing system is an
+    // error, so it is set by whichever of the two plugins is added second.
+    if (app.hasPlugin(backend::BackendPlugin::kName)) {
+        update.after(std::string{backend::BackendPlugin::kEventsSystem});
+    }
 }
 }  // namespace rtype::plugins::input

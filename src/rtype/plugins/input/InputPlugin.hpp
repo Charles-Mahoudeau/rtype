@@ -36,6 +36,9 @@ namespace rtype::plugins::input {
 class InputPlugin : public ecs::Plugin {
   public:
     static constexpr std::string_view kName = "rtype.input";  ///< The plugin's name.
+    /// @brief The PreUpdate system feeding the events to Input. Runs after the backend's event system when both
+    /// plugins are added, whatever their order.
+    static constexpr std::string_view kUpdateSystem = "rtype.input.update";
 
     InputPlugin() = default;
     ~InputPlugin() override = default;
