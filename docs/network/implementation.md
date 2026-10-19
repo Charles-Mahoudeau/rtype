@@ -2005,7 +2005,7 @@ the game, so they make the read fail.
    On false, the content of `value` is unspecified and must be thrown away.
 3. An entity field is read as a `u32` and translated with `mapper.toLocal(id)`: 0 gives the null entity, and so does an
    id the mapper does not know (the target may not exist on this client yet).
-4. `getWireSize(info)` returns the number of bytes `writeFields` writes for that type. It is the same for every value,
+4. `computeWireSize(info)` returns the number of bytes `writeFields` writes for that type. It is the same for every value,
    since no field has a variable size; the snapshot builder uses it to know whether a record fits.
 5. `isSerializable(info)` is true when the type has at least one field and no `destruct`, `move` or `copy` hook (it
    is plain data that can be copied, moved and destroyed as bytes). A `construct` hook is allowed: `makeHooks()` sets
@@ -2030,7 +2030,7 @@ class EntityMapper {
 };
 
 [[nodiscard]] RTYPE_REPLICATION_API bool isSerializable(const ecs::TypeInfo& info) noexcept;
-[[nodiscard]] RTYPE_REPLICATION_API std::size_t getWireSize(const ecs::TypeInfo& info) noexcept;
+[[nodiscard]] RTYPE_REPLICATION_API std::size_t computeWireSize(const ecs::TypeInfo& info) noexcept;
 RTYPE_REPLICATION_API void writeFields(network::bytes::ByteWriter& writer, const ecs::TypeInfo& info,
                                        std::span<const std::byte> value, const EntityMapper& mapper) noexcept;
 [[nodiscard]] RTYPE_REPLICATION_API bool readFields(network::bytes::ByteReader& reader, const ecs::TypeInfo& info,
@@ -2042,7 +2042,7 @@ RTYPE_REPLICATION_API void writeFields(network::bytes::ByteWriter& writer, const
 - [ ] `serialization/EntityMapper.hpp`, `serialization/FieldSerializer.hpp/.cpp`.
 - [ ] Tests: round trip of a component with one field of every type and a fixed array; exact bytes of a small
   component; NaN, +∞ and −∞ rejected (in a scalar and in a vector); `bool` 2 rejected; truncated input rejected at
-  every length; entity mapping both ways, unknown id → null entity; `getWireSize` equals the bytes written; a type
+  every length; entity mapping both ways, unknown id → null entity; `computeWireSize` equals the bytes written; a type
   with hooks is not serializable.
 
 ### NET-14 · Manifest
@@ -2395,7 +2395,7 @@ own pace.
     - one spawn record per tracked entity, in increasing `NetworkId` order: the id, prefab `0xFFFF` (none in M1), and
       every replicated component the entity has, in short id order, written with NET-13 (entity fields through the
       tracking table). The components are read by `ComponentId` through the `ReplicatedRead` parameter;
-    - records are added while the message stays within `kMaxMessageSize` (`getWireSize` tells the size in advance).
+    - records are added while the message stays within `kMaxMessageSize` (`computeWireSize` tells the size in advance).
       An entity is written whole or not at all. If every entity fits, the `kComplete` flag is set; if not, the flag is
       cleared (clients then remove nothing) and a rate-limited warning is logged;
     - updates, removals and despawns are empty in M1.
