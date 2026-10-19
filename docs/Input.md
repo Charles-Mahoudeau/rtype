@@ -112,10 +112,11 @@ flowchart LR
 
 | Module | Role | Depends on |
 | --- | --- | --- |
-| `engine/` (`engine-core`) | `Key`, `Event`, `Control`, `InputAction`, `Input`, `ButtonStates`. Pure logic, testable without a window. | glm only |
+| `engine/` (`engine-core`) | `Key`, `Event`, `Control`: the input vocabulary the platform speaks. | glm only |
+| `plugins/input/` (`plugins`) | `Input`, `InputAction`, `ButtonStates` (pure logic, testable without a window), and `InputPlugin`, which makes `Input` an ECS resource fed by the input events. | `ecs`, `engine-core` |
 | `platform/glfw/` | `GlfwPlatform` (implements `IPlatform`): GLFW callbacks and gamepad polling, translated into engine events. | `engine-core`, GLFW |
 | `render/vulkan/`, `luau/` | Rendering and scripting. They read input through the engine, never through GLFW. | `engine-core` |
-| `engine/main.cpp` (`engine`) | The executable: creates the window and feeds its events to `Input`. | everything above |
+| `engine/main.cpp` (`engine`) | The executable: creates the window and feeds its events to `Input` (until the window plugin does it). | everything above |
 
 **Rule:** GLFW never leaves `platform/glfw/`. No public header outside it includes `<GLFW/glfw3.h>` or uses a `GLFW_*` code. Renderers attach to the window through the interop interfaces the platform implements (`IVulkanSurfaceSource`, see [`Backend.md`](Backend.md)), never through GLFW itself.
 
@@ -126,20 +127,44 @@ flowchart LR
 | [`engine/input/Key.hpp`](../src/rtype/engine/input/Key.hpp) | `Key`, `MouseButton`, `GamepadButton`, `GamepadAxis`, `Mods` |
 | [`engine/event/Event.hpp`](../src/rtype/engine/event/Event.hpp) | Every event type and the `engine::Event` variant |
 | [`engine/input/Control.hpp`](../src/rtype/engine/input/Control.hpp) | One physical control read as a float |
-| [`engine/input/InputAction.hpp`](../src/rtype/engine/input/InputAction.hpp) | A named action and its bindings |
-| [`engine/input/Input.hpp`](../src/rtype/engine/input/Input.hpp) | Input state and the action registry |
-| [`engine/input/ButtonStates.hpp`](../src/rtype/engine/input/ButtonStates.hpp) | Held / tapped / snapshot state of a family of buttons |
+| [`plugins/input/InputAction.hpp`](../src/rtype/plugins/input/InputAction.hpp) | A named action and its bindings |
+| [`plugins/input/Input.hpp`](../src/rtype/plugins/input/Input.hpp) | Input state and the action registry; the `rtype.Input` ECS resource |
+| [`plugins/input/ButtonStates.hpp`](../src/rtype/plugins/input/ButtonStates.hpp) | Held / tapped / snapshot state of a family of buttons |
+| [`plugins/input/InputEvents.hpp`](../src/rtype/plugins/input/InputEvents.hpp) | The input events of `engine::Event` declared as ECS events (`rtype.KeyPressed`...) |
+| [`plugins/input/InputPlugin.hpp`](../src/rtype/plugins/input/InputPlugin.hpp) | Inserts `Input` and updates it in `PreUpdate` from the input events |
 | [`platform/glfw/GlfwPlatform.hpp`](../src/rtype/platform/glfw/GlfwPlatform.hpp) | The window, source of every event |
 | [`platform/glfw/GlfwPlatformCallbacks.cpp`](../src/rtype/platform/glfw/GlfwPlatformCallbacks.cpp) | GLFW callbacks → events |
 | [`platform/glfw/GlfwPlatformGamepad.cpp`](../src/rtype/platform/glfw/GlfwPlatformGamepad.cpp) | Gamepad polling → events |
 | [`platform/glfw/GlfwMapping.cpp`](../src/rtype/platform/glfw/GlfwMapping.cpp) | GLFW codes ↔ engine types, the only place that knows both |
+
+## In an App
+
+`InputPlugin` (`plugins/input/`) makes `Input` a resource of the world. It registers one ECS event per input
+alternative of `engine::Event` (`rtype.KeyPressed`, `rtype.MouseMoved`, `rtype.GamepadConnected`...), and adds the
+client system `rtype.input.update` in `PreUpdate`: it feeds the events of the frame to `Input`, then calls
+`update()`. The window plugin sends those events after polling the platform; in tests they are sent by hand.
+
+```cpp
+app.addPlugin(rtype::plugins::input::InputPlugin{});
+app.getWorld().getResources().requireMut<rtype::plugins::input::Input>()->addAction(
+    "fire", rtype::plugins::input::ActionType::kButton);
+
+void fire(rtype::ecs::Res<rtype::plugins::input::Input> input) {
+    if (input->getAction("fire").isPressed()) { /* ... */ }
+}
+```
+
+The events of a frame are fed by kind (focus, keys, mouse, gamepad), not in the order they happened: a button released
+then pressed again within one frame reads as released until its next press. The system only runs on clients and in
+standalone: a dedicated server has no input.
 
 ## Usage
 
 ### 1. Declare the actions once
 
 ```cpp
-using namespace rtype::engine::input;
+using namespace rtype::engine::input;   // Key, Control...
+using namespace rtype::plugins::input;  // Input, ActionType
 
 Input input;
 
