@@ -94,14 +94,15 @@ bool receiveRaw(Connection& to, const std::vector<std::byte>& messages, const ne
 }
 }  // namespace
 
-TEST(Connection, SendRefusesEmptyOversizedAndReliablePayloads) {
+TEST(Connection, SendRefusesEmptyAndOversizedPayloads) {
     const network::NetworkSettings settings;
     tests::FakeClock clock;
     Connection connection{kToken, settings, clock.now()};
 
     EXPECT_FALSE(connection.send(network::Channel::kUnreliable, {}));
     EXPECT_FALSE(connection.send(network::Channel::kUnreliable, payloadOf(protocol::kMaxMessageSize + 1)));
-    EXPECT_FALSE(connection.send(network::Channel::kReliable, payloadOf(4)));
+    EXPECT_FALSE(connection.send(network::Channel::kReliable, {}));
+    EXPECT_FALSE(connection.send(network::Channel::kReliable, payloadOf(protocol::kMaxMessageSize + 1)));
     EXPECT_TRUE(connection.buildPackets(clock.now()).empty());
 
     EXPECT_TRUE(connection.send(network::Channel::kUnreliable, payloadOf(protocol::kMaxMessageSize)));
@@ -474,12 +475,12 @@ TEST(Connection, AValidRawDatagramIsAccepted) {
     tests::FakeClock clock;
     Connection connection{kToken, settings, clock.now()};
 
-    ASSERT_TRUE(receiveRaw(connection, toBytes({1, 2, 0, 0xAA, 0xBB, 0, 1, 0, 0xCC}), clock.now()));
+    ASSERT_TRUE(receiveRaw(connection, toBytes({1, 0, 0, 2, 0, 0xAA, 0xBB, 0, 1, 0, 0xCC}), clock.now()));
 
     const auto messages = connection.takeMessages();
     ASSERT_EQ(messages.size(), 2U);
-    EXPECT_EQ(messages[0].channel, network::Channel::kReliable);
-    EXPECT_EQ(messages[0].payload, toBytes({0xAA, 0xBB}));
-    EXPECT_EQ(messages[1].channel, network::Channel::kUnreliable);
-    EXPECT_EQ(messages[1].payload, toBytes({0xCC}));
+    EXPECT_EQ(messages[0].channel, network::Channel::kUnreliable);
+    EXPECT_EQ(messages[0].payload, toBytes({0xCC}));
+    EXPECT_EQ(messages[1].channel, network::Channel::kReliable);
+    EXPECT_EQ(messages[1].payload, toBytes({0xAA, 0xBB}));
 }
