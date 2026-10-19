@@ -65,7 +65,7 @@ loaded" are written as systems:
 
 ```c++
 void loadNewSprites(rtype::ecs::Query<const SpriteRenderer, rtype::ecs::Added<SpriteRenderer>> sprites,
-                    rtype::ecs::ResMut<rtype::plugins::backend::assets::Assets<rtype::plugins::backend::graphics::Texture>> textures) {
+                    rtype::ecs::ResMut<rtype::plugins::backend::TextureAssets> textures) {
     for (auto [entity, sprite] : sprites) {
         textures->request(sprite.texture);
     }

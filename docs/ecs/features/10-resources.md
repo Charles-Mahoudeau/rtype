@@ -12,7 +12,7 @@ Some data has exactly one instance. Putting it on an entity ("the entity that ho
 awkward and slow to find.
 
 - **R1 (Bevy-style engine):** every engine service becomes a resource: Ethan's `Backend` (platform +
-  renderer), `Input`, `Settings`, `Assets<Texture>`, the network state.
+  renderer), `Input`, `Settings`, `TextureAssets`, the network state.
 - **R2 (Luau):** scripts read resources like `time` and write their own (a `game.Score` resource).
 
 ## How others do it
@@ -116,9 +116,10 @@ this changes nothing at runtime; it is there so a parallel scheduler later knows
 |---|---|---|
 | `Time` | `TimePlugin` (every App has one) | `Res` |
 | `Settings` | core (from the config file) | `Res` |
-| `Backend` (platform + renderer) | `WindowPlugin` / `RenderPlugin` | `NonSend` |
+| `Backend` (platform + renderer) | `BackendPlugin` | `NonSend` |
 | `Input` | `InputPlugin` | `Res` |
-| `Assets<Texture>`, `Assets<Sound>` | `AssetPlugin` | `Res` |
+| `TextureAssets` (`Assets<TextureId>`) | `BackendPlugin` | `Res` |
+| `Assets<SoundId>` | `AudioPlugin` (later) | `Res` |
 | `ServerState` / `ClientState` | `ServerPlugin` / `ClientPlugin` | `Res` |
 | `State<T>` | `app.state<T>()` (see [Scheduler](13-scheduler.md)) | `Res` |
 

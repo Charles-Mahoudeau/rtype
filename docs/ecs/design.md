@@ -7,7 +7,7 @@ implemented yet: every snippet is illustrative and open to discussion.
 The design builds on what already exists in the repository:
 
 - **Ethan's engine layer** (`feat/engine/graphic-implementation`): `IPlatform`, `IRenderer`,
-  `BackendRegistry`, `Settings`, `Event`, `Input` / `InputAction`, `Handle<Tag>` / `Resource<Tag, Owner>`,
+  `BackendRegistry`, `Settings`, `Event`, `Input` / `InputAction`, `TextureId` / `SoundId` / `MusicId`,
   `IAudio`, `Camera`, `Sprite`, `Texture`.
 - **Charles's Luau layer** (`feat/luau/result-and-error`, `docs/luau/api_proposal.md`): `Runtime`,
   `Result<T>` / `Error`, `generateTypes()`, handles, and the gtest setup in `tests/`.
@@ -176,7 +176,7 @@ class Entity {
 
 An `Entity` is **local to one world**. It is never sent over the network: replicated entities carry a
 `NetworkId` component instead (see [Networking](#networking)). This is the same generational idea as
-Ethan's `Handle<Tag>`; `Entity` stays a separate type so it cannot be confused with a texture handle.
+the backend ids (`TextureId`, `SoundId`); `Entity` stays a separate type so it cannot be confused with a texture.
 
 Serves: R2 (scripts hold entities safely), R3 (separate network identity), R4.
 
@@ -1115,10 +1115,9 @@ gameplay systems read it like any other component.
   Entities get a `NetworkId` on the server; the client keeps `NetworkId → Entity`. `kEntity` fields are
   translated through it.
 - **Assets:** replicated components reference assets by **`AssetId`**, a stable id derived from the
-  asset path. Ethan's `Handle<Tag>` (such as `TextureId`) is a slot in one process's renderer: the
-  server has no renderer and each client allocates slots in its own order, so it must **not** be
-  replicated. The comment in `Handle.hpp` saying handles are safe to send over the network should be
-  corrected.
+  asset path. A backend id (such as `TextureId`) is a slot in one process's renderer: the server has
+  no renderer and each client allocates slots in its own order, so it must **not** be replicated
+  (`Texture.hpp` says so).
 - **Client-only data:** interpolation buffers, effects and render state are `kClientOnly` components on
   the same entities.
 
@@ -1306,21 +1305,20 @@ Going Bevy-style now means the ECS owns the loop. Ethan's **interfaces stay**; w
 | `IPlatform::pollEvents()` | `PreUpdate` system that forwards each `Event` alternative to `Events<…>` |
 | `Input` / `InputAction` | Resource updated by a `PreUpdate` system from window events; feeds `PlayerInput` |
 | `IRenderer` | Called by `Render`-phase systems: `beginFrame` / `setCamera` / `draw` / `endFrame` |
-| `graphics::Sprite` (with `position`) | **Kept as the renderer's draw command.** The ECS component is `SpriteRenderer` (`AssetId`, source rect, origin, color); the position comes from `Transform`. |
+| `graphics::Sprite` (with `position`) | **Kept as the renderer's draw command.** The ECS component is `plugins::backend::SpriteRenderer` (`TextureId`, source rect, color, origin, layer); the position will come from `Transform`. It holds a `TextureId`, local to the renderer, so it is not replicated: a replicated sprite will need an `AssetId`. |
 | `graphics::Camera` (with `position`) | ECS `Camera` component (projection, rotation) + `Transform`; the render system builds a `graphics::Camera` |
-| `Texture` / `Resource<Tag, Owner>` | Owned by an `Assets<Texture>` resource, keyed by `AssetId`; components never own resources |
+| `TextureId` (the RAII `Texture` and `Handle<Tag>` / `Resource<Tag, Owner>` are gone) | The renderer owns the textures; the `plugins::backend::TextureAssets` resource (`Assets<TextureId>`, inserted by `BackendPlugin`) records them by path and loads image files (`loadTexture()`, through stb); components keep only the id |
 | `IAudio` | `AudioPlugin`, main-thread resource, sounds triggered by events |
 | `Settings` | Resource, filled from the config file at startup |
 
 ```c++
 void drawSprites(rtype::ecs::Query<const GlobalTransform, const SpriteRenderer> sprites,
-                 rtype::ecs::Res<rtype::plugins::backend::assets::Assets<rtype::plugins::backend::graphics::Texture>> textures,
                  rtype::ecs::NonSendMut<rtype::plugins::backend::Backend> backend) {
     rtype::plugins::backend::graphics::IRenderer& renderer = *backend->renderer;
     renderer.beginFrame(rtype::plugins::backend::graphics::Color{0.F, 0.F, 0.F, 1.F});
     for (auto [entity, transform, sprite] : sprites) {
         renderer.draw(rtype::plugins::backend::graphics::Sprite{
-            .texture = textures->getId(sprite.texture),
+            .texture = sprite.texture,  // already the renderer's TextureId
             .source = sprite.source,
             .position = transform.position,
             .origin = sprite.origin,

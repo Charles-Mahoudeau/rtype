@@ -106,7 +106,7 @@ scheduler, `reserve()` becomes atomic so several systems can reserve at once.
 |---|---|---|---|
 | `rtype::ecs::Entity` | An entity | One world | No |
 | `NetworkId` (component) | A replicated entity | One game session | Yes |
-| `Handle<Tag>` (Ethan's, e.g. `TextureId`) | A backend resource | One renderer / audio backend | No |
+| Backend ids (`TextureId`, `SoundId`, `MusicId`) | A backend object | One renderer / audio backend | No |
 | `AssetId` | An asset file | Everywhere (derived from its path) | Yes |
 
 All three handle types use the same index + generation idea, but they stay **distinct types** so a
