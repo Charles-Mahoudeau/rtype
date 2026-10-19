@@ -54,8 +54,10 @@ FrameClock* Schedules::getClock() const noexcept { return _clock.get(); }
 void Schedules::setClock(std::unique_ptr<FrameClock> clock) noexcept { _clock = std::move(clock); }
 
 Schedule::SystemConfig Schedules::addSystem(Phase phase, System system) {
-    const auto other =
-        std::ranges::find_if(_schedules, [&](const Schedule& schedule) { return schedule.contains(system.getName()); });
+    const Schedule& target = getSchedule(phase);  // its own duplicates: reported by Schedule::addSystem()
+    const auto other = std::ranges::find_if(_schedules, [&](const Schedule& schedule) {
+        return &schedule != &target && schedule.contains(system.getName());
+    });
     if (other != _schedules.end()) {
         throw exceptions::ScheduleException{
             std::format("Two systems are named '{}' (phases {} and {}): names must be "
