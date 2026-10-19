@@ -32,7 +32,8 @@ are added.
   - `plugins/backend/` (`rtype::plugins::backend`) — the contracts the backends implement and the vocabulary they
     speak, in sub-folders whose namespaces follow them: `platform/` (`IPlatform`, `WindowConfig`), `graphics/`
     (`IRenderer`, `Sprite`, `Texture`...), `audio/` (`IAudio`), `event/` (the `Event` variant), `input/` (`Key`,
-    `MouseButton`...), `config/` (`Settings`), `exceptions/`, `math/`, `system/`; the `SpriteRenderer` component and
+    `MouseButton`...), `config/` (`Settings`), `exceptions/`, `math/`, `system/`; the `SpriteRenderer` and `Camera`
+    (`BackendComponents.hpp`) components and
     the `TextureAssets` resource (`Assets<TextureId>`: the loaded textures, by path, decoded with stb); plus
     `BackendRegistry` and `BackendPlugin`, which starts the platform and the renderer from a registry the executable
     fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the window events and the

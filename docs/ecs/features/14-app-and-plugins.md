@@ -191,8 +191,9 @@ sequenceDiagram
     end
 ```
 
-While the window is minimized, the events system waits for an event instead of polling, and both render systems
-skip the frame. The `InputPlugin` reads the input events the backend sends, in the same phase: whichever of the two
+Between the two frame systems, `rtype.backend.camera` passes the `Camera` component with the highest `priority` to
+`renderer.setCamera()`; with no camera entity, the renderer keeps its default view. While the window is minimized,
+the events system waits for an event instead of polling, and the render systems skip the frame. The `InputPlugin` reads the input events the backend sends, in the same phase: whichever of the two
 plugins is added second orders its system against the other's, since a constraint naming a missing system is an
 error.
 

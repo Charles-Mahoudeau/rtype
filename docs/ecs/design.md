@@ -1306,7 +1306,7 @@ Going Bevy-style now means the ECS owns the loop. Ethan's **interfaces stay**; w
 | `Input` / `InputAction` | Resource updated by a `PreUpdate` system from window events; feeds `PlayerInput` |
 | `IRenderer` | Called by `Render`-phase systems: `beginFrame` / `setCamera` / `draw` / `endFrame` |
 | `graphics::Sprite` (with `position`) | **Kept as the renderer's draw command.** The ECS component is `plugins::backend::SpriteRenderer` (`TextureId`, source rect, color, origin, layer); the position will come from `Transform`. It holds a `TextureId`, local to the renderer, so it is not replicated: a replicated sprite will need an `AssetId`. |
-| `graphics::Camera` (with `position`) | ECS `Camera` component (projection, rotation) + `Transform`; the render system builds a `graphics::Camera` |
+| `graphics::Camera` (with `position`) | **Also the ECS component** `"rtype.Camera"` (declared in `plugins/backend/BackendComponents.hpp`, so the renderers do not see the ECS), with a `priority`: the backend plugin's Render system `rtype.backend.camera` passes the camera with the highest priority to `setCamera()`, between `beginFrame` and `endFrame`. Its position may later come from `Transform`. |
 | `TextureId` (the RAII `Texture` and `Handle<Tag>` / `Resource<Tag, Owner>` are gone) | The renderer owns the textures; the `plugins::backend::TextureAssets` resource (`Assets<TextureId>`, inserted by `BackendPlugin`) records them by path and loads image files (`loadTexture()`, through stb); components keep only the id |
 | `IAudio` | `AudioPlugin`, main-thread resource, sounds triggered by events |
 | `Settings` | Resource, filled from the config file at startup |
