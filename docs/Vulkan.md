@@ -77,6 +77,25 @@ hazards between commands, and is slow. The engine only loads the layer in debug 
 
 On macOS, `Instance` also enables `VK_KHR_portability_enumeration`, which MoltenVK requires.
 
+## Textures
+
+`createTexture()` takes RGBA8 pixels (decoded by the [`TextureAssets`](../src/rtype/plugins/backend/graphics/TextureAssets.hpp) resource) and
+returns a `TextureId`:
+
+1. A `memory::Image`: a `VkImage` from VMA (device local, one mip level), `R8G8B8A8_SRGB`, usage
+   `SAMPLED | TRANSFER_DST`, and its `VkImageView`.
+2. `Uploader::upload()` copies the pixels into a staging buffer and records, with Synchronization2 barriers:
+   `UNDEFINED` → `TRANSFER_DST_OPTIMAL`, `vkCmdCopyBufferToImage`, then `TRANSFER_DST_OPTIMAL` →
+   `SHADER_READ_ONLY_OPTIMAL` for the fragment and compute shaders.
+3. `Uploader::flush()` submits and waits: the texture is ready when `createTexture()` returns.
+4. The image goes into a `core::SlotMap`, which gives the `TextureId` (slot index and generation). Destroying a texture
+   bumps its slot's generation, so an id kept from before reaches nothing instead of the slot's next texture.
+
+`destroy()` forgets the id at once, and defers the image to the `DeletionQueue` bucket of the last recorded frame: it
+is freed once that frame's fence has signaled, so destroying a texture drawn this frame is safe. The textures left are
+destroyed with the renderer, before the allocator. Samplers (the `TextureDesc`'s filter and repeat mode) come with
+the descriptors that bind the textures.
+
 ## Shaders
 
 Shaders are written in GLSL and compiled to SPIR-V, then turned into `vk::raii::ShaderModule`s by
