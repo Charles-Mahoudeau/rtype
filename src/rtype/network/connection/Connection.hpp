@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <ratio>
 #include <span>
 #include <utility>
 #include <vector>
