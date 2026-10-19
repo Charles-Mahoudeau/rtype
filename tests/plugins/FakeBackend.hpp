@@ -1,0 +1,147 @@
+/*
+** EPITECH PROJECT, 2026
+** rtype
+** File description:
+** FakeBackend
+*/
+
+#pragma once
+
+#include <cstddef>
+#include <glm/ext/vector_uint2.hpp>
+#include <memory>
+#include <span>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "engine/backend/BackendRegistry.hpp"
+#include "engine/config/Settings.hpp"
+#include "engine/event/Event.hpp"
+#include "engine/graphics/Camera.hpp"
+#include "engine/graphics/Color.hpp"
+#include "engine/graphics/IRenderer.hpp"
+#include "engine/graphics/RectShape.hpp"
+#include "engine/graphics/Sprite.hpp"
+#include "engine/graphics/Texture.hpp"
+#include "engine/platform/IPlatform.hpp"
+#include "engine/platform/WindowConfig.hpp"
+
+namespace rtype::test::plugins {
+/// @brief What the fake platform and renderer do and record, shared with the test that drives them.
+struct FakeBackendState {
+    std::vector<std::vector<rtype::engine::Event>> frames;  ///< The events each poll returns, in order.
+    glm::uvec2 framebufferSize{800, 600};                   ///< 0x0 while minimized.
+    bool open{true};                                        ///< Cleared to close the window.
+    int closeAfterPolls{-1};                                ///< Closes the window after this many polls (-1: never).
+    int initCount{0};                                       ///< platform.init() calls.
+    int polls{0};                                           ///< pollEvents() calls.
+    int waits{0};                                           ///< waitEvents() calls.
+    int beginFrames{0};                                     ///< renderer.beginFrame() calls.
+    int endFrames{0};                                       ///< renderer.endFrame() calls.
+    rtype::engine::graphics::Color clearColor{0.0F};        ///< The last clear colour.
+    std::vector<glm::uvec2> resizes;                        ///< Every renderer.resize() call.
+};
+
+/// @brief A window that returns scripted events.
+class FakePlatform : public rtype::engine::platform::IPlatform {
+  public:
+    explicit FakePlatform(std::shared_ptr<FakeBackendState> state) : _state{std::move(state)} {}
+    ~FakePlatform() override = default;
+    FakePlatform(const FakePlatform& other) = delete;
+    FakePlatform& operator=(const FakePlatform& other) = delete;
+    FakePlatform(FakePlatform&& other) = delete;
+    FakePlatform& operator=(FakePlatform&& other) = delete;
+
+    [[nodiscard]] glm::uvec2 getFramebufferSize() const override { return _state->framebufferSize; }
+    [[nodiscard]] const std::string& getTitle() const override { return _title; }
+    void setTitle(const std::string& title) override { _title = title; }
+    void setSize(glm::uvec2 /*size*/) override {}
+    void init(const rtype::engine::platform::WindowConfig& config) override {
+        _title = config.title;
+        ++_state->initCount;
+    }
+    [[nodiscard]] std::vector<rtype::engine::Event> pollEvents() override {
+        ++_state->polls;
+        return next();
+    }
+    [[nodiscard]] std::vector<rtype::engine::Event> waitEvents() override {
+        ++_state->waits;
+        return next();
+    }
+    [[nodiscard]] bool isOpen() const noexcept override { return _state->open; }
+    void close() override { _state->open = false; }
+    void setCursorLocked(bool /*locked*/) override {}
+    [[nodiscard]] double getTime() const override { return 0.0; }
+
+  private:
+    /// @return The next scripted frame of events, closing the window when its time has come.
+    std::vector<rtype::engine::Event> next() {
+        const int calls = _state->polls + _state->waits;
+        if (_state->closeAfterPolls >= 0 && calls >= _state->closeAfterPolls) {
+            _state->open = false;
+        }
+        if (_state->frames.empty()) {
+            return {};
+        }
+        std::vector<rtype::engine::Event> events = std::move(_state->frames.front());
+        _state->frames.erase(_state->frames.begin());
+        return events;
+    }
+
+    std::shared_ptr<FakeBackendState> _state;  ///< Shared with the test.
+    std::string _title;                        ///< From init().
+};
+
+/// @brief A renderer that draws nothing and records the frames.
+class FakeRenderer : public rtype::engine::graphics::IRenderer {
+  public:
+    explicit FakeRenderer(std::shared_ptr<FakeBackendState> state) : _state{std::move(state)} {}
+    ~FakeRenderer() override = default;
+    FakeRenderer(const FakeRenderer& other) = delete;
+    FakeRenderer& operator=(const FakeRenderer& other) = delete;
+    FakeRenderer(FakeRenderer&& other) = delete;
+    FakeRenderer& operator=(FakeRenderer&& other) = delete;
+
+    void init(rtype::engine::platform::IPlatform& /*platform*/) override {}
+    void resize(glm::uvec2 framebufferSize) override { _state->resizes.push_back(framebufferSize); }
+    [[nodiscard]] rtype::engine::graphics::TextureId createTexture(const rtype::engine::graphics::TextureDesc& /*desc*/,
+                                                                   std::span<const std::byte> /*pixels*/) override {
+        return {};
+    }
+    void destroy(rtype::engine::graphics::TextureId /*texture*/) override {}
+    void beginFrame(const rtype::engine::graphics::Color& clearColor) override {
+        ++_state->beginFrames;
+        _state->clearColor = clearColor;
+    }
+    void endFrame() override { ++_state->endFrames; }
+    void setCamera(const rtype::engine::graphics::Camera& /*camera*/) override {}
+    void draw(const rtype::engine::graphics::Sprite& /*sprite*/) override {}
+    void draw(const rtype::engine::graphics::RectShape& /*rect*/) override {}
+
+  private:
+    std::shared_ptr<FakeBackendState> _state;  ///< Shared with the test.
+};
+
+/// @return A registry holding the fake platform and renderer as "fake", both driven by `state`.
+inline std::unique_ptr<rtype::engine::backend::BackendRegistry> makeFakeRegistry(
+    const std::shared_ptr<FakeBackendState>& state) {
+    auto registry = std::make_unique<rtype::engine::backend::BackendRegistry>();
+    registry->addPlatform("fake", [state](const rtype::engine::config::Settings& /*settings*/) {
+        return std::make_unique<FakePlatform>(state);
+    });
+    registry->addRenderer("fake", [state](const rtype::engine::config::Settings& /*settings*/) {
+        return std::make_unique<FakeRenderer>(state);
+    });
+    return registry;
+}
+
+/// @return Settings naming the fake platform and renderer.
+inline rtype::engine::config::Settings makeFakeSettings() {
+    rtype::engine::config::Settings settings;
+    settings.set("platform", "fake");
+    settings.set("renderer", "fake");
+    settings.set("window.title", "Test");
+    return settings;
+}
+}  // namespace rtype::test::plugins
