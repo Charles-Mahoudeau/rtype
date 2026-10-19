@@ -14,12 +14,12 @@
 #include <unordered_map>
 
 #include "engine/event/Event.hpp"
-#include "engine/input/ButtonStates.hpp"
 #include "engine/input/Control.hpp"
-#include "engine/input/InputAction.hpp"
 #include "engine/input/Key.hpp"
+#include "plugins/input/ButtonStates.hpp"
+#include "plugins/input/InputAction.hpp"
 
-namespace rtype::engine::input {
+namespace rtype::plugins::input {
 
 /// @brief Per-frame input state built from engine events, driven by named actions.
 ///
@@ -47,7 +47,7 @@ class Input {
     Input& operator=(Input&& other) noexcept = default;
 
     /// @brief Feeds one event. Call it for every event of the frame, before update().
-    void handleEvent(const Event& event);
+    void handleEvent(const engine::Event& event);
 
     /// @brief Updates every action from the events received since the last call. Call once per frame.
     void update();
@@ -69,7 +69,7 @@ class Input {
     void clearActions() noexcept;
 
     /// @return The current value of a single control, without going through an action.
-    [[nodiscard]] float read(const Control& control) const;
+    [[nodiscard]] float read(const engine::input::Control& control) const;
 
     /// @return Cursor position in window pixels (origin top-left).
     [[nodiscard]] glm::vec2 getMousePosition() const noexcept;
@@ -83,32 +83,33 @@ class Input {
   private:
     /// @name Event handlers, dispatched by handleEvent().
     /// @{
-    void onEvent(const event::KeyPressed& event);
-    void onEvent(const event::KeyReleased& event);
-    void onEvent(const event::MouseButtonPressed& event);
-    void onEvent(const event::MouseButtonReleased& event);
-    void onEvent(const event::MouseMoved& event) noexcept;
-    void onEvent(const event::MouseScrolled& event) noexcept;
-    void onEvent(const event::FocusChanged& event) noexcept;
-    void onEvent(const event::GamepadConnected& event) noexcept;
-    void onEvent(const event::GamepadDisconnected& event) noexcept;
-    void onEvent(const event::GamepadButtonPressed& event);
-    void onEvent(const event::GamepadButtonReleased& event);
-    void onEvent(const event::GamepadAxisMoved& event);
+    void onEvent(const engine::event::KeyPressed& event);
+    void onEvent(const engine::event::KeyReleased& event);
+    void onEvent(const engine::event::MouseButtonPressed& event);
+    void onEvent(const engine::event::MouseButtonReleased& event);
+    void onEvent(const engine::event::MouseMoved& event) noexcept;
+    void onEvent(const engine::event::MouseScrolled& event) noexcept;
+    void onEvent(const engine::event::FocusChanged& event) noexcept;
+    void onEvent(const engine::event::GamepadConnected& event) noexcept;
+    void onEvent(const engine::event::GamepadDisconnected& event) noexcept;
+    void onEvent(const engine::event::GamepadButtonPressed& event);
+    void onEvent(const engine::event::GamepadButtonReleased& event);
+    void onEvent(const engine::event::GamepadAxisMoved& event);
     /// @brief Events Input does not use (Closed, Resized, TextEntered...).
     template <typename Unused>
     void onEvent(const Unused& event) noexcept;
     /// @}
 
-    [[nodiscard]] float readGamepadAxis(GamepadAxis axis) const;
+    [[nodiscard]] float readGamepadAxis(engine::input::GamepadAxis axis) const;
     [[nodiscard]] glm::vec2 evaluate(const InputAction::Binding& binding) const;
 
     std::unordered_map<std::string, InputAction> _actions;  ///< Actions by name.
 
-    ButtonStates<Key> _keys;
-    ButtonStates<MouseButton> _mouseButtons;
-    ButtonStates<GamepadButton> _gamepadButtons;
-    std::array<float, static_cast<std::size_t>(GamepadAxis::kCount)> _gamepadAxes{};  ///< Raw values, no deadzone.
+    ButtonStates<engine::input::Key> _keys;
+    ButtonStates<engine::input::MouseButton> _mouseButtons;
+    ButtonStates<engine::input::GamepadButton> _gamepadButtons;
+    std::array<float, static_cast<std::size_t>(engine::input::GamepadAxis::kCount)>
+        _gamepadAxes{};  ///< Raw values, no deadzone.
     bool _gamepadConnected = false;
     float _deadzone = 0.15F;  ///< Stick values below this are read as 0.
 
@@ -118,6 +119,6 @@ class Input {
     glm::vec2 _pendingScroll{0.0F};      ///< Scroll accumulated since the last update().
     glm::vec2 _scroll{0.0F};             ///< Scroll read during the current frame.
 };
-}  // namespace rtype::engine::input
+}  // namespace rtype::plugins::input
 
 #include "Input.tpp"

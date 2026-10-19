@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace rtype::engine::exceptions {
+namespace rtype::plugins::input::exceptions {
 /// @brief Exception thrown when an input action is used incorrectly.
 ///
 /// This exception is thrown for example when an action is requested by a name
@@ -18,4 +18,4 @@ class InputException : public std::runtime_error {
   public:
     explicit InputException(const std::string& message) : std::runtime_error(message) {}
 };
-}  // namespace rtype::engine::exceptions
+}  // namespace rtype::plugins::input::exceptions

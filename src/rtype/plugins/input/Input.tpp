@@ -5,9 +5,9 @@
 ** Input
 */
 
-namespace rtype::engine::input {
+namespace rtype::plugins::input {
 
 template <typename Unused>
 void Input::onEvent(const Unused& /*event*/) noexcept {}
 
-}  // namespace rtype::engine::input
+}  // namespace rtype::plugins::input

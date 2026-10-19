@@ -7,7 +7,7 @@
 
 #include <cstddef>
 
-namespace rtype::engine::input {
+namespace rtype::plugins::input {
 
 template <typename Button>
 bool ButtonStates<Button>::isDown(Button button) const {
@@ -50,4 +50,4 @@ constexpr bool ButtonStates<Button>::isValid(Button button) noexcept {
     return index(button) < kCount;
 }
 
-}  // namespace rtype::engine::input
+}  // namespace rtype::plugins::input

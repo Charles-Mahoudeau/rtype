@@ -16,9 +16,9 @@
 #include "engine/config/Settings.hpp"
 #include "engine/event/Event.hpp"
 #include "engine/graphics/Color.hpp"
-#include "engine/input/Input.hpp"
 #include "engine/input/Key.hpp"
 #include "platform/glfw/Registration.hpp"
+#include "plugins/input/Input.hpp"
 #include "render/vulkan/Registration.hpp"
 
 int main() {
@@ -44,7 +44,7 @@ int main() {
         auto& platform = *backend.platform;
         auto& renderer = *backend.renderer;
 
-        rtype::engine::input::Input input;
+        rtype::plugins::input::Input input;
         while (platform.isOpen()) {
             // Minimized (0x0 framebuffer): nothing to render, so sleep until an event (restore, close) arrives.
             const glm::uvec2 framebufferSize = platform.getFramebufferSize();
