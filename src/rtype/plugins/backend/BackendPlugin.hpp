@@ -33,7 +33,9 @@ namespace rtype::plugins::backend {
 /// - Render "rtype.backend.beginFrame" and "rtype.backend.endFrame": clear with the ClearColor resource, and show the
 ///   frame. Drawing systems run between the two (`.after("rtype.backend.beginFrame")`,
 ///   `.before("rtype.backend.endFrame")`). Both are skipped while the window is minimized.
-/// It does not add the InputPlugin: add it too to read the input as actions.
+/// It also inserts the TextureAssets resource (the loaded textures) and registers the SpriteRenderer component; drawing
+/// the sprites will be a render system between the two frame systems. It does not add the InputPlugin: add it too to
+/// read the input as actions.
 /// @code
 /// auto registry = std::make_unique<rtype::plugins::backend::BackendRegistry>();
 /// rtype::platform::glfw::registerPlatform(*registry);

@@ -19,6 +19,8 @@
 
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
+#include "plugins/backend/SpriteRenderer.hpp"
+#include "plugins/backend/TextureAssets.hpp"
 #include "plugins/backend/WindowEvents.hpp"
 #include "plugins/backend/config/Settings.hpp"
 #include "plugins/backend/event/Event.hpp"
@@ -150,6 +152,10 @@ void BackendPlugin::build(ecs::App& app) {
     if (!resources.has<ClearColor>()) {  // a colour the game set before keeps
         resources.insert(ClearColor{});
     }
+    if (!resources.has<TextureAssets>()) {  // textures the game recorded before keep
+        resources.insert(TextureAssets{});
+    }
+    static_cast<void>(app.getWorld().getComponents().registerType<SpriteRenderer>());
 
     app.addSystem(ecs::Phase::kStartup, std::string{kCreateSystem}, &createBackend).setSide(ecs::Side::kClient);
     ecs::Schedule::SystemConfig forward =
