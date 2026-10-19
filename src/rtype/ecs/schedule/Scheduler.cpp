@@ -38,25 +38,6 @@
 
 namespace rtype::ecs {
 namespace {
-/// @return The phase's name, for messages.
-[[nodiscard]] std::string_view toString(Phase phase) noexcept {
-    switch (phase) {
-        case Phase::kStartup:
-            return "Startup";
-        case Phase::kPreUpdate:
-            return "PreUpdate";
-        case Phase::kFixedUpdate:
-            return "FixedUpdate";
-        case Phase::kUpdate:
-            return "Update";
-        case Phase::kPostUpdate:
-            return "PostUpdate";
-        case Phase::kRender:
-            return "Render";
-    }
-    return "?";
-}
-
 /// @return The first type both lists use, one of them writing it; nothing if there is none.
 [[nodiscard]] std::optional<TypeId> findSharedWrite(std::span<const TypeAccess> first,
                                                     std::span<const TypeAccess> second) {
