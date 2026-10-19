@@ -99,9 +99,10 @@ class RTYPE_ECS_API Schedule {
     [[nodiscard]] bool contains(std::string_view name) const noexcept;
 
     /// @brief Makes a system of a function (or a lambda without captures) and adds it (System).
+    /// @param configs The configurations of its configured parameters (see SystemParam), if any.
     /// @throws exceptions::ScheduleException When a system of the schedule already has this name.
-    template <typename Function>
-    SystemConfig addSystem(std::string name, Function function);
+    template <typename Function, typename... Configs>
+    SystemConfig addSystem(std::string name, Function function, Configs... configs);
 
     /// @brief Adds a system. The schedule is built again before the next run.
     /// @throws exceptions::ScheduleException When a system of the schedule already has its name.
