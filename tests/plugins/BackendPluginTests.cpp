@@ -15,6 +15,7 @@
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
+#include "plugins/backend/TextureAssets.hpp"
 #include "plugins/backend/WindowEvents.hpp"
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/input/Key.hpp"
@@ -54,6 +55,12 @@ TEST(BackendPlugin, CreatesNothingBeforeTheFirstFrame) {
     EXPECT_EQ(app.state().initCount, 0);
     EXPECT_TRUE(app.app().getWorld().getResources().has<rtype::plugins::backend::Backend>());
     EXPECT_EQ(app.app().getWorld().getResources().get<rtype::plugins::backend::Backend>()->platform, nullptr);
+}
+
+TEST(BackendPlugin, InsertsTheTextureAssetsAndRegistersSpriteRenderer) {
+    BackendApp app;
+    EXPECT_TRUE(app.app().getWorld().getResources().has<rtype::plugins::backend::TextureAssets>());
+    EXPECT_TRUE(app.app().getWorld().getComponents().find("rtype.SpriteRenderer"));
 }
 
 TEST(BackendPlugin, CreatesTheBackendAtStartup) {

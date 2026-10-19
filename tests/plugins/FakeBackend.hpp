@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <glm/ext/vector_uint2.hpp>
 #include <memory>
 #include <span>
@@ -39,8 +40,11 @@ struct FakeBackendState {
     int waits{0};             ///< waitEvents() calls.
     int beginFrames{0};       ///< renderer.beginFrame() calls.
     int endFrames{0};         ///< renderer.endFrame() calls.
-    rtype::plugins::backend::graphics::Color clearColor{0.0F};  ///< The last clear colour.
-    std::vector<glm::uvec2> resizes;                            ///< Every renderer.resize() call.
+    rtype::plugins::backend::graphics::Color clearColor{0.0F};                    ///< The last clear colour.
+    std::vector<glm::uvec2> resizes;                                              ///< Every renderer.resize() call.
+    std::vector<rtype::plugins::backend::graphics::TextureDesc> createdTextures;  ///< Every createTexture() desc.
+    std::vector<std::vector<std::byte>> createdPixels;                            ///< Every createTexture() pixels.
+    std::vector<rtype::plugins::backend::graphics::TextureId> destroyedTextures;  ///< Every destroy() call.
 };
 
 /// @brief A window that returns scripted events.
@@ -106,11 +110,14 @@ class FakeRenderer : public rtype::plugins::backend::graphics::IRenderer {
     void init(rtype::plugins::backend::platform::IPlatform& /*platform*/) override {}
     void resize(glm::uvec2 framebufferSize) override { _state->resizes.push_back(framebufferSize); }
     [[nodiscard]] rtype::plugins::backend::graphics::TextureId createTexture(
-        const rtype::plugins::backend::graphics::TextureDesc& /*desc*/,
-        std::span<const std::byte> /*pixels*/) override {
-        return {};
+        const rtype::plugins::backend::graphics::TextureDesc& desc, std::span<const std::byte> pixels) override {
+        _state->createdTextures.push_back(desc);
+        _state->createdPixels.emplace_back(pixels.begin(), pixels.end());
+        return {.index = static_cast<std::uint32_t>(_state->createdTextures.size() - 1), .generation = 1};
     }
-    void destroy(rtype::plugins::backend::graphics::TextureId /*texture*/) override {}
+    void destroy(rtype::plugins::backend::graphics::TextureId texture) override {
+        _state->destroyedTextures.push_back(texture);
+    }
     void beginFrame(const rtype::plugins::backend::graphics::Color& clearColor) override {
         ++_state->beginFrames;
         _state->clearColor = clearColor;
