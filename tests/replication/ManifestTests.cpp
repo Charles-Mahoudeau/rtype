@@ -109,13 +109,13 @@ TEST(Manifest, SortsComponentsByNameAndGivesShortIds) {
     TwoWorlds setup;
     const Manifest manifest = Manifest::build(setup.server, setup.serverInputs);
 
-    ASSERT_EQ(manifest.getComponentEntries().size(), 3U);
-    EXPECT_EQ(manifest.getComponentEntries()[0].name, "game.Ammo");
-    EXPECT_EQ(manifest.getComponentEntries()[1].name, "game.Health");
-    EXPECT_EQ(manifest.getComponentEntries()[2].name, "game.Position");
-    ASSERT_EQ(manifest.getActions().size(), 2U);
-    EXPECT_EQ(manifest.getActions()[0].name, "fire");
-    EXPECT_EQ(manifest.getActions()[1].name, "move");
+    ASSERT_EQ(manifest.componentEntries().size(), 3U);
+    EXPECT_EQ(manifest.componentEntries()[0].name, "game.Ammo");
+    EXPECT_EQ(manifest.componentEntries()[1].name, "game.Health");
+    EXPECT_EQ(manifest.componentEntries()[2].name, "game.Position");
+    ASSERT_EQ(manifest.actions().size(), 2U);
+    EXPECT_EQ(manifest.actions()[0].name, "fire");
+    EXPECT_EQ(manifest.actions()[1].name, "move");
 }
 
 TEST(Manifest, IgnoresComponentsThatAreNotReplicated) {
@@ -126,8 +126,8 @@ TEST(Manifest, IgnoresComponentsThatAreNotReplicated) {
 
     const Manifest manifest = Manifest::build(world, inputs);
 
-    ASSERT_EQ(manifest.getComponentEntries().size(), 1U);
-    EXPECT_EQ(manifest.getComponentEntries()[0].name, "game.Shared");
+    ASSERT_EQ(manifest.componentEntries().size(), 1U);
+    EXPECT_EQ(manifest.componentEntries()[0].name, "game.Shared");
 }
 
 TEST(Manifest, TranslatesShortIdsAndLocalIdsBothWays) {
@@ -144,23 +144,23 @@ TEST(Manifest, TranslatesShortIdsAndLocalIdsBothWays) {
     EXPECT_EQ(manifest.toShort(apple), 0);
     EXPECT_EQ(manifest.toShort(zebra), 1);
     EXPECT_EQ(manifest.toShort(99), std::nullopt);
-    ASSERT_EQ(manifest.getComponents().size(), 2U);
-    EXPECT_EQ(manifest.getComponents()[0], apple);
+    ASSERT_EQ(manifest.components().size(), 2U);
+    EXPECT_EQ(manifest.components()[0], apple);
 }
 
 TEST(Manifest, HashDependsOnLayoutNamesAndActions) {
     TwoWorlds first;
     TwoWorlds same;
-    const std::uint64_t reference = Manifest::build(first.server, first.serverInputs).getHash();
-    EXPECT_EQ(Manifest::build(same.client, same.clientInputs).getHash(), reference);
+    const std::uint64_t reference = Manifest::build(first.server, first.serverInputs).hash();
+    EXPECT_EQ(Manifest::build(same.client, same.clientInputs).hash(), reference);
 
     TwoWorlds otherLayout;
     addComponent(otherLayout.server, "game.Extra");
-    EXPECT_NE(Manifest::build(otherLayout.server, otherLayout.serverInputs).getHash(), reference);
+    EXPECT_NE(Manifest::build(otherLayout.server, otherLayout.serverInputs).hash(), reference);
 
     TwoWorlds otherAction;
     otherAction.serverInputs.add("jump", InputKind::kButton);
-    EXPECT_NE(Manifest::build(otherAction.server, otherAction.serverInputs).getHash(), reference);
+    EXPECT_NE(Manifest::build(otherAction.server, otherAction.serverInputs).hash(), reference);
 }
 
 TEST(Manifest, RefusesAReplicatedComponentThatCannotBeSerialized) {
@@ -210,7 +210,7 @@ TEST(Manifest, EncodesOneMessagePerEntryThenTheEnd) {
     ASSERT_TRUE(end);
     const auto& message = std::get<ManifestEnd>(*end);
     EXPECT_EQ(message.entryCount, 5);
-    EXPECT_EQ(message.hash, Manifest::build(setup.server, setup.serverInputs).getHash());
+    EXPECT_EQ(message.hash, Manifest::build(setup.server, setup.serverInputs).hash());
     EXPECT_EQ(message.tickRate, 30);
     EXPECT_EQ(message.snapshotRate, 10);
     EXPECT_EQ(message.reconnectionGraceSeconds, 5);
@@ -228,14 +228,14 @@ TEST(ManifestReceiver, AcceptsTheManifestAndChecksItOnAWorldRegisteredInAnotherO
     const auto check = receiver.check(setup.client, setup.clientInputs);
     EXPECT_TRUE(check.mismatch.empty());
     ASSERT_TRUE(check.manifest);
-    EXPECT_EQ(check.manifest->getHash(), server.getHash());
-    ASSERT_EQ(check.manifest->getComponentEntries().size(), server.getComponentEntries().size());
-    for (std::uint16_t shortId = 0; shortId < server.getComponentEntries().size(); ++shortId) {
+    EXPECT_EQ(check.manifest->hash(), server.hash());
+    ASSERT_EQ(check.manifest->componentEntries().size(), server.componentEntries().size());
+    for (std::uint16_t shortId = 0; shortId < server.componentEntries().size(); ++shortId) {
         const auto local = check.manifest->toLocal(shortId);
         ASSERT_TRUE(local);
         const auto* info = setup.client.getComponents().getRegistry().findById(*local);
         ASSERT_NE(info, nullptr);
-        EXPECT_EQ(info->type.name, server.getComponentEntries()[shortId].name);
+        EXPECT_EQ(info->type.name, server.componentEntries()[shortId].name);
     }
 }
 
@@ -249,7 +249,7 @@ TEST(ManifestReceiver, KeepsTheServerSettings) {
 
     ASSERT_TRUE(feed(receiver, welcome(setup, settings)));
 
-    EXPECT_EQ(receiver.getServerSettings(), settings);
+    EXPECT_EQ(receiver.serverSettings(), settings);
 }
 
 TEST(ManifestReceiver, NamesAComponentThatTheClientLacks) {
@@ -440,10 +440,10 @@ TEST(InputLayout, KeepsActionsOrderedByName) {
     layout.add("fire", InputKind::kButton);
     layout.add("aim", InputKind::kAxis);
 
-    ASSERT_EQ(layout.getActions().size(), 3U);
-    EXPECT_EQ(layout.getActions()[0].name, "aim");
-    EXPECT_EQ(layout.getActions()[1].name, "fire");
-    EXPECT_EQ(layout.getActions()[2].name, "move");
+    ASSERT_EQ(layout.actions().size(), 3U);
+    EXPECT_EQ(layout.actions()[0].name, "aim");
+    EXPECT_EQ(layout.actions()[1].name, "fire");
+    EXPECT_EQ(layout.actions()[2].name, "move");
 }
 
 TEST(InputLayout, RefusesDuplicatesInvalidNamesAndChangesOnceFrozen) {
@@ -457,5 +457,5 @@ TEST(InputLayout, RefusesDuplicatesInvalidNamesAndChangesOnceFrozen) {
     layout.freeze();
     EXPECT_TRUE(layout.isFrozen());
     EXPECT_THROW(layout.add("jump", InputKind::kButton), InputLayoutException);
-    EXPECT_EQ(layout.getActions().size(), 1U);
+    EXPECT_EQ(layout.actions().size(), 1U);
 }
