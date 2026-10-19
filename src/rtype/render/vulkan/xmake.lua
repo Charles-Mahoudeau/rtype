@@ -6,7 +6,6 @@ end
 add_requires("vulkan-memory-allocator 3.3.x", {alias = "vulkan-memory-allocator"})
 add_requires("vulkan-memory-allocator-hpp v3.3.0+3",
              {alias = "vulkan-memory-allocator-hpp", configs = {use_vulkanheaders = true}})
-add_requires("stb", {alias = "stb"})
 add_requires("imgui 1.92.x", {alias = "imgui", configs = {vulkan = true}})
 -- glslangValidator compiles the shaders. On macOS it comes from Homebrew (brew install glslang): building glslang's
 -- tools needs xmake's own python, which no longer builds on macOS (its _ssl module fails to link).

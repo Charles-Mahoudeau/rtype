@@ -10,6 +10,8 @@ target("plugins")
     add_includedirs("..", {public = true})
     add_deps("ecs", {public = true})
     add_packages("glm", {public = true})
+    -- Decodes image files into texture pixels (backend/TextureAssets.cpp).
+    add_packages("stb")
     -- Plain x/y/z/w members instead of unions (cppcoreguidelines-pro-type-union-access).
     add_defines("GLM_FORCE_XYZW_ONLY", {public = true})
     -- Linked into the shared modules (render-vulkan).
