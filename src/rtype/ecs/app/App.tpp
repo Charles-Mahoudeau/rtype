@@ -24,7 +24,7 @@ App& App::addPlugins(G group) {
 
 template <typename Function, typename... Configs>
 Schedule::SystemConfig App::addSystem(Phase phase, std::string name, Function function, Configs... configs) {
-    return _schedules.addSystem(phase, std::move(name), function, std::move(configs)...);
+    return _schedules.addSystem(phase, std::move(name), std::move(function), std::move(configs)...);
 }
 
 template <Resource T>
