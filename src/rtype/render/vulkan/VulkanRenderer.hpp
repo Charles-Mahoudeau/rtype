@@ -27,6 +27,7 @@
 #include "core/Device.hpp"
 #include "core/Instance.hpp"
 #include "core/PhysicalDevice.hpp"
+#include "core/SlotMap.hpp"
 #include "frame/FrameGlobals.hpp"
 #include "frame/FrameResources.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
@@ -42,6 +43,7 @@
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
 #include "presentation/Swapchain.hpp"
+#include "texture/Texture.hpp"
 
 namespace rtype::render::vulkan {
 
@@ -49,7 +51,8 @@ namespace rtype::render::vulkan {
 ///
 /// @details init() creates the instance, the debug messenger (if requested), the surface, the device, the swapchain,
 /// the frames in flight and the allocator. beginFrame() clears the next swapchain image with dynamic rendering and
-/// endFrame() presents it. Drawing functions throw UnsupportedFeatureException until they are implemented.
+/// endFrame() presents it. createTexture() uploads RGBA8 sRGB images. Drawing functions throw
+/// UnsupportedFeatureException until they are implemented.
 ///
 /// Needs a platform that implements interop::vulkan::IVulkanSurfaceSource (GlfwPlatform does).
 class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::graphics::IRenderer {
@@ -122,11 +125,21 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// @brief Ends rendering, submits the frame and presents the image. Does nothing if beginFrame() skipped it.
     void endFrame() override;
 
-    /// @name Not implemented yet: throw UnsupportedFeatureException
-    /// @{
+    /// @brief Creates a sampled R8G8B8A8_SRGB image of @p desc's size, and uploads @p pixels into it before returning
+    /// (one round trip to the GPU).
+    /// @throws std::logic_error If init() was not called.
+    /// @throws std::invalid_argument If a side of desc.size is 0 or above the GPU's limit, or @p pixels is not
+    /// desc.size.x * desc.size.y * 4 bytes.
+    /// @throws vk::SystemError If the image or its memory cannot be created, or the upload fails.
     [[nodiscard]] plugins::backend::graphics::TextureId createTexture(
         const plugins::backend::graphics::TextureDesc& desc, std::span<const std::byte> pixels) override;
+
+    /// @brief Forgets @p texture at once, and destroys its image once the frames that may draw it are done. Does
+    /// nothing if @p texture was already destroyed or never created.
     void destroy(plugins::backend::graphics::TextureId texture) override;
+
+    /// @name Not implemented yet: throw UnsupportedFeatureException
+    /// @{
     void setCamera(const plugins::backend::graphics::Camera& camera) override;
     void draw(const plugins::backend::graphics::Sprite& sprite) override;
     void draw(const plugins::backend::graphics::RectShape& rect) override;
@@ -149,6 +162,10 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// @warning Only after the frame's fence was waited for: the GPU may still read the buffer before.
     void updateFrameUniforms();
 
+    /// @return The frame in flight whose fence covers every use recorded so far: the current one while a frame is
+    /// recorded, the previous one between frames. What the GPU may still use is deferred to it.
+    [[nodiscard]] std::size_t getLastRecordedFrame() const;
+
     /// @brief Frames the CPU may record while the GPU still works on previous ones.
     static constexpr std::size_t kFramesInFlight = 2;
 
@@ -159,7 +176,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     //   2. Instance, debug messenger, surface, physical device, device (and its queues).
     //   3. Swapchain and its image views.
     //   4. Sync objects (fences, semaphores) and command pools / buffers.
-    //   5. Allocator, then buffers, images and samplers (they must die before it). (allocator only for now)
+    //   5. Allocator, then buffers, images and samplers (they must die before it).
     //   6. Pipelines, pipeline layouts, descriptor pools / sets, shader modules.   (shader modules only for now)
     //   7. Deletion queue: last declared, so it is flushed first, while everything it may hold is still alive.
     // The window outlives the renderer: Backend declares its platform before its renderer.
@@ -189,7 +206,8 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
 
     // 5. Memory: the allocator first, then the resources allocated from it.
     std::unique_ptr<memory::Allocator> _allocator;  ///< VMA allocator, destroyed after every buffer and image.
-    std::unique_ptr<memory::Uploader> _uploader;    ///< Fills device local buffers through staging buffers.
+    std::unique_ptr<memory::Uploader> _uploader;    ///< Fills device local buffers and images through staging buffers.
+    core::SlotMap<plugins::backend::graphics::TextureId, texture::Texture> _textures;  ///< By TextureId.
 
     // 6. Pipelines, descriptors and shaders.
     std::unique_ptr<pipeline::ShaderCache> _shaders;          ///< Shader modules, built-in and from the game.
