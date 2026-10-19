@@ -8,7 +8,6 @@
 #include <exception>
 #include <iostream>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -16,23 +15,19 @@
 #include "platform/glfw/Registration.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/BackendResources.hpp"  // IWYU pragma: keep
 #include "plugins/backend/config/Settings.hpp"
-#include "plugins/backend/graphics/AssetId.hpp"
-#include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/backend/input/Key.hpp"
 #include "plugins/backend/math/Rect.hpp"
 #include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
+#include "plugins/transform/Transform.hpp"
 #include "render/vulkan/Registration.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/app/MinimalPlugins.hpp"
 #include "rtype/ecs/command/Commands.hpp"
-#include "rtype/ecs/query/Query.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/system/EventWriter.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
@@ -47,36 +42,16 @@ void quitOnEscape(rtype::ecs::Res<rtype::plugins::input::Input> input,
     }
 }
 
-/// @brief Startup: an entity showing the ship sheet; the BackendPlugin loads its texture before the first frame.
+/// @brief Startup: an entity showing the ship sheet at the centre of the view, scaled twice; the BackendPlugin loads
+/// its texture and draws it.
 void spawnSheet(rtype::ecs::Commands& commands, rtype::ecs::ResMut<rtype::plugins::backend::TextureAssets> textures) {
-    commands.spawn().add(rtype::plugins::backend::SpriteRenderer{
-        .texture = textures->load("assets/r-typesheet24.gif"),
-        .source = rtype::plugins::backend::math::Rect{{0.0F, 0.0F}, {326.0F, 66.0F}},
-        .origin = {163.0F, 33.0F},
-    });
-}
-
-/// @brief Render: draws the SpriteRenderer entities whose texture is loaded, scaled up, at the centre of the view.
-/// @todo Replace by the render plugin's system once entities have a Transform.
-void drawSprites(rtype::ecs::NonSendMut<rtype::plugins::backend::Backend> backend,
-                 rtype::ecs::Res<rtype::plugins::backend::TextureAssets> textures,
-                 rtype::ecs::Query<const rtype::plugins::backend::SpriteRenderer> sprites) {
-    if (backend->renderer == nullptr) {
-        return;
-    }
-    for (auto [entity, sprite] : sprites) {
-        const std::optional<rtype::plugins::backend::graphics::TextureId> texture =
-            textures->getTexture(sprite.texture);
-        if (!texture) {
-            continue;
-        }
-        backend->renderer->draw(rtype::plugins::backend::graphics::Sprite{.texture = *texture,
-                                                                          .source = sprite.source,
-                                                                          .position = {400.0F, 300.0F},
-                                                                          .scale = {2.0F, 2.0F},
-                                                                          .origin = sprite.origin,
-                                                                          .color = sprite.color});
-    }
+    commands.spawn()
+        .add(rtype::plugins::transform::Transform{.position = {400.0F, 300.0F}, .scale = {2.0F, 2.0F}})
+        .add(rtype::plugins::backend::SpriteRenderer{
+            .texture = textures->load("assets/r-typesheet24.gif"),
+            .source = rtype::plugins::backend::math::Rect{{0.0F, 0.0F}, {326.0F, 66.0F}},
+            .origin = {163.0F, 33.0F},
+        });
 }
 
 /// @return The configuration: which platform and renderer to start, and how.
@@ -111,10 +86,6 @@ int main() {
             .setSide(rtype::ecs::Side::kClient);
         app.addSystem(rtype::ecs::Phase::kStartup, "rtype.spawnSheet", &spawnSheet)
             .after(std::string{rtype::plugins::backend::BackendPlugin::kCreateSystem})
-            .setSide(rtype::ecs::Side::kClient);
-        app.addSystem(rtype::ecs::Phase::kRender, "rtype.drawSprites", &drawSprites)
-            .after(std::string{rtype::plugins::backend::BackendPlugin::kCameraSystem})
-            .before(std::string{rtype::plugins::backend::BackendPlugin::kEndFrameSystem})
             .setSide(rtype::ecs::Side::kClient);
         return app.run();
     } catch (const std::exception& e) {
