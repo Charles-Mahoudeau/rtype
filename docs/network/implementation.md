@@ -198,7 +198,8 @@ src/rtype/replication/            rtype::replication — rtype-replication (shar
 ├── event/                        rtype::replication::event
 │   └── ClientConnected, ClientDisconnected, later ClientLost, ClientReconnected... (M4)
 ├── query/                        rtype::replication::query
-│   └── ReplicatedRead (a SystemParam over one DynamicQuery per replicated component)
+│   └── ReplicatedRead (a SystemParam over one read DynamicQuery per replicated component),
+│       Untracked (a SystemParam over one With / Without<NetworkId> DynamicQuery per replicated component)
 ├── serialization/                rtype::replication::serialization
 │   └── EntityMapper, FieldSerializer
 ├── manifest/                     rtype::replication::manifest
@@ -2323,9 +2324,10 @@ which does two things:
   in `PostUpdate` must be ordered against `net.snapshot`, or the schedule refuses to build; once ordered, the snapshot
   carries that frame's value, instead of this frame's or the last one's depending on the order systems were added.
 
-Only `net.snapshot` takes it. The other server systems use types the network knows (`PlayerInput`, `Owner`,
-`NetworkId`) through typed queries, and the client never reads replicated components: it writes them through
-`Commands` (NET-17).
+Only `net.snapshot` takes it. `net.assignIds` finds the entities to give an id to through a second parameter,
+`Untracked`, which reads no value and declares no access (step 4). The other server systems use types the network
+knows (`PlayerInput`, `Owner`, `NetworkId`) through typed queries, and the client never reads replicated components:
+it writes them through `Commands` (NET-17).
 
 `net.snapshot` runs every frame, but `ReplicatedRead` reads nothing by itself: the values are read only when the system
 iterates, and it returns at once unless a snapshot is due (step 10). A frame with no fixed tick sends nothing. In M1, a
@@ -2352,10 +2354,14 @@ own pace.
 
 4. `net.assignIds` gives every alive entity that has at least one replicated component and no `NetworkId` the next
    `NetworkId` (from 1, increasing, never reused), adds the `NetworkId` component, and remembers the entity both ways
-   (`NetworkId → Entity`, `Entity → NetworkId`). ECS queries have no "any of" term, so `ReplicatedRead` also holds,
-   per replicated component, a query `With` it and `Without<NetworkId>`; the `NetworkId` is added with `Commands`, so
-   an entity matching several queries in one frame is given one id (the first match records it in the tracking table,
-   the others skip it).
+   (`NetworkId → Entity`, `Entity → NetworkId`). It finds them through the `Untracked` parameter: ECS queries have no
+   "any of" term, so `Untracked` holds, per replicated component, a query `With` it and `Without<NetworkId>`. It gives
+   entities only, no values, and declares **no access**: `With` and `Without` only test which components an entity
+   has, which no system can change before the end of the phase, so `net.assignIds` never conflicts with a game system
+   and the game orders its `PostUpdate` writers against `net.snapshot` only. The `NetworkId` is added with `Commands`
+   (applied after the phase), so in the same frame the entity still matches the other queries: the tracking table of
+   `ServerState` records the id at once, and a later match of an entity already tracked is skipped, so an entity with
+   several replicated components gets one id.
 5. At each snapshot, entities that are no longer alive (`World::isAlive`) are forgotten. In M1 nothing else is
    needed for despawns: the next complete snapshot does not list them, so clients remove them.
 
@@ -2463,13 +2469,20 @@ class RTYPE_REPLICATION_API ServerState {
     `context.lastRun`, so the system iterates with `iter(lastRun)` and reads one entity with `Components::get`;
   - `addAccess`: `addComponent(id, false)` for each query's `getAccess()`;
   - read access only: `ReplicatedRead` exposes `QueryMatch::get` and `Components::get`, never a mutable span.
+- [ ] `query/Untracked.hpp/.cpp`: the `Untracked` type and its `SystemParam` specialization, in the same way:
+  - `State`: one `DynamicQuery` with the terms `{id, kWith}` and `{NetworkId, kWithout}` per replicated component id,
+    built by `init`;
+  - `get(state, context)`: an `Untracked` that keeps the queries and `context.lastRun`; it gives entities
+    (`QueryMatch::getEntity`), no values;
+  - `addAccess`: adds nothing (the queries' `getAccess()` is empty: `With` and `Without` access no value).
 
-  `ServerPlugin` is added after the plugins that register replicated components; `net.start` compares the replicated
-  components it finds with the ones the parameter was built from, and throws a `ReplicationException` naming the first
-  one registered later.
-- [ ] Test the parameter: a game system of the same phase, with no order against `net.snapshot`, that writes a
+  `ServerPlugin` is added after the plugins that register replicated components, since both parameters are built from
+  them; `net.start` compares the replicated components it finds with the ones the parameters were built from, and
+  throws a `ReplicationException` naming the first one registered later.
+- [ ] Test the parameters: a game system of the same phase, with no order against `net.snapshot`, that writes a
   replicated component makes the schedule fail to build with the usual ambiguity message; ordering it with
-  `.before` / `.after` fixes it; a replicated component registered after the plugin is reported by `net.start`.
+  `.before` / `.after` `net.snapshot` fixes it, with no order needed against `net.assignIds`; an entity with two
+  replicated components gets one id; a replicated component registered after the plugin is reported by `net.start`.
 - [ ] Tests of the helpers (no `App`, no socket: events in, commands out, decoded with `snapshot::Snapshot`): inputs
   reach the right buffer, `previousButtons` correct, repeated when none arrive, neutral without a connected owner;
   snapshot content (entities, components, entity fields as ids); `kComplete` set when everything fits and cleared
