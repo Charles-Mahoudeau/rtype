@@ -12,22 +12,23 @@
 
 #include "engine/input/Control.hpp"
 
-namespace rtype::engine::input {
+namespace rtype::plugins::input {
 
 InputAction::InputAction(ActionType type) noexcept : _type(type) {}
 
-InputAction& InputAction::bind(Control control) {
+InputAction& InputAction::bind(engine::input::Control control) {
     _bindings.push_back({.parts = {{.control = control, .direction = {1.0F, 0.0F}}}});
     return *this;
 }
 
-InputAction& InputAction::bindAxis(Control negative, Control positive) {
+InputAction& InputAction::bindAxis(engine::input::Control negative, engine::input::Control positive) {
     _bindings.push_back({.parts = {{.control = negative, .direction = {-1.0F, 0.0F}},
                                    {.control = positive, .direction = {1.0F, 0.0F}}}});
     return *this;
 }
 
-InputAction& InputAction::bindVector(Control up, Control down, Control left, Control right) {
+InputAction& InputAction::bindVector(engine::input::Control up, engine::input::Control down,
+                                     engine::input::Control left, engine::input::Control right) {
     _bindings.push_back({.parts = {{.control = up, .direction = {0.0F, 1.0F}},
                                    {.control = down, .direction = {0.0F, -1.0F}},
                                    {.control = left, .direction = {-1.0F, 0.0F}},
@@ -36,7 +37,7 @@ InputAction& InputAction::bindVector(Control up, Control down, Control left, Con
     return *this;
 }
 
-InputAction& InputAction::bindVector(Control x, Control y) {
+InputAction& InputAction::bindVector(engine::input::Control x, engine::input::Control y) {
     _bindings.push_back(
         {.parts = {{.control = x, .direction = {1.0F, 0.0F}}, {.control = y, .direction = {0.0F, 1.0F}}}});
     return *this;
@@ -65,4 +66,4 @@ glm::vec2 InputAction::readVector() const noexcept { return _value; }
 
 ActionType InputAction::getType() const noexcept { return _type; }
 
-}  // namespace rtype::engine::input
+}  // namespace rtype::plugins::input

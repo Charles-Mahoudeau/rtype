@@ -103,7 +103,7 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    engine["engine executable<br/>(client / server)"] --> plugins["engine plugins<br/>src/rtype/engine/plugins"]
+    engine["engine executable<br/>(client / server)"] --> plugins["engine plugins<br/>src/rtype/plugins"]
     plugins --> ecs["rtype-ecs"]
     plugins --> core["engine-core<br/>IPlatform, IRenderer, Input..."]
     plugins --> glfw["platform-glfw"]
@@ -853,9 +853,9 @@ class RTYPE_ECS_API Plugin {
 
 int main() {
     rtype::ecs::App app;
-    app.addPlugins(rtype::engine::plugins::DefaultPlugins{})  // window, input, render, audio, assets, script
-        .addPlugin(rtype::engine::plugins::ClientPlugin{})   // network client
-        .addPlugin(rtype::engine::plugins::LuauPlugin{"scripts/rtype/plugin.luau"})  // the game, in Luau
+    app.addPlugins(rtype::plugins::DefaultPlugins{})  // window, input, render, audio, assets, script
+        .addPlugin(rtype::plugins::ClientPlugin{})   // network client
+        .addPlugin(rtype::plugins::LuauPlugin{"scripts/rtype/plugin.luau"})  // the game, in Luau
         .run();
 }
 ```
@@ -1391,7 +1391,7 @@ is the same idea as Bevy's modules with a short prelude.
 
 | Path | Contents |
 |---|---|
-| `src/rtype/engine/plugins/` | `WindowPlugin`, `InputPlugin`, `RenderPlugin`, `AudioPlugin`, `AssetPlugin`, `TransformPlugin`, `CollisionPlugin`, `ScriptPlugin`, `LuauPlugin`, `ClientPlugin`, `ServerPlugin`, `StandalonePlugin`, plugin groups (`rtype::engine::plugins`) |
+| `src/rtype/plugins/` (target `plugins`) | One folder per plugin, which keeps its code and declares its own components, resources and events (`rtype::plugins::<name>`): `input/` (`InputPlugin`, `Input`, done), later `WindowPlugin`, `RenderPlugin`, `AudioPlugin`, `AssetPlugin`, `TransformPlugin`, `CollisionPlugin`, `ScriptPlugin`, `LuauPlugin`, `ClientPlugin`, `ServerPlugin`, `StandalonePlugin`, plugin groups (`rtype::plugins`) |
 | `tests/ecs/` | gtest, same setup as `tests/luau` (`xmake f --Tests=y`) |
 
 The public include path is `src/`: `#include <rtype/ecs/world/World.hpp>`.

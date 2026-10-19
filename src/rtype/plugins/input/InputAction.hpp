@@ -13,7 +13,7 @@
 
 #include "engine/input/Control.hpp"
 
-namespace rtype::engine::input {
+namespace rtype::plugins::input {
 
 /// @brief What an action produces
 enum class ActionType : std::uint8_t {
@@ -30,21 +30,25 @@ enum class ActionType : std::uint8_t {
 ///
 /// @code
 /// input.addAction("move", ActionType::kVector2)
-///     .bindVector(Control::key(Key::kW), Control::key(Key::kS), Control::key(Key::kA), Control::key(Key::kD))
-///     .bindVector(Control::gamepadAxis(GamepadAxis::kLeftX), Control::gamepadAxis(GamepadAxis::kLeftY));
+///     .bindVector(engine::input::Control::key(engine::input::Key::kW),
+///     engine::input::Control::key(engine::input::Key::kS), engine::input::Control::key(engine::input::Key::kA),
+///     engine::input::Control::key(engine::input::Key::kD))
+///     .bindVector(engine::input::Control::gamepadAxis(engine::input::GamepadAxis::kLeftX),
+///     engine::input::Control::gamepadAxis(engine::input::GamepadAxis::kLeftY));
 /// @endcode
 class InputAction {
   public:
     explicit InputAction(ActionType type) noexcept;
 
     /// @brief Binds a single control. For a kVector2 action it drives X.
-    InputAction& bind(Control control);
+    InputAction& bind(engine::input::Control control);
     /// @brief 1D composite: negative gives -1, positive gives +1 (e.g. A / D).
-    InputAction& bindAxis(Control negative, Control positive);
+    InputAction& bindAxis(engine::input::Control negative, engine::input::Control positive);
     /// @brief 2D composite from four controls (WASD, arrows, d-pad). Diagonals are normalized.
-    InputAction& bindVector(Control up, Control down, Control left, Control right);
+    InputAction& bindVector(engine::input::Control up, engine::input::Control down, engine::input::Control left,
+                            engine::input::Control right);
     /// @brief 2D vector from two analog controls (gamepad stick, mouse delta).
-    InputAction& bindVector(Control x, Control y);
+    InputAction& bindVector(engine::input::Control x, engine::input::Control y);
 
     /// @brief Magnitude above which the action counts as held. Defaults to 0.5.
     InputAction& setPressPoint(float pressPoint) noexcept;
@@ -68,7 +72,7 @@ class InputAction {
 
     /// @brief One control contributing along a direction.
     struct Part {
-        Control control;
+        engine::input::Control control;
         glm::vec2 direction;
     };
 
@@ -88,4 +92,4 @@ class InputAction {
     bool _held = false;              ///< Held this frame.
     bool _wasHeld = false;           ///< Held the previous frame.
 };
-}  // namespace rtype::engine::input
+}  // namespace rtype::plugins::input

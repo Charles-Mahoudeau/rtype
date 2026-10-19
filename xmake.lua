@@ -16,6 +16,7 @@ includes("src/rtype/ecs")
 includes("src/rtype/network")
 includes("src/rtype/replication")
 includes("src/rtype/engine")
+includes("src/rtype/plugins")
 includes("src/rtype/interop")
 includes("src/rtype/platform/glfw")
 includes("src/rtype/luau")
@@ -24,7 +25,7 @@ includes("src/rtype/render/vulkan")
 target("rtype")
     set_kind("phony")
     set_default(true)
-    add_deps("ecs", "network", "replication", "engine", "platform-glfw", "luau", "render-vulkan")
+    add_deps("ecs", "network", "replication", "engine", "plugins", "platform-glfw", "luau", "render-vulkan")
 
 
 local ALL_EXAMPLES_FLAG = "AllExamples"

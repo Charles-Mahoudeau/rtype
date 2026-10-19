@@ -38,11 +38,18 @@ are added.
   `component/`, `event/`, `serialization/`, `manifest/`, `input/`, `snapshot/`, `server/`, `client/`,
   `packet/`, `exceptions/`.
 - `src/rtype/engine/` — two targets defined in the same `xmake.lua`:
-  - `engine-core`: static library (`rtype-engine-core`), the core of the engine: events
-    (`event/`, `rtype::engine::event`) and input (`input/`, `rtype::engine::input`). It depends on
-    no window, graphics or scripting library (only glm).
+  - `engine-core`: static library (`rtype-engine-core`), the contracts the backends implement and the
+    vocabulary they speak: events (`event/`, `rtype::engine::event`), input codes (`input/`: `Key`, `Control`,
+    `rtype::engine::input`), the platform, renderer and audio interfaces, settings and the backend registry. It
+    depends on no window, graphics or scripting library (only glm), and not on the ECS. Code that is only glue for
+    the game belongs in a plugin instead (`src/rtype/plugins/`).
   - `engine`: the executable, built from `main.cpp` only. It wires `engine-core` with
     `platform-glfw`, `luau` and `render-vulkan`.
+- `src/rtype/plugins/` — `plugins` target, static library (`rtype-plugins`): the engine's features as ECS plugins,
+  one folder per plugin, included as `plugins/<name>/<File>.hpp`, namespace `rtype::plugins::<name>`. Each plugin
+  keeps its own code and declares its own components, resources and events (`RTYPE_ECS_*`).
+  - `plugins/input/` — `InputPlugin`: `Input`, `InputAction`, `ButtonStates`, the `rtype.Input` resource and the
+    input events (`InputEvents.hpp`), fed to `Input` by a `PreUpdate` system.
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
   `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
   (`IVulkanSurfaceSource`). See `docs/Backend.md`.
@@ -69,7 +76,8 @@ are added.
 
 Each module has its own `xmake.lua`, included from the root `xmake.lua`. Add new sources under the
 matching module: `engine-core` globs `**.cpp` in `src/rtype/engine/` except `main.cpp`, while
-`ecs`, `network`, `replication`, `platform-glfw`, `render-vulkan` and `luau` glob `**.cpp` in their own folder.
+`plugins`, `ecs`, `network`, `replication`, `platform-glfw`, `render-vulkan` and `luau` glob `**.cpp` in their own
+folder.
 
 ### Dependency rules
 
@@ -77,14 +85,15 @@ Dependencies always point towards `engine-core`, never away from it:
 
 ```
 engine-core, interop-*  ←  platform-*, render-*, luau  ←  engine (executable)
-ecs                                                     ←  engine (executable)
+ecs, engine-core        ←  plugins                     ←  engine (executable)
 network  ←  replication  ←  engine (executable)
 ecs      ←  replication
 ```
 
-- `ecs` depends on no other project target; only the engine (and its plugins, examples and tests)
-  depends on it. The renderer, the platforms and `luau` never include ECS headers: the glue between
-  them and the ECS lives in the engine's plugins.
+- `ecs` depends on no other project target; only the plugins (and the executable, examples and tests)
+  depend on it. The renderer, the platforms and `luau` never include ECS headers: the glue between
+  them and the ECS lives in the plugins (`plugins`), the only target that depends on both `ecs` and
+  `engine-core`.
 - `network` depends on Asio only (private): never on the ECS, `engine-core` or any other project target.
   `replication` depends on `ecs` and `network` and is the only module that knows both; the renderer, the
   platforms and `luau` never include its headers.

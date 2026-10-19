@@ -11,18 +11,18 @@
 
 #include "engine/event/Event.hpp"
 #include "engine/input/Control.hpp"
-#include "engine/input/Input.hpp"
-#include "engine/input/InputAction.hpp"
 #include "engine/input/Key.hpp"
 #include "platform/glfw/GlfwPlatform.hpp"
+#include "plugins/input/Input.hpp"
+#include "plugins/input/InputAction.hpp"
 
 using rtype::engine::input::GamepadAxis;
 using rtype::engine::input::GamepadButton;
 using rtype::engine::input::Key;
 using rtype::engine::input::MouseButton;
 using namespace rtype::engine::event;
-using rtype::engine::input::ActionType;
 using rtype::engine::input::Control;
+using rtype::plugins::input::ActionType;
 
 int main() {
     try {
@@ -30,7 +30,7 @@ int main() {
         rtype::platform::glfw::GlfwPlatform window;
         window.init({.size = {800, 600}, .title = "GLFW Window Example"});
         /// @note Input does not know the window: it only reads the events the window produces.
-        rtype::engine::input::Input input;
+        rtype::plugins::input::Input input;
 
         /// @note Declare the actions once. Each one can be driven by any number of devices.
 
