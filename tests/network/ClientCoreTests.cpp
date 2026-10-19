@@ -121,8 +121,8 @@ class ClientCoreTest : public ::testing::Test {
     /// @brief Steps until the client left the handshake, or `limit` is reached.
     void runHandshake(const std::chrono::milliseconds limit = std::chrono::seconds{6}) {
         for (auto elapsed = std::chrono::milliseconds{0};
-             elapsed < limit && _client->getState() != client::ClientState::kConnected &&
-             _client->getState() != client::ClientState::kClosed;
+             elapsed < limit && _client->state() != client::ClientState::kConnected &&
+             _client->state() != client::ClientState::kClosed;
              elapsed += kStep) {
             step();
         }
@@ -131,7 +131,7 @@ class ClientCoreTest : public ::testing::Test {
     void connect() {
         _client->connect(_clock.now());
         runHandshake();
-        ASSERT_EQ(_client->getState(), client::ClientState::kConnected);
+        ASSERT_EQ(_client->state(), client::ClientState::kConnected);
     }
 
     void receiveFromServer(const network::Bytes& datagram) { _client->receive(datagram, _clock.now()); }
@@ -148,15 +148,15 @@ class ClientCoreTest : public ::testing::Test {
 }  // namespace
 
 TEST_F(ClientCoreTest, StartsIdleWithoutClientId) {
-    EXPECT_EQ(_client->getState(), client::ClientState::kIdle);
-    EXPECT_EQ(_client->getClientId(), network::kNoClient);
+    EXPECT_EQ(_client->state(), client::ClientState::kIdle);
+    EXPECT_EQ(_client->clientId(), network::kNoClient);
     EXPECT_TRUE(_client->takeDatagrams(_clock.now()).empty());
     EXPECT_TRUE(_client->takeEvents().empty());
 }
 
 TEST_F(ClientCoreTest, ConnectSendsRequestAtOnce) {
     _client->connect(_clock.now());
-    EXPECT_EQ(_client->getState(), client::ClientState::kRequesting);
+    EXPECT_EQ(_client->state(), client::ClientState::kRequesting);
     const auto requests = packetsOf<protocol::ConnectRequest>(_client->takeDatagrams(_clock.now()));
     ASSERT_EQ(requests.size(), 1U);
     EXPECT_EQ(requests.front().version, protocol::kProtocolVersion);
@@ -186,7 +186,7 @@ TEST_F(ClientCoreTest, ChallengeIsAnsweredAtOnceThenRepeated) {
     _client->connect(_clock.now());
     (void)_client->takeDatagrams(_clock.now());
     receiveFromServer(protocol::PacketCodec::encode(protocol::Challenge{.challenge = 77}));
-    EXPECT_EQ(_client->getState(), client::ClientState::kResponding);
+    EXPECT_EQ(_client->state(), client::ClientState::kResponding);
     auto responses = packetsOf<protocol::ChallengeResponse>(_client->takeDatagrams(_clock.now()));
     ASSERT_EQ(responses.size(), 1U);
     EXPECT_EQ(responses.front().challenge, 77U);
@@ -218,12 +218,12 @@ TEST_F(ClientCoreTest, NewChallengeReplacesTheOldOne) {
 TEST_F(ClientCoreTest, HandshakeSucceedsThroughServerCore) {
     _client->connect(_clock.now());
     runHandshake();
-    EXPECT_EQ(_client->getState(), client::ClientState::kConnected);
-    EXPECT_NE(_client->getClientId(), network::kNoClient);
-    EXPECT_NE(_client->getResumeToken(), 0U);
+    EXPECT_EQ(_client->state(), client::ClientState::kConnected);
+    EXPECT_NE(_client->clientId(), network::kNoClient);
+    EXPECT_NE(_client->resumeToken(), 0U);
     const auto accepted = eventsOf<client::ConnectionAccepted>(_clientEvents);
     ASSERT_EQ(accepted.size(), 1U);
-    EXPECT_EQ(accepted.front().client, _client->getClientId());
+    EXPECT_EQ(accepted.front().client, _client->clientId());
     EXPECT_EQ(_server->sessionCount(), 1U);
 }
 
@@ -231,7 +231,7 @@ TEST_F(ClientCoreTest, HandshakeSucceedsUnderHeavyLoss) {
     _link.emplace(tests::LinkConditions{.loss = 0.5}, 7);
     _client->connect(_clock.now());
     runHandshake();
-    EXPECT_EQ(_client->getState(), client::ClientState::kConnected);
+    EXPECT_EQ(_client->state(), client::ClientState::kConnected);
     EXPECT_EQ(eventsOf<client::ConnectionAccepted>(_clientEvents).size(), 1U);
     EXPECT_TRUE(eventsOf<client::ConnectFailed>(_clientEvents).empty());
 }
@@ -241,7 +241,7 @@ TEST_F(ClientCoreTest, DuplicateAcceptedIsIgnored) {
     _client->connect(_clock.now());
     runHandshake();
     run(std::chrono::milliseconds{200});
-    EXPECT_EQ(_client->getState(), client::ClientState::kConnected);
+    EXPECT_EQ(_client->state(), client::ClientState::kConnected);
     EXPECT_EQ(eventsOf<client::ConnectionAccepted>(_clientEvents).size(), 1U);
 }
 
@@ -249,7 +249,7 @@ TEST_F(ClientCoreTest, VersionMismatchFailsTheConnection) {
     _client->connect(_clock.now());
     receiveFromServer(
         protocol::PacketCodec::encode(protocol::Rejected{.reason = network::RejectReason::kVersionMismatch}));
-    EXPECT_EQ(_client->getState(), client::ClientState::kClosed);
+    EXPECT_EQ(_client->state(), client::ClientState::kClosed);
     const auto failed = eventsOf<client::ConnectFailed>(_client->takeEvents());
     ASSERT_EQ(failed.size(), 1U);
     EXPECT_EQ(failed.front().reason, network::RejectReason::kVersionMismatch);
@@ -260,7 +260,7 @@ TEST_F(ClientCoreTest, ServerFullFailsTheConnection) {
     rebuild();
     _client->connect(_clock.now());
     runHandshake();
-    EXPECT_EQ(_client->getState(), client::ClientState::kClosed);
+    EXPECT_EQ(_client->state(), client::ClientState::kClosed);
     const auto failed = eventsOf<client::ConnectFailed>(_clientEvents);
     ASSERT_EQ(failed.size(), 1U);
     EXPECT_EQ(failed.front().reason, network::RejectReason::kServerFull);
@@ -270,7 +270,7 @@ TEST_F(ClientCoreTest, RejectedWhileRespondingFailsTheConnection) {
     _client->connect(_clock.now());
     receiveFromServer(protocol::PacketCodec::encode(protocol::Challenge{.challenge = 1}));
     receiveFromServer(protocol::PacketCodec::encode(protocol::Rejected{.reason = network::RejectReason::kServerFull}));
-    EXPECT_EQ(_client->getState(), client::ClientState::kClosed);
+    EXPECT_EQ(_client->state(), client::ClientState::kClosed);
     EXPECT_EQ(eventsOf<client::ConnectFailed>(_client->takeEvents()).size(), 1U);
 }
 
@@ -278,10 +278,10 @@ TEST_F(ClientCoreTest, SilentServerFailsAfterHandshakeTimeout) {
     _link.emplace(tests::LinkConditions{.loss = 1.0}, 1);
     _client->connect(_clock.now());
     run(_settings.handshakeTimeout - kStep);
-    EXPECT_EQ(_client->getState(), client::ClientState::kRequesting);
+    EXPECT_EQ(_client->state(), client::ClientState::kRequesting);
     EXPECT_TRUE(_clientEvents.empty());
     run(std::chrono::milliseconds{2 * kStep.count()});
-    EXPECT_EQ(_client->getState(), client::ClientState::kClosed);
+    EXPECT_EQ(_client->state(), client::ClientState::kClosed);
     const auto failed = eventsOf<client::ConnectFailed>(_clientEvents);
     ASSERT_EQ(failed.size(), 1U);
     EXPECT_FALSE(failed.front().reason);
@@ -291,13 +291,13 @@ TEST_F(ClientCoreTest, ClosedClientCanConnectAgain) {
     _link.emplace(tests::LinkConditions{.loss = 1.0}, 1);
     _client->connect(_clock.now());
     run(_settings.handshakeTimeout + kStep * 2);
-    ASSERT_EQ(_client->getState(), client::ClientState::kClosed);
+    ASSERT_EQ(_client->state(), client::ClientState::kClosed);
     _clientEvents.clear();
 
     _link.emplace(tests::LinkConditions{}, 1);
     _client->connect(_clock.now());
     runHandshake();
-    EXPECT_EQ(_client->getState(), client::ClientState::kConnected);
+    EXPECT_EQ(_client->state(), client::ClientState::kConnected);
     EXPECT_EQ(eventsOf<client::ConnectionAccepted>(_clientEvents).size(), 1U);
 }
 
@@ -316,11 +316,11 @@ TEST_F(ClientCoreTest, MessagesFlowBothWaysAfterReady) {
     run(std::chrono::milliseconds{100});
     const auto joined = eventsOf<server::ClientJoined>(_serverEvents);
     ASSERT_EQ(joined.size(), 1U);
-    EXPECT_EQ(joined.front().client, _client->getClientId());
+    EXPECT_EQ(joined.front().client, _client->clientId());
 
     EXPECT_TRUE(_client->send(network::Channel::kReliable, message(kGameType, 1)));
     _server->execute(server::SendMessage{
-        .client = _client->getClientId(), .channel = network::Channel::kReliable, .payload = message(kGameType, 2)});
+        .client = _client->clientId(), .channel = network::Channel::kReliable, .payload = message(kGameType, 2)});
     run(std::chrono::milliseconds{100});
 
     const auto fromClient = eventsOf<server::ClientMessage>(_serverEvents);
@@ -356,7 +356,7 @@ TEST_F(ClientCoreTest, ServerShutdownReachesTheClient) {
     run(std::chrono::milliseconds{100});
     _server->shutdown(_clock.now());
     run(std::chrono::milliseconds{100});
-    EXPECT_EQ(_client->getState(), client::ClientState::kClosed);
+    EXPECT_EQ(_client->state(), client::ClientState::kClosed);
     const auto disconnected = eventsOf<client::Disconnected>(_clientEvents);
     ASSERT_EQ(disconnected.size(), 1U);
     EXPECT_EQ(disconnected.front().reason, network::DisconnectReason::kServerShutdown);
@@ -367,9 +367,9 @@ TEST_F(ClientCoreTest, ServerSilenceTimesOut) {
     run(std::chrono::milliseconds{200});
     _link->setConditions(tests::LinkConditions{.loss = 1.0});
     run(_settings.timeout - std::chrono::milliseconds{300});
-    EXPECT_EQ(_client->getState(), client::ClientState::kConnected);
+    EXPECT_EQ(_client->state(), client::ClientState::kConnected);
     run(std::chrono::milliseconds{600});
-    EXPECT_EQ(_client->getState(), client::ClientState::kClosed);
+    EXPECT_EQ(_client->state(), client::ClientState::kClosed);
     const auto disconnected = eventsOf<client::Disconnected>(_clientEvents);
     ASSERT_EQ(disconnected.size(), 1U);
     EXPECT_EQ(disconnected.front().reason, network::DisconnectReason::kTimeout);
@@ -378,7 +378,7 @@ TEST_F(ClientCoreTest, ServerSilenceTimesOut) {
 TEST_F(ClientCoreTest, KeepaliveKeepsTheConnectionAlive) {
     connect();
     run(_settings.timeout * 3);
-    EXPECT_EQ(_client->getState(), client::ClientState::kConnected);
+    EXPECT_EQ(_client->state(), client::ClientState::kConnected);
     EXPECT_TRUE(eventsOf<client::Disconnected>(_clientEvents).empty());
 }
 
@@ -386,7 +386,7 @@ TEST_F(ClientCoreTest, DisconnectSendsThreeGracefulPacketsAndNoEvent) {
     connect();
     _clientEvents.clear();
     _client->disconnect(_clock.now());
-    EXPECT_EQ(_client->getState(), client::ClientState::kClosed);
+    EXPECT_EQ(_client->state(), client::ClientState::kClosed);
     const auto disconnects = packetsOf<protocol::Disconnect>(_client->takeDatagrams(_clock.now()));
     ASSERT_EQ(disconnects.size(), 3U);
     for (const auto& disconnect : disconnects) {
@@ -398,11 +398,11 @@ TEST_F(ClientCoreTest, DisconnectSendsThreeGracefulPacketsAndNoEvent) {
 
 TEST_F(ClientCoreTest, DisconnectIsIgnoredUnlessConnected) {
     _client->disconnect(_clock.now());
-    EXPECT_EQ(_client->getState(), client::ClientState::kIdle);
+    EXPECT_EQ(_client->state(), client::ClientState::kIdle);
     _client->connect(_clock.now());
     (void)_client->takeDatagrams(_clock.now());
     _client->disconnect(_clock.now());
-    EXPECT_EQ(_client->getState(), client::ClientState::kRequesting);
+    EXPECT_EQ(_client->state(), client::ClientState::kRequesting);
     EXPECT_TRUE(_client->takeDatagrams(_clock.now()).empty());
 }
 
@@ -410,11 +410,11 @@ TEST_F(ClientCoreTest, PacketsThatDoNotFitTheStateAreDropped) {
     receiveFromServer(protocol::PacketCodec::encode(protocol::Challenge{.challenge = 1}));
     receiveFromServer(protocol::PacketCodec::encode(protocol::Accepted{.sessionToken = 1, .client = 2}));
     receiveFromServer(protocol::PacketCodec::encode(protocol::Rejected{.reason = network::RejectReason::kServerFull}));
-    EXPECT_EQ(_client->getState(), client::ClientState::kIdle);
+    EXPECT_EQ(_client->state(), client::ClientState::kIdle);
 
     _client->connect(_clock.now());
     receiveFromServer(protocol::PacketCodec::encode(protocol::Accepted{.sessionToken = 1, .client = 2}));
-    EXPECT_EQ(_client->getState(), client::ClientState::kRequesting);
+    EXPECT_EQ(_client->state(), client::ClientState::kRequesting);
     EXPECT_TRUE(_client->takeEvents().empty());
 }
 
@@ -423,16 +423,15 @@ TEST_F(ClientCoreTest, PacketsWithAnotherTokenAreDropped) {
     _clientEvents.clear();
     receiveFromServer(protocol::PacketCodec::encode(
         protocol::Disconnect{.sessionToken = 0xDEAD, .reason = network::DisconnectReason::kKicked}));
-    EXPECT_EQ(_client->getState(), client::ClientState::kConnected);
+    EXPECT_EQ(_client->state(), client::ClientState::kConnected);
     EXPECT_TRUE(_client->takeEvents().empty());
 }
 
 TEST_F(ClientCoreTest, ServerDisconnectWithOurTokenClosesTheClient) {
     connect();
-    _server->execute(
-        server::KickClient{.client = _client->getClientId(), .reason = network::DisconnectReason::kKicked});
+    _server->execute(server::KickClient{.client = _client->clientId(), .reason = network::DisconnectReason::kKicked});
     run(std::chrono::milliseconds{100});
-    EXPECT_EQ(_client->getState(), client::ClientState::kClosed);
+    EXPECT_EQ(_client->state(), client::ClientState::kClosed);
     const auto disconnected = eventsOf<client::Disconnected>(_clientEvents);
     ASSERT_EQ(disconnected.size(), 1U);
     EXPECT_EQ(disconnected.front().reason, network::DisconnectReason::kKicked);
@@ -448,5 +447,5 @@ TEST_F(ClientCoreTest, GarbageNeverCrashesNorChangesTheState) {
         _client->receive(std::span<const std::byte>{noise.data(), length}, _clock.now());
     }
     _client->receive({}, _clock.now());
-    EXPECT_EQ(_client->getState(), client::ClientState::kConnected);
+    EXPECT_EQ(_client->state(), client::ClientState::kConnected);
 }
