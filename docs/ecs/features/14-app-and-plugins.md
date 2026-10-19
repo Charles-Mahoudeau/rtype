@@ -115,21 +115,21 @@ of `TimePlugin`.
 
 ```c++
 // Client: rtype::ecs::App app{rtype::ecs::RunMode::kClient};
-app.addPlugins(rtype::engine::plugins::DefaultPlugins{})   // window, input, render, audio, assets, script
-    .addPlugin(rtype::engine::plugins::ClientPlugin{"127.0.0.1", 4242})
-    .addPlugin(rtype::engine::plugins::LuauPlugin{"scripts/rtype/plugin.luau"})
+app.addPlugins(rtype::plugins::DefaultPlugins{})   // window, input, render, audio, assets, script
+    .addPlugin(rtype::plugins::ClientPlugin{"127.0.0.1", 4242})
+    .addPlugin(rtype::plugins::LuauPlugin{"scripts/rtype/plugin.luau"})
     .run();
 
 // Dedicated server (headless): rtype::ecs::App app{rtype::ecs::RunMode::kServer};
 app.addPlugins(rtype::ecs::MinimalPlugins{})               // time (later assets metadata, script)
-    .addPlugin(rtype::engine::plugins::ServerPlugin{4242})
-    .addPlugin(rtype::engine::plugins::LuauPlugin{"scripts/rtype/plugin.luau"})
+    .addPlugin(rtype::plugins::ServerPlugin{4242})
+    .addPlugin(rtype::plugins::LuauPlugin{"scripts/rtype/plugin.luau"})
     .run();
 
 // Standalone (single player, tests): rtype::ecs::App app{rtype::ecs::RunMode::kStandalone};
-app.addPlugins(rtype::engine::plugins::DefaultPlugins{})
-    .addPlugin(rtype::engine::plugins::StandalonePlugin{})
-    .addPlugin(rtype::engine::plugins::LuauPlugin{"scripts/rtype/plugin.luau"})
+app.addPlugins(rtype::plugins::DefaultPlugins{})
+    .addPlugin(rtype::plugins::StandalonePlugin{})
+    .addPlugin(rtype::plugins::LuauPlugin{"scripts/rtype/plugin.luau"})
     .run();
 ```
 
