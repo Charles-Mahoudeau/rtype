@@ -45,6 +45,7 @@ struct FakeBackendState {
     std::vector<rtype::plugins::backend::graphics::TextureDesc> createdTextures;  ///< Every createTexture() desc.
     std::vector<std::vector<std::byte>> createdPixels;                            ///< Every createTexture() pixels.
     std::vector<rtype::plugins::backend::graphics::TextureId> destroyedTextures;  ///< Every destroy() call.
+    std::vector<rtype::plugins::backend::graphics::Camera> cameras;               ///< Every setCamera() call.
 };
 
 /// @brief A window that returns scripted events.
@@ -123,7 +124,9 @@ class FakeRenderer : public rtype::plugins::backend::graphics::IRenderer {
         _state->clearColor = clearColor;
     }
     void endFrame() override { ++_state->endFrames; }
-    void setCamera(const rtype::plugins::backend::graphics::Camera& /*camera*/) override {}
+    void setCamera(const rtype::plugins::backend::graphics::Camera& camera) override {
+        _state->cameras.push_back(camera);
+    }
     void draw(const rtype::plugins::backend::graphics::Sprite& /*sprite*/) override {}
     void draw(const rtype::plugins::backend::graphics::RectShape& /*rect*/) override {}
 

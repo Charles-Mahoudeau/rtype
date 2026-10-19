@@ -12,12 +12,14 @@
 #include <vector>
 
 #include "FakeBackend.hpp"
+#include "plugins/backend/BackendComponents.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
 #include "plugins/backend/TextureAssets.hpp"
 #include "plugins/backend/WindowEvents.hpp"
 #include "plugins/backend/event/Event.hpp"
+#include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/input/Key.hpp"
 #include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
@@ -25,6 +27,7 @@
 #include "plugins/input/InputPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
+#include "rtype/ecs/world/World.hpp"
 
 namespace {
 /// @brief An App with the BackendPlugin over the fake platform and renderer.
@@ -61,6 +64,7 @@ TEST(BackendPlugin, InsertsTheTextureAssetsAndRegistersSpriteRenderer) {
     BackendApp app;
     EXPECT_TRUE(app.app().getWorld().getResources().has<rtype::plugins::backend::TextureAssets>());
     EXPECT_TRUE(app.app().getWorld().getComponents().find("rtype.SpriteRenderer"));
+    EXPECT_TRUE(app.app().getWorld().getComponents().find("rtype.Camera"));
 }
 
 TEST(BackendPlugin, CreatesTheBackendAtStartup) {
@@ -144,4 +148,32 @@ TEST(BackendPlugin, FeedsInputWhicheverPluginIsAddedFirst) {
         EXPECT_GT(input.read(rtype::plugins::input::Control::key(rtype::plugins::backend::input::Key::kSpace)), 0.0F)
             << (inputFirst ? "InputPlugin added first" : "BackendPlugin added first");
     }
+}
+
+TEST(BackendPlugin, ShowsNoCameraWhenNoEntityHasOne) {
+    BackendApp app;
+    app.app().runFrame();
+    EXPECT_TRUE(app.state().cameras.empty());
+}
+
+TEST(BackendPlugin, ShowsTheCameraWithTheHighestPriority) {
+    BackendApp app;
+    rtype::ecs::World& world = app.app().getWorld();
+    world.spawn(rtype::plugins::backend::graphics::Camera{.position = {1.0F, 0.0F, 0.0F}, .priority = 1});
+    world.spawn(rtype::plugins::backend::graphics::Camera{.position = {2.0F, 0.0F, 0.0F}, .priority = 5});
+    world.spawn(rtype::plugins::backend::graphics::Camera{.position = {3.0F, 0.0F, 0.0F}, .priority = -2});
+    app.app().runFrame();
+    ASSERT_EQ(app.state().cameras.size(), 1U);
+    EXPECT_FLOAT_EQ(app.state().cameras[0].position.x, 2.0F);
+}
+
+TEST(BackendPlugin, AppliesTheCameraEveryFrameItIsDrawn) {
+    BackendApp app;
+    app.app().getWorld().spawn(rtype::plugins::backend::graphics::Camera{});
+    app.app().runFrame();
+    app.app().runFrame();
+    EXPECT_EQ(app.state().cameras.size(), 2U);
+    app.state().framebufferSize = {0, 0};
+    app.app().runFrame();
+    EXPECT_EQ(app.state().cameras.size(), 2U);
 }
