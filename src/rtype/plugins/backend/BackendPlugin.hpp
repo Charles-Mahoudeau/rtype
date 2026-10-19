@@ -30,14 +30,16 @@ namespace rtype::plugins::backend {
 ///   sends every event as a PlatformEvent, in order, and as its typed ECS event (the input ones of InputEvents.hpp,
 ///   and Closed, Resized, TextEntered), resizes the renderer, and sends AppExit once the window is closed. It runs
 ///   before the InputPlugin's system.
+/// - Render "rtype.backend.textures": destroys the unloaded textures and loads the queued ones of the TextureAssets
+///   resource (updateTextures()), so a texture asked for during this frame's Update is drawn in this frame.
 /// - Render "rtype.backend.beginFrame" and "rtype.backend.endFrame": clear with the ClearColor resource, and show the
 ///   frame. In between, "rtype.backend.camera" passes the Camera component with the highest priority to the renderer
 ///   (none: the renderer's default view, window pixels from the top-left corner). Drawing systems run between the two
 ///   (`.after("rtype.backend.beginFrame")`,
 ///   `.before("rtype.backend.endFrame")`). Both are skipped while the window is minimized.
-/// It also inserts the TextureAssets resource (the loaded textures) and registers the SpriteRenderer component; drawing
-/// the sprites will be a render system between the two frame systems. A window always comes with input: it adds the
-/// InputPlugin (nothing happens if the game added it first), which knows nothing of this plugin.
+/// It also inserts the TextureAssets resource (the textures by AssetId) and registers the SpriteRenderer component;
+/// drawing the sprites will be a render system between the two frame systems. A window always comes with input: it adds
+/// the InputPlugin (nothing happens if the game added it first), which knows nothing of this plugin.
 /// @code
 /// auto registry = std::make_unique<rtype::plugins::backend::BackendRegistry>();
 /// rtype::platform::glfw::registerPlatform(*registry);
@@ -46,9 +48,10 @@ namespace rtype::plugins::backend {
 /// @endcode
 class BackendPlugin : public ecs::Plugin {
   public:
-    static constexpr std::string_view kName = "rtype.backend";                 ///< The plugin's name.
-    static constexpr std::string_view kCreateSystem = "rtype.backend.create";  ///< Startup: creates the Backend.
-    static constexpr std::string_view kEventsSystem = "rtype.backend.events";  ///< PreUpdate: sends the events.
+    static constexpr std::string_view kName = "rtype.backend";                     ///< The plugin's name.
+    static constexpr std::string_view kCreateSystem = "rtype.backend.create";      ///< Startup: creates the Backend.
+    static constexpr std::string_view kEventsSystem = "rtype.backend.events";      ///< PreUpdate: sends the events.
+    static constexpr std::string_view kTexturesSystem = "rtype.backend.textures";  ///< Render: loads the textures.
     static constexpr std::string_view kBeginFrameSystem = "rtype.backend.beginFrame";  ///< Render: starts the frame.
     static constexpr std::string_view kCameraSystem = "rtype.backend.camera";          ///< Render: applies the camera.
     static constexpr std::string_view kEndFrameSystem = "rtype.backend.endFrame";      ///< Render: shows the frame.

@@ -60,14 +60,16 @@ the case for every Luau component.
 
 ### Reactions without observers
 
-"When a player joins, give it a ship" and "when `SpriteRenderer` is added, make sure its texture is
-loaded" are written as systems:
+"When a player joins, give it a ship" and "when `SpriteRenderer` is added, check that its texture is
+known" are written as systems:
 
 ```c++
-void loadNewSprites(rtype::ecs::Query<const SpriteRenderer, rtype::ecs::Added<SpriteRenderer>> sprites,
-                    rtype::ecs::ResMut<rtype::plugins::backend::TextureAssets> textures) {
+void checkNewSprites(rtype::ecs::Query<const SpriteRenderer, rtype::ecs::Added<SpriteRenderer>> sprites,
+                     rtype::ecs::Res<rtype::plugins::backend::TextureAssets> textures) {
     for (auto [entity, sprite] : sprites) {
-        textures->request(sprite.texture);
+        if (textures->get(sprite.texture) == nullptr) {
+            std::cerr << "A SpriteRenderer uses a texture nobody loaded\n";
+        }
     }
 }
 ```

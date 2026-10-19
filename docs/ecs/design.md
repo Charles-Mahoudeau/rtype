@@ -1117,7 +1117,10 @@ gameplay systems read it like any other component.
 - **Assets:** replicated components reference assets by **`AssetId`**, a stable id derived from the
   asset path. A backend id (such as `TextureId`) is a slot in one process's renderer: the server has
   no renderer and each client allocates slots in its own order, so it must **not** be replicated
-  (`Texture.hpp` says so).
+  (`Texture.hpp` says so). `plugins::backend::AssetId` (`graphics/AssetId.hpp`) is that id: the FNV-1a hash
+  of the normalized path, reflected as `kAssetId`; `SpriteRenderer` keeps one. A hash cannot be turned back into a path:
+  a client draws a replicated texture only if it loaded that path itself (the game plugin loads its textures at
+  startup), until an asset manifest sends the paths.
 - **Client-only data:** interpolation buffers, effects and render state are `kClientOnly` components on
   the same entities.
 
@@ -1305,20 +1308,25 @@ Going Bevy-style now means the ECS owns the loop. Ethan's **interfaces stay**; w
 | `IPlatform::pollEvents()` | `PreUpdate` system that forwards each `Event` alternative to `Events<…>` |
 | `Input` / `InputAction` | Resource updated by a `PreUpdate` system from window events; feeds `PlayerInput` |
 | `IRenderer` | Called by `Render`-phase systems: `beginFrame` / `setCamera` / `draw` / `endFrame` |
-| `graphics::Sprite` (with `position`) | **Kept as the renderer's draw command.** The ECS component is `plugins::backend::SpriteRenderer` (`TextureId`, source rect, color, origin, layer); the position will come from `Transform`. It holds a `TextureId`, local to the renderer, so it is not replicated: a replicated sprite will need an `AssetId`. |
+| `graphics::Sprite` (with `position`) | **Kept as the renderer's draw command.** The ECS component is `plugins::backend::SpriteRenderer` (`AssetId`, source rect, color, origin, layer); the position will come from `Transform`. It holds the texture's `AssetId`, the same in every process (its `texture` and `layer` are reflected), and the render system looks up the renderer's `TextureId` in `TextureAssets`. |
 | `graphics::Camera` (with `position`) | **Also the ECS component** `"rtype.Camera"` (declared next to the struct, in `graphics/Camera.hpp`), with a `priority`: the backend plugin's Render system `rtype.backend.camera` passes the camera with the highest priority to `setCamera()`, between `beginFrame` and `endFrame`. Its position may later come from `Transform`. |
-| `TextureId` (the RAII `Texture` and `Handle<Tag>` / `Resource<Tag, Owner>` are gone) | The renderer owns the textures; the `plugins::backend::TextureAssets` resource (`Assets<TextureId>`, inserted by `BackendPlugin`) records them by path and loads image files (`loadTexture()`, through stb); components keep only the id |
-| `IAudio` | **Removed** (it had no implementation). Audio will come back as its own plugin once a library is chosen (miniaudio, OpenAL...): its interface, `Assets<SoundId>` resources, sounds triggered by events |
+| `TextureId` (the RAII `Texture` and `Handle<Tag>` / `Resource<Tag, Owner>` are gone) | The renderer owns the textures; the `plugins::backend::TextureAssets` resource (inserted by `BackendPlugin`) maps each `AssetId` to its `TextureId`. `load(path)` returns the `AssetId` at once and queues the texture; the `BackendPlugin`'s Render system `rtype.backend.textures` decodes the queued images (stb) and creates them (`updateTextures()`), so gameplay never touches the renderer; components keep only the `AssetId` |
+| `IAudio` | **Removed** (it had no implementation). Audio will come back as its own plugin once a library is chosen (miniaudio, OpenAL...): its interface, a resource of sounds by `AssetId`, sounds triggered by events |
 | `Settings` | Resource, filled from the config file at startup |
 
 ```c++
 void drawSprites(rtype::ecs::Query<const GlobalTransform, const SpriteRenderer> sprites,
+                 rtype::ecs::Res<rtype::plugins::backend::TextureAssets> textures,
                  rtype::ecs::NonSendMut<rtype::plugins::backend::Backend> backend) {
     rtype::plugins::backend::graphics::IRenderer& renderer = *backend->renderer;
     renderer.beginFrame(rtype::plugins::backend::graphics::Color{0.F, 0.F, 0.F, 1.F});
     for (auto [entity, transform, sprite] : sprites) {
+        const auto texture = textures->getTexture(sprite.texture);
+        if (!texture) {
+            continue;  // not loaded yet
+        }
         renderer.draw(rtype::plugins::backend::graphics::Sprite{
-            .texture = sprite.texture,  // already the renderer's TextureId
+            .texture = *texture,  // the renderer's TextureId
             .source = sprite.source,
             .position = transform.position,
             .origin = sprite.origin,
