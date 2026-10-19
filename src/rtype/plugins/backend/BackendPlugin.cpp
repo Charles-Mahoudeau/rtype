@@ -17,6 +17,7 @@
 #include <variant>
 #include <vector>
 
+#include "plugins/backend/BackendComponents.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
 #include "plugins/backend/SpriteRenderer.hpp"
@@ -24,11 +25,13 @@
 #include "plugins/backend/WindowEvents.hpp"
 #include "plugins/backend/config/Settings.hpp"
 #include "plugins/backend/event/Event.hpp"
+#include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/input/InputEvents.hpp"
 #include "plugins/input/InputPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/event/Events.hpp"
+#include "rtype/ecs/query/Query.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/Schedule.hpp"
 #include "rtype/ecs/system/EventWriter.hpp"
@@ -107,6 +110,23 @@ void beginFrame(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<Cle
     }
 }
 
+/// @brief Render: applies the camera of the entity with the highest priority; the first one found wins a tie.
+void applyCamera(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Query<const graphics::Camera> cameras) {
+    plugins::backend::Backend& started = *backend;
+    if (!isStarted(started) || isMinimized(started)) {
+        return;
+    }
+    const graphics::Camera* shown = nullptr;
+    for (auto [entity, camera] : cameras) {
+        if (shown == nullptr || camera.priority > shown->priority) {
+            shown = &camera;
+        }
+    }
+    if (shown != nullptr) {
+        started.renderer->setCamera(*shown);
+    }
+}
+
 /// @brief Render: shows what was drawn since beginFrame().
 void endFrame(ecs::NonSendMut<plugins::backend::Backend> backend) {
     plugins::backend::Backend& started = *backend;
@@ -156,6 +176,7 @@ void BackendPlugin::build(ecs::App& app) {
         resources.insert(TextureAssets{});
     }
     static_cast<void>(app.getWorld().getComponents().registerType<SpriteRenderer>());
+    static_cast<void>(app.getWorld().getComponents().registerType<graphics::Camera>());
 
     app.addSystem(ecs::Phase::kStartup, std::string{kCreateSystem}, &createBackend).setSide(ecs::Side::kClient);
     ecs::Schedule::SystemConfig forward =
@@ -166,8 +187,11 @@ void BackendPlugin::build(ecs::App& app) {
         forward.before(std::string{plugins::input::InputPlugin::kUpdateSystem});
     }
     app.addSystem(ecs::Phase::kRender, std::string{kBeginFrameSystem}, &beginFrame).setSide(ecs::Side::kClient);
-    app.addSystem(ecs::Phase::kRender, std::string{kEndFrameSystem}, &endFrame)
+    app.addSystem(ecs::Phase::kRender, std::string{kCameraSystem}, &applyCamera)
         .after(std::string{kBeginFrameSystem})
+        .setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kRender, std::string{kEndFrameSystem}, &endFrame)
+        .after(std::string{kCameraSystem})
         .setSide(ecs::Side::kClient);
 }
 }  // namespace rtype::plugins::backend

@@ -31,7 +31,9 @@ namespace rtype::plugins::backend {
 ///   the renderer, and sends AppExit once the window is closed. It runs before the InputPlugin's system when both
 ///   plugins are added, whatever their order.
 /// - Render "rtype.backend.beginFrame" and "rtype.backend.endFrame": clear with the ClearColor resource, and show the
-///   frame. Drawing systems run between the two (`.after("rtype.backend.beginFrame")`,
+///   frame. In between, "rtype.backend.camera" passes the Camera component with the highest priority to the renderer
+///   (none: the renderer's default view, window pixels from the top-left corner). Drawing systems run between the two
+///   (`.after("rtype.backend.beginFrame")`,
 ///   `.before("rtype.backend.endFrame")`). Both are skipped while the window is minimized.
 /// It also inserts the TextureAssets resource (the loaded textures) and registers the SpriteRenderer component; drawing
 /// the sprites will be a render system between the two frame systems. It does not add the InputPlugin: add it too to
@@ -48,6 +50,7 @@ class BackendPlugin : public ecs::Plugin {
     static constexpr std::string_view kCreateSystem = "rtype.backend.create";  ///< Startup: creates the Backend.
     static constexpr std::string_view kEventsSystem = "rtype.backend.events";  ///< PreUpdate: sends the events.
     static constexpr std::string_view kBeginFrameSystem = "rtype.backend.beginFrame";  ///< Render: starts the frame.
+    static constexpr std::string_view kCameraSystem = "rtype.backend.camera";          ///< Render: applies the camera.
     static constexpr std::string_view kEndFrameSystem = "rtype.backend.endFrame";      ///< Render: shows the frame.
 
     /// @param registry The platforms and renderers, registered by the executable.
