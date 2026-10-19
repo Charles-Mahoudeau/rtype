@@ -2007,8 +2007,10 @@ the game, so they make the read fail.
    id the mapper does not know (the target may not exist on this client yet).
 4. `getWireSize(info)` returns the number of bytes `writeFields` writes for that type. It is the same for every value,
    since no field has a variable size; the snapshot builder uses it to know whether a record fits.
-5. `isSerializable(info)` is true when the type has at least one field and no lifecycle hooks (it is plain data that
-   can be built from zeroed bytes). The manifest refuses to replicate a type that is not (NET-14).
+5. `isSerializable(info)` is true when the type has at least one field and no `destruct`, `move` or `copy` hook (it
+   is plain data that can be copied, moved and destroyed as bytes). A `construct` hook is allowed: `makeHooks()` sets
+   one for any type with default member initializers (`std::uint32_t client{0};`), and it only applies them, while
+   `readFields` writes every byte of the value anyway. The manifest refuses to replicate a type that is not (NET-14).
 6. Nothing allocates or throws.
 
 **Used by.** NET-14 (`isSerializable`), NET-16 (writing snapshots), NET-17 (reading them), later NET-34 (custom
