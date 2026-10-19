@@ -99,11 +99,11 @@ class RTYPE_NETWORK_API ServerCore {
   private:
     /// @brief A challenge sent to an address and not echoed yet.
     struct PendingChallenge {
-        std::uint64_t value;        ///< The random value to echo.
-        TimePoint created;          ///< When it was sent.
-        std::uint64_t order;        ///< Rank of creation, to find the oldest.
-        ClientId resumeClient;      ///< The client the request wanted to resume (M4).
-        std::uint64_t resumeToken;  ///< The proof of the right to resume (M4).
+        std::uint64_t value{0};            ///< The random value to echo.
+        TimePoint created;                 ///< When it was sent.
+        std::uint64_t order{0};            ///< Rank of creation, to find the oldest.
+        ClientId resumeClient{kNoClient};  ///< The client the request wanted to resume (M4).
+        std::uint64_t resumeToken{0};      ///< The proof of the right to resume (M4).
     };
 
     /// @brief Answers a `kConnectRequest`.
