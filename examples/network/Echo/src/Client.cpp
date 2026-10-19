@@ -5,13 +5,16 @@
 ** Client
 */
 
+#include <charconv>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <iostream>
+#include <optional>
 #include <span>
 #include <string>
+#include <system_error>
 #include <thread>
 #include <variant>
 #include <vector>
@@ -24,11 +27,31 @@
 
 using namespace rtype::network;
 
+namespace {
+std::optional<std::uint16_t> parsePort(const std::string& text) {
+    std::uint16_t port = 0;
+    const char* const last = text.data() + text.size();
+    const auto [end, error] = std::from_chars(text.data(), last, port);
+    if (error != std::errc{} || end != last) {
+        return std::nullopt;
+    }
+    return port;
+}
+}  // namespace
+
 int main(const int argc, char** argv) {
     const std::span<const char* const> argSpan{argv, static_cast<std::size_t>(argc)};
     const std::vector<std::string> args{argSpan.begin(), argSpan.end()};
     const std::string host = args.size() > 1 ? args.at(1) : "127.0.0.1";
-    const auto port = static_cast<std::uint16_t>(args.size() > 2 ? std::stoi(args.at(2)) : 4242);
+    std::uint16_t port = 4242;
+    if (args.size() > 2) {
+        const auto parsed = parsePort(args.at(2));
+        if (!parsed) {
+            std::cerr << "invalid port " << args.at(2) << std::endl;
+            return 1;
+        }
+        port = *parsed;
+    }
     const auto address = io::Address::resolve(host, port);
     if (!address) {
         std::cerr << "cannot resolve " << host << std::endl;

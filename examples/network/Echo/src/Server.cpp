@@ -5,13 +5,16 @@
 ** Server
 */
 
+#include <charconv>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <iostream>
+#include <optional>
 #include <span>
 #include <string>
+#include <system_error>
 #include <thread>
 #include <utility>
 #include <variant>
@@ -24,12 +27,29 @@
 
 using namespace rtype::network;
 
+namespace {
+std::optional<std::uint16_t> parsePort(const std::string& text) {
+    std::uint16_t port = 0;
+    const char* const last = text.data() + text.size();
+    const auto [end, error] = std::from_chars(text.data(), last, port);
+    if (error != std::errc{} || end != last) {
+        return std::nullopt;
+    }
+    return port;
+}
+}  // namespace
+
 int main(const int argc, char** argv) {
     const std::span<const char* const> argSpan{argv, static_cast<std::size_t>(argc)};
     const std::vector<std::string> args{argSpan.begin(), argSpan.end()};
     NetworkSettings settings;
     if (args.size() > 1) {
-        settings.port = static_cast<std::uint16_t>(std::stoi(args.at(1)));
+        const auto port = parsePort(args.at(1));
+        if (!port) {
+            std::cerr << "invalid port " << args.at(1) << std::endl;
+            return 1;
+        }
+        settings.port = *port;
     }
     try {
         server::NetServer netServer{settings};
