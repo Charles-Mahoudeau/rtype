@@ -27,7 +27,14 @@ rule("glsl.spirv")
 
     before_buildcmd_file(function (target, batchcmds, sourcefile, opt)
         import("lib.detect.find_tool")
-        local glslang = find_tool("glslangValidator")
+        -- The glslang package's bin folder first: it is not on the PATH in every context (project generation, CI
+        -- jobs that do not build). Then the PATH (Homebrew's on macOS).
+        local paths = {}
+        local glslangpkg = target:pkg("glslang")
+        if glslangpkg then
+            table.insert(paths, path.join(glslangpkg:installdir(), "bin"))
+        end
+        local glslang = find_tool("glslangValidator", {paths = paths})
         assert(glslang, "glslangValidator not found: add_packages(\"glslang\") to the target"
                         .. " (on macOS: brew install glslang)")
 
