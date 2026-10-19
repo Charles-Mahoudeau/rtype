@@ -404,6 +404,19 @@ TEST_F(ServerCoreTest, GracefulDisconnectClosesTheSession) {
     EXPECT_EQ(std::get<server::ClientLeft>(events.front()).reason, network::DisconnectReason::kGraceful);
 }
 
+TEST_F(ServerCoreTest, DisconnectReasonSentByTheClientIsReportedAsGraceful) {
+    const auto address = makeAddress(1);
+    const auto handshake = join(address);
+    ASSERT_TRUE(handshake);
+
+    send(address, protocol::PacketCodec::encode(protocol::Disconnect{.sessionToken = handshake->token,
+                                                                     .reason = network::DisconnectReason::kKicked}));
+    const auto events = _core.takeEvents();
+
+    ASSERT_EQ(events.size(), 1U);
+    EXPECT_EQ(std::get<server::ClientLeft>(events.front()).reason, network::DisconnectReason::kGraceful);
+}
+
 TEST_F(ServerCoreTest, DisconnectWithAWrongTokenIsDropped) {
     const auto address = makeAddress(1);
     const auto handshake = join(address);
@@ -493,6 +506,18 @@ TEST_F(ServerCoreTest, SendMessageReachesOneClientAndAllClientsReachesReadySessi
     _core.execute(
         server::SendMessage{.client = 999, .channel = network::Channel::kReliable, .payload = message(kGameType)});
     EXPECT_NO_FATAL_FAILURE(static_cast<void>(flush()));
+}
+
+TEST_F(ServerCoreTest, SendMessageToAWelcomingClientIsIgnored) {
+    const auto address = makeAddress(1);
+    const auto handshake = connect(address);
+    ASSERT_TRUE(handshake);
+    static_cast<void>(flush());
+
+    _core.execute(server::SendMessage{
+        .client = handshake->client, .channel = network::Channel::kReliable, .payload = message(kGameType)});
+
+    EXPECT_TRUE(packetsOf<protocol::Data>(flush(), address).empty());
 }
 
 TEST_F(ServerCoreTest, ClientLeftIsNotEmittedForASessionThatNeverSentReady) {
