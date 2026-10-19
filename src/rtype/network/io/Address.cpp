@@ -69,13 +69,18 @@ std::string Address::string() const {
 }
 }  // namespace rtype::network::io
 
+namespace {
+constexpr std::size_t kFnvOffsetBasis = 1469598103934665603ULL;
+constexpr std::size_t kFnvPrime = 1099511628211ULL;
+}  // namespace
+
 std::size_t std::hash<rtype::network::io::Address>::operator()(
     const rtype::network::io::Address& address) const noexcept {
     // FNV-1a over the IP bytes and the port.
-    std::size_t hash = 1469598103934665603ULL;
+    std::size_t hash = kFnvOffsetBasis;
     const auto mix = [&hash](const std::uint8_t byte) {
         hash ^= byte;
-        hash *= 1099511628211ULL;
+        hash *= kFnvPrime;
     };
     for (const auto byte : address.bytes()) {
         mix(byte);
