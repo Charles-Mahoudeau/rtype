@@ -10,10 +10,12 @@
 #include <stdexcept>
 #include <string>
 
+#include "rtype/ecs/Export.hpp"
+
 namespace rtype::ecs::exceptions {
 /// @brief Exception thrown when a C++ type (a component, a resource) cannot be registered: its name is already
 /// registered with another layout or other options, or its description is invalid.
-class TypeRegistrationException : public std::runtime_error {
+class RTYPE_ECS_API TypeRegistrationException : public std::runtime_error {
   public:
     explicit TypeRegistrationException(const std::string& message) : std::runtime_error{message} {}
     ~TypeRegistrationException() override = default;
