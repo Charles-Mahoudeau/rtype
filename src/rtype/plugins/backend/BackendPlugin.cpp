@@ -103,6 +103,14 @@ void forwardEvents(ecs::NonSendMut<plugins::backend::Backend> backend,
     }
 }
 
+/// @brief Render: destroys the unloaded textures and loads the queued ones, before the frame draws them.
+void loadTextures(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::ResMut<TextureAssets> textures) {
+    plugins::backend::Backend& started = *backend;
+    if (isStarted(started)) {
+        updateTextures(*textures, *started.renderer);
+    }
+}
+
 /// @brief Render: starts the frame, cleared with the ClearColor.
 void beginFrame(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<ClearColor> clearColor) {
     plugins::backend::Backend& started = *backend;
@@ -175,7 +183,7 @@ void BackendPlugin::build(ecs::App& app) {
     if (!resources.has<ClearColor>()) {  // a colour the game set before keeps
         resources.insert(ClearColor{});
     }
-    if (!resources.has<TextureAssets>()) {  // textures the game recorded before keep
+    if (!resources.has<TextureAssets>()) {  // textures the game asked for before keep
         resources.insert(TextureAssets{});
     }
     static_cast<void>(app.getWorld().getComponents().registerType<SpriteRenderer>());
@@ -185,7 +193,10 @@ void BackendPlugin::build(ecs::App& app) {
     app.addSystem(ecs::Phase::kPreUpdate, std::string{kEventsSystem}, &forwardEvents)
         .before(std::string{plugins::input::InputPlugin::kUpdateSystem})
         .setSide(ecs::Side::kClient);
-    app.addSystem(ecs::Phase::kRender, std::string{kBeginFrameSystem}, &beginFrame).setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kRender, std::string{kTexturesSystem}, &loadTextures).setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kRender, std::string{kBeginFrameSystem}, &beginFrame)
+        .after(std::string{kTexturesSystem})
+        .setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kRender, std::string{kCameraSystem}, &applyCamera)
         .after(std::string{kBeginFrameSystem})
         .setSide(ecs::Side::kClient);
