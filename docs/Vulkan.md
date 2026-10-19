@@ -111,6 +111,24 @@ as `layout(set = 1, binding = 0) uniform sampler2D`, next to the frame's uniform
 binds its set. The sets come from a `descriptor::DescriptorAllocator`, which adds a pool of 64 sets whenever the
 current one is full, so the number of textures has no fixed limit; a destroyed texture gives its set back to its pool.
 
+## Shader layout
+
+Every pipeline the renderer builds shares one layout (`VulkanRenderer`'s pipeline layout), with the data grouped by
+how often it changes, so binding from the least to the most frequent keeps the lower sets bound:
+
+| What | Where | Changes | GLSL | C++ |
+|---|---|---|---|---|
+| `FrameUniforms`: time, delta time, framebuffer size (later the camera) | set 0, binding 0 | once per frame | `frame` | `rendering::FrameUniforms` |
+| The texture and its sampler | set 1, binding 0 | per texture (batch) | `uTexture` (fragment) | the texture's set |
+| `DrawConstants`: `model` (unit quad to world), `color`, `uvRect` | push constants, 96 bytes | per draw | `draw` | `rendering::DrawConstants` |
+
+Per-object data fits in the push constants (at most 128 bytes, the minimum every device supports), so there is no
+set 2. The set and binding numbers are in `rendering/ShaderLayout.hpp`. A shader gets all of it with
+`#include "ShaderLayout.glsl"` (from `shaders/include/`, which includes `FrameUniforms.glsl`, `TextureSet.glsl` and
+`DrawConstants.glsl`). Each GLSL block mirrors its C++ struct field by field: `static_assert`s check the C++ offsets,
+and `vulkan-tests` embeds a shader that includes `ShaderLayout.glsl` (through `set_values("glsl.includedirs", ...)`),
+so a header that stops compiling fails the build.
+
 ## Shaders
 
 Shaders are written in GLSL and compiled to SPIR-V, then turned into `vk::raii::ShaderModule`s by
