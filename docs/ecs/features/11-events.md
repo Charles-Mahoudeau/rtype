@@ -162,7 +162,7 @@ void applyDamage(rtype::ecs::EventReader<Collision> collisions, rtype::ecs::Quer
 
 ### Platform events
 
-Ethan's `rtype::engine::Event` is a `std::variant` of `event::Resized`, `event::KeyPressed`,
+Ethan's `rtype::plugins::backend::Event` is a `std::variant` of `event::Resized`, `event::KeyPressed`,
 `event::Closed`... The window plugin's `PreUpdate` system calls `IPlatform::pollEvents()` and sends each
 alternative to its own queue (one event type per alternative: `event::Resized`, ...). A system interested only in resizes reads
 only that queue.

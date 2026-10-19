@@ -202,7 +202,7 @@ game code sees; the same systems run in standalone mode, where `PlayerInput` com
 
 ## Pitfalls
 
-- **Replicating renderer handles.** `TextureId` and other `Handle<Tag>`s are local slots; replicated
+- **Replicating renderer handles.** `TextureId` and the other backend ids are local slots; replicated
   components use `AssetId`.
 - **Client systems writing replicated state.** Overwritten at the next snapshot; the side rule rejects
   it (see [Systems](12-systems.md)).

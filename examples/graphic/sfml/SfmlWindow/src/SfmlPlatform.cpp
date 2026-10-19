@@ -23,11 +23,11 @@
 #include <string>
 #include <vector>
 
-#include "engine/event/Event.hpp"
-#include "engine/input/Key.hpp"
-#include "engine/platform/WindowConfig.hpp"
+#include "plugins/backend/event/Event.hpp"
+#include "plugins/backend/input/Key.hpp"
+#include "plugins/backend/platform/WindowConfig.hpp"
 
-using namespace rtype::engine;
+using namespace rtype::plugins::backend;
 
 namespace {
 

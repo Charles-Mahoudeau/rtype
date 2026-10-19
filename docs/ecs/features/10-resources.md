@@ -12,7 +12,7 @@ Some data has exactly one instance. Putting it on an entity ("the entity that ho
 awkward and slow to find.
 
 - **R1 (Bevy-style engine):** every engine service becomes a resource: Ethan's `Backend` (platform +
-  renderer), `Input`, `Settings`, `Assets<Texture>`, the network state.
+  renderer), `Input`, `Settings`, `TextureAssets`, the network state.
 - **R2 (Luau):** scripts read resources like `time` and write their own (a `game.Score` resource).
 
 ## How others do it
@@ -89,11 +89,11 @@ system's signature tells the scheduler what it reads, writes, and whether it nee
 
 ```c++
 app.insertResource(Time{.fixedDelta = 1.F / 60.F});
-app.insertResource(std::move(settings));               // Ethan's engine::config::Settings
-app.insertNonSendResource(std::move(backend));         // Ethan's engine::backend::Backend
+app.insertResource(std::move(settings));               // Ethan's plugins::backend::config::Settings
+app.insertNonSendResource(std::move(backend));         // Ethan's plugins::backend::Backend
 
 void tick(rtype::ecs::ResMut<Time> time);
-void drawSprites(/* queries... */ rtype::ecs::NonSendMut<rtype::engine::backend::Backend> backend);
+void drawSprites(/* queries... */ rtype::ecs::NonSendMut<rtype::plugins::backend::Backend> backend);
 ```
 
 | Parameter | Access | Thread |
@@ -116,9 +116,10 @@ this changes nothing at runtime; it is there so a parallel scheduler later knows
 |---|---|---|
 | `Time` | `TimePlugin` (every App has one) | `Res` |
 | `Settings` | core (from the config file) | `Res` |
-| `Backend` (platform + renderer) | `WindowPlugin` / `RenderPlugin` | `NonSend` |
+| `Backend` (platform + renderer) | `BackendPlugin` | `NonSend` |
 | `Input` | `InputPlugin` | `Res` |
-| `Assets<Texture>`, `Assets<Sound>` | `AssetPlugin` | `Res` |
+| `TextureAssets` (`Assets<TextureId>`) | `BackendPlugin` | `Res` |
+| Sound assets | an audio plugin (later, once an audio library is chosen) | `Res` |
 | `ServerState` / `ClientState` | `ServerPlugin` / `ClientPlugin` | `Res` |
 | `State<T>` | `app.state<T>()` (see [Scheduler](13-scheduler.md)) | `Res` |
 

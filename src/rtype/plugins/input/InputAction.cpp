@@ -10,25 +10,25 @@
 #include <glm/ext/vector_float2.hpp>
 #include <glm/geometric.hpp>
 
-#include "engine/input/Control.hpp"
+#include "plugins/input/Control.hpp"
 
 namespace rtype::plugins::input {
 
 InputAction::InputAction(ActionType type) noexcept : _type(type) {}
 
-InputAction& InputAction::bind(engine::input::Control control) {
+InputAction& InputAction::bind(plugins::input::Control control) {
     _bindings.push_back({.parts = {{.control = control, .direction = {1.0F, 0.0F}}}});
     return *this;
 }
 
-InputAction& InputAction::bindAxis(engine::input::Control negative, engine::input::Control positive) {
+InputAction& InputAction::bindAxis(plugins::input::Control negative, plugins::input::Control positive) {
     _bindings.push_back({.parts = {{.control = negative, .direction = {-1.0F, 0.0F}},
                                    {.control = positive, .direction = {1.0F, 0.0F}}}});
     return *this;
 }
 
-InputAction& InputAction::bindVector(engine::input::Control up, engine::input::Control down,
-                                     engine::input::Control left, engine::input::Control right) {
+InputAction& InputAction::bindVector(plugins::input::Control up, plugins::input::Control down,
+                                     plugins::input::Control left, plugins::input::Control right) {
     _bindings.push_back({.parts = {{.control = up, .direction = {0.0F, 1.0F}},
                                    {.control = down, .direction = {0.0F, -1.0F}},
                                    {.control = left, .direction = {-1.0F, 0.0F}},
@@ -37,7 +37,7 @@ InputAction& InputAction::bindVector(engine::input::Control up, engine::input::C
     return *this;
 }
 
-InputAction& InputAction::bindVector(engine::input::Control x, engine::input::Control y) {
+InputAction& InputAction::bindVector(plugins::input::Control x, plugins::input::Control y) {
     _bindings.push_back(
         {.parts = {{.control = x, .direction = {1.0F, 0.0F}}, {.control = y, .direction = {0.0F, 1.0F}}}});
     return *this;

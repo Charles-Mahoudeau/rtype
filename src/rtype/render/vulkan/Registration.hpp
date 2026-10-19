@@ -8,7 +8,7 @@
 #pragma once
 
 #include "Export.hpp"
-#include "engine/backend/BackendRegistry.hpp"
+#include "plugins/backend/BackendRegistry.hpp"
 
 namespace rtype::render::vulkan {
 
@@ -26,6 +26,6 @@ namespace rtype::render::vulkan {
 /// - `presentMode` ("fifo", "mailbox" or "immediate", default "fifo"; FIFO when the surface does not support it);
 /// - `shaderDirectory` (string, default "shaders"): where the game's SPIR-V shaders are loaded from, relative to the
 ///   executable's directory unless absolute.
-RTYPE_RENDER_VULKAN_API void registerRenderer(engine::backend::BackendRegistry& registry);
+RTYPE_RENDER_VULKAN_API void registerRenderer(plugins::backend::BackendRegistry& registry);
 
 }  // namespace rtype::render::vulkan

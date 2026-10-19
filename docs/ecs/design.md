@@ -7,8 +7,8 @@ implemented yet: every snippet is illustrative and open to discussion.
 The design builds on what already exists in the repository:
 
 - **Ethan's engine layer** (`feat/engine/graphic-implementation`): `IPlatform`, `IRenderer`,
-  `BackendRegistry`, `Settings`, `Event`, `Input` / `InputAction`, `Handle<Tag>` / `Resource<Tag, Owner>`,
-  `IAudio`, `Camera`, `Sprite`, `Texture`.
+  `BackendRegistry`, `Settings`, `Event`, `Input` / `InputAction`, `TextureId`,
+  `IAudio` (removed until an audio library is chosen), `Camera`, `Sprite`, `Texture`.
 - **Charles's Luau layer** (`feat/luau/result-and-error`, `docs/luau/api_proposal.md`): `Runtime`,
   `Result<T>` / `Error`, `generateTypes()`, handles, and the gtest setup in `tests/`.
 
@@ -105,15 +105,16 @@ flowchart TB
 flowchart LR
     engine["engine executable<br/>(client / server)"] --> plugins["engine plugins<br/>src/rtype/plugins"]
     plugins --> ecs["rtype-ecs"]
-    plugins --> core["engine-core<br/>IPlatform, IRenderer, Input..."]
     plugins --> glfw["platform-glfw"]
     plugins --> vulkan["render-vulkan"]
     plugins --> luau["rtype-luau"]
     plugins --> network["rtype-network<br/>(future)"]
 ```
 
-Only the plugins know both the ECS and a backend. `engine-core`, the platforms, the renderers and the
-Luau runtime stay usable without the ECS, as they are today.
+The plugins hold the engine: the contracts the backends implement (`plugins/backend/`: `IPlatform`, `IRenderer`,
+`Event`, `Settings`, `BackendRegistry`) and the plugins that run them in an App. The platforms and renderers implement
+those contracts, so they depend on the `plugins` target, but never include ECS headers; the Luau runtime stays usable
+without the ECS.
 
 ## The ECS, Part by Part
 
@@ -175,7 +176,7 @@ class Entity {
 
 An `Entity` is **local to one world**. It is never sent over the network: replicated entities carry a
 `NetworkId` component instead (see [Networking](#networking)). This is the same generational idea as
-Ethan's `Handle<Tag>`; `Entity` stays a separate type so it cannot be confused with a texture handle.
+the backend ids (`TextureId`); `Entity` stays a separate type so it cannot be confused with a texture.
 
 Serves: R2 (scripts hold entities safely), R3 (separate network identity), R4.
 
@@ -1091,7 +1092,7 @@ struct PlayerInput {
     std::array<glm::vec2, kMaxInputAxes> vectors;  ///< kAxis / kVector2 actions, in manifest order.
 };
 
-void collectInput(rtype::ecs::Res<rtype::engine::input::Input> input,
+void collectInput(rtype::ecs::Res<rtype::plugins::backend::input::Input> input,
                   rtype::ecs::Query<PlayerInput, rtype::ecs::With<LocalPlayer>> players) {
     for (auto [entity, playerInput] : players) {
         playerInput->vectors[0] = input->getAction("move").readVector();
@@ -1114,10 +1115,9 @@ gameplay systems read it like any other component.
   Entities get a `NetworkId` on the server; the client keeps `NetworkId → Entity`. `kEntity` fields are
   translated through it.
 - **Assets:** replicated components reference assets by **`AssetId`**, a stable id derived from the
-  asset path. Ethan's `Handle<Tag>` (such as `TextureId`) is a slot in one process's renderer: the
-  server has no renderer and each client allocates slots in its own order, so it must **not** be
-  replicated. The comment in `Handle.hpp` saying handles are safe to send over the network should be
-  corrected.
+  asset path. A backend id (such as `TextureId`) is a slot in one process's renderer: the server has
+  no renderer and each client allocates slots in its own order, so it must **not** be replicated
+  (`Texture.hpp` says so).
 - **Client-only data:** interpolation buffers, effects and render state are `kClientOnly` components on
   the same entities.
 
@@ -1305,21 +1305,20 @@ Going Bevy-style now means the ECS owns the loop. Ethan's **interfaces stay**; w
 | `IPlatform::pollEvents()` | `PreUpdate` system that forwards each `Event` alternative to `Events<…>` |
 | `Input` / `InputAction` | Resource updated by a `PreUpdate` system from window events; feeds `PlayerInput` |
 | `IRenderer` | Called by `Render`-phase systems: `beginFrame` / `setCamera` / `draw` / `endFrame` |
-| `graphics::Sprite` (with `position`) | **Kept as the renderer's draw command.** The ECS component is `SpriteRenderer` (`AssetId`, source rect, origin, color); the position comes from `Transform`. |
-| `graphics::Camera` (with `position`) | ECS `Camera` component (projection, rotation) + `Transform`; the render system builds a `graphics::Camera` |
-| `Texture` / `Resource<Tag, Owner>` | Owned by an `Assets<Texture>` resource, keyed by `AssetId`; components never own resources |
-| `IAudio` | `AudioPlugin`, main-thread resource, sounds triggered by events |
+| `graphics::Sprite` (with `position`) | **Kept as the renderer's draw command.** The ECS component is `plugins::backend::SpriteRenderer` (`TextureId`, source rect, color, origin, layer); the position will come from `Transform`. It holds a `TextureId`, local to the renderer, so it is not replicated: a replicated sprite will need an `AssetId`. |
+| `graphics::Camera` (with `position`) | **Also the ECS component** `"rtype.Camera"` (declared next to the struct, in `graphics/Camera.hpp`), with a `priority`: the backend plugin's Render system `rtype.backend.camera` passes the camera with the highest priority to `setCamera()`, between `beginFrame` and `endFrame`. Its position may later come from `Transform`. |
+| `TextureId` (the RAII `Texture` and `Handle<Tag>` / `Resource<Tag, Owner>` are gone) | The renderer owns the textures; the `plugins::backend::TextureAssets` resource (`Assets<TextureId>`, inserted by `BackendPlugin`) records them by path and loads image files (`loadTexture()`, through stb); components keep only the id |
+| `IAudio` | **Removed** (it had no implementation). Audio will come back as its own plugin once a library is chosen (miniaudio, OpenAL...): its interface, `Assets<SoundId>` resources, sounds triggered by events |
 | `Settings` | Resource, filled from the config file at startup |
 
 ```c++
 void drawSprites(rtype::ecs::Query<const GlobalTransform, const SpriteRenderer> sprites,
-                 rtype::ecs::Res<rtype::engine::assets::Assets<rtype::engine::graphics::Texture>> textures,
-                 rtype::ecs::NonSendMut<rtype::engine::backend::Backend> backend) {
-    rtype::engine::graphics::IRenderer& renderer = *backend->renderer;
-    renderer.beginFrame(rtype::engine::graphics::Color{0.F, 0.F, 0.F, 1.F});
+                 rtype::ecs::NonSendMut<rtype::plugins::backend::Backend> backend) {
+    rtype::plugins::backend::graphics::IRenderer& renderer = *backend->renderer;
+    renderer.beginFrame(rtype::plugins::backend::graphics::Color{0.F, 0.F, 0.F, 1.F});
     for (auto [entity, transform, sprite] : sprites) {
-        renderer.draw(rtype::engine::graphics::Sprite{
-            .texture = textures->getId(sprite.texture),
+        renderer.draw(rtype::plugins::backend::graphics::Sprite{
+            .texture = sprite.texture,  // already the renderer's TextureId
             .source = sprite.source,
             .position = transform.position,
             .origin = sprite.origin,
@@ -1391,7 +1390,7 @@ is the same idea as Bevy's modules with a short prelude.
 
 | Path | Contents |
 |---|---|
-| `src/rtype/plugins/` (target `plugins`) | One folder per plugin, which keeps its code and declares its own components, resources and events (`rtype::plugins::<name>`): `input/` (`InputPlugin`, `Input`, done), later `WindowPlugin`, `RenderPlugin`, `AudioPlugin`, `AssetPlugin`, `TransformPlugin`, `CollisionPlugin`, `ScriptPlugin`, `LuauPlugin`, `ClientPlugin`, `ServerPlugin`, `StandalonePlugin`, plugin groups (`rtype::plugins`) |
+| `src/rtype/plugins/` (target `plugins`) | One folder per plugin, which keeps its code and declares its own components, resources and events (`rtype::plugins::<name>`): `input/` (`InputPlugin`, `Input`, done), `backend/` (`BackendPlugin`: window, events and frame, done), later `RenderPlugin` (sprites), `AudioPlugin`, `AssetPlugin`, `TransformPlugin`, `CollisionPlugin`, `ScriptPlugin`, `LuauPlugin`, `ClientPlugin`, `ServerPlugin`, `StandalonePlugin`, plugin groups (`rtype::plugins`) |
 | `tests/ecs/` | gtest, same setup as `tests/luau` (`xmake f --Tests=y`) |
 
 The public include path is `src/`: `#include <rtype/ecs/world/World.hpp>`.

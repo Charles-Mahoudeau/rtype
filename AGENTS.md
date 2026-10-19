@@ -37,19 +37,23 @@ are added.
   Exported symbols are marked `RTYPE_REPLICATION_API`. Feature folders and sub-namespaces as in `network`:
   `component/`, `event/`, `serialization/`, `manifest/`, `input/`, `snapshot/`, `server/`, `client/`,
   `packet/`, `exceptions/`.
-- `src/rtype/engine/` — two targets defined in the same `xmake.lua`:
-  - `engine-core`: static library (`rtype-engine-core`), the contracts the backends implement and the
-    vocabulary they speak: events (`event/`, `rtype::engine::event`), input codes (`input/`: `Key`, `Control`,
-    `rtype::engine::input`), the platform, renderer and audio interfaces, settings and the backend registry. It
-    depends on no window, graphics or scripting library (only glm), and not on the ECS. Code that is only glue for
-    the game belongs in a plugin instead (`src/rtype/plugins/`).
-  - `engine`: the executable, built from `main.cpp` only. It wires `engine-core` with
-    `platform-glfw`, `luau` and `render-vulkan`.
-- `src/rtype/plugins/` — `plugins` target, static library (`rtype-plugins`): the engine's features as ECS plugins,
-  one folder per plugin, included as `plugins/<name>/<File>.hpp`, namespace `rtype::plugins::<name>`. Each plugin
-  keeps its own code and declares its own components, resources and events (`RTYPE_ECS_*`).
-  - `plugins/input/` — `InputPlugin`: `Input`, `InputAction`, `ButtonStates`, the `rtype.Input` resource and the
-    input events (`InputEvents.hpp`), fed to `Input` by a `PreUpdate` system.
+- `src/rtype/engine/` — `engine` target: the executable, built from `main.cpp` only. It fills the backend registry
+  with `platform-glfw` and `render-vulkan` and runs an `App` with the plugins.
+- `src/rtype/plugins/` — `plugins` target, static library (`rtype-plugins`): the engine, as ECS plugins, one folder
+  per plugin, included as `plugins/<name>/<File>.hpp`, namespace `rtype::plugins::<name>`. Each plugin keeps its own
+  code and declares its own components, resources and events (`RTYPE_ECS_*`). `Export.hpp` holds
+  `RTYPE_PLUGINS_API`, which keeps the RTTI of the backend interfaces visible across binaries.
+  - `plugins/backend/` (`rtype::plugins::backend`) — the contracts the backends implement and the vocabulary they
+    speak, in sub-folders whose namespaces follow them: `platform/` (`IPlatform`, `WindowConfig`), `graphics/`
+    (`IRenderer`, `Sprite`, `Texture`..., the `Camera` and `SpriteRenderer` components, and the `TextureAssets`
+    resource: `Assets<TextureId>`, the loaded textures by path, decoded with stb), `event/` (the `Event` variant),
+    `input/` (`Key`, `MouseButton`...), `config/` (`Settings`), `exceptions/`, `math/`, `system/`; plus
+    `BackendRegistry` and `BackendPlugin`, which starts the platform and the renderer from a registry the executable
+    fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the window events and the
+    PreUpdate / Render systems that poll the window and frame the drawing.
+  - `plugins/input/` (`rtype::plugins::input`) — `InputPlugin`: `Control`, `Input`, `InputAction`, `ButtonStates`,
+    the `rtype.Input` resource, fed by a `PreUpdate` system from the `PlatformEvent`s in order, and the typed input
+    events (`InputEvents.hpp`) for gameplay code. It knows nothing of the backend plugin, which adds it.
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
   `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
   (`IVulkanSurfaceSource`). See `docs/Backend.md`.
@@ -58,7 +62,7 @@ are added.
     the GLFW implementation of `IPlatform` and `IVulkanSurfaceSource` (`rtype::platform::glfw`,
     exceptions in `platform/glfw/exceptions/`), registered as `"glfw"` by `registerPlatform()`
     (`Registration.hpp`). The only module that includes GLFW: it translates every GLFW callback and the
-    gamepad state into `rtype::engine::Event`s.
+    gamepad state into `rtype::plugins::backend::Event`s.
 - `src/rtype/render/<api>/` — one target per renderer, named `render-<api>`.
   - `render/vulkan/` — `render-vulkan` target, shared library (`rtype-render-vulkan`): `VulkanRenderer`,
     the Vulkan implementation of `IRenderer` (`rtype::render::vulkan`), registered as `"vulkan"` by
@@ -75,31 +79,30 @@ are added.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
 
 Each module has its own `xmake.lua`, included from the root `xmake.lua`. Add new sources under the
-matching module: `engine-core` globs `**.cpp` in `src/rtype/engine/` except `main.cpp`, while
-`plugins`, `ecs`, `network`, `replication`, `platform-glfw`, `render-vulkan` and `luau` glob `**.cpp` in their own
-folder.
+matching module: `plugins`, `ecs`, `network`, `replication`, `platform-glfw`, `render-vulkan` and `luau` glob
+`**.cpp` in their own folder.
 
 ### Dependency rules
 
-Dependencies always point towards `engine-core`, never away from it:
+Dependencies always point towards `ecs` and `plugins`, never away from them:
 
 ```
-engine-core, interop-*  ←  platform-*, render-*, luau  ←  engine (executable)
-ecs, engine-core        ←  plugins                     ←  engine (executable)
+ecs  ←  plugins, interop-*  ←  platform-*, render-*  ←  engine (executable)
+luau                                                 ←  engine (executable)
 network  ←  replication  ←  engine (executable)
 ecs      ←  replication
 ```
 
-- `ecs` depends on no other project target; only the plugins (and the executable, examples and tests)
-  depend on it. The renderer, the platforms and `luau` never include ECS headers: the glue between
-  them and the ECS lives in the plugins (`plugins`), the only target that depends on both `ecs` and
-  `engine-core`.
-- `network` depends on Asio only (private): never on the ECS, `engine-core` or any other project target.
+- `ecs` depends on no other project target.
+- `network` depends on Asio only (private): never on the ECS, `plugins` or any other project target.
   `replication` depends on `ecs` and `network` and is the only module that knows both; the renderer, the
   platforms and `luau` never include its headers.
-- `engine-core` depends on nothing but glm. Never add a dependency on a `platform-*`, `render-*` or
-  `luau` target to it: they depend on it, so it would create a cycle.
-- Modules exchange engine types only (`rtype::engine::Event`, `rtype::engine::input::Key`...).
+- `plugins` depends on nothing but `ecs` and glm. Never add a dependency on a `platform-*`, `render-*` or `luau`
+  target to it: the platforms and renderers implement its contracts (`plugins/backend/`), so it would create a cycle.
+  The executable fills the backend registry instead.
+- The platforms and renderers link `plugins` (and so the ECS) for the contracts, but never include ECS headers or
+  plugin code beyond `plugins/backend/`'s interfaces and types.
+- Modules exchange backend types only (`rtype::plugins::backend::Event`, `rtype::plugins::backend::input::Key`...).
   GLFW never leaves `platform/glfw/`: no header outside it includes `<GLFW/glfw3.h>` or uses a
   `GLFW_*` code.
 - A platform module and a renderer module never depend on each other: what a renderer needs from a
@@ -141,7 +144,7 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
 - Google-based style, 4-space indent, 120-column limit, newline at end of file.
 - clang-tidy checks: `bugprone`, `cppcoreguidelines`, `clang-analyzer`, `modernize`,
   `performance`, `readability`, `misc`.
-- Match the existing conventions in `src/rtype/engine/` and `src/rtype/platform/glfw/`:
+- Match the existing conventions in `src/rtype/plugins/` and `src/rtype/platform/glfw/`:
   - Files named in PascalCase after their class (`Window.hpp`, `Window.cpp`).
   - Every source and header file starts with the Epitech header, with the current year, the
     project name (`rtype`) and the file name without extension as the description:
@@ -157,7 +160,7 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
 
   - Headers use `#pragma once` as their include guard, placed right after the Epitech header —
     never `#ifndef`/`#define`/`#endif` guards.
-  - Namespaces mirror the directory path under `src/rtype/` (`rtype::engine::input`,
+  - Namespaces mirror the directory path under `src/rtype/` (`rtype::plugins::backend::input`,
     `rtype::platform::glfw`, `rtype::render::vulkan`). The ECS feature folders are the one exception
     (see `src/rtype/ecs/` in Project structure).
   - Private members prefixed with `_` (`_window`), documented with `///<` comments.

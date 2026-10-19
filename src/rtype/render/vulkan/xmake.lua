@@ -6,7 +6,6 @@ end
 add_requires("vulkan-memory-allocator 3.3.x", {alias = "vulkan-memory-allocator"})
 add_requires("vulkan-memory-allocator-hpp v3.3.0+3",
              {alias = "vulkan-memory-allocator-hpp", configs = {use_vulkanheaders = true}})
-add_requires("stb", {alias = "stb"})
 add_requires("imgui 1.92.x", {alias = "imgui", configs = {vulkan = true}})
 -- glslangValidator compiles the shaders. On macOS it comes from Homebrew (brew install glslang): building glslang's
 -- tools needs xmake's own python, which no longer builds on macOS (its _ssl module fails to link).
@@ -56,8 +55,8 @@ rule_end()
 target("render-vulkan")
     set_kind("shared")
     set_basename("rtype-render-vulkan")
-    -- engine-core for IRenderer, interop-vulkan for IVulkanSurfaceSource (implemented by the platforms).
-    add_deps("engine-core", "interop-vulkan")
+    -- plugins for IRenderer (plugins/backend), interop-vulkan for IVulkanSurfaceSource (implemented by the platforms).
+    add_deps("plugins", "interop-vulkan")
     add_packages("vulkan-headers", "vulkan-memory-allocator", "vulkan-memory-allocator-hpp", "glm", "stb", "imgui")
     add_packages("vulkan-headers", {public = true})
     -- vk::raii::Context takes the linked vkGetInstanceProcAddr instead of dlopen()-ing its own loader. Public: it

@@ -9,12 +9,12 @@
 
 #include <glm/ext/vector_float2.hpp>
 
-#include "engine/event/Event.hpp"
-#include "engine/input/Control.hpp"
-#include "engine/input/Key.hpp"
+#include "plugins/backend/event/Event.hpp"
+#include "plugins/backend/event/PlatformEvent.hpp"
+#include "plugins/backend/input/Key.hpp"
+#include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
 #include "plugins/input/InputAction.hpp"
-#include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/event/EventTraits.hpp"
@@ -22,8 +22,7 @@
 #include "rtype/ecs/schedule/RunMode.hpp"
 
 static_assert(rtype::ecs::Resource<rtype::plugins::input::Input>);
-static_assert(rtype::ecs::Event<rtype::engine::event::KeyPressed>);
-static_assert(rtype::ecs::Event<rtype::engine::event::GamepadConnected>);
+static_assert(rtype::ecs::Event<rtype::plugins::backend::event::PlatformEvent>);
 
 namespace {
 /// @brief An App with the InputPlugin and a "fire" action bound to Space.
@@ -33,7 +32,7 @@ class InputApp {
         _app.addPlugin(rtype::plugins::input::InputPlugin{});
         input()
             .addAction("fire", rtype::plugins::input::ActionType::kButton)
-            .bind(rtype::engine::input::Control::key(rtype::engine::input::Key::kSpace));
+            .bind(rtype::plugins::input::Control::key(rtype::plugins::backend::input::Key::kSpace));
     }
     ~InputApp() = default;
     InputApp(const InputApp& other) = delete;
@@ -50,7 +49,7 @@ class InputApp {
     /// @brief Sends an event, as the window plugin does after polling the platform.
     template <typename T>
     void send(T event) {
-        _app.getWorld().getEvents().send(event);
+        _app.getWorld().getEvents().send(rtype::plugins::backend::event::PlatformEvent{.event = event});
     }
 
     [[nodiscard]] const rtype::plugins::input::InputAction& fire() { return input().getAction("fire"); }
@@ -59,8 +58,8 @@ class InputApp {
     rtype::ecs::App _app;  ///< The App under test.
 };
 
-const rtype::engine::event::KeyPressed kSpacePressed{.key = rtype::engine::input::Key::kSpace};
-const rtype::engine::event::KeyReleased kSpaceReleased{.key = rtype::engine::input::Key::kSpace};
+const rtype::plugins::backend::event::KeyPressed kSpacePressed{.key = rtype::plugins::backend::input::Key::kSpace};
+const rtype::plugins::backend::event::KeyReleased kSpaceReleased{.key = rtype::plugins::backend::input::Key::kSpace};
 }  // namespace
 
 TEST(InputPlugin, InsertsInputAndRegistersTheEvents) {
@@ -68,8 +67,7 @@ TEST(InputPlugin, InsertsInputAndRegistersTheEvents) {
     app.addPlugin(rtype::plugins::input::InputPlugin{});
     EXPECT_TRUE(app.hasPlugin("rtype.Input"));
     EXPECT_TRUE(app.getWorld().getResources().has<rtype::plugins::input::Input>());
-    EXPECT_TRUE(app.getWorld().getEvents().find("rtype.KeyPressed"));
-    EXPECT_TRUE(app.getWorld().getEvents().find("rtype.GamepadAxisMoved"));
+    EXPECT_TRUE(app.getWorld().getEvents().find("rtype.PlatformEvent"));
 }
 
 TEST(InputPlugin, AKeyPressedThisFrameIsPressedThenHeld) {
@@ -101,6 +99,16 @@ TEST(InputPlugin, ATapWithinOneFrameStillCounts) {
     EXPECT_TRUE(app.fire().isPressed());
 }
 
+TEST(InputPlugin, AReleaseThenPressWithinOneFrameReadsAsHeld) {
+    InputApp app;
+    app.send(kSpacePressed);
+    app.app().runFrame();
+    app.send(kSpaceReleased);
+    app.send(kSpacePressed);
+    app.app().runFrame();
+    EXPECT_TRUE(app.fire().isHeld());
+}
+
 TEST(InputPlugin, AnEventIsFedOnce) {
     InputApp app;
     app.send(kSpacePressed);
@@ -115,24 +123,24 @@ TEST(InputPlugin, LosingTheFocusReleasesTheKeys) {
     InputApp app;
     app.send(kSpacePressed);
     app.app().runFrame();
-    app.send(rtype::engine::event::FocusChanged{.focused = false});
+    app.send(rtype::plugins::backend::event::FocusChanged{.focused = false});
     app.app().runFrame();
     EXPECT_FALSE(app.fire().isHeld());
 }
 
 TEST(InputPlugin, TracksTheMouse) {
     InputApp app;
-    app.send(rtype::engine::event::MouseMoved{.position = {12.0F, 34.0F}, .delta = {2.0F, 4.0F}});
+    app.send(rtype::plugins::backend::event::MouseMoved{.position = {12.0F, 34.0F}, .delta = {2.0F, 4.0F}});
     app.app().runFrame();
     EXPECT_EQ(app.input().getMousePosition(), glm::vec2(12.0F, 34.0F));
 }
 
 TEST(InputPlugin, CountsEventsWithoutData) {
     InputApp app;
-    app.send(rtype::engine::event::GamepadConnected{});
+    app.send(rtype::plugins::backend::event::GamepadConnected{});
     app.app().runFrame();
     EXPECT_TRUE(app.input().isGamepadConnected());
-    app.send(rtype::engine::event::GamepadDisconnected{});
+    app.send(rtype::plugins::backend::event::GamepadDisconnected{});
     app.app().runFrame();
     EXPECT_FALSE(app.input().isGamepadConnected());
 }

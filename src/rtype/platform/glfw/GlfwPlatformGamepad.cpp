@@ -12,13 +12,13 @@
 
 #include "GlfwMapping.hpp"
 #include "GlfwPlatform.hpp"
-#include "engine/event/Event.hpp"
-#include "engine/input/Key.hpp"
+#include "plugins/backend/event/Event.hpp"
+#include "plugins/backend/input/Key.hpp"
 
 namespace rtype::platform::glfw {
 
-using engine::input::GamepadAxis;
-using engine::input::GamepadButton;
+using plugins::backend::input::GamepadAxis;
+using plugins::backend::input::GamepadButton;
 
 namespace {
 
@@ -45,7 +45,7 @@ void GlfwPlatform::pollGamepad() {
         if (_gamepadId < 0) {
             return;
         }
-        _events.emplace_back(engine::event::GamepadConnected{});
+        _events.emplace_back(plugins::backend::event::GamepadConnected{});
     }
 
     GLFWgamepadstate state{};
@@ -64,9 +64,9 @@ void GlfwPlatform::pollGamepad() {
         }
         _gamepadButtons.at(i) = down;
         if (down) {
-            _events.emplace_back(engine::event::GamepadButtonPressed{.button = button});
+            _events.emplace_back(plugins::backend::event::GamepadButtonPressed{.button = button});
         } else {
-            _events.emplace_back(engine::event::GamepadButtonReleased{.button = button});
+            _events.emplace_back(plugins::backend::event::GamepadButtonReleased{.button = button});
         }
     }
 
@@ -76,7 +76,7 @@ void GlfwPlatform::pollGamepad() {
         const float value = glfw::fromGlfwGamepadAxisValue(axis, raw);
         if (value != _gamepadAxes.at(i)) {
             _gamepadAxes.at(i) = value;
-            _events.emplace_back(engine::event::GamepadAxisMoved{.axis = axis, .value = value});
+            _events.emplace_back(plugins::backend::event::GamepadAxisMoved{.axis = axis, .value = value});
         }
     }
 }
@@ -84,18 +84,20 @@ void GlfwPlatform::pollGamepad() {
 void GlfwPlatform::disconnectGamepad() {
     for (std::size_t i = 0; i < kGamepadButtonCount; ++i) {
         if (_gamepadButtons.at(i)) {
-            _events.emplace_back(engine::event::GamepadButtonReleased{.button = static_cast<GamepadButton>(i)});
+            _events.emplace_back(
+                plugins::backend::event::GamepadButtonReleased{.button = static_cast<GamepadButton>(i)});
         }
     }
     for (std::size_t i = 0; i < kGamepadAxisCount; ++i) {
         if (_gamepadAxes.at(i) != 0.0F) {
-            _events.emplace_back(engine::event::GamepadAxisMoved{.axis = static_cast<GamepadAxis>(i), .value = 0.0F});
+            _events.emplace_back(
+                plugins::backend::event::GamepadAxisMoved{.axis = static_cast<GamepadAxis>(i), .value = 0.0F});
         }
     }
     _gamepadButtons.fill(false);
     _gamepadAxes.fill(0.0F);
     _gamepadId = -1;
-    _events.emplace_back(engine::event::GamepadDisconnected{});
+    _events.emplace_back(plugins::backend::event::GamepadDisconnected{});
 }
 
 }  // namespace rtype::platform::glfw
