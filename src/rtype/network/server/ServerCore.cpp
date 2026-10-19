@@ -73,7 +73,8 @@ void ServerCore::execute(ServerCommand command) {
                            }
                            return;
                        }
-                       if (const auto found = _sessions.find(message.client); found != _sessions.end()) {
+                       if (const auto found = _sessions.find(message.client);
+                           found != _sessions.end() && found->second.state == SessionState::kReady) {
                            found->second.connection.send(message.channel, message.payload);
                        }
                    },
@@ -225,7 +226,7 @@ void ServerCore::handleData(const io::Address& from, const protocol::Data& data,
 
 void ServerCore::handleDisconnect(const io::Address& from, const protocol::Disconnect& disconnect) {
     if (const Session* session = findSession(from, disconnect.sessionToken); session != nullptr) {
-        close(session->client, disconnect.reason);
+        close(session->client, DisconnectReason::kGraceful);
     }
 }
 
