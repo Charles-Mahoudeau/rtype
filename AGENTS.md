@@ -34,6 +34,9 @@ are added.
 - `src/rtype/plugins/` — `plugins` target, static library (`rtype-plugins`): the engine's features as ECS plugins,
   one folder per plugin, included as `plugins/<name>/<File>.hpp`, namespace `rtype::plugins::<name>`. Each plugin
   keeps its own code and declares its own components, resources and events (`RTYPE_ECS_*`).
+  - `plugins/backend/` — `BackendPlugin`: starts the platform and the renderer from a `BackendRegistry` the executable
+    fills (so it depends on no backend), the `rtype.Backend` main-thread resource, the window events, and the
+    PreUpdate / Render systems that poll the window and frame the drawing.
   - `plugins/input/` — `InputPlugin`: `Input`, `InputAction`, `ButtonStates`, the `rtype.Input` resource and the
     input events (`InputEvents.hpp`), fed to `Input` by a `PreUpdate` system.
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
