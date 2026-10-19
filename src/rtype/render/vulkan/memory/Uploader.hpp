@@ -14,6 +14,7 @@
 
 #include "Allocator.hpp"
 #include "Buffer.hpp"
+#include "Image.hpp"
 #include "render/vulkan/Export.hpp"
 #include "render/vulkan/command/CommandBuffer.hpp"
 #include "render/vulkan/command/CommandPool.hpp"
@@ -22,7 +23,8 @@
 
 namespace rtype::render::vulkan::memory {
 
-/// @brief Fills buffers the CPU cannot write (device local memory) through staging buffers, several at once.
+/// @brief Fills buffers the CPU cannot write (device local memory) and images through staging buffers, several at
+/// once.
 ///
 /// @details upload() only records: the data goes into a new staging buffer, and a copy plus a barrier into the
 /// command buffer. flush() then submits everything in one go and waits for it, so loading many buffers costs one round
@@ -34,6 +36,7 @@ namespace rtype::render::vulkan::memory {
 /// @endcode
 /// A destination the CPU can write (unified memory: Apple Silicon, ReBAR) is written at once, without staging. The
 /// barrier makes the copies visible to vertex and index fetching, uniform and storage reads of every later submission.
+/// An image is always staged (its tiling is optimal), and left in SHADER_READ_ONLY_OPTIMAL, ready to be sampled.
 /// @warning Destroy it before the Allocator and the Device. flush() before using the destinations.
 class RTYPE_RENDER_VULKAN_API Uploader {
   public:
@@ -57,6 +60,14 @@ class RTYPE_RENDER_VULKAN_API Uploader {
     /// @throws vk::SystemError If the staging buffer or the command buffer cannot be created.
     void upload(std::span<const std::byte> data, Buffer& destination, vk::DeviceSize offset = 0);
 
+    /// @brief Copies @p texels into every texel of @p destination at the next flush(), which leaves it in
+    /// SHADER_READ_ONLY_OPTIMAL. Its previous contents are discarded.
+    /// @param texels Row by row from the top, tightly packed, in the image's format.
+    /// @param destination Needs eTransferDst in its usage, and eSampled to be read by shaders afterwards.
+    /// @throws std::invalid_argument If @p texels is not exactly the image's size in bytes.
+    /// @throws vk::SystemError If the staging buffer or the command buffer cannot be created.
+    void upload(std::span<const std::byte> texels, Image& destination);
+
     /// @brief Submits the recorded uploads and waits for them, then frees their staging buffers. Does nothing when
     /// none is pending.
     /// @throws vk::SystemError If the submission fails.
@@ -64,6 +75,9 @@ class RTYPE_RENDER_VULKAN_API Uploader {
     void flush();
 
   private:
+    /// @brief Begins the command buffer if this is the first upload since the last flush().
+    void beginRecording();
+
     const core::Device* _device;            ///< Records and submits; not owned.
     const Allocator* _allocator;            ///< Allocates the staging buffers; not owned.
     command::CommandPool _commandPool;      ///< Transient pool of the command buffer, reset by flush().
