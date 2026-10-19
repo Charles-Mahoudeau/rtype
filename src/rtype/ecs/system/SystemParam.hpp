@@ -45,6 +45,7 @@ struct SystemContext {
 /// system) is **configured**: its specialization declares `using Config = ...;` and takes it in
 /// `init(World&, Config)` instead of `init(World&)`. The configuration is given after the function when the system is
 /// added, and each configured parameter takes the one of its `Config` type (ConfiguredParameter).
+/// `DynamicQueries` (system/DynamicQueries.hpp, configured with a QueryList) is one.
 template <typename Param>
 struct SystemParam;
 
