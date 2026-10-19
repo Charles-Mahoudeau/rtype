@@ -16,5 +16,7 @@
 #include "rtype/replication/component/PlayerInput.hpp"
 #include "rtype/replication/event/ClientConnected.hpp"
 #include "rtype/replication/event/ClientDisconnected.hpp"
+#include "rtype/replication/serialization/EntityMapper.hpp"
+#include "rtype/replication/serialization/FieldSerializer.hpp"
 
 TEST(Headers, LibraryLinksAndIsNamed) { EXPECT_EQ(rtype::replication::libraryName(), "rtype-replication"); }
