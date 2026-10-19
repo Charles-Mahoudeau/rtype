@@ -86,7 +86,8 @@ class RTYPE_PLUGINS_API IRenderer {
     /// @name Drawing (between beginFrame() and endFrame())
     /// @{
 
-    /// @brief Sets the camera the next shapes are seen through.
+    /// @brief Sets the camera the frame is seen through: call it once per frame, before drawing (a backend may apply
+    /// the last camera set to the whole frame, as Vulkan does). graphics::CameraView computes what it shows.
     /// @details Until it is called, a frame shows the world in window pixels, origin at the top-left corner.
     virtual void setCamera(const Camera& camera) = 0;
 

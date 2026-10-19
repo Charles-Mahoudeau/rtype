@@ -17,7 +17,8 @@ namespace rtype::plugins::backend::graphics {
 
 /// @brief Parallel projection, without perspective: what every 2D view is.
 struct Orthographic {
-    float zoom = 1.0F;  ///< Screen pixels per world unit: 2 shows everything twice as big.
+    float zoom = 1.0F;  ///< View pixels (of the renderer's virtual resolution, or the window's) per world unit: 2 shows
+                        ///< everything twice as big.
 };
 
 /// @brief How the camera projects the world onto the screen.
