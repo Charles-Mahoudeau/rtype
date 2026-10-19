@@ -31,8 +31,8 @@ using rtype::ecs::FieldType;
 using rtype::ecs::TypeInfo;
 using rtype::network::bytes::ByteReader;
 using rtype::network::bytes::ByteWriter;
+using rtype::replication::serialization::computeWireSize;
 using rtype::replication::serialization::EntityMapper;
-using rtype::replication::serialization::getWireSize;
 using rtype::replication::serialization::isSerializable;
 using rtype::replication::serialization::readFields;
 using rtype::replication::serialization::writeFields;
@@ -188,7 +188,7 @@ std::span<std::byte> writableBytesOf(T& value) {
 template <typename T>
 std::vector<std::byte> serialize(const TypeInfo& info, const T& value) {
     const TestMapper mapper;
-    std::vector<std::byte> buffer(getWireSize(info));
+    std::vector<std::byte> buffer(computeWireSize(info));
     ByteWriter writer{buffer};
     writeFields(writer, info, bytesOf(value), mapper);
     EXPECT_TRUE(writer.isValid());
@@ -230,9 +230,9 @@ TEST(FieldSerializer, RoundTripsEveryFieldType) {
 
 TEST(FieldSerializer, WireSizeIsTheSumOfTheFields) {
     // 1 + 1 + 2 + 4 + 8 + 1 + 2 + 4 + 8 + 4 + 8 + 8 + 12 + 16 + 4 (entity) + 8 (asset) + 3 * 2.
-    EXPECT_EQ(getWireSize(makeAllTypesInfo()), 97U);
-    EXPECT_EQ(getWireSize(makeSmallInfo()), 7U);
-    EXPECT_EQ(getWireSize(TypeInfo{}), 0U);
+    EXPECT_EQ(computeWireSize(makeAllTypesInfo()), 97U);
+    EXPECT_EQ(computeWireSize(makeSmallInfo()), 7U);
+    EXPECT_EQ(computeWireSize(TypeInfo{}), 0U);
 }
 
 TEST(FieldSerializer, WireSizeEqualsTheBytesWritten) {
@@ -243,7 +243,7 @@ TEST(FieldSerializer, WireSizeEqualsTheBytesWritten) {
 
     writeFields(writer, info, bytesOf(makeAllTypes()), mapper);
     EXPECT_TRUE(writer.isValid());
-    EXPECT_EQ(writer.bytesWritten(), getWireSize(info));
+    EXPECT_EQ(writer.bytesWritten(), computeWireSize(info));
 }
 
 TEST(FieldSerializer, WritesExactBytesWithoutPadding) {
