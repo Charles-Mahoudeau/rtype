@@ -36,6 +36,7 @@
 #include "memory/Allocator.hpp"
 #include "memory/Uploader.hpp"
 #include "pipeline/PipelineCache.hpp"
+#include "pipeline/PipelineLayout.hpp"
 #include "pipeline/ShaderCache.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/Color.hpp"
@@ -88,12 +89,6 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
                                                             ///< the working directory. Built-in shaders are embedded.
     };
 
-    /// @brief Descriptor set of the textures: a pipeline that samples one binds the texture's set here.
-    static constexpr std::uint32_t kTextureSet = 1;
-    /// @brief Binding of the texture's combined image sampler in kTextureSet, read by the fragment shader as
-    /// `layout(set = 1, binding = 0) uniform sampler2D`.
-    static constexpr std::uint32_t kTextureBinding = 0;
-
     /// @brief Called after each swapchain recreation with the new swapchain: recreate there what depends on its size
     /// or format (depth, MSAA, HDR targets...).
     using SwapchainListener = std::function<void(const presentation::Swapchain&)>;
@@ -136,7 +131,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
 
     /// @brief Creates a sampled R8G8B8A8_SRGB image of @p desc's size, uploads @p pixels into it before returning
     /// (one round trip to the GPU), and its descriptor set: the image with the sampler of desc's filter and repeat
-    /// mode, at kTextureSet, kTextureBinding.
+    /// mode, at rendering::kTextureSet, rendering::kTextureBinding.
     /// @throws std::logic_error If init() was not called.
     /// @throws std::invalid_argument If a side of desc.size is 0 or above the GPU's limit, or @p pixels is not
     /// desc.size.x * desc.size.y * 4 bytes.
@@ -224,8 +219,10 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     std::unique_ptr<pipeline::ShaderCache> _shaders;          ///< Shader modules, built-in and from the game.
     std::unique_ptr<pipeline::PipelineCache> _pipelineCache;  ///< Shared by every pipeline the renderer builds.
     std::unique_ptr<frame::FrameGlobals> _globals;            ///< Per-frame uniforms, at set 0, binding 0.
-    std::unique_ptr<descriptor::DescriptorSetLayout> _textureSetLayout;    ///< kTextureSet: one combined image sampler.
+    std::unique_ptr<descriptor::DescriptorSetLayout> _textureSetLayout;    ///< Set 1: one combined image sampler.
     std::unique_ptr<descriptor::DescriptorAllocator> _textureDescriptors;  ///< Allocates the textures' sets.
+    std::unique_ptr<pipeline::PipelineLayout> _layout;  ///< The shared layout (rendering/ShaderLayout.hpp) of every
+                                                        ///< pipeline: sets 0 and 1, and the DrawConstants.
     core::SlotMap<plugins::backend::graphics::TextureId, texture::Texture> _textures;  ///< By TextureId.
 
     // 7. Deferred deletion.

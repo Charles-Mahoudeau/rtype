@@ -43,8 +43,10 @@
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
 #include "plugins/backend/system/ExecutablePath.hpp"
+#include "rendering/DrawConstants.hpp"
 #include "rendering/DynamicRendering.hpp"
 #include "rendering/FrameUniforms.hpp"
+#include "rendering/ShaderLayout.hpp"
 #include "texture/SamplerCache.hpp"
 #include "texture/Texture.hpp"
 
@@ -136,12 +138,17 @@ void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
     _samplers = std::make_unique<texture::SamplerCache>(*_device, *_physicalDevice);
     _textureSetLayout = std::make_unique<descriptor::DescriptorSetLayout>(
         descriptor::DescriptorSetLayout::Builder{}
-            .addBinding(kTextureBinding, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment)
+            .addBinding(rendering::kTextureBinding, vk::DescriptorType::eCombinedImageSampler,
+                        vk::ShaderStageFlagBits::eFragment)
             .build(*_device));
     const std::array textureSizes{
         vk::DescriptorPoolSize{vk::DescriptorType::eCombinedImageSampler, kTextureSetsPerPool}};
     _textureDescriptors =
         std::make_unique<descriptor::DescriptorAllocator>(*_device, kTextureSetsPerPool, textureSizes);
+    const std::array setLayouts{*_globals->getSetLayout().getLayout(), *_textureSetLayout->getLayout()};
+    const std::array pushConstants{vk::PushConstantRange{
+        vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0, sizeof(rendering::DrawConstants)}};
+    _layout = std::make_unique<pipeline::PipelineLayout>(*_device, setLayouts, pushConstants);
     _startTime = std::chrono::steady_clock::now();
     _lastFrameTime = _startTime;
 }
@@ -207,7 +214,7 @@ plugins::backend::graphics::TextureId VulkanRenderer::createTexture(const plugin
     _uploader->flush();
     vk::raii::DescriptorSet set = _textureDescriptors->allocate(*_textureSetLayout);
     descriptor::DescriptorWriter{}
-        .writeImage(kTextureBinding, *image.getImageView(), *_samplers->get(desc.filter, desc.repeat),
+        .writeImage(rendering::kTextureBinding, *image.getImageView(), *_samplers->get(desc.filter, desc.repeat),
                     vk::ImageLayout::eShaderReadOnlyOptimal)
         .update(*_device, *set);
     return _textures.insert(texture::Texture{.image = std::move(image), .desc = desc, .set = std::move(set)});
