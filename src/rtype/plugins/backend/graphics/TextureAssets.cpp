@@ -89,6 +89,7 @@ graphics::TextureId loadTexture(TextureAssets& assets, graphics::IRenderer& rend
     const std::span<const std::byte> rgba{reinterpret_cast<const std::byte*>(pixels.get()), byteCount};
     const graphics::TextureId id = renderer.createTexture(desc, rgba);
     if (!assets.add(name, id, TextureInfo{.size = desc.size})) {
+        renderer.destroy(id);
         throw exceptions::AssetLoadException{
             std::format("Texture '{}': the renderer returned an id already in use", name)};
     }

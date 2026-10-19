@@ -61,7 +61,9 @@ RTYPE_ECS_RESOURCE(Assets<graphics::TextureId>, "rtype.TextureAssets");
 /// @details Same as loading a file, for images that do not come from the disk (embedded, downloaded).
 /// @param encoded The image file's bytes (PNG, JPEG...).
 /// @return The texture's id.
-/// @throws exceptions::AssetLoadException If the bytes cannot be decoded.
+/// @throws exceptions::AssetLoadException If the bytes cannot be decoded, or if the renderer returns an id already
+/// recorded (a renderer bug: it reused a slot without bumping its generation). The new texture is then destroyed;
+/// since it shares its id with the recorded one, that one is destroyed too.
 [[nodiscard]] graphics::TextureId loadTexture(TextureAssets& assets, graphics::IRenderer& renderer,
                                               const std::string& name, std::span<const std::byte> encoded,
                                               const TextureOptions& options = {});
