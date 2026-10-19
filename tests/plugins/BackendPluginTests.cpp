@@ -14,11 +14,11 @@
 #include "FakeBackend.hpp"
 #include "engine/backend/BackendRegistry.hpp"
 #include "engine/event/Event.hpp"
-#include "engine/input/Control.hpp"
 #include "engine/input/Key.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendResources.hpp"
 #include "plugins/backend/WindowEvents.hpp"
+#include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
 #include "plugins/input/InputEvents.hpp"
 #include "plugins/input/InputPlugin.hpp"
@@ -132,7 +132,7 @@ TEST(BackendPlugin, FeedsInputWhicheverPluginIsAddedFirst) {
         state->frames.push_back({rtype::engine::event::KeyPressed{.key = rtype::engine::input::Key::kSpace}});
         app.runFrame();
         const auto& input = app.getWorld().getResources().require<rtype::plugins::input::Input>();
-        EXPECT_GT(input.read(rtype::engine::input::Control::key(rtype::engine::input::Key::kSpace)), 0.0F)
+        EXPECT_GT(input.read(rtype::plugins::input::Control::key(rtype::engine::input::Key::kSpace)), 0.0F)
             << (inputFirst ? "InputPlugin added first" : "BackendPlugin added first");
     }
 }

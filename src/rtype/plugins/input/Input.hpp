@@ -14,9 +14,9 @@
 #include <unordered_map>
 
 #include "engine/event/Event.hpp"
-#include "engine/input/Control.hpp"
 #include "engine/input/Key.hpp"
 #include "plugins/input/ButtonStates.hpp"
+#include "plugins/input/Control.hpp"
 #include "plugins/input/InputAction.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
@@ -70,7 +70,7 @@ class Input {
     void clearActions() noexcept;
 
     /// @return The current value of a single control, without going through an action.
-    [[nodiscard]] float read(const engine::input::Control& control) const;
+    [[nodiscard]] float read(const plugins::input::Control& control) const;
 
     /// @return Cursor position in window pixels (origin top-left).
     [[nodiscard]] glm::vec2 getMousePosition() const noexcept;

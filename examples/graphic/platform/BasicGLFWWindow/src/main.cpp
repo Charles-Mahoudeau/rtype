@@ -10,9 +10,9 @@
 #include <variant>
 
 #include "engine/event/Event.hpp"
-#include "engine/input/Control.hpp"
 #include "engine/input/Key.hpp"
 #include "platform/glfw/GlfwPlatform.hpp"
+#include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
 #include "plugins/input/InputAction.hpp"
 
@@ -21,8 +21,8 @@ using rtype::engine::input::GamepadButton;
 using rtype::engine::input::Key;
 using rtype::engine::input::MouseButton;
 using namespace rtype::engine::event;
-using rtype::engine::input::Control;
 using rtype::plugins::input::ActionType;
+using rtype::plugins::input::Control;
 
 int main() {
     try {

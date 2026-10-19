@@ -10,8 +10,8 @@
 #include <glm/ext/vector_float2.hpp>
 
 #include "engine/event/Event.hpp"
-#include "engine/input/Control.hpp"
 #include "engine/input/Key.hpp"
+#include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
 #include "plugins/input/InputAction.hpp"
 #include "plugins/input/InputEvents.hpp"
@@ -33,7 +33,7 @@ class InputApp {
         _app.addPlugin(rtype::plugins::input::InputPlugin{});
         input()
             .addAction("fire", rtype::plugins::input::ActionType::kButton)
-            .bind(rtype::engine::input::Control::key(rtype::engine::input::Key::kSpace));
+            .bind(rtype::plugins::input::Control::key(rtype::engine::input::Key::kSpace));
     }
     ~InputApp() = default;
     InputApp(const InputApp& other) = delete;

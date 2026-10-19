@@ -11,7 +11,7 @@
 #include <glm/ext/vector_float2.hpp>
 #include <vector>
 
-#include "engine/input/Control.hpp"
+#include "plugins/input/Control.hpp"
 
 namespace rtype::plugins::input {
 
@@ -30,25 +30,25 @@ enum class ActionType : std::uint8_t {
 ///
 /// @code
 /// input.addAction("move", ActionType::kVector2)
-///     .bindVector(engine::input::Control::key(engine::input::Key::kW),
-///     engine::input::Control::key(engine::input::Key::kS), engine::input::Control::key(engine::input::Key::kA),
-///     engine::input::Control::key(engine::input::Key::kD))
-///     .bindVector(engine::input::Control::gamepadAxis(engine::input::GamepadAxis::kLeftX),
-///     engine::input::Control::gamepadAxis(engine::input::GamepadAxis::kLeftY));
+///     .bindVector(plugins::input::Control::key(engine::input::Key::kW),
+///     plugins::input::Control::key(engine::input::Key::kS), plugins::input::Control::key(engine::input::Key::kA),
+///     plugins::input::Control::key(engine::input::Key::kD))
+///     .bindVector(plugins::input::Control::gamepadAxis(engine::input::GamepadAxis::kLeftX),
+///     plugins::input::Control::gamepadAxis(engine::input::GamepadAxis::kLeftY));
 /// @endcode
 class InputAction {
   public:
     explicit InputAction(ActionType type) noexcept;
 
     /// @brief Binds a single control. For a kVector2 action it drives X.
-    InputAction& bind(engine::input::Control control);
+    InputAction& bind(plugins::input::Control control);
     /// @brief 1D composite: negative gives -1, positive gives +1 (e.g. A / D).
-    InputAction& bindAxis(engine::input::Control negative, engine::input::Control positive);
+    InputAction& bindAxis(plugins::input::Control negative, plugins::input::Control positive);
     /// @brief 2D composite from four controls (WASD, arrows, d-pad). Diagonals are normalized.
-    InputAction& bindVector(engine::input::Control up, engine::input::Control down, engine::input::Control left,
-                            engine::input::Control right);
+    InputAction& bindVector(plugins::input::Control up, plugins::input::Control down, plugins::input::Control left,
+                            plugins::input::Control right);
     /// @brief 2D vector from two analog controls (gamepad stick, mouse delta).
-    InputAction& bindVector(engine::input::Control x, engine::input::Control y);
+    InputAction& bindVector(plugins::input::Control x, plugins::input::Control y);
 
     /// @brief Magnitude above which the action counts as held. Defaults to 0.5.
     InputAction& setPressPoint(float pressPoint) noexcept;
@@ -72,7 +72,7 @@ class InputAction {
 
     /// @brief One control contributing along a direction.
     struct Part {
-        engine::input::Control control;
+        plugins::input::Control control;
         glm::vec2 direction;
     };
 

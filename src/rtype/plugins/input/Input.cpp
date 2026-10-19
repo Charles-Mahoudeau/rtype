@@ -18,8 +18,8 @@
 #include <variant>
 
 #include "engine/event/Event.hpp"
-#include "engine/input/Control.hpp"
 #include "engine/input/Key.hpp"
+#include "plugins/input/Control.hpp"
 #include "plugins/input/InputAction.hpp"
 #include "plugins/input/exceptions/InputExceptions.hpp"
 
@@ -107,24 +107,24 @@ glm::vec2 Input::evaluate(const InputAction::Binding& binding) const {
     return value;
 }
 
-float Input::read(const engine::input::Control& control) const {
+float Input::read(const plugins::input::Control& control) const {
     switch (control.source) {
-        case engine::input::Control::Source::kKey:
+        case plugins::input::Control::Source::kKey:
             return _keys.isDown(static_cast<engine::input::Key>(control.code)) ? control.scale : 0.0F;
-        case engine::input::Control::Source::kMouseButton:
+        case plugins::input::Control::Source::kMouseButton:
             return _mouseButtons.isDown(static_cast<engine::input::MouseButton>(control.code)) ? control.scale : 0.0F;
-        case engine::input::Control::Source::kMouseDeltaX:
+        case plugins::input::Control::Source::kMouseDeltaX:
             return _mouseDelta.x * control.scale;
-        case engine::input::Control::Source::kMouseDeltaY:
+        case plugins::input::Control::Source::kMouseDeltaY:
             return -_mouseDelta.y * control.scale;
-        case engine::input::Control::Source::kMouseScrollX:
+        case plugins::input::Control::Source::kMouseScrollX:
             return _scroll.x * control.scale;
-        case engine::input::Control::Source::kMouseScrollY:
+        case plugins::input::Control::Source::kMouseScrollY:
             return _scroll.y * control.scale;
-        case engine::input::Control::Source::kGamepadButton:
+        case plugins::input::Control::Source::kGamepadButton:
             return _gamepadButtons.isDown(static_cast<engine::input::GamepadButton>(control.code)) ? control.scale
                                                                                                    : 0.0F;
-        case engine::input::Control::Source::kGamepadAxis:
+        case plugins::input::Control::Source::kGamepadAxis:
             return readGamepadAxis(static_cast<engine::input::GamepadAxis>(control.code)) * control.scale;
     }
     return 0.0F;

@@ -14,10 +14,10 @@
 
 #include "engine/backend/BackendRegistry.hpp"
 #include "engine/config/Settings.hpp"
-#include "engine/input/Control.hpp"
 #include "engine/input/Key.hpp"
 #include "platform/glfw/Registration.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
+#include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
 #include "plugins/input/InputPlugin.hpp"
 #include "render/vulkan/Registration.hpp"
@@ -33,7 +33,7 @@ namespace {
 /// @brief Stops the App when Escape is pressed.
 void quitOnEscape(rtype::ecs::Res<rtype::plugins::input::Input> input,
                   rtype::ecs::EventWriter<rtype::ecs::AppExit> exit) {
-    if (input->read(rtype::engine::input::Control::key(rtype::engine::input::Key::kEscape)) > 0.0F) {
+    if (input->read(rtype::plugins::input::Control::key(rtype::engine::input::Key::kEscape)) > 0.0F) {
         exit.send(rtype::ecs::AppExit{.code = 0});
     }
 }

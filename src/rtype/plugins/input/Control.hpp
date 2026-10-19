@@ -11,7 +11,7 @@
 
 #include "engine/input/Key.hpp"
 
-namespace rtype::engine::input {
+namespace rtype::plugins::input {
 
 /// @brief One physical control (key, mouse button, stick axis...) read as a float.
 ///
@@ -30,9 +30,10 @@ struct Control {
         kGamepadAxis
     };
 
-    Source source{};        ///< Device and kind of control.
-    std::uint8_t code = 0;  ///< Engine Key / MouseButton / GamepadButton / GamepadAxis value, depending on source.
-    float scale = 1.0F;     ///< Multiplier applied to the raw value (sensitivity, inversion).
+    Source source{};  ///< Device and kind of control.
+    std::uint8_t code =
+        0;  ///< Engine Key / MouseButton / GamepadButton / engine::input::GamepadAxis value, depending on source.
+    float scale = 1.0F;  ///< Multiplier applied to the raw value (sensitivity, inversion).
 
     /// @brief Keyboard key, e.g. Control::key(Key::kW).
     [[nodiscard]] static constexpr Control key(engine::input::Key key) noexcept {
@@ -72,4 +73,4 @@ struct Control {
         return {.source = source, .code = code, .scale = -scale};
     }
 };
-}  // namespace rtype::engine::input
+}  // namespace rtype::plugins::input
