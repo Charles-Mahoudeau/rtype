@@ -45,8 +45,9 @@ are added.
   `RTYPE_PLUGINS_API`, which keeps the RTTI of the backend interfaces visible across binaries.
   - `plugins/backend/` (`rtype::plugins::backend`) — the contracts the backends implement and the vocabulary they
     speak, in sub-folders whose namespaces follow them: `platform/` (`IPlatform`, `WindowConfig`), `graphics/`
-    (`IRenderer`, `Sprite`, `Texture`..., the `Camera` and `SpriteRenderer` components, and the `TextureAssets`
-    resource: `Assets<TextureId>`, the loaded textures by path, decoded with stb), `event/` (the `Event` variant),
+    (`IRenderer`, `Sprite`, `Texture`..., the `Camera` and `SpriteRenderer` components, `AssetId` (the hash of an
+    asset's path, the same in every process), and the `TextureAssets` resource: the textures by
+    `AssetId`, queued by `load()` and decoded with stb by the backend plugin), `event/` (the `Event` variant),
     `input/` (`Key`, `MouseButton`...), `config/` (`Settings`), `exceptions/`, `math/`, `system/`; plus
     `BackendRegistry` and `BackendPlugin`, which starts the platform and the renderer from a registry the executable
     fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the window events and the

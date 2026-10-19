@@ -118,7 +118,7 @@ this changes nothing at runtime; it is there so a parallel scheduler later knows
 | `Settings` | core (from the config file) | `Res` |
 | `Backend` (platform + renderer) | `BackendPlugin` | `NonSend` |
 | `Input` | `InputPlugin` | `Res` |
-| `TextureAssets` (`Assets<TextureId>`) | `BackendPlugin` | `Res` |
+| `TextureAssets` (`AssetId` → texture, load queue) | `BackendPlugin` | `ResMut` to load, `Res` to look up |
 | Sound assets | an audio plugin (later, once an audio library is chosen) | `Res` |
 | `ServerState` / `ClientState` | `ServerPlugin` / `ClientPlugin` | `Res` |
 | `State<T>` | `app.state<T>()` (see [Scheduler](13-scheduler.md)) | `Res` |
