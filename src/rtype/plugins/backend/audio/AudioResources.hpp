@@ -7,27 +7,28 @@
 
 #pragma once
 
-#include "plugins/backend/resource/Handle.hpp"
-#include "plugins/backend/resource/Resource.hpp"
+#include <cstdint>
 
 namespace rtype::plugins::backend::audio {
 
-class IAudio;
+/// @brief Refers to a sound effect of the audio backend, fully decoded in memory.
+/// @details A plain value that owns nothing: the backend creates it (loadSound()) and destroys it (destroy(), or its
+/// own destruction). A slot index plus the slot's generation, bumped when the slot is freed, so a stale id is detected.
+struct SoundId {
+    std::uint32_t index{0};       ///< Slot in the backend's table.
+    std::uint32_t generation{0};  ///< Version of the slot; 0 means "no sound".
 
-struct SoundTag {};
-struct MusicTag {};
+    [[nodiscard]] bool operator==(const SoundId& other) const = default;
+};
 
-/// @name Handles: refer to an audio resource without owning it.
-/// @{
-using SoundId = resource::Handle<SoundTag>;
-using MusicId = resource::Handle<MusicTag>;
-/// @}
+/// @brief Refers to a music track of the audio backend, streamed from the disk while it plays.
+/// @details Same rules as SoundId.
+struct MusicId {
+    std::uint32_t index{0};       ///< Slot in the backend's table.
+    std::uint32_t generation{0};  ///< Version of the slot; 0 means "no music".
 
-/// @name Owners: destroy the audio resource when going out of scope.
-/// @{
-using Sound = resource::Resource<SoundTag, IAudio>;  ///< Short effect, fully decoded in memory.
-using Music = resource::Resource<MusicTag, IAudio>;  ///< Long track, streamed from the disk.
-/// @}
+    [[nodiscard]] bool operator==(const MusicId& other) const = default;
+};
 
 /// @brief How one occurrence of a sound is played.
 struct SoundParams {

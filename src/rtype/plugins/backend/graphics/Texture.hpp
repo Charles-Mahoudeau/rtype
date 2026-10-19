@@ -7,22 +7,23 @@
 
 #pragma once
 
-#include <cstddef>
 #include <cstdint>
 #include <glm/ext/vector_uint2.hpp>
-#include <span>
-
-#include "plugins/backend/resource/Handle.hpp"
-#include "plugins/backend/resource/Resource.hpp"
 
 namespace rtype::plugins::backend::graphics {
 
-class IRenderer;
+/// @brief Refers to a texture of the renderer: store it in sprites and ECS components.
+///
+/// @details A plain value, cheap to copy, that owns nothing: the renderer creates the texture (createTexture()) and
+/// destroys it (destroy(), or its own destruction). The renderer keeps a table indexed by `index`, and bumps the slot's
+/// generation each time it frees it, so an id used after its texture was destroyed is detected instead of reaching
+/// the slot's next texture. It is local to one renderer: never send it over the network, send an asset path instead.
+struct TextureId {
+    std::uint32_t index{0};       ///< Slot in the renderer's table.
+    std::uint32_t generation{0};  ///< Version of the slot; 0 means "no texture".
 
-struct TextureTag {};
-
-/// @brief Refers to a texture of the renderer without owning it: store it in sprites and ECS components.
-using TextureId = resource::Handle<TextureTag>;
+    [[nodiscard]] bool operator==(const TextureId& other) const = default;
+};
 
 /// @brief How a texture is sampled when drawn bigger or smaller than its size.
 enum class TextureFilter : std::uint8_t {
@@ -35,33 +36,5 @@ struct TextureDesc {
     glm::uvec2 size{0};  ///< In pixels.
     TextureFilter filter = TextureFilter::kNearest;
     bool repeat = false;  ///< Tiles the texture when the source rect goes past its edges.
-};
-
-/// @brief Owns a texture of the renderer, destroyed when the Texture goes out of scope.
-///
-/// @details Move-only. To refer to the texture without owning it (Sprite, ECS component), keep its TextureId.
-/// The size is kept on this side, so reading it needs no call to the renderer.
-class Texture {
-  public:
-    /// @brief Creates the texture in the renderer.
-    /// @param pixels RGBA pixels, 8 bits per channel, row by row from the top: desc.size.x * desc.size.y * 4 bytes.
-    Texture(IRenderer& renderer, const TextureDesc& desc, std::span<const std::byte> pixels);
-    /// @brief An empty Texture, owning nothing.
-    Texture() = default;
-    ~Texture() = default;
-    Texture(const Texture&) = delete;
-    Texture& operator=(const Texture&) = delete;
-    Texture(Texture&&) noexcept = default;
-    Texture& operator=(Texture&&) noexcept = default;
-
-    /// @return The handle, to refer to the texture without owning it.
-    [[nodiscard]] TextureId getId() const noexcept;
-
-    /// @return Size in pixels.
-    [[nodiscard]] glm::uvec2 getSize() const noexcept;
-
-  private:
-    resource::Resource<TextureTag, IRenderer> _resource;  ///< The owned texture.
-    glm::uvec2 _size{0};                                  ///< Size in pixels, from the creation.
 };
 }  // namespace rtype::plugins::backend::graphics

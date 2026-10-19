@@ -62,7 +62,8 @@ class RTYPE_PLUGINS_API IRenderer {
     virtual void resize(glm::uvec2 framebufferSize) = 0;
 
     /// @name Textures
-    /// @brief Prefer the Texture class, which calls these and destroys the texture for you.
+    /// @brief The ids own nothing: destroy() frees a texture early, and the renderer frees every texture left when it
+    /// is destroyed. Games load textures through the TextureAssets resource, which also decodes image files.
     /// @{
 
     /// @param pixels RGBA pixels, 8 bits per channel, row by row from the top: desc.size.x * desc.size.y * 4 bytes.

@@ -16,10 +16,11 @@ namespace rtype::plugins::backend::audio {
 
 /// @brief Sound effects and music, implemented by an audio backend (none yet).
 ///
-/// @details Independent from the window and the renderer. Loading returns a handle the caller wraps in its owner:
+/// @details Independent from the window and the renderer. Loading returns an id that owns nothing: destroy() frees
+/// the sound early, and the backend frees what is left when it is destroyed.
 /// @code
-/// const Sound laser(audio, audio.loadSound("assets/laser.wav"));
-/// audio.play(laser.getId(), {.volume = 0.5F});
+/// const SoundId laser = audio.loadSound("assets/laser.wav");
+/// audio.play(laser, {.volume = 0.5F});
 /// @endcode
 class RTYPE_PLUGINS_API IAudio {
   public:

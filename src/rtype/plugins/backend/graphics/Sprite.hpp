@@ -18,7 +18,7 @@ namespace rtype::plugins::backend::graphics {
 /// @brief A textured rectangle, drawn with IRenderer::draw(). A plain value: build one per draw, or keep it in a
 /// component.
 struct Sprite {
-    TextureId texture;         ///< Not owned: the Texture must outlive the frame the sprite is drawn in.
+    TextureId texture;         ///< Not owned: the texture must not be destroyed before the frame is shown.
     math::Rect source;         ///< Part of the texture to show, in pixels (a frame of a sprite sheet).
     glm::vec2 position{0.0F};  ///< In world units.
     glm::vec2 scale{1.0F};     ///< 1: one world unit per texture pixel.
