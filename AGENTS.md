@@ -52,10 +52,14 @@ are added.
     `input/` (`Key`, `MouseButton`...), `config/` (`Settings`), `exceptions/`, `math/`, `system/`; plus
     `BackendRegistry` and `BackendPlugin`, which starts the platform and the renderer from a registry the executable
     fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the window events and the
-    PreUpdate / Render systems that poll the window and frame the drawing.
+    PreUpdate / Render systems that poll the window, frame the drawing and draw the sprites by layer.
   - `plugins/input/` (`rtype::plugins::input`) — `InputPlugin`: `Control`, `Input`, `InputAction`, `ButtonStates`,
     the `rtype.Input` resource, fed by a `PreUpdate` system from the `PlatformEvent`s in order, and the typed input
     events (`InputEvents.hpp`) for gameplay code. It knows nothing of the backend plugin, which adds it.
+  - `plugins/transform/` (`rtype::plugins::transform`) — `TransformPlugin`: the `Transform` component gameplay writes
+    and the `GlobalTransform` rendering reads, computed from it in `PostUpdate` on every side. The backend plugin adds
+    it and draws each `SpriteRenderer` at its `GlobalTransform`.
+  - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
   `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
   (`IVulkanSurfaceSource`). See `docs/Backend.md`.
