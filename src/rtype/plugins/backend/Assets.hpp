@@ -18,12 +18,12 @@ namespace rtype::plugins::backend {
 ///
 /// @details A specialization provides:
 /// - `Info`: what is known about a loaded asset (a texture's size...);
-/// - `Owner`: the backend that creates and destroys the asset, with a `destroy(Id)` member (IRenderer, IAudio).
+/// - `Owner`: the backend that creates and destroys the asset, with a `destroy(Id)` member (IRenderer).
 template <typename Id>
 struct AssetTraits;
 
-/// @brief The loaded assets of one kind (textures, later sounds): each one known by its name (its path, for a file)
-/// and by the id its backend gave it, with what is known about it.
+/// @brief The loaded assets of one kind (textures, and later the assets of other backends, such as sounds): each one
+/// known by its name (its path, for a file) and by the id its backend gave it, with what is known about it.
 ///
 /// @details Inserted in the world as an ECS resource, so systems find an asset by name and components keep only its
 /// id. The backend owns the asset itself: unload() asks it to destroy one, and the backend destroys every asset left
