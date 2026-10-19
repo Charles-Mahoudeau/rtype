@@ -76,11 +76,14 @@ Consequences for the plan:
 - **Entities are tracked automatically.** A system that spawns with `Commands` cannot call a `track(entity)`: the
   entity is only alive after the phase's flush. The server therefore assigns `NetworkId`s itself, in a `PostUpdate`
   system (`net.assignIds`), for every entity that has a replicated component and no `NetworkId`.
-- **Systems reach components by `ComponentId` through the plugin state.** A system parameter cannot name a component
-  that is only known at run time, and there is no exclusive `World&` parameter: writes go through `Commands`
-  (applied after the phase), reads by id through a `const World*` kept in the state. This is correct with today's
-  sequential scheduler; the dynamic accesses are missing from the systems' access sets, which a parallel scheduler
-  would need (an ECS follow-up, see [16](#16-external-blockers)).
+- **Systems reach components by `ComponentId` through a system parameter of `replication`.** A `DynamicQuery` is
+  built from ids (the ECS names the network among its users), and a library can add its own parameter type by
+  specializing `SystemParam`. `ReplicatedRead` (`query/`) holds one `DynamicQuery` per replicated component and reports
+  their `getAccess()` in `addAccess`, so the schedule orders these systems against the game's like any other: two
+  unordered systems of a phase that touch the same component, one of them writing it, fail to build. Writes (spawn,
+  add or replace by id, remove, despawn) go through `Commands`, applied after the phase. The parameter is built when
+  the plugin adds its systems, so `ServerPlugin` and `ClientPlugin` are added **after** the plugins that register
+  replicated components; `net.start` fails with a clear message if one was registered later.
 - **The glue between `plugins::input::Input` and `PlayerInput` lives in the executable or example.** `plugins` knows
   nothing of `replication`, and `replication` nothing of `plugins`: only the executable (or example) links both.
 
@@ -186,6 +189,8 @@ src/rtype/replication/            rtype::replication — rtype-replication (shar
 │   └── NetworkId, Owner, PlayerInput
 ├── event/                        rtype::replication::event
 │   └── ClientConnected, ClientDisconnected, later ClientLost, ClientReconnected... (M4)
+├── query/                        rtype::replication::query
+│   └── ReplicatedRead (a SystemParam over one DynamicQuery per replicated component)
 ├── serialization/                rtype::replication::serialization
 │   └── EntityMapper, FieldSerializer
 ├── manifest/                     rtype::replication::manifest
@@ -230,7 +235,9 @@ These apply to every task; the acceptance criteria below do not repeat them.
   a manifest that cannot be built).
 - **Plugins follow the ECS rules** ([ECS 14](../ecs/features/14-app-and-plugins.md)): `build()` only registers
   (resources, events, systems, other plugins); opening a socket, building the manifest or connecting happens in a
-  `Startup` system, when every plugin of the game has registered its types. A plugin name is `rtype.replication...`;
+  `Startup` system, when every plugin of the game has registered its types. A system parameter is built when the system
+  is added, so a plugin whose parameters depend on registered types (`ReplicatedRead`) is added after the plugins that
+  register them. A plugin name is `rtype.replication...`;
   each plugin exposes its system names as `static constexpr std::string_view` constants (as `BackendPlugin` does), so
   that game systems can order themselves with `.after(...)` / `.before(...)`. Server systems are `Side::kServer`,
   client systems `Side::kClient`.
@@ -2061,7 +2068,8 @@ reconnection grace.
    index as short id. More than 65 535 is a `ManifestException`.
 2. Every replicated component must be serializable (NET-13); otherwise throw `ManifestException` naming it. This is a
    setup error: the server does not start. `build` runs in a `Startup` system of `ServerPlugin` (NET-16), once every
-   plugin of the game has registered its components, so the order in which plugins were added does not matter.
+   plugin of the game has been built; `ServerPlugin` itself is added after the plugins that register replicated
+   components (see NET-16).
 3. Take the input actions from the `InputLayout` (NET-15), which orders them by name; their index is their position.
 4. Compute the manifest hash: FNV-1a 64 (`hashString` / `hashInteger` of the ECS) over every entry in order: entry
    type, short id or index, name, then layout hash (component) or kind (action).
@@ -2312,9 +2320,10 @@ with deltas (only what each client has not confirmed yet), keeping the same mess
 
 4. `net.assignIds` gives every alive entity that has at least one replicated component and no `NetworkId` the next
    `NetworkId` (from 1, increasing, never reused), adds the `NetworkId` component, and remembers the entity both ways
-   (`NetworkId → Entity`, `Entity → NetworkId`). ECS queries have no "any of" term, so it runs one dynamic query per
-   replicated component (`With<component>` and `Without<NetworkId>`): an entity matching several is given its id by the
-   first and skipped by the others.
+   (`NetworkId → Entity`, `Entity → NetworkId`). ECS queries have no "any of" term, so `ReplicatedRead` also holds,
+   per replicated component, a query `With` it and `Without<NetworkId>`; the `NetworkId` is added with `Commands`, so
+   an entity matching several queries in one frame is given one id (the first match records it in the tracking table,
+   the others skip it).
 5. At each snapshot, entities that are no longer alive (`World::isAlive`) are forgotten. In M1 nothing else is
    needed for despawns: the next complete snapshot does not list them, so clients remove them.
 
@@ -2344,7 +2353,7 @@ with deltas (only what each client has not confirmed yet), keeping the same mess
       flags;
     - one spawn record per tracked entity, in increasing `NetworkId` order: the id, prefab `0xFFFF` (none in M1), and
       every replicated component the entity has, in short id order, written with NET-13 (entity fields through the
-      tracking table). The components are read by `ComponentId` through the read-only world pointer of the state;
+      tracking table). The components are read by `ComponentId` through the `ReplicatedRead` parameter;
     - records are added while the message stays within `kMaxMessageSize` (`getWireSize` tells the size in advance).
       An entity is written whole or not at all. If every entity fits, the `kComplete` flag is set; if not, the flag is
       cleared (clients then remove nothing) and a rate-limited warning is logged;
@@ -2402,7 +2411,6 @@ class RTYPE_REPLICATION_API ServerState {
         std::uint32_t lastAppliedSnapshot{0};
     };
     std::unique_ptr<network::server::NetServer> _server;  ///< Created by net.start (a NetServer cannot move).
-    const ecs::World* _world;                             ///< Read-only, to read components by id.
     manifest::Manifest _manifest;
     std::unordered_map<network::ClientId, ClientRecord> _clients;
     std::map<std::uint32_t, ecs::Entity> _entities;  ///< By NetworkId, in id order for snapshots.
@@ -2414,9 +2422,13 @@ class RTYPE_REPLICATION_API ServerState {
 
 **Tasks.**
 - [ ] `snapshot/Snapshot.hpp/.cpp`, `server/ServerState.hpp/.cpp`, `server/ServerPlugin.hpp/.cpp`.
-- [ ] Check that a system can write components of a type only known by `ComponentId` through the world pointer
-  without the access set (sequential scheduler), and say so in a comment on `ServerState::_world`; open an ECS issue
-  for an exclusive (`World&`) system parameter if it is not there yet.
+- [ ] `query/ReplicatedRead.hpp/.cpp`: a `SystemParam` specialization (`State` = one `DynamicQuery` per replicated
+  component of the world, built by `init`; `addAccess` adds each query's `getAccess()`). `ServerPlugin` is added after
+  the plugins that register replicated components; `net.start` compares the replicated components it finds with the
+  ones the parameter was built from, and throws a `ReplicationException` naming the first one registered later.
+- [ ] Test the parameter: a game system of the same phase, with no order against `net.snapshot`, that writes a
+  replicated component makes the schedule fail to build with the usual ambiguity message; ordering it with
+  `.before` / `.after` fixes it; a replicated component registered after the plugin is reported by `net.start`.
 - [ ] Tests of the helpers (no `App`, no socket: events in, commands out, decoded with `snapshot::Snapshot`): inputs
   reach the right buffer, `previousButtons` correct, repeated when none arrive, neutral without a connected owner;
   snapshot content (entities, components, entity fields as ids); `kComplete` set when everything fits and cleared
@@ -2475,8 +2487,9 @@ Like the server side, the logic is not in the systems: they call helpers and a `
    kept for the player; the plugin disconnects with `kManifestMismatch`). The game reads both from `ClientState`.
 4. Before `kAccepted`, snapshots are dropped and `setInput` is ignored.
 
-*Applying a snapshot.* Writes go through `Commands` (spawn, add by `ComponentId`, remove, despawn) and are applied
-after the phase; reads by id go through the read-only world pointer of the state.
+*Applying a snapshot.* Writes go through `Commands` (spawn, add or replace by `ComponentId`, remove, despawn) and are
+applied after the phase; the components an entity has are read with `ReplicatedRead` (NET-16), so these systems are
+ordered against the game's like any other.
 
 5. A snapshot whose tick is not newer than the last one applied is dropped (it arrived late; a newer state is
    already shown).
@@ -2540,7 +2553,6 @@ class RTYPE_REPLICATION_API ClientState {
 
   private:
     std::unique_ptr<network::client::NetClient> _client;  ///< Created by net.connect.
-    const ecs::World* _world;                             ///< Read-only, to read components by id.
     manifest::ManifestReceiver _receiver;
     std::optional<manifest::Manifest> _manifest;
     std::unordered_map<std::uint32_t, ecs::Entity> _entities;  ///< NetworkId → local entity.
@@ -3050,8 +3062,6 @@ left to do once the engine is split.
   `PlayerInput` without a network.
 - [ ] Predicted systems (`predicted = true`) replace the `PredictStep` callback.
 - [ ] `Room` adapter that runs an `App` for `RoomManager`.
-- [ ] Replace the read-only world pointer of the plugin states by an exclusive-system parameter, if the ECS has one
-  by then ([16](#16-external-blockers)).
 
 ### NET-39 · Engine library and `client` / `server` executables
 
@@ -3141,7 +3151,7 @@ Work owned by other modules that some network tasks wait for. Only the last two 
 | Blocker | Owner | Blocks |
 |---|---|---|
 | ECS `StandalonePlugin` ([#128](https://github.com/Charles-Mahoudeau/rtype/issues/128)) | ECS | NET-38 |
-| ECS exclusive system parameter (`World&`, access set of "everything"): the plugins read components by `ComponentId` through a pointer, which a parallel scheduler could not order | ECS | Nothing today (sequential scheduler); needed before a parallel one |
+| ECS hook to finish a plugin's setup once every plugin was built (optional) | ECS | Nothing: `ReplicatedRead` is built when the plugin adds its systems, so the plugins are added in an order, checked by `net.start` |
 | ECS prefabs | ECS | NET-41 |
 | ECS field network options (quantization) | ECS | NET-42 |
 | ECS Luau bridge, engine Luau plugin | ECS + Luau | NET-35 |

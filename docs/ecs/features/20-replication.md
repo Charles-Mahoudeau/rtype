@@ -63,8 +63,10 @@ ECS stays single-threaded.
 
 `ReplicationPlugin` (`"rtype.replication"`) registers the components and events above and inserts the `InputLayout`
 resource; `ServerPlugin` and `ClientPlugin` both add it, and a standalone game can add it alone. The network I/O
-(binding the socket, connecting, building the manifest) happens in `Startup` systems, once every plugin registered its
-types.
+(binding the socket, connecting, building the manifest) happens in `Startup` systems, once every plugin was built. The
+systems read replicated components by id through a `SystemParam` of `replication` (`ReplicatedRead`, one `DynamicQuery`
+per replicated component, reporting its access like a typed `Query`), built when the plugin adds its systems: add
+`ServerPlugin` / `ClientPlugin` after the plugins that register replicated components.
 
 ### One server tick, one client frame
 
