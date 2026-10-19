@@ -22,6 +22,7 @@
 #include "plugins/backend/math/Rect.hpp"
 #include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
+#include "plugins/input/InputAction.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "render/vulkan/Registration.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -39,6 +40,24 @@ void quitOnEscape(rtype::ecs::Res<rtype::plugins::input::Input> input,
                   rtype::ecs::EventWriter<rtype::ecs::AppExit> exit) {
     if (input->read(rtype::plugins::input::Control::key(rtype::plugins::backend::input::Key::kEscape)) > 0.0F) {
         exit.send(rtype::ecs::AppExit{.code = 0});
+    }
+}
+
+/// @brief Name of the action that fires.
+constexpr const char* kShootAction = "shoot";
+
+/// @brief Startup: binds the shoot action to Space, the left mouse button and the gamepad's south button.
+void bindActions(rtype::ecs::ResMut<rtype::plugins::input::Input> input) {
+    input->addAction(kShootAction, rtype::plugins::input::ActionType::kButton)
+        .bind(rtype::plugins::input::Control::key(rtype::plugins::backend::input::Key::kSpace))
+        .bind(rtype::plugins::input::Control::mouseButton(rtype::plugins::backend::input::MouseButton::kLeft))
+        .bind(rtype::plugins::input::Control::gamepadButton(rtype::plugins::backend::input::GamepadButton::kSouth));
+}
+
+/// @brief Prints "shoot" on the frame the shoot action is pressed.
+void shoot(rtype::ecs::Res<rtype::plugins::input::Input> input) {
+    if (input->getAction(kShootAction).isPressed()) {
+        std::cout << "shoot\n" << std::flush;
     }
 }
 
@@ -84,6 +103,9 @@ int main() {
             .addPlugin(rtype::plugins::backend::BackendPlugin{std::move(registry), makeSettings()});
         app.addSystem(rtype::ecs::Phase::kUpdate, "rtype.quitOnEscape", &quitOnEscape)
             .setSide(rtype::ecs::Side::kClient);
+        app.addSystem(rtype::ecs::Phase::kStartup, "rtype.bindActions", &bindActions)
+            .setSide(rtype::ecs::Side::kClient);
+        app.addSystem(rtype::ecs::Phase::kUpdate, "rtype.shoot", &shoot).setSide(rtype::ecs::Side::kClient);
         app.addSystem(rtype::ecs::Phase::kStartup, "rtype.spawnSheet", &spawnSheet)
             .after(std::string{rtype::plugins::backend::BackendPlugin::kCreateSystem})
             .setSide(rtype::ecs::Side::kClient);
