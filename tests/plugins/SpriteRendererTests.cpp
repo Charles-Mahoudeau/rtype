@@ -28,14 +28,18 @@ TEST(SpriteRenderer, HasNeutralDefaults) {
     EXPECT_EQ(sprite.layer, 0);
 }
 
-TEST(SpriteRenderer, ReflectsItsTextureAsAnAssetIdAndItsLayer) {
+TEST(SpriteRenderer, ReflectsEveryFieldButTheSource) {
     using Traits = rtype::ecs::ComponentTraits<rtype::plugins::backend::SpriteRenderer>;
     EXPECT_EQ(Traits::kName, "rtype.SpriteRenderer");
-    ASSERT_EQ(Traits::kFields.size(), 2U);
+    ASSERT_EQ(Traits::kFields.size(), 4U);
     EXPECT_EQ(Traits::kFields[0].name, "texture");
     EXPECT_EQ(Traits::kFields[0].type, rtype::ecs::FieldType::kAssetId);
-    EXPECT_EQ(Traits::kFields[1].name, "layer");
-    EXPECT_EQ(Traits::kFields[1].type, rtype::ecs::FieldType::kI32);
+    EXPECT_EQ(Traits::kFields[1].name, "color");
+    EXPECT_EQ(Traits::kFields[1].type, rtype::ecs::FieldType::kVec4);
+    EXPECT_EQ(Traits::kFields[2].name, "origin");
+    EXPECT_EQ(Traits::kFields[2].type, rtype::ecs::FieldType::kVec2);
+    EXPECT_EQ(Traits::kFields[3].name, "layer");
+    EXPECT_EQ(Traits::kFields[3].type, rtype::ecs::FieldType::kI32);
 }
 
 TEST(SpriteRenderer, IsStoredOnAnEntity) {

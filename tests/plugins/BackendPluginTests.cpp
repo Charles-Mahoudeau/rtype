@@ -7,8 +7,11 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
+#include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
 #include <memory>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -20,14 +23,19 @@
 #include "plugins/backend/WindowEvents.hpp"
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/event/PlatformEvent.hpp"
+#include "plugins/backend/graphics/AssetId.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
+#include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/backend/input/Key.hpp"
 #include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
 #include "plugins/input/InputEvents.hpp"
 #include "plugins/input/InputPlugin.hpp"
+#include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/event/EventCursor.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/world/World.hpp"
@@ -78,6 +86,72 @@ TEST(BackendPlugin, LoadsTheQueuedTexturesBeforeTheFrame) {
     app.app().runFrame();
     EXPECT_EQ(app.state().createdTextures.size(), 1U);
     EXPECT_TRUE(textures.getTexture(id));
+}
+
+namespace {
+/// @brief Spawns an entity drawn with @p texture at @p position on @p layer.
+rtype::ecs::Entity spawnSprite(BackendApp& app, rtype::plugins::backend::AssetId texture, glm::vec2 position,
+                               std::int32_t layer) {
+    rtype::ecs::World& world = app.app().getWorld();
+    const rtype::ecs::Entity entity = world.spawn();
+    world.getComponents().add(entity, rtype::plugins::transform::Transform{.position = position});
+    world.getComponents().add(entity, rtype::plugins::backend::SpriteRenderer{.texture = texture, .layer = layer});
+    return entity;
+}
+
+/// @return The id of a texture asked for under @p name, loaded at the next frame.
+rtype::plugins::backend::AssetId loadTexture(BackendApp& app, const std::string& name) {
+    return app.app().getWorld().getResources().getMut<rtype::plugins::backend::TextureAssets>()->load(
+        name, rtype::test::plugins::twoPixelPng());
+}
+}  // namespace
+
+TEST(BackendPlugin, BringsTheTransformPlugin) {
+    BackendApp app;
+    EXPECT_TRUE(app.app().hasPlugin(rtype::plugins::transform::TransformPlugin::kName));
+}
+
+TEST(BackendPlugin, DrawsTheSpritesAtTheirGlobalTransform) {
+    BackendApp app;
+    spawnSprite(app, loadTexture(app, "ship.png"), {10.0F, 20.0F}, 0);
+    app.app().runFrame();
+    ASSERT_EQ(app.state().sprites.size(), 1U);
+    EXPECT_EQ(app.state().sprites[0].position, (glm::vec2{10.0F, 20.0F}));
+}
+
+TEST(BackendPlugin, DrawsTheSpritesByLayer) {
+    BackendApp app;
+    const auto texture = loadTexture(app, "ship.png");
+    spawnSprite(app, texture, {3.0F, 0.0F}, 5);
+    spawnSprite(app, texture, {1.0F, 0.0F}, -2);
+    spawnSprite(app, texture, {2.0F, 0.0F}, 0);
+    app.app().runFrame();
+    ASSERT_EQ(app.state().sprites.size(), 3U);
+    EXPECT_FLOAT_EQ(app.state().sprites[0].position.x, 1.0F);
+    EXPECT_FLOAT_EQ(app.state().sprites[1].position.x, 2.0F);
+    EXPECT_FLOAT_EQ(app.state().sprites[2].position.x, 3.0F);
+}
+
+TEST(BackendPlugin, GroupsTheSpritesOfALayerByTexture) {
+    BackendApp app;
+    const auto first = loadTexture(app, "first.png");
+    const auto second = loadTexture(app, "second.png");
+    spawnSprite(app, first, {1.0F, 0.0F}, 0);
+    spawnSprite(app, second, {2.0F, 0.0F}, 0);
+    spawnSprite(app, first, {3.0F, 0.0F}, 0);
+    app.app().runFrame();
+    ASSERT_EQ(app.state().sprites.size(), 3U);
+    EXPECT_EQ(app.state().sprites[0].texture, app.state().sprites[1].texture);
+    EXPECT_FLOAT_EQ(app.state().sprites[0].position.x, 1.0F);
+    EXPECT_FLOAT_EQ(app.state().sprites[1].position.x, 3.0F);
+    EXPECT_NE(app.state().sprites[2].texture, app.state().sprites[0].texture);
+}
+
+TEST(BackendPlugin, SkipsSpritesWhoseTextureIsNotLoaded) {
+    BackendApp app;
+    spawnSprite(app, rtype::plugins::backend::AssetId::fromPath("never-loaded.png"), {0.0F, 0.0F}, 0);
+    app.app().runFrame();
+    EXPECT_TRUE(app.state().sprites.empty());
 }
 
 TEST(BackendPlugin, LoadsNoTextureOnAServer) {
