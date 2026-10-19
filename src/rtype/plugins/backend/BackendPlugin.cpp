@@ -19,18 +19,19 @@
 
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
-#include "plugins/backend/WindowEvents.hpp"
+#include "plugins/backend/WindowEvents.hpp"  // IWYU pragma: keep
 #include "plugins/backend/config/Settings.hpp"
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
-#include "plugins/input/InputEvents.hpp"
+#include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/query/Query.hpp"
+#include "rtype/ecs/resource/Resources.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/Schedule.hpp"
 #include "rtype/ecs/system/EventWriter.hpp"

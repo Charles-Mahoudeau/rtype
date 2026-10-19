@@ -19,6 +19,7 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <ios>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -71,10 +72,11 @@ graphics::TextureId loadTexture(TextureAssets& assets, graphics::IRenderer& rend
     int width = 0;
     int height = 0;
     int fileChannels = 0;
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast): stb_image reads unsigned bytes.
     const std::unique_ptr<stbi_uc, StbFree> pixels{
         stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(encoded.data()), static_cast<int>(encoded.size()),
                               &width, &height, &fileChannels, kChannels)};
+    // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
     if (pixels == nullptr) {
         throw exceptions::AssetLoadException{
             std::format("Texture '{}': cannot decode the image ({})", name, stbi_failure_reason())};
