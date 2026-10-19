@@ -180,7 +180,7 @@ interface once, and works with every Vulkan renderer. Another API would get its 
 (`interop-webgpu` with an `IWebGpuSurfaceSource`, `interop-metal` with an `IMetalLayerSource`...), only when a renderer
 needs it.
 
-The interfaces are marked `RTYPE_INTEROP_API`, and the engine's (`IPlatform`, `IRenderer`, `IAudio`)
+The interfaces are marked `RTYPE_INTEROP_API`, and the engine's (`IPlatform`, `IRenderer`)
 `RTYPE_ENGINE_API`: both give them a default visibility. The renderer, in a shared library, `dynamic_cast`s a
 platform created in the executable, which is built with `-fvisibility=hidden`: the cast compares the type
 information of the source (`IPlatform`) and of the target (`IVulkanSurfaceSource`) across the two binaries, so both

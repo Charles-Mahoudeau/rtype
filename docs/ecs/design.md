@@ -7,8 +7,8 @@ implemented yet: every snippet is illustrative and open to discussion.
 The design builds on what already exists in the repository:
 
 - **Ethan's engine layer** (`feat/engine/graphic-implementation`): `IPlatform`, `IRenderer`,
-  `BackendRegistry`, `Settings`, `Event`, `Input` / `InputAction`, `TextureId` / `SoundId` / `MusicId`,
-  `IAudio`, `Camera`, `Sprite`, `Texture`.
+  `BackendRegistry`, `Settings`, `Event`, `Input` / `InputAction`, `TextureId`,
+  `IAudio` (removed until an audio library is chosen), `Camera`, `Sprite`, `Texture`.
 - **Charles's Luau layer** (`feat/luau/result-and-error`, `docs/luau/api_proposal.md`): `Runtime`,
   `Result<T>` / `Error`, `generateTypes()`, handles, and the gtest setup in `tests/`.
 
@@ -176,7 +176,7 @@ class Entity {
 
 An `Entity` is **local to one world**. It is never sent over the network: replicated entities carry a
 `NetworkId` component instead (see [Networking](#networking)). This is the same generational idea as
-the backend ids (`TextureId`, `SoundId`); `Entity` stays a separate type so it cannot be confused with a texture.
+the backend ids (`TextureId`); `Entity` stays a separate type so it cannot be confused with a texture.
 
 Serves: R2 (scripts hold entities safely), R3 (separate network identity), R4.
 
@@ -1308,7 +1308,7 @@ Going Bevy-style now means the ECS owns the loop. Ethan's **interfaces stay**; w
 | `graphics::Sprite` (with `position`) | **Kept as the renderer's draw command.** The ECS component is `plugins::backend::SpriteRenderer` (`TextureId`, source rect, color, origin, layer); the position will come from `Transform`. It holds a `TextureId`, local to the renderer, so it is not replicated: a replicated sprite will need an `AssetId`. |
 | `graphics::Camera` (with `position`) | **Also the ECS component** `"rtype.Camera"` (declared in `plugins/backend/BackendComponents.hpp`, so the renderers do not see the ECS), with a `priority`: the backend plugin's Render system `rtype.backend.camera` passes the camera with the highest priority to `setCamera()`, between `beginFrame` and `endFrame`. Its position may later come from `Transform`. |
 | `TextureId` (the RAII `Texture` and `Handle<Tag>` / `Resource<Tag, Owner>` are gone) | The renderer owns the textures; the `plugins::backend::TextureAssets` resource (`Assets<TextureId>`, inserted by `BackendPlugin`) records them by path and loads image files (`loadTexture()`, through stb); components keep only the id |
-| `IAudio` | `AudioPlugin`, main-thread resource, sounds triggered by events |
+| `IAudio` | **Removed** (it had no implementation). Audio will come back as its own plugin once a library is chosen (miniaudio, OpenAL...): its interface, `Assets<SoundId>` resources, sounds triggered by events |
 | `Settings` | Resource, filled from the config file at startup |
 
 ```c++
