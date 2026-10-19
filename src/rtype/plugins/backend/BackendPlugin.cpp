@@ -180,10 +180,10 @@ void BackendPlugin::build(ecs::App& app) {
     ecs::Resources& resources = app.getWorld().getResources();
     resources.insertNonSend(BackendSetup{.registry = std::move(_registry), .settings = std::move(_settings)});
     resources.insertNonSend(plugins::backend::Backend{});
-    if (!resources.has<ClearColor>()) {  // a colour the game set before keeps
+    if (!resources.has<ClearColor>()) {
         resources.insert(ClearColor{});
     }
-    if (!resources.has<TextureAssets>()) {  // textures the game asked for before keep
+    if (!resources.has<TextureAssets>()) {
         resources.insert(TextureAssets{});
     }
     static_cast<void>(app.getWorld().getComponents().registerType<SpriteRenderer>());
