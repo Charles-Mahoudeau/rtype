@@ -7,7 +7,7 @@ to build, in which order, with which API*, and fills the few gaps the design lea
 ([Values fixed by this spec](#5-values-fixed-by-this-spec)).
 
 The plan is cut so that a **working prototype** (a server and several clients playing a tiny game on localhost)
-can be built in **one to two days** with the ECS as it is today, then grown into the full design without throwing
+can be built in **one to two days** with the ECS as it is today (its `App` and plugins included), then grown into the full design without throwing
 code away.
 
 > **Review status: only M1 is reviewed.** The M1 tasks (NET-01 to NET-18) are reviewed and ready to be filed as
@@ -15,10 +15,11 @@ code away.
 > order, but they have not been reviewed and will change, in content and in detail, once M1 is built. Do not file
 > them as issues before they are reviewed.
 
-> **Based on the state of the code on 2026-10-18** (`main` at `0692618`): the ECS then had its world, components,
-> resources, events and change ticks, but no queries, systems, scheduler, commands, `App`, prefabs or Luau bridge
-> ([Starting point](#1-starting-point)). When those land, re-check the tasks that work around them (NET-12, NET-16,
-> NET-36, M7) and the [external blockers](#16-external-blockers).
+> **Based on the state of the code on 2026-10-19** (`main` at `2649ee9`): the ECS then had its world, components,
+> resources, events, change ticks, queries, commands, systems, scheduler and the `App` with its plugins, but no
+> prefabs or Luau bridge ([Starting point](#1-starting-point)). The replication is written as ECS plugins from M1.
+> When prefabs and the Luau bridge land, re-check the tasks that depend on them (NET-35, NET-41) and the
+> [external blockers](#16-external-blockers).
 
 > **Every C++ snippet is a recommendation, not an obligation.** Class names, signatures, file splits and data
 > structures show one way to meet the task; the developer may choose another, as long as the task's behaviour, the
@@ -48,7 +49,7 @@ code away.
 
 ## 1. Starting point
 
-What the network can rely on as of **2026-10-18** (`main` at `0692618`):
+What the network can rely on as of **2026-10-19** (`main` at `2649ee9`):
 
 | Part | State | What the network uses from it |
 |---|---|---|
@@ -56,20 +57,32 @@ What the network can rely on as of **2026-10-18** (`main` at `0692618`):
 | `ecs`: type core (`TypeInfo`, `FieldInfo`, `ReplicationMode`, `Presence`, `layoutHash`) | Done | The field list of every replicated component, its replication mode, its layout hash, `TypeRegistry::getReplicatedIds()` |
 | `ecs`: change ticks (`Tick`, `ComponentTicks`, `isNewerThan`, `World::advanceChangeTick`) | Done | "Changed since the client's known tick" (M2) |
 | `ecs`: `NameHash.hpp` (FNV-1a 64) | Done | Manifest and schema hashes |
-| `ecs`: queries, systems, scheduler, commands, `App`/plugins | **Not started** | Needed only by [M7](#14-m7-engine-integration) |
+| `ecs`: queries (typed and dynamic), commands, systems, scheduler and phases, fixed timestep, `App`, `Plugin`, `RunMode` / `Side` | Done | The replication is written as plugins from the start: resources, systems on phases and sides, `Commands` (spawn, add by `ComponentId`, remove, despawn), queries |
 | `ecs`: prefabs, Luau bridge, field network options (quantization) | **Not started** | Needed by NET-35, NET-41, NET-42 |
-| `engine-core`: `Input`, `InputAction` | Done | Client side: fill a `PlayerInput` from the local devices |
-| `platform-glfw` | Done | Window and keyboard for the prototype client |
+| `plugins/input`: `InputPlugin`, the `rtype.Input` resource, `Control` | Done | Client side: a system of the executable fills a `PlayerInput` from it |
+| `plugins/backend`: `BackendPlugin` (window, platform events, frame systems) and `platform-glfw` | Done | The prototype client is an `App` with a window, like `engine/main.cpp` |
 | `render-vulkan`: `draw(RectShape)`, `draw(Sprite)`, `setCamera` | **Not implemented** (`notImplemented`) | The prototype client draws rectangles once it lands; until then it prints the world ([NET-18](#net-18--prototype-game)) |
 
 Consequences for the plan:
 
-- **No ECS work blocks M1 to M6.** Replication is written as plain classes (`ServerReplicator`,
-  `ClientReplicator`) that take a `World&` and are called by a hand-written loop. When the `App` exists, the
-  `ServerPlugin` / `ClientPlugin` of the design become thin systems that call the same classes ([NET-38](#net-38--serverplugin-and-clientplugin)).
-- **Without queries, replicated entities are registered explicitly**: the game calls `replicator.track(entity)`
-  after spawning it. The automatic `net.assignIds` system of the design comes with queries (NET-38).
-- **Without a scheduler, a room is a fixed-step loop** that calls the replicator and a game callback.
+- **Replication is plugins from M1.** `ReplicationPlugin` (the shared types), `ServerPlugin` and `ClientPlugin` are
+  the deliverables of [NET-12](#net-12--replication-types), [NET-16](#net-16--server-plugin-with-complete-snapshots)
+  and [NET-17](#net-17--client-plugin). Their state is a resource (`ServerState`, `ClientState`) and their logic is
+  systems on the phases of [ECS 20](../ecs/features/20-replication.md#one-server-tick-one-client-frame). Protocol
+  logic stays in sans-IO helpers (`Snapshot`, `InputBuffer`, `Manifest`...) that know nothing of the `App`, so it
+  keeps plain unit tests; the plugins are tested with an `App` and `TimePlugin::manual`.
+- **No ECS work blocks M1 to M7, except the items of [16](#16-external-blockers).** The `App` is not a blocker
+  any more; only prefabs, field options and the Luau bridge are.
+- **Entities are tracked automatically.** A system that spawns with `Commands` cannot call a `track(entity)`: the
+  entity is only alive after the phase's flush. The server therefore assigns `NetworkId`s itself, in a `PostUpdate`
+  system (`net.assignIds`), for every entity that has a replicated component and no `NetworkId`.
+- **Systems reach components by `ComponentId` through the plugin state.** A system parameter cannot name a component
+  that is only known at run time, and there is no exclusive `World&` parameter: writes go through `Commands`
+  (applied after the phase), reads by id through a `const World*` kept in the state. This is correct with today's
+  sequential scheduler; the dynamic accesses are missing from the systems' access sets, which a parallel scheduler
+  would need (an ECS follow-up, see [16](#16-external-blockers)).
+- **The glue between `plugins::input::Input` and `PlayerInput` lives in the executable or example.** `plugins` knows
+  nothing of `replication`, and `replication` nothing of `plugins`: only the executable (or example) links both.
 
 ## 2. Milestones
 
@@ -81,7 +94,7 @@ Consequences for the plan:
 | **M4 · Reconnection** | A short connection loss does not end a game (N8) | Lingering sessions, resume tokens, client retry, ECS events | No |
 | **M5 · Custom packets** | Kill feed, chat, lobby "ready" | Packet schemas, `RTYPE_REPLICATION_PACKET`, send and receive as ECS events; Luau bindings | Luau bindings only (Luau bridge) |
 | **M6 · Client prediction** | The local ship reacts instantly | Input ring, reconciliation, correction smoothing | No |
-| **M7 · Engine integration** | `client` and `server` executables, listen server | Plugins, automatic ids, engine split, prefabs, quantization | Yes: `App`, systems, queries, commands, prefabs, field options |
+| **M7 · Engine integration** | `client` and `server` executables, listen server | Engine split, `StandalonePlugin`, prefabs, quantization | Yes: prefabs, field options |
 | **M8 · Docs and tuning** | The protocol document required by the subject, defaults from measures | RFC-style protocol, ECS docs updates, benchmarks | No |
 
 M2 to M6 only depend on M1 and can be worked on in parallel by different people (see the [task graph](#7-task-graph)).
@@ -96,7 +109,7 @@ extend. It leaves out, on purpose:
 
 | Left out of M1 | Consequence in M1 | Added by |
 |---|---|---|
-| I/O thread, room threads | The server is single-threaded: one loop polls the socket and runs the game (N2 is not met yet) | NET-24, NET-25 |
+| I/O thread, room threads | The server is single-threaded: its `App` polls the socket in `PreUpdate` and runs the game in the same thread (N2 is not met yet) | NET-24, NET-25 |
 | Lobby and rooms | Every client that sends `kReady` joins the one game | NET-26 |
 | Per-entity confirmations, deltas | Every snapshot carries **every** replicated entity with **all** its replicated components (a *complete* snapshot); fine for a few dozen entities | NET-19, NET-20 |
 | Interpolation | Clients display the latest snapshot as is (choppy at 60 Hz on a faster screen, acceptable for a demo) | NET-22 |
@@ -112,7 +125,8 @@ extend. It leaves out, on purpose:
 1. `xmake f --Prototype=y && xmake build -y`
 2. `xmake run prototype-server` (port 4242)
 3. Two or more `xmake run prototype-client 127.0.0.1 4242` (a window for the keyboard, `--bot` for a scripted
-   player with no window).
+   player with no window). Both are `App`s: the server a `RunMode::kServer` one, the client a `RunMode::kClient`
+   one with the `BackendPlugin`.
 4. Each client moves its own square with the arrow keys / WASD and fires with Space; it sees the other players
    and every bullet. Closing a client removes its ship for the others at once; killing it (`kill -9`) removes it
    after the 2 s timeout, and the server keeps ticking.
@@ -166,7 +180,8 @@ src/rtype/replication/            rtype::replication — rtype-replication (shar
 ├── xmake.lua, Export.hpp         RTYPE_REPLICATION_API
 ├── ReplicationSettings.hpp
 ├── MessageType.hpp               0x20–0xFF
-├── Registration.hpp/.cpp         registerReplicationTypes(world): every component and event below
+├── ReplicationPlugin.hpp/.cpp    ReplicationPlugin "rtype.replication": registers every component and event below,
+│                                 inserts the InputLayout resource; added by the server and client plugins
 ├── component/                    rtype::replication::component
 │   └── NetworkId, Owner, PlayerInput
 ├── event/                        rtype::replication::event
@@ -180,9 +195,10 @@ src/rtype/replication/            rtype::replication — rtype-replication (shar
 ├── snapshot/                     rtype::replication::snapshot
 │   └── Snapshot (encode / decode), later SnapshotHistory, KnownEntities (M2)
 ├── server/                       rtype::replication::server
-│   └── ServerReplicator, later Room, RoomManager (NET-25)
+│   └── ServerPlugin "rtype.replication.server", ServerState (resource), later Room, RoomManager (NET-25)
 ├── client/                       rtype::replication::client
-│   └── ClientReplicator, later Interpolator (NET-22), Predictor (NET-36, NET-37)
+│   └── ClientPlugin "rtype.replication.client", ClientState (resource), later Interpolator (NET-22),
+│       Predictor (NET-36, NET-37)
 ├── packet/                       rtype::replication::packet  (M5)
 │   └── PacketDescriptor, PacketRegistry, RTYPE_REPLICATION_PACKET
 └── exceptions/                   rtype::replication::exceptions
@@ -207,12 +223,18 @@ These apply to every task; the acceptance criteria below do not repeat them.
 - **No `<asio.hpp>` outside `src/rtype/network/*.cpp`.** Headers expose `Address`, `UdpSocket` (pimpl) and
   plain types only.
 - **`network` never includes an `ecs` header; `ecs` never includes `network` or `replication`.**
-  `replication` never includes `engine` headers: the glue with `engine::input::Input` lives in the executables
-  (and later the engine's plugins).
+  `replication` never includes `plugins` headers, nor `plugins` those of `replication`: the glue between
+  `plugins::input::Input` and `PlayerInput` lives in the executable or example, the only place that links both.
 - **Never throw, assert or crash on bytes from the network.** Parse with `ByteReader`, check `isValid()` and that
   nothing is left over, drop on failure. Exceptions are only for local setup errors (a port that cannot be bound,
   a manifest that cannot be built).
-- **Sans-IO cores.** Everything with protocol logic (`Connection`, `ServerCore`, `ClientCore`, the replicators)
+- **Plugins follow the ECS rules** ([ECS 14](../ecs/features/14-app-and-plugins.md)): `build()` only registers
+  (resources, events, systems, other plugins); opening a socket, building the manifest or connecting happens in a
+  `Startup` system, when every plugin of the game has registered its types. A plugin name is `rtype.replication...`;
+  each plugin exposes its system names as `static constexpr std::string_view` constants (as `BackendPlugin` does), so
+  that game systems can order themselves with `.after(...)` / `.before(...)`. Server systems are `Side::kServer`,
+  client systems `Side::kClient`.
+- **Sans-IO cores.** Everything with protocol logic (`Connection`, `ServerCore`, `ClientCore`, the state and helper classes of the plugins)
   takes bytes and a `TimePoint now` as parameters and never reads a clock or a socket itself, so tests drive time.
 - **Every sequence or message id comparison goes through `isNewer`.**
 - **Settings, not constants**, for every value listed in [design Configuration](design.md#configuration): they
@@ -256,23 +278,27 @@ To report in `design.md` when the matching task lands (the task says so in its c
    component absent from a listed entity. The M1 server sets it whenever everything fits in one snapshot. From M2
    on, the server never sets it (deltas are never complete), so the flag costs one byte and changes nothing. It is
    also a cheap tool for later (a full resynchronization after a reconnection).
-2. **Replicators before plugins.** Replication is two plain classes driven by the caller; the design's systems
-   (`net.receive`, `net.applyInputs`, `net.snapshot`...) become one-line systems over them in NET-38.
-3. **Explicit tracking before queries.** `ServerReplicator::track(entity)` assigns the `NetworkId`. NET-38 adds the
-   automatic `net.assignIds`; `track` stays for C++ callers.
-4. **Interpolation buffers in `ClientReplicator`.** The design has an `Interpolated` client-only component holding
+2. **The server's `net.*` systems are split by phase, not one per step.** The design names `net.receive`,
+   `net.applyInputs`, `net.assignIds`, `net.snapshot` and `net.send`. M1 has `net.receive` (PreUpdate),
+   `net.applyInputs` (FixedUpdate), `net.assignIds` and `net.snapshot` (PostUpdate, the snapshot also sends: the
+   commands go straight to `NetServer`); a separate `net.send` comes with the I/O thread (NET-24).
+3. **Snapshots are built once per frame, not once per fixed tick.** `PostUpdate` runs once per frame, after every
+   `FixedUpdate` tick of the frame: with two ticks in one frame, the snapshot carries the latest state, and the server
+   tick it announces is `Time::tick`. Building one inside `FixedUpdate` would need a system that runs after every
+   gameplay system, which the schedule cannot express.
+4. **Interpolation buffers in `ClientState`.** The design has an `Interpolated` client-only component holding
    the last states. A component has a fixed size, while the history covers any interpolated component, so the
-   buffers live in the client replicator, keyed by `(NetworkId, component)`. The world keeps the *displayed*
+   buffers live in the client state, keyed by `(NetworkId, component)`. The world keeps the *displayed*
    value in the component itself.
-5. **Predicted step as a callback before systems exist.** Prediction (M6) takes a
+5. **Prediction is a callback until the systems can be marked.** Prediction (M6) takes a
    `std::function<void(ecs::World&, ecs::Entity, const PlayerInput&)>` that the game registers on both sides.
    NET-38 replaces it with the systems marked `predicted = true`.
 6. **A new connection from an address that already has a session.** Not covered by the design: a client restarted
    on the same port would be ignored until its old session times out. A valid challenge response for a new
    (non-resume) connection from that address closes the old session as a graceful disconnect, then creates the
    new one. The challenge still prevents a forged address from doing this.
-7. **The prototype lives in `examples/`** (`examples/network/Prototype/`), not in `client` / `server` executables,
-   which need the `App` (NET-39).
+7. **The prototype lives in `examples/`** (`examples/network/Prototype/`), not in `client` / `server` executables:
+   the engine entry point (`engine` as a library, `client` / `server` executables, NET-39) comes with M7.
 
 ## 7. Task graph
 
@@ -294,8 +320,8 @@ flowchart LR
         N13[NET-13 serializer]
         N14[NET-14 manifest]
         N15[NET-15 inputs]
-        N16[NET-16 server replicator]
-        N17[NET-17 client replicator]
+        N16[NET-16 server plugin]
+        N17[NET-17 client plugin]
         N18[NET-18 prototype game]
     end
     N01 --> N02 --> N04
@@ -336,12 +362,13 @@ flowchart LR
     N31 --> N32
     N14 --> N33[NET-33 packet schemas] --> N34[NET-34 send/receive packets] --> N35[NET-35 Luau net]
     N17 --> N36[NET-36 prediction] --> N37[NET-37 smoothing]
-    N20 --> N38[NET-38 plugins] --> N39[NET-39 executables] --> N40[NET-40 listen server]
+    N20 --> N39[NET-39 executables] --> N38[NET-38 engine glue]
+    N39 --> N40[NET-40 listen server]
     N20 --> N41[NET-41 prefabs]
     N20 --> N42[NET-42 quantization]
 ```
 
-External blockers (ECS `App`, queries, prefabs, Luau bridge...) are listed in [16](#16-external-blockers) and on
+External blockers (ECS prefabs, field options, Luau bridge...) are listed in [16](#16-external-blockers) and on
 each task.
 
 ## 8. M1: Prototype
@@ -1130,7 +1157,7 @@ Each network fault is one line of `send`:
 `receive` is what makes time matter: a datagram sent at t = 0 with 50 ms of delay is not returned by
 `receive(at, t = 20 ms)`, only by a call at t ≥ 50 ms.
 
-The same loop connects a `ClientCore` and a `ServerCore` (NET-10), or two replicators (NET-21): only the
+The same loop connects a `ClientCore` and a `ServerCore` (NET-10), or a `ServerState` and a `ClientState` (NET-21): only the
 functions that produce and consume bytes change.
 
 **What it must do.**
@@ -1695,7 +1722,7 @@ It goes through the states `kIdle → kRequesting → kResponding → kConnected
    `kClosed`.
 6. In `kConnected`, `Data` with our token goes to the `Connection`; every delivered message becomes
    `ServerMessage{channel, payload}`. The client core does not interpret message types: the application and the
-   replicator do.
+   `ClientPlugin` do.
 7. In `kConnected`, `Disconnect` with our token: emit `Disconnected{reason}`, state `kClosed`.
 8. In `kConnected`, no valid datagram for `timeout` (2 s): emit `Disconnected{kTimeout}`, state `kClosed`.
 9. `send(channel, payload)` works only in `kConnected` (returns false otherwise). `sendReady()` sends the `kReady`
@@ -1705,7 +1732,7 @@ It goes through the states `kIdle → kRequesting → kResponding → kConnected
 11. Any packet that does not fit the current state, or carries another token, is dropped silently.
 12. `takeDatagrams(now)` returns the handshake packets due and, once connected, `Connection::buildPackets(now)`.
 
-**Used by.** NET-11 (`NetClient` wraps it), NET-17 (the replicator consumes its events), NET-31 (reconnection
+**Used by.** NET-11 (`NetClient` wraps it), NET-17 (`ClientPlugin` consumes its events), NET-31 (reconnection
 extends the state machine).
 
 **API (recommendation).**
@@ -1824,10 +1851,10 @@ class RTYPE_NETWORK_API NetClient {
 
 | Milestone | Size | Blocked by | Design |
 |---|---|---|---|
-| M1 | S | NET-01 | [7.1](design.md#71-identity), [ECS 20](../ecs/features/20-replication.md#what-lives-in-the-ecs) |
+| M1 | S | NET-01 | [7.1](design.md#71-identity), [ECS 20](../ecs/features/20-replication.md#what-lives-in-the-ecs), [ECS 14](../ecs/features/14-app-and-plugins.md) |
 
 **Summary.** The ECS components and events through which a game takes part in replication: `NetworkId`, `Owner`,
-`PlayerInput`, `ClientConnected`, `ClientDisconnected`, and the function that registers them in a world.
+`PlayerInput`, `ClientConnected`, `ClientDisconnected`, and the `ReplicationPlugin` that registers them in an `App`.
 
 **What it is for.** Replication is meant to be invisible to gameplay code: a game marks its components as replicated
 and works with ordinary ECS data. These few types are the meeting point:
@@ -1845,8 +1872,14 @@ and works with ordinary ECS data. These few types are the meeting point:
 - **`ClientConnected` / `ClientDisconnected`** are ECS events: the game reacts to them with ordinary code (spawn a
   ship for the new player, remove it when they leave), with no network code.
 
-`registerReplicationTypes(world)` registers all of them. Both the server and the client call it, because the
-manifest (NET-14) compares the replicated types of both worlds.
+`ReplicationPlugin` (named `"rtype.replication"`) registers all of them. `ServerPlugin` (NET-16) and `ClientPlugin`
+(NET-17) both add it from their `build()`; the ECS skips a plugin already added, so the types are registered once
+whichever is added first. They must be registered on both sides, because the manifest (NET-14) compares the
+replicated types of both worlds. The plugin also inserts the `InputLayout` resource (NET-15), so the game declares its
+input actions on it in the same way on the server, the client and, later, in standalone mode, where only this plugin
+is needed and no network plugin.
+
+The plugin only registers: it adds no system and does no I/O.
 
 **What the types must be.**
 
@@ -1859,8 +1892,8 @@ manifest (NET-14) compares the replicated types of both worlds.
 | `ClientDisconnected` | event `net.ClientDisconnected` | server | — | `client` `u32`, `reason` `u8` (a `DisconnectReason`). Raised on the server when a client leaves for good |
 
 - All names start with `net.`, so they cannot collide with the game's.
-- `registerReplicationTypes` can be called twice on the same world (the ECS accepts re-registering an identical
-  type).
+- Adding `ReplicationPlugin` twice does nothing the second time (the plugin name is the key); it is also safe if the
+  game registered the same type itself before (the ECS accepts re-registering an identical type).
 
 **Used by.** NET-13 (entity fields go through `NetworkId`), NET-14 (`Owner` is in the manifest), NET-15
 (`PlayerInput` layout), NET-16 / NET-17 (everything), NET-18 (the game).
@@ -1886,18 +1919,25 @@ struct ClientDisconnected { std::uint32_t client; std::uint8_t reason; };
 }  // namespace rtype::replication::event
 
 namespace rtype::replication {
-/// @brief Registers every replication component and event in the world. Both sides call it.
-RTYPE_REPLICATION_API void registerReplicationTypes(ecs::World& world);
+/// @brief Registers every replication component and event, and inserts the InputLayout resource (NET-15).
+/// Added by ServerPlugin and ClientPlugin; the only plugin a standalone game needs.
+class RTYPE_REPLICATION_API ReplicationPlugin : public ecs::Plugin {
+  public:
+    static constexpr std::string_view kName = "rtype.replication";
+    [[nodiscard]] std::string_view getName() const noexcept override;
+    void build(ecs::App& app) override;  // plus the rule of five, like every Plugin
+};
 }  // namespace rtype::replication
 ```
 
 **Tasks.**
 - [ ] `component/NetworkId.hpp`, `component/Owner.hpp`, `component/PlayerInput.hpp`, `event/ClientConnected.hpp`,
-  `event/ClientDisconnected.hpp`, `Registration.hpp/.cpp`.
+  `event/ClientDisconnected.hpp`, `ReplicationPlugin.hpp/.cpp`.
 - [ ] Check that `std::array<float, N>` is reflected by `FieldTypeOf` as one field with `count = N`; if not, add that
   support to `ecs` first, in its own `feat(ecs)` commit.
-- [ ] Tests: registration in a fresh world, twice; names, presence and replication modes; layout hashes compared to
-  hard-coded values, so that a change of layout is noticed in review.
+- [ ] Tests: the plugin added to a fresh `App`, and twice; names, presence and replication modes; the events can be
+  sent and read; the `InputLayout` resource is there; layout hashes compared to hard-coded values, so that a change of
+  layout is noticed in review.
 
 ### NET-13 · Field serializer
 
@@ -2020,7 +2060,8 @@ reconnection grace.
 1. Take the world's replicated components (`TypeRegistry::getReplicatedIds()`), sort them by name, and give each its
    index as short id. More than 65 535 is a `ManifestException`.
 2. Every replicated component must be serializable (NET-13); otherwise throw `ManifestException` naming it. This is a
-   setup error: the server does not start.
+   setup error: the server does not start. `build` runs in a `Startup` system of `ServerPlugin` (NET-16), once every
+   plugin of the game has registered its components, so the order in which plugins were added does not matter.
 3. Take the input actions from the `InputLayout` (NET-15), which orders them by name; their index is their position.
 4. Compute the manifest hash: FNV-1a 64 (`hashString` / `hashInteger` of the ECS) over every entry in order: entry
    type, short id or index, name, then layout hash (component) or kind (action).
@@ -2036,7 +2077,8 @@ reconnection grace.
    message that does not decode, a duplicated short id or index, an entry after the end, or an end whose count does
    not match the entries received. Messages arrive in order (reliable channel), so no reordering is needed.
 8. `isComplete()` is true once a valid `kManifestEnd` was received.
-9. `check(world, layout)` builds the client's own manifest the same way and compares:
+9. `check(world, layout)` builds the client's own manifest the same way and compares (it runs in the receive system
+   of `ClientPlugin`, NET-17, when the last manifest message arrives):
    - same hash → success: the result maps every short id to the client's `ComponentId` by name;
    - different → find the first difference in sorted order and describe it: present on one side only, different
      layout hash, or an input action with another kind or index. The client's set must equal the server's: an extra
@@ -2044,7 +2086,7 @@ reconnection grace.
 10. A mismatch is network input, not a setup error: it is returned in `ManifestCheck`, never thrown.
 11. `getServerSettings()` returns the settings of `kManifestEnd`.
 
-**Used by.** NET-15 (input actions), NET-16 (server: welcome messages, short ids when writing), NET-17 (client:
+**Used by.** NET-15 (input actions), NET-16 (`ServerPlugin`: welcome messages, short ids when writing), NET-17 (`ClientPlugin`:
 check, short ids when reading), later NET-33 (packets) and NET-41 (prefabs) add entry types.
 
 **API (recommendation).**
@@ -2105,7 +2147,10 @@ class RTYPE_REPLICATION_API ManifestReceiver {
 and the server decides what happens ([design 7.5](design.md#75-inputs-client--server)). Three pieces make that work:
 
 - **`InputLayout`** is the game's list of named actions (`"move"` is a 2D vector, `"fire"` a button), the same on
-  both sides (checked by the manifest). It decides where each action lives in a `PlayerInput`: which bit for a
+  both sides (checked by the manifest). It is an ECS resource, inserted by `ReplicationPlugin` (NET-12): a game plugin
+  declares its actions in `build()` with
+  `app.getWorld().getResources().requireMut<InputLayout>()->add("fire", InputKind::kButton)`, as it does for
+  `plugins::input::Input`, and gameplay systems read it with `Res<InputLayout>`. It decides where each action lives in a `PlayerInput`: which bit for a
   button, which slots for an axis. Gameplay code reads actions by name through it (`isPressed(input, "fire")`) and
   never deals with bits.
 - **`kInput`** carries, every client tick, the **last three** inputs. A datagram can be lost, but its input is
@@ -2158,9 +2203,9 @@ u8   input count (1 to 3), oldest first, sequences strictly increasing
     dropped until 2 remain. They are never applied.
 12. `reset()` empties it and makes the current input neutral (used when a client is lost, M4).
 
-**Used by.** NET-14 (actions in the manifest), NET-16 (server: buffers and `applyInputs`), NET-17 (client:
-`sendInput`), NET-18 (the game declares its actions and reads them), later M6 (prediction replays inputs by
-sequence).
+**Used by.** NET-14 (actions in the manifest), NET-16 (`ServerPlugin`: buffers and `net.applyInputs`), NET-17
+(`ClientPlugin`: `net.sendInput`), NET-18 (the game declares its actions and reads them), later M6 (prediction
+replays inputs by sequence).
 
 **API (recommendation).**
 ```c++
@@ -2207,37 +2252,43 @@ class RTYPE_REPLICATION_API InputBuffer {
 ```
 
 **Tasks.**
-- [ ] `input/InputKind.hpp`, `input/InputLayout.hpp/.cpp`, `input/InputMessage.hpp/.cpp`, `input/InputBuffer.hpp/.cpp`.
+- [ ] `input/InputKind.hpp`, `input/InputLayout.hpp/.cpp` (declared as an ECS resource, named `net.InputLayout`; check how
+  `plugins::input::Input` does it), `input/InputMessage.hpp/.cpp`, `input/InputBuffer.hpp/.cpp`.
 - [ ] Tests: two layouts built in different `add` orders give the same bits and slots; limits; `isPressed` /
   `isReleased` through `previousButtons`; clamping and NaN; encode / decode of 1 and 3 inputs; counts 0 and 4;
   non-increasing sequences; extra button bits; -32768; buffer ordering, duplicates, already-applied sequences,
   repetition without advancing the last processed input, overflow down to 2, reset.
 
-### NET-16 · Server replicator with complete snapshots
+### NET-16 · Server plugin with complete snapshots
 
 | Milestone | Size | Blocked by | Design |
 |---|---|---|---|
-| M1 | L | NET-11, NET-15 | [7.4](design.md#74-snapshots-server--client), [7.5](design.md#75-inputs-client--server), deviation [1](#6-deviations-from-the-design) |
+| M1 | L | NET-11, NET-15 | [7.4](design.md#74-snapshots-server--client), [7.5](design.md#75-inputs-client--server), [ECS 20](../ecs/features/20-replication.md#one-server-tick-one-client-frame), deviations [1](#6-deviations-from-the-design) to [3](#6-deviations-from-the-design) |
 
-**Summary.** The server's half of replication, one per game world: it gives replicated entities their
-`NetworkId`, tells the game when players join and leave, writes each player's inputs into their ship, and sends
-every client a snapshot of the world after each tick.
+**Summary.** The server's half of replication, as the `ServerPlugin`: it opens the socket, gives replicated entities
+their `NetworkId`, tells the game when players join and leave, writes each player's inputs into their ship, and sends
+every client a snapshot of the world after each frame's ticks.
 
 **What it is for.** The game's world lives on the server; clients only show copies. Something has to sit between the
-world and the network on the server, and that is the `ServerReplicator`. Each tick, the game loop calls it at fixed
-points:
+world and the network on the server, and that is the `ServerPlugin`. It is an ordinary plugin: `build()` only
+registers, and the work is done by systems on the phases of the frame (`Side::kServer`):
 
 ```
-events from NetServer ──► handle()       ClientJoined → ECS event ClientConnected, kInput → input buffer
-                          applyInputs()  each controlled entity's PlayerInput ← its client's next input
-game step                                gameplay reads PlayerInput, moves things, spawns, despawns
-World::advanceChangeTick()
-                          endTick()      builds a snapshot per client (every N ticks)
-NetServer ◄── takeCommands()             the snapshots, as SendMessage commands
+Startup      net.start         bind the NetServer, build the manifest, give it the welcome messages
+PreUpdate    net.receive       NetServer::poll, then every event: ClientJoined → ECS event ClientConnected,
+                               ClientLeft → ClientDisconnected, kInput → the client's input buffer
+FixedUpdate  net.applyInputs   each owned entity's PlayerInput ← its client's next input
+             gameplay          the game's systems, ordered .after(ServerPlugin::kApplyInputsSystem)
+PostUpdate   net.assignIds     NetworkId for every new replicated entity
+             net.snapshot      one snapshot per client (every N ticks), NetServer::execute, flush
 ```
 
-It never touches the socket: it consumes `ServerEvent`s and produces `ServerCommand`s, so it is tested without
-network, and NET-24 / NET-25 can run it in a room thread unchanged.
+The commands the game records in `FixedUpdate` (spawning a ship) are applied after the phase, so `net.assignIds` in
+`PostUpdate` sees the new entities and the snapshot of the same frame already carries them.
+
+Protocol logic is **not** in the systems: they are one-liners over helpers that know nothing of the `App`
+(`Snapshot`, `InputBuffer`, `Manifest`, and a `ServerState` that owns the clients and the tracking tables), which are
+unit-tested directly. The systems only pass them the bytes, the events and the time.
 
 In M1 every snapshot is **complete** ([deviation 1](#6-deviations-from-the-design)): it lists every replicated
 entity with all its replicated components. That is simple and correct, and fits a few dozen entities. M2 replaces it
@@ -2245,55 +2296,62 @@ with deltas (only what each client has not confirmed yet), keeping the same mess
 
 **What it must do.**
 
-*Setup.*
+*Plugin and setup.*
 
-1. The constructor takes a world where the replication types (NET-12) and every game type are registered, and the
-   game's `InputLayout`. It builds the manifest (a `ManifestException` stops the server: setup error) and checks that
-   `snapshotRate` divides `tickRate` (otherwise it throws).
-2. `getWelcomeMessages()` returns the encoded manifest, given to `NetServer::setWelcomeMessages`.
+1. `ServerPlugin(network::NetworkSettings, ReplicationSettings)`, named `"rtype.replication.server"`. `build()` adds
+   `ReplicationPlugin` (NET-12), inserts the `ServerState` resource and adds the systems above, each with its
+   `static constexpr` name constant (`kReceiveSystem`, `kApplyInputsSystem`, `kAssignIdsSystem`, `kSnapshotSystem`).
+2. The `net.start` system (Startup) creates the `NetServer` (a socket that cannot be bound is an exception: setup
+   error), builds the manifest from the world and the `InputLayout` resource (a `ManifestException` stops the server),
+   checks that `snapshotRate` divides `tickRate` (otherwise it throws), and gives the encoded manifest to
+   `NetServer::setWelcomeMessages`. It also freezes the `InputLayout`.
+3. Time: the state reads the transport time through a function (default `network::Clock::now()`) that tests replace,
+   so a test with `TimePlugin::manual` drives both clocks.
 
-*Tracking entities.* Without ECS queries, the replicator cannot find replicated entities by itself, so the game
-registers them ([1](#1-starting-point)).
+*Tracking entities.*
 
-3. `track(entity)` gives an alive entity the next `NetworkId` (from 1, increasing, never reused), adds the
-   `NetworkId` component, and remembers the entity both ways (`NetworkId → Entity`, `Entity → NetworkId`). Tracking
-   an entity already tracked returns its id.
-4. At each `endTick`, entities that are no longer alive (`World::isAlive`) are forgotten. In M1 nothing else is
+4. `net.assignIds` gives every alive entity that has at least one replicated component and no `NetworkId` the next
+   `NetworkId` (from 1, increasing, never reused), adds the `NetworkId` component, and remembers the entity both ways
+   (`NetworkId → Entity`, `Entity → NetworkId`). ECS queries have no "any of" term, so it runs one dynamic query per
+   replicated component (`With<component>` and `Without<NetworkId>`): an entity matching several is given its id by the
+   first and skipped by the others.
+5. At each snapshot, entities that are no longer alive (`World::isAlive`) are forgotten. In M1 nothing else is
    needed for despawns: the next complete snapshot does not list them, so clients remove them.
 
 *Players.*
 
-5. `handle(ClientJoined)` creates the client's record (its `InputBuffer`, its last applied snapshot) and sends the
-   ECS event `ClientConnected`. The game reacts by spawning a ship with an `Owner` and tracking it.
-6. `handle(ClientLeft)` deletes the record and sends `ClientDisconnected{client, reason}`. The game despawns the
-   ship.
-7. `handle(ClientMessage)` of type `kInput` from a known client: decode it with the layout; on failure drop it
-   (counted for NET-27); otherwise push its inputs into the client's buffer and remember its last applied snapshot
-   tick (unused until M2). Other message types are ignored in M1 (counted).
+6. A `ClientJoined` event creates the client's record (its `InputBuffer`, its last applied snapshot) and sends the ECS
+   event `ClientConnected`. A game system reading it spawns a ship with an `Owner` and a `PlayerInput` (through
+   `Commands`).
+7. A `ClientLeft` event deletes the record and sends `ClientDisconnected{client, reason}`. The game despawns the ship.
+8. A `ClientMessage` of type `kInput` from a known client: decode it with the layout; on failure drop it (counted for
+   NET-27); otherwise push its inputs into the client's buffer and remember its last applied snapshot tick (unused
+   until M2). Other message types are ignored in M1 (counted).
 
 *Inputs.*
 
-8. `applyInputs()`, once per fixed tick before the game step: for every tracked entity with an `Owner`, take
-   `next()` from that client's buffer and write it into the entity's `PlayerInput` (added if missing):
-   `previousButtons` = the buttons it had, then `buttons`, `axes` and `sequence` from the input. An entity whose
-   owner is not connected gets the neutral input.
+9. `net.applyInputs`, once per fixed tick before the game systems: for every entity with an `Owner` and a
+   `PlayerInput` (a typed `Query<PlayerInput, const Owner>`, so the access is declared), take `next()` from that
+   client's buffer and write it: `previousButtons` = the buttons it had, then `buttons`, `axes` and `sequence` from the
+   input. An entity whose owner is not connected gets the neutral input. An entity with an `Owner` and no `PlayerInput`
+   is left alone: the game spawns ships with both.
 
 *Snapshots.*
 
-9. `endTick()` advances the server tick by one. Every `tickRate / snapshotRate` ticks, it builds one snapshot per
-   connected client, with the layout below:
-   - the header: the server tick, **that client's** last processed input (`InputBuffer::getLastProcessed`), the
-     flags;
-   - one spawn record per tracked entity, in increasing `NetworkId` order: the id, prefab `0xFFFF` (none in M1), and
-     every replicated component the entity has, in short id order, written with NET-13 (entity fields through the
-     tracking table);
-   - records are added while the message stays within `kMaxMessageSize` (`getWireSize` tells the size in advance).
-     An entity is written whole or not at all. If every entity fits, the `kComplete` flag is set; if not, the flag is
-     cleared (clients then remove nothing) and a rate-limited warning is logged;
-   - updates, removals and despawns are empty in M1.
-   The body is the same for every client: build it once and only change the header.
-10. Each snapshot becomes a `SendMessage{client, kUnreliable, bytes}` command. Never more than one snapshot per client
-    per tick.
+10. `net.snapshot` counts the server ticks (`Time::tick`). Every `tickRate / snapshotRate` ticks, it builds one
+    snapshot per connected client, with the layout below:
+    - the header: the server tick, **that client's** last processed input (`InputBuffer::getLastProcessed`), the
+      flags;
+    - one spawn record per tracked entity, in increasing `NetworkId` order: the id, prefab `0xFFFF` (none in M1), and
+      every replicated component the entity has, in short id order, written with NET-13 (entity fields through the
+      tracking table). The components are read by `ComponentId` through the read-only world pointer of the state;
+    - records are added while the message stays within `kMaxMessageSize` (`getWireSize` tells the size in advance).
+      An entity is written whole or not at all. If every entity fits, the `kComplete` flag is set; if not, the flag is
+      cleared (clients then remove nothing) and a rate-limited warning is logged;
+    - updates, removals and despawns are empty in M1.
+    The body is the same for every client: build it once and only change the header.
+11. Each snapshot becomes a `SendMessage{client, kUnreliable, bytes}` command given to `NetServer::execute`, then
+    `NetServer::flush`. Never more than one snapshot per client per frame.
 
 **Snapshot layout** (design 7.4 plus the `flags` byte of deviation 1; this is the final layout, M2 only changes what
 the server puts in it):
@@ -2310,33 +2368,41 @@ u16  despawn count  × { netId u32 }
 ```
 
 `snapshot/Snapshot.hpp` holds a decoded `Snapshot` (header and the four lists, component values as bytes per
-short id) with its encoder and decoder, shared by both replicators. The decoder fails on: counts larger than the
+short id) with its encoder and decoder, shared by both plugins. The decoder fails on: counts larger than the
 remaining bytes allow, an unknown short id, a component listed twice in one record, a net id listed twice in one
 list, a net id of 0, reserved flag bits set, or bytes left over.
 
 **Used by.** NET-18 (the prototype server), NET-19 / NET-20 (M2 replaces the snapshot selection), NET-25 (runs in a
-room), NET-38 (wrapped in ECS systems).
+room), NET-38 (engine glue).
 
 **API (recommendation).**
 ```c++
 namespace rtype::replication::server {
-class RTYPE_REPLICATION_API ServerReplicator {
+/// @brief The server's replication: opens the NetServer, hands out NetworkIds, applies inputs, sends snapshots.
+class RTYPE_REPLICATION_API ServerPlugin : public ecs::Plugin {
   public:
-    ServerReplicator(ecs::World& world, const input::InputLayout& inputs, ReplicationSettings settings);
-    [[nodiscard]] std::vector<network::Bytes> getWelcomeMessages() const;
-    std::uint32_t track(ecs::Entity entity);
-    void handle(const network::server::ServerEvent& event);
-    void applyInputs();
-    void endTick();
-    [[nodiscard]] std::vector<network::server::ServerCommand> takeCommands();
+    static constexpr std::string_view kName = "rtype.replication.server";
+    static constexpr std::string_view kApplyInputsSystem = "net.applyInputs";  // game systems run .after() it
+    ServerPlugin(network::NetworkSettings network, ReplicationSettings settings);
+    [[nodiscard]] std::string_view getName() const noexcept override;
+    void build(ecs::App& app) override;
+    // plus the rule of five
+};
+
+/// @brief The resource: what the systems share.
+class RTYPE_REPLICATION_API ServerState {
+  public:
     [[nodiscard]] std::uint32_t getServerTick() const noexcept;
+    [[nodiscard]] std::size_t getClientCount() const noexcept;
+    [[nodiscard]] network::server::NetServer& getNetServer();  // tests and the prototype read statistics from it
 
   private:
     struct ClientRecord {
         input::InputBuffer inputs;
         std::uint32_t lastAppliedSnapshot{0};
     };
-    ecs::World& _world;
+    std::unique_ptr<network::server::NetServer> _server;  ///< Created by net.start (a NetServer cannot move).
+    const ecs::World* _world;                             ///< Read-only, to read components by id.
     manifest::Manifest _manifest;
     std::unordered_map<network::ClientId, ClientRecord> _clients;
     std::map<std::uint32_t, ecs::Entity> _entities;  ///< By NetworkId, in id order for snapshots.
@@ -2347,97 +2413,134 @@ class RTYPE_REPLICATION_API ServerReplicator {
 ```
 
 **Tasks.**
-- [ ] `snapshot/Snapshot.hpp/.cpp`, `server/ServerReplicator.hpp/.cpp`.
-- [ ] Tests (no socket: events in, commands out, decoded with `snapshot::Snapshot`): ids increasing and never reused;
-  `ClientConnected` / `ClientDisconnected` events; inputs reach the owner's entity, `previousButtons` correct,
-  repeated when none arrive, neutral without a connected owner; snapshot rate divisor; snapshot content (entities,
-  components, entity fields as ids); `kComplete` set when everything fits and cleared above the budget; dead
-  entities disappear from the next snapshot; snapshot decoder failure cases.
+- [ ] `snapshot/Snapshot.hpp/.cpp`, `server/ServerState.hpp/.cpp`, `server/ServerPlugin.hpp/.cpp`.
+- [ ] Check that a system can write components of a type only known by `ComponentId` through the world pointer
+  without the access set (sequential scheduler), and say so in a comment on `ServerState::_world`; open an ECS issue
+  for an exclusive (`World&`) system parameter if it is not there yet.
+- [ ] Tests of the helpers (no `App`, no socket: events in, commands out, decoded with `snapshot::Snapshot`): inputs
+  reach the right buffer, `previousButtons` correct, repeated when none arrive, neutral without a connected owner;
+  snapshot content (entities, components, entity fields as ids); `kComplete` set when everything fits and cleared
+  above the budget; snapshot decoder failure cases.
+- [ ] Tests of the plugin (an `App` in `RunMode::kServer` with `TimePlugin::manual`, a `NetServer` on loopback or a
+  fake): systems run only in server and standalone modes; ids increasing and never reused, and given in the frame the
+  entity was spawned by `Commands`; `ClientConnected` / `ClientDisconnected` events; snapshot rate divisor; dead
+  entities disappear from the next snapshot; a game system ordered `.after(kApplyInputsSystem)` sees the input.
 
-### NET-17 · Client replicator
+### NET-17 · Client plugin
 
 | Milestone | Size | Blocked by | Design |
 |---|---|---|---|
-| M1 | L | NET-11, NET-15, NET-16 (`Snapshot`) | [7.2](design.md#72-manifest), [7.4](design.md#74-snapshots-server--client), [7.5](design.md#75-inputs-client--server) |
+| M1 | L | NET-11, NET-15, NET-16 (`Snapshot`) | [7.2](design.md#72-manifest), [7.4](design.md#74-snapshots-server--client), [7.5](design.md#75-inputs-client--server), [ECS 20](../ecs/features/20-replication.md#one-server-tick-one-client-frame) |
 
-**Summary.** The client's half of replication: it checks the manifest, keeps the local world a copy of the server's
-by applying snapshots through a `NetworkId → Entity` map, and sends the player's inputs.
+**Summary.** The client's half of replication, as the `ClientPlugin`: it connects, checks the manifest, keeps the
+local world a copy of the server's by applying snapshots through a `NetworkId → Entity` map, and sends the player's
+inputs.
 
 **What it is for.** The client's world is a mirror: it has the same component types as the server's, and its
-replicated entities must follow what the server says. The `ClientReplicator` is the only thing that writes them:
+replicated entities must follow what the server says. The `ClientPlugin`'s systems (`Side::kClient`) are the only
+thing that writes them:
 
-- At connection, it collects the manifest and checks it against the client's own world; the application then sends
-  `kReady` or disconnects with the reason.
+```
+Startup      net.connect       create the NetClient, start connecting
+PreUpdate    net.receive       NetClient::poll, then every event: manifest messages, snapshots
+PostUpdate   net.sendInput     number the input the game gave, send it with the two before, NetClient::flush
+```
+
+- At connection, it collects the manifest and checks it against the client's own world; the plugin then sends
+  `kReady` itself, or records the mismatch.
 - For each snapshot, it creates the entities the client does not have yet, overwrites their replicated components
   with the server's values, removes what the server removed, and destroys what the server destroyed. It keeps the
   `NetworkId → Entity` map, since the client's `Entity` values have nothing to do with the server's.
-- Each client tick, it numbers the player's input and sends it with the two previous ones, plus the tick of the last
-  snapshot it applied.
+- Each frame, it numbers the player's input and sends it with the two previous ones, plus the tick of the last
+  snapshot it applied. The input comes from the **game**: a system of the executable (NET-18) reads
+  `plugins::input::Input` and calls `ClientState::setInput`, ordered `.before(ClientPlugin::kSendInputSystem)`.
+  `replication` never includes `plugins`.
 
-Like the server side, it never touches the socket: it consumes `ClientEvent`s and produces messages for
-`NetClient`.
+Like the server side, the logic is not in the systems: they call helpers and a `ClientState` that know nothing of the
+`App`, and they never touch the socket directly.
 
 **What it must do.**
 
+*Plugin and setup.*
+
+1. `ClientPlugin(network::io::Address server, network::NetworkSettings)`, named `"rtype.replication.client"`.
+   `build()` adds `ReplicationPlugin`, inserts the `ClientState` resource and adds the systems above, each with its
+   `static constexpr` name constant. The `net.connect` system (Startup) creates the `NetClient` and calls `connect`.
+2. As on the server, the transport time comes from a replaceable function, so tests drive it.
+
 *Manifest.*
 
-1. `ServerMessage`s of the manifest types go to a `ManifestReceiver`. When it is complete, `check` runs once: the
-   status becomes `kAccepted` (the short id mapping is kept) or `kMismatch` (the text is kept for the player). The
-   application then calls `NetClient::sendReady()` or disconnects with `kManifestMismatch`.
-2. Before `kAccepted`, snapshots are dropped and `sendInput` does nothing.
+3. Manifest messages go to a `ManifestReceiver`. When it is complete, `check` runs once: the status becomes
+   `kAccepted` (the short id mapping is kept; the plugin calls `NetClient::sendReady()`) or `kMismatch` (the text is
+   kept for the player; the plugin disconnects with `kManifestMismatch`). The game reads both from `ClientState`.
+4. Before `kAccepted`, snapshots are dropped and `setInput` is ignored.
 
-*Applying a snapshot.*
+*Applying a snapshot.* Writes go through `Commands` (spawn, add by `ComponentId`, remove, despawn) and are applied
+after the phase; reads by id go through the read-only world pointer of the state.
 
-3. A snapshot whose tick is not newer than the last one applied is dropped (it arrived late; a newer state is
+5. A snapshot whose tick is not newer than the last one applied is dropped (it arrived late; a newer state is
    already shown).
-4. A snapshot is applied **all or nothing**. It is first decoded and validated completely without touching the world
-   (with a mapper that turns every entity reference into the null entity). Only if that succeeds is it applied. A
-   malformed snapshot leaves the world exactly as it was.
-5. Applying, in this order:
-   1. **spawns**: for every record whose net id is unknown (or whose entity is no longer alive), create an entity,
-      add `NetworkId`, and add it to the map. This happens for all spawns **before** any value is read, so that
-      entity fields can refer to entities spawned by the same snapshot;
-   2. the component values of spawns and updates are then decoded again with the real mapper and written: added if
-      the entity does not have the component, overwritten otherwise. An update for an unknown net id is ignored;
+6. A snapshot is applied **all or nothing**. It is first decoded and validated completely without touching the world
+   (with a mapper that turns every entity reference into the null entity). Only if that succeeds are commands
+   recorded. A malformed snapshot leaves the world exactly as it was.
+7. Applying, in this order:
+   1. **spawns**: for every record whose net id is unknown (or whose entity is no longer alive), `Commands::spawn()`
+      an entity, add `NetworkId`, and add it to the map. This happens for all spawns **before** any value is read, so
+      that entity fields can refer to entities spawned by the same snapshot (the reserved entities are valid
+      references in the same buffer);
+   2. the component values of spawns and updates are then decoded again with the real mapper and added: added if the
+      entity does not have the component, overwritten otherwise. An update for an unknown net id is ignored;
    3. **removals**: remove the component if present;
-   4. **despawns**: destroy the entity and remove it from the map;
-   5. if `kComplete` is set: destroy every mapped entity that is not in the spawn list, and remove from each listed
+   4. **despawns**: despawn the entity and remove it from the map;
+   5. if `kComplete` is set: despawn every mapped entity that is not in the spawn list, and remove from each listed
       entity every replicated component the record did not list.
-6. Then remember the snapshot's tick (sent back in every `kInput`) and its last processed input (kept for M6).
+8. Then remember the snapshot's tick (sent back in every `kInput`) and its last processed input (kept for M6).
 
 *Inputs.*
 
-7. `sendInput(input)` gives the input the next sequence (from 1), keeps the last three, and queues a `kInput`
-   message (unreliable) with them, oldest first, and the last applied snapshot tick.
+9. `ClientState::setInput(input)` stores the game's `PlayerInput` for the frame. `net.sendInput` gives it the next
+   sequence (from 1), keeps the last three, and sends a `kInput` message (unreliable) with them, oldest first, and the
+   last applied snapshot tick. It runs once per frame in `PostUpdate`: if frames are slower than the tick rate the
+   server repeats the last input (inputs are held states), and the rate is revisited with prediction (M6).
 
 *Lookups.*
 
-8. `find(networkId)` returns the local entity, or the null entity. `getLocalPlayer()` returns the entity whose `Owner`
-   is this client's id, if there is one.
-9. Nothing coming from the network throws; malformed messages are dropped and counted.
+10. `ClientState::find(networkId)` returns the local entity, or the null entity. `getLocalPlayer()` returns the entity
+    whose `Owner` is this client's id, if there is one.
+11. Nothing coming from the network throws; malformed messages are dropped and counted. A failed connection or a
+    disconnection is recorded in the state (reason included), for the game to read.
 
 **Used by.** NET-18 (the prototype client), NET-22 (interpolation hooks into the apply step), NET-32 (reset on
-reconnection), NET-36 (prediction uses the last processed input), NET-38 (wrapped in ECS systems).
+reconnection), NET-36 (prediction uses the last processed input), NET-38 (engine glue).
 
 **API (recommendation).**
 ```c++
 namespace rtype::replication::client {
 enum class ManifestStatus : std::uint8_t { kWaiting, kAccepted, kMismatch };
 
-class RTYPE_REPLICATION_API ClientReplicator {
+/// @brief The client's replication: connects, checks the manifest, applies snapshots, sends inputs.
+class RTYPE_REPLICATION_API ClientPlugin : public ecs::Plugin {
   public:
-    ClientReplicator(ecs::World& world, const input::InputLayout& inputs);
-    void handle(const network::client::ClientEvent& event);
+    static constexpr std::string_view kName = "rtype.replication.client";
+    static constexpr std::string_view kSendInputSystem = "net.sendInput";  // the game's input system runs .before() it
+    ClientPlugin(network::io::Address server, network::NetworkSettings settings);
+    [[nodiscard]] std::string_view getName() const noexcept override;
+    void build(ecs::App& app) override;
+    // plus the rule of five
+};
+
+/// @brief The resource: what the systems share, and what the game reads.
+class RTYPE_REPLICATION_API ClientState {
+  public:
     [[nodiscard]] ManifestStatus getManifestStatus() const noexcept;
     [[nodiscard]] std::string_view getMismatch() const noexcept;
-    void sendInput(const component::PlayerInput& input);
-    /// @return Messages for NetClient::send, in order.
-    [[nodiscard]] std::vector<std::pair<network::Channel, network::Bytes>> takeOutgoing();
+    void setInput(const component::PlayerInput& input);
     [[nodiscard]] ecs::Entity find(std::uint32_t networkId) const noexcept;
     [[nodiscard]] std::optional<ecs::Entity> getLocalPlayer() const noexcept;
 
   private:
-    ecs::World& _world;
+    std::unique_ptr<network::client::NetClient> _client;  ///< Created by net.connect.
+    const ecs::World* _world;                             ///< Read-only, to read components by id.
     manifest::ManifestReceiver _receiver;
     std::optional<manifest::Manifest> _manifest;
     std::unordered_map<std::uint32_t, ecs::Entity> _entities;  ///< NetworkId → local entity.
@@ -2449,12 +2552,18 @@ class RTYPE_REPLICATION_API ClientReplicator {
 ```
 
 **Tasks.**
-- [ ] `client/ClientReplicator.hpp/.cpp`.
-- [ ] Tests (snapshots built with `snapshot::Snapshot`, no socket): manifest accepted and mismatched; snapshots
-  before acceptance dropped; a snapshot applied to an empty world; an older tick dropped; two entities spawned by
-  the same snapshot referring to each other; update, removal and despawn; `kComplete` removes absent entities and
-  components; a malformed snapshot (at every truncation) leaves the world unchanged; `kInput` content (sequences,
-  last three, last applied tick); `getLocalPlayer`.
+- [ ] `client/ClientState.hpp/.cpp`, `client/ClientPlugin.hpp/.cpp`.
+- [ ] Check that entities reserved by `Commands::spawn()` can be the target of an entity field written by
+  `Commands::add(entity, id, bytes)` in the same buffer, and that the buffer is flushed before the `Update` phase;
+  if not, ask the ECS for it first, in its own `feat(ecs)` commit.
+- [ ] Tests of the helpers (snapshots built with `snapshot::Snapshot`, no `App`, no socket): manifest accepted and
+  mismatched; snapshots before acceptance dropped; a snapshot applied to an empty world; an older tick dropped; two
+  entities spawned by the same snapshot referring to each other; update, removal and despawn; `kComplete` removes
+  absent entities and components; a malformed snapshot (at every truncation) leaves the world unchanged; `kInput`
+  content (sequences, last three, last applied tick); `getLocalPlayer`.
+- [ ] Tests of the plugin (an `App` in `RunMode::kClient` with `TimePlugin::manual`): systems run only in client and
+  standalone modes; `sendReady` after acceptance, the disconnection after a mismatch; the entities of a snapshot are
+  there in the frame after the `PreUpdate` phase; `setInput` then one `kInput` per frame.
 
 ### NET-18 · Prototype game
 
@@ -2462,13 +2571,13 @@ class RTYPE_REPLICATION_API ClientReplicator {
 |---|---|---|---|
 | M1 | M | NET-16, NET-17 | [3](#3-the-prototype-in-two-days) of this spec |
 
-**Summary.** `examples/network/Prototype/`: a server and a client of a tiny shooter, written with plain loops, that
-runs the whole M1 pipeline and serves as the demo.
+**Summary.** `examples/network/Prototype/`: a server and a client of a tiny shooter, each an `App` built from the
+replication plugins and the game's own plugin, that runs the whole M1 pipeline and serves as the demo.
 
 **What it is for.** It proves that every M1 piece works together on real sockets, between real processes, and gives
-the team a reference for how to wire them (the order of the calls in a tick matters). It is also the test bed used
-for every later milestone: deltas, rooms and reconnection are all checked first in this game. It lives in
-`examples/` because the real `client` and `server` executables need the ECS `App` (NET-39).
+the team a reference for how to wire the plugins (which phase, which side, which ordering). It is also the test bed
+used for every later milestone: deltas, rooms and reconnection are all checked first in this game. It lives in
+`examples/` because the real `client` and `server` executables come with the engine split (NET-39).
 
 **What the game is.**
 
@@ -2476,40 +2585,44 @@ for every later milestone: deltas, rooms and reconnection are all checked first 
 - Components: `Body { vec2 position; vec2 size; u32 color; }` (replicated, `kEveryChange`) and
   `Velocity { vec2 value; }` (server only, not replicated).
 - Actions: `move` (`kVector2`) and `fire` (`kButton`).
-- On `ClientConnected`, the server spawns a ship (`Body` with a color from the client id, `Owner`, `PlayerInput`) and
-  tracks it. On `ClientDisconnected`, it despawns that ship.
-- When `fire` is pressed (not held), a bullet (`Body` and `Velocity`) spawns in front of the ship, moving right; it
-  is despawned when it leaves the area. Ships move at a fixed speed from `move`, clamped to the area.
+- One `PrototypePlugin` (the shared game code: components, actions, rules) is added to both `App`s. Its server
+  systems (`Side::kServer`): on `ClientConnected`, spawn a ship (`Body` with a color from the client id, `Owner`,
+  `PlayerInput`) with `Commands`; on `ClientDisconnected`, despawn that ship; move ships from `move`, clamped to the
+  area; when `fire` is pressed (not held), spawn a bullet (`Body` and `Velocity`) in front of the ship, moving right,
+  and despawn it when it leaves the area. These systems run in `FixedUpdate`, `.after(ServerPlugin::kApplyInputsSystem)`.
 
 **What it must do.**
 
-*`prototype-server`* (no window).
+*`prototype-server`* (no window): `App app{RunMode::kServer}`.
 
 1. Options: `--port` (4242), `--snapshot-rate` (60).
-2. Registers the replication types and the game's types, declares the actions, creates the `ServerReplicator`, then
-   the `NetServer` with the welcome messages.
-3. Runs a fixed 60 Hz loop (`sleep_until` the next tick, never sleeping a fixed duration), each tick in this order:
-   `NetServer::poll` → `ServerReplicator::handle` for each event → `applyInputs` → game step (react to the ECS
-   events, move, fire, despawn) → `World::advanceChangeTick` → `endTick` → `NetServer::execute` each command →
-   `NetServer::flush` → `Events::update`.
-4. Prints its tick count and connected players every 5 s (shows that the tick rate holds).
-5. SIGINT: `NetServer::shutdown`, then exit.
+2. `app.addPlugins(MinimalPlugins{})`, `ServerPlugin{networkSettings, replicationSettings}` and `PrototypePlugin{}`,
+   then `app.run()`. The fixed 60 Hz timestep comes from `TimePlugin`; the order of the tick is the one of the
+   [phases](#net-16--server-plugin-with-complete-snapshots), not hand-written.
+3. A system prints the tick count and the connected players every 5 s (shows that the tick rate holds).
+4. SIGINT: a system sends `AppExit`; the `ServerPlugin` shuts the `NetServer` down when its `ServerState` is destroyed.
 
-*`prototype-client`*.
+*`prototype-client`*: `App app{RunMode::kClient}`.
 
-6. Arguments: server host and port; `--bot` for a scripted player without a window.
-7. Connects with `NetClient`, feeds every event to the `ClientReplicator`, sends `kReady` when the manifest is
-   accepted. On a mismatch, a failed connection or a disconnection, prints the reason and exits.
-8. Every 1/60 s, fills a `PlayerInput` from the devices (GLFW window and `engine::input::Input`, bound to the
-   actions) or, with `--bot`, from a script (moves in a circle, fires every second), and calls `sendInput`.
-9. Display: draws every `Body` with `IRenderer::draw(RectShape)` when the renderer implements it; until then, prints
-   every `Body` (net id, position, owner) twice per second. The window still opens, for the keyboard.
+5. Arguments: server host and port; `--bot` for a scripted player without a window.
+6. With a window: `BackendPlugin` (the executable fills its registry like `engine/main.cpp`, with `platform-glfw` and
+   `render-vulkan`) and `ClientPlugin{address, settings}`, plus `PrototypePlugin{}`. With `--bot`: `MinimalPlugins`
+   and `ClientPlugin` only.
+7. A system of the executable, `PostUpdate` and `.before(ClientPlugin::kSendInputSystem)`, fills a `PlayerInput`
+   with the `InputLayout` and calls `ClientState::setInput`: from `plugins::input::Input` (actions bound to the
+   arrows / WASD and Space) or, with `--bot`, from a script (moves in a circle, fires every second). This glue lives
+   in the example: `replication` and `plugins` never include each other.
+8. A system reads `ClientState`: on `kMismatch`, a failed connection or a disconnection, it prints the reason and
+   sends `AppExit`.
+9. Display: draws every `Body` with `IRenderer::draw(RectShape)` in the `Render` phase once the renderer implements
+   it; until then (`VulkanRenderer::draw(RectShape)` is `notImplemented`), a system prints every `Body` (net id,
+   position, owner) twice per second. The window still opens, for the keyboard.
 
 **Used by.** Every later milestone as its manual test bed; NET-25 moves its server into a room.
 
 **Tasks.**
 - [ ] `examples/network/Prototype/xmake.lua` with the two targets, enabled by `--Prototype=y`.
-- [ ] Shared game code (components, actions, rules) used by both targets.
+- [ ] `PrototypePlugin` (components, actions, rules), shared by both targets.
 - [ ] `prototype-server` and `prototype-client` as above.
 - [ ] `README.md` in the example with the demo steps of [3](#demo).
 
@@ -2573,7 +2686,7 @@ changed components, removals, despawns, filled in priority order up to the budge
 server world under loss.
 
 **Tasks.**
-- [ ] Harness: `ServerCore` + `ServerReplicator` and `ClientCore` + `ClientReplicator`, datagrams through
+- [ ] Harness: `ServerCore` + `ServerState` and `ClientCore` + `ClientState`, datagrams through
   `SimulatedLink`, fake clock, a scripted server game (spawns, moves, removes components, despawns).
 - [ ] After the script and a quiet period, compare every replicated entity and component (by `NetworkId`).
 - [ ] Scenarios: 0 %, 10 %, 30 % loss; 300 entities (budget); a manifest mismatch refused.
@@ -2589,8 +2702,8 @@ display time.
 
 **API.**
 ```c++
-clientReplicator.interpolate(componentId);    // before connecting; fields kF32 / kVecN are lerped, others snap
-clientReplicator.updateDisplay(frameTime);    // every frame, after handle()
+clientState.interpolate(componentId);    // before connecting (a Startup system); fields kF32 / kVecN are lerped, others snap
+clientState.updateDisplay(frameTime);    // every frame, from net.interpolate (Update), after net.receive
 ```
 
 **Tasks.**
@@ -2856,7 +2969,7 @@ connection with new tokens.
 | M5 | M | NET-33 | [8.2](design.md#82-sending), [8.3](design.md#83-receiving) |
 
 **Tasks.**
-- [ ] Server: `sendToRoom(packet)`, `sendTo(client, packet)` on `ServerReplicator`; client: `sendToServer(packet)`.
+- [ ] Server: `sendToRoom(packet)`, `sendTo(client, packet)` on `ServerState`; client: `sendToServer(packet)`.
   Wrong direction refused at the call (exception: a programming error, not network input).
 - [ ] Receive: `kCustomPacket` decoded with its descriptor and pushed into its ECS event queue; server-side events
   carry `sender`. Drop rules of design 8.3, each drop counted in the error budget.
@@ -2893,7 +3006,7 @@ connection with new tokens.
 **API.**
 ```c++
 using PredictStep = std::function<void(ecs::World&, ecs::Entity, const PlayerInput&)>;
-clientReplicator.setPrediction({componentIds...}, step);   // the same step runs on the server in the game step
+clientState.setPrediction({componentIds...}, step);   // the same step runs on the server in FixedUpdate
 ```
 
 **Tasks.**
@@ -2922,28 +3035,29 @@ clientReplicator.setPrediction({componentIds...}, step);   // the same step runs
 > **Draft, not reviewed.** These tasks are kept for later and will change once M1 is built (see the review
 > status at the top).
 
-These tasks wait for the ECS `App`. Until then, M1–M6 run in hand-written loops.
+`ReplicationPlugin`, `ServerPlugin` and `ClientPlugin` already exist from M1 (NET-12, NET-16, NET-17): M7 is what is
+left to do once the engine is split.
 
-### NET-38 · `ServerPlugin` and `ClientPlugin`
+### NET-38 · Engine glue for the plugins
 
 | Milestone | Size | Blocked by | Design |
 |---|---|---|---|
-| M7 | M | NET-20, **ECS App/plugins, systems, scheduler, queries, commands** | [7](design.md#7-replication-rtype-replication), [ECS 20](../ecs/features/20-replication.md#one-server-tick-one-client-frame) |
+| M7 | S | NET-20, NET-39, **ECS `StandalonePlugin`** ([#128](https://github.com/Charles-Mahoudeau/rtype/issues/128)) | [7](design.md#7-replication-rtype-replication), [ECS 20](../ecs/features/20-replication.md#one-server-tick-one-client-frame) |
 
 **Tasks.**
-- [ ] Resources `ServerState` / `ClientState` owning the replicators; systems `net.receive` (PreUpdate),
-  `net.applyInputs` (FixedUpdate), `net.assignIds`, `net.snapshot`, `net.send` (PostUpdate) on the server;
-  `net.receive`, `net.interpolate`, `net.collectInput`, `net.sendInput` on the client.
-- [ ] `net.assignIds`: a query for entities with a replicated component and no `NetworkId` (replaces manual
-  `track`).
+- [ ] The input glue of the prototype (reads `plugins::input::Input`, fills `PlayerInput` through the `InputLayout`)
+  moves into the engine library, which links both `plugins` and `replication`; `StandalonePlugin` reuses it to fill
+  `PlayerInput` without a network.
 - [ ] Predicted systems (`predicted = true`) replace the `PredictStep` callback.
 - [ ] `Room` adapter that runs an `App` for `RoomManager`.
+- [ ] Replace the read-only world pointer of the plugin states by an exclusive-system parameter, if the ECS has one
+  by then ([16](#16-external-blockers)).
 
 ### NET-39 · Engine library and `client` / `server` executables
 
 | Milestone | Size | Blocked by | Design |
 |---|---|---|---|
-| M7 | M | NET-38, **ECS App** | [3](design.md#3-targets-and-dependencies), [4](design.md#4-topology-and-run-modes) |
+| M7 | M | NET-20 | [3](design.md#3-targets-and-dependencies), [4](design.md#4-topology-and-run-modes) |
 
 **Tasks.**
 - [ ] `engine` becomes a library; `client` (window, renderer) and `server` (headless, never links `platform-glfw`
@@ -3022,16 +3136,18 @@ These tasks wait for the ECS `App`. Until then, M1–M6 run in hand-written loop
 
 ## 16. External blockers
 
-Work owned by other modules that some network tasks wait for. None of them blocks M1 to M6.
+Work owned by other modules that some network tasks wait for. Only the last two lines below touch M1, as small checks.
 
 | Blocker | Owner | Blocks |
 |---|---|---|
-| ECS queries, systems, scheduler, commands, `App` and plugins | ECS | NET-38, NET-39, NET-40 |
+| ECS `StandalonePlugin` ([#128](https://github.com/Charles-Mahoudeau/rtype/issues/128)) | ECS | NET-38 |
+| ECS exclusive system parameter (`World&`, access set of "everything"): the plugins read components by `ComponentId` through a pointer, which a parallel scheduler could not order | ECS | Nothing today (sequential scheduler); needed before a parallel one |
 | ECS prefabs | ECS | NET-41 |
 | ECS field network options (quantization) | ECS | NET-42 |
 | ECS Luau bridge, engine Luau plugin | ECS + Luau | NET-35 |
 | `VulkanRenderer::draw(RectShape)` | Render | Only the visual display of the prototype client (NET-18 prints the world until then) |
 | `std::array` fields in `FieldTypeOf`, if missing | ECS | NET-12 (small fix in the same PR) |
+| `Commands::spawn()` entities as targets of entity fields in the same buffer | ECS | NET-17 (checked in its tasks; small fix if missing) |
 
 ## 17. Filing the issues
 
