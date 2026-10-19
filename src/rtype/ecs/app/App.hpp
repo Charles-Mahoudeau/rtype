@@ -29,8 +29,9 @@ namespace rtype::ecs {
 /// @brief The entry point of a game: a world, its schedules, the plugins that filled them, and the loop that runs
 /// them until a system sends AppExit.
 /// @details One App runs one world in one run mode: a client, a dedicated server, or both sides in one process
-/// (standalone). The same game plugins are added in every mode; each system's side decides where it runs. The App
-/// keeps a pointer to its own world in its schedules, so it can be neither copied nor moved.
+/// (standalone). The same game plugins are added in every mode; each system's side decides where it runs. Every App
+/// has a TimePlugin: if none was added, the App adds one with the defaults before its first frame. The App keeps a
+/// pointer to its own world in its schedules, so it can be neither copied nor moved.
 /// @code
 /// rtype::ecs::App app{rtype::ecs::RunMode::kStandalone};
 /// app.addPlugin(GamePlugin{});
@@ -82,7 +83,7 @@ class RTYPE_ECS_API App {
     template <Resource T>
     App& insertResource(T value);
 
-    /// @brief Runs one frame (Schedules::runFrame()).
+    /// @brief Runs one frame (Schedules::runFrame()), adding a TimePlugin with the defaults first if none was added.
     /// @throws exceptions::ScheduleException When a schedule cannot be built.
     void runFrame();
 

@@ -19,6 +19,7 @@
 #include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/schedule/Schedules.hpp"
+#include "rtype/ecs/time/TimePlugin.hpp"
 #include "rtype/ecs/world/World.hpp"
 
 namespace rtype::ecs {
@@ -49,7 +50,12 @@ bool App::hasPlugin(std::string_view name) const noexcept {
                                [&](const std::unique_ptr<Plugin>& plugin) { return plugin->getName() == name; });
 }
 
-void App::runFrame() { _schedules.runFrame(); }
+void App::runFrame() {
+    if (!hasPlugin(TimePlugin::kName)) {  // every App has time: the default one unless a configured one was added
+        addPlugin(TimePlugin{});
+    }
+    _schedules.runFrame();
+}
 
 int App::run() {
     while (true) {
