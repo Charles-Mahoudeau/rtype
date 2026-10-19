@@ -120,6 +120,16 @@ TEST(Schedules, RejectsANameUsedInAnotherPhase) {
     EXPECT_FALSE(schedules.getSchedule(Phase::kRender).contains("rtype.movement"));
 }
 
+TEST(Schedules, RejectsANameUsedTwiceInOnePhase) {
+    World world;
+    Schedules schedules{world, RunMode::kStandalone};
+    schedules.addSystem(Phase::kUpdate, "camera", &noop);
+    expectScheduleError([&] { schedules.addSystem(Phase::kUpdate, "camera", &noop); },
+                        "Two systems of phase Update are named 'camera'");
+    schedules.build();
+    EXPECT_EQ(orderOf(schedules, Phase::kUpdate), (std::vector<std::string>{"camera"}));  // the second was not added
+}
+
 TEST(Schedules, RejectsATargetInAnotherPhase) {
     World world;
     Schedules schedules{world, RunMode::kStandalone};
