@@ -11,6 +11,8 @@
 #include <glm/ext/vector_float3.hpp>
 #include <variant>
 
+#include "rtype/ecs/component/ComponentTraits.hpp"
+
 namespace rtype::plugins::backend::graphics {
 
 /// @brief Parallel projection, without perspective: what every 2D view is.

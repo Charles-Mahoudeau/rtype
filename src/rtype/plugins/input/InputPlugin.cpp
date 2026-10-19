@@ -97,8 +97,6 @@ void InputPlugin::build(ecs::App& app) {
     app.insertResource(Input{});
     ecs::Schedule::SystemConfig update =
         app.addSystem(ecs::Phase::kPreUpdate, std::string{kUpdateSystem}, &updateInput).setSide(ecs::Side::kClient);
-    // The backend sends the events Input reads, in the same phase. A constraint naming a missing system is an
-    // error, so it is set by whichever of the two plugins is added second.
     if (app.hasPlugin(backend::BackendPlugin::kName)) {
         update.after(std::string{backend::BackendPlugin::kEventsSystem});
     }
