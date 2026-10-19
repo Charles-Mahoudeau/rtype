@@ -39,6 +39,7 @@
 #include "pipeline/PipelineLayout.hpp"
 #include "pipeline/ShaderCache.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
+#include "plugins/backend/graphics/CameraView.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/RectShape.hpp"
@@ -46,6 +47,8 @@
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
 #include "presentation/Swapchain.hpp"
+#include "rendering/SpriteBatch.hpp"
+#include "rendering/SpritePass.hpp"
 #include "texture/SamplerCache.hpp"
 #include "texture/Texture.hpp"
 
@@ -55,8 +58,9 @@ namespace rtype::render::vulkan {
 ///
 /// @details init() creates the instance, the debug messenger (if requested), the surface, the device, the swapchain,
 /// the frames in flight and the allocator. beginFrame() clears the next swapchain image with dynamic rendering and
-/// endFrame() presents it. createTexture() uploads RGBA8 sRGB images. Drawing functions throw
-/// UnsupportedFeatureException until they are implemented.
+/// endFrame() presents it. createTexture() uploads RGBA8 sRGB images. draw(Sprite) collects the frame's sprites, and
+/// endFrame() draws them in batches (one instanced draw per run of sprites sharing a texture), through the camera given
+/// to setCamera(). draw(RectShape) throws UnsupportedFeatureException until it is implemented.
 ///
 /// Needs a platform that implements interop::vulkan::IVulkanSurfaceSource (GlfwPlatform does).
 class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::graphics::IRenderer {
@@ -87,6 +91,9 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
         std::filesystem::path shaderDirectory = "shaders";  ///< Where the game's SPIR-V shaders are loaded from.
                                                             ///< Relative: to the executable's directory, never to
                                                             ///< the working directory. Built-in shaders are embedded.
+        glm::uvec2 virtualResolution{0};  ///< The resolution the game is designed for, e.g. 1920x1080: the camera shows
+                                          ///< that many world units at zoom 1 whatever the window size, letterboxed.
+                                          ///< 0x0: the window's framebuffer size, without bars.
     };
 
     /// @brief Called after each swapchain recreation with the new swapchain: recreate there what depends on its size
@@ -143,12 +150,19 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// nothing if @p texture was already destroyed or never created.
     void destroy(plugins::backend::graphics::TextureId texture) override;
 
-    /// @name Not implemented yet: throw UnsupportedFeatureException
-    /// @{
+    /// @brief Sets the camera of the frame (graphics::CameraView, with Config::virtualResolution): the last one set
+    /// before endFrame() applies to every sprite of the frame. Until it is called, a frame shows the view from the
+    /// world's origin at its top-left corner.
     void setCamera(const plugins::backend::graphics::Camera& camera) override;
+
+    /// @brief Adds @p sprite to the frame, drawn by endFrame() on top of the sprites drawn before it. Does nothing if
+    /// beginFrame() skipped the frame.
+    /// @throws std::invalid_argument If its texture was destroyed or never created.
     void draw(const plugins::backend::graphics::Sprite& sprite) override;
+
+    /// @brief Not implemented yet.
+    /// @throws exceptions::UnsupportedFeatureException Always.
     void draw(const plugins::backend::graphics::RectShape& rect) override;
-    /// @}
 
   private:
     /// @throws exceptions::UnsupportedFeatureException Always, naming the function.
@@ -163,9 +177,10 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// swapchain out of date while the window is minimized.
     void recreateSwapchain();
 
-    /// @brief Writes this frame's FrameUniforms (time, delta time, swapchain extent) into its uniform buffer.
+    /// @brief Writes this frame's FrameUniforms (time, delta time, swapchain extent, @p view's matrix) into its uniform
+    /// buffer.
     /// @warning Only after the frame's fence was waited for: the GPU may still read the buffer before.
-    void updateFrameUniforms();
+    void updateFrameUniforms(const plugins::backend::graphics::CameraView& view);
 
     /// @return The frame in flight whose fence covers every use recorded so far: the current one while a frame is
     /// recorded, the previous one between frames. What the GPU may still use is deferred to it.
@@ -194,9 +209,11 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
                                                   ///< beginFrame() and endFrame(); empty when the frame was skipped.
     bool _swapchainOutOfDate = false;  ///< Set on resize, VK_ERROR_OUT_OF_DATE_KHR or VK_SUBOPTIMAL_KHR; the next
                                        ///< beginFrame() recreates the swapchain and clears it.
-    std::vector<SwapchainListener> _swapchainListeners;    ///< Called after each swapchain recreation.
-    std::chrono::steady_clock::time_point _startTime;      ///< When init() ran: origin of FrameUniforms::time.
-    std::chrono::steady_clock::time_point _lastFrameTime;  ///< When the previous frame began: for deltaTime.
+    std::vector<SwapchainListener> _swapchainListeners;         ///< Called after each swapchain recreation.
+    std::chrono::steady_clock::time_point _startTime;           ///< When init() ran: origin of FrameUniforms::time.
+    std::chrono::steady_clock::time_point _lastFrameTime;       ///< When the previous frame ended: for deltaTime.
+    std::optional<plugins::backend::graphics::Camera> _camera;  ///< From setCamera(); reset by beginFrame().
+    rendering::SpriteBatch _sprites;                            ///< The frame's sprites; cleared by beginFrame().
 
     // 2. Context: created by init(), in this order.
     std::optional<core::Instance> _instance;                ///< The VkInstance.
@@ -221,8 +238,9 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     std::unique_ptr<frame::FrameGlobals> _globals;            ///< Per-frame uniforms, at set 0, binding 0.
     std::unique_ptr<descriptor::DescriptorSetLayout> _textureSetLayout;    ///< Set 1: one combined image sampler.
     std::unique_ptr<descriptor::DescriptorAllocator> _textureDescriptors;  ///< Allocates the textures' sets.
-    std::unique_ptr<pipeline::PipelineLayout> _layout;  ///< The shared layout (rendering/ShaderLayout.hpp) of every
-                                                        ///< pipeline: sets 0 and 1, and the DrawConstants.
+    std::unique_ptr<pipeline::PipelineLayout> _layout;   ///< The shared layout (rendering/ShaderLayout.hpp) of every
+                                                         ///< pipeline: sets 0 and 1, and the DrawConstants.
+    std::unique_ptr<rendering::SpritePass> _spritePass;  ///< Draws _sprites at endFrame().
     core::SlotMap<plugins::backend::graphics::TextureId, texture::Texture> _textures;  ///< By TextureId.
 
     // 7. Deferred deletion.

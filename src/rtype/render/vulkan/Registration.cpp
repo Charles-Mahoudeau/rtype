@@ -13,6 +13,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
 #include "VulkanRenderer.hpp"
@@ -92,9 +93,10 @@ vk::PresentModeKHR toPresentMode(std::string_view name) {
 
 /// @return The Config described by the "vulkan" section; missing keys keep the Config defaults.
 VulkanRenderer::Config toConfig(const plugins::backend::config::Settings& settings) {
-    settings.checkKeys({"engineName", "layers", "extraExtensions", "debugging", "minSeverity", "preferredDeviceType",
-                        "synchronizationValidation", "bestPractices", "presentMode", "shaderDirectory"},
-                       "vulkan");
+    settings.checkKeys(
+        {"engineName", "layers", "extraExtensions", "debugging", "minSeverity", "preferredDeviceType",
+         "synchronizationValidation", "bestPractices", "presentMode", "shaderDirectory", "virtualResolution"},
+        "vulkan");
     VulkanRenderer::Config config;
     config.engineName = settings.getString("engineName", config.engineName);
     config.layers = settings.getStringList("layers", config.layers);
@@ -110,6 +112,14 @@ VulkanRenderer::Config toConfig(const plugins::backend::config::Settings& settin
     }
     if (settings.has("shaderDirectory")) {
         config.shaderDirectory = settings.getString("shaderDirectory", "");
+    }
+    if (settings.has("virtualResolution")) {
+        const std::vector<double> size = settings.getNumberList("virtualResolution", {});
+        if (size.size() != 2 || size.at(0) <= 0.0 || size.at(1) <= 0.0) {
+            throw plugins::backend::exceptions::SettingsException(
+                "Setting 'vulkan.virtualResolution' must be { width, height }, both positive");
+        }
+        config.virtualResolution = {static_cast<unsigned>(size.at(0)), static_cast<unsigned>(size.at(1))};
     }
     if (settings.has("presentMode")) {
         config.presentMode = toPresentMode(settings.getString("presentMode", ""));
