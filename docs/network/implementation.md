@@ -76,14 +76,22 @@ Consequences for the plan:
 - **Entities are tracked automatically.** A system that spawns with `Commands` cannot call a `track(entity)`: the
   entity is only alive after the phase's flush. The server therefore assigns `NetworkId`s itself, in a `PostUpdate`
   system (`net.assignIds`), for every entity that has a replicated component and no `NetworkId`.
-- **Systems reach components by `ComponentId` through a system parameter of `replication`.** A `DynamicQuery` is
-  built from ids (the ECS names the network among its users), and a library can add its own parameter type by
-  specializing `SystemParam`. `ReplicatedRead` (`query/`) holds one `DynamicQuery` per replicated component and reports
-  their `getAccess()` in `addAccess`, so the schedule orders these systems against the game's like any other: two
-  unordered systems of a phase that touch the same component, one of them writing it, fail to build. Writes (spawn,
-  add or replace by id, remove, despawn) go through `Commands`, applied after the phase. The parameter is built when
-  the plugin adds its systems, so `ServerPlugin` and `ClientPlugin` are added **after** the plugins that register
-  replicated components; `net.start` fails with a clear message if one was registered later.
+- **Replicated components are read by `ComponentId` through a system parameter of `replication`.** The game's
+  components are unknown to `replication`, so no typed `Query` can name them; their values are bytes, laid out by
+  their `TypeInfo` fields and serialized field by field (NET-13). A `DynamicQuery` is built from ids (the ECS names
+  the network among its users), and a library can add its own parameter type by specializing `SystemParam`
+  ([ECS 12](../ecs/features/12-systems.md#parameters-from-other-libraries)). `ReplicatedRead` (`query/`) holds one
+  `DynamicQuery` per replicated component and reports their `getAccess()` in `addAccess`, so the schedule orders the
+  systems that take it against the game's like any other: two unordered systems of a phase that touch the same
+  component, one of them writing it, fail to build. It gives read access only (`QueryMatch::get`,
+  `Components::get`), never `getMut`. The parameter is built when the system is added, so `ServerPlugin` is added
+  **after** the plugins that register replicated components; `net.start` fails with a clear message if one was
+  registered later.
+- **Replicated components are written through `Commands`, by `ComponentId`.** Spawn, add or replace
+  (`Commands::add(entity, id, bytes)`), remove and despawn are applied after the phase, so no system of the phase sees
+  them half done and they need no declared access. That is all the client needs to apply a snapshot: M1 has no
+  `ReplicatedWrite`. One would be needed only by a system that writes replicated values in place during its phase
+  (interpolation, NET-22, decided with M2).
 - **The glue between `plugins::input::Input` and `PlayerInput` lives in the executable or example.** `plugins` knows
   nothing of `replication`, and `replication` nothing of `plugins`: only the executable (or example) links both.
 
@@ -236,8 +244,8 @@ These apply to every task; the acceptance criteria below do not repeat them.
 - **Plugins follow the ECS rules** ([ECS 14](../ecs/features/14-app-and-plugins.md)): `build()` only registers
   (resources, events, systems, other plugins); opening a socket, building the manifest or connecting happens in a
   `Startup` system, when every plugin of the game has registered its types. A system parameter is built when the system
-  is added, so a plugin whose parameters depend on registered types (`ReplicatedRead`) is added after the plugins that
-  register them. A plugin name is `rtype.replication...`;
+  is added, so a plugin whose parameters depend on registered types (`ServerPlugin`, through `ReplicatedRead`) is added
+  after the plugins that register them. A plugin name is `rtype.replication...`;
   each plugin exposes its system names as `static constexpr std::string_view` constants (as `BackendPlugin` does), so
   that game systems can order themselves with `.after(...)` / `.before(...)`. Server systems are `Side::kServer`,
   client systems `Side::kClient`.
@@ -292,7 +300,9 @@ To report in `design.md` when the matching task lands (the task says so in its c
 3. **Snapshots are built once per frame, not once per fixed tick.** `PostUpdate` runs once per frame, after every
    `FixedUpdate` tick of the frame: with two ticks in one frame, the snapshot carries the latest state, and the server
    tick it announces is `Time::tick`. Building one inside `FixedUpdate` would need a system that runs after every
-   gameplay system, which the schedule cannot express.
+   gameplay system, which the schedule cannot express. A frame can run 0, 1 or several ticks, so the snapshot is due
+   when `Time::tick - lastSnapshotTick >= tickRate / snapshotRate`, never on `Time::tick % N == 0` (which misses a
+   snapshot when a frame jumps over the multiple, and repeats one when a frame runs no tick).
 4. **Interpolation buffers in `ClientState`.** The design has an `Interpolated` client-only component holding
    the last states. A component has a fixed size, while the history covers any interpolated component, so the
    buffers live in the client state, keyed by `(NetworkId, component)`. The world keeps the *displayed*
@@ -2347,8 +2357,9 @@ with deltas (only what each client has not confirmed yet), keeping the same mess
 
 *Snapshots.*
 
-10. `net.snapshot` counts the server ticks (`Time::tick`). Every `tickRate / snapshotRate` ticks, it builds one
-    snapshot per connected client, with the layout below:
+10. `net.snapshot` counts the server ticks (`Time::tick`). When at least `tickRate / snapshotRate` ticks passed since
+    the last snapshot it built ([deviation 3](#6-deviations-from-the-design)), it builds one snapshot per connected
+    client, with the layout below; a frame that ran no tick sends nothing:
     - the header: the server tick, **that client's** last processed input (`InputBuffer::getLastProcessed`), the
       flags;
     - one spawn record per tracked entity, in increasing `NetworkId` order: the id, prefab `0xFFFF` (none in M1), and
@@ -2422,10 +2433,18 @@ class RTYPE_REPLICATION_API ServerState {
 
 **Tasks.**
 - [ ] `snapshot/Snapshot.hpp/.cpp`, `server/ServerState.hpp/.cpp`, `server/ServerPlugin.hpp/.cpp`.
-- [ ] `query/ReplicatedRead.hpp/.cpp`: a `SystemParam` specialization (`State` = one `DynamicQuery` per replicated
-  component of the world, built by `init`; `addAccess` adds each query's `getAccess()`). `ServerPlugin` is added after
-  the plugins that register replicated components; `net.start` compares the replicated components it finds with the
-  ones the parameter was built from, and throws a `ReplicationException` naming the first one registered later.
+- [ ] `query/ReplicatedRead.hpp/.cpp`: the `ReplicatedRead` type and its `SystemParam` specialization, declared in
+  `rtype::ecs` in the same header (every file that adds a system taking it includes that header):
+  - `State`: one `DynamicQuery` with a `kRead` term per id of `getComponents().getRegistry().getReplicatedIds()`,
+    built by `init`; a failed `DynamicQuery::create` throws a `ReplicationException` naming the component;
+  - `get(state, context)`: a `ReplicatedRead` that keeps the queries, `context.world`'s components and
+    `context.lastRun`, so the system iterates with `iter(lastRun)` and reads one entity with `Components::get`;
+  - `addAccess`: `addComponent(id, false)` for each query's `getAccess()`;
+  - read access only: `ReplicatedRead` exposes `QueryMatch::get` and `Components::get`, never a mutable span.
+
+  `ServerPlugin` is added after the plugins that register replicated components; `net.start` compares the replicated
+  components it finds with the ones the parameter was built from, and throws a `ReplicationException` naming the first
+  one registered later.
 - [ ] Test the parameter: a game system of the same phase, with no order against `net.snapshot`, that writes a
   replicated component makes the schedule fail to build with the usual ambiguity message; ordering it with
   `.before` / `.after` fixes it; a replicated component registered after the plugin is reported by `net.start`.
@@ -2488,8 +2507,10 @@ Like the server side, the logic is not in the systems: they call helpers and a `
 4. Before `kAccepted`, snapshots are dropped and `setInput` is ignored.
 
 *Applying a snapshot.* Writes go through `Commands` (spawn, add or replace by `ComponentId`, remove, despawn) and are
-applied after the phase; the components an entity has are read with `ReplicatedRead` (NET-16), so these systems are
-ordered against the game's like any other.
+applied after the `PreUpdate` phase, so the game sees the new state from `Update` on. The client does not take
+`ReplicatedRead`: it never needs to know which components an entity has before writing, since `Commands::add`
+replaces an existing value and removing a component the entity does not have does nothing. `ClientPlugin` can
+therefore be added in any order; the manifest check reads the registry when the manifest arrives.
 
 5. A snapshot whose tick is not newer than the last one applied is dropped (it arrived late; a newer state is
    already shown).
@@ -2565,9 +2586,10 @@ class RTYPE_REPLICATION_API ClientState {
 
 **Tasks.**
 - [ ] `client/ClientState.hpp/.cpp`, `client/ClientPlugin.hpp/.cpp`.
-- [ ] Check that entities reserved by `Commands::spawn()` can be the target of an entity field written by
-  `Commands::add(entity, id, bytes)` in the same buffer, and that the buffer is flushed before the `Update` phase;
-  if not, ask the ECS for it first, in its own `feat(ecs)` commit.
+- [ ] Test, with the plugin, what `Commands` already promises: an entity reserved by `Commands::spawn()` is usable at
+  once as the target of an entity field written by `Commands::add(entity, id, bytes)` in the same buffer (the flush
+  makes the reserved entities alive before it applies the commands), and the buffer is flushed at the end of
+  `PreUpdate`, before `Update`.
 - [ ] Tests of the helpers (snapshots built with `snapshot::Snapshot`, no `App`, no socket): manifest accepted and
   mismatched; snapshots before acceptance dropped; a snapshot applied to an empty world; an older tick dropped; two
   entities spawned by the same snapshot referring to each other; update, removal and despawn; `kComplete` removes
@@ -2608,25 +2630,30 @@ used for every later milestone: deltas, rooms and reconnection are all checked f
 *`prototype-server`* (no window): `App app{RunMode::kServer}`.
 
 1. Options: `--port` (4242), `--snapshot-rate` (60).
-2. `app.addPlugins(MinimalPlugins{})`, `ServerPlugin{networkSettings, replicationSettings}` and `PrototypePlugin{}`,
-   then `app.run()`. The fixed 60 Hz timestep comes from `TimePlugin`; the order of the tick is the one of the
+2. `app.addPlugins(MinimalPlugins{})`, `PrototypePlugin{}`, then `ServerPlugin{networkSettings, replicationSettings}`
+   (last: it reads the replicated components registered before it), then `app.run()`. The fixed 60 Hz timestep comes
+   from `TimePlugin`; the order of the tick is the one of the
    [phases](#net-16--server-plugin-with-complete-snapshots), not hand-written.
-3. A system prints the tick count and the connected players every 5 s (shows that the tick rate holds).
-4. SIGINT: a system sends `AppExit`; the `ServerPlugin` shuts the `NetServer` down when its `ServerState` is destroyed.
+3. A pacing system of the example, last in the last phase, sleeps until the next fixed tick is due
+   (`sleep_until`, never a fixed duration). `App::run()` never waits between frames, so without it a headless server
+   runs frames with no tick in a busy loop and uses a whole core.
+4. A system prints the tick count and the connected players every 5 s (shows that the tick rate holds).
+5. SIGINT: a system sends `AppExit`; the `ServerPlugin` shuts the `NetServer` down when its `ServerState` is destroyed.
 
 *`prototype-client`*: `App app{RunMode::kClient}`.
 
-5. Arguments: server host and port; `--bot` for a scripted player without a window.
-6. With a window: `BackendPlugin` (the executable fills its registry like `engine/main.cpp`, with `platform-glfw` and
-   `render-vulkan`) and `ClientPlugin{address, settings}`, plus `PrototypePlugin{}`. With `--bot`: `MinimalPlugins`
-   and `ClientPlugin` only.
-7. A system of the executable, `PostUpdate` and `.before(ClientPlugin::kSendInputSystem)`, fills a `PlayerInput`
+6. Arguments: server host and port; `--bot` for a scripted player without a window.
+7. With a window: `BackendPlugin` (the executable fills its registry like `engine/main.cpp`, with `platform-glfw` and
+   `render-vulkan`), `PrototypePlugin{}` and `ClientPlugin{address, settings}`. With `--bot`: `MinimalPlugins`,
+   `PrototypePlugin{}` and `ClientPlugin`, plus the pacing system of step 3 (no window, so no vsync to wait on).
+   `PrototypePlugin` is needed in both: it registers the components the manifest compares with the server's.
+8. A system of the executable, `PostUpdate` and `.before(ClientPlugin::kSendInputSystem)`, fills a `PlayerInput`
    with the `InputLayout` and calls `ClientState::setInput`: from `plugins::input::Input` (actions bound to the
    arrows / WASD and Space) or, with `--bot`, from a script (moves in a circle, fires every second). This glue lives
    in the example: `replication` and `plugins` never include each other.
-8. A system reads `ClientState`: on `kMismatch`, a failed connection or a disconnection, it prints the reason and
+9. A system reads `ClientState`: on `kMismatch`, a failed connection or a disconnection, it prints the reason and
    sends `AppExit`.
-9. Display: draws every `Body` with `IRenderer::draw(RectShape)` in the `Render` phase once the renderer implements
+10. Display: draws every `Body` with `IRenderer::draw(RectShape)` in the `Render` phase once the renderer implements
    it; until then (`VulkanRenderer::draw(RectShape)` is `notImplemented`), a system prints every `Body` (net id,
    position, owner) twice per second. The window still opens, for the keyboard.
 
@@ -3146,18 +3173,18 @@ left to do once the engine is split.
 
 ## 16. External blockers
 
-Work owned by other modules that some network tasks wait for. Only the last two lines below touch M1, as small checks.
+Work owned by other modules that some network tasks wait for. Only the `std::array` line below touches M1, as a small
+check.
 
 | Blocker | Owner | Blocks |
 |---|---|---|
 | ECS `StandalonePlugin` ([#128](https://github.com/Charles-Mahoudeau/rtype/issues/128)) | ECS | NET-38 |
-| ECS hook to finish a plugin's setup once every plugin was built (optional) | ECS | Nothing: `ReplicatedRead` is built when the plugin adds its systems, so the plugins are added in an order, checked by `net.start` |
+| ECS hook to finish a plugin's setup once every plugin was built (optional) | ECS | Nothing: `ReplicatedRead` is built when `ServerPlugin` adds its systems, so it is added last, checked by `net.start` |
 | ECS prefabs | ECS | NET-41 |
 | ECS field network options (quantization) | ECS | NET-42 |
 | ECS Luau bridge, engine Luau plugin | ECS + Luau | NET-35 |
 | `VulkanRenderer::draw(RectShape)` | Render | Only the visual display of the prototype client (NET-18 prints the world until then) |
 | `std::array` fields in `FieldTypeOf`, if missing | ECS | NET-12 (small fix in the same PR) |
-| `Commands::spawn()` entities as targets of entity fields in the same buffer | ECS | NET-17 (checked in its tasks; small fix if missing) |
 
 ## 17. Filing the issues
 
