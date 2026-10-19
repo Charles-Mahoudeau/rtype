@@ -100,6 +100,11 @@ sequenceDiagram
 packets, it always sends "what changed since the snapshot you confirmed". A lost packet only makes the
 next delta larger.
 
+The network plugin does not know the game's component types (C++ or Luau): `net.snapshot` reads every
+replicated component by id through a `DynamicQueries` parameter, configured with one query per replicated
+component (`QueryList`), so its reads are declared to the scheduler. `iterSince(query, ack)` gives what
+changed since a client's acknowledged tick (see [Systems](12-systems.md#configured-parameters)).
+
 ### Replication modes
 
 R-Type has hundreds of bullets whose motion is predictable. Each component chooses a mode:

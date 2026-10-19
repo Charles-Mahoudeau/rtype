@@ -107,8 +107,13 @@ for (rtype::ecs::QueryMatch& match : query->iter(lastRun)) {
   script declared read-only.
 - **The pass allocates its two small buffers once**, when `iter()` starts; stepping never allocates.
 
-The [Luau bridge](19-luau-bridge.md) wraps this so a script iterates `for entity, shield, position in
-ctx.query do`.
+- **Components registered at run time work the same:** a component described by the Luau bridge (no C++
+  type behind it) is read, written, filtered and change-tracked exactly like a C++ one.
+
+In a system, dynamic queries come through the `DynamicQueries` parameter, configured with a `QueryList`
+when the system is added, so their access is declared to the scheduler (see
+[Systems](12-systems.md#configured-parameters)). The [Luau bridge](19-luau-bridge.md) wraps this so a
+script iterates `for entity, shield, position in ctx.query do`.
 
 ### The join: smallest pool first
 

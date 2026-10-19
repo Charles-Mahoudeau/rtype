@@ -591,6 +591,11 @@ constraints and an **access set** (what it reads and writes):
 | `NonSend<T>` / `NonSendMut<T>` | main-thread resource (see [Resources](#9-resources)) |
 | `Commands&` | deferred structural changes |
 | `EventReader<T>` / `EventWriter<T>` | reads / writes event queue `T` |
+| `DynamicQueries` (configured with a `QueryList`) | every component of its queries, by id |
+
+Parameters such as `DynamicQueries` are **configured** when the system is added (the queries to run), so
+systems that only know components by id (replication, scripts) still declare their access. Script systems
+are given as a `ScriptCallable`, the one way to pass a callable that keeps state (a handle to the script).
 
 ```c++
 app.addSystem(rtype::ecs::Phase::kFixedUpdate, "rtype.movement", &movement);
@@ -1387,7 +1392,7 @@ is the same idea as Bevy's modules with a short prelude.
 | `command/` | `rtype::ecs` | `Commands.hpp/.tpp/.cpp` (`Commands`, `EntityCommands`: deferred spawn, add, remove, despawn) |
 | `world/` | `rtype::ecs` | `World.hpp/.tpp/.cpp`: the coordinator (entities, change tick, `getComponents()`, `getResources()`, `getEvents()`) |
 | `query/` | `rtype::ecs` | `QueryTerm`, `QueryBuilder`, `DynamicQuery` (the single query engine), `QueryIteration` / `QueryMatch`, `QueryTerms` (`Optional`, `With`, `Without`, `Added`, `Changed`), `TermTraits`, `QueryState` (typed) and `Query` (its per-run view); `detail::` `QueryMatcher` and `QueryCursor` (the join and the walk, shared) |
-| `system/` | `rtype::ecs` | `System` (type-erased, run, flush), `SystemParam` (parameter deduction), `SystemAccess`, `Side`, `ResourceParam` (`Res`, `ResMut`, `NonSend`, `NonSendMut`), `EventReader` / `EventWriter` |
+| `system/` | `rtype::ecs` | `System` (type-erased, run, flush), `SystemParam` (parameter deduction, configured parameters), `SystemAccess`, `Side`, `ResourceParam` (`Res`, `ResMut`, `NonSend`, `NonSendMut`), `EventReader` / `EventWriter`, `DynamicQueries` + `QueryList`, `ScriptCallable` |
 | `schedule/` | `rtype::ecs` | `Phase`, `RunMode`, `Schedule` (one phase: ordering, ambiguity checks, run, flush), `Schedules` (a world's schedules: unique names, whole frames, per-phase event updates), `FrameClock` (how many fixed ticks a frame runs), `detail::DependencyGraph` (sort, cycles, reachability) |
 | `time/` | `rtype::ecs` | `Time` (the time resource), `FixedTimestep` (the accumulator: ticks per frame, cap, alpha), `TimeClock` (the frame clock keeping `Time` up to date), `TimePlugin` (every App has one) |
 | `app/` | `rtype::ecs` | `App` (one world, its `Schedules`, one run mode, the loop), `Plugin`, `PluginGroup`, `MinimalPlugins`, `AppExit` |
