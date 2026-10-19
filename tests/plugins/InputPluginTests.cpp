@@ -107,7 +107,7 @@ TEST(InputPlugin, AnEventIsFedOnce) {
     app.app().runFrame();
     app.send(kSpaceReleased);
     app.app().runFrame();
-    app.app().runFrame();  // the press is still kept by the queue, but already read
+    app.app().runFrame();
     EXPECT_FALSE(app.fire().isHeld());
 }
 
