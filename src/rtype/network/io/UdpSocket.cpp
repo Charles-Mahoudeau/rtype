@@ -7,7 +7,12 @@
 
 #include "rtype/network/io/UdpSocket.hpp"
 
-#include <asio.hpp>
+#include <asio/buffer.hpp>
+#include <asio/error.hpp>
+#include <asio/error_code.hpp>
+#include <asio/io_context.hpp>
+#include <asio/ip/address_v6.hpp>
+#include <asio/ip/udp.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -16,6 +21,8 @@
 #include <vector>
 
 #include "rtype/network/exceptions/NetworkExceptions.hpp"
+#include "rtype/network/io/Address.hpp"
+#include "rtype/network/io/SocketStats.hpp"
 #include "rtype/network/protocol/Constants.hpp"
 
 #ifdef _WIN32
@@ -56,7 +63,11 @@ struct UdpSocket::Impl {
             ++stats.oversized;
         } else {
             ++stats.received;
-            received.push_back(Datagram{toAddress(sender), Bytes(buffer.begin(), buffer.begin() + size)});
+            Datagram datagram{
+                .from = toAddress(sender),
+                .bytes = Bytes(buffer.begin(), buffer.begin() + static_cast<std::ptrdiff_t>(size)),
+            };
+            received.push_back(std::move(datagram));
         }
         armReceive();
     }
@@ -64,9 +75,9 @@ struct UdpSocket::Impl {
 
 UdpSocket::UdpSocket(const std::uint16_t port) : _impl{std::make_unique<Impl>()} {
     asio::error_code error;
-    static_cast<void>(_impl->socket.open(asio::ip::udp::v4(), error));
+    error = _impl->socket.open(asio::ip::udp::v4(), error);
     if (!error) {
-        static_cast<void>(_impl->socket.bind(asio::ip::udp::endpoint{asio::ip::udp::v4(), port}, error));
+        error = _impl->socket.bind(asio::ip::udp::endpoint{asio::ip::udp::v4(), port}, error);
     }
     if (error) {
         throw exceptions::SocketException{port, error.message()};
@@ -117,7 +128,7 @@ void UdpSocket::run() {
 
 void UdpSocket::stop() noexcept {
     asio::error_code error;
-    static_cast<void>(_impl->socket.cancel(error));
+    error = _impl->socket.cancel(error);
     _impl->context.stop();
 }
 

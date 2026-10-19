@@ -7,11 +7,17 @@
 
 #include "rtype/network/io/Address.hpp"
 
-#include <asio.hpp>
+#include <asio/error_code.hpp>
+#include <asio/io_context.hpp>
+#include <asio/ip/address.hpp>
+#include <asio/ip/address_v4.hpp>
+#include <asio/ip/address_v6.hpp>
+#include <asio/ip/udp.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <format>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
