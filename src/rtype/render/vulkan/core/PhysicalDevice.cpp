@@ -66,6 +66,7 @@ PhysicalDevice::Limits queryLimits(const vk::raii::PhysicalDevice& physicalDevic
         .framebufferColorSampleCounts = limits.framebufferColorSampleCounts,
         .timestampPeriod = limits.timestampPeriod,
         .maxImageDimension2D = limits.maxImageDimension2D,
+        .maxSamplerAnisotropy = limits.maxSamplerAnisotropy,
     };
 }
 

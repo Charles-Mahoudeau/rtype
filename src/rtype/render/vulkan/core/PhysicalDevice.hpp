@@ -46,6 +46,7 @@ class RTYPE_RENDER_VULKAN_API PhysicalDevice {
         vk::SampleCountFlags framebufferColorSampleCounts;   ///< MSAA sample counts supported by color attachments.
         float timestampPeriod = 0.0F;                        ///< Nanoseconds per timestamp query tick.
         std::uint32_t maxImageDimension2D = 0;               ///< Largest width or height of a 2D image, in texels.
+        float maxSamplerAnisotropy = 1.0F;                   ///< Highest anisotropy a sampler may use.
     };
 
     /// @brief Details of the swap chain support of a physical device.
