@@ -233,6 +233,13 @@ jobs:
       - name: Generate compile_commands.json
         run: xmake project -k compile_commands
 
+      # Sources include the SPIR-V headers the glsl.spirv rule generates (sprite.vert.h...): compile the shaders only,
+      # no C++, so clang-tidy finds them.
+      - name: Generate the embedded shader headers
+        run: |
+          xmake build -y --files="src/rtype/render/vulkan/shaders/*" render-vulkan
+          xmake build -y --files="tests/vulkan/shaders/*" vulkan-tests
+
       - name: Run cpp-linter
         uses: cpp-linter/cpp-linter-action@v2
         id: linter
