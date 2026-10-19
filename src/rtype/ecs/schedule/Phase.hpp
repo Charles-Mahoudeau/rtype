@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 
 namespace rtype::ecs {
 /// @brief A step of the frame: systems are registered in one phase, and the phases run in this order.
@@ -26,4 +27,23 @@ enum class Phase : std::uint8_t {
 
 /// @brief The number of phases.
 inline constexpr std::size_t kPhaseCount = 6;
+
+/// @return The phase's name ("FixedUpdate"), for messages.
+[[nodiscard]] constexpr std::string_view toString(Phase phase) noexcept {
+    switch (phase) {
+        case Phase::kStartup:
+            return "Startup";
+        case Phase::kPreUpdate:
+            return "PreUpdate";
+        case Phase::kFixedUpdate:
+            return "FixedUpdate";
+        case Phase::kUpdate:
+            return "Update";
+        case Phase::kPostUpdate:
+            return "PostUpdate";
+        case Phase::kRender:
+            return "Render";
+    }
+    return "?";
+}
 }  // namespace rtype::ecs

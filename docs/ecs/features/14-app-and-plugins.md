@@ -39,34 +39,94 @@ namespace rtype::ecs {
 /// @brief A reusable bundle of components, resources, events and systems.
 class RTYPE_ECS_API Plugin {
   public:
-    virtual ~Plugin() = default;
-    // copy/move deleted, see CLAUDE.md
-
+    virtual ~Plugin();
     [[nodiscard]] virtual std::string_view getName() const noexcept = 0;
     virtual void build(App& app) = 0;
+
+  protected:  // plugins are values moved into the App; protected copy/move prevents slicing
+    Plugin() = default;
+    // copy and move constructors and assignments = default
 };
 }  // namespace rtype::ecs
 ```
 
-`build` registers things; it does not run gameplay. Adding the same plugin twice is ignored (by name),
-so plugins can safely depend on each other (`RenderPlugin` adds `WindowPlugin` if missing).
+`build` registers things; it does not run gameplay. A plugin is **built as soon as it is added**, and
+adding a plugin whose name was already added does nothing, so plugins can safely depend on each other
+(`RenderPlugin` adds `WindowPlugin` if missing). A plugin is recorded before it is built, so two plugins
+adding each other are each built once. A `PluginGroup` (`app/PluginGroup.hpp`) adds several plugins through
+the App with its own `build`.
+
+### The App
+
+`rtype::ecs::App` (`app/App.hpp`) owns **one world, its `Schedules` and one run mode**, the plugins added to
+it, and the loop:
+
+```c++
+class GamePlugin : public rtype::ecs::Plugin {
+  public:
+    std::string_view getName() const noexcept override { return "game"; }
+    void build(rtype::ecs::App& app) override {
+        app.insertResource(Score{.value = 0});
+        app.addSystem(rtype::ecs::Phase::kStartup, "game.spawnPlayer", &spawnPlayer);
+        app.addSystem(rtype::ecs::Phase::kFixedUpdate, "game.movement", &movement);
+        app.addSystem(rtype::ecs::Phase::kRender, "game.drawScore", &drawScore).setSide(rtype::ecs::Side::kClient);
+    }
+};
+
+rtype::ecs::App app{rtype::ecs::RunMode::kStandalone};
+app.addPlugins(rtype::ecs::MinimalPlugins{}).addPlugin(GamePlugin{});
+return app.run();   // Startup once, then frames until a system sends AppExit; returns its code
+```
+
+| Member | Does |
+|---|---|
+| `App(RunMode = kStandalone)` | The run mode decides which systems run, from their side. Neither copyable nor movable: its schedules point to its world. |
+| `addPlugin(plugin)` / `addPlugins(group)` / `hasPlugin(name)` | Plugins, built at once, skipped by name when already added |
+| `addSystem(phase, name, function)` | `Schedules::addSystem()`, returning the system's configuration (`after`, `before`, `setSide`) |
+| `insertResource(value)` | A resource of the world |
+| `getWorld()`, `getSchedules()` | The world and its schedules |
+| `runFrame()` | One frame ([scheduler](13-scheduler.md#the-frame-and-its-clock)), adding the default time plugin first if none was added |
+| `run()` | Frames until an `AppExit` is read; returns its code |
+
+`AppExit` (`app/AppExit.hpp`, `"rtype.AppExit"`) is an event: any system sends it (the window plugin on
+`event::Closed`, the server on a signal), several may, and the App stops after the frame it was sent in,
+returning the code of the first one read.
+
+### Time
+
+**Every App has a `TimePlugin`** (`time/TimePlugin.hpp`, named `"rtype.time"`): it inserts the `Time`
+resource and installs the frame clock that runs `FixedUpdate` at a fixed rate
+([Scheduler](13-scheduler.md#fixed-timestep)). If none was added, the App adds one with the defaults (60 ticks
+per second, at most 5 per frame) before its first frame; `MinimalPlugins` adds the same default. To configure
+it, add your own before `MinimalPlugins` and before the first frame: the default one is then skipped, by name.
+
+```c++
+app.addPlugin(rtype::ecs::TimePlugin{rtype::ecs::FixedTimestep{30, 5}})   // 30 Hz
+    .addPlugins(rtype::ecs::MinimalPlugins{});
+app.addPlugin(rtype::ecs::TimePlugin::manual(std::chrono::milliseconds{50}));  // tests: every frame lasts 50 ms
+```
+
+`TimePlugin` measures `std::chrono::steady_clock`; `manual()` makes every frame last a fixed duration, so tests
+and replays are deterministic. A clock installed directly with `getSchedules().setClock()` is replaced by the
+default plugin's on the first frame: a custom clock comes from a plugin named `"rtype.time"` added in place
+of `TimePlugin`.
 
 ### Three ways to start
 
 ```c++
-// Client
+// Client: rtype::ecs::App app{rtype::ecs::RunMode::kClient};
 app.addPlugins(rtype::engine::plugins::DefaultPlugins{})   // window, input, render, audio, assets, script
     .addPlugin(rtype::engine::plugins::ClientPlugin{"127.0.0.1", 4242})
     .addPlugin(rtype::engine::plugins::LuauPlugin{"scripts/rtype/plugin.luau"})
     .run();
 
-// Dedicated server (headless)
-app.addPlugins(rtype::engine::plugins::MinimalPlugins{})   // time, assets metadata, script
+// Dedicated server (headless): rtype::ecs::App app{rtype::ecs::RunMode::kServer};
+app.addPlugins(rtype::ecs::MinimalPlugins{})               // time (later assets metadata, script)
     .addPlugin(rtype::engine::plugins::ServerPlugin{4242})
     .addPlugin(rtype::engine::plugins::LuauPlugin{"scripts/rtype/plugin.luau"})
     .run();
 
-// Standalone (single player, tests)
+// Standalone (single player, tests): rtype::ecs::App app{rtype::ecs::RunMode::kStandalone};
 app.addPlugins(rtype::engine::plugins::DefaultPlugins{})
     .addPlugin(rtype::engine::plugins::StandalonePlugin{})
     .addPlugin(rtype::engine::plugins::LuauPlugin{"scripts/rtype/plugin.luau"})
@@ -77,9 +137,9 @@ The game plugin is **the same file in all three**.
 
 ### Standalone mode
 
-Single player should not require running a server. `StandalonePlugin` makes one App run **both
-sides**: server systems (gameplay) and client systems (presentation) in the same world, with
-`PlayerInput` filled directly from local input instead of from the network. Because gameplay reads
+Single player should not require running a server. An App made with `RunMode::kStandalone` runs **both
+sides**: server systems (gameplay) and client systems (presentation) in the same world. `StandalonePlugin`
+fills `PlayerInput` directly from local input instead of from the network. Because gameplay reads
 `PlayerInput` and never the keyboard, nothing in the game changes.
 
 | Mode | Server systems | Client systems | `PlayerInput` comes from |
@@ -92,7 +152,7 @@ sides**: server systems (gameplay) and client systems (presentation) in the same
 
 | Group | Plugins |
 |---|---|
-| `MinimalPlugins` | `TimePlugin`, `AssetPlugin` (metadata only), `ScriptPlugin` |
+| `MinimalPlugins` (`rtype::ecs`) | `TimePlugin`; later `AssetPlugin` (metadata only), `ScriptPlugin` |
 | `DefaultPlugins` | `MinimalPlugins` + `WindowPlugin`, `InputPlugin`, `RenderPlugin`, `AudioPlugin`, `TransformPlugin`, `HierarchyPlugin` |
 | Opt-in | `ClientPlugin`, `ServerPlugin`, `StandalonePlugin`, `CollisionPlugin` |
 
@@ -141,9 +201,10 @@ A C++ game plugin is added beside it when part of the game needs native speed
 
 ### The loop
 
-`app.run()` runs `Startup` once, then repeats the phases until a system requests exit (the window
-plugin does so on `event::Closed`; the server on a signal). With several worlds (server rooms), the App
-runs each world's schedule in turn.
+`app.run()` runs frames (`Schedules::runFrame()`: `Startup` on the first one, then the phases, `FixedUpdate`
+as many times as the clock says) until a system sends `AppExit` (the window plugin does so on
+`event::Closed`; the server on a signal), then returns its code. `app.runFrame()` runs a single frame, for
+tests and for engines that drive the loop themselves.
 
 ## Connections
 
@@ -163,6 +224,7 @@ runs each world's schedule in turn.
 
 ## Open questions
 
-- Should rooms on the server be separate Apps (each with its own schedule) or one App with several
-  worlds? (ECS + network)
+- Should rooms on the server be separate Apps (each with its own schedules) or one App with several
+  worlds? (ECS + network) For now one App has one world; `Schedules` is per world so that either stays
+  possible.
 - `CollisionPlugin` scope: AABB only, or circles too? (Team)

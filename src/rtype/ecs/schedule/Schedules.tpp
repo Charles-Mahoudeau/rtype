@@ -2,7 +2,7 @@
 ** EPITECH PROJECT, 2026
 ** rtype
 ** File description:
-** Scheduler
+** Schedules
 */
 
 #include <string>
@@ -10,7 +10,7 @@
 
 namespace rtype::ecs {
 template <typename Function>
-Scheduler::SystemConfig Scheduler::addSystem(Phase phase, std::string name, Function function) {
+Schedule::SystemConfig Schedules::addSystem(Phase phase, std::string name, Function function) {
     return addSystem(phase, System{*_world, std::move(name), function});
 }
 }  // namespace rtype::ecs
