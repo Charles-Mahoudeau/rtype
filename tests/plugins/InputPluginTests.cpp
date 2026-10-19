@@ -66,7 +66,7 @@ const rtype::engine::event::KeyReleased kSpaceReleased{.key = rtype::engine::inp
 TEST(InputPlugin, InsertsInputAndRegistersTheEvents) {
     rtype::ecs::App app;
     app.addPlugin(rtype::plugins::input::InputPlugin{});
-    EXPECT_TRUE(app.hasPlugin("rtype.input"));
+    EXPECT_TRUE(app.hasPlugin("rtype.Input"));
     EXPECT_TRUE(app.getWorld().getResources().has<rtype::plugins::input::Input>());
     EXPECT_TRUE(app.getWorld().getEvents().find("rtype.KeyPressed"));
     EXPECT_TRUE(app.getWorld().getEvents().find("rtype.GamepadAxisMoved"));

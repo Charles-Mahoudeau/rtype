@@ -92,6 +92,6 @@ void InputPlugin::build(ecs::App& app) {
     registerEvent<engine::event::GamepadButtonReleased>(events);
     registerEvent<engine::event::GamepadAxisMoved>(events);
     app.insertResource(Input{});
-    app.addSystem(ecs::Phase::kPreUpdate, "rtype.input.update", &updateInput).setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kPreUpdate, "rtype.Input.Update", &updateInput).setSide(ecs::Side::kClient);
 }
 }  // namespace rtype::plugins::input
