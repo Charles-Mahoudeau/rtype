@@ -61,6 +61,11 @@ ECS stays single-threaded.
 | Resource (client) | `ClientState` | Connection, latest server tick, `NetworkId → Entity` map, snapshot buffer |
 | Event | `ClientConnected` / `ClientDisconnected` | For the game to spawn or remove ships |
 
+`ReplicationPlugin` (`"rtype.replication"`) registers the components and events above and inserts the `InputLayout`
+resource; `ServerPlugin` and `ClientPlugin` both add it, and a standalone game can add it alone. The network I/O
+(binding the socket, connecting, building the manifest) happens in `Startup` systems, once every plugin registered its
+types.
+
 ### One server tick, one client frame
 
 **Server** (headless, `FixedUpdate` at 60 Hz):
@@ -80,7 +85,7 @@ ECS stays single-threaded.
 |---|---|---|
 | PreUpdate | `net.receive` | Apply snapshots: spawn / despawn / write, through `NetworkId → Entity` |
 | Update | `net.interpolate` | Display the state at (latest server tick − ~100 ms) |
-| PostUpdate | `net.collectInput` | Input actions → `PlayerInput` |
+| PostUpdate | `net.collectInput` | Input actions → `PlayerInput`. Written by the game or the engine glue, not by `ClientPlugin`: `replication` never includes `plugins`, so the system that reads `plugins::input::Input` lives where both are linked; it calls `ClientState::setInput` |
 | PostUpdate | `net.sendInput` | Send the last 3 inputs (redundancy against loss) |
 | Render | drawing | |
 
