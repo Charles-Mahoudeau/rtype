@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "FakeBackend.hpp"
+#include "TestImages.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
@@ -67,6 +68,26 @@ TEST(BackendPlugin, InsertsTheTextureAssetsAndRegistersSpriteRenderer) {
     EXPECT_TRUE(app.app().getWorld().getResources().has<rtype::plugins::backend::TextureAssets>());
     EXPECT_TRUE(app.app().getWorld().getComponents().find("rtype.SpriteRenderer"));
     EXPECT_TRUE(app.app().getWorld().getComponents().find("rtype.Camera"));
+}
+
+TEST(BackendPlugin, LoadsTheQueuedTexturesBeforeTheFrame) {
+    BackendApp app;
+    const auto id = app.app().getWorld().getResources().getMut<rtype::plugins::backend::TextureAssets>()->load(
+        "two.png", rtype::test::plugins::twoPixelPng());
+    const auto& textures = app.app().getWorld().getResources().require<rtype::plugins::backend::TextureAssets>();
+    app.app().runFrame();
+    EXPECT_EQ(app.state().createdTextures.size(), 1U);
+    EXPECT_TRUE(textures.getTexture(id));
+}
+
+TEST(BackendPlugin, LoadsNoTextureOnAServer) {
+    BackendApp app{rtype::ecs::RunMode::kServer};
+    const auto id = app.app().getWorld().getResources().getMut<rtype::plugins::backend::TextureAssets>()->load(
+        "two.png", rtype::test::plugins::twoPixelPng());
+    const auto& textures = app.app().getWorld().getResources().require<rtype::plugins::backend::TextureAssets>();
+    app.app().runFrame();
+    EXPECT_TRUE(app.state().createdTextures.empty());
+    EXPECT_EQ(textures.get(id)->state, rtype::plugins::backend::AssetState::kQueued);
 }
 
 TEST(BackendPlugin, CreatesTheBackendAtStartup) {
