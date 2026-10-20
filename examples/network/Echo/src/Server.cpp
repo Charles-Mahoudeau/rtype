@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <exception>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -30,7 +31,7 @@ using namespace rtype::network;
 namespace {
 std::optional<std::uint16_t> parsePort(const std::string& text) {
     std::uint16_t port = 0;
-    const char* const last = text.data() + text.size();
+    const char* const last = std::to_address(text.end());
     const auto [end, error] = std::from_chars(text.data(), last, port);
     if (error != std::errc{} || end != last) {
         return std::nullopt;
