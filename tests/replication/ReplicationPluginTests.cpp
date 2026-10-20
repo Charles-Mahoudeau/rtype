@@ -29,6 +29,8 @@
 #include "rtype/replication/component/PlayerInput.hpp"
 #include "rtype/replication/event/ClientConnected.hpp"
 #include "rtype/replication/event/ClientDisconnected.hpp"
+#include "rtype/replication/input/InputKind.hpp"
+#include "rtype/replication/input/InputLayout.hpp"
 
 namespace {
 using rtype::ecs::App;
@@ -226,4 +228,21 @@ TEST(ReplicationTypes, RegisterWithTheirCompileTimeLayoutHash) {
     EXPECT_EQ(findComponent(app, "net.PlayerInput")->type.layoutHash, TypeTraits<PlayerInput>::kLayoutHash);
     EXPECT_EQ(findEvent(app, "net.ClientConnected")->type.layoutHash, TypeTraits<ClientConnected>::kLayoutHash);
     EXPECT_EQ(findEvent(app, "net.ClientDisconnected")->type.layoutHash, TypeTraits<ClientDisconnected>::kLayoutHash);
+}
+
+TEST(ReplicationPlugin, InsertsTheInputLayoutOnceAndKeepsItsActions) {
+    App app;
+    app.getWorld().getResources().insert(rtype::replication::input::InputLayout{});
+    app.getWorld().getResources().requireMut<rtype::replication::input::InputLayout>()->add(
+        "fire", rtype::replication::input::InputKind::kButton);
+    app.addPlugin(ReplicationPlugin{});
+
+    EXPECT_EQ(app.getWorld().getResources().require<rtype::replication::input::InputLayout>().actions().size(), 1U);
+}
+
+TEST(ReplicationPlugin, InsertsAnEmptyInputLayout) {
+    App app;
+    app.addPlugin(ReplicationPlugin{});
+
+    EXPECT_TRUE(app.getWorld().getResources().has<rtype::replication::input::InputLayout>());
 }
