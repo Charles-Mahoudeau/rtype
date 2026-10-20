@@ -10,9 +10,11 @@
 #include <stdexcept>
 #include <string>
 
+#include "rtype/ecs/Export.hpp"
+
 namespace rtype::ecs::exceptions {
 /// @brief Exception thrown when no entity index is left: every one of the 2^32 slots is in use or retired.
-class EntityLimitException : public std::runtime_error {
+class RTYPE_ECS_API EntityLimitException : public std::runtime_error {
   public:
     explicit EntityLimitException(const std::string& message) : std::runtime_error{message} {}
     ~EntityLimitException() override = default;

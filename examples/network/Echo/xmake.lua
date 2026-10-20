@@ -1,0 +1,11 @@
+target("EchoServer")
+    set_kind("binary")
+    set_default(false)
+    add_deps("network")
+    add_files("src/Server.cpp")
+
+target("EchoClient")
+    set_kind("binary")
+    set_default(false)
+    add_deps("network")
+    add_files("src/Client.cpp")
