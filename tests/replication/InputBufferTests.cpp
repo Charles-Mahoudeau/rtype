@@ -28,7 +28,7 @@ TEST(InputBuffer, IsNeutralBeforeAnyInput) {
     InputBuffer buffer;
     EXPECT_EQ(buffer.next().sequence, 0U);
     EXPECT_EQ(buffer.next().buttons, 0U);
-    EXPECT_EQ(buffer.getLastProcessed(), 0U);
+    EXPECT_EQ(buffer.lastProcessed(), 0U);
 }
 
 TEST(InputBuffer, HandsOutInputsInSequenceOrder) {
@@ -40,7 +40,7 @@ TEST(InputBuffer, HandsOutInputsInSequenceOrder) {
     EXPECT_EQ(buffer.next().sequence, 1U);
     EXPECT_EQ(buffer.next().sequence, 2U);
     EXPECT_EQ(buffer.next().sequence, 3U);
-    EXPECT_EQ(buffer.getLastProcessed(), 3U);
+    EXPECT_EQ(buffer.lastProcessed(), 3U);
 }
 
 TEST(InputBuffer, IgnoresDuplicatesAndAppliedSequences) {
@@ -52,7 +52,7 @@ TEST(InputBuffer, IgnoresDuplicatesAndAppliedSequences) {
     buffer.push(makeSample(2));
     buffer.push(makeSample(1));
     EXPECT_EQ(buffer.next().sequence, 2U);  // nothing new: repeated
-    EXPECT_EQ(buffer.getLastProcessed(), 2U);
+    EXPECT_EQ(buffer.lastProcessed(), 2U);
 }
 
 TEST(InputBuffer, AcceptsSequenceZeroAsTheFirstInput) {
@@ -69,7 +69,7 @@ TEST(InputBuffer, RepeatsTheLastInputWithoutAdvancing) {
     EXPECT_EQ(buffer.next().buttons, 5U);
     EXPECT_EQ(buffer.next().buttons, 5U);
     EXPECT_EQ(buffer.next().buttons, 5U);
-    EXPECT_EQ(buffer.getLastProcessed(), 5U);
+    EXPECT_EQ(buffer.lastProcessed(), 5U);
 }
 
 TEST(InputBuffer, DropsTheOldestDownToTwoOnOverflow) {
@@ -81,7 +81,7 @@ TEST(InputBuffer, DropsTheOldestDownToTwoOnOverflow) {
 
     EXPECT_EQ(buffer.next().sequence, 4U);
     EXPECT_EQ(buffer.next().sequence, 5U);
-    EXPECT_EQ(buffer.getLastProcessed(), 5U);
+    EXPECT_EQ(buffer.lastProcessed(), 5U);
 }
 
 TEST(InputBuffer, ResetEmptiesAndMakesTheInputNeutral) {
@@ -93,7 +93,7 @@ TEST(InputBuffer, ResetEmptiesAndMakesTheInputNeutral) {
     buffer.reset();
     EXPECT_EQ(buffer.next().sequence, 0U);
     EXPECT_EQ(buffer.next().buttons, 0U);
-    EXPECT_EQ(buffer.getLastProcessed(), 0U);
+    EXPECT_EQ(buffer.lastProcessed(), 0U);
 
     buffer.push(makeSample(1));
     EXPECT_EQ(buffer.next().sequence, 1U);

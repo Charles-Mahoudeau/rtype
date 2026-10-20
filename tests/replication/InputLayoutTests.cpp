@@ -50,8 +50,8 @@ TEST(InputLayout, GivesTheSameBitsAndSlotsWhateverTheOrderOfAdd) {
     EXPECT_EQ(first.find("fire").index, 1U);
     EXPECT_EQ(first.find("move").index, 0U);
     EXPECT_EQ(first.find("throttle").index, 2U);
-    EXPECT_EQ(first.getButtonCount(), 2U);
-    EXPECT_EQ(first.getAxisSlotCount(), 3U);
+    EXPECT_EQ(first.buttonCount(), 2U);
+    EXPECT_EQ(first.axisSlotCount(), 3U);
 }
 
 TEST(InputLayout, RefusesMoreThan32Buttons) {
@@ -60,7 +60,7 @@ TEST(InputLayout, RefusesMoreThan32Buttons) {
         layout.add("b" + std::to_string(i), InputKind::kButton);
     }
     EXPECT_THROW(layout.add("extra", InputKind::kButton), InputLayoutException);
-    EXPECT_EQ(layout.getButtonCount(), 32U);
+    EXPECT_EQ(layout.buttonCount(), 32U);
     EXPECT_EQ(layout.actions().size(), 32U);
 }
 
@@ -69,9 +69,9 @@ TEST(InputLayout, RefusesMoreThanMaxAxisSlots) {
     for (int i = 0; i < 8; ++i) {
         layout.add("v" + std::to_string(i), InputKind::kVector2);
     }
-    EXPECT_EQ(layout.getAxisSlotCount(), 16U);
+    EXPECT_EQ(layout.axisSlotCount(), 16U);
     EXPECT_THROW(layout.add("extra", InputKind::kAxis), InputLayoutException);
-    EXPECT_EQ(layout.getAxisSlotCount(), 16U);
+    EXPECT_EQ(layout.axisSlotCount(), 16U);
 }
 
 TEST(InputLayout, RefusesDeclarationsAfterFreeze) {
