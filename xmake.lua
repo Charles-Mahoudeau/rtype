@@ -32,10 +32,12 @@ target("rtype")
 local ALL_EXAMPLES_FLAG = "AllExamples"
 local ALL_VULKAN_EXAMPLES_FLAG = "AllVulkanExamples"
 local ALL_LUAU_EXAMPLES_FLAG = "AllLuauExamples"
+local ALL_ECS_EXAMPLES_FLAG = "AllEcsExamples"
 
 option(ALL_EXAMPLES_FLAG, {default = false, description = "Enable all examples"})
 option(ALL_VULKAN_EXAMPLES_FLAG, {default = false, description = "Enable all Vulkan examples"})
 option(ALL_LUAU_EXAMPLES_FLAG, {default = false, description = "Enable all Luau examples"})
+option(ALL_ECS_EXAMPLES_FLAG, {default = false, description = "Enable all ECS examples"})
 
 
 for _, file in ipairs(os.files(path.join(os.scriptdir(), "examples", "**", "xmake.lua"))) do
@@ -45,7 +47,7 @@ for _, file in ipairs(os.files(path.join(os.scriptdir(), "examples", "**", "xmak
     option(name, {default = false, description = "Enabling \"" .. name .. "\" as an example to build."})
 
     if has_config(name) or has_config(ALL_EXAMPLES_FLAG) or has_config(ALL_VULKAN_EXAMPLES_FLAG)
-        or has_config(ALL_LUAU_EXAMPLES_FLAG) then
+        or has_config(ALL_LUAU_EXAMPLES_FLAG) or has_config(ALL_ECS_EXAMPLES_FLAG) then
         includes(file)
     end
 end
