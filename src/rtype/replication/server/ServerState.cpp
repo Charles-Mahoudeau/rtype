@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <format>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -22,16 +23,26 @@
 #include <variant>
 #include <vector>
 
+#include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/query/QueryMatch.hpp"
+#include "rtype/ecs/system/DynamicQueries.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/world/World.hpp"
+#include "rtype/network/NetworkSettings.hpp"
 #include "rtype/network/Types.hpp"
 #include "rtype/network/bytes/ByteWriter.hpp"
 #include "rtype/network/protocol/Constants.hpp"
+#include "rtype/network/server/NetServer.hpp"
+#include "rtype/network/server/RoomMessages.hpp"
 #include "rtype/replication/MessageType.hpp"
+#include "rtype/replication/ReplicationSettings.hpp"
+#include "rtype/replication/component/PlayerInput.hpp"
+#include "rtype/replication/event/ClientConnected.hpp"
+#include "rtype/replication/event/ClientDisconnected.hpp"
 #include "rtype/replication/exceptions/ReplicationExceptions.hpp"
+#include "rtype/replication/input/InputLayout.hpp"
 #include "rtype/replication/input/InputMessage.hpp"
 #include "rtype/replication/query/ReplicatedQueries.hpp"
 #include "rtype/replication/serialization/EntityMapper.hpp"
@@ -273,13 +284,13 @@ std::vector<network::server::SendMessage> ServerState::buildSnapshots(const std:
     const auto& registry = _world->getComponents().getRegistry();
     std::map<std::uint32_t, snapshot::SpawnRecord> records;
     for (std::size_t query = 0; query < std::min(replicated.getCount(), _replicated.size()); ++query) {
-        const ecs::ComponentInfo* info = registry.findById(_replicated[query]);
-        const std::optional<std::uint16_t> shortId = _manifest.toShort(_replicated[query]);
+        const ecs::ComponentInfo* info = registry.findById(_replicated.at(query));
+        const std::optional<std::uint16_t> shortId = _manifest.toShort(_replicated.at(query));
         if (info == nullptr || !shortId) {
             continue;
         }
         const std::size_t wireSize = serialization::computeWireSize(info->type);
-        for (ecs::QueryMatch& match : replicated.iter(query)) {
+        for (const ecs::QueryMatch& match : replicated.iter(query)) {
             const std::optional<std::uint32_t> networkId = findNetworkId(match.getEntity());
             std::optional<network::Bytes> bytes = serializeValue(info->type, wireSize, match.get(0), mapper);
             if (!networkId || !bytes) {

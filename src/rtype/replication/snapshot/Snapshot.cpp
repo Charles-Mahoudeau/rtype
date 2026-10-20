@@ -15,8 +15,10 @@
 #include <optional>
 #include <span>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
+#include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/world/World.hpp"
 #include "rtype/network/Types.hpp"
 #include "rtype/network/bytes/ByteReader.hpp"
@@ -88,7 +90,7 @@ void writeComponents(network::bytes::ByteWriter& writer, const std::vector<Compo
                                 [shortId](const ComponentValue& known) { return known.shortId == shortId; })) {
             return false;
         }
-        const std::span<const std::byte> value = reader.readBytes(sizes[shortId]);
+        const std::span<const std::byte> value = reader.readBytes(sizes.subspan(shortId).front());
         if (!reader.isValid()) {
             return false;
         }
@@ -199,7 +201,7 @@ std::size_t computeWireSize(const Snapshot& snapshot) noexcept {
     for (const UpdateRecord& record : snapshot.updates) {
         size += computeWireSize(record);
     }
-    return size + snapshot.removals.size() * kRemovalSize + snapshot.despawns.size() * kDespawnSize;
+    return size + (snapshot.removals.size() * kRemovalSize) + (snapshot.despawns.size() * kDespawnSize);
 }
 
 std::optional<network::Bytes> encode(const Snapshot& snapshot) {
@@ -249,7 +251,7 @@ std::optional<Snapshot> decode(const std::span<const std::byte> message,
         snapshot.tick = reader.readU32();
         snapshot.lastProcessedInput = reader.readU32();
         snapshot.flags = reader.readU8();
-        if (!reader.isValid() || (snapshot.flags & ~kComplete) != 0 ||
+        if (!reader.isValid() || (snapshot.flags | kComplete) != kComplete ||
             !readSpawns(reader, componentSizes, snapshot.spawns) ||
             !readUpdates(reader, componentSizes, snapshot.updates) ||
             !readRemovals(reader, componentSizes, snapshot.removals) || !readDespawns(reader, snapshot.despawns) ||
