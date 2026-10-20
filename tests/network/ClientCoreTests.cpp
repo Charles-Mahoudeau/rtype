@@ -396,6 +396,16 @@ TEST_F(ClientCoreTest, DisconnectSendsThreeGracefulPacketsAndNoEvent) {
     EXPECT_FALSE(_client->send(network::Channel::kReliable, message(kGameType)));
 }
 
+TEST_F(ClientCoreTest, DisconnectTellsTheReasonItWasGiven) {
+    connect();
+    _client->disconnect(_clock.now(), network::DisconnectReason::kManifestMismatch);
+    const auto disconnects = packetsOf<protocol::Disconnect>(_client->takeDatagrams(_clock.now()));
+    ASSERT_EQ(disconnects.size(), 3U);
+    for (const auto& disconnect : disconnects) {
+        EXPECT_EQ(disconnect.reason, network::DisconnectReason::kManifestMismatch);
+    }
+}
+
 TEST_F(ClientCoreTest, DisconnectIsIgnoredUnlessConnected) {
     _client->disconnect(_clock.now());
     EXPECT_EQ(_client->state(), client::ClientState::kIdle);
