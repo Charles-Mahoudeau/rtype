@@ -10,8 +10,10 @@
 #include <string>
 #include <string_view>
 
+#include "plugins/physics/Collider.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "plugins/physics/PhysicsWorld.hpp"
+#include "plugins/physics/RigidBody.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
@@ -30,6 +32,8 @@ PhysicsPlugin::PhysicsPlugin() : PhysicsPlugin{PhysicsSettings{}} {}
 std::string_view PhysicsPlugin::getName() const noexcept { return kName; }
 
 void PhysicsPlugin::build(ecs::App& app) {
+    static_cast<void>(app.getWorld().getComponents().registerType<RigidBody>());
+    static_cast<void>(app.getWorld().getComponents().registerType<Collider>());
     app.insertResource(PhysicsWorld{_settings});
     app.addSystem(ecs::Phase::kFixedUpdate, std::string{kStepSystem}, &step);
 }

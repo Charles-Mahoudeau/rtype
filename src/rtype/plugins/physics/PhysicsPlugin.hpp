@@ -18,9 +18,11 @@ class App;
 
 namespace rtype::plugins::physics {
 
-/// @brief Physics for an App: inserts the PhysicsWorld resource and steps it once per fixed tick.
+/// @brief Physics for an App: registers the physics components, inserts the PhysicsWorld resource and steps it once per
+/// fixed tick.
 ///
-/// @details Adds a FixedUpdate system, "rtype.Physics.Step", which steps the world by Time::fixedDelta. It runs on the
+/// @details Registers RigidBody and Collider, so they can be found by name (Luau, replication) before any entity has
+/// them. Adds a FixedUpdate system, "rtype.Physics.Step", which steps the world by Time::fixedDelta. It runs on the
 /// server side (so also in standalone): clients receive positions through replication. The systems that sync the ECS
 /// with the world order themselves around it with kStepSystem. Needs the time plugin (MinimalPlugins) for Time.
 /// @code
@@ -44,7 +46,7 @@ class PhysicsPlugin : public ecs::Plugin {
     /// @return "rtype.Physics".
     [[nodiscard]] std::string_view getName() const noexcept override;
 
-    /// @brief Inserts the PhysicsWorld and adds the FixedUpdate step system.
+    /// @brief Registers the components, inserts the PhysicsWorld and adds the FixedUpdate step system.
     /// @throws exceptions::PhysicsException When the settings are invalid.
     void build(ecs::App& app) override;
 
