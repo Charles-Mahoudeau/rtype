@@ -7,8 +7,11 @@
 
 #include "BackendPlugin.hpp"
 
+#include <algorithm>
+#include <cstdint>
 #include <glm/ext/vector_uint2.hpp>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -24,10 +27,14 @@
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/event/PlatformEvent.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
+#include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
+#include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputPlugin.hpp"
+#include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/event/Events.hpp"
@@ -136,6 +143,45 @@ void applyCamera(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Query<
     }
 }
 
+/// @brief One sprite to draw, with the layer it is sorted by.
+struct SpriteItem {
+    std::int32_t layer;       ///< Draw order: higher on top.
+    graphics::Sprite sprite;  ///< The draw command.
+};
+
+/// @brief Render: draws the sprites whose texture is loaded, by layer then by texture.
+void drawSprites(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<TextureAssets> textures,
+                 ecs::Query<const transform::GlobalTransform, const SpriteRenderer> sprites) {
+    plugins::backend::Backend& started = *backend;
+    if (!isStarted(started) || isMinimized(started)) {
+        return;
+    }
+    std::vector<SpriteItem> items;
+    for (auto [entity, global, sprite] : sprites) {
+        const std::optional<graphics::TextureId> texture = textures->getTexture(sprite.texture);
+        if (!texture) {
+            continue;
+        }
+        items.push_back(SpriteItem{.layer = sprite.layer,
+                                   .sprite = graphics::Sprite{.texture = *texture,
+                                                              .source = sprite.source,
+                                                              .position = global.position,
+                                                              .scale = global.scale,
+                                                              .origin = sprite.origin,
+                                                              .rotation = global.rotation,
+                                                              .color = sprite.color}});
+    }
+    std::ranges::stable_sort(items, [](const SpriteItem& left, const SpriteItem& right) {
+        if (left.layer != right.layer) {
+            return left.layer < right.layer;
+        }
+        return left.sprite.texture.index < right.sprite.texture.index;
+    });
+    for (const SpriteItem& item : items) {
+        started.renderer->draw(item.sprite);
+    }
+}
+
 /// @brief Render: shows what was drawn since beginFrame().
 void endFrame(ecs::NonSendMut<plugins::backend::Backend> backend) {
     plugins::backend::Backend& started = *backend;
@@ -159,6 +205,7 @@ std::string_view BackendPlugin::getName() const noexcept { return kName; }
 
 void BackendPlugin::build(ecs::App& app) {
     app.addPlugin(plugins::input::InputPlugin{});
+    app.addPlugin(plugins::transform::TransformPlugin{});
     ecs::Events& events = app.getWorld().getEvents();
     registerEvent<plugins::backend::event::PlatformEvent>(events);
     registerEvent<plugins::backend::event::Closed>(events);
@@ -180,10 +227,10 @@ void BackendPlugin::build(ecs::App& app) {
     ecs::Resources& resources = app.getWorld().getResources();
     resources.insertNonSend(BackendSetup{.registry = std::move(_registry), .settings = std::move(_settings)});
     resources.insertNonSend(plugins::backend::Backend{});
-    if (!resources.has<ClearColor>()) {  // a colour the game set before keeps
+    if (!resources.has<ClearColor>()) {
         resources.insert(ClearColor{});
     }
-    if (!resources.has<TextureAssets>()) {  // textures the game asked for before keep
+    if (!resources.has<TextureAssets>()) {
         resources.insert(TextureAssets{});
     }
     static_cast<void>(app.getWorld().getComponents().registerType<SpriteRenderer>());
@@ -200,8 +247,11 @@ void BackendPlugin::build(ecs::App& app) {
     app.addSystem(ecs::Phase::kRender, std::string{kCameraSystem}, &applyCamera)
         .after(std::string{kBeginFrameSystem})
         .setSide(ecs::Side::kClient);
-    app.addSystem(ecs::Phase::kRender, std::string{kEndFrameSystem}, &endFrame)
+    app.addSystem(ecs::Phase::kRender, std::string{kSpritesSystem}, &drawSprites)
         .after(std::string{kCameraSystem})
+        .setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kRender, std::string{kEndFrameSystem}, &endFrame)
+        .after(std::string{kSpritesSystem})
         .setSide(ecs::Side::kClient);
 }
 }  // namespace rtype::plugins::backend

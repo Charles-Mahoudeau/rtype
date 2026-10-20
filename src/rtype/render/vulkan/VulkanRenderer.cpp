@@ -37,6 +37,7 @@
 #include "memory/Image.hpp"
 #include "plugins/backend/exceptions/PlatformExceptions.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
+#include "plugins/backend/graphics/CameraView.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/RectShape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
@@ -47,6 +48,8 @@
 #include "rendering/DynamicRendering.hpp"
 #include "rendering/FrameUniforms.hpp"
 #include "rendering/ShaderLayout.hpp"
+#include "rendering/SpriteBatch.hpp"
+#include "rendering/SpritePass.hpp"
 #include "texture/SamplerCache.hpp"
 #include "texture/Texture.hpp"
 
@@ -149,6 +152,9 @@ void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
     const std::array pushConstants{vk::PushConstantRange{
         vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0, sizeof(rendering::DrawConstants)}};
     _layout = std::make_unique<pipeline::PipelineLayout>(*_device, setLayouts, pushConstants);
+    _spritePass =
+        std::make_unique<rendering::SpritePass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
+                                                &_pipelineCache->getCache(), kFramesInFlight);
     _startTime = std::chrono::steady_clock::now();
     _lastFrameTime = _startTime;
 }
@@ -179,7 +185,7 @@ void VulkanRenderer::recreateSwapchain() {
     }
 }
 
-void VulkanRenderer::updateFrameUniforms() {
+void VulkanRenderer::updateFrameUniforms(const plugins::backend::graphics::CameraView& view) {
     const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
     const vk::Extent2D extent = _swapchain->getExtent();
     _globals->update(
@@ -188,6 +194,7 @@ void VulkanRenderer::updateFrameUniforms() {
             .time = std::chrono::duration<float>{now - _startTime}.count(),
             .deltaTime = std::chrono::duration<float>{now - _lastFrameTime}.count(),
             .framebufferSize = glm::vec2{static_cast<float>(extent.width), static_cast<float>(extent.height)},
+            .viewProjection = view.getViewProjection(),
         });
     _lastFrameTime = now;
 }
@@ -234,6 +241,8 @@ void VulkanRenderer::beginFrame(const plugins::backend::graphics::Color& clearCo
     if (_acquiredImage) {
         throw std::logic_error("VulkanRenderer::beginFrame() called twice without endFrame()");
     }
+    _camera.reset();
+    _sprites.clear();
     if (_framebufferSize.x == 0 || _framebufferSize.y == 0) {
         return;
     }
@@ -256,7 +265,6 @@ void VulkanRenderer::beginFrame(const plugins::backend::graphics::Color& clearCo
     }
     frame.getInFlight().reset();
     frame.getCommandPool().reset();
-    updateFrameUniforms();
 
     frame.getCommandBuffer().begin();
     const vk::raii::CommandBuffer& commandBuffer = frame.getCommandBuffer().getCommandBuffer();
@@ -275,6 +283,22 @@ void VulkanRenderer::endFrame() {
     _acquiredImage.reset();
     const frame::FrameData& frame = _frames->getCurrentFrame();
     const vk::raii::CommandBuffer& commandBuffer = frame.getCommandBuffer().getCommandBuffer();
+    const std::size_t frameIndex = _frames->getFrameIndex();
+
+    const vk::Extent2D extent = _swapchain->getExtent();
+    const glm::uvec2 framebufferSize{extent.width, extent.height};
+    const glm::vec2 viewSize{_config.virtualResolution};
+    const plugins::backend::graphics::CameraView view{
+        _camera.value_or(plugins::backend::graphics::CameraView::makeDefaultCamera(viewSize, framebufferSize)),
+        viewSize, framebufferSize};
+    updateFrameUniforms(view);
+    _globals->bind(commandBuffer, *_layout, frameIndex);
+    _spritePass->record(commandBuffer, frameIndex, _sprites, view.getViewport(),
+                        [this](plugins::backend::graphics::TextureId texture) {
+                            const texture::Texture* found = _textures.find(texture);
+                            return found != nullptr ? *found->set : vk::DescriptorSet{};
+                        });
+    _sprites.clear();
 
     commandBuffer.endRendering();
     rendering::transitionImage(commandBuffer, _swapchain->getImages().at(imageIndex),
@@ -305,9 +329,18 @@ void VulkanRenderer::endFrame() {
     _frames->advance();
 }
 
-void VulkanRenderer::setCamera(const plugins::backend::graphics::Camera& /*camera*/) { notImplemented("setCamera"); }
+void VulkanRenderer::setCamera(const plugins::backend::graphics::Camera& camera) { _camera = camera; }
 
-void VulkanRenderer::draw(const plugins::backend::graphics::Sprite& /*sprite*/) { notImplemented("draw(Sprite)"); }
+void VulkanRenderer::draw(const plugins::backend::graphics::Sprite& sprite) {
+    if (!_acquiredImage) {
+        return;
+    }
+    const texture::Texture* texture = _textures.find(sprite.texture);
+    if (texture == nullptr) {
+        throw std::invalid_argument("VulkanRenderer::draw(): the sprite's texture was destroyed or never created");
+    }
+    _sprites.add(sprite.texture, rendering::SpriteInstance::fromSprite(sprite, texture->desc.size));
+}
 
 void VulkanRenderer::draw(const plugins::backend::graphics::RectShape& /*rect*/) { notImplemented("draw(RectShape)"); }
 

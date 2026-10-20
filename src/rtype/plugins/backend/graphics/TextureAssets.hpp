@@ -37,7 +37,8 @@ enum class AssetState : std::uint8_t {
 /// calls updateTextures(), which creates the queued textures and destroys the unloaded ones. Lookups are by id, in
 /// constant time.
 /// @code
-/// void spawnShip(rtype::ecs::Commands commands, rtype::ecs::ResMut<rtype::plugins::backend::TextureAssets> textures) {
+/// void spawnShip(rtype::ecs::Commands& commands, rtype::ecs::ResMut<rtype::plugins::backend::TextureAssets> textures)
+/// {
 ///     const rtype::plugins::backend::AssetId ship = textures->load("assets/ship.png");
 ///     commands.spawn(rtype::plugins::backend::SpriteRenderer{.texture = ship});
 /// }

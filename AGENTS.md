@@ -45,16 +45,21 @@ are added.
   `RTYPE_PLUGINS_API`, which keeps the RTTI of the backend interfaces visible across binaries.
   - `plugins/backend/` (`rtype::plugins::backend`) — the contracts the backends implement and the vocabulary they
     speak, in sub-folders whose namespaces follow them: `platform/` (`IPlatform`, `WindowConfig`), `graphics/`
-    (`IRenderer`, `Sprite`, `Texture`..., the `Camera` and `SpriteRenderer` components, `AssetId` (the hash of an
+    (`IRenderer`, `Sprite`, `Texture`..., the `Camera` and `SpriteRenderer` components, `CameraView` (what a camera
+    shows: letterboxed viewport, view-projection, screen and world conversions), `AssetId` (the hash of an
     asset's path, the same in every process), and the `TextureAssets` resource: the textures by
     `AssetId`, queued by `load()` and decoded with stb by the backend plugin), `event/` (the `Event` variant),
     `input/` (`Key`, `MouseButton`...), `config/` (`Settings`), `exceptions/`, `math/`, `system/`; plus
     `BackendRegistry` and `BackendPlugin`, which starts the platform and the renderer from a registry the executable
     fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the window events and the
-    PreUpdate / Render systems that poll the window and frame the drawing.
+    PreUpdate / Render systems that poll the window, frame the drawing and draw the sprites by layer.
   - `plugins/input/` (`rtype::plugins::input`) — `InputPlugin`: `Control`, `Input`, `InputAction`, `ButtonStates`,
     the `rtype.Input` resource, fed by a `PreUpdate` system from the `PlatformEvent`s in order, and the typed input
     events (`InputEvents.hpp`) for gameplay code. It knows nothing of the backend plugin, which adds it.
+  - `plugins/transform/` (`rtype::plugins::transform`) — `TransformPlugin`: the `Transform` component gameplay writes
+    and the `GlobalTransform` rendering reads, computed from it in `PostUpdate` on every side. The backend plugin adds
+    it and draws each `SpriteRenderer` at its `GlobalTransform`.
+  - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
   `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
   (`IVulkanSurfaceSource`). See `docs/Backend.md`.
