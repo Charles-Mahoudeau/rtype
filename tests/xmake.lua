@@ -1,6 +1,7 @@
 includes("ecs")
 includes("luau")
 includes("network")
+includes("physics")
 includes("plugins")
 includes("replication")
 includes("vulkan")
