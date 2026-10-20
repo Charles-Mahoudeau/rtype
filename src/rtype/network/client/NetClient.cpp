@@ -49,8 +49,8 @@ void NetClient::flush(const TimePoint now) {
     }
 }
 
-void NetClient::disconnect(const TimePoint now) {
-    _core.disconnect(now);
+void NetClient::disconnect(const TimePoint now, const DisconnectReason reason) {
+    _core.disconnect(now, reason);
     flush(now);
 }
 

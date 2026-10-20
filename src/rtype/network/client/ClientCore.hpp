@@ -75,9 +75,11 @@ class RTYPE_NETWORK_API ClientCore {
     /// @brief Tells the server that this client loaded everything and can play, once. Does nothing unless connected.
     void sendReady();
 
-    /// @brief Ends the connection on the application's request: sends `Disconnect{kGraceful}` three times, since
-    /// nothing acknowledges it. No event is emitted. Does nothing unless connected.
-    void disconnect(TimePoint now);
+    /// @brief Ends the connection on the application's request: sends `Disconnect` three times, since nothing
+    /// acknowledges it. No event is emitted. Does nothing unless connected.
+    /// @param now The current time.
+    /// @param reason Why the application ends it, told to the server.
+    void disconnect(TimePoint now, DisconnectReason reason = DisconnectReason::kGraceful);
 
     /// @brief Checks the timeouts: the handshake gives up, a silent server is declared gone.
     /// @param now The current time.

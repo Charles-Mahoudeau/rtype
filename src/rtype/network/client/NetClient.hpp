@@ -69,7 +69,8 @@ class RTYPE_NETWORK_API NetClient {
 
     /// @brief Ends the connection: the three `Disconnect` leave at once.
     /// @param now The current time.
-    void disconnect(TimePoint now);
+    /// @param reason Why the application ends it, told to the server.
+    void disconnect(TimePoint now, DisconnectReason reason = DisconnectReason::kGraceful);
 
     /// @brief Gives the events since the last call and forgets them.
     /// @return The events.

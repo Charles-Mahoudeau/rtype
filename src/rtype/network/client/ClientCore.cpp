@@ -78,12 +78,12 @@ void ClientCore::sendReady() {
     _isReadySent = _connection->send(Channel::kReliable, message);
 }
 
-void ClientCore::disconnect(const TimePoint /*now*/) {
+void ClientCore::disconnect(const TimePoint /*now*/, const DisconnectReason reason) {
     if (_state != ClientState::kConnected) {
         return;
     }
     for (std::uint8_t sent = 0; sent < kDisconnectRepeat; ++sent) {
-        queue(protocol::Disconnect{.sessionToken = _sessionToken, .reason = DisconnectReason::kGraceful});
+        queue(protocol::Disconnect{.sessionToken = _sessionToken, .reason = reason});
     }
     _connection.reset();
     _state = ClientState::kClosed;
