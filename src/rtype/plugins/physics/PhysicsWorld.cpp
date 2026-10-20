@@ -17,6 +17,7 @@
 #include <Jolt/Physics/Body/BodyID.h>
 #include <Jolt/Physics/Body/BodyInterface.h>
 #include <Jolt/Physics/Body/BodyLock.h>
+#include <Jolt/Physics/Body/BodyType.h>
 #include <Jolt/Physics/Body/MotionType.h>
 #include <Jolt/Physics/EActivation.h>
 #include <Jolt/Physics/EPhysicsUpdateError.h>
@@ -82,9 +83,22 @@ ecs::Entity entityFromBits(std::uint64_t bits) noexcept {
 struct PhysicsWorld::Impl {
     /// @brief What the world knows of an entity's body.
     struct BodyEntry {
-        JPH::BodyID body;            ///< The body.
-        bool hasRigidBody = false;   ///< Whether it was built with a RigidBody: catches one added or removed.
-        std::uint64_t seenPass = 0;  ///< The last body pass that saw the entity.
+        JPH::BodyID body;                    ///< The body.
+        bool hasRigidBody = false;           ///< Whether it was built with a RigidBody: catches one added or removed.
+        std::uint64_t seenPass = 0;          ///< The last body pass that saw the entity.
+        glm::vec2 lastPosition{0.0F, 0.0F};  ///< The last position given to the body or read from it, in world units.
+        float lastRotation = 0.0F;           ///< The last rotation given to the body or read from it.
+
+        /// @return Whether this is the last pose given or read. Exact float equality on purpose: the Transform holds
+        /// exactly the floats read from the body.
+        [[nodiscard]] bool isAt(glm::vec2 position, float rotation) const noexcept {
+            return lastPosition == position && lastRotation == rotation;
+        }
+        /// @brief Records the pose given to the body or read from it.
+        void remember(glm::vec2 position, float rotation) noexcept {
+            lastPosition = position;
+            lastRotation = rotation;
+        }
     };
 
     explicit Impl(const PhysicsSettings& settings)
@@ -166,6 +180,11 @@ std::optional<ecs::Entity> PhysicsWorld::findEntity(PhysicsHandle handle) const 
     return entityFromBits(lock.GetBody().GetUserData());
 }
 
+bool PhysicsWorld::isOutOfSync(ecs::Entity entity, const transform::Transform& transform) const {
+    const auto found = _impl->bodies.find(entity.getBits());
+    return found != _impl->bodies.end() && !found->second.isAt(transform.position, transform.rotation);
+}
+
 std::optional<glm::vec2> PhysicsWorld::getBodyPosition(ecs::Entity entity) const {
     const auto found = _impl->bodies.find(entity.getBits());
     if (found == _impl->bodies.end()) {
@@ -216,6 +235,8 @@ PhysicsHandle PhysicsWorld::createBody(ecs::Entity entity, const Collider& colli
                                                          .body = id,
                                                          .hasRigidBody = body != nullptr,
                                                          .seenPass = _impl->pass,
+                                                         .lastPosition = at.position,
+                                                         .lastRotation = at.rotation,
                                                      });
     return PhysicsHandle{.body = id.GetIndexAndSequenceNumber()};
 }
@@ -253,6 +274,58 @@ std::vector<ecs::Entity> PhysicsWorld::endBodyPass() {
         entry = _impl->bodies.erase(entry);
     }
     return destroyed;
+}
+
+void PhysicsWorld::moveKinematic(ecs::Entity entity, const transform::Transform& transform, float deltaSeconds) {
+    const auto found = _impl->bodies.find(entity.getBits());
+    if (found == _impl->bodies.end()) {
+        return;
+    }
+    JPH::BodyInterface& bodyInterface = _impl->system.GetBodyInterface();
+    if (bodyInterface.GetMotionType(found->second.body) != JPH::EMotionType::Kinematic) {
+        return;
+    }
+    bodyInterface.MoveKinematic(found->second.body, detail::toJolt2D(transform.position / _impl->unitsPerMeter),
+                                detail::toJoltRotation2D(transform.rotation), deltaSeconds);
+    found->second.remember(transform.position, transform.rotation);
+}
+
+void PhysicsWorld::teleport(ecs::Entity entity, const transform::Transform& transform) {
+    const auto found = _impl->bodies.find(entity.getBits());
+    if (found == _impl->bodies.end()) {
+        return;
+    }
+    _impl->system.GetBodyInterface().SetPositionAndRotation(
+        found->second.body, detail::toJolt2D(transform.position / _impl->unitsPerMeter),
+        detail::toJoltRotation2D(transform.rotation), JPH::EActivation::Activate);
+    found->second.remember(transform.position, transform.rotation);
+}
+
+std::vector<PhysicsWorld::BodyPose> PhysicsWorld::collectMovedBodies() {
+    JPH::BodyIDVector active;
+    _impl->system.GetActiveBodies(JPH::EBodyType::RigidBody, active);
+    std::vector<BodyPose> poses;
+    poses.reserve(active.size());
+    const JPH::BodyLockInterface& locks = _impl->system.GetBodyLockInterface();
+    for (const JPH::BodyID id : active) {
+        const JPH::BodyLockRead lock{locks, id};
+        if (!lock.Succeeded() || !lock.GetBody().IsDynamic()) {
+            continue;
+        }
+        const JPH::Body& body = lock.GetBody();
+        const auto found = _impl->bodies.find(body.GetUserData());
+        if (found == _impl->bodies.end()) {
+            continue;
+        }
+        const glm::vec2 position = detail::fromJolt2D(body.GetPosition()) * _impl->unitsPerMeter;
+        const float rotation = detail::fromJoltRotation2D(body.GetRotation());
+        if (found->second.isAt(position, rotation)) {
+            continue;
+        }
+        found->second.remember(position, rotation);
+        poses.push_back(BodyPose{.entity = entityFromBits(found->first), .position = position, .rotation = rotation});
+    }
+    return poses;
 }
 
 }  // namespace rtype::plugins::physics

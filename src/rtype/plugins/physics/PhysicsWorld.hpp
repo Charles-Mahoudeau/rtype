@@ -40,6 +40,13 @@ class JoltRuntime;
 /// @endcode
 class PhysicsWorld {
   public:
+    /// @brief Where a body is, as a Transform sees it.
+    struct BodyPose {
+        ecs::Entity entity;  ///< The entity the body belongs to.
+        glm::vec2 position;  ///< In world units, Y down.
+        float rotation;      ///< In radians, clockwise on screen.
+    };
+
     /// @brief Builds the world, setting Jolt up if this is the process's first world.
     /// @throws exceptions::PhysicsException When unitsPerMeter is not positive or a capacity is zero.
     explicit PhysicsWorld(const PhysicsSettings& settings);
@@ -67,6 +74,9 @@ class PhysicsWorld {
     [[nodiscard]] std::optional<ecs::Entity> findEntity(PhysicsHandle handle) const;
     /// @return Where the entity's body is, in world units, Y down; nothing if it has no body.
     [[nodiscard]] std::optional<glm::vec2> getBodyPosition(ecs::Entity entity) const;
+    /// @return Whether the Transform differs from the last pose the world gave the body or read from it: gameplay moved
+    /// the entity. False for an entity without a body.
+    [[nodiscard]] bool isOutOfSync(ecs::Entity entity, const transform::Transform& transform) const;
 
     /// @param gravity In world units per second squared, Y down.
     void setGravity(glm::vec2 gravity) noexcept;
@@ -101,6 +111,20 @@ class PhysicsWorld {
     /// @brief Ends the body pass: destroys the bodies it did not see.
     /// @return The entities whose body was destroyed.
     std::vector<ecs::Entity> endBodyPass();
+
+    /// @brief Moves a kinematic body to the entity's Transform during the next step.
+    /// @details Gives the body the velocity that reaches the Transform in deltaSeconds, so it pushes the dynamic bodies
+    /// on its way instead of passing through them; called every tick, it stops when the Transform stops. Does nothing
+    /// for an entity without a kinematic body.
+    void moveKinematic(ecs::Entity entity, const transform::Transform& transform, float deltaSeconds);
+    /// @brief Puts the entity's body at its Transform at once, waking it up: a respawn, a moved wall.
+    /// @details Keeps the body's velocity. Does nothing for an entity without a body.
+    void teleport(ecs::Entity entity, const transform::Transform& transform);
+    /// @brief Reads the dynamic bodies the last step moved, for their Transforms.
+    /// @details Only the bodies Jolt keeps active, and only those whose pose changed: sleeping bodies never mark their
+    /// Transform as changed, so replication does not send them. Each pose is remembered, so isOutOfSync() does not take
+    /// the Transform written from it for a move by gameplay.
+    [[nodiscard]] std::vector<BodyPose> collectMovedBodies();
 
   private:
     struct Impl;
