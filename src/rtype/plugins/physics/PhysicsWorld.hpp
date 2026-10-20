@@ -11,8 +11,15 @@
 #include <cstdint>
 #include <glm/ext/vector_float2.hpp>
 #include <memory>
+#include <optional>
+#include <vector>
 
+#include "plugins/physics/Collider.hpp"
+#include "plugins/physics/PhysicsHandle.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
+#include "plugins/physics/RigidBody.hpp"
+#include "plugins/transform/Transform.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
 namespace rtype::plugins::physics {
@@ -54,12 +61,46 @@ class PhysicsWorld {
     /// reached: raise it in the PhysicsSettings.
     [[nodiscard]] bool didLastStepDropContacts() const noexcept;
 
+    /// @return The entity's body, or nothing if it has none.
+    [[nodiscard]] std::optional<PhysicsHandle> findBody(ecs::Entity entity) const;
+    /// @return The entity a body belongs to, or nothing if the handle names no body of this world.
+    [[nodiscard]] std::optional<ecs::Entity> findEntity(PhysicsHandle handle) const;
+    /// @return Where the entity's body is, in world units, Y down; nothing if it has no body.
+    [[nodiscard]] std::optional<glm::vec2> getBodyPosition(ecs::Entity entity) const;
+
     /// @param gravity In world units per second squared, Y down.
     void setGravity(glm::vec2 gravity) noexcept;
 
     /// @brief Advances the simulation by one step.
     /// @param deltaSeconds The step's duration; the PhysicsPlugin passes Time::fixedDelta.
     void step(float deltaSeconds);
+
+    /// @brief Creates the entity's body from its components, replacing the one it had.
+    /// @details A replaced moving body keeps its velocity. The body counts as seen by the current body pass.
+    /// @param entity The entity, stored on the body to find it back from contacts.
+    /// @param collider Its shape and material.
+    /// @param body How it moves, or nullptr for a static body.
+    /// @param at Where it is, in world units, Y down.
+    /// @return The new body.
+    /// @throws exceptions::PhysicsException When the components are invalid or the world holds maxBodies bodies.
+    PhysicsHandle createBody(ecs::Entity entity, const Collider& collider, const RigidBody* body,
+                             const transform::Transform& at);
+    /// @brief Destroys the entity's body.
+    /// @return Whether it had one.
+    bool destroyBody(ecs::Entity entity);
+
+    /// @brief Starts a body pass: the bodies that are not touched or created before endBodyPass() are destroyed.
+    /// @details This is how bodies follow despawned entities and removed Colliders, which the ECS does not report: the
+    /// physics plugin touches every entity that still has a Collider and a Transform, once per tick.
+    void beginBodyPass() noexcept;
+    /// @brief Marks the entity's body as seen by the current body pass.
+    /// @param entity The entity, which still has a Collider and a Transform.
+    /// @param hasRigidBody Whether it has a RigidBody now.
+    /// @return False when its body must be created: it has none, or it gained or lost its RigidBody since.
+    [[nodiscard]] bool touchBody(ecs::Entity entity, bool hasRigidBody) noexcept;
+    /// @brief Ends the body pass: destroys the bodies it did not see.
+    /// @return The entities whose body was destroyed.
+    std::vector<ecs::Entity> endBodyPass();
 
   private:
     struct Impl;
