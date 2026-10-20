@@ -8,6 +8,7 @@
 #pragma once
 
 #include <Jolt/Jolt.h>  // IWYU pragma: keep
+#include <Jolt/Math/MathTypes.h>
 #include <Jolt/Math/Quat.h>
 #include <Jolt/Math/Real.h>
 #include <Jolt/Math/Vec3.h>
