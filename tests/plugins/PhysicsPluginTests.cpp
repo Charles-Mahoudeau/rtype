@@ -33,6 +33,13 @@ PhysicsSettings smallSettings() {
 
 TEST(PhysicsPlugin, IsNamedRtypePhysics) { EXPECT_EQ(PhysicsPlugin{}.getName(), "rtype.Physics"); }
 
+TEST(PhysicsPlugin, RegistersTheComponents) {
+    rtype::ecs::App app;
+    app.addPlugin(PhysicsPlugin{smallSettings()});
+    EXPECT_TRUE(app.getWorld().getComponents().find("rtype.RigidBody"));
+    EXPECT_TRUE(app.getWorld().getComponents().find("rtype.Collider"));
+}
+
 TEST(PhysicsPlugin, InsertsTheWorldFromItsSettings) {
     rtype::ecs::App app;
     PhysicsSettings settings = smallSettings();
