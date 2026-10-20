@@ -1,5 +1,6 @@
--- No debug renderer: the server never draws, and the client's debug view draws from the components.
-add_requires("joltphysics 5.6.x", {alias = "joltphysics", configs = {debug_renderer = false}})
+-- Keep the package's defaults: its debug_renderer option does not reach Jolt's CMake (the library is always built with
+-- JPH_DEBUG_RENDERER), and a define that differs from the library's makes JPH::RegisterTypes() abort.
+add_requires("joltphysics 5.6.x", {alias = "joltphysics"})
 
 target("physics")
     set_kind("shared")
