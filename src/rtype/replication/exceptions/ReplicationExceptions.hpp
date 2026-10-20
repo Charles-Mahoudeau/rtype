@@ -38,4 +38,17 @@ class RTYPE_REPLICATION_API InputLayoutException : public std::runtime_error {
     InputLayoutException(InputLayoutException&& other) noexcept = default;
     InputLayoutException& operator=(InputLayoutException&& other) noexcept = default;
 };
+
+/// @brief Thrown when the replication cannot start: a local setup error (a rate that does not divide the tick rate, a
+/// replicated component registered after the plugin that reads it), never caused by the network.
+class RTYPE_REPLICATION_API ReplicationException : public std::runtime_error {
+  public:
+    /// @param message What is wrong, naming the setting or the component.
+    explicit ReplicationException(const std::string& message);
+    ~ReplicationException() override;
+    ReplicationException(const ReplicationException& other) = default;
+    ReplicationException& operator=(const ReplicationException& other) = default;
+    ReplicationException(ReplicationException&& other) noexcept = default;
+    ReplicationException& operator=(ReplicationException&& other) noexcept = default;
+};
 }  // namespace rtype::replication::exceptions

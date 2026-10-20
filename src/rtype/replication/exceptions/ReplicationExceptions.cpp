@@ -18,4 +18,8 @@ ManifestException::~ManifestException() = default;
 InputLayoutException::InputLayoutException(const std::string& message) : std::runtime_error{message} {}
 
 InputLayoutException::~InputLayoutException() = default;
+
+ReplicationException::ReplicationException(const std::string& message) : std::runtime_error{message} {}
+
+ReplicationException::~ReplicationException() = default;
 }  // namespace rtype::replication::exceptions
