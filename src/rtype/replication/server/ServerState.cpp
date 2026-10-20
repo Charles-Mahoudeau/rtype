@@ -17,13 +17,17 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
 
 #include "rtype/ecs/component/Components.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/query/QueryMatch.hpp"
+#include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/world/World.hpp"
+#include "rtype/network/Types.hpp"
 #include "rtype/network/bytes/ByteWriter.hpp"
 #include "rtype/network/protocol/Constants.hpp"
 #include "rtype/replication/MessageType.hpp"

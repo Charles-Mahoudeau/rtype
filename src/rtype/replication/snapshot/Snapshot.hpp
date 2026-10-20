@@ -127,5 +127,5 @@ RTYPE_REPLICATION_API void setLastProcessedInput(std::span<std::byte> message, s
 /// @param world The world, whose components the manifest lists.
 /// @return The sizes, one per component of the manifest.
 [[nodiscard]] RTYPE_REPLICATION_API std::vector<std::size_t> computeComponentSizes(const manifest::Manifest& manifest,
-                                                                               const ecs::World& world);
+                                                                                   const ecs::World& world);
 }  // namespace rtype::replication::snapshot

@@ -7,6 +7,8 @@
 
 #include "rtype/replication/server/ServerPlugin.hpp"
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -14,12 +16,15 @@
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/query/Query.hpp"
+#include "rtype/ecs/query/QueryMatch.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/system/DynamicQueries.hpp"
 #include "rtype/ecs/system/EventWriter.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/time/Time.hpp"
+#include "rtype/network/NetworkSettings.hpp"
 #include "rtype/replication/ReplicationPlugin.hpp"
+#include "rtype/replication/ReplicationSettings.hpp"
 #include "rtype/replication/component/NetworkId.hpp"
 #include "rtype/replication/component/Owner.hpp"
 #include "rtype/replication/component/PlayerInput.hpp"
@@ -56,7 +61,7 @@ void applyInputs(ecs::ResMut<ServerState> state, ecs::Query<component::PlayerInp
 /// @brief PostUpdate: gives a NetworkId to the entities that have a replicated component and none.
 void assignIds(ecs::ResMut<ServerState> state, ecs::Commands& commands, ecs::DynamicQueries untracked) {
     for (std::size_t query = 0; query < untracked.getCount(); ++query) {
-        for (ecs::QueryMatch& match : untracked.iter(query)) {
+        for (const ecs::QueryMatch& match : untracked.iter(query)) {
             if (const auto networkId = state->track(match.getEntity())) {
                 commands.add(match.getEntity(), component::NetworkId{.value = *networkId});
             }
