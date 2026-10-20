@@ -18,6 +18,7 @@
 #include "rtype/replication/component/PlayerInput.hpp"
 #include "rtype/replication/event/ClientConnected.hpp"
 #include "rtype/replication/event/ClientDisconnected.hpp"
+#include "rtype/replication/input/InputLayout.hpp"
 
 namespace rtype::replication {
 ReplicationPlugin::~ReplicationPlugin() = default;  // defined here: the class's vtable lives in the library
@@ -36,5 +37,9 @@ void ReplicationPlugin::build(ecs::App& app) {
     ecs::Events& events = app.getWorld().getEvents();
     static_cast<void>(events.registerType<event::ClientConnected>({.presence = ecs::Presence::kServerOnly}));
     static_cast<void>(events.registerType<event::ClientDisconnected>({.presence = ecs::Presence::kServerOnly}));
+
+    if (!app.getWorld().getResources().has<input::InputLayout>()) {
+        app.insertResource(input::InputLayout{});
+    }
 }
 }  // namespace rtype::replication
