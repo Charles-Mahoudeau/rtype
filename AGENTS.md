@@ -120,9 +120,10 @@ The project uses `xmake` with the `clang` toolchain and C++23.
 - Build one target: `xmake build engine`
 - Run the engine: `xmake run engine`
 - Enable examples, then rebuild: `xmake f --AllExamples=y` enables every discovered example. For
-  now `--AllVulkanExamples=y` and `--AllLuaExamples=y` behave the same way (the root `xmake.lua`
-  does not filter by category yet), so each also enables every discovered example. To enable a
-  single example, use its folder name (e.g. `--BasicGLFWWindow=y`).
+  now `--AllVulkanExamples=y`, `--AllLuauExamples=y` and `--AllEcsExamples=y` behave the same way (the
+  root `xmake.lua` does not filter by category yet), so each also enables every discovered example. To
+  enable a single example, use its folder name (e.g. `--BasicGLFWWindow=y`, `--EcsTypedQueries=y`); the ECS
+  examples are listed in `examples/ecs/README.md`.
 - Enable and run the tests (GoogleTest): `xmake f -y --Tests=y`, then `xmake build -y` and
   `xmake test -v` (`-v` prints GoogleTest's output, needed to see which test failed). Run one
   module's tests with `xmake test -v luau-tests/*`.
