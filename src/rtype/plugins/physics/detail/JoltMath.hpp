@@ -26,7 +26,7 @@
 /// Jolt's XY plane, Y up with counter-clockwise angles around Z: the 2D functions flip Y and negate angles. They also
 /// convert linear velocities (same flip) and, with toJoltAngle2D / fromJoltAngle2D, angular velocities around Z.
 
-namespace rtype::physics::detail {
+namespace rtype::plugins::physics::detail {
 
 // Positions are converted as JPH::Vec3: true while Jolt is built without double precision.
 static_assert(std::is_same_v<JPH::RVec3, JPH::Vec3>, "Jolt's double precision needs RVec3 conversions");
@@ -76,4 +76,4 @@ static_assert(std::is_same_v<JPH::RVec3, JPH::Vec3>, "Jolt's double precision ne
     return fromJoltAngle2D(value.GetRotationAngle(JPH::Vec3::sAxisZ()));
 }
 
-}  // namespace rtype::physics::detail
+}  // namespace rtype::plugins::physics::detail

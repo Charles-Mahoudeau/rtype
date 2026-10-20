@@ -15,7 +15,6 @@ add_requires("stb", {alias = "stb"})
 
 includes("src/rtype/ecs")
 includes("src/rtype/network")
-includes("src/rtype/physics")
 includes("src/rtype/replication")
 includes("src/rtype/engine")
 includes("src/rtype/plugins")

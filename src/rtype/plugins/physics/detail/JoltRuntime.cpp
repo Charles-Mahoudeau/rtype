@@ -16,7 +16,7 @@
 #include <memory>
 #include <mutex>
 
-namespace rtype::physics::detail {
+namespace rtype::plugins::physics::detail {
 
 namespace {
 
@@ -66,4 +66,4 @@ std::shared_ptr<const JoltRuntime> JoltRuntime::acquire() {
             }};
 }
 
-}  // namespace rtype::physics::detail
+}  // namespace rtype::plugins::physics::detail

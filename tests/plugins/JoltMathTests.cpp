@@ -19,9 +19,9 @@
 #include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_float3.hpp>
 
-#include "rtype/physics/detail/JoltMath.hpp"
+#include "plugins/physics/detail/JoltMath.hpp"
 
-namespace detail = rtype::physics::detail;
+namespace detail = rtype::plugins::physics::detail;
 
 namespace {
 constexpr float kTolerance = 1e-6F;

@@ -9,13 +9,11 @@
 
 #include <memory>
 
-#include "rtype/physics/Export.hpp"
-
 namespace JPH {
 class Factory;
 }  // namespace JPH
 
-namespace rtype::physics::detail {
+namespace rtype::plugins::physics::detail {
 
 /// @brief Jolt's process-wide setup (allocator, factory, registered types), shared by every physics world.
 ///
@@ -24,10 +22,10 @@ namespace rtype::physics::detail {
 /// releasing the last one cleans it up, so a later acquire() sets it up again. Users never touch it: the physics
 /// plugin's world takes the handle.
 /// @code
-/// const std::shared_ptr<const rtype::physics::detail::JoltRuntime> runtime =
-///     rtype::physics::detail::JoltRuntime::acquire();
+/// const std::shared_ptr<const rtype::plugins::physics::detail::JoltRuntime> runtime =
+///     rtype::plugins::physics::detail::JoltRuntime::acquire();
 /// @endcode
-class RTYPE_PHYSICS_API JoltRuntime {
+class JoltRuntime {
   private:
     /// @brief Restricts construction to acquire(), which keeps Jolt set up at most once.
     struct Key {
@@ -53,9 +51,9 @@ class RTYPE_PHYSICS_API JoltRuntime {
     /// @return A handle that keeps Jolt set up while it lives; releasing the last one cleans Jolt up.
     [[nodiscard]] static std::shared_ptr<const JoltRuntime> acquire();
 
-    /// @brief Whether Jolt is set up, as seen from rtype-physics.
-    /// @details Jolt is linked statically: a binary that links it too has its own copy of Jolt's globals, so it must
-    /// ask here instead of reading JPH::Factory::sInstance.
+    /// @brief Whether Jolt is set up.
+    /// @details Lets code that does not include Jolt (tests, asserts) check it without reading JPH::Factory::sInstance.
+    /// Jolt is linked statically: each binary using the physics plugin has its own copy of Jolt's globals.
     /// @return True while a handle from acquire() is alive.
     [[nodiscard]] static bool isSetUp() noexcept;
 
@@ -63,4 +61,4 @@ class RTYPE_PHYSICS_API JoltRuntime {
     std::unique_ptr<JPH::Factory> _factory;  ///< Owns Jolt's factory; JPH::Factory::sInstance only points to it.
 };
 
-}  // namespace rtype::physics::detail
+}  // namespace rtype::plugins::physics::detail

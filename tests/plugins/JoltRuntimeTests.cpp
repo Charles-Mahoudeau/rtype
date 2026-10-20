@@ -13,9 +13,9 @@
 #include <thread>
 #include <vector>
 
-#include "rtype/physics/detail/JoltRuntime.hpp"
+#include "plugins/physics/detail/JoltRuntime.hpp"
 
-using rtype::physics::detail::JoltRuntime;
+using rtype::plugins::physics::detail::JoltRuntime;
 
 namespace {
 constexpr std::size_t kThreadCount = 8;
