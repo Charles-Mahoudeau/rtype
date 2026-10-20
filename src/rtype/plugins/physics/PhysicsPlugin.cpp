@@ -7,8 +7,11 @@
 
 #include "plugins/physics/PhysicsPlugin.hpp"
 
+#include <cstdint>
 #include <string>
 #include <string_view>
+#include <unordered_map>
+#include <vector>
 
 #include "plugins/physics/Collider.hpp"
 #include "plugins/physics/PhysicsHandle.hpp"
@@ -58,6 +61,42 @@ void syncBodies(ecs::ResMut<PhysicsWorld> world, ecs::Commands& commands, Bodies
     }
 }
 
+/// @brief FixedUpdate, after the body sync and before the step: gameplay's Transforms drive the bodies.
+/// @details Kinematic bodies move to their Transform every tick (and stop when it stops). Other bodies only follow a
+/// Transform that gameplay moved, as a teleport (respawn, moved wall): one the physics wrote itself is not a move.
+void syncToPhysics(ecs::ResMut<PhysicsWorld> world, ecs::Res<ecs::Time> time,
+                   ecs::Query<const transform::Transform, ecs::Optional<const RigidBody>, ecs::With<Collider>> bodies) {
+    for (auto [entity, transform, body] : bodies) {
+        if (body != nullptr && body->type == BodyType::kKinematic) {
+            world->moveKinematic(entity, transform, time->fixedDelta);
+        } else if (world->isOutOfSync(entity, transform)) {
+            world->teleport(entity, transform);
+        }
+    }
+}
+
+/// @brief FixedUpdate, after the step: the dynamic bodies the step moved write their pose to their Transform.
+/// @details Only the moved bodies are written, so the Transforms of sleeping bodies are not marked as changed.
+void syncFromPhysics(ecs::ResMut<PhysicsWorld> world,
+                     ecs::Query<transform::Transform, ecs::With<PhysicsHandle>> transforms) {
+    const std::vector<PhysicsWorld::BodyPose> moved = world->collectMovedBodies();
+    if (moved.empty()) {
+        return;
+    }
+    std::unordered_map<std::uint64_t, const PhysicsWorld::BodyPose*> poses;
+    poses.reserve(moved.size());
+    for (const PhysicsWorld::BodyPose& pose : moved) {
+        poses.emplace(pose.entity.getBits(), &pose);
+    }
+    for (auto [entity, transform] : transforms) {
+        const auto found = poses.find(entity.getBits());
+        if (found != poses.end()) {
+            transform->position = found->second->position;
+            transform->rotation = found->second->rotation;
+        }
+    }
+}
+
 /// @brief FixedUpdate: steps the world by one fixed tick.
 void step(ecs::ResMut<PhysicsWorld> world, ecs::Res<ecs::Time> time) { world->step(time->fixedDelta); }
 }  // namespace
@@ -75,7 +114,11 @@ void PhysicsPlugin::build(ecs::App& app) {
     static_cast<void>(app.getWorld().getComponents().registerType<PhysicsHandle>());
     app.insertResource(PhysicsWorld{_settings});
     app.addSystem(ecs::Phase::kFixedUpdate, std::string{kSyncBodiesSystem}, &syncBodies);
-    app.addSystem(ecs::Phase::kFixedUpdate, std::string{kStepSystem}, &step).after(std::string{kSyncBodiesSystem});
+    app.addSystem(ecs::Phase::kFixedUpdate, std::string{kSyncToPhysicsSystem}, &syncToPhysics)
+        .after(std::string{kSyncBodiesSystem});
+    app.addSystem(ecs::Phase::kFixedUpdate, std::string{kStepSystem}, &step).after(std::string{kSyncToPhysicsSystem});
+    app.addSystem(ecs::Phase::kFixedUpdate, std::string{kSyncFromPhysicsSystem}, &syncFromPhysics)
+        .after(std::string{kStepSystem});
 }
 
 }  // namespace rtype::plugins::physics
