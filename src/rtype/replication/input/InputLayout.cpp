@@ -119,8 +119,11 @@ InputHandle InputLayout::find(const std::string_view action) const {
     if (position == _actions.end() || position->name != action) {
         throw exceptions::InputLayoutException{std::format("Unknown input action '{}'", action)};
     }
+    // NOLINTNEXTLINE(*-avoid-unchecked-container-access): position is within _actions, which _handles mirrors
     return _handles[static_cast<std::size_t>(position - _actions.begin())];
 }
+
+// NOLINTBEGIN(readability-convert-member-functions-to-static,cppcoreguidelines-pro-bounds-constant-array-index,cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
 
 bool InputLayout::isHeld(const component::PlayerInput& input, const std::string_view action) const {
     return isHeld(input, find(action));
@@ -197,4 +200,6 @@ void InputLayout::setVector(component::PlayerInput& input, const InputHandle act
     input.axes[action.index] = sanitize(value[0]);
     input.axes[action.index + 1] = sanitize(value[1]);
 }
+
+// NOLINTEND(readability-convert-member-functions-to-static,cppcoreguidelines-pro-bounds-constant-array-index,cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
 }  // namespace rtype::replication::input

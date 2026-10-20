@@ -14,7 +14,6 @@
 #include <exception>
 #include <optional>
 #include <span>
-#include <utility>
 
 #include "rtype/network/Types.hpp"
 #include "rtype/network/bytes/ByteReader.hpp"
@@ -47,7 +46,7 @@ constexpr std::size_t kSampleFixedSize = 8;
 
 network::Bytes encodeInput(const InputMessage& message, const InputLayout& layout) {
     const std::size_t slots = layout.axisSlotCount();
-    network::Bytes bytes(kHeaderSize + message.inputs.size() * (kSampleFixedSize + slots * 2));
+    network::Bytes bytes(kHeaderSize + (message.inputs.size() * (kSampleFixedSize + (slots * 2))));
     network::bytes::ByteWriter writer{bytes};
     writer.writeU8(static_cast<std::uint8_t>(MessageType::kInput));
     writer.writeU32(message.lastAppliedSnapshot);
@@ -56,6 +55,7 @@ network::Bytes encodeInput(const InputMessage& message, const InputLayout& layou
         writer.writeU32(sample.sequence);
         writer.writeU32(sample.buttons);
         for (std::size_t slot = 0; slot < slots; ++slot) {
+            // NOLINTNEXTLINE(*-constant-array-index,*-avoid-unchecked-container-access): slot < kMaxInputAxes
             writer.writeI16(quantize(sample.axes[slot]));
         }
     }
@@ -83,6 +83,7 @@ std::optional<InputMessage> decodeInput(const std::span<const std::byte> message
             sample.sequence = reader.readU32();
             sample.buttons = reader.readU32();
             for (std::size_t slot = 0; slot < slots; ++slot) {
+                // NOLINTNEXTLINE(*-constant-array-index,*-avoid-unchecked-container-access): slot < kMaxInputAxes
                 sample.axes[slot] = dequantize(reader.readI16());
             }
             if (!reader.isValid() || (sample.buttons & ~allowedButtons) != 0 ||
