@@ -8,6 +8,7 @@
 #pragma once
 
 #include <Jolt/Jolt.h>  // IWYU pragma: keep
+#include <Jolt/Core/Core.h>
 #include <Jolt/Physics/Collision/BroadPhase/BroadPhaseLayer.h>
 #include <Jolt/Physics/Collision/ObjectLayer.h>
 
