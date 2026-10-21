@@ -38,6 +38,7 @@ TEST(PhysicsPlugin, RegistersTheComponents) {
     app.addPlugin(PhysicsPlugin{smallSettings()});
     EXPECT_TRUE(app.getWorld().getComponents().find("rtype.RigidBody"));
     EXPECT_TRUE(app.getWorld().getComponents().find("rtype.Collider"));
+    EXPECT_TRUE(app.getWorld().getComponents().find("rtype.Velocity"));
 }
 
 TEST(PhysicsPlugin, InsertsTheWorldFromItsSettings) {

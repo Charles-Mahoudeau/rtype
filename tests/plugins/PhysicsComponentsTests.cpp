@@ -15,6 +15,7 @@
 
 #include "plugins/physics/Collider.hpp"
 #include "plugins/physics/RigidBody.hpp"
+#include "plugins/physics/Velocity.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/type/Field.hpp"
 
@@ -23,6 +24,7 @@ using rtype::plugins::physics::BodyType;
 using rtype::plugins::physics::Collider;
 using rtype::plugins::physics::RigidBody;
 using rtype::plugins::physics::ShapeType;
+using rtype::plugins::physics::Velocity;
 
 namespace {
 /// @brief Checks the reflected fields of `T`, in order: their names and types.
@@ -75,4 +77,15 @@ TEST(Collider, DefaultsToASolidCenteredBox) {
     EXPECT_EQ(collider.size, (glm::vec2{32.0F, 32.0F}));
     EXPECT_EQ(collider.offset, (glm::vec2{0.0F, 0.0F}));
     EXPECT_FALSE(collider.sensor);
+}
+
+TEST(Velocity, ReflectsItsFields) {
+    EXPECT_EQ(rtype::ecs::ComponentTraits<Velocity>::kName, "rtype.Velocity");
+    expectFields<Velocity, 2>({{{"linear", FieldType::kVec2}, {"angular", FieldType::kF32}}});
+}
+
+TEST(Velocity, DefaultsToAtRest) {
+    const Velocity velocity;
+    EXPECT_EQ(velocity.linear, (glm::vec2{0.0F, 0.0F}));
+    EXPECT_FLOAT_EQ(velocity.angular, 0.0F);
 }
