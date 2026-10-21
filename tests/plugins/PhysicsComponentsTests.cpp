@@ -61,14 +61,16 @@ TEST(RigidBody, DefaultsToADynamicBodyUnderGravity) {
 
 TEST(Collider, ReflectsItsFields) {
     EXPECT_EQ(rtype::ecs::ComponentTraits<Collider>::kName, "rtype.Collider");
-    expectFields<Collider, 8>({{{"shape", FieldType::kU8},
-                                {"size", FieldType::kVec2},
-                                {"radius", FieldType::kF32},
-                                {"halfHeight", FieldType::kF32},
-                                {"offset", FieldType::kVec2},
-                                {"sensor", FieldType::kBool},
-                                {"friction", FieldType::kF32},
-                                {"restitution", FieldType::kF32}}});
+    expectFields<Collider, 10>({{{"shape", FieldType::kU8},
+                                 {"size", FieldType::kVec2},
+                                 {"radius", FieldType::kF32},
+                                 {"halfHeight", FieldType::kF32},
+                                 {"offset", FieldType::kVec2},
+                                 {"sensor", FieldType::kBool},
+                                 {"friction", FieldType::kF32},
+                                 {"restitution", FieldType::kF32},
+                                 {"layer", FieldType::kU32},
+                                 {"mask", FieldType::kU32}}});
 }
 
 TEST(Collider, DefaultsToASolidCenteredBox) {
@@ -77,6 +79,13 @@ TEST(Collider, DefaultsToASolidCenteredBox) {
     EXPECT_EQ(collider.size, (glm::vec2{32.0F, 32.0F}));
     EXPECT_EQ(collider.offset, (glm::vec2{0.0F, 0.0F}));
     EXPECT_FALSE(collider.sensor);
+}
+
+TEST(Collider, DefaultsToTheFirstCategoryCollidingWithAll) {
+    const Collider collider;
+    EXPECT_EQ(collider.layer, 1U);
+    EXPECT_EQ(collider.mask, rtype::plugins::physics::kAllLayers);
+    EXPECT_EQ(rtype::plugins::physics::kAllLayers, 0x7FFFU);
 }
 
 TEST(Velocity, ReflectsItsFields) {
