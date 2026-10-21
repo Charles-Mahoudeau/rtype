@@ -19,6 +19,7 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -31,6 +32,7 @@
 #include "plugins/backend/BackendResources.hpp"
 #include "plugins/backend/config/Settings.hpp"
 #include "plugins/backend/graphics/Color.hpp"
+#include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "render/vulkan/Registration.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -68,7 +70,8 @@ RTYPE_ECS_RESOURCE(Lifetime, "example.Lifetime");
 void drawShapes(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<ecs::Time> time,
                 ecs::ResMut<Lifetime> lifetime, ecs::EventWriter<ecs::AppExit> exit) {
     lifetime->elapsed += time->delta;
-    if (lifetime->seconds && lifetime->elapsed >= *lifetime->seconds) {
+    const std::optional<float> limit = lifetime.get().seconds;
+    if (limit && lifetime.get().elapsed >= *limit) {
         exit.send(ecs::AppExit{.code = 0});
     }
     if (backend->renderer == nullptr) {
@@ -163,14 +166,15 @@ plugins::backend::config::Settings makeSettings(bool validate) {
 int main(int argc, char** argv) {
     bool validate = false;
     Lifetime lifetime;
-    const std::vector<std::string_view> arguments(argv + 1, argv + argc);
-    for (std::size_t index = 0; index < arguments.size(); ++index) {
-        if (arguments.at(index) == "--validate") {
+    const std::span<char*> arguments{argv, static_cast<std::size_t>(argc)};
+    for (std::size_t index = 1; index < arguments.size(); ++index) {
+        const std::string_view argument{arguments[index]};
+        if (argument == "--validate") {
             validate = true;
-        } else if (arguments.at(index) == "--seconds" && index + 1 < arguments.size()) {
-            const std::string_view value = arguments.at(++index);
+        } else if (argument == "--seconds" && index + 1 < arguments.size()) {
+            const std::string value{arguments[++index]};
             float seconds = 0.0F;
-            if (std::from_chars(value.data(), value.data() + value.size(), seconds).ec == std::errc{}) {
+            if (std::from_chars(value.c_str(), std::to_address(value.end()), seconds).ec == std::errc{}) {
                 lifetime.seconds = seconds;
             }
         }

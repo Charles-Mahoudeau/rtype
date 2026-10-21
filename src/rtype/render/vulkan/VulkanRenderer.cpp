@@ -22,7 +22,6 @@
 #include <span>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>

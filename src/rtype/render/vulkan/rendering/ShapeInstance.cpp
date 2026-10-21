@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <glm/common.hpp>
 #include <glm/ext/vector_float2.hpp>
 #include <glm/geometric.hpp>
 #include <vulkan/vulkan_raii.hpp>
