@@ -52,6 +52,22 @@ class PhysicsWorld {
         ecs::Entity entity;  ///< The entity the body belongs to.
         Velocity velocity;   ///< In world units and radians per second.
     };
+    /// @brief A contact that started or ended during the last step, between the bodies of two entities.
+    struct Contact {
+        /// @brief What happened.
+        enum class Kind : std::uint8_t {
+            kCollisionStarted,  ///< Two solid bodies started touching.
+            kCollisionEnded,    ///< They stopped.
+            kTriggerEntered,    ///< A body entered a sensor: first is the sensor's entity.
+            kTriggerExited,     ///< It left.
+        };
+
+        Kind kind = Kind::kCollisionStarted;  ///< What happened.
+        ecs::Entity first;                    ///< The first entity: the sensor's, for a trigger.
+        ecs::Entity second;                   ///< The other entity.
+        glm::vec2 point{0.0F, 0.0F};          ///< Where they touched, in world units, Y down; zero for an end.
+        glm::vec2 normal{0.0F, 0.0F};         ///< Unit vector from first to second, Y down; zero for an end.
+    };
 
     /// @brief Builds the world, setting Jolt up if this is the process's first world.
     /// @throws exceptions::PhysicsException When unitsPerMeter is not positive or a capacity is zero.
@@ -164,6 +180,10 @@ class PhysicsWorld {
     /// @details Only the bodies Jolt keeps active. Each velocity is remembered, so isVelocityOutOfSync() does not take
     /// the Velocity written from it for a change by gameplay.
     [[nodiscard]] std::vector<BodyVelocity> collectChangedVelocities();
+    /// @brief Takes the contacts the steps reported since the last call: one start and one end per pair of bodies,
+    /// whatever the number of contact points.
+    /// @details A pair whose body was destroyed (entity despawned, collider removed, body rebuilt) reports no end.
+    [[nodiscard]] std::vector<Contact> takeContacts();
 
   private:
     struct Impl;

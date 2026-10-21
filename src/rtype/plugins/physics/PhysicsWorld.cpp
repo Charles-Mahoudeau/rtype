@@ -43,6 +43,7 @@
 #include "plugins/physics/RigidBody.hpp"
 #include "plugins/physics/Velocity.hpp"
 #include "plugins/physics/detail/BodySettings.hpp"
+#include "plugins/physics/detail/ContactCollector.hpp"
 #include "plugins/physics/detail/JoltMath.hpp"
 #include "plugins/physics/detail/JoltRuntime.hpp"
 #include "plugins/physics/detail/Layers.hpp"
@@ -136,6 +137,7 @@ struct PhysicsWorld::Impl {
           jobSystem{JPH::cMaxPhysicsJobs} {
         system.Init(settings.maxBodies, 0, settings.maxBodyPairs, settings.maxContactConstraints, broadPhaseLayers,
                     objectVsBroadPhaseFilter, objectLayerPairFilter);
+        system.SetContactListener(&contacts);
         system.SetGravity(detail::toJolt2D(settings.gravity / unitsPerMeter));
     }
     ~Impl() = default;
@@ -153,7 +155,8 @@ struct PhysicsWorld::Impl {
     detail::BroadPhaseLayers broadPhaseLayers;                  ///< Object layer to broad phase layer.
     detail::ObjectVsBroadPhaseFilter objectVsBroadPhaseFilter;  ///< Object layer vs broad phase layer.
     detail::ObjectLayerPairFilter objectLayerPairFilter;        ///< Object layer vs object layer.
-    JPH::PhysicsSystem system;                                  ///< Points to the three above: declared after them.
+    detail::ContactCollector contacts;                          ///< Records the contacts during the steps.
+    JPH::PhysicsSystem system;                                  ///< Points to the four above: declared after them.
     std::unordered_map<std::uint64_t, BodyEntry> bodies;        ///< The bodies by Entity::getBits().
     std::vector<Push> pushes;                                   ///< Queued for the next step, in call order.
 
@@ -187,6 +190,7 @@ struct PhysicsWorld::Impl {
 
     /// @brief Removes a body from the simulation and frees it.
     void destroy(JPH::BodyID id) {
+        contacts.forget(id);
         JPH::BodyInterface& bodyInterface = system.GetBodyInterface();
         bodyInterface.RemoveBody(id);
         bodyInterface.DestroyBody(id);
@@ -276,6 +280,7 @@ void PhysicsWorld::step(float deltaSeconds) {
     _impl->applyPushes();
     const JPH::EPhysicsUpdateError errors =
         _impl->system.Update(deltaSeconds, kCollisionSteps, &_impl->tempAllocator, &_impl->jobSystem);
+    _impl->contacts.settle(_impl->system.GetBodyInterfaceNoLock());
     _impl->droppedContacts = errors != JPH::EPhysicsUpdateError::None;
     ++_impl->steps;
 }
@@ -432,6 +437,32 @@ std::vector<PhysicsWorld::BodyPose> PhysicsWorld::collectMovedBodies() {
         poses.push_back(BodyPose{.entity = entityFromBits(found->first), .position = position, .rotation = rotation});
     }
     return poses;
+}
+
+// takeContacts() converts one kind to the other with a cast: both enums list the same kinds in the same order.
+static_assert(static_cast<int>(PhysicsWorld::Contact::Kind::kCollisionStarted) ==
+              static_cast<int>(detail::ContactCollector::ContactEvent::Kind::kCollisionStarted));
+static_assert(static_cast<int>(PhysicsWorld::Contact::Kind::kCollisionEnded) ==
+              static_cast<int>(detail::ContactCollector::ContactEvent::Kind::kCollisionEnded));
+static_assert(static_cast<int>(PhysicsWorld::Contact::Kind::kTriggerEntered) ==
+              static_cast<int>(detail::ContactCollector::ContactEvent::Kind::kTriggerEntered));
+static_assert(static_cast<int>(PhysicsWorld::Contact::Kind::kTriggerExited) ==
+              static_cast<int>(detail::ContactCollector::ContactEvent::Kind::kTriggerExited));
+
+std::vector<PhysicsWorld::Contact> PhysicsWorld::takeContacts() {
+    const std::vector<detail::ContactCollector::ContactEvent> events = _impl->contacts.take();
+    std::vector<Contact> contacts;
+    contacts.reserve(events.size());
+    for (const detail::ContactCollector::ContactEvent& event : events) {
+        contacts.push_back(Contact{
+            .kind = static_cast<Contact::Kind>(event.kind),
+            .first = entityFromBits(event.first),
+            .second = entityFromBits(event.second),
+            .point = detail::fromJolt2D(event.point) * _impl->unitsPerMeter,
+            .normal = detail::fromJolt2D(event.normal),
+        });
+    }
+    return contacts;
 }
 
 std::vector<PhysicsWorld::BodyVelocity> PhysicsWorld::collectChangedVelocities() {
