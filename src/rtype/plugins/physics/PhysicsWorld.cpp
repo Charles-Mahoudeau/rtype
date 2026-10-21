@@ -10,8 +10,10 @@
 #include <Jolt/Jolt.h>  // IWYU pragma: keep
 #include <Jolt/Core/Core.h>
 #include <Jolt/Core/JobSystemSingleThreaded.h>
+#include <Jolt/Core/Reference.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Math/MathTypes.h>
+#include <Jolt/Math/Real.h>
 #include <Jolt/Math/Vec3.h>
 #include <Jolt/Physics/Body/Body.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
