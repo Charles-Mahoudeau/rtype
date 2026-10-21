@@ -31,7 +31,8 @@ namespace rtype::plugins::physics::detail {
 /// @param transform Where it is, in world units, Y down.
 /// @param unitsPerMeter World units in one of Jolt's meters.
 /// @param userData Stored on the body to find the entity back (Entity::getBits()).
-/// @throws exceptions::PhysicsException When the shape is invalid or a dynamic body's mass is not positive.
+/// @throws exceptions::PhysicsException When the shape is invalid, a dynamic body's mass is not positive, or the
+/// collider's layer or mask does not fit (layers::isValid()).
 [[nodiscard]] JPH::BodyCreationSettings makeBodySettings(const Collider& collider, const RigidBody* body,
                                                          const transform::Transform& transform, float unitsPerMeter,
                                                          std::uint64_t userData);

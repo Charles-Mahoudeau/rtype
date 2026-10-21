@@ -105,7 +105,14 @@ JPH::BodyCreationSettings makeBodySettings(const Collider& collider, const Rigid
                                            const transform::Transform& transform, float unitsPerMeter,
                                            std::uint64_t userData) {
     const JPH::EMotionType motion = body != nullptr ? toMotionType(body->type) : JPH::EMotionType::Static;
-    const JPH::ObjectLayer layer = motion == JPH::EMotionType::Static ? layers::kNonMoving : layers::kMoving;
+    if (!layers::isValid(collider.layer, collider.mask)) {
+        throw exceptions::PhysicsException{
+            std::format("Collider::layer must name at least one category and neither layer nor mask may go beyond "
+                        "kAllLayers ({:#x}), "
+                        "got layer {:#x} and mask {:#x}",
+                        kAllLayers, collider.layer, collider.mask)};
+    }
+    const JPH::ObjectLayer layer = layers::encode(collider.layer, collider.mask, motion == JPH::EMotionType::Static);
     JPH::BodyCreationSettings settings{makeShape(collider, unitsPerMeter), toJolt2D(transform.position / unitsPerMeter),
                                        toJoltRotation2D(transform.rotation), motion, layer};
     settings.mUserData = userData;

@@ -14,13 +14,41 @@
 
 #include <cstdint>
 
+#include "plugins/physics/Collider.hpp"
+
 namespace rtype::plugins::physics::detail {
 
-/// @brief The object layers, until collision layers are configurable: static bodies never collide with each other.
+/// @brief Each body's JPH::ObjectLayer, which carries everything collision filtering needs, since Jolt passes nothing
+/// else to the filters: the collision categories the body belongs to (Collider::layer), the categories it collides with
+/// (Collider::mask), and whether it is static, which picks its broad phase tree.
+/// @details Bits 0 to 14 hold the categories, 15 to 29 the mask, 30 the static flag; bit 31 stays clear, so a layer is
+/// never JPH::cObjectLayerInvalid. Two bodies collide when each one's categories are in the other's mask, unless both
+/// are static. Needs 32-bit object layers (object_layer_bits = "32" in the package configuration).
 namespace layers {
-inline constexpr JPH::ObjectLayer kNonMoving = 0;  ///< Static bodies.
-inline constexpr JPH::ObjectLayer kMoving = 1;     ///< Dynamic and kinematic bodies.
-inline constexpr std::uint32_t kCount = 2;         ///< Object layers in use.
+static_assert(sizeof(JPH::ObjectLayer) == sizeof(std::uint32_t), "Collision layers need 32-bit Jolt object layers");
+
+inline constexpr std::uint32_t kCategoryCount = 15;                           ///< Collision categories available.
+inline constexpr std::uint32_t kAllCategories = (1U << kCategoryCount) - 1U;  ///< Every category's bit.
+inline constexpr std::uint32_t kStaticBit = 1U << (2U * kCategoryCount);      ///< Set for a static body.
+static_assert(kAllCategories == kAllLayers, "Collider's kAllLayers must name the categories the encoding holds");
+
+/// @return Whether categories and a mask fit in a layer: at least one category, and no bit beyond kAllCategories.
+[[nodiscard]] bool isValid(std::uint32_t categories, std::uint32_t mask) noexcept;
+
+/// @return The object layer of a body; bits beyond kAllCategories are dropped (check with isValid() first).
+[[nodiscard]] JPH::ObjectLayer encode(std::uint32_t categories, std::uint32_t mask, bool isStatic) noexcept;
+
+/// @return The collision categories a body belongs to.
+[[nodiscard]] std::uint32_t categoriesOf(JPH::ObjectLayer layer) noexcept;
+
+/// @return The collision categories a body collides with.
+[[nodiscard]] std::uint32_t maskOf(JPH::ObjectLayer layer) noexcept;
+
+/// @return Whether the body is static.
+[[nodiscard]] bool isStatic(JPH::ObjectLayer layer) noexcept;
+
+/// @return Whether two bodies can collide: each one's categories are in the other's mask, and not both are static.
+[[nodiscard]] bool canCollide(JPH::ObjectLayer first, JPH::ObjectLayer second) noexcept;
 }  // namespace layers
 
 /// @brief The broad phase layers: one tree for static bodies, one for moving ones.
@@ -30,7 +58,7 @@ inline constexpr JPH::BroadPhaseLayer kMoving{1};     ///< Dynamic and kinematic
 inline constexpr std::uint32_t kCount = 2;            ///< Broad phase layers in use.
 }  // namespace broadPhaseLayers
 
-/// @brief Maps each object layer to its broad phase layer.
+/// @brief Maps each object layer to its broad phase layer: its static flag picks the tree.
 class BroadPhaseLayers final : public JPH::BroadPhaseLayerInterface {
   public:
     BroadPhaseLayers() = default;
@@ -60,7 +88,7 @@ class ObjectVsBroadPhaseFilter final : public JPH::ObjectVsBroadPhaseLayerFilter
     [[nodiscard]] bool ShouldCollide(JPH::ObjectLayer layer, JPH::BroadPhaseLayer broadPhaseLayer) const override;
 };
 
-/// @brief Whether two object layers can collide: everything but two static bodies.
+/// @brief Whether two object layers can collide: layers::canCollide().
 class ObjectLayerPairFilter final : public JPH::ObjectLayerPairFilter {
   public:
     ObjectLayerPairFilter() = default;
