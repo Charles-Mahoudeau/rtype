@@ -18,11 +18,10 @@
 #include <Jolt/Physics/Collision/ObjectLayer.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
-#include <Jolt/Physics/Collision/Shape/ConvexShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/Shape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
-#include <Jolt/Physics/EActivation.h>
+#include <Jolt/Physics/PhysicsSettings.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -42,7 +41,7 @@ namespace {
 /// @throws exceptions::PhysicsException When Jolt refused the shape.
 JPH::RefConst<JPH::Shape> unwrap(const JPH::Shape::ShapeResult& result) {
     if (result.HasError()) {
-        throw exceptions::PhysicsException{std::format("Invalid collider shape: {}", result.GetError().c_str())};
+        throw exceptions::PhysicsException{std::format("Invalid collider shape: {}", result.GetError())};
     }
     return result.Get();
 }
