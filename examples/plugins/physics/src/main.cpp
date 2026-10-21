@@ -10,7 +10,10 @@
 // - a kinematic ship flies at the speed its Velocity gives it, pushing nothing but never pushed;
 // - a crate falls on the floor, then gameplay kicks it with an impulse after one second;
 // - a fast bullet flies through the ship (their collision layers ignore each other) and stops on a target that only
-//   bullets hit, which the ship flies through too.
+//   bullets hit, which the ship flies through too;
+// - the ball falls through a sensor zone on its way down, and the ship grazes it: a sensor also detects a moving
+//   kinematic body.
+// Every contact event (CollisionStarted / Ended, TriggerEntered / Exited) is printed when the physics sends it.
 // Gameplay only writes components (Transform, Collider, RigidBody, Velocity) and calls the PhysicsWorld resource.
 
 #include <cstdint>
@@ -21,6 +24,7 @@
 #include <string>
 
 #include "plugins/physics/Collider.hpp"
+#include "plugins/physics/CollisionEvents.hpp"
 #include "plugins/physics/PhysicsPlugin.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "plugins/physics/PhysicsWorld.hpp"
@@ -35,6 +39,7 @@
 #include "rtype/ecs/query/Query.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
+#include "rtype/ecs/system/EventReader.hpp"
 #include "rtype/ecs/system/EventWriter.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 
@@ -56,19 +61,29 @@ constexpr std::uint32_t kTarget = 1U << 3;
 
 // The entities the gameplay systems talk about, set by the Startup system.
 struct Scene {
+    Entity floor;
     Entity ball;
     Entity ship;
     Entity crate;
     Entity bullet;
+    Entity target;
+    Entity zone;
 };
 RTYPE_ECS_RESOURCE(Scene, "example.Scene");
 
 // Startup: spawns the scene. Distances are in world units (pixels), Y down.
 void spawnScene(Commands& commands, ResMut<Scene> scene) {
     // A static floor: a Collider without RigidBody. Its top is at y = 300.
-    commands.spawn()
-        .add(Transform{.position = {0.0F, 316.0F}})
-        .add(Collider{.shape = ShapeType::kBox, .size = {2000.0F, 32.0F}});
+    scene->floor = commands.spawn()
+                       .add(Transform{.position = {0.0F, 316.0F}})
+                       .add(Collider{.shape = ShapeType::kBox, .size = {2000.0F, 32.0F}})
+                       .getEntity();
+
+    // A sensor zone on the ball's way down, just above the ship's lane: it detects them without stopping them.
+    scene->zone = commands.spawn()
+                      .add(Transform{.position = {0.0F, 60.0F}})
+                      .add(Collider{.shape = ShapeType::kBox, .size = {64.0F, 32.0F}, .sensor = true})
+                      .getEntity();
 
     // A bouncy ball. With a Velocity, the physics writes its speed back every step.
     scene->ball = commands.spawn()
@@ -96,9 +111,11 @@ void spawnScene(Commands& commands, ResMut<Scene> scene) {
                        .getEntity();
 
     // A target in the ship's lane, hit only by bullets: the ship flies through it.
-    commands.spawn()
-        .add(Transform{.position = {400.0F, 100.0F}})
-        .add(Collider{.shape = ShapeType::kBox, .size = {32.0F, 64.0F}, .layer = kTarget, .mask = kBullet});
+    scene->target =
+        commands.spawn()
+            .add(Transform{.position = {400.0F, 100.0F}})
+            .add(Collider{.shape = ShapeType::kBox, .size = {32.0F, 64.0F}, .layer = kTarget, .mask = kBullet})
+            .getEntity();
 
     // A fast bullet behind the ship, in the same lane. It ignores the ship and the ship ignores it, so it flies
     // through; it hits scenery and targets. No gravity, and continuous collision so it never tunnels at this speed.
@@ -109,6 +126,52 @@ void spawnScene(Commands& commands, ResMut<Scene> scene) {
             .add(RigidBody{.gravityScale = 0.0F, .fixedRotation = true, .continuousCollision = true})
             .add(Velocity{.linear = {600.0F, 0.0F}})
             .getEntity();
+}
+
+// The name of a scene entity, for the logs.
+const char* nameOf(const Scene& scene, Entity entity) {
+    if (entity == scene.floor) {
+        return "floor";
+    }
+    if (entity == scene.ball) {
+        return "ball";
+    }
+    if (entity == scene.ship) {
+        return "ship";
+    }
+    if (entity == scene.crate) {
+        return "crate";
+    }
+    if (entity == scene.bullet) {
+        return "bullet";
+    }
+    if (entity == scene.target) {
+        return "target";
+    }
+    return entity == scene.zone ? "zone" : "?";
+}
+
+// FixedUpdate, after the physics sent its events: prints each contact as it happens.
+void printContacts(Res<PhysicsWorld> world, Res<Scene> scene, EventReader<CollisionStarted> started,
+                   EventReader<CollisionEnded> ended, EventReader<TriggerEntered> entered,
+                   EventReader<TriggerExited> exited) {
+    const float time = static_cast<float>(world->getStepCount()) / kTicksPerSecond;
+    for (const CollisionStarted& event : started) {
+        std::cout << std::format("  {:.2f}s  {} hits {} at ({:.1f}, {:.1f})\n", time, nameOf(*scene, event.first),
+                                 nameOf(*scene, event.second), event.point.x, event.point.y);
+    }
+    for (const CollisionEnded& event : ended) {
+        std::cout << std::format("  {:.2f}s  {} leaves {}\n", time, nameOf(*scene, event.first),
+                                 nameOf(*scene, event.second));
+    }
+    for (const TriggerEntered& event : entered) {
+        std::cout << std::format("  {:.2f}s  {} enters the {}\n", time, nameOf(*scene, event.other),
+                                 nameOf(*scene, event.trigger));
+    }
+    for (const TriggerExited& event : exited) {
+        std::cout << std::format("  {:.2f}s  {} exits the {}\n", time, nameOf(*scene, event.other),
+                                 nameOf(*scene, event.trigger));
+    }
 }
 
 // FixedUpdate, after the physics wrote the Transforms back: prints the scene twice per second.
@@ -171,8 +234,9 @@ int main() {
         app.addSystem(Phase::kFixedUpdate, "example.script", &script)
             .after(std::string{PhysicsPlugin::kSyncToPhysicsSystem})
             .before(std::string{PhysicsPlugin::kStepSystem});
-        app.addSystem(Phase::kFixedUpdate, "example.report", &report)
-            .after(std::string{PhysicsPlugin::kSyncFromPhysicsSystem});
+        app.addSystem(Phase::kFixedUpdate, "example.printContacts", &printContacts)
+            .after(std::string{PhysicsPlugin::kEventsSystem});
+        app.addSystem(Phase::kFixedUpdate, "example.report", &report).after("example.printContacts");
         return app.run();
     } catch (const std::exception& error) {
         std::cerr << "physics example: " << error.what() << '\n';
