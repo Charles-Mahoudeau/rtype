@@ -21,15 +21,17 @@ namespace rtype::plugins::physics {
 /// @brief Physics for an App: registers the physics components, inserts the PhysicsWorld resource and steps it once per
 /// fixed tick.
 ///
-/// @details Registers RigidBody and Collider, so they can be found by name (Luau, replication) before any entity has
-/// them, and adds the TransformPlugin. Each fixed tick, on the server side (so also in standalone; clients receive
-/// positions through replication), in this order:
+/// @details Registers RigidBody, Collider and Velocity, so they can be found by name (Luau, replication) before any
+/// entity has them, and adds the TransformPlugin. Each fixed tick, on the server side (so also in standalone; clients
+/// receive positions through replication), in this order:
 /// - "rtype.Physics.SyncBodies" keeps one body per entity with a Collider and a Transform (a RigidBody makes it move;
 ///   without one it is static), rebuilt when its Collider or RigidBody changes, destroyed when the entity is despawned
 ///   or loses either, and linked to the entity by a PhysicsHandle;
-/// - "rtype.Physics.SyncToPhysics" moves kinematic bodies to their Transform and teleports the others gameplay moved;
-/// - "rtype.Physics.Step" steps the world by Time::fixedDelta;
-/// - "rtype.Physics.SyncFromPhysics" writes the pose of the dynamic bodies that moved back to their Transform.
+/// - "rtype.Physics.SyncToPhysics" moves kinematic bodies to their Transform, teleports the others gameplay moved and
+///   gives the bodies the Velocities gameplay changed (a kinematic body with a Velocity moves at it);
+/// - "rtype.Physics.Step" applies the forces and impulses queued on the PhysicsWorld and steps it by Time::fixedDelta;
+/// - "rtype.Physics.SyncFromPhysics" writes the pose of the bodies that moved back to their Transform, and the velocity
+///   of the dynamic ones to their Velocity.
 /// Other systems order themselves around these names. Needs the time plugin (MinimalPlugins) for Time.
 /// @code
 /// app.addPlugins(rtype::ecs::MinimalPlugins{})

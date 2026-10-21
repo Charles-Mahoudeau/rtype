@@ -18,6 +18,7 @@
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "plugins/physics/PhysicsWorld.hpp"
 #include "plugins/physics/RigidBody.hpp"
+#include "plugins/physics/Velocity.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -61,24 +62,57 @@ void syncBodies(ecs::ResMut<PhysicsWorld> world, ecs::Commands& commands, Bodies
     }
 }
 
-/// @brief FixedUpdate, after the body sync and before the step: gameplay's Transforms drive the bodies.
-/// @details Kinematic bodies move to their Transform every tick (and stop when it stops). Other bodies only follow a
-/// Transform that gameplay moved, as a teleport (respawn, moved wall): one the physics wrote itself is not a move.
+/// @brief FixedUpdate, after the body sync and before the step: gameplay's Transforms and Velocities drive the bodies.
+/// @details Kinematic bodies without a Velocity move to their Transform every tick (and stop when it stops); those with
+/// one move to their Transform on the ticks gameplay moved it, and at their Velocity otherwise. Other bodies only
+/// follow a Transform that gameplay moved, as a teleport (respawn, moved wall): one the physics wrote itself is not a
+/// move. Likewise, a Velocity is only given to the body when gameplay changed it.
 void syncToPhysics(ecs::ResMut<PhysicsWorld> world, ecs::Res<ecs::Time> time,
-                   ecs::Query<const transform::Transform, ecs::Optional<const RigidBody>, ecs::With<Collider>> bodies) {
-    for (auto [entity, transform, body] : bodies) {
-        if (body != nullptr && body->type == BodyType::kKinematic) {
+                   ecs::Query<const transform::Transform, ecs::Optional<const RigidBody>, ecs::Optional<const Velocity>,
+                              ecs::With<Collider>>
+                       bodies) {
+    for (auto [entity, transform, body, velocity] : bodies) {
+        const bool outOfSync = world->isOutOfSync(entity, transform);
+        if (body != nullptr && body->type == BodyType::kKinematic && (velocity == nullptr || outOfSync)) {
             world->moveKinematic(entity, transform, time->fixedDelta);
-        } else if (world->isOutOfSync(entity, transform)) {
+            continue;
+        }
+        if (outOfSync) {
             world->teleport(entity, transform);
+        }
+        if (velocity != nullptr && world->isVelocityOutOfSync(entity, *velocity)) {
+            world->setVelocity(entity, *velocity);
         }
     }
 }
 
-/// @brief FixedUpdate, after the step: the dynamic bodies the step moved write their pose to their Transform.
-/// @details Only the moved bodies are written, so the Transforms of sleeping bodies are not marked as changed.
-void syncFromPhysics(ecs::ResMut<PhysicsWorld> world,
-                     ecs::Query<transform::Transform, ecs::With<PhysicsHandle>> transforms) {
+/// @brief FixedUpdate, after the step: the dynamic bodies write the velocity the step changed to their Velocity.
+void syncVelocitiesFromPhysics(PhysicsWorld& world, ecs::Query<Velocity, ecs::With<Collider>>& velocities) {
+    const std::vector<PhysicsWorld::BodyVelocity> changed = world.collectChangedVelocities();
+    if (changed.empty()) {
+        return;
+    }
+    std::unordered_map<std::uint64_t, const Velocity*> byEntity;
+    byEntity.reserve(changed.size());
+    for (const PhysicsWorld::BodyVelocity& body : changed) {
+        byEntity.emplace(body.entity.getBits(), &body.velocity);
+    }
+    for (auto [entity, velocity] : velocities) {
+        const auto found = byEntity.find(entity.getBits());
+        if (found != byEntity.end()) {
+            *velocity = *found->second;
+        }
+    }
+}
+
+/// @brief FixedUpdate, after the step: the bodies the step moved write their pose to their Transform, and the dynamic
+/// ones their velocity to their Velocity.
+/// @details Only the moved bodies are written, so the Transforms of sleeping bodies are not marked as changed. Joins on
+/// Collider rather than PhysicsHandle: a body created this tick gets its handle only when the phase ends, and its pose
+/// must still be written, or the next tick would take the stale Transform for a teleport by gameplay.
+void syncFromPhysics(ecs::ResMut<PhysicsWorld> world, ecs::Query<transform::Transform, ecs::With<Collider>> transforms,
+                     ecs::Query<Velocity, ecs::With<Collider>> velocities) {
+    syncVelocitiesFromPhysics(*world, velocities);
     const std::vector<PhysicsWorld::BodyPose> moved = world->collectMovedBodies();
     if (moved.empty()) {
         return;
@@ -111,6 +145,7 @@ void PhysicsPlugin::build(ecs::App& app) {
     app.addPlugin(plugins::transform::TransformPlugin{});
     static_cast<void>(app.getWorld().getComponents().registerType<RigidBody>());
     static_cast<void>(app.getWorld().getComponents().registerType<Collider>());
+    static_cast<void>(app.getWorld().getComponents().registerType<Velocity>());
     static_cast<void>(app.getWorld().getComponents().registerType<PhysicsHandle>());
     app.insertResource(PhysicsWorld{_settings});
     app.addSystem(ecs::Phase::kFixedUpdate, std::string{kSyncBodiesSystem}, &syncBodies);
