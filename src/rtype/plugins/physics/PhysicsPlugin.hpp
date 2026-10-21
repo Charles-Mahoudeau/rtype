@@ -31,7 +31,9 @@ namespace rtype::plugins::physics {
 ///   gives the bodies the Velocities gameplay changed (a kinematic body with a Velocity moves at it);
 /// - "rtype.Physics.Step" applies the forces and impulses queued on the PhysicsWorld and steps it by Time::fixedDelta;
 /// - "rtype.Physics.SyncFromPhysics" writes the pose of the bodies that moved back to their Transform, and the velocity
-///   of the dynamic ones to their Velocity.
+///   of the dynamic ones to their Velocity;
+/// - "rtype.Physics.Events" sends the contacts of the step: CollisionStarted / CollisionEnded between solid colliders,
+///   TriggerEntered / TriggerExited for sensors (CollisionEvents.hpp), registered by the plugin.
 /// Other systems order themselves around these names. Needs the time plugin (MinimalPlugins) for Time.
 /// @code
 /// app.addPlugins(rtype::ecs::MinimalPlugins{})
@@ -44,6 +46,7 @@ class PhysicsPlugin : public ecs::Plugin {
     static constexpr std::string_view kSyncToPhysicsSystem = "rtype.Physics.SyncToPhysics";  ///< Transform to body.
     static constexpr std::string_view kStepSystem = "rtype.Physics.Step";  ///< Steps the PhysicsWorld.
     static constexpr std::string_view kSyncFromPhysicsSystem = "rtype.Physics.SyncFromPhysics";  ///< Body to Transform.
+    static constexpr std::string_view kEventsSystem = "rtype.Physics.Events";  ///< Sends the contact events.
 
     /// @param settings How the PhysicsWorld is built; checked when the plugin is built.
     explicit PhysicsPlugin(PhysicsSettings settings);

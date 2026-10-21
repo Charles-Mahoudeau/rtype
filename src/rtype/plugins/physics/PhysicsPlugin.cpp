@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "plugins/physics/Collider.hpp"
+#include "plugins/physics/CollisionEvents.hpp"
 #include "plugins/physics/PhysicsHandle.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "plugins/physics/PhysicsWorld.hpp"
@@ -23,9 +24,11 @@
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/command/Commands.hpp"
+#include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/query/Query.hpp"
 #include "rtype/ecs/query/QueryTerms.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
+#include "rtype/ecs/system/EventWriter.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/time/Time.hpp"
 
@@ -131,6 +134,31 @@ void syncFromPhysics(ecs::ResMut<PhysicsWorld> world, ecs::Query<transform::Tran
     }
 }
 
+/// @brief FixedUpdate, after the write-back: sends the contacts the step reported as ECS events.
+void sendContactEvents(ecs::ResMut<PhysicsWorld> world, ecs::EventWriter<CollisionStarted> started,
+                       ecs::EventWriter<CollisionEnded> ended, ecs::EventWriter<TriggerEntered> entered,
+                       ecs::EventWriter<TriggerExited> exited) {
+    for (const PhysicsWorld::Contact& contact : world->takeContacts()) {
+        switch (contact.kind) {
+            case PhysicsWorld::Contact::Kind::kCollisionStarted:
+                started.send(CollisionStarted{.first = contact.first,
+                                              .second = contact.second,
+                                              .point = contact.point,
+                                              .normal = contact.normal});
+                break;
+            case PhysicsWorld::Contact::Kind::kCollisionEnded:
+                ended.send(CollisionEnded{.first = contact.first, .second = contact.second});
+                break;
+            case PhysicsWorld::Contact::Kind::kTriggerEntered:
+                entered.send(TriggerEntered{.trigger = contact.first, .other = contact.second});
+                break;
+            case PhysicsWorld::Contact::Kind::kTriggerExited:
+                exited.send(TriggerExited{.trigger = contact.first, .other = contact.second});
+                break;
+        }
+    }
+}
+
 /// @brief FixedUpdate: steps the world by one fixed tick.
 void step(ecs::ResMut<PhysicsWorld> world, ecs::Res<ecs::Time> time) { world->step(time->fixedDelta); }
 }  // namespace
@@ -147,6 +175,11 @@ void PhysicsPlugin::build(ecs::App& app) {
     static_cast<void>(app.getWorld().getComponents().registerType<Collider>());
     static_cast<void>(app.getWorld().getComponents().registerType<Velocity>());
     static_cast<void>(app.getWorld().getComponents().registerType<PhysicsHandle>());
+    ecs::Events& events = app.getWorld().getEvents();
+    static_cast<void>(events.registerType<CollisionStarted>());
+    static_cast<void>(events.registerType<CollisionEnded>());
+    static_cast<void>(events.registerType<TriggerEntered>());
+    static_cast<void>(events.registerType<TriggerExited>());
     app.insertResource(PhysicsWorld{_settings});
     app.addSystem(ecs::Phase::kFixedUpdate, std::string{kSyncBodiesSystem}, &syncBodies);
     app.addSystem(ecs::Phase::kFixedUpdate, std::string{kSyncToPhysicsSystem}, &syncToPhysics)
@@ -154,6 +187,8 @@ void PhysicsPlugin::build(ecs::App& app) {
     app.addSystem(ecs::Phase::kFixedUpdate, std::string{kStepSystem}, &step).after(std::string{kSyncToPhysicsSystem});
     app.addSystem(ecs::Phase::kFixedUpdate, std::string{kSyncFromPhysicsSystem}, &syncFromPhysics)
         .after(std::string{kStepSystem});
+    app.addSystem(ecs::Phase::kFixedUpdate, std::string{kEventsSystem}, &sendContactEvents)
+        .after(std::string{kSyncFromPhysicsSystem});
 }
 
 }  // namespace rtype::plugins::physics
