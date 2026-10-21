@@ -37,9 +37,17 @@ static_assert(sizeof(rtype::plugins::physics::ShapeType) == 1, "ShapeType must m
 
 namespace rtype::plugins::physics {
 
+/// @brief Every collision category: a Collider::mask that collides with everything. There are 15 categories, bits 0 to
+/// 14; each game names its own, e.g. `constexpr std::uint32_t kPlayerBullet = 1U << 1;`.
+inline constexpr std::uint32_t kAllLayers = (1U << 15) - 1U;
+
 /// @brief The shape and material an entity collides with: gameplay writes it, the physics plugin builds the shape.
 /// @details Distances are in world units, like Transform. Each shape reads its own fields: size for a box, radius for
 /// a circle, radius and halfHeight for a capsule. Without a RigidBody, the entity is a static body.
+///
+/// Collision filtering: two colliders collide (or a sensor detects the other) only when each one's layer is in the
+/// other's mask, so both must want it; two static bodies never collide. layer must name at least one category, and
+/// neither may use a bit beyond kAllLayers.
 /// @code
 /// commands.spawn()
 ///     .add(rtype::plugins::transform::Transform{.position = {400.0F, 300.0F}})
@@ -57,7 +65,10 @@ struct Collider {
     bool sensor = false;                ///< Detects overlaps (triggers) without colliding.
     float friction = 0.2F;              ///< How much the surface resists sliding, usually in [0, 1].
     float restitution = 0.0F;           ///< How bouncy the surface is: 0 absorbs, 1 bounces back fully.
+    std::uint32_t layer = 1U << 0;      ///< The collision categories it belongs to, usually one bit.
+    std::uint32_t mask = kAllLayers;    ///< The collision categories it collides with.
 };
-RTYPE_ECS_COMPONENT(Collider, "rtype.Collider", shape, size, radius, halfHeight, offset, sensor, friction, restitution);
+RTYPE_ECS_COMPONENT(Collider, "rtype.Collider", shape, size, radius, halfHeight, offset, sensor, friction, restitution,
+                    layer, mask);
 
 }  // namespace rtype::plugins::physics
