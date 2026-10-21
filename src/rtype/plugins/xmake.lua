@@ -2,9 +2,11 @@
 -- holds the contracts the platforms and renderers implement: IPlatform, IRenderer, Event, Settings...) and declares
 -- its own components, resources and events.
 
--- Keep the package's defaults: its debug_renderer option does not reach Jolt's CMake (the library is always built with
+-- Keep debug_renderer at its default: that option does not reach Jolt's CMake (the library is always built with
 -- JPH_DEBUG_RENDERER), and a define that differs from the library's makes JPH::RegisterTypes() abort.
-add_requires("joltphysics 5.6.x", {alias = "joltphysics"})
+-- 32-bit object layers: each body's layer holds a static flag, its collision categories and its mask (1 + 15 + 15 bits,
+-- see physics/detail/Layers). This option does reach Jolt's CMake, and the package adds the matching define for us.
+add_requires("joltphysics 5.6.x", {alias = "joltphysics", configs = {object_layer_bits = "32"}})
 
 target("plugins")
     set_kind("static")
