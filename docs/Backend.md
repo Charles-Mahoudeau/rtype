@@ -64,7 +64,7 @@ code that registers the backends (`main.cpp`, an example) names the modules.
 |---|---|
 | [`plugins/backend/platform/IPlatform.hpp`](../src/rtype/plugins/backend/platform/IPlatform.hpp) | The window and its events |
 | [`plugins/backend/platform/WindowConfig.hpp`](../src/rtype/plugins/backend/platform/WindowConfig.hpp) | How the window is created, read from the `window` settings |
-| [`plugins/backend/graphics/IRenderer.hpp`](../src/rtype/plugins/backend/graphics/IRenderer.hpp) | Textures, camera, sprites and rectangles |
+| [`plugins/backend/graphics/IRenderer.hpp`](../src/rtype/plugins/backend/graphics/IRenderer.hpp) | Textures, camera, sprites and shapes |
 | [`plugins/backend/config/Settings.hpp`](../src/rtype/plugins/backend/config/Settings.hpp) | The configuration |
 | [`plugins/backend/BackendRegistry.hpp`](../src/rtype/plugins/backend/BackendRegistry.hpp) | Backends by name, and the start-up sequence |
 | [`interop/vulkan/IVulkanSurfaceSource.hpp`](../src/rtype/interop/vulkan/IVulkanSurfaceSource.hpp) | What a Vulkan renderer needs from a window |
@@ -127,7 +127,7 @@ the backend.
 | `resize(size)` | Called on every `Resized` event. |
 | `createTexture(desc, pixels)`, `destroy(id)` | Textures from RGBA pixels, referred to by `TextureId`. |
 | `beginFrame(clearColor)`, `endFrame()` | One frame. |
-| `setCamera(camera)`, `draw(Sprite)`, `draw(RectShape)` | Drawing, between `beginFrame()` and `endFrame()`. |
+| `setCamera(camera)`, `draw(Sprite)`, `draw(Shape)` | Drawing, between `beginFrame()` and `endFrame()`. A `Shape` is a rectangle (rounded corners), circle, capsule or line, filled and/or outlined; shapes are overlays, drawn after the sprites. |
 
 Conventions, the ones of those libraries: world units with X to the right and Y down, angles in radians and
 clockwise on screen, shapes drawn in call order (the last one on top). Until `setCamera()` is called, a frame shows

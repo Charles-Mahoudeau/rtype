@@ -42,11 +42,13 @@
 #include "plugins/backend/graphics/CameraView.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
-#include "plugins/backend/graphics/RectShape.hpp"
+#include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
 #include "presentation/Swapchain.hpp"
+#include "rendering/ShapeInstance.hpp"
+#include "rendering/ShapePass.hpp"
 #include "rendering/SpriteBatch.hpp"
 #include "rendering/SpritePass.hpp"
 #include "texture/SamplerCache.hpp"
@@ -60,7 +62,8 @@ namespace rtype::render::vulkan {
 /// the frames in flight and the allocator. beginFrame() clears the next swapchain image with dynamic rendering and
 /// endFrame() presents it. createTexture() uploads RGBA8 sRGB images. draw(Sprite) collects the frame's sprites, and
 /// endFrame() draws them in batches (one instanced draw per run of sprites sharing a texture), through the camera given
-/// to setCamera(). draw(RectShape) throws UnsupportedFeatureException until it is implemented.
+/// to setCamera(). draw(Shape) collects the frame's shapes, and endFrame() draws them all after the sprites, in one
+/// instanced draw, from their signed distance (rendering/ShapePass.hpp).
 ///
 /// Needs a platform that implements interop::vulkan::IVulkanSurfaceSource (GlfwPlatform does).
 class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::graphics::IRenderer {
@@ -160,17 +163,14 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// @throws std::invalid_argument If its texture was destroyed or never created.
     void draw(const plugins::backend::graphics::Sprite& sprite) override;
 
-    /// @brief Not implemented yet.
-    /// @throws exceptions::UnsupportedFeatureException Always.
-    void draw(const plugins::backend::graphics::RectShape& rect) override;
+    /// @brief Adds @p shape to the frame, drawn by endFrame() after every sprite, on top of the shapes drawn before
+    /// it. Does nothing if beginFrame() skipped the frame.
+    void draw(const plugins::backend::graphics::Shape& shape) override;
 
   private:
-    /// @throws exceptions::UnsupportedFeatureException Always, naming the function.
     /// @return The platform's IVulkanSurfaceSource.
     /// @throws exceptions::UnsupportedFeatureException If the platform does not implement it.
     static interop::vulkan::IVulkanSurfaceSource& surfaceSourceOf(plugins::backend::platform::IPlatform& platform);
-
-    [[noreturn]] static void notImplemented(std::string_view function);
 
     /// @brief Waits for the GPU, builds a new swapchain from the old one (oldSwapchain) and new renderFinished
     /// semaphores, defers the old ones to the deletion queue, then notifies the listeners. Does nothing but keep the
@@ -214,6 +214,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     std::chrono::steady_clock::time_point _lastFrameTime;       ///< When the previous frame ended: for deltaTime.
     std::optional<plugins::backend::graphics::Camera> _camera;  ///< From setCamera(); reset by beginFrame().
     rendering::SpriteBatch _sprites;                            ///< The frame's sprites; cleared by beginFrame().
+    std::vector<rendering::ShapeInstance> _shapes;              ///< The frame's shapes; cleared by beginFrame().
 
     // 2. Context: created by init(), in this order.
     std::optional<core::Instance> _instance;                ///< The VkInstance.
@@ -241,6 +242,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     std::unique_ptr<pipeline::PipelineLayout> _layout;   ///< The shared layout (rendering/ShaderLayout.hpp) of every
                                                          ///< pipeline: sets 0 and 1, and the DrawConstants.
     std::unique_ptr<rendering::SpritePass> _spritePass;  ///< Draws _sprites at endFrame().
+    std::unique_ptr<rendering::ShapePass> _shapePass;    ///< Draws _shapes at endFrame(), after the sprites.
     core::SlotMap<plugins::backend::graphics::TextureId, texture::Texture> _textures;  ///< By TextureId.
 
     // 7. Deferred deletion.

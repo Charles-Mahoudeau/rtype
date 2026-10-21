@@ -14,7 +14,7 @@
 #include "plugins/Export.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/RectShape.hpp"
+#include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
@@ -23,10 +23,12 @@ namespace rtype::plugins::backend::graphics {
 
 /// @brief 2D rendering, implemented by a graphics backend (Vulkan for now; SFML, SDL or raylib would fit too).
 ///
-/// @details Kept at the level every 2D library offers: textures, a camera, sprites and rectangles. How they reach
-/// the screen (batching, pipelines...) is up to the backend. Conventions, the ones of those libraries:
+/// @details Kept at the level every 2D library offers: textures, a camera, sprites and shapes (rectangles, circles,
+/// capsules, lines). How they reach the screen (batching, pipelines...) is up to the backend. Conventions, the ones of
+/// those libraries:
 /// - World units, X to the right and Y down; angles in radians, clockwise on screen.
-/// - Shapes are drawn in call order: the last one drawn is on top, so sort by layer before drawing.
+/// - Sprites are drawn in call order: the last one drawn is on top, so sort by layer before drawing. Shapes are
+///   overlays, drawn in call order among themselves, on top of the sprites.
 ///
 /// A frame looks like:
 /// @code
@@ -92,7 +94,10 @@ class RTYPE_PLUGINS_API IRenderer {
     virtual void setCamera(const Camera& camera) = 0;
 
     virtual void draw(const Sprite& sprite) = 0;
-    virtual void draw(const RectShape& rect) = 0;
+    /// @brief Draws a shape (rectangle, circle, capsule, line), filled and/or outlined.
+    /// @details A backend may draw every shape of a frame after its sprites, as Vulkan does (one draw call for them
+    /// all): shapes are for overlays (debug views, outlines, UI), never under a sprite.
+    virtual void draw(const Shape& shape) = 0;
     /// @}
 };
 }  // namespace rtype::plugins::backend::graphics
