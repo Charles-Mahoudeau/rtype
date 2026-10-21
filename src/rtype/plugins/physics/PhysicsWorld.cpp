@@ -527,6 +527,8 @@ std::optional<PhysicsWorld::RayHit> PhysicsWorld::raycast(glm::vec2 origin, glm:
     const JPH::RVec3 point = ray.GetPointOnRay(result.mFraction);
     JPH::Vec3 normal = JPH::Vec3::sZero();
     {
+        // why the extra scope?
+        // Because the lock must be released before makeHit() reads the body again to get its user data.
         const JPH::BodyLockRead lock{_impl->system.GetBodyLockInterface(), result.mBodyID};
         if (lock.Succeeded()) {
             normal = lock.GetBody().GetWorldSpaceSurfaceNormal(result.mSubShapeID2, point);
@@ -560,6 +562,8 @@ std::vector<PhysicsWorld::RayHit> PhysicsWorld::raycastAll(glm::vec2 origin, glm
         const JPH::RVec3 point = ray.GetPointOnRay(result.mFraction);
         JPH::Vec3 normal = JPH::Vec3::sZero();
         {
+            // why the extra scope?
+            // Because the lock must be released before makeHit() reads the body again to get its user data.
             const JPH::BodyLockRead lock{locks, result.mBodyID};
             if (lock.Succeeded()) {
                 normal = lock.GetBody().GetWorldSpaceSurfaceNormal(result.mSubShapeID2, point);
