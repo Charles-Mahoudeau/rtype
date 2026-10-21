@@ -22,7 +22,6 @@
 #include <span>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
@@ -39,7 +38,7 @@
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/CameraView.hpp"
 #include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/RectShape.hpp"
+#include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
@@ -48,6 +47,8 @@
 #include "rendering/DynamicRendering.hpp"
 #include "rendering/FrameUniforms.hpp"
 #include "rendering/ShaderLayout.hpp"
+#include "rendering/ShapeInstance.hpp"
+#include "rendering/ShapePass.hpp"
 #include "rendering/SpriteBatch.hpp"
 #include "rendering/SpritePass.hpp"
 #include "texture/SamplerCache.hpp"
@@ -155,6 +156,9 @@ void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
     _spritePass =
         std::make_unique<rendering::SpritePass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
                                                 &_pipelineCache->getCache(), kFramesInFlight);
+    _shapePass =
+        std::make_unique<rendering::ShapePass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
+                                               &_pipelineCache->getCache(), kFramesInFlight);
     _startTime = std::chrono::steady_clock::now();
     _lastFrameTime = _startTime;
 }
@@ -243,6 +247,7 @@ void VulkanRenderer::beginFrame(const plugins::backend::graphics::Color& clearCo
     }
     _camera.reset();
     _sprites.clear();
+    _shapes.clear();
     if (_framebufferSize.x == 0 || _framebufferSize.y == 0) {
         return;
     }
@@ -299,6 +304,8 @@ void VulkanRenderer::endFrame() {
                             return found != nullptr ? *found->set : vk::DescriptorSet{};
                         });
     _sprites.clear();
+    _shapePass->record(commandBuffer, frameIndex, _shapes, view.getViewport());
+    _shapes.clear();
 
     commandBuffer.endRendering();
     rendering::transitionImage(commandBuffer, _swapchain->getImages().at(imageIndex),
@@ -342,7 +349,12 @@ void VulkanRenderer::draw(const plugins::backend::graphics::Sprite& sprite) {
     _sprites.add(sprite.texture, rendering::SpriteInstance::fromSprite(sprite, texture->desc.size));
 }
 
-void VulkanRenderer::draw(const plugins::backend::graphics::RectShape& /*rect*/) { notImplemented("draw(RectShape)"); }
+void VulkanRenderer::draw(const plugins::backend::graphics::Shape& shape) {
+    if (!_acquiredImage) {
+        return;
+    }
+    _shapes.push_back(rendering::ShapeInstance::fromShape(shape));
+}
 
 interop::vulkan::IVulkanSurfaceSource& VulkanRenderer::surfaceSourceOf(
     plugins::backend::platform::IPlatform& platform) {
@@ -352,11 +364,6 @@ interop::vulkan::IVulkanSurfaceSource& VulkanRenderer::surfaceSourceOf(
             "VulkanRenderer needs a platform that implements IVulkanSurfaceSource (glfw, sdl...)");
     }
     return *surfaceSource;
-}
-
-void VulkanRenderer::notImplemented(std::string_view function) {
-    throw plugins::backend::exceptions::UnsupportedFeatureException(
-        std::format("VulkanRenderer::{} is not implemented yet", function));
 }
 
 }  // namespace rtype::render::vulkan

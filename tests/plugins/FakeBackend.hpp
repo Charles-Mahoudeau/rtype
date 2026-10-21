@@ -22,7 +22,7 @@
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
-#include "plugins/backend/graphics/RectShape.hpp"
+#include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
@@ -47,6 +47,7 @@ struct FakeBackendState {
     std::vector<rtype::plugins::backend::graphics::TextureId> destroyedTextures;  ///< Every destroy() call.
     std::vector<rtype::plugins::backend::graphics::Camera> cameras;               ///< Every setCamera() call.
     std::vector<rtype::plugins::backend::graphics::Sprite> sprites;               ///< Every draw(Sprite) call.
+    std::vector<rtype::plugins::backend::graphics::Shape> shapes;                 ///< Every draw(Shape) call.
 };
 
 /// @brief A window that returns scripted events.
@@ -129,7 +130,7 @@ class FakeRenderer : public rtype::plugins::backend::graphics::IRenderer {
         _state->cameras.push_back(camera);
     }
     void draw(const rtype::plugins::backend::graphics::Sprite& sprite) override { _state->sprites.push_back(sprite); }
-    void draw(const rtype::plugins::backend::graphics::RectShape& /*rect*/) override {}
+    void draw(const rtype::plugins::backend::graphics::Shape& shape) override { _state->shapes.push_back(shape); }
 
   private:
     std::shared_ptr<FakeBackendState> _state;  ///< Shared with the test.

@@ -7,7 +7,9 @@
 
 #include "SfmlRenderer.hpp"
 
+#include <SFML/Graphics/CircleShape.hpp>
 #include <SFML/Graphics/Color.hpp>
+#include <SFML/Graphics/ConvexShape.hpp>
 #include <SFML/Graphics/Rect.hpp>
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Graphics/Sprite.hpp>
@@ -16,9 +18,12 @@
 #include <SFML/System/Angle.hpp>
 #include <SFML/System/Vector2.hpp>
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
+#include <glm/geometric.hpp>
 #include <span>
 #include <stdexcept>
 #include <utility>
@@ -28,7 +33,7 @@
 #include "plugins/backend/exceptions/PlatformExceptions.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/RectShape.hpp"
+#include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
@@ -44,6 +49,33 @@ sf::Color toSfColor(const graphics::Color& color) {
     constexpr float kMax = 255.0F;
     const auto channel = [](float value) { return static_cast<std::uint8_t>(std::clamp(value, 0.0F, 1.0F) * kMax); };
     return {channel(color.x), channel(color.y), channel(color.z), channel(color.w)};
+}
+
+/// @brief Points per half circle of a capsule's outline.
+constexpr std::size_t kCapPoints = 12;
+
+/// @return A capsule as a convex polygon: centred on @p center, its straight part @p halfHeight on each side of the
+/// centre along its axis, turned by @p rotation (radians, clockwise on screen), and @p radius thick.
+sf::ConvexShape capsuleShape(glm::vec2 center, float halfHeight, float radius, float rotation) {
+    sf::ConvexShape shape{2 * kCapPoints};
+    const float pi = std::acos(-1.0F);
+    for (std::size_t index = 0; index < kCapPoints; ++index) {
+        // The bottom cap (y > 0, Y down) from right to left, then the top cap from left to right.
+        const float angle = pi * static_cast<float>(index) / static_cast<float>(kCapPoints - 1);
+        shape.setPoint(index, {radius * std::cos(angle), halfHeight + (radius * std::sin(angle))});
+        shape.setPoint(kCapPoints + index, {-radius * std::cos(angle), -halfHeight - (radius * std::sin(angle))});
+    }
+    shape.setPosition({center.x, center.y});
+    shape.setRotation(sf::radians(rotation));
+    return shape;
+}
+
+/// @brief Gives an SFML shape the engine shape's colours; the engine draws the outline inside, SFML with a negative
+/// thickness.
+void paint(sf::Shape& target, const graphics::Shape& shape) {
+    target.setFillColor(toSfColor(shape.fillColor));
+    target.setOutlineColor(toSfColor(shape.outlineColor));
+    target.setOutlineThickness(-shape.outlineThickness);
 }
 
 /// @return A view showing the window in pixels, origin at the top-left corner: the frame's default camera.
@@ -139,16 +171,42 @@ void SfmlRenderer::draw(const graphics::Sprite& sprite) {
     _window->draw(sfSprite);
 }
 
-void SfmlRenderer::draw(const graphics::RectShape& rect) {
-    sf::RectangleShape shape{{rect.size.x, rect.size.y}};
-    shape.setOrigin({rect.origin.x, rect.origin.y});
-    shape.setPosition({rect.position.x, rect.position.y});
-    shape.setRotation(sf::radians(rect.rotation));
-    shape.setFillColor(toSfColor(rect.fillColor));
-    shape.setOutlineColor(toSfColor(rect.outlineColor));
-    // The engine draws the outline inside the rectangle; SFML does it with a negative thickness.
-    shape.setOutlineThickness(-rect.outlineThickness);
-    _window->draw(shape);
+void SfmlRenderer::draw(const graphics::Shape& shape) {
+    switch (shape.kind) {
+        case graphics::ShapeKind::kRect: {
+            sf::RectangleShape rect{{shape.size.x, shape.size.y}};
+            rect.setOrigin({shape.size.x * 0.5F, shape.size.y * 0.5F});
+            rect.setPosition({shape.position.x, shape.position.y});
+            rect.setRotation(sf::radians(shape.rotation));
+            paint(rect, shape);
+            _window->draw(rect);
+            break;
+        }
+        case graphics::ShapeKind::kCircle: {
+            sf::CircleShape circle{shape.radius};
+            circle.setOrigin({shape.radius, shape.radius});
+            circle.setPosition({shape.position.x, shape.position.y});
+            paint(circle, shape);
+            _window->draw(circle);
+            break;
+        }
+        case graphics::ShapeKind::kCapsule: {
+            sf::ConvexShape capsule = capsuleShape(shape.position, shape.halfHeight, shape.radius, shape.rotation);
+            paint(capsule, shape);
+            _window->draw(capsule);
+            break;
+        }
+        case graphics::ShapeKind::kLine: {
+            // A capsule along the segment: its axis, local +Y, turned onto the direction from position to end.
+            const glm::vec2 segment = shape.end - shape.position;
+            const float rotation = std::atan2(-segment.x, segment.y);
+            sf::ConvexShape line =
+                capsuleShape((shape.position + shape.end) * 0.5F, glm::length(segment) * 0.5F, shape.radius, rotation);
+            paint(line, shape);
+            _window->draw(line);
+            break;
+        }
+    }
 }
 
 const sf::Texture* SfmlRenderer::find(graphics::TextureId texture) const {

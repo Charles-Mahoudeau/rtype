@@ -19,7 +19,7 @@
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
-#include "plugins/backend/graphics/RectShape.hpp"
+#include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
@@ -59,7 +59,9 @@ class SfmlRenderer final : public rtype::plugins::backend::graphics::IRenderer {
     void setCamera(const rtype::plugins::backend::graphics::Camera& camera) override;
     /// @throws std::invalid_argument If the sprite's texture was destroyed.
     void draw(const rtype::plugins::backend::graphics::Sprite& sprite) override;
-    void draw(const rtype::plugins::backend::graphics::RectShape& rect) override;
+    /// @brief Draws a rectangle, circle, capsule or line with SFML's shapes; SFML has no rounded rectangle, so
+    /// cornerRadius is ignored.
+    void draw(const rtype::plugins::backend::graphics::Shape& shape) override;
 
   private:
     /// @brief A place for one texture; reused after destroy() with a higher generation.
