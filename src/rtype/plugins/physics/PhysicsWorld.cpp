@@ -21,15 +21,24 @@
 #include <Jolt/Physics/Body/BodyManager.h>
 #include <Jolt/Physics/Body/BodyType.h>
 #include <Jolt/Physics/Body/MotionType.h>
+#include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/CollideShape.h>
+#include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
+#include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
+#include <Jolt/Physics/Collision/RayCast.h>
+#include <Jolt/Physics/Collision/Shape/Shape.h>
+#include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/Physics/EActivation.h>
 #include <Jolt/Physics/EPhysicsUpdateError.h>
 #include <Jolt/Physics/PhysicsSettings.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <format>
 #include <glm/ext/vector_float2.hpp>
+#include <glm/geometric.hpp>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -40,6 +49,7 @@
 #include "plugins/physics/Collider.hpp"
 #include "plugins/physics/PhysicsHandle.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
+#include "plugins/physics/QueryFilter.hpp"
 #include "plugins/physics/RigidBody.hpp"
 #include "plugins/physics/Velocity.hpp"
 #include "plugins/physics/detail/BodySettings.hpp"
@@ -47,6 +57,7 @@
 #include "plugins/physics/detail/JoltMath.hpp"
 #include "plugins/physics/detail/JoltRuntime.hpp"
 #include "plugins/physics/detail/Layers.hpp"
+#include "plugins/physics/detail/QueryFilters.hpp"
 #include "plugins/physics/exceptions/PhysicsExceptions.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
@@ -186,6 +197,29 @@ struct PhysicsWorld::Impl {
             }
         }
         pushes.clear();
+    }
+
+    /// @return The body of the entity a query ignores; an invalid id when none is ignored or it has no body.
+    [[nodiscard]] JPH::BodyID ignoredBody(const QueryFilter& filter) const {
+        if (!filter.ignore) {
+            return JPH::BodyID{};
+        }
+        const auto found = bodies.find(filter.ignore->getBits());
+        return found == bodies.end() ? JPH::BodyID{} : found->second.body;
+    }
+
+    /// @return What a query hit, in world units: the entity reads the body's user data, the normal (in meters, unit)
+    /// only flips Y; nothing if the body went away.
+    [[nodiscard]] std::optional<RayHit> makeHit(JPH::BodyID body, JPH::RVec3Arg point, JPH::Vec3Arg normal,
+                                                float distance) const {
+        const JPH::BodyLockRead lock{system.GetBodyLockInterface(), body};
+        if (!lock.Succeeded()) {
+            return std::nullopt;
+        }
+        return RayHit{.entity = entityFromBits(lock.GetBody().GetUserData()),
+                      .point = detail::fromJolt2D(point) * unitsPerMeter,
+                      .normal = detail::fromJolt2D(normal),
+                      .distance = distance};
     }
 
     /// @brief Removes a body from the simulation and frees it.
@@ -463,6 +497,125 @@ std::vector<PhysicsWorld::Contact> PhysicsWorld::takeContacts() {
         });
     }
     return contacts;
+}
+
+namespace {
+/// @return The direction of a query, unit; nothing when it has no length or the query no reach.
+std::optional<glm::vec2> queryDirection(glm::vec2 direction, float maxDistance) noexcept {
+    const float length = glm::length(direction);
+    if (!(length > 0.0F) || !(maxDistance > 0.0F)) {
+        return std::nullopt;
+    }
+    return direction / length;
+}
+}  // namespace
+
+std::optional<PhysicsWorld::RayHit> PhysicsWorld::raycast(glm::vec2 origin, glm::vec2 direction, float maxDistance,
+                                                          const QueryFilter& filter) const {
+    const std::optional<glm::vec2> unit = queryDirection(direction, maxDistance);
+    if (!unit) {
+        return std::nullopt;
+    }
+    const JPH::RRayCast ray{detail::toJolt2D(origin / _impl->unitsPerMeter),
+                            detail::toJolt2D(*unit * (maxDistance / _impl->unitsPerMeter))};
+    const detail::MaskLayerFilter layerFilter{filter.mask};
+    const detail::QueryBodyFilter bodyFilter{_impl->ignoredBody(filter), filter.includeSensors};
+    JPH::RayCastResult result;
+    if (!_impl->system.GetNarrowPhaseQuery().CastRay(ray, result, {}, layerFilter, bodyFilter)) {
+        return std::nullopt;
+    }
+    const JPH::RVec3 point = ray.GetPointOnRay(result.mFraction);
+    JPH::Vec3 normal = JPH::Vec3::sZero();
+    {
+        const JPH::BodyLockRead lock{_impl->system.GetBodyLockInterface(), result.mBodyID};
+        if (lock.Succeeded()) {
+            normal = lock.GetBody().GetWorldSpaceSurfaceNormal(result.mSubShapeID2, point);
+        }
+    }
+    return _impl->makeHit(result.mBodyID, point, normal, result.mFraction * maxDistance);
+}
+
+std::vector<PhysicsWorld::RayHit> PhysicsWorld::raycastAll(glm::vec2 origin, glm::vec2 direction, float maxDistance,
+                                                           const QueryFilter& filter) const {
+    const std::optional<glm::vec2> unit = queryDirection(direction, maxDistance);
+    if (!unit) {
+        return {};
+    }
+    const JPH::RRayCast ray{detail::toJolt2D(origin / _impl->unitsPerMeter),
+                            detail::toJolt2D(*unit * (maxDistance / _impl->unitsPerMeter))};
+    const detail::MaskLayerFilter layerFilter{filter.mask};
+    const detail::QueryBodyFilter bodyFilter{_impl->ignoredBody(filter), filter.includeSensors};
+    JPH::AllHitCollisionCollector<JPH::CastRayCollector> collector;
+    _impl->system.GetNarrowPhaseQuery().CastRay(ray, JPH::RayCastSettings{}, collector, {}, layerFilter, bodyFilter);
+    collector.Sort();
+    std::vector<RayHit> hits;
+    hits.reserve(collector.mHits.size());
+    std::vector<JPH::BodyID> seen;
+    const JPH::BodyLockInterface& locks = _impl->system.GetBodyLockInterface();
+    for (const JPH::RayCastResult& result : collector.mHits) {
+        if (std::ranges::find(seen, result.mBodyID) != seen.end()) {
+            continue;
+        }
+        seen.push_back(result.mBodyID);
+        const JPH::RVec3 point = ray.GetPointOnRay(result.mFraction);
+        JPH::Vec3 normal = JPH::Vec3::sZero();
+        {
+            const JPH::BodyLockRead lock{locks, result.mBodyID};
+            if (lock.Succeeded()) {
+                normal = lock.GetBody().GetWorldSpaceSurfaceNormal(result.mSubShapeID2, point);
+            }
+        }
+        if (const std::optional<RayHit> hit =
+                _impl->makeHit(result.mBodyID, point, normal, result.mFraction * maxDistance)) {
+            hits.push_back(*hit);
+        }
+    }
+    return hits;
+}
+
+std::optional<PhysicsWorld::RayHit> PhysicsWorld::shapeCast(const Collider& shape, glm::vec2 from, glm::vec2 direction,
+                                                            float maxDistance, const QueryFilter& filter) const {
+    const std::optional<glm::vec2> unit = queryDirection(direction, maxDistance);
+    if (!unit) {
+        return std::nullopt;
+    }
+    const JPH::RefConst<JPH::Shape> joltShape = detail::makeShape(shape, _impl->unitsPerMeter);
+    const JPH::RShapeCast cast = JPH::RShapeCast::sFromWorldTransform(
+        joltShape.GetPtr(), JPH::Vec3::sOne(), JPH::RMat44::sTranslation(detail::toJolt2D(from / _impl->unitsPerMeter)),
+        detail::toJolt2D(*unit * (maxDistance / _impl->unitsPerMeter)));
+    const detail::MaskLayerFilter layerFilter{filter.mask};
+    const detail::QueryBodyFilter bodyFilter{_impl->ignoredBody(filter), filter.includeSensors};
+    JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> collector;
+    _impl->system.GetNarrowPhaseQuery().CastShape(cast, JPH::ShapeCastSettings{}, JPH::RVec3::sZero(), collector, {},
+                                                  layerFilter, bodyFilter);
+    if (!collector.HadHit()) {
+        return std::nullopt;
+    }
+    const JPH::ShapeCastResult& result = collector.mHit;
+    const JPH::Vec3 normal =
+        result.mPenetrationAxis.IsNearZero() ? JPH::Vec3::sZero() : -result.mPenetrationAxis.Normalized();
+    return _impl->makeHit(result.mBodyID2, JPH::RVec3{result.mContactPointOn2}, normal, result.mFraction * maxDistance);
+}
+
+std::vector<ecs::Entity> PhysicsWorld::overlap(const Collider& shape, glm::vec2 at, const QueryFilter& filter) const {
+    const JPH::RefConst<JPH::Shape> joltShape = detail::makeShape(shape, _impl->unitsPerMeter);
+    const JPH::RMat44 transform =
+        JPH::RMat44::sTranslation(detail::toJolt2D(at / _impl->unitsPerMeter) + joltShape->GetCenterOfMass());
+    const detail::MaskLayerFilter layerFilter{filter.mask};
+    const detail::QueryBodyFilter bodyFilter{_impl->ignoredBody(filter), filter.includeSensors};
+    JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> collector;
+    _impl->system.GetNarrowPhaseQuery().CollideShape(joltShape.GetPtr(), JPH::Vec3::sOne(), transform,
+                                                     JPH::CollideShapeSettings{}, JPH::RVec3::sZero(), collector, {},
+                                                     layerFilter, bodyFilter);
+    std::vector<ecs::Entity> entities;
+    for (const JPH::CollideShapeResult& result : collector.mHits) {
+        const std::optional<ecs::Entity> entity =
+            findEntity(PhysicsHandle{.body = result.mBodyID2.GetIndexAndSequenceNumber()});
+        if (entity && std::ranges::find(entities, *entity) == entities.end()) {
+            entities.push_back(*entity);
+        }
+    }
+    return entities;
 }
 
 std::vector<PhysicsWorld::BodyVelocity> PhysicsWorld::collectChangedVelocities() {

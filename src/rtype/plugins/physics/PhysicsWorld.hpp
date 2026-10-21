@@ -17,6 +17,7 @@
 #include "plugins/physics/Collider.hpp"
 #include "plugins/physics/PhysicsHandle.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
+#include "plugins/physics/QueryFilter.hpp"
 #include "plugins/physics/RigidBody.hpp"
 #include "plugins/physics/Velocity.hpp"
 #include "plugins/transform/Transform.hpp"
@@ -67,6 +68,14 @@ class PhysicsWorld {
         ecs::Entity second;                   ///< The other entity.
         glm::vec2 point{0.0F, 0.0F};          ///< Where they touched, in world units, Y down; zero for an end.
         glm::vec2 normal{0.0F, 0.0F};         ///< Unit vector from first to second, Y down; zero for an end.
+    };
+
+    /// @brief What a ray or a moving shape hit.
+    struct RayHit {
+        ecs::Entity entity;            ///< The hit entity.
+        glm::vec2 point{0.0F, 0.0F};   ///< Where, in world units, Y down.
+        glm::vec2 normal{0.0F, 0.0F};  ///< The surface normal there, unit, pointing out of the hit body, Y down.
+        float distance = 0.0F;         ///< From the origin, in world units.
     };
 
     /// @brief Builds the world, setting Jolt up if this is the process's first world.
@@ -184,6 +193,37 @@ class PhysicsWorld {
     /// whatever the number of contact points.
     /// @details A pair whose body was destroyed (entity despawned, collider removed, body rebuilt) reports no end.
     [[nodiscard]] std::vector<Contact> takeContacts();
+
+    /// @brief Casts a ray and returns the closest body it hits.
+    /// @details Reads the world as of the last step, plus the bodies created since. A ray starting inside a body hits
+    /// it at distance 0.
+    /// @param origin Where the ray starts, in world units, Y down.
+    /// @param direction Where it goes, Y down; normalized here, so its length does not matter.
+    /// @param maxDistance How far it goes, in world units.
+    /// @param filter Which bodies it sees.
+    /// @return The closest hit, or nothing.
+    [[nodiscard]] std::optional<RayHit> raycast(glm::vec2 origin, glm::vec2 direction, float maxDistance,
+                                                const QueryFilter& filter = {}) const;
+    /// @brief Casts a ray and returns every body it hits, closest first: one hit per body.
+    [[nodiscard]] std::vector<RayHit> raycastAll(glm::vec2 origin, glm::vec2 direction, float maxDistance,
+                                                 const QueryFilter& filter = {}) const;
+    /// @brief Sweeps a shape along a direction and returns the first body it would touch.
+    /// @param shape The shape to sweep: only its shape fields are read (shape, size, radius, halfHeight, offset).
+    /// @param from Where the shape starts, in world units, Y down.
+    /// @param direction Where it goes, Y down; normalized here.
+    /// @param maxDistance How far it goes, in world units.
+    /// @param filter Which bodies it sees.
+    /// @return The first hit, its distance being how far the shape travels before touching; or nothing.
+    /// @throws exceptions::PhysicsException When the shape is invalid (as for a Collider).
+    [[nodiscard]] std::optional<RayHit> shapeCast(const Collider& shape, glm::vec2 from, glm::vec2 direction,
+                                                  float maxDistance, const QueryFilter& filter = {}) const;
+    /// @brief Lists the entities whose bodies overlap a shape placed somewhere: one entry per entity.
+    /// @param shape The shape: only its shape fields are read.
+    /// @param at Where it is, in world units, Y down.
+    /// @param filter Which bodies it sees.
+    /// @throws exceptions::PhysicsException When the shape is invalid (as for a Collider).
+    [[nodiscard]] std::vector<ecs::Entity> overlap(const Collider& shape, glm::vec2 at,
+                                                   const QueryFilter& filter = {}) const;
 
   private:
     struct Impl;
