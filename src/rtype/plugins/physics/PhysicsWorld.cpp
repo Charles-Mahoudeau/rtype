@@ -89,6 +89,9 @@ Velocity fromJoltVelocity(JPH::Vec3Arg linear, JPH::Vec3Arg angular, float units
 }  // namespace
 
 /// @brief The world's Jolt objects. Destroyed in reverse order: the system first, then what it points to.
+// The member order is what keeps destruction safe, so it is not reordered to save the padding (a few dozen bytes per
+// world): the field order clang-analyzer suggests would destroy the layer filters before the system that uses them.
+// NOLINTNEXTLINE(clang-analyzer-optin.performance.Padding)
 struct PhysicsWorld::Impl {
     /// @brief What the world knows of an entity's body.
     struct BodyEntry {
