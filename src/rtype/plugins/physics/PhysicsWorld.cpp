@@ -11,6 +11,7 @@
 #include <Jolt/Core/Core.h>
 #include <Jolt/Core/JobSystemSingleThreaded.h>
 #include <Jolt/Core/TempAllocator.h>
+#include <Jolt/Math/MathTypes.h>
 #include <Jolt/Math/Vec3.h>
 #include <Jolt/Physics/Body/Body.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
@@ -40,6 +41,7 @@
 #include "plugins/physics/PhysicsHandle.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "plugins/physics/RigidBody.hpp"
+#include "plugins/physics/Velocity.hpp"
 #include "plugins/physics/detail/BodySettings.hpp"
 #include "plugins/physics/detail/JoltMath.hpp"
 #include "plugins/physics/detail/JoltRuntime.hpp"
@@ -78,6 +80,12 @@ std::shared_ptr<const detail::JoltRuntime> acquireRuntime(const PhysicsSettings&
 ecs::Entity entityFromBits(std::uint64_t bits) noexcept {
     return ecs::Entity{static_cast<std::uint32_t>(bits), static_cast<std::uint32_t>(bits >> 32U)};
 }
+
+/// @return A body's velocity in world units, Y down.
+Velocity fromJoltVelocity(JPH::Vec3Arg linear, JPH::Vec3Arg angular, float unitsPerMeter) noexcept {
+    return Velocity{.linear = detail::fromJolt2D(linear) * unitsPerMeter,
+                    .angular = detail::fromJoltAngle2D(angular.GetZ())};
+}
 }  // namespace
 
 /// @brief The world's Jolt objects. Destroyed in reverse order: the system first, then what it points to.
@@ -89,6 +97,10 @@ struct PhysicsWorld::Impl {
         std::uint64_t seenPass = 0;          ///< The last body pass that saw the entity.
         glm::vec2 lastPosition{0.0F, 0.0F};  ///< The last position given to the body or read from it, in world units.
         float lastRotation = 0.0F;           ///< The last rotation given to the body or read from it.
+        std::optional<Velocity>
+            lastVelocity;                     ///< The last velocity given to the body or read from it; none if unknown.
+        std::uint64_t kinematicMoveStep = 0;  ///< The step (as getStepCount() counts it after it) of the last
+                                              ///< moveKinematic(): its pose is the Transform's, not written back.
 
         /// @return Whether this is the last pose given or read. Exact float equality on purpose: the Transform holds
         /// exactly the floats read from the body.
@@ -100,6 +112,19 @@ struct PhysicsWorld::Impl {
             lastPosition = position;
             lastRotation = rotation;
         }
+    };
+
+    /// @brief What a push does to a body.
+    enum class PushKind : std::uint8_t {
+        kForce,    ///< JPH::BodyInterface::AddForce.
+        kImpulse,  ///< JPH::BodyInterface::AddImpulse.
+        kTorque,   ///< JPH::BodyInterface::AddTorque.
+    };
+    /// @brief A force, impulse or torque queued for the next step.
+    struct Push {
+        std::uint64_t entity;  ///< Entity::getBits() of the pushed entity.
+        PushKind kind;         ///< What the push does.
+        JPH::Vec3 value;       ///< Already in Jolt's units and axes.
     };
 
     explicit Impl(const PhysicsSettings& settings)
@@ -127,6 +152,35 @@ struct PhysicsWorld::Impl {
     detail::ObjectLayerPairFilter objectLayerPairFilter;        ///< Object layer vs object layer.
     JPH::PhysicsSystem system;                                  ///< Points to the three above: declared after them.
     std::unordered_map<std::uint64_t, BodyEntry> bodies;        ///< The bodies by Entity::getBits().
+    std::vector<Push> pushes;                                   ///< Queued for the next step, in call order.
+
+    /// @brief Queues a push for the next step.
+    void queue(ecs::Entity entity, PushKind kind, JPH::Vec3Arg value) {
+        pushes.push_back(Push{.entity = entity.getBits(), .kind = kind, .value = value});
+    }
+
+    /// @brief Applies the queued pushes to the dynamic bodies they name, then forgets them.
+    void applyPushes() {
+        JPH::BodyInterface& bodyInterface = system.GetBodyInterface();
+        for (const Push& push : pushes) {
+            const auto found = bodies.find(push.entity);
+            if (found == bodies.end() || bodyInterface.GetMotionType(found->second.body) != JPH::EMotionType::Dynamic) {
+                continue;
+            }
+            switch (push.kind) {
+                case PushKind::kForce:
+                    bodyInterface.AddForce(found->second.body, push.value);
+                    break;
+                case PushKind::kImpulse:
+                    bodyInterface.AddImpulse(found->second.body, push.value);
+                    break;
+                case PushKind::kTorque:
+                    bodyInterface.AddTorque(found->second.body, push.value);
+                    break;
+            }
+        }
+        pushes.clear();
+    }
 
     /// @brief Removes a body from the simulation and frees it.
     void destroy(JPH::BodyID id) {
@@ -194,11 +248,29 @@ std::optional<glm::vec2> PhysicsWorld::getBodyPosition(ecs::Entity entity) const
     return detail::fromJolt2D(_impl->system.GetBodyInterface().GetPosition(found->second.body)) * _impl->unitsPerMeter;
 }
 
+std::optional<Velocity> PhysicsWorld::getBodyVelocity(ecs::Entity entity) const {
+    const auto found = _impl->bodies.find(entity.getBits());
+    if (found == _impl->bodies.end()) {
+        return std::nullopt;
+    }
+    const JPH::BodyInterface& bodyInterface = _impl->system.GetBodyInterface();
+    return fromJoltVelocity(bodyInterface.GetLinearVelocity(found->second.body),
+                            bodyInterface.GetAngularVelocity(found->second.body), _impl->unitsPerMeter);
+}
+
+bool PhysicsWorld::isVelocityOutOfSync(ecs::Entity entity, const Velocity& velocity) const {
+    const auto found = _impl->bodies.find(entity.getBits());
+    return found != _impl->bodies.end() &&
+           _impl->system.GetBodyInterface().GetMotionType(found->second.body) != JPH::EMotionType::Static &&
+           found->second.lastVelocity != velocity;
+}
+
 void PhysicsWorld::setGravity(glm::vec2 gravity) noexcept {
     _impl->system.SetGravity(detail::toJolt2D(gravity / _impl->unitsPerMeter));
 }
 
 void PhysicsWorld::step(float deltaSeconds) {
+    _impl->applyPushes();
     const JPH::EPhysicsUpdateError errors =
         _impl->system.Update(deltaSeconds, kCollisionSteps, &_impl->tempAllocator, &_impl->jobSystem);
     _impl->droppedContacts = errors != JPH::EPhysicsUpdateError::None;
@@ -289,6 +361,8 @@ void PhysicsWorld::moveKinematic(ecs::Entity entity, const transform::Transform&
     bodyInterface.MoveKinematic(found->second.body, detail::toJolt2D(transform.position / _impl->unitsPerMeter),
                                 detail::toJoltRotation2D(transform.rotation), deltaSeconds);
     found->second.remember(transform.position, transform.rotation);
+    found->second.lastVelocity.reset();
+    found->second.kinematicMoveStep = _impl->steps + 1;
 }
 
 void PhysicsWorld::teleport(ecs::Entity entity, const transform::Transform& transform) {
@@ -302,6 +376,34 @@ void PhysicsWorld::teleport(ecs::Entity entity, const transform::Transform& tran
     found->second.remember(transform.position, transform.rotation);
 }
 
+void PhysicsWorld::setVelocity(ecs::Entity entity, const Velocity& velocity) {
+    const auto found = _impl->bodies.find(entity.getBits());
+    if (found == _impl->bodies.end()) {
+        return;
+    }
+    JPH::BodyInterface& bodyInterface = _impl->system.GetBodyInterface();
+    if (bodyInterface.GetMotionType(found->second.body) == JPH::EMotionType::Static) {
+        return;
+    }
+    bodyInterface.SetLinearAndAngularVelocity(found->second.body,
+                                              detail::toJolt2D(velocity.linear / _impl->unitsPerMeter),
+                                              JPH::Vec3{0.0F, 0.0F, detail::toJoltAngle2D(velocity.angular)});
+    found->second.lastVelocity = velocity;
+}
+
+void PhysicsWorld::applyForce(ecs::Entity entity, glm::vec2 force) {
+    _impl->queue(entity, Impl::PushKind::kForce, detail::toJolt2D(force / _impl->unitsPerMeter));
+}
+
+void PhysicsWorld::applyImpulse(ecs::Entity entity, glm::vec2 impulse) {
+    _impl->queue(entity, Impl::PushKind::kImpulse, detail::toJolt2D(impulse / _impl->unitsPerMeter));
+}
+
+void PhysicsWorld::applyTorque(ecs::Entity entity, float torque) {
+    const float metersSquared = _impl->unitsPerMeter * _impl->unitsPerMeter;
+    _impl->queue(entity, Impl::PushKind::kTorque, JPH::Vec3{0.0F, 0.0F, detail::toJoltAngle2D(torque / metersSquared)});
+}
+
 std::vector<PhysicsWorld::BodyPose> PhysicsWorld::collectMovedBodies() {
     JPH::BodyIDVector active;
     _impl->system.GetActiveBodies(JPH::EBodyType::RigidBody, active);
@@ -310,12 +412,12 @@ std::vector<PhysicsWorld::BodyPose> PhysicsWorld::collectMovedBodies() {
     const JPH::BodyLockInterface& locks = _impl->system.GetBodyLockInterface();
     for (const JPH::BodyID id : active) {
         const JPH::BodyLockRead lock{locks, id};
-        if (!lock.Succeeded() || !lock.GetBody().IsDynamic()) {
+        if (!lock.Succeeded() || lock.GetBody().IsStatic()) {
             continue;
         }
         const JPH::Body& body = lock.GetBody();
         const auto found = _impl->bodies.find(body.GetUserData());
-        if (found == _impl->bodies.end()) {
+        if (found == _impl->bodies.end() || (body.IsKinematic() && found->second.kinematicMoveStep == _impl->steps)) {
             continue;
         }
         const glm::vec2 position = detail::fromJolt2D(body.GetPosition()) * _impl->unitsPerMeter;
@@ -327,6 +429,33 @@ std::vector<PhysicsWorld::BodyPose> PhysicsWorld::collectMovedBodies() {
         poses.push_back(BodyPose{.entity = entityFromBits(found->first), .position = position, .rotation = rotation});
     }
     return poses;
+}
+
+std::vector<PhysicsWorld::BodyVelocity> PhysicsWorld::collectChangedVelocities() {
+    JPH::BodyIDVector active;
+    _impl->system.GetActiveBodies(JPH::EBodyType::RigidBody, active);
+    std::vector<BodyVelocity> velocities;
+    velocities.reserve(active.size());
+    const JPH::BodyLockInterface& locks = _impl->system.GetBodyLockInterface();
+    for (const JPH::BodyID id : active) {
+        const JPH::BodyLockRead lock{locks, id};
+        if (!lock.Succeeded() || !lock.GetBody().IsDynamic()) {
+            continue;
+        }
+        const JPH::Body& body = lock.GetBody();
+        const auto found = _impl->bodies.find(body.GetUserData());
+        if (found == _impl->bodies.end()) {
+            continue;
+        }
+        const Velocity velocity =
+            fromJoltVelocity(body.GetLinearVelocity(), body.GetAngularVelocity(), _impl->unitsPerMeter);
+        if (found->second.lastVelocity == velocity) {
+            continue;
+        }
+        found->second.lastVelocity = velocity;
+        velocities.push_back(BodyVelocity{.entity = entityFromBits(found->first), .velocity = velocity});
+    }
+    return velocities;
 }
 
 }  // namespace rtype::plugins::physics

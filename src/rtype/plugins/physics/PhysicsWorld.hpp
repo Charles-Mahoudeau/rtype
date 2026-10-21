@@ -18,6 +18,7 @@
 #include "plugins/physics/PhysicsHandle.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "plugins/physics/RigidBody.hpp"
+#include "plugins/physics/Velocity.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
@@ -45,6 +46,11 @@ class PhysicsWorld {
         ecs::Entity entity;  ///< The entity the body belongs to.
         glm::vec2 position;  ///< In world units, Y down.
         float rotation;      ///< In radians, clockwise on screen.
+    };
+    /// @brief How fast a body moves, as a Velocity sees it.
+    struct BodyVelocity {
+        ecs::Entity entity;  ///< The entity the body belongs to.
+        Velocity velocity;   ///< In world units and radians per second.
     };
 
     /// @brief Builds the world, setting Jolt up if this is the process's first world.
@@ -74,14 +80,20 @@ class PhysicsWorld {
     [[nodiscard]] std::optional<ecs::Entity> findEntity(PhysicsHandle handle) const;
     /// @return Where the entity's body is, in world units, Y down; nothing if it has no body.
     [[nodiscard]] std::optional<glm::vec2> getBodyPosition(ecs::Entity entity) const;
+    /// @return How fast the entity's body moves; nothing if it has no body.
+    [[nodiscard]] std::optional<Velocity> getBodyVelocity(ecs::Entity entity) const;
     /// @return Whether the Transform differs from the last pose the world gave the body or read from it: gameplay moved
     /// the entity. False for an entity without a body.
     [[nodiscard]] bool isOutOfSync(ecs::Entity entity, const transform::Transform& transform) const;
+    /// @return Whether the Velocity differs from the last velocity the world gave the body or read from it: gameplay
+    /// changed it, or the body was rebuilt or moved to a Transform since. False for an entity without a moving body.
+    [[nodiscard]] bool isVelocityOutOfSync(ecs::Entity entity, const Velocity& velocity) const;
 
     /// @param gravity In world units per second squared, Y down.
     void setGravity(glm::vec2 gravity) noexcept;
 
     /// @brief Advances the simulation by one step.
+    /// @details Applies the forces, impulses and torques queued since the last step first, then forgets them.
     /// @param deltaSeconds The step's duration; the PhysicsPlugin passes Time::fixedDelta.
     void step(float deltaSeconds);
 
@@ -114,17 +126,44 @@ class PhysicsWorld {
 
     /// @brief Moves a kinematic body to the entity's Transform during the next step.
     /// @details Gives the body the velocity that reaches the Transform in deltaSeconds, so it pushes the dynamic bodies
-    /// on its way instead of passing through them; called every tick, it stops when the Transform stops. Does nothing
-    /// for an entity without a kinematic body.
+    /// on its way instead of passing through them; called every tick, it stops when the Transform stops. Its Velocity
+    /// counts as out of sync afterwards, so setVelocity() gives it back. Does nothing for an entity without a kinematic
+    /// body.
     void moveKinematic(ecs::Entity entity, const transform::Transform& transform, float deltaSeconds);
     /// @brief Puts the entity's body at its Transform at once, waking it up: a respawn, a moved wall.
     /// @details Keeps the body's velocity. Does nothing for an entity without a body.
     void teleport(ecs::Entity entity, const transform::Transform& transform);
-    /// @brief Reads the dynamic bodies the last step moved, for their Transforms.
-    /// @details Only the bodies Jolt keeps active, and only those whose pose changed: sleeping bodies never mark their
-    /// Transform as changed, so replication does not send them. Each pose is remembered, so isOutOfSync() does not take
-    /// the Transform written from it for a move by gameplay.
+    /// @brief Sets how fast the entity's body moves, waking it up when the velocity is not zero.
+    /// @details An axis the body cannot move along (RigidBody::fixedRotation) stays at zero. Does nothing for an entity
+    /// without a dynamic or kinematic body.
+    void setVelocity(ecs::Entity entity, const Velocity& velocity);
+
+    /// @brief Pushes the entity's body during the next step: a thrust, a wind.
+    /// @details Queued, applied by step(), then forgotten: call it every tick to keep pushing. Does nothing to an
+    /// entity without a dynamic body at the next step.
+    /// @param force In kilogram world units per second squared, Y down.
+    void applyForce(ecs::Entity entity, glm::vec2 force);
+    /// @brief Changes the entity's body's velocity at once, at the next step: a jump, a knock-back, a recoil.
+    /// @details Queued, applied by step() before it integrates. Does nothing to an entity without a dynamic body at the
+    /// next step.
+    /// @param impulse In kilogram world units per second, Y down: divided by the mass, the change of velocity.
+    void applyImpulse(ecs::Entity entity, glm::vec2 impulse);
+    /// @brief Turns the entity's body during the next step.
+    /// @details Queued, applied by step(), then forgotten. Does nothing to an entity without a dynamic body at the next
+    /// step, or whose RigidBody has fixedRotation.
+    /// @param torque In kilogram square world units per second squared, clockwise on screen.
+    void applyTorque(ecs::Entity entity, float torque);
+
+    /// @brief Reads the bodies the last step moved, for their Transforms.
+    /// @details The dynamic bodies and the kinematic ones moving at their velocity, not those moveKinematic() moved to
+    /// their Transform. Only the bodies Jolt keeps active, and only those whose pose changed: sleeping bodies never
+    /// mark their Transform as changed, so replication does not send them. Each pose is remembered, so isOutOfSync()
+    /// does not take the Transform written from it for a move by gameplay.
     [[nodiscard]] std::vector<BodyPose> collectMovedBodies();
+    /// @brief Reads the dynamic bodies whose velocity the last step changed, for their Velocity.
+    /// @details Only the bodies Jolt keeps active. Each velocity is remembered, so isVelocityOutOfSync() does not take
+    /// the Velocity written from it for a change by gameplay.
+    [[nodiscard]] std::vector<BodyVelocity> collectChangedVelocities();
 
   private:
     struct Impl;
