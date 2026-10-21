@@ -13,7 +13,8 @@
 //   bullets hit, which the ship flies through too;
 // - the ball falls through a sensor zone on its way down, and the ship grazes it: a sensor also detects a moving
 //   kinematic body.
-// Every contact event (CollisionStarted / Ended, TriggerEntered / Exited) is printed when the physics sends it.
+// Every contact event (CollisionStarted / Ended, TriggerEntered / Exited) is printed when the physics sends it, and the
+// ship fires a laser (a raycast) ahead of itself each time the scene is printed.
 // Gameplay only writes components (Transform, Collider, RigidBody, Velocity) and calls the PhysicsWorld resource.
 
 #include <cstdint>
@@ -21,6 +22,7 @@
 #include <format>
 #include <glm/ext/vector_float2.hpp>
 #include <iostream>
+#include <optional>
 #include <string>
 
 #include "plugins/physics/Collider.hpp"
@@ -28,6 +30,7 @@
 #include "plugins/physics/PhysicsPlugin.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "plugins/physics/PhysicsWorld.hpp"
+#include "plugins/physics/QueryFilter.hpp"
 #include "plugins/physics/RigidBody.hpp"
 #include "plugins/physics/Velocity.hpp"
 #include "plugins/transform/Transform.hpp"
@@ -201,11 +204,17 @@ void report(Res<PhysicsWorld> world, Res<Scene> scene, Query<const Transform> tr
             ballSpeed = velocity.linear;
         }
     }
+    // The ship's laser: a ray ahead of it that sees scenery and targets, never the ship itself.
+    const std::optional<PhysicsWorld::RayHit> laser =
+        world->raycast(ship, {1.0F, 0.0F}, 1000.0F, QueryFilter{.mask = kScenery | kTarget, .ignore = scene->ship});
+    const std::string aim =
+        laser ? std::format("laser hits the {} {:.0f} away", nameOf(*scene, laser->entity), laser->distance)
+              : std::string{"laser hits nothing"};
     std::cout << std::format(
         "t={:.1f}s  ball ({:5.1f}, {:5.1f}) speed ({:4.1f}, {:6.1f})  ship x {:6.1f}  bullet x {:6.1f}  "
-        "crate ({:5.1f}, {:5.1f})  {} bodies\n",
+        "crate ({:5.1f}, {:5.1f})  {} bodies, {}\n",
         static_cast<float>(world->getStepCount()) / kTicksPerSecond, ball.x, ball.y, ballSpeed.x, ballSpeed.y, ship.x,
-        bullet.x, crate.x, crate.y, world->getBodyCount());
+        bullet.x, crate.x, crate.y, world->getBodyCount(), aim);
 }
 
 // FixedUpdate, between the Transform sync and the step: kicks the crate once, then stops the App.
