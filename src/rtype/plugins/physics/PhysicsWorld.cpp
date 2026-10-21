@@ -17,6 +17,7 @@
 #include <Jolt/Physics/Body/BodyID.h>
 #include <Jolt/Physics/Body/BodyInterface.h>
 #include <Jolt/Physics/Body/BodyLock.h>
+#include <Jolt/Physics/Body/BodyManager.h>
 #include <Jolt/Physics/Body/BodyType.h>
 #include <Jolt/Physics/Body/MotionType.h>
 #include <Jolt/Physics/EActivation.h>
