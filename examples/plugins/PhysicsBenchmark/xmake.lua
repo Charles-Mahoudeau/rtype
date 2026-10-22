@@ -1,0 +1,5 @@
+target("PhysicsBenchmark")
+    set_kind("binary")
+    set_default(false)
+    add_deps("plugins")
+    add_files("src/**.cpp")
