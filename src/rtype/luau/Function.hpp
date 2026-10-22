@@ -42,7 +42,7 @@ class RTYPE_LUAU_API Function {
     /// returned to Lua, in order. If an argument cannot be read (see `CallContext::fromStack`), the handler does not
     /// run and the call raises a Lua error instead. A handler raises a Lua error by throwing an `exceptions::Base`,
     /// whose message is then prefixed with the name of the function; any other `std::exception` also becomes a Lua
-    /// error, with its message unchanged.
+    /// error, with its message unchanged, and so does anything else that is thrown, with a generic message.
     using Handler = std::function<ValuePack(const CallContext&)>;
 
     /// @brief Creates a native closure bound to a new Function and registers it as a global of the Lua state.
@@ -138,7 +138,8 @@ class RTYPE_LUAU_API Function {
     /// Reads the arguments into a `CallContext`, runs the handler with it, then pushes the values of the returned
     /// pack onto the stack. Raises a Lua error if that Function was destroyed or has no handler, if an
     /// argument cannot be read, or if the handler, or pushing its values, throws an `exceptions::Base`. Every
-    /// other exception is left to Luau, which turns a `std::exception` into a Lua runtime error.
+    /// other `std::exception` is left to Luau, which turns it into a Lua runtime error, and anything that does not
+    /// derive from `std::exception` raises a Lua error with a generic message.
     /// @param state The Lua state calling the closure.
     /// @return The number of values returned to Lua.
     /// @throws exceptions::InvalidOperation If the upvalue points to a Function wrapping a function defined in Luau.

@@ -156,8 +156,8 @@ int Function::handle(lua_State* state) {
     std::string error{};
     std::size_t resultCount{};
     // Every C++ object of the call lives in the scope below, so it is destroyed before the Lua error is raised. Only
-    // the exceptions of the module are caught: a Lua error raised inside the handler is a C++ exception too, and
-    // must reach Luau untouched.
+    // the exceptions of the module and the ones that do not derive from std::exception are caught: a Lua error
+    // raised inside the handler is a C++ exception too, and must reach Luau untouched.
     if (!self->_handler) {
         error = std::format("native function '{}' has no handler", self->_name);
     } else {
@@ -170,6 +170,12 @@ int Function::handle(lua_State* state) {
                 resultCount = results.push(state);
             } catch (const exceptions::Base& e) {
                 error = std::format("native function '{}': {}", self->_name, e.what());
+            } catch (const std::exception&) {
+                // Luau turns a std::exception into a Lua error itself, and its own errors are one too.
+                throw;
+            } catch (...) {
+                // Luau only catches std::exception: anything else would escape lua_pcall.
+                error = std::format("native function '{}' threw an unknown exception", self->_name);
             }
         }
     }
