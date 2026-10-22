@@ -393,6 +393,19 @@ TEST(Function, NativeRaisesErrorWhenHandlerThrowsStdException) {
     EXPECT_EQ(result.error().message(), "oops");
 }
 
+TEST(Function, NativeRaisesErrorWhenHandlerThrowsNonStdException) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    native.setHandler([](const CallContext&) -> ValuePack { throw 42; });
+    const Function function = makeFunction(runtime, "native()");
+
+    const auto result = function.call();
+
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kRuntime);
+    EXPECT_NE(result.error().message().find("unknown exception"), std::string::npos);
+}
+
 TEST(Function, NativeHandlerCanCallBackIntoLuau) {
     const auto runtime = makeRuntime();
     Function native = Function::create(runtime.state(), "native");
