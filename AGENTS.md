@@ -106,7 +106,8 @@ are added.
     includes `miniaudio.h`, and the executable sees `Registration.hpp` only. The implementation of miniaudio (and of
     stb_vorbis, its OGG decoder) is compiled once, in `vendor/MiniaudioImplementation.cpp`, which clang-tidy skips
     (`vendor/.clang-tidy`).
-- `src/rtype/luau/` — `luau` target, shared library (`rtype-luau`) for Luau scripting.
+- `src/rtype/luau/` — `luau` target, shared library (`rtype-luau`) for Luau scripting. Failures a correct program can hit return
+  `Result<T>`; exceptions are only for API misuse (`docs/luau/error-handling.md`).
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `examples/<category>/.../<Name>/` — standalone examples, each with its own `xmake.lua`, grouped in
   folders of any depth (e.g. `examples/graphic/render/vulkan/VulkanInstance/`). Every `xmake.lua` under

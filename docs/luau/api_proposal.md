@@ -21,6 +21,8 @@ The sections below build on each other: [Error Handling](#error-handling) and
 
 ## Error Handling
 
+> The rule as implemented is in [error-handling.md](error-handling.md).
+
 Every operation that can fail because of *script* content — a compile error,
 a script raising an error, exceeding the memory or time budget — returns a
 `rtype::luau::Result<T>` instead of throwing. Failures that come from
