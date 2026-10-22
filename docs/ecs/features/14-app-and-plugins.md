@@ -190,8 +190,8 @@ sequenceDiagram
     end
 ```
 
-Between the two frame systems, `rtype.backend.camera` passes the `Camera` component with the highest `priority` to
-`renderer.setCamera()`; with no camera entity, the renderer keeps its default view. While the window is minimized,
+Between the two frame systems, `rtype.backend.camera` shows the world from the entity with a `Camera` (the highest
+`priority`) and a `GlobalTransform`, through `renderer.setView()`; with no camera entity, the renderer keeps its default view. While the window is minimized,
 the events system waits for an event instead of polling, and the render systems skip the frame. A window always comes with input: the `BackendPlugin` adds the `InputPlugin` and orders its events system
 before `rtype.Input.Update`, which reads the `PlatformEvent`s in order. The dependency goes one way only: the input
 plugin knows nothing of the backend. Named system sets ("send platform events" before "read platform events") will

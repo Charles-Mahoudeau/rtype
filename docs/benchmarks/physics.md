@@ -1,5 +1,8 @@
 # C/C++ physics engine benchmark (October 2026)
 
+> **Implemented:** the physics plugin built from this plan is described in
+> [`../physics/design.md`](../physics/design.md), which also lists where it differs from section 4.
+
 **Context:** our engine is C++23, built with `xmake`, around our own ECS (`rtype::ecs`) with GLM math. The game is
 **2D for now** (`Transform` holds a `glm::vec2`), and **moving to 3D later is mandatory**, so the physics engine must
 cover both without a rewrite. We need `Collider` and `RigidBody` components, triggers and raycasts.
@@ -73,7 +76,8 @@ as much as "2D today".
   thread too, so a plain `std::vector` buffer of events is enough, with no mutex.
 - **Cons:** Jolt has its own math types (`JPH::Vec3`, `JPH::Quat`), so we need a GLM conversion header. It is Y-up,
   while our 2D `Transform` is Y-down: the conversion header flips the axis. Jolt needs `RegisterTypes()` and a
-  `Factory` once per process before any room starts, outside the ECS (which keeps no global state).
+  `Factory` once per process: each room's `PhysicsWorld` holds a shared handle to that setup, so the first world
+  sets Jolt up and the last one cleans it up, and the user only adds the plugin.
 
 ### Box2D v3, then Box3D later
 

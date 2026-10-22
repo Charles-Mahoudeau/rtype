@@ -68,7 +68,7 @@ TEST(ShapeInstance, ACapsuleCoversItsStraightPartAndCaps) {
     EXPECT_FLOAT_EQ(instance.radius, 8.0F);
 }
 
-TEST(ShapeInstance, ALineIsACapsuleCentredOnItsSegment) {
+TEST(ShapeInstance, ALineIsACapsulecentredOnItsSegment) {
     const ShapeInstance instance = ShapeInstance::fromShape(
         Shape{.kind = ShapeKind::kLine, .position = {0.0F, 0.0F}, .end = {30.0F, 40.0F}, .radius = 2.0F});
     EXPECT_EQ(instance.kind, ShapeInstanceKind::kCapsule);

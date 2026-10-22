@@ -17,7 +17,7 @@
 #include <glm/ext/vector_uint2.hpp>
 #include <glm/matrix.hpp>
 
-#include "plugins/backend/graphics/Camera.hpp"
+#include "plugins/backend/graphics/View.hpp"
 
 namespace rtype::plugins::backend::graphics {
 
@@ -41,21 +41,21 @@ Viewport letterbox(glm::vec2 viewSize, glm::uvec2 framebufferSize) {
 
 }  // namespace
 
-CameraView::CameraView(const Camera& camera, glm::vec2 viewSize, glm::uvec2 framebufferSize)
+CameraView::CameraView(const View& view, glm::vec2 viewSize, glm::uvec2 framebufferSize)
     : _viewport{letterbox(resolveViewSize(viewSize, framebufferSize), framebufferSize)} {
     const glm::vec2 size = resolveViewSize(viewSize, framebufferSize);
-    const float zoom = std::get<Orthographic>(camera.projection).zoom;
+    const float zoom = std::get<Orthographic>(view.projection).zoom;
     const glm::vec2 half = size / (2.0F * zoom);
     const glm::mat4 projection = glm::orthoRH_ZO(-half.x, half.x, -half.y, half.y, 0.0F, 1.0F);
-    const glm::mat4 view = glm::translate(glm::rotate(glm::mat4{1.0F}, -camera.rotation, glm::vec3{0.0F, 0.0F, 1.0F}),
-                                          glm::vec3{-camera.position.x, -camera.position.y, 0.0F});
-    _viewProjection = projection * view;
+    const glm::mat4 world = glm::translate(glm::rotate(glm::mat4{1.0F}, -view.rotation, glm::vec3{0.0F, 0.0F, 1.0F}),
+                                           glm::vec3{-view.position.x, -view.position.y, 0.0F});
+    _viewProjection = projection * world;
     _inverse = glm::inverse(_viewProjection);
 }
 
-Camera CameraView::makeDefaultCamera(glm::vec2 viewSize, glm::uvec2 framebufferSize) {
-    const glm::vec2 centre = resolveViewSize(viewSize, framebufferSize) * 0.5F;
-    return Camera{.position = {centre.x, centre.y, 0.0F}};
+View CameraView::makeDefaultView(glm::vec2 viewSize, glm::uvec2 framebufferSize) {
+    const glm::vec2 center = resolveViewSize(viewSize, framebufferSize) * 0.5F;
+    return View{.position = center};
 }
 
 glm::vec2 CameraView::screenToWorld(glm::vec2 screen) const {

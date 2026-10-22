@@ -127,10 +127,10 @@ the backend.
 | `resize(size)` | Called on every `Resized` event. |
 | `createTexture(desc, pixels)`, `destroy(id)` | Textures from RGBA pixels, referred to by `TextureId`. |
 | `beginFrame(clearColor)`, `endFrame()` | One frame. |
-| `setCamera(camera)`, `draw(Sprite)`, `draw(Shape)` | Drawing, between `beginFrame()` and `endFrame()`. A `Shape` is a rectangle (rounded corners), circle, capsule or line, filled and/or outlined; shapes are overlays, drawn after the sprites. |
+| `setView(view)`, `draw(Sprite)`, `draw(Shape)` | Drawing, between `beginFrame()` and `endFrame()`. A `Shape` is a rectangle (rounded corners), circle, capsule or line, filled and/or outlined; shapes are overlays, drawn after the sprites. |
 
 Conventions, the ones of those libraries: world units with X to the right and Y down, angles in radians and
-clockwise on screen, shapes drawn in call order (the last one on top). Until `setCamera()` is called, a frame shows
+clockwise on screen, shapes drawn in call order (the last one on top). Until `setView()` is called, a frame shows
 the world in window pixels, origin at the top-left corner.
 
 Resources are **handles**: a `TextureId` is an index and a generation, a plain value to store in sprites and ECS

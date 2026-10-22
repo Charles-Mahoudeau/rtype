@@ -45,7 +45,8 @@ are added.
   `RTYPE_PLUGINS_API`, which keeps the RTTI of the backend interfaces visible across binaries.
   - `plugins/backend/` (`rtype::plugins::backend`) — the contracts the backends implement and the vocabulary they
     speak, in sub-folders whose namespaces follow them: `platform/` (`IPlatform`, `WindowConfig`), `graphics/`
-    (`IRenderer`, `Sprite`, `Texture`..., the `Camera` and `SpriteRenderer` components, `CameraView` (what a camera
+    (`IRenderer`, `Sprite`, `Texture`, `View`..., the `Camera` (projection and priority, placed by its entity's
+    `Transform`) and `SpriteRenderer` components, `CameraView` (what a `View`
     shows: letterboxed viewport, view-projection, screen and world conversions), `AssetId` (the hash of an
     asset's path, the same in every process), and the `TextureAssets` resource: the textures by
     `AssetId`, queued by `load()` and decoded with stb by the backend plugin), `event/` (the `Event` variant),
@@ -59,6 +60,11 @@ are added.
   - `plugins/transform/` (`rtype::plugins::transform`) — `TransformPlugin`: the `Transform` component gameplay writes
     and the `GlobalTransform` rendering reads, computed from it in `PostUpdate` on every side. The backend plugin adds
     it and draws each `SpriteRenderer` at its `GlobalTransform`.
+  - `plugins/physics/` (`rtype::plugins::physics`) — `PhysicsPlugin`: 2D physics on Jolt (`Collider`, `RigidBody`,
+    `Velocity`, the `PhysicsWorld` resource, collision events, scene queries, `moveAndSlide`), simulated on the server
+    side, with query-only bodies on clients. Jolt is a private package of `plugins`: only `.cpp` files and `detail/`
+    include it. The debug view is in `physics/debug/` (`rtype::plugins::physics::debug`). Design in
+    `docs/physics/design.md`.
   - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
   `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
@@ -80,7 +86,8 @@ are added.
   folders of any depth (e.g. `examples/graphic/render/vulkan/VulkanInstance/`). Every `xmake.lua` under
   `examples/` is an example named after its folder. They are only built when enabled (see Commands).
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
-- `docs/` — design documentation (e.g. `docs/Input.md` for the event and input pipeline).
+- `docs/` — design documentation (e.g. `docs/Input.md` for the event and input pipeline, `docs/physics/design.md`
+  for the physics).
 - `.github/` — CI workflow and issue templates.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
 
@@ -103,7 +110,8 @@ ecs      ←  replication
 - `network` depends on Asio only (private): never on the ECS, `plugins` or any other project target.
   `replication` depends on `ecs` and `network` and is the only module that knows both; the renderer, the
   platforms and `luau` never include its headers.
-- `plugins` depends on nothing but `ecs` and glm. Never add a dependency on a `platform-*`, `render-*` or `luau`
+- `plugins` depends on nothing but `ecs` and glm, plus Jolt as a private package of the physics plugin (no public
+  header includes it). Never add a dependency on a `platform-*`, `render-*` or `luau`
   target to it: the platforms and renderers implement its contracts (`plugins/backend/`), so it would create a cycle.
   The executable fills the backend registry instead.
 - The platforms and renderers link `plugins` (and so the ECS) for the contracts, but never include ECS headers or

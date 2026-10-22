@@ -34,7 +34,7 @@ enum class ShapeKind : std::uint8_t {
 /// @endcode
 struct Shape {
     ShapeKind kind = ShapeKind::kRect;  ///< Which fields below describe the shape.
-    glm::vec2 position{0.0F};           ///< The centre (rect, circle, capsule) or the start (line), in world units.
+    glm::vec2 position{0.0F};           ///< The center (rect, circle, capsule) or the start (line), in world units.
     glm::vec2 end{0.0F};                ///< kLine: the end, in world units.
     glm::vec2 size{0.0F};               ///< kRect: full width and height, in world units.
     float radius = 0.0F;                ///< kCircle, kCapsule: radius; kLine: half the thickness. World units.

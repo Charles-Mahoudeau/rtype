@@ -27,6 +27,7 @@
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
+#include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/input/Key.hpp"
 #include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
@@ -35,9 +36,11 @@
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/event/EventCursor.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
+#include "rtype/ecs/type/Field.hpp"
 #include "rtype/ecs/world/World.hpp"
 
 namespace {
@@ -247,32 +250,64 @@ TEST(BackendPlugin, FeedsInputWhicheverPluginIsAddedFirst) {
     }
 }
 
+TEST(BackendPlugin, ReflectsTheCameraPriority) {
+    using Traits = rtype::ecs::ComponentTraits<rtype::plugins::backend::graphics::Camera>;
+    EXPECT_EQ(Traits::kName, "rtype.Camera");
+    ASSERT_EQ(Traits::kFields.size(), 1U);
+    EXPECT_EQ(Traits::kFields[0].name, "priority");
+    EXPECT_EQ(Traits::kFields[0].type, rtype::ecs::FieldType::kI32);
+}
+
 TEST(BackendPlugin, ShowsNoCameraWhenNoEntityHasOne) {
     BackendApp app;
     app.app().runFrame();
-    EXPECT_TRUE(app.state().cameras.empty());
+    EXPECT_TRUE(app.state().views.empty());
 }
 
 TEST(BackendPlugin, ShowsTheCameraWithTheHighestPriority) {
     BackendApp app;
     rtype::ecs::World& world = app.app().getWorld();
-    world.spawn(rtype::plugins::backend::graphics::Camera{.position = {1.0F, 0.0F, 0.0F}, .priority = 1});
-    world.spawn(rtype::plugins::backend::graphics::Camera{.position = {2.0F, 0.0F, 0.0F}, .priority = 5});
-    world.spawn(rtype::plugins::backend::graphics::Camera{.position = {3.0F, 0.0F, 0.0F}, .priority = -2});
+    world.spawn(rtype::plugins::transform::Transform{.position = {1.0F, 0.0F}},
+                rtype::plugins::backend::graphics::Camera{.priority = 1});
+    world.spawn(rtype::plugins::transform::Transform{.position = {2.0F, 0.0F}},
+                rtype::plugins::backend::graphics::Camera{.priority = 5});
+    world.spawn(rtype::plugins::transform::Transform{.position = {3.0F, 0.0F}},
+                rtype::plugins::backend::graphics::Camera{.priority = -2});
     app.app().runFrame();
-    ASSERT_EQ(app.state().cameras.size(), 1U);
-    EXPECT_FLOAT_EQ(app.state().cameras[0].position.x, 2.0F);
+    ASSERT_EQ(app.state().views.size(), 1U);
+    EXPECT_FLOAT_EQ(app.state().views[0].position.x, 2.0F);
+}
+
+TEST(BackendPlugin, ShowsTheCameraFromItsTransform) {
+    BackendApp app;
+    app.app().getWorld().spawn(rtype::plugins::transform::Transform{.position = {40.0F, -12.0F}, .rotation = 0.5F},
+                               rtype::plugins::backend::graphics::Camera{
+                                   .projection = rtype::plugins::backend::graphics::Orthographic{.zoom = 3.0F}});
+    app.app().runFrame();
+    ASSERT_EQ(app.state().views.size(), 1U);
+    const rtype::plugins::backend::graphics::View& view = app.state().views[0];
+    EXPECT_FLOAT_EQ(view.position.x, 40.0F);
+    EXPECT_FLOAT_EQ(view.position.y, -12.0F);
+    EXPECT_FLOAT_EQ(view.rotation, 0.5F);
+    EXPECT_FLOAT_EQ(std::get<rtype::plugins::backend::graphics::Orthographic>(view.projection).zoom, 3.0F);
+}
+
+TEST(BackendPlugin, ShowsNoCameraWithoutATransform) {
+    BackendApp app;
+    app.app().getWorld().spawn(rtype::plugins::backend::graphics::Camera{});
+    app.app().runFrame();
+    EXPECT_TRUE(app.state().views.empty());
 }
 
 TEST(BackendPlugin, AppliesTheCameraEveryFrameItIsDrawn) {
     BackendApp app;
-    app.app().getWorld().spawn(rtype::plugins::backend::graphics::Camera{});
+    app.app().getWorld().spawn(rtype::plugins::transform::Transform{}, rtype::plugins::backend::graphics::Camera{});
     app.app().runFrame();
     app.app().runFrame();
-    EXPECT_EQ(app.state().cameras.size(), 2U);
+    EXPECT_EQ(app.state().views.size(), 2U);
     app.state().framebufferSize = {0, 0};
     app.app().runFrame();
-    EXPECT_EQ(app.state().cameras.size(), 2U);
+    EXPECT_EQ(app.state().views.size(), 2U);
 }
 
 TEST(BackendPlugin, BringsTheInputPlugin) {

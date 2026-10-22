@@ -1,6 +1,13 @@
 -- Plugins: the engine as ECS plugins, one folder per plugin. Each plugin keeps its own code (the backend plugin also
 -- holds the contracts the platforms and renderers implement: IPlatform, IRenderer, Event, Settings...) and declares
 -- its own components, resources and events.
+
+-- Keep debug_renderer at its default: that option does not reach Jolt's CMake (the library is always built with
+-- JPH_DEBUG_RENDERER), and a define that differs from the library's makes JPH::RegisterTypes() abort.
+-- 32-bit object layers: each body's layer holds a static flag, its collision categories and its mask (1 + 15 + 15 bits,
+-- see physics/detail/Layers). This option does reach Jolt's CMake, and the package adds the matching define for us.
+add_requires("joltphysics 5.6.x", {alias = "joltphysics", configs = {object_layer_bits = "32"}})
+
 target("plugins")
     set_kind("static")
     set_basename("rtype-plugins")
@@ -12,6 +19,8 @@ target("plugins")
     add_packages("glm", {public = true})
     -- Decodes image files into texture pixels (backend/graphics/TextureAssets.cpp).
     add_packages("stb")
+    -- The physics engine (physics/). Private: only physics .cpp files and physics/detail/ include Jolt.
+    add_packages("joltphysics")
     -- Plain x/y/z/w members instead of unions (cppcoreguidelines-pro-type-union-access).
     add_defines("GLM_FORCE_XYZW_ONLY", {public = true})
     -- Linked into the shared modules (render-vulkan).

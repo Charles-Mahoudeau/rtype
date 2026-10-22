@@ -19,12 +19,12 @@
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/config/Settings.hpp"
 #include "plugins/backend/event/Event.hpp"
-#include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
+#include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
 #include "plugins/backend/platform/WindowConfig.hpp"
 
@@ -45,7 +45,7 @@ struct FakeBackendState {
     std::vector<rtype::plugins::backend::graphics::TextureDesc> createdTextures;  ///< Every createTexture() desc.
     std::vector<std::vector<std::byte>> createdPixels;                            ///< Every createTexture() pixels.
     std::vector<rtype::plugins::backend::graphics::TextureId> destroyedTextures;  ///< Every destroy() call.
-    std::vector<rtype::plugins::backend::graphics::Camera> cameras;               ///< Every setCamera() call.
+    std::vector<rtype::plugins::backend::graphics::View> views;                   ///< Every setView() call.
     std::vector<rtype::plugins::backend::graphics::Sprite> sprites;               ///< Every draw(Sprite) call.
     std::vector<rtype::plugins::backend::graphics::Shape> shapes;                 ///< Every draw(Shape) call.
 };
@@ -126,9 +126,7 @@ class FakeRenderer : public rtype::plugins::backend::graphics::IRenderer {
         _state->clearColor = clearColor;
     }
     void endFrame() override { ++_state->endFrames; }
-    void setCamera(const rtype::plugins::backend::graphics::Camera& camera) override {
-        _state->cameras.push_back(camera);
-    }
+    void setView(const rtype::plugins::backend::graphics::View& view) override { _state->views.push_back(view); }
     void draw(const rtype::plugins::backend::graphics::Sprite& sprite) override { _state->sprites.push_back(sprite); }
     void draw(const rtype::plugins::backend::graphics::Shape& shape) override { _state->shapes.push_back(shape); }
 

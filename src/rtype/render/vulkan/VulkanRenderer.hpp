@@ -37,13 +37,13 @@
 #include "pipeline/PipelineCache.hpp"
 #include "pipeline/PipelineLayout.hpp"
 #include "pipeline/ShaderCache.hpp"
-#include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/CameraView.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
+#include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
 #include "presentation/Swapchain.hpp"
 #include "rendering/ShapeInstance.hpp"
@@ -60,8 +60,8 @@ namespace rtype::render::vulkan {
 /// @details init() creates the instance, the debug messenger (if requested), the surface, the device, the swapchain,
 /// the frames in flight and the allocator. beginFrame() clears the next swapchain image with dynamic rendering and
 /// endFrame() presents it. createTexture() uploads RGBA8 sRGB images. draw(Sprite) collects the frame's sprites, and
-/// endFrame() draws them in batches (one instanced draw per run of sprites sharing a texture), through the camera given
-/// to setCamera(). draw(Shape) collects the frame's shapes, and endFrame() draws them all after the sprites, in one
+/// endFrame() draws them in batches (one instanced draw per run of sprites sharing a texture), through the view given
+/// to setView(). draw(Shape) collects the frame's shapes, and endFrame() draws them all after the sprites, in one
 /// instanced draw, from their signed distance (rendering/ShapePass.hpp).
 ///
 /// Needs a platform that implements interop::vulkan::IVulkanSurfaceSource (GlfwPlatform does).
@@ -152,10 +152,10 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// nothing if @p texture was already destroyed or never created.
     void destroy(plugins::backend::graphics::TextureId texture) override;
 
-    /// @brief Sets the camera of the frame (graphics::CameraView, with Config::virtualResolution): the last one set
+    /// @brief Sets the view of the frame (graphics::CameraView, with Config::virtualResolution): the last one set
     /// before endFrame() applies to every sprite of the frame. Until it is called, a frame shows the view from the
     /// world's origin at its top-left corner.
-    void setCamera(const plugins::backend::graphics::Camera& camera) override;
+    void setView(const plugins::backend::graphics::View& view) override;
 
     /// @brief Adds @p sprite to the frame, drawn by endFrame() on top of the sprites drawn before it. Does nothing if
     /// beginFrame() skipped the frame.
@@ -208,12 +208,12 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
                                                   ///< beginFrame() and endFrame(); empty when the frame was skipped.
     bool _swapchainOutOfDate = false;  ///< Set on resize, VK_ERROR_OUT_OF_DATE_KHR or VK_SUBOPTIMAL_KHR; the next
                                        ///< beginFrame() recreates the swapchain and clears it.
-    std::vector<SwapchainListener> _swapchainListeners;         ///< Called after each swapchain recreation.
-    std::chrono::steady_clock::time_point _startTime;           ///< When init() ran: origin of FrameUniforms::time.
-    std::chrono::steady_clock::time_point _lastFrameTime;       ///< When the previous frame ended: for deltaTime.
-    std::optional<plugins::backend::graphics::Camera> _camera;  ///< From setCamera(); reset by beginFrame().
-    rendering::SpriteBatch _sprites;                            ///< The frame's sprites; cleared by beginFrame().
-    std::vector<rendering::ShapeInstance> _shapes;              ///< The frame's shapes; cleared by beginFrame().
+    std::vector<SwapchainListener> _swapchainListeners;     ///< Called after each swapchain recreation.
+    std::chrono::steady_clock::time_point _startTime;       ///< When init() ran: origin of FrameUniforms::time.
+    std::chrono::steady_clock::time_point _lastFrameTime;   ///< When the previous frame ended: for deltaTime.
+    std::optional<plugins::backend::graphics::View> _view;  ///< From setView(); reset by beginFrame().
+    rendering::SpriteBatch _sprites;                        ///< The frame's sprites; cleared by beginFrame().
+    std::vector<rendering::ShapeInstance> _shapes;          ///< The frame's shapes; cleared by beginFrame().
 
     // 2. Context: created by init(), in this order.
     std::optional<core::Instance> _instance;                ///< The VkInstance.

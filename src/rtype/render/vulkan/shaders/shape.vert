@@ -6,7 +6,7 @@
 */
 
 // Covers one shape per instance (rendering/ShapeInstance.hpp) with a quad of 6 vertices, built from gl_VertexIndex:
-// the shape's bounding box plus a margin of a pixel and a half for the antialiased edge, turned around its centre and
+// the shape's bounding box plus a margin of a pixel and a half for the antialiased edge, turned around its center and
 // seen through the frame's camera. shape.frag gets the position in the shape's own frame.
 #version 450
 #extension GL_GOOGLE_include_directive : require

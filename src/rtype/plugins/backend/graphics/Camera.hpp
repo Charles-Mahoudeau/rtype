@@ -8,33 +8,28 @@
 #pragma once
 
 #include <cstdint>
-#include <glm/ext/vector_float3.hpp>
-#include <variant>
 
+#include "plugins/backend/graphics/View.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 
 namespace rtype::plugins::backend::graphics {
 
-/// @brief Parallel projection, without perspective: what every 2D view is.
-struct Orthographic {
-    float zoom = 1.0F;  ///< View pixels (of the renderer's virtual resolution, or the window's) per world unit: 2 shows
-                        ///< everything twice as big.
-};
-
-/// @brief How the camera projects the world onto the screen.
-/// @note Only Orthographic for now. A Perspective alternative will join the variant if 3D comes, without changing
-/// Camera; until then, every backend (2D-only libraries included) can honour every projection.
-using Projection = std::variant<Orthographic>;
-
-/// @brief The point of view the world is seen from, set with IRenderer::setCamera().
-/// @details In an App it is also a component ("rtype.Camera", declared below): the backend plugin applies the camera of
-/// the entity that has the highest priority.
+/// @brief The component ("rtype.Camera") that makes an entity a point of view: the backend plugin shows the world from
+/// the GlobalTransform of the camera entity with the highest priority.
+/// @details Where the camera is comes from the entity's Transform, as for any other entity: an entity with a Camera but
+/// no Transform is never shown.
+/// @code
+/// commands.spawn()
+///     .add(rtype::plugins::transform::Transform{.position = {960.0F, 540.0F}})
+///     .add(rtype::plugins::backend::graphics::Camera{});
+/// @endcode
+/// @note It holds an Orthographic, not the Projection variant: a std::variant is not standard-layout on every standard
+/// library, and a component with reflected fields must be. A Perspective projection will need its own field or
+/// component.
 struct Camera {
-    glm::vec3 position{0.0F};                ///< World point at the centre of the screen. Z is unused in 2D.
-    float rotation = 0.0F;                   ///< Around the view axis, in radians, clockwise on screen.
-    Projection projection = Orthographic{};  ///< How the world is projected.
-    std::int32_t priority = 0;               ///< Among several camera entities, the highest one is shown.
+    Orthographic projection;    ///< How the world is projected.
+    std::int32_t priority = 0;  ///< Among several camera entities, the highest one is shown.
 };
 
-RTYPE_ECS_COMPONENT(Camera, "rtype.Camera");
+RTYPE_ECS_COMPONENT(Camera, "rtype.Camera", priority);
 }  // namespace rtype::plugins::backend::graphics

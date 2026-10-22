@@ -31,6 +31,7 @@
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
+#include "plugins/backend/graphics/View.hpp"
 #include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputPlugin.hpp"
 #include "plugins/transform/Transform.hpp"
@@ -126,20 +127,25 @@ void beginFrame(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<Cle
     }
 }
 
-/// @brief Render: applies the camera of the entity with the highest priority; the first one found wins a tie.
-void applyCamera(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Query<const graphics::Camera> cameras) {
+/// @brief Render: shows the world from the camera entity with the highest priority, at its GlobalTransform; the first
+/// one found wins a tie.
+void applyCamera(ecs::NonSendMut<plugins::backend::Backend> backend,
+                 ecs::Query<const transform::GlobalTransform, const graphics::Camera> cameras) {
     plugins::backend::Backend& started = *backend;
     if (!isStarted(started) || isMinimized(started)) {
         return;
     }
-    const graphics::Camera* shown = nullptr;
-    for (auto [entity, camera] : cameras) {
-        if (shown == nullptr || camera.priority > shown->priority) {
-            shown = &camera;
+    std::optional<graphics::View> shown;
+    std::int32_t shownPriority = 0;
+    for (auto [entity, global, camera] : cameras) {
+        if (!shown || camera.priority > shownPriority) {
+            shown = graphics::View{
+                .position = global.position, .rotation = global.rotation, .projection = camera.projection};
+            shownPriority = camera.priority;
         }
     }
-    if (shown != nullptr) {
-        started.renderer->setCamera(*shown);
+    if (shown) {
+        started.renderer->setView(*shown);
     }
 }
 

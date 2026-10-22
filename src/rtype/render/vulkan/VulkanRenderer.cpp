@@ -35,12 +35,12 @@
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
 #include "memory/Image.hpp"
 #include "plugins/backend/exceptions/PlatformExceptions.hpp"
-#include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/CameraView.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
+#include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
 #include "plugins/backend/system/ExecutablePath.hpp"
 #include "rendering/DrawConstants.hpp"
@@ -245,7 +245,7 @@ void VulkanRenderer::beginFrame(const plugins::backend::graphics::Color& clearCo
     if (_acquiredImage) {
         throw std::logic_error("VulkanRenderer::beginFrame() called twice without endFrame()");
     }
-    _camera.reset();
+    _view.reset();
     _sprites.clear();
     _shapes.clear();
     if (_framebufferSize.x == 0 || _framebufferSize.y == 0) {
@@ -294,8 +294,8 @@ void VulkanRenderer::endFrame() {
     const glm::uvec2 framebufferSize{extent.width, extent.height};
     const glm::vec2 viewSize{_config.virtualResolution};
     const plugins::backend::graphics::CameraView view{
-        _camera.value_or(plugins::backend::graphics::CameraView::makeDefaultCamera(viewSize, framebufferSize)),
-        viewSize, framebufferSize};
+        _view.value_or(plugins::backend::graphics::CameraView::makeDefaultView(viewSize, framebufferSize)), viewSize,
+        framebufferSize};
     updateFrameUniforms(view);
     _globals->bind(commandBuffer, *_layout, frameIndex);
     _spritePass->record(commandBuffer, frameIndex, _sprites, view.getViewport(),
@@ -336,7 +336,7 @@ void VulkanRenderer::endFrame() {
     _frames->advance();
 }
 
-void VulkanRenderer::setCamera(const plugins::backend::graphics::Camera& camera) { _camera = camera; }
+void VulkanRenderer::setView(const plugins::backend::graphics::View& view) { _view = view; }
 
 void VulkanRenderer::draw(const plugins::backend::graphics::Sprite& sprite) {
     if (!_acquiredImage) {
