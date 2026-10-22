@@ -28,7 +28,7 @@ glm::vec2 resolveViewSize(glm::vec2 viewSize, glm::uvec2 framebufferSize) {
     return viewSize.x > 0.0F && viewSize.y > 0.0F ? viewSize : glm::vec2{framebufferSize};
 }
 
-/// @return The largest rectangle of @p viewSize's aspect ratio in @p framebufferSize, centerd.
+/// @return The largest rectangle of @p viewSize's aspect ratio in @p framebufferSize, centred.
 Viewport letterbox(glm::vec2 viewSize, glm::uvec2 framebufferSize) {
     const glm::vec2 framebuffer{framebufferSize};
     if (viewSize.x <= 0.0F || viewSize.y <= 0.0F) {

@@ -27,10 +27,10 @@ enum class ShapeInstanceKind : std::uint8_t {
 };
 
 /// @brief One shape in the per-frame instance buffer, read by shaders/shape.vert as per-instance vertex attributes:
-/// 64 bytes. The vertex shader covers the shape with a quad, centerd on center and turned by rotation; the fragment
+/// 64 bytes. The vertex shader covers the shape with a quad, centred on center and turned by rotation; the fragment
 /// shader computes the kind's signed distance to fill and outline it. A line is drawn as a capsule along its segment.
 struct ShapeInstance {
-    glm::vec2 center{0.0F};         ///< World point the shape is centerd on. Location 0.
+    glm::vec2 center{0.0F};         ///< World point the shape is centred on. Location 0.
     glm::vec2 halfSize{0.0F};       ///< Half the shape's bounding box, before rotation, in world units. Location 1.
     float rotation = 0.0F;          ///< In radians, clockwise on screen, around center. Location 2.
     float radius = 0.0F;            ///< Circle and capsule radius, or the rectangle's corner radius. Location 3.

@@ -138,9 +138,9 @@ so a header that stops compiling fails the build.
 the frame shows:
 
 - **Virtual resolution**: `Config::virtualResolution` (setting `vulkan.virtualResolution = { 1920, 1080 }`) is the
-  resolution the game is designed for. The camera shows that many world units divided by its zoom, centerd on its
+  resolution the game is designed for. The camera shows that many world units divided by its zoom, centred on its
   position, whatever the window size; the viewport is the largest rectangle of that aspect ratio in the window,
-  centerd, and the rest is left to the clear colour (letterboxing), so resizing never stretches anything. Unset (0x0),
+  centred, and the rest is left to the clear colour (letterboxing), so resizing never stretches anything. Unset (0x0),
   the view is the framebuffer: one world unit per framebuffer pixel, which on a HiDPI screen (Retina: 1600x1200 for an
   800x600 window) is not a window pixel. The engine sets it to the window's size, so world units do not depend on
   the screen.

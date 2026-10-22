@@ -24,7 +24,7 @@ enum class ShapeKind : std::uint8_t {
 
 /// @brief A plain coloured shape, filled and/or outlined, drawn with IRenderer::draw(): hitboxes, debug views, bars,
 /// UI panels.
-/// @details Each kind reads its own fields. Rectangles, circles and capsules are centerd on position and turn around
+/// @details Each kind reads its own fields. Rectangles, circles and capsules are centred on position and turn around
 /// it; a line runs from position to end. The outline is drawn inside the shape, so its outer size stays the shape's.
 /// @code
 /// renderer.draw(Shape{.kind = ShapeKind::kRect, .position = {400.0F, 300.0F}, .size = {64.0F, 32.0F},

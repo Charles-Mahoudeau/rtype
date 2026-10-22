@@ -13,7 +13,7 @@
 
 #include "ShaderLayout.glsl"
 
-layout(location = 0) in vec2 inCenter;           // World point the shape is centerd on.
+layout(location = 0) in vec2 inCenter;           // World point the shape is centred on.
 layout(location = 1) in vec2 inHalfSize;         // Half its bounding box, before rotation.
 layout(location = 2) in float inRotation;        // Radians, clockwise on screen.
 layout(location = 3) in float inRadius;          // Circle / capsule radius, or corner radius.

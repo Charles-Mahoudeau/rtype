@@ -24,8 +24,8 @@ struct Viewport {
 /// @brief What a View shows in a window, and the conversions between window and world.
 ///
 /// @details The view size is the resolution the game is designed for (e.g. 1920x1080): the view shows that many
-/// world units divided by its zoom, centerd on its position, whatever the window size. The viewport is the largest
-/// rectangle of the view's aspect ratio that fits in the framebuffer, centerd: the rest is left as bars (letterboxing),
+/// world units divided by its zoom, centred on its position, whatever the window size. The viewport is the largest
+/// rectangle of the view's aspect ratio that fits in the framebuffer, centred: the rest is left as bars (letterboxing),
 /// so nothing is stretched when the window is resized. Without a view size, the view is the framebuffer itself: one
 /// world unit per pixel at zoom 1, no bars.
 /// @code

@@ -401,7 +401,7 @@ void bindControls(ecs::ResMut<plugins::input::Input> input) {
         .bind(Control::mouseButton(plugins::backend::input::MouseButton::kLeft));
 }
 
-/// @brief Startup: spawns the camera, centerd on the arena, so the whole 800x600 view is shown.
+/// @brief Startup: spawns the camera, centred on the arena, so the whole 800x600 view is shown.
 void spawnCamera(ecs::Commands& commands) {
     commands.spawn()
         .add(plugins::transform::Transform{.position = {kViewWidth / 2.0F, kViewHeight / 2.0F}})
