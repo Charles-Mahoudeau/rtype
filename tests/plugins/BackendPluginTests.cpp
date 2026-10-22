@@ -250,7 +250,7 @@ TEST(BackendPlugin, FeedsInputWhicheverPluginIsAddedFirst) {
 TEST(BackendPlugin, ShowsNoCameraWhenNoEntityHasOne) {
     BackendApp app;
     app.app().runFrame();
-    EXPECT_TRUE(app.state().cameras.empty());
+    EXPECT_TRUE(app.state().views.empty());
 }
 
 TEST(BackendPlugin, ShowsTheCameraWithTheHighestPriority) {
@@ -260,8 +260,8 @@ TEST(BackendPlugin, ShowsTheCameraWithTheHighestPriority) {
     world.spawn(rtype::plugins::backend::graphics::Camera{.position = {2.0F, 0.0F, 0.0F}, .priority = 5});
     world.spawn(rtype::plugins::backend::graphics::Camera{.position = {3.0F, 0.0F, 0.0F}, .priority = -2});
     app.app().runFrame();
-    ASSERT_EQ(app.state().cameras.size(), 1U);
-    EXPECT_FLOAT_EQ(app.state().cameras[0].position.x, 2.0F);
+    ASSERT_EQ(app.state().views.size(), 1U);
+    EXPECT_FLOAT_EQ(app.state().views[0].position.x, 2.0F);
 }
 
 TEST(BackendPlugin, AppliesTheCameraEveryFrameItIsDrawn) {
@@ -269,10 +269,10 @@ TEST(BackendPlugin, AppliesTheCameraEveryFrameItIsDrawn) {
     app.app().getWorld().spawn(rtype::plugins::backend::graphics::Camera{});
     app.app().runFrame();
     app.app().runFrame();
-    EXPECT_EQ(app.state().cameras.size(), 2U);
+    EXPECT_EQ(app.state().views.size(), 2U);
     app.state().framebufferSize = {0, 0};
     app.app().runFrame();
-    EXPECT_EQ(app.state().cameras.size(), 2U);
+    EXPECT_EQ(app.state().views.size(), 2U);
 }
 
 TEST(BackendPlugin, BringsTheInputPlugin) {

@@ -12,18 +12,18 @@
 #include <span>
 
 #include "plugins/Export.hpp"
-#include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
+#include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
 
 namespace rtype::plugins::backend::graphics {
 
 /// @brief 2D rendering, implemented by a graphics backend (Vulkan for now; SFML, SDL or raylib would fit too).
 ///
-/// @details Kept at the level every 2D library offers: textures, a camera, sprites and shapes (rectangles, circles,
+/// @details Kept at the level every 2D library offers: textures, a view, sprites and shapes (rectangles, circles,
 /// capsules, lines). How they reach the screen (batching, pipelines...) is up to the backend. Conventions, the ones of
 /// those libraries:
 /// - World units, X to the right and Y down; angles in radians, clockwise on screen.
@@ -33,7 +33,7 @@ namespace rtype::plugins::backend::graphics {
 /// A frame looks like:
 /// @code
 /// renderer.beginFrame(Color{0.0F, 0.0F, 0.0F, 1.0F});
-/// renderer.setCamera(camera);
+/// renderer.setView(view);
 /// renderer.draw(background);
 /// renderer.draw(ship);
 /// renderer.endFrame();
@@ -88,10 +88,10 @@ class RTYPE_PLUGINS_API IRenderer {
     /// @name Drawing (between beginFrame() and endFrame())
     /// @{
 
-    /// @brief Sets the camera the frame is seen through: call it once per frame, before drawing (a backend may apply
-    /// the last camera set to the whole frame, as Vulkan does). graphics::CameraView computes what it shows.
+    /// @brief Sets the view the frame is seen through: call it once per frame, before drawing (a backend may apply
+    /// the last view set to the whole frame, as Vulkan does). graphics::CameraView computes what it shows.
     /// @details Until it is called, a frame shows the world in window pixels, origin at the top-left corner.
-    virtual void setCamera(const Camera& camera) = 0;
+    virtual void setView(const View& view) = 0;
 
     virtual void draw(const Sprite& sprite) = 0;
     /// @brief Draws a shape (rectangle, circle, capsule, line), filled and/or outlined.

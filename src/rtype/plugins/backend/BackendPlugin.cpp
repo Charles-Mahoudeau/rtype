@@ -31,6 +31,7 @@
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
+#include "plugins/backend/graphics/View.hpp"
 #include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputPlugin.hpp"
 #include "plugins/transform/Transform.hpp"
@@ -139,7 +140,9 @@ void applyCamera(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Query<
         }
     }
     if (shown != nullptr) {
-        started.renderer->setCamera(*shown);
+        started.renderer->setView(graphics::View{.position = {shown->position.x, shown->position.y},
+                                                 .rotation = shown->rotation,
+                                                 .projection = shown->projection});
     }
 }
 

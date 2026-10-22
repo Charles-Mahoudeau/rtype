@@ -9,24 +9,13 @@
 
 #include <cstdint>
 #include <glm/ext/vector_float3.hpp>
-#include <variant>
 
+#include "plugins/backend/graphics/View.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 
 namespace rtype::plugins::backend::graphics {
 
-/// @brief Parallel projection, without perspective: what every 2D view is.
-struct Orthographic {
-    float zoom = 1.0F;  ///< View pixels (of the renderer's virtual resolution, or the window's) per world unit: 2 shows
-                        ///< everything twice as big.
-};
-
-/// @brief How the camera projects the world onto the screen.
-/// @note Only Orthographic for now. A Perspective alternative will join the variant if 3D comes, without changing
-/// Camera; until then, every backend (2D-only libraries included) can honour every projection.
-using Projection = std::variant<Orthographic>;
-
-/// @brief The point of view the world is seen from, set with IRenderer::setCamera().
+/// @brief The point of view the world is seen from, given to IRenderer::setView() as a View.
 /// @details In an App it is also a component ("rtype.Camera", declared below): the backend plugin applies the camera of
 /// the entity that has the highest priority.
 struct Camera {

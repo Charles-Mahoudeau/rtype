@@ -31,11 +31,11 @@
 
 #include "SfmlPlatform.hpp"
 #include "plugins/backend/exceptions/PlatformExceptions.hpp"
-#include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
+#include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
 
 using namespace rtype::plugins::backend;
@@ -78,7 +78,7 @@ void paint(sf::Shape& target, const graphics::Shape& shape) {
     target.setOutlineThickness(-shape.outlineThickness);
 }
 
-/// @return A view showing the window in pixels, origin at the top-left corner: the frame's default camera.
+/// @return A view showing the window in pixels, origin at the top-left corner: the frame's default view.
 sf::View pixelView(glm::uvec2 size) {
     return sf::View(sf::FloatRect({0.0F, 0.0F}, {static_cast<float>(size.x), static_cast<float>(size.y)}));
 }
@@ -140,18 +140,18 @@ void SfmlRenderer::beginFrame(const graphics::Color& clearColor) {
 
 void SfmlRenderer::endFrame() { _window->display(); }
 
-void SfmlRenderer::setCamera(const graphics::Camera& camera) {
+void SfmlRenderer::setView(const graphics::View& view) {
     // Only Orthographic exists: the visit makes the compiler point here the day another projection is added.
     std::visit(
         [&](const graphics::Orthographic& projection) {
-            sf::View view;
-            view.setCenter({camera.position.x, camera.position.y});
-            view.setSize({static_cast<float>(_framebufferSize.x) / projection.zoom,
-                          static_cast<float>(_framebufferSize.y) / projection.zoom});
-            view.setRotation(sf::radians(camera.rotation));
-            _window->setView(view);
+            sf::View shown;
+            shown.setCenter({view.position.x, view.position.y});
+            shown.setSize({static_cast<float>(_framebufferSize.x) / projection.zoom,
+                           static_cast<float>(_framebufferSize.y) / projection.zoom});
+            shown.setRotation(sf::radians(view.rotation));
+            _window->setView(shown);
         },
-        camera.projection);
+        view.projection);
 }
 
 void SfmlRenderer::draw(const graphics::Sprite& sprite) {

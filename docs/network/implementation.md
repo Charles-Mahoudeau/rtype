@@ -61,7 +61,7 @@ What the network can rely on as of **2026-10-19** (`main` at `2649ee9`):
 | `ecs`: prefabs, Luau bridge, field network options (quantization) | **Not started** | Needed by NET-35, NET-41, NET-42 |
 | `plugins/input`: `InputPlugin`, the `rtype.Input` resource, `Control` | Done | Client side: a system of the executable fills a `PlayerInput` from it |
 | `plugins/backend`: `BackendPlugin` (window, platform events, frame systems) and `platform-glfw` | Done | The prototype client is an `App` with a window, like `engine/main.cpp` |
-| `render-vulkan`: `draw(Shape)`, `draw(Sprite)`, `setCamera` | Done (`draw(Shape)`: SDF shapes, drawn after the sprites) | The prototype client can draw its bodies as shapes; it printed the world until then ([NET-18](#net-18--prototype-game)) |
+| `render-vulkan`: `draw(Shape)`, `draw(Sprite)`, `setView` | Done (`draw(Shape)`: SDF shapes, drawn after the sprites) | The prototype client can draw its bodies as shapes; it printed the world until then ([NET-18](#net-18--prototype-game)) |
 
 Consequences for the plan:
 

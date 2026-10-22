@@ -132,8 +132,8 @@ so a header that stops compiling fails the build.
 
 ## Camera and sprites
 
-`setCamera()` sets the frame's camera; the last one set before `endFrame()` applies to the whole frame, and without
-one the frame shows the view from the world's origin at its top-left corner. `graphics::CameraView` (in
+`setView()` sets the frame's view (a `graphics::View`: position, rotation, projection); the last one set before
+`endFrame()` applies to the whole frame, and without one the frame shows the view from the world's origin at its top-left corner. `graphics::CameraView` (in
 `plugins/backend/graphics/`, so games use the same math to convert the mouse to world coordinates) turns it into what
 the frame shows:
 

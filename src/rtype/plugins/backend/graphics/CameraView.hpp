@@ -11,7 +11,7 @@
 #include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
 
-#include "plugins/backend/graphics/Camera.hpp"
+#include "plugins/backend/graphics/View.hpp"
 
 namespace rtype::plugins::backend::graphics {
 
@@ -21,32 +21,32 @@ struct Viewport {
     glm::vec2 size{0.0F};      ///< Width and height.
 };
 
-/// @brief What a Camera shows in a window, and the conversions between window and world.
+/// @brief What a View shows in a window, and the conversions between window and world.
 ///
-/// @details The view size is the resolution the game is designed for (e.g. 1920x1080): the camera shows that many
+/// @details The view size is the resolution the game is designed for (e.g. 1920x1080): the view shows that many
 /// world units divided by its zoom, centred on its position, whatever the window size. The viewport is the largest
 /// rectangle of the view's aspect ratio that fits in the framebuffer, centred: the rest is left as bars (letterboxing),
 /// so nothing is stretched when the window is resized. Without a view size, the view is the framebuffer itself: one
 /// world unit per pixel at zoom 1, no bars.
 /// @code
-/// const CameraView view{camera, {1920.0F, 1080.0F}, platform.getFramebufferSize()};
-/// const glm::vec2 aim = view.screenToWorld(mousePosition);
+/// const CameraView shown{view, {1920.0F, 1080.0F}, platform.getFramebufferSize()};
+/// const glm::vec2 aim = shown.screenToWorld(mousePosition);
 /// @endcode
 class CameraView {
   public:
-    /// @param camera What to show; its projection must be Orthographic.
+    /// @param view What to show; its projection must be Orthographic.
     /// @param viewSize The resolution the game is designed for; 0x0 for the framebuffer's size.
     /// @param framebufferSize The window's framebuffer, in pixels; a 0x0 one (minimized) gives an empty viewport.
-    CameraView(const Camera& camera, glm::vec2 viewSize, glm::uvec2 framebufferSize);
+    CameraView(const View& view, glm::vec2 viewSize, glm::uvec2 framebufferSize);
     ~CameraView() = default;
     CameraView(const CameraView& other) = default;
     CameraView& operator=(const CameraView& other) = default;
     CameraView(CameraView&& other) noexcept = default;
     CameraView& operator=(CameraView&& other) noexcept = default;
 
-    /// @return The camera IRenderer uses until setCamera() is called: the view's top-left corner at the world's
+    /// @return The view IRenderer uses until setView() is called: the view's top-left corner at the world's
     /// origin, one world unit per view pixel.
-    [[nodiscard]] static Camera makeDefaultCamera(glm::vec2 viewSize, glm::uvec2 framebufferSize);
+    [[nodiscard]] static View makeDefaultView(glm::vec2 viewSize, glm::uvec2 framebufferSize);
 
     /// @return World to clip space: X right, Y down, depth 0 to 1 (Vulkan's conventions).
     [[nodiscard]] const glm::mat4& getViewProjection() const noexcept { return _viewProjection; }

@@ -16,12 +16,12 @@
 #include <span>
 #include <vector>
 
-#include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
+#include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
 
 namespace example {
@@ -52,11 +52,11 @@ class SfmlRenderer final : public rtype::plugins::backend::graphics::IRenderer {
         const rtype::plugins::backend::graphics::TextureDesc& desc, std::span<const std::byte> pixels) override;
     void destroy(rtype::plugins::backend::graphics::TextureId texture) override;
 
-    /// @brief Clears the window, and resets the camera to window pixels (origin at the top-left corner).
+    /// @brief Clears the window, and resets the view to window pixels (origin at the top-left corner).
     void beginFrame(const rtype::plugins::backend::graphics::Color& clearColor) override;
     void endFrame() override;
 
-    void setCamera(const rtype::plugins::backend::graphics::Camera& camera) override;
+    void setView(const rtype::plugins::backend::graphics::View& view) override;
     /// @throws std::invalid_argument If the sprite's texture was destroyed.
     void draw(const rtype::plugins::backend::graphics::Sprite& sprite) override;
     /// @brief Draws a rectangle, circle, capsule or line with SFML's shapes; SFML has no rounded rectangle, so
@@ -74,7 +74,7 @@ class SfmlRenderer final : public rtype::plugins::backend::graphics::IRenderer {
     [[nodiscard]] const sf::Texture* find(rtype::plugins::backend::graphics::TextureId texture) const;
 
     sf::RenderWindow* _window{nullptr};     ///< The platform's window, set by init().
-    glm::uvec2 _framebufferSize{0};         ///< Window size in pixels, for the default view and the camera.
+    glm::uvec2 _framebufferSize{0};         ///< Window size in pixels, for the default view and setView().
     std::vector<Slot> _slots;               ///< Every texture slot, indexed by TextureId::index.
     std::vector<std::uint32_t> _freeSlots;  ///< Indices of the free slots, reused first.
 };
