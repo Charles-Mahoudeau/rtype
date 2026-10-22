@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <exception>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <span>
@@ -147,12 +148,13 @@ int main(int argc, char** argv) {
     bool validate = false;
     Lifetime lifetime;
     const std::span<char*> arguments{argv, static_cast<std::size_t>(argc)};
-    for (std::size_t index = 1; index < arguments.size(); ++index) {
-        const std::string_view argument{arguments[index]};
+    const std::span<char*> options = arguments.empty() ? arguments : arguments.subspan(1);  // Without the program.
+    for (auto option = options.begin(); option != options.end(); ++option) {
+        const std::string_view argument{*option};
         if (argument == "--validate") {
             validate = true;
-        } else if (argument == "--seconds" && index + 1 < arguments.size()) {
-            const std::string value{arguments[++index]};
+        } else if (argument == "--seconds" && std::next(option) != options.end()) {
+            const std::string value{*++option};
             float seconds = 0.0F;
             if (std::from_chars(value.c_str(), std::to_address(value.end()), seconds).ec == std::errc{}) {
                 lifetime.seconds = seconds;
