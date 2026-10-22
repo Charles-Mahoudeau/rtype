@@ -33,9 +33,9 @@ namespace rtype::plugins::backend {
 /// - Render "rtype.backend.textures": destroys the unloaded textures and loads the queued ones of the TextureAssets
 ///   resource (updateTextures()), so a texture asked for during this frame's Update is drawn in this frame.
 /// - Render "rtype.backend.beginFrame" and "rtype.backend.endFrame": clear with the ClearColor resource, and show the
-///   frame. In between, "rtype.backend.camera" passes the Camera component with the highest priority to the renderer
-///   (none: the renderer's default view, window pixels from the top-left corner). Drawing systems run between the two
-///   (`.after("rtype.backend.beginFrame")`,
+///   frame. In between, "rtype.backend.camera" shows the world from the entity with a Camera (the highest priority)
+///   and a GlobalTransform, through IRenderer::setView() (none: the renderer's default view, window pixels from the
+///   top-left corner). Drawing systems run between the two (`.after("rtype.backend.beginFrame")`,
 ///   `.before("rtype.backend.endFrame")`). Both are skipped while the window is minimized.
 /// - Render "rtype.backend.sprites", after the camera: draws every entity with a GlobalTransform and a SpriteRenderer
 ///   whose texture is loaded, sorted by layer (higher on top), then by texture within a layer (fewer batches).

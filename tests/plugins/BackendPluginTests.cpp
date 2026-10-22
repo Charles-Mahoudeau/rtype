@@ -27,6 +27,7 @@
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
+#include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/input/Key.hpp"
 #include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
@@ -256,9 +257,12 @@ TEST(BackendPlugin, ShowsNoCameraWhenNoEntityHasOne) {
 TEST(BackendPlugin, ShowsTheCameraWithTheHighestPriority) {
     BackendApp app;
     rtype::ecs::World& world = app.app().getWorld();
-    world.spawn(rtype::plugins::backend::graphics::Camera{.position = {1.0F, 0.0F, 0.0F}, .priority = 1});
-    world.spawn(rtype::plugins::backend::graphics::Camera{.position = {2.0F, 0.0F, 0.0F}, .priority = 5});
-    world.spawn(rtype::plugins::backend::graphics::Camera{.position = {3.0F, 0.0F, 0.0F}, .priority = -2});
+    world.spawn(rtype::plugins::transform::Transform{.position = {1.0F, 0.0F}},
+                rtype::plugins::backend::graphics::Camera{.priority = 1});
+    world.spawn(rtype::plugins::transform::Transform{.position = {2.0F, 0.0F}},
+                rtype::plugins::backend::graphics::Camera{.priority = 5});
+    world.spawn(rtype::plugins::transform::Transform{.position = {3.0F, 0.0F}},
+                rtype::plugins::backend::graphics::Camera{.priority = -2});
     app.app().runFrame();
     ASSERT_EQ(app.state().views.size(), 1U);
     EXPECT_FLOAT_EQ(app.state().views[0].position.x, 2.0F);
@@ -266,7 +270,7 @@ TEST(BackendPlugin, ShowsTheCameraWithTheHighestPriority) {
 
 TEST(BackendPlugin, AppliesTheCameraEveryFrameItIsDrawn) {
     BackendApp app;
-    app.app().getWorld().spawn(rtype::plugins::backend::graphics::Camera{});
+    app.app().getWorld().spawn(rtype::plugins::transform::Transform{}, rtype::plugins::backend::graphics::Camera{});
     app.app().runFrame();
     app.app().runFrame();
     EXPECT_EQ(app.state().views.size(), 2U);
