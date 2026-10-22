@@ -9,16 +9,16 @@
 
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/BackendResources.hpp"
+#include "plugins/backend/BackendResources.hpp"  // IWYU pragma: keep
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
-#include "plugins/input/InputEvents.hpp"
+#include "plugins/backend/input/Key.hpp"
+#include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/physics/Collider.hpp"
 #include "plugins/physics/Velocity.hpp"
 #include "plugins/physics/debug/PhysicsDebug.hpp"
