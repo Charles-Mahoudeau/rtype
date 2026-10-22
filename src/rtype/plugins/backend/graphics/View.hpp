@@ -27,7 +27,7 @@ using Projection = std::variant<Orthographic>;
 /// @details In an App, the backend plugin builds it from the Camera component with the highest priority and the
 /// GlobalTransform of its entity.
 struct View {
-    glm::vec2 position{0.0F};                ///< World point at the centre of the screen.
+    glm::vec2 position{0.0F};                ///< World point at the center of the screen.
     float rotation = 0.0F;                   ///< Around the view axis, in radians, clockwise on screen.
     Projection projection = Orthographic{};  ///< How the world is projected.
 };

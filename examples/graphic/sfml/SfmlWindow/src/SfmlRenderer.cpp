@@ -54,8 +54,8 @@ sf::Color toSfColor(const graphics::Color& color) {
 /// @brief Points per half circle of a capsule's outline.
 constexpr std::size_t kCapPoints = 12;
 
-/// @return A capsule as a convex polygon: centred on @p center, its straight part @p halfHeight on each side of the
-/// centre along its axis, turned by @p rotation (radians, clockwise on screen), and @p radius thick.
+/// @return A capsule as a convex polygon: centerd on @p center, its straight part @p halfHeight on each side of the
+/// center along its axis, turned by @p rotation (radians, clockwise on screen), and @p radius thick.
 sf::ConvexShape capsuleShape(glm::vec2 center, float halfHeight, float radius, float rotation) {
     sf::ConvexShape shape{2 * kCapPoints};
     const float pi = std::acos(-1.0F);

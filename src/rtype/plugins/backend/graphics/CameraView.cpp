@@ -28,7 +28,7 @@ glm::vec2 resolveViewSize(glm::vec2 viewSize, glm::uvec2 framebufferSize) {
     return viewSize.x > 0.0F && viewSize.y > 0.0F ? viewSize : glm::vec2{framebufferSize};
 }
 
-/// @return The largest rectangle of @p viewSize's aspect ratio in @p framebufferSize, centred.
+/// @return The largest rectangle of @p viewSize's aspect ratio in @p framebufferSize, centerd.
 Viewport letterbox(glm::vec2 viewSize, glm::uvec2 framebufferSize) {
     const glm::vec2 framebuffer{framebufferSize};
     if (viewSize.x <= 0.0F || viewSize.y <= 0.0F) {
@@ -54,8 +54,8 @@ CameraView::CameraView(const View& view, glm::vec2 viewSize, glm::uvec2 framebuf
 }
 
 View CameraView::makeDefaultView(glm::vec2 viewSize, glm::uvec2 framebufferSize) {
-    const glm::vec2 centre = resolveViewSize(viewSize, framebufferSize) * 0.5F;
-    return View{.position = centre};
+    const glm::vec2 center = resolveViewSize(viewSize, framebufferSize) * 0.5F;
+    return View{.position = center};
 }
 
 glm::vec2 CameraView::screenToWorld(glm::vec2 screen) const {

@@ -41,7 +41,7 @@ TEST(CameraView, MapsTheTopOfTheWorldToTheTopOfClipSpace) {
     EXPECT_NEAR(top.y, -1.0F, kTolerance);
 }
 
-TEST(CameraView, CentresTheCameraPosition) {
+TEST(CameraView, centersTheCameraPosition) {
     const CameraView view{View{.position = {100.0F, 50.0F}}, {0.0F, 0.0F}, {800, 600}};
     expectNear(view.worldToScreen({100.0F, 50.0F}), {400.0F, 300.0F});
 }
