@@ -1,5 +1,8 @@
 # C/C++ physics engine benchmark (October 2026)
 
+> **Implemented:** the physics plugin built from this plan is described in
+> [`../physics/design.md`](../physics/design.md), which also lists where it differs from section 4.
+
 **Context:** our engine is C++23, built with `xmake`, around our own ECS (`rtype::ecs`) with GLM math. The game is
 **2D for now** (`Transform` holds a `glm::vec2`), and **moving to 3D later is mandatory**, so the physics engine must
 cover both without a rewrite. We need `Collider` and `RigidBody` components, triggers and raycasts.
