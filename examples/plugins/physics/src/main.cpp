@@ -15,6 +15,8 @@
 //   kinematic body.
 // Every contact event (CollisionStarted / Ended, TriggerEntered / Exited) is printed when the physics sends it, and the
 // ship fires a laser (a raycast) ahead of itself each time the scene is printed.
+// - a drone flies down and to the right at a constant speed, moved by moveAndSlide() as a predicted system would move a
+//   ship (the same code on the server and on a client, without stepping): it lands on the floor and slides along it.
 // Gameplay only writes components (Transform, Collider, RigidBody, Velocity) and calls the PhysicsWorld resource.
 
 #include <cstdint>
@@ -27,6 +29,7 @@
 
 #include "plugins/physics/Collider.hpp"
 #include "plugins/physics/CollisionEvents.hpp"
+#include "plugins/physics/MoveAndSlide.hpp"
 #include "plugins/physics/PhysicsPlugin.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "plugins/physics/PhysicsWorld.hpp"
@@ -45,6 +48,7 @@
 #include "rtype/ecs/system/EventReader.hpp"
 #include "rtype/ecs/system/EventWriter.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
+#include "rtype/ecs/time/Time.hpp"
 
 using namespace rtype::ecs;
 using namespace rtype::plugins::physics;
@@ -62,6 +66,9 @@ constexpr std::uint32_t kShip = 1U << 1;
 constexpr std::uint32_t kBullet = 1U << 2;
 constexpr std::uint32_t kTarget = 1U << 3;
 
+// The drone's speed, in units per second: down and to the right, toward the floor.
+constexpr glm::vec2 kDroneSpeed{90.0F, 120.0F};
+
 // The entities the gameplay systems talk about, set by the Startup system.
 struct Scene {
     Entity floor;
@@ -71,6 +78,7 @@ struct Scene {
     Entity bullet;
     Entity target;
     Entity zone;
+    Entity drone;
 };
 RTYPE_ECS_RESOURCE(Scene, "example.Scene");
 
@@ -129,6 +137,24 @@ void spawnScene(Commands& commands, ResMut<Scene> scene) {
             .add(RigidBody{.gravityScale = 0.0F, .fixedRotation = true, .continuousCollision = true})
             .add(Velocity{.linear = {600.0F, 0.0F}})
             .getEntity();
+
+    // A drone far to the left, kinematic: its Transform is written by flyDrone(), and its body follows it.
+    scene->drone = commands.spawn()
+                       .add(Transform{.position = {-600.0F, 200.0F}})
+                       .add(Collider{.shape = ShapeType::kCircle, .radius = 12.0F, .layer = kShip, .mask = kScenery})
+                       .add(RigidBody{.type = BodyType::kKinematic})
+                       .getEntity();
+}
+
+// FixedUpdate, before the Transforms drive the bodies: moves the drone by its speed, stopped and slid along by the
+// scenery its mask sees. A predicted system on a client would do the same, replaying the player's inputs.
+void flyDrone(Res<PhysicsWorld> world, Res<Scene> scene, Res<Time> time, Query<Transform, const Collider> bodies) {
+    for (auto [entity, transform, collider] : bodies) {
+        if (entity == scene->drone) {
+            transform->position =
+                moveAndSlide(*world, entity, collider, transform->position, kDroneSpeed * time->fixedDelta);
+        }
+    }
 }
 
 // The name of a scene entity, for the logs.
@@ -150,6 +176,9 @@ const char* nameOf(const Scene& scene, Entity entity) {
     }
     if (entity == scene.target) {
         return "target";
+    }
+    if (entity == scene.drone) {
+        return "drone";
     }
     return entity == scene.zone ? "zone" : "?";
 }
@@ -187,6 +216,7 @@ void report(Res<PhysicsWorld> world, Res<Scene> scene, Query<const Transform> tr
     glm::vec2 ship{};
     glm::vec2 crate{};
     glm::vec2 bullet{};
+    glm::vec2 drone{};
     for (auto [entity, transform] : transforms) {
         if (entity == scene->ball) {
             ball = transform.position;
@@ -196,6 +226,8 @@ void report(Res<PhysicsWorld> world, Res<Scene> scene, Query<const Transform> tr
             crate = transform.position;
         } else if (entity == scene->bullet) {
             bullet = transform.position;
+        } else if (entity == scene->drone) {
+            drone = transform.position;
         }
     }
     glm::vec2 ballSpeed{};
@@ -212,9 +244,9 @@ void report(Res<PhysicsWorld> world, Res<Scene> scene, Query<const Transform> tr
               : std::string{"laser hits nothing"};
     std::cout << std::format(
         "t={:.1f}s  ball ({:5.1f}, {:5.1f}) speed ({:4.1f}, {:6.1f})  ship x {:6.1f}  bullet x {:6.1f}  "
-        "crate ({:5.1f}, {:5.1f})  {} bodies, {}\n",
+        "crate ({:5.1f}, {:5.1f})  drone ({:6.1f}, {:5.1f})  {} bodies, {}\n",
         static_cast<float>(world->getStepCount()) / kTicksPerSecond, ball.x, ball.y, ballSpeed.x, ballSpeed.y, ship.x,
-        bullet.x, crate.x, crate.y, world->getBodyCount(), aim);
+        bullet.x, crate.x, crate.y, drone.x, drone.y, world->getBodyCount(), aim);
 }
 
 // FixedUpdate, between the Transform sync and the step: kicks the crate once, then stops the App.
@@ -240,6 +272,9 @@ int main() {
         app.insertResource(Scene{});
         app.addSystem(Phase::kStartup, "example.spawnScene", &spawnScene);
         // Systems order themselves around the physics systems by name.
+        app.addSystem(Phase::kFixedUpdate, "example.flyDrone", &flyDrone)
+            .after(std::string{PhysicsPlugin::kSyncBodiesSystem})
+            .before(std::string{PhysicsPlugin::kSyncToPhysicsSystem});
         app.addSystem(Phase::kFixedUpdate, "example.script", &script)
             .after(std::string{PhysicsPlugin::kSyncToPhysicsSystem})
             .before(std::string{PhysicsPlugin::kStepSystem});
