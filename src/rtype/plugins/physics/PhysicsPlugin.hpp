@@ -22,14 +22,18 @@ namespace rtype::plugins::physics {
 /// fixed tick.
 ///
 /// @details Registers RigidBody, Collider and Velocity, so they can be found by name (Luau, replication) before any
-/// entity has them, and adds the TransformPlugin. Each fixed tick, on the server side (so also in standalone; clients
-/// receive positions through replication), in this order:
-/// - "rtype.Physics.SyncBodies" keeps one body per entity with a Collider and a Transform (a RigidBody makes it move;
-///   without one it is static), rebuilt when its Collider or RigidBody changes, destroyed when the entity is despawned
-///   or loses either, and linked to the entity by a PhysicsHandle;
-/// - "rtype.Physics.SyncToPhysics" moves kinematic bodies to their Transform, teleports the others gameplay moved and
-///   gives the bodies the Velocities gameplay changed (a kinematic body with a Velocity moves at it);
-/// - "rtype.Physics.Step" applies the forces and impulses queued on the PhysicsWorld and steps it by Time::fixedDelta;
+/// entity has them, and adds the TransformPlugin. Collider and RigidBody are replicated (ComponentOptions.hpp), through
+/// ECS options only: the physics knows nothing of the network. The server simulates; clients receive the Transforms
+/// and keep bodies that never step, only for scene queries (moveAndSlide() for prediction) and the debug view. In
+/// standalone, everything runs as on the server. Each fixed tick, in this order:
+/// - "rtype.Physics.SyncBodies", on every side, keeps one body per entity with a Collider and a Transform (a RigidBody
+///   makes it move; without one it is static), rebuilt when its Collider or RigidBody changes, destroyed when the
+///   entity is despawned or loses either, and linked to the entity by a PhysicsHandle;
+/// - "rtype.Physics.SyncToPhysics", on every side, moves kinematic bodies to their Transform, teleports the others
+///   gameplay moved and gives the bodies the Velocities gameplay changed (a kinematic body with a Velocity moves at
+///   it); in client mode, it teleports every body to its Transform instead;
+/// - "rtype.Physics.Step", on the server like those below, applies the forces and impulses queued on the PhysicsWorld
+///   and steps it by Time::fixedDelta;
 /// - "rtype.Physics.SyncFromPhysics" writes the pose of the bodies that moved back to their Transform, and the velocity
 ///   of the dynamic ones to their Velocity;
 /// - "rtype.Physics.Events" sends the contacts of the step: CollisionStarted / CollisionEnded between solid colliders,

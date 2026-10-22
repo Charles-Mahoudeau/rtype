@@ -20,6 +20,7 @@
 #include "plugins/backend/input/Key.hpp"
 #include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/physics/Collider.hpp"
+#include "plugins/physics/ComponentOptions.hpp"
 #include "plugins/physics/Velocity.hpp"
 #include "plugins/physics/debug/PhysicsDebug.hpp"
 #include "plugins/physics/debug/PhysicsDebugSettings.hpp"
@@ -87,7 +88,7 @@ std::string_view PhysicsDebugPlugin::getName() const noexcept { return kName; }
 
 void PhysicsDebugPlugin::build(ecs::App& app) {
     app.addPlugin(transform::TransformPlugin{});
-    static_cast<void>(app.getWorld().getComponents().registerType<Collider>());
+    static_cast<void>(app.getWorld().getComponents().registerType<Collider>(kColliderOptions));
     static_cast<void>(app.getWorld().getComponents().registerType<Velocity>());
     static_cast<void>(app.getWorld().getComponents().registerType<PhysicsDebug>());
     static_cast<void>(app.getWorld().getEvents().registerType<backend::event::KeyPressed>());

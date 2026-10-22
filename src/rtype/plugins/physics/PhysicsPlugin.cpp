@@ -15,6 +15,7 @@
 
 #include "plugins/physics/Collider.hpp"
 #include "plugins/physics/CollisionEvents.hpp"
+#include "plugins/physics/ComponentOptions.hpp"
 #include "plugins/physics/PhysicsHandle.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "plugins/physics/PhysicsWorld.hpp"
@@ -28,8 +29,11 @@
 #include "rtype/ecs/query/Query.hpp"
 #include "rtype/ecs/query/QueryTerms.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
+#include "rtype/ecs/schedule/RunMode.hpp"
+#include "rtype/ecs/schedule/Schedules.hpp"
 #include "rtype/ecs/system/EventWriter.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
+#include "rtype/ecs/system/Side.hpp"
 #include "rtype/ecs/time/Time.hpp"
 
 namespace rtype::plugins::physics {
@@ -85,6 +89,19 @@ void syncToPhysics(ecs::ResMut<PhysicsWorld> world, ecs::Res<ecs::Time> time,
         }
         if (velocity != nullptr && world->isVelocityOutOfSync(entity, *velocity)) {
             world->setVelocity(entity, *velocity);
+        }
+    }
+}
+
+/// @brief FixedUpdate, after the body sync, in client mode in place of syncToPhysics(): puts the bodies at their
+/// Transform, which replication (or gameplay) wrote.
+/// @details Clients never step, so their bodies only serve scene queries (predicted movement, lasers) and the debug
+/// view: each one follows its Transform as a teleport, kinematic or not, and no Velocity is read.
+void followTransforms(ecs::ResMut<PhysicsWorld> world,
+                      ecs::Query<const transform::Transform, ecs::With<Collider>> bodies) {
+    for (auto [entity, transform] : bodies) {
+        if (world->isOutOfSync(entity, transform)) {
+            world->teleport(entity, transform);
         }
     }
 }
@@ -171,8 +188,8 @@ std::string_view PhysicsPlugin::getName() const noexcept { return kName; }
 
 void PhysicsPlugin::build(ecs::App& app) {
     app.addPlugin(plugins::transform::TransformPlugin{});
-    static_cast<void>(app.getWorld().getComponents().registerType<RigidBody>());
-    static_cast<void>(app.getWorld().getComponents().registerType<Collider>());
+    static_cast<void>(app.getWorld().getComponents().registerType<RigidBody>(kRigidBodyOptions));
+    static_cast<void>(app.getWorld().getComponents().registerType<Collider>(kColliderOptions));
     static_cast<void>(app.getWorld().getComponents().registerType<Velocity>());
     static_cast<void>(app.getWorld().getComponents().registerType<PhysicsHandle>());
     ecs::Events& events = app.getWorld().getEvents();
@@ -181,9 +198,18 @@ void PhysicsPlugin::build(ecs::App& app) {
     static_cast<void>(events.registerType<TriggerEntered>());
     static_cast<void>(events.registerType<TriggerExited>());
     app.insertResource(PhysicsWorld{_settings});
-    app.addSystem(ecs::Phase::kFixedUpdate, std::string{kSyncBodiesSystem}, &syncBodies);
-    app.addSystem(ecs::Phase::kFixedUpdate, std::string{kSyncToPhysicsSystem}, &syncToPhysics)
-        .after(std::string{kSyncBodiesSystem});
+    app.addSystem(ecs::Phase::kFixedUpdate, std::string{kSyncBodiesSystem}, &syncBodies).setSide(ecs::Side::kBoth);
+    // why the same name on a client?
+    // Because systems ordered against it keep their place in every mode: a system of its own would be unordered
+    // against them, and the schedule refuses that even in the modes where one of the two never runs.
+    if (app.getSchedules().getRunMode() == ecs::RunMode::kClient) {
+        app.addSystem(ecs::Phase::kFixedUpdate, std::string{kSyncToPhysicsSystem}, &followTransforms)
+            .after(std::string{kSyncBodiesSystem})
+            .setSide(ecs::Side::kClient);
+    } else {
+        app.addSystem(ecs::Phase::kFixedUpdate, std::string{kSyncToPhysicsSystem}, &syncToPhysics)
+            .after(std::string{kSyncBodiesSystem});
+    }
     app.addSystem(ecs::Phase::kFixedUpdate, std::string{kStepSystem}, &step).after(std::string{kSyncToPhysicsSystem});
     app.addSystem(ecs::Phase::kFixedUpdate, std::string{kSyncFromPhysicsSystem}, &syncFromPhysics)
         .after(std::string{kStepSystem});
