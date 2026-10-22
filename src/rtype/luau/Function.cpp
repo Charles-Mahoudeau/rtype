@@ -79,18 +79,13 @@ Result<ValuePack> Function::call(const ValuePack& args) const {
     }
     const int top{lua_gettop(_state)};
     _ref.push(_state);
-    std::size_t argCount{};
-    try {
-        argCount = args.push(_state);
-    } catch (const std::exception& e) {
-        // Drop the function and the arguments pushed before the failure, to leave the stack as it was.
+    auto argCount = args.push(_state);
+    if (!argCount) {
+        // Drop the function, to leave the stack as it was.
         lua_settop(_state, top);
-        return Failure{ErrorKind::kRuntime, e.what()};
-    } catch (...) {
-        lua_settop(_state, top);
-        return Failure{ErrorKind::kRuntime, "unknown error"};
+        return forwardError<ValuePack>(std::move(argCount));
     }
-    if (lua_pcall(_state, static_cast<int>(argCount), LUA_MULTRET, 0) != LUA_OK) {
+    if (lua_pcall(_state, static_cast<int>(*argCount), LUA_MULTRET, 0) != LUA_OK) {
         // The error value is not always a string (e.g. `error({})`), in which case lua_tostring returns null.
         const char* message{lua_tostring(_state, -1)};
         auto error = message != nullptr
@@ -167,7 +162,12 @@ int Function::handle(lua_State* state) {
         } else {
             try {
                 const ValuePack results{self->_handler(*context)};
-                resultCount = results.push(state);
+                const auto pushed = results.push(state);
+                if (pushed) {
+                    resultCount = *pushed;
+                } else {
+                    error = std::format("native function '{}': {}", self->_name, pushed.error().message());
+                }
             } catch (const exceptions::Base& e) {
                 error = std::format("native function '{}': {}", self->_name, e.what());
             } catch (const std::exception&) {

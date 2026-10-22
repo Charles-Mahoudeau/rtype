@@ -75,11 +75,12 @@ class RTYPE_LUAU_API Value {
 
     /// @brief Pushes the held value onto the stack of a Lua state, as the matching Luau type.
     ///
-    /// Pushes exactly one value on success and nothing when it throws. Does not grow the stack: the
+    /// Pushes exactly one value on success and nothing on failure. Does not grow the stack: the
     /// caller makes sure there is room for one more slot (`lua_checkstack`).
     /// @param state The Lua state to push onto; must not be null.
-    /// @throws exceptions::InvalidOperation If the Value holds a `Table` of another Lua state than @p state.
-    void push(lua_State* state) const;
+    /// @return Nothing on success, or a Failure of kind `kRuntime` if the Value holds a `Table` of another Lua state
+    ///         than @p state.
+    [[nodiscard]] Result<void> push(lua_State* state) const;
 
     /// @brief Checks whether the Value currently holds a `T`.
     /// @tparam T One of the alternatives of `Variant`.

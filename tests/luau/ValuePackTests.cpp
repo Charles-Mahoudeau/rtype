@@ -6,13 +6,13 @@
 */
 
 #include <gtest/gtest.h>
+#include <lua.h>
 
 #include <cstddef>
 #include <string>
 #include <utility>
 
 #include "rtype/luau/ErrorKind.hpp"
-#include "rtype/luau/Exceptions.hpp"
 #include "rtype/luau/Runtime.hpp"
 #include "rtype/luau/RuntimeConfig.hpp"
 #include "rtype/luau/Table.hpp"
@@ -82,14 +82,14 @@ TEST(ValuePack, PushReturnsValueCount) {
     pack.add({false});
     pack.add({3.0});
 
-    EXPECT_EQ(pack.push(runtime.state()), 3U);
+    EXPECT_EQ(pack.push(runtime.state()).value(), 3U);
 }
 
 TEST(ValuePack, PushWithoutValuesReturnsZero) {
     const auto runtime = makeRuntime();
     const ValuePack pack{};
 
-    EXPECT_EQ(pack.push(runtime.state()), 0U);
+    EXPECT_EQ(pack.push(runtime.state()).value(), 0U);
 }
 
 TEST(ValuePack, PushGrowsStackBeyondMinimum) {
@@ -101,26 +101,33 @@ TEST(ValuePack, PushGrowsStackBeyondMinimum) {
         pack.add({static_cast<double>(i)});
     }
 
-    EXPECT_EQ(pack.push(runtime.state()), kValueCount);
+    EXPECT_EQ(pack.push(runtime.state()).value(), kValueCount);
 }
 
-TEST(ValuePack, PushThrowsStackOverflowWhenStackCannotGrow) {
+TEST(ValuePack, PushFailsWithStackOverflowWhenStackCannotGrow) {
     const auto runtime = makeRuntime();
     ValuePack pack{};
     for (std::size_t i = 0; i < kTooManyValues; ++i) {
         pack.add({0.0});
     }
 
-    EXPECT_THROW(static_cast<void>(pack.push(runtime.state())), rtype::luau::exceptions::StackOverflow);
+    const auto pushed = pack.push(runtime.state());
+
+    ASSERT_FALSE(pushed);
+    EXPECT_EQ(pushed.error().kind(), rtype::luau::ErrorKind::kStackOverflow);
 }
 
-TEST(ValuePack, PushThrowsInvalidOperationForTableOfAnotherState) {
+TEST(ValuePack, PushFailsForTableOfAnotherStateAndLeavesStackUnchanged) {
     const auto runtime = makeRuntime();
     const auto foreign = makeRuntime();
     ValuePack pack{};
-    pack.add({rtype::luau::Table::create(foreign.state())});
+    pack.add({rtype::luau::Table::create(foreign.state()).value()});
 
-    EXPECT_THROW(static_cast<void>(pack.push(runtime.state())), rtype::luau::exceptions::InvalidOperation);
+    const auto pushed = pack.push(runtime.state());
+
+    ASSERT_FALSE(pushed);
+    EXPECT_EQ(pushed.error().kind(), rtype::luau::ErrorKind::kRuntime);
+    EXPECT_EQ(lua_gettop(runtime.state()), 0);
 }
 
 TEST(ValuePack, FromStackReadsRangeInOrder) {
@@ -129,7 +136,7 @@ TEST(ValuePack, FromStackReadsRangeInOrder) {
     pushed.add({std::string{"first"}});
     pushed.add({2.0});
     pushed.add({true});
-    ASSERT_EQ(pushed.push(runtime.state()), 3U);
+    ASSERT_EQ(pushed.push(runtime.state()).value(), 3U);
 
     const auto pack = ValuePack::fromStack(runtime.state(), 2, 2);
 
@@ -143,7 +150,7 @@ TEST(ValuePack, FromStackDoesNotPop) {
     const auto runtime = makeRuntime();
     ValuePack pushed{};
     pushed.add({1.0});
-    ASSERT_EQ(pushed.push(runtime.state()), 1U);
+    ASSERT_EQ(pushed.push(runtime.state()).value(), 1U);
 
     ASSERT_TRUE(ValuePack::fromStack(runtime.state(), 1, 1));
     const auto pack = ValuePack::fromStack(runtime.state(), 1, 1);
@@ -168,7 +175,7 @@ TEST(ValuePack, FromStackFailsWithPositionOfUnreadableValue) {
     ASSERT_TRUE(script);
     ValuePack pushed{};
     pushed.add({1.0});
-    ASSERT_EQ(pushed.push(runtime.state()), 1U);
+    ASSERT_EQ(pushed.push(runtime.state()).value(), 1U);
     // A function cannot be read yet.
     script->closure().push(runtime.state());
 
@@ -185,7 +192,7 @@ TEST(ValuePack, PopReadsTopValuesInOrderAndPopsThem) {
     pushed.add({std::string{"bottom"}});
     pushed.add({1.0});
     pushed.add({2.0});
-    ASSERT_EQ(pushed.push(runtime.state()), 3U);
+    ASSERT_EQ(pushed.push(runtime.state()).value(), 3U);
 
     const auto pack = ValuePack::pop(runtime.state(), 2);
 
@@ -215,7 +222,7 @@ TEST(ValuePack, PopLeavesValuesOnFailure) {
     ASSERT_TRUE(script);
     ValuePack pushed{};
     pushed.add({1.0});
-    ASSERT_EQ(pushed.push(runtime.state()), 1U);
+    ASSERT_EQ(pushed.push(runtime.state()).value(), 1U);
     // A function cannot be read yet.
     script->closure().push(runtime.state());
 

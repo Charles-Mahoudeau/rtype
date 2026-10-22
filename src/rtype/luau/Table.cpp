@@ -52,12 +52,12 @@ class StackGuard {
 }  // namespace
 
 namespace rtype::luau {
-Table Table::create(lua_State* state, const int arrayCapacity, const int hashCapacity) {
+Result<Table> Table::create(lua_State* state, const int arrayCapacity, const int hashCapacity) {
     if (state == nullptr) {
         throw exceptions::InvalidState{};
     }
     if (lua_checkstack(state, 1) == 0) {
-        throw exceptions::StackOverflow{};
+        return stackOverflow();
     }
     lua_createtable(state, arrayCapacity, hashCapacity);
     return Table{Ref::pop(state)};
@@ -86,10 +86,8 @@ Result<Value> Table::get(const Value& key) const {
     }
     const StackGuard guard{target};
     _ref->push(target);
-    try {
-        key.push(target);
-    } catch (const exceptions::Base& e) {
-        return Failure{ErrorKind::kRuntime, e.what()};
+    if (auto pushed = key.push(target); !pushed) {
+        return forwardError<Value>(std::move(pushed));
     }
     lua_rawget(target, -2);
     return Value::fromStack(target, Ref::kLuaStackTop);
@@ -115,11 +113,11 @@ Result<void> Table::set(const Value& key, const Value& value) {
     if (lua_getreadonly(target, -1) != 0) {
         return Failure{ErrorKind::kRuntime, "attempt to modify a readonly table"};
     }
-    try {
-        key.push(target);
-        value.push(target);
-    } catch (const exceptions::Base& e) {
-        return Failure{ErrorKind::kRuntime, e.what()};
+    if (auto pushed = key.push(target); !pushed) {
+        return pushed;
+    }
+    if (auto pushed = value.push(target); !pushed) {
+        return pushed;
     }
     lua_rawset(target, -3);
     return {};
@@ -138,10 +136,8 @@ Result<bool> Table::has(const Value& key) const {
     }
     const StackGuard guard{target};
     _ref->push(target);
-    try {
-        key.push(target);
-    } catch (const exceptions::Base& e) {
-        return Failure{ErrorKind::kRuntime, e.what()};
+    if (auto pushed = key.push(target); !pushed) {
+        return forwardError<bool>(std::move(pushed));
     }
     lua_rawget(target, -2);
     return lua_type(target, -1) != LUA_TNIL;
@@ -149,20 +145,20 @@ Result<bool> Table::has(const Value& key) const {
 
 Result<bool> Table::has(const std::string_view key) const { return has(Value{std::string{key}}); }
 
-std::size_t Table::size() const {
+Result<std::size_t> Table::size() const {
     lua_State* const target{state()};
     if (!reserveStack(target)) {
-        throw exceptions::StackOverflow{};
+        return stackOverflow();
     }
     const StackGuard guard{target};
     _ref->push(target);
     return static_cast<std::size_t>(lua_objlen(target, -1));
 }
 
-std::size_t Table::count() const {
+Result<std::size_t> Table::count() const {
     lua_State* const target{state()};
     if (!reserveStack(target)) {
-        throw exceptions::StackOverflow{};
+        return stackOverflow();
     }
     const StackGuard guard{target};
     _ref->push(target);
@@ -217,7 +213,7 @@ Result<Table::Map> Table::toMap() const {
     return result;
 }
 
-void Table::push(lua_State* state) const {
+Result<void> Table::push(lua_State* state) const {
     if (state == nullptr) {
         throw exceptions::InvalidState{};
     }
@@ -225,18 +221,19 @@ void Table::push(lua_State* state) const {
         throw exceptions::InvalidRef{};
     }
     if (lua_mainthread(state) != _ref->state()) {
-        throw exceptions::InvalidOperation{"the table belongs to another Lua state"};
+        return Failure{ErrorKind::kRuntime, "the table belongs to another Lua state"};
     }
     _ref->push(state);
+    return {};
 }
 
-bool Table::refersToSame(const Table& other) const {
+Result<bool> Table::refersToSame(const Table& other) const {
     lua_State* const target{state()};
     if (target != other.state()) {
         return false;
     }
     if (!reserveStack(target)) {
-        throw exceptions::StackOverflow{};
+        return stackOverflow();
     }
     const StackGuard guard{target};
     _ref->push(target);
