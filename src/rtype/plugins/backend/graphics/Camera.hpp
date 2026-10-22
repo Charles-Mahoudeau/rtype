@@ -23,10 +23,13 @@ namespace rtype::plugins::backend::graphics {
 ///     .add(rtype::plugins::transform::Transform{.position = {960.0F, 540.0F}})
 ///     .add(rtype::plugins::backend::graphics::Camera{});
 /// @endcode
+/// @note It holds an Orthographic, not the Projection variant: a std::variant is not standard-layout on every standard
+/// library, and a component with reflected fields must be. A Perspective projection will need its own field or
+/// component.
 struct Camera {
-    Projection projection = Orthographic{};  ///< How the world is projected.
-    std::int32_t priority = 0;               ///< Among several camera entities, the highest one is shown.
+    Orthographic projection;    ///< How the world is projected.
+    std::int32_t priority = 0;  ///< Among several camera entities, the highest one is shown.
 };
 
-RTYPE_ECS_COMPONENT(Camera, "rtype.Camera");
+RTYPE_ECS_COMPONENT(Camera, "rtype.Camera", priority);
 }  // namespace rtype::plugins::backend::graphics
