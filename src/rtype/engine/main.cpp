@@ -28,6 +28,7 @@
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"  // IWYU pragma: keep
 #include "plugins/backend/config/Settings.hpp"
+#include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
@@ -400,6 +401,13 @@ void bindControls(ecs::ResMut<plugins::input::Input> input) {
         .bind(Control::mouseButton(plugins::backend::input::MouseButton::kLeft));
 }
 
+/// @brief Startup: spawns the camera, centred on the arena, so the whole 800x600 view is shown.
+void spawnCamera(ecs::Commands& commands) {
+    commands.spawn()
+        .add(plugins::transform::Transform{.position = {kViewWidth / 2.0F, kViewHeight / 2.0F}})
+        .add(plugins::backend::graphics::Camera{});
+}
+
 /// @brief PostUpdate, before the input is sent: copies the local controls into the network input.
 void sendControls(ecs::Res<plugins::input::Input> input, ecs::Res<replication::input::InputLayout> layout,
                   ecs::ResMut<replication::client::ClientState> client) {
@@ -570,6 +578,7 @@ int runClient(const std::string& host, std::uint16_t port) {
     declareInputs(app);
 
     app.addSystem(ecs::Phase::kStartup, "game.bindControls", &bindControls).setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kStartup, "game.spawnCamera", &spawnCamera).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kPostUpdate, "game.sendControls", &sendControls)
         .before(std::string{replication::client::ClientPlugin::kSendInputSystem})
         .setSide(ecs::Side::kClient);
