@@ -158,17 +158,23 @@ reference, not the contents):
 ```c++
 class Table {
 public:
-    Value get(std::string_view key) const;
-    void set(std::string_view key, Value value);
+    static Table create(lua_State* state, int arrayCapacity = 0, int hashCapacity = 0);
 
-    Value get(int index) const; // 1-based, matching Luau's array convention
-    void set(int index, Value value);
+    // Raw access (metatables are bypassed), keys and values are any Value.
+    Result<Value> get(const Value& key) const;
+    Result<Value> get(std::string_view key) const;
+    Result<Value> getAt(std::size_t index) const; // 1-based, matching Luau's array convention
+    Result<void> set(const Value& key, const Value& value);
+    Result<void> set(std::string_view key, const Value& value);
+    Result<void> setAt(std::size_t index, const Value& value);
+    Result<bool> has(const Value& key) const;
 
-    std::size_t size() const;   // the '#' operator (array part length)
+    std::size_t size() const;  // the '#' operator (array part length)
+    std::size_t count() const; // number of entries, array and hash parts
 
-    // Iterates key/value pairs, like Luau's pairs().
-    auto begin() const;
-    auto end() const;
+    // Shallow snapshots, in the order of Luau's pairs().
+    Result<std::vector<std::pair<Value, Value>>> entries() const;
+    Result<std::unordered_map<std::string, Value>> toMap() const; // string keys only
 };
 ```
 

@@ -87,7 +87,7 @@ class RTYPE_LUAU_API ValuePack {
     /// @return The number of values pushed.
     /// @throws exceptions::StackOverflow If the stack cannot grow enough to hold every value. Nothing is pushed
     ///         then.
-    /// @throws exceptions::NotImplemented If a value holds a type that cannot be pushed yet (see `Value::push`).
+    /// @throws exceptions::InvalidOperation If a value cannot be pushed onto @p state (see `Value::push`).
     ///         The values pushed before it stay on the stack.
     std::size_t push(lua_State* state) const;
 
