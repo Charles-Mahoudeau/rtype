@@ -330,12 +330,7 @@ std::optional<std::uint32_t> shooterOf(ecs::Query<const Laser>& lasers, ecs::Ent
 
 /// @return Whether the entity is a ship.
 bool isShip(ecs::Query<const Ship>& ships, ecs::Entity entity) {
-    for (auto [shipEntity, ship] : ships) {
-        if (shipEntity == entity) {
-            return true;
-        }
-    }
-    return false;
+    return std::ranges::any_of(ships, [entity](const auto& row) { return std::get<0>(row) == entity; });
 }
 
 /// @brief FixedUpdate, after the physics sent its events: a laser that touches something is spent; one that touches a
