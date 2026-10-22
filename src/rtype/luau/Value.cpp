@@ -105,16 +105,31 @@ Value& Value::operator=(const Value&) noexcept = default;
 Value::Value(Value&&) noexcept = default;
 Value& Value::operator=(Value&&) noexcept = default;
 
-void Value::push(lua_State* state) const {
-    std::visit(Overload{
-                   [state](const Nil) { lua_pushnil(state); },
-                   [state](const bool v) { lua_pushboolean(state, v); },
-                   [state](const double v) { lua_pushnumber(state, v); },
-                   [state](const Vector v) { lua_pushvector(state, v.x, v.y, v.z); },
-                   [state](const std::string& v) { lua_pushlstring(state, v.data(), v.size()); },
-                   [state](const Table& v) { v.push(state); },
-               },
-               _variant);
+Result<void> Value::push(lua_State* state) const {
+    return std::visit(Overload{
+                          [state](const Nil) -> Result<void> {
+                              lua_pushnil(state);
+                              return {};
+                          },
+                          [state](const bool v) -> Result<void> {
+                              lua_pushboolean(state, v);
+                              return {};
+                          },
+                          [state](const double v) -> Result<void> {
+                              lua_pushnumber(state, v);
+                              return {};
+                          },
+                          [state](const Vector v) -> Result<void> {
+                              lua_pushvector(state, v.x, v.y, v.z);
+                              return {};
+                          },
+                          [state](const std::string& v) -> Result<void> {
+                              lua_pushlstring(state, v.data(), v.size());
+                              return {};
+                          },
+                          [state](const Table& v) -> Result<void> { return v.push(state); },
+                      },
+                      _variant);
 }
 
 bool Value::isNumeric() const noexcept {

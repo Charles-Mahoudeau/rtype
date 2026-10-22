@@ -60,7 +60,7 @@ ValuePack makeUnpushableArgs(const rtype::luau::Runtime& foreign, const std::siz
     for (std::size_t i = 0; i < validArgs; ++i) {
         args.add({0.0});
     }
-    args.add({rtype::luau::Table::create(foreign.state())});
+    args.add({rtype::luau::Table::create(foreign.state()).value()});
     return args;
 }
 
@@ -148,7 +148,7 @@ TEST(Function, CallFailsWithTooManyArguments) {
     const auto result = function.call(args);
 
     ASSERT_FALSE(result);
-    EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kRuntime);
+    EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kStackOverflow);
     EXPECT_EQ(result.error().message(), "Lua stack overflow");
 }
 
@@ -360,7 +360,7 @@ TEST(Function, NativeRaisesErrorForUnpushableValue) {
     Function native = Function::create(runtime.state(), "native");
     native.setHandler([&foreign](const CallContext&) -> ValuePack {
         ValuePack result{};
-        result.add({rtype::luau::Table::create(foreign.state())});
+        result.add({rtype::luau::Table::create(foreign.state()).value()});
         return result;
     });
     const Function function = makeFunction(runtime, R"(

@@ -45,10 +45,10 @@ class RTYPE_LUAU_API Table {
     /// @param state The Lua state to create the table in; must not be null.
     /// @param arrayCapacity Number of array slots to preallocate.
     /// @param hashCapacity Number of hash entries to preallocate.
-    /// @return A handle on the new table.
+    /// @return A handle on the new table, or a Failure of kind `kStackOverflow` if the stack of @p state cannot grow
+    ///         by one slot.
     /// @throws exceptions::InvalidState If @p state is null.
-    /// @throws exceptions::StackOverflow If the stack of @p state cannot grow by one slot.
-    [[nodiscard]] static Table create(lua_State* state, int arrayCapacity = 0, int hashCapacity = 0);
+    [[nodiscard]] static Result<Table> create(lua_State* state, int arrayCapacity = 0, int hashCapacity = 0);
     /// @brief Makes a handle on the table at a stack index of a Lua state.
     ///
     /// Leaves the stack untouched. The reverse of `push()`.
@@ -112,13 +112,13 @@ class RTYPE_LUAU_API Table {
     /// @brief Returns the length of the array part, like the `#` operator without its metamethod.
     ///
     /// With holes in the array, any border is a valid answer, as in Luau.
-    /// @throws exceptions::StackOverflow If the stack cannot grow by one slot.
-    [[nodiscard]] std::size_t size() const;
+    /// @return The length, or a Failure of kind `kStackOverflow` if the stack cannot grow by one slot.
+    [[nodiscard]] Result<std::size_t> size() const;
     /// @brief Returns the number of entries of the table, array and hash parts together.
     ///
     /// Walks the whole table: linear in its size.
-    /// @throws exceptions::StackOverflow If the stack cannot grow enough.
-    [[nodiscard]] std::size_t count() const;
+    /// @return The number of entries, or a Failure of kind `kStackOverflow` if the stack cannot grow enough.
+    [[nodiscard]] Result<std::size_t> count() const;
 
     /// @brief Copies every entry of the table, in the unspecified order of `pairs()`.
     ///
@@ -134,18 +134,21 @@ class RTYPE_LUAU_API Table {
 
     /// @brief Pushes the table onto the stack of a Lua state.
     ///
-    /// Pushes exactly one value. Does not grow the stack: the caller makes sure there is room for one more slot
-    /// (`lua_checkstack`).
-    /// @param state The Lua state to push onto; must not be null, and share its main thread with the table's.
+    /// Pushes exactly one value on success and nothing on failure. Does not grow the stack: the caller makes sure
+    /// there is room for one more slot (`lua_checkstack`).
+    /// @param state The Lua state to push onto; must not be null.
+    /// @return Nothing on success, or a Failure of kind `kRuntime` if @p state belongs to another Lua state than the
+    ///         table.
     /// @throws exceptions::InvalidState If @p state is null.
-    /// @throws exceptions::InvalidOperation If @p state belongs to another Lua state than the table.
     /// @throws exceptions::InvalidRef If the handle was moved from.
-    void push(lua_State* state) const;
+    [[nodiscard]] Result<void> push(lua_State* state) const;
 
     /// @brief Checks whether two handles refer to the same table (raw identity, not equal contents).
     /// @param other The handle to compare with.
-    /// @throws exceptions::StackOverflow If the stack cannot grow enough.
-    [[nodiscard]] bool refersToSame(const Table& other) const;
+    /// @return `true` if they do (`false` for a table of another Lua state), or a Failure of kind `kStackOverflow`
+    ///         if the stack cannot grow enough.
+    /// @throws exceptions::InvalidRef If a handle was moved from.
+    [[nodiscard]] Result<bool> refersToSame(const Table& other) const;
 
   private:
     /// @brief Wraps a reference to a table.

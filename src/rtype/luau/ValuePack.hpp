@@ -84,12 +84,10 @@ class RTYPE_LUAU_API ValuePack {
     ///
     /// Grows the stack as needed, so the caller does not have to make room for the values.
     /// @param state The Lua state to push onto; must not be null.
-    /// @return The number of values pushed.
-    /// @throws exceptions::StackOverflow If the stack cannot grow enough to hold every value. Nothing is pushed
-    ///         then.
-    /// @throws exceptions::InvalidOperation If a value cannot be pushed onto @p state (see `Value::push`).
-    ///         The values pushed before it stay on the stack.
-    std::size_t push(lua_State* state) const;
+    /// @return The number of values pushed, or a Failure of kind `kStackOverflow` if the stack cannot grow enough
+    ///         to hold every value, or the failure of `Value::push` for a value that cannot be pushed. Nothing stays
+    ///         on the stack on failure.
+    [[nodiscard]] Result<std::size_t> push(lua_State* state) const;
 
   private:
     std::vector<Value> _values;  ///< The values of the pack, in order.
