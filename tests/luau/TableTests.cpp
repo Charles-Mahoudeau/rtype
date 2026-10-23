@@ -8,239 +8,480 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
-#include <iterator>
-#include <set>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 
+#include "rtype/luau/ErrorKind.hpp"
+#include "rtype/luau/Exceptions.hpp"
+#include "rtype/luau/Function.hpp"
+#include "rtype/luau/Ref.hpp"
+#include "rtype/luau/Runtime.hpp"
+#include "rtype/luau/RuntimeConfig.hpp"
 #include "rtype/luau/Table.hpp"
 #include "rtype/luau/Value.hpp"
+#include "rtype/luau/ValuePack.hpp"
 
 namespace {
+using ErrorKind = rtype::luau::ErrorKind;
+using Function = rtype::luau::Function;
 using Table = rtype::luau::Table;
 using Value = rtype::luau::Value;
+using ValuePack = rtype::luau::ValuePack;
+
+/// @brief Creates a runtime with the standard libraries, failing the test if it cannot be created.
+rtype::luau::Runtime makeRuntime() {
+    auto runtime = rtype::luau::Runtime::create({
+        .libs = rtype::luau::RuntimeConfig::Libs::kStandard,
+        .optimizationLevel = rtype::luau::RuntimeConfig::OptimizationLevel::kStandard,
+    });
+    EXPECT_TRUE(runtime);
+    return std::move(*runtime);
+}
+
+/// @brief Runs a Luau chunk that receives @p args as `...`, and returns what it returns.
+ValuePack run(const rtype::luau::Runtime& runtime, const std::string& source, const ValuePack& args = {}) {
+    const auto script = runtime.load("table", source);
+    EXPECT_TRUE(script);
+    script->closure().push(runtime.state());
+    const Function function = Function::fromRef(rtype::luau::Ref::pop(runtime.state()), "table");
+    auto results = function.call(args);
+    EXPECT_TRUE(results) << results.error().message();
+    return std::move(*results);
+}
+
+/// @brief Runs a Luau chunk and returns the table it returns.
+Table runForTable(const rtype::luau::Runtime& runtime, const std::string& source) {
+    const ValuePack results = run(runtime, source);
+    EXPECT_EQ(results.size(), 1U);
+    const Table* table = results.values()[0].tryAs<Table>();
+    EXPECT_NE(table, nullptr);
+    return *table;
+}
+
+/// @brief Reads a number from a table, failing the test if it is not there.
+double number(const Table& table, const std::string& key) {
+    const auto value = table.get(key);
+    EXPECT_TRUE(value);
+    EXPECT_TRUE(value->is<double>());
+    return value->as<double>();
+}
 }  // namespace
 
-TEST(Table, IsEmptyByDefault) {
-    const Table table;
+TEST(Table, IsEmptyWhenCreated) {
+    const auto runtime = makeRuntime();
+
+    const Table table = Table::create(runtime.state());
 
     EXPECT_EQ(table.size(), 0U);
-    EXPECT_EQ(table.begin(), table.end());
-    EXPECT_EQ(table.cbegin(), table.cend());
+    EXPECT_EQ(table.count(), 0U);
 }
 
-TEST(Table, SetInsertsValue) {
-    Table table;
+TEST(Table, CreateLeavesTheStackUntouched) {
+    const auto runtime = makeRuntime();
+    ValuePack probe{};
+    probe.add({1.0});
+    ASSERT_EQ(probe.push(runtime.state()), 1U);
 
-    table.set("answer", Value{42.0});
+    const Table table = Table::create(runtime.state(), 4, 4);
 
-    EXPECT_EQ(table.size(), 1U);
-    const Value* value = table.tryGet("answer");
-    ASSERT_NE(value, nullptr);
+    EXPECT_TRUE(Value::pop(runtime.state()));
+    EXPECT_EQ(table.count(), 0U);
+}
+
+TEST(Table, CreateThrowsForNullState) {
+    EXPECT_THROW(static_cast<void>(Table::create(nullptr)), rtype::luau::exceptions::InvalidState);
+}
+
+TEST(Table, SetStoresStringKey) {
+    const auto runtime = makeRuntime();
+    Table table = Table::create(runtime.state());
+
+    ASSERT_TRUE(table.set("answer", Value{42.0}));
+
+    const auto value = table.get("answer");
+    ASSERT_TRUE(value);
     EXPECT_DOUBLE_EQ(value->as<double>(), 42.0);
-}
-
-TEST(Table, SetReturnsReferenceToStoredValue) {
-    Table table;
-
-    Value& stored = table.set("name", Value{std::string{"r-type"}});
-
-    EXPECT_EQ(stored.as<std::string>(), "r-type");
-    EXPECT_EQ(&stored, table.tryGet("name"));
+    EXPECT_EQ(table.count(), 1U);
 }
 
 TEST(Table, SetOverwritesExistingKey) {
-    Table table;
-    table.set("key", Value{1.0});
+    const auto runtime = makeRuntime();
+    Table table = Table::create(runtime.state());
+    ASSERT_TRUE(table.set("key", Value{1.0}));
 
-    table.set("key", Value{std::string{"replaced"}});
+    ASSERT_TRUE(table.set("key", Value{std::string{"replaced"}}));
 
-    EXPECT_EQ(table.size(), 1U);
-    const Value* value = table.tryGet("key");
-    ASSERT_NE(value, nullptr);
-    EXPECT_TRUE(value->is<std::string>());
-    EXPECT_EQ(value->as<std::string>(), "replaced");
+    EXPECT_EQ(table.count(), 1U);
+    EXPECT_EQ(table.get("key")->as<std::string>(), "replaced");
 }
 
-TEST(Table, SetStoresMultipleKeys) {
-    Table table;
+TEST(Table, GetReturnsNilForMissingKey) {
+    const auto runtime = makeRuntime();
+    const Table table = Table::create(runtime.state());
 
-    table.set("a", Value{true});
-    table.set("b", Value{2.5});
-    table.set("c", Value{Value::Nil{}});
+    const auto value = table.get("absent");
+
+    ASSERT_TRUE(value);
+    EXPECT_TRUE(value->is<Value::Nil>());
+}
+
+TEST(Table, KeysAreCaseSensitiveAndMayBeEmpty) {
+    const auto runtime = makeRuntime();
+    Table table = Table::create(runtime.state());
+    ASSERT_TRUE(table.set("Key", Value{1.0}));
+    ASSERT_TRUE(table.set("", Value{2.0}));
+
+    EXPECT_TRUE(table.get("key")->is<Value::Nil>());
+    EXPECT_DOUBLE_EQ(number(table, "Key"), 1.0);
+    EXPECT_DOUBLE_EQ(number(table, ""), 2.0);
+}
+
+TEST(Table, SettingNilRemovesTheEntry) {
+    const auto runtime = makeRuntime();
+    Table table = Table::create(runtime.state());
+    ASSERT_TRUE(table.set("key", Value{true}));
+
+    ASSERT_TRUE(table.set("key", Value{Value::Nil{}}));
+
+    EXPECT_EQ(table.count(), 0U);
+    EXPECT_FALSE(*table.has("key"));
+}
+
+TEST(Table, HasTellsPresentFromAbsentKeys) {
+    const auto runtime = makeRuntime();
+    Table table = Table::create(runtime.state());
+    ASSERT_TRUE(table.set("present", Value{false}));
+
+    EXPECT_TRUE(*table.has("present"));
+    EXPECT_TRUE(*table.has(Value{std::string{"present"}}));
+    EXPECT_FALSE(*table.has("absent"));
+}
+
+TEST(Table, ArrayIndicesAreOneBased) {
+    const auto runtime = makeRuntime();
+    Table table = Table::create(runtime.state());
+
+    for (std::size_t i = 1; i <= 3; ++i) {
+        ASSERT_TRUE(table.setAt(i, Value{static_cast<double>(i) * 10.0}));
+    }
 
     EXPECT_EQ(table.size(), 3U);
-    EXPECT_TRUE(table.tryGet("a")->is<bool>());
-    EXPECT_TRUE(table.tryGet("b")->is<double>());
-    EXPECT_TRUE(table.tryGet("c")->is<Value::Nil>());
+    EXPECT_EQ(table.count(), 3U);
+    EXPECT_DOUBLE_EQ(table.getAt(1)->as<double>(), 10.0);
+    EXPECT_DOUBLE_EQ(table.getAt(3)->as<double>(), 30.0);
+    EXPECT_TRUE(table.getAt(0)->is<Value::Nil>());
+    EXPECT_TRUE(table.getAt(4)->is<Value::Nil>());
 }
 
-TEST(Table, TryGetReturnsNullptrForMissingKey) {
-    Table table;
-    table.set("present", Value{true});
+TEST(Table, AcceptsKeysOfAnySupportedType) {
+    const auto runtime = makeRuntime();
+    Table table = Table::create(runtime.state());
+    const Value vectorKey{Value::Vector{1.0F, 2.0F, 3.0F}};
+    const Value tableKey{Table::create(runtime.state())};
 
-    EXPECT_EQ(table.tryGet("absent"), nullptr);
+    ASSERT_TRUE(table.set(Value{true}, Value{1.0}));
+    ASSERT_TRUE(table.set(Value{2.5}, Value{2.0}));
+    ASSERT_TRUE(table.set(vectorKey, Value{3.0}));
+    ASSERT_TRUE(table.set(tableKey, Value{4.0}));
+
+    EXPECT_DOUBLE_EQ(table.get(Value{true})->as<double>(), 1.0);
+    EXPECT_DOUBLE_EQ(table.get(Value{2.5})->as<double>(), 2.0);
+    EXPECT_DOUBLE_EQ(table.get(vectorKey)->as<double>(), 3.0);
+    EXPECT_DOUBLE_EQ(table.get(tableKey)->as<double>(), 4.0);
+    EXPECT_EQ(table.count(), 4U);
 }
 
-TEST(Table, TryGetOnEmptyTableReturnsNullptr) {
-    const Table table;
+TEST(Table, SetRejectsNilKey) {
+    const auto runtime = makeRuntime();
+    Table table = Table::create(runtime.state());
 
-    EXPECT_EQ(table.tryGet("anything"), nullptr);
+    const auto result = table.set(Value{Value::Nil{}}, Value{1.0});
+
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().kind(), ErrorKind::kTypeMismatch);
+    EXPECT_EQ(table.count(), 0U);
 }
 
-TEST(Table, TryGetIsCaseSensitive) {
-    Table table;
-    table.set("Key", Value{true});
+TEST(Table, SetRejectsNaNKey) {
+    const auto runtime = makeRuntime();
+    Table table = Table::create(runtime.state());
 
-    EXPECT_EQ(table.tryGet("key"), nullptr);
-    EXPECT_NE(table.tryGet("Key"), nullptr);
+    const auto result = table.set(Value{std::numeric_limits<double>::quiet_NaN()}, Value{1.0});
+
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().kind(), ErrorKind::kTypeMismatch);
 }
 
-TEST(Table, TryGetAcceptsStringView) {
-    Table table;
-    table.set("hello world", Value{1.0});
-    const std::string_view full{"hello world"};
+TEST(Table, SetFailsOnReadOnlyTable) {
+    const auto runtime = makeRuntime();
+    Table table = runForTable(runtime, "return table.freeze({a = 1})");
 
-    EXPECT_NE(table.tryGet(full), nullptr);
-    EXPECT_NE(table.tryGet(full.substr(0, 11)), nullptr);
-    EXPECT_EQ(table.tryGet(full.substr(0, 5)), nullptr);
+    const auto result = table.set("a", Value{2.0});
+
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().kind(), ErrorKind::kRuntime);
+    EXPECT_DOUBLE_EQ(number(table, "a"), 1.0);
 }
 
-TEST(Table, TryGetAcceptsEmptyKey) {
-    Table table;
+TEST(Table, SetFailsForTableOfAnotherState) {
+    const auto runtime = makeRuntime();
+    const auto foreign = makeRuntime();
+    Table table = Table::create(runtime.state());
 
-    EXPECT_EQ(table.tryGet(""), nullptr);
-    table.set("", Value{true});
-    ASSERT_NE(table.tryGet(""), nullptr);
-    EXPECT_TRUE(table.tryGet("")->as<bool>());
+    const auto result = table.set("other", Value{Table::create(foreign.state())});
+
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().kind(), ErrorKind::kRuntime);
+    EXPECT_EQ(table.count(), 0U);
 }
 
-TEST(Table, MutableTryGetAllowsModification) {
-    Table table;
-    table.set("counter", Value{1.0});
+TEST(Table, FailedOperationsLeaveTheStackAsTheyFoundIt) {
+    const auto runtime = makeRuntime();
+    const auto foreign = makeRuntime();
+    Table table = Table::create(runtime.state());
+    const Value foreignTable{Table::create(foreign.state())};
+    constexpr int kCalls = 10000;
 
-    Value* value = table.tryGet("counter");
-    ASSERT_NE(value, nullptr);
-    value->as<double>() = 2.0;
-
-    EXPECT_DOUBLE_EQ(table.tryGet("counter")->as<double>(), 2.0);
-}
-
-TEST(Table, ConstTryGetOverloadIsSelectedOnConstTable) {
-    Table table;
-    table.set("key", Value{true});
-    const Table& constTable = table;
-
-    static_assert(std::is_same_v<decltype(constTable.tryGet("key")), const Value*>);
-    static_assert(std::is_same_v<decltype(table.tryGet("key")), Value*>);
-    EXPECT_NE(constTable.tryGet("key"), nullptr);
-}
-
-TEST(Table, IterationVisitsEveryEntry) {
-    Table table;
-    table.set("a", Value{1.0});
-    table.set("b", Value{2.0});
-    table.set("c", Value{3.0});
-
-    std::set<std::string> keys;
-    double sum = 0.0;
-    for (const auto& [key, value] : table) {
-        keys.insert(key);
-        sum += value.as<double>();
+    // The stack of Luau is capped at 8000 slots: leaking one slot per call would overflow it.
+    for (int i = 0; i < kCalls; ++i) {
+        ASSERT_FALSE(table.set(Value{Value::Nil{}}, Value{1.0}));
+        // These fail once the table is already on the stack, so they exercise the cleanup after stack access.
+        ASSERT_FALSE(table.set("other", foreignTable));
+        ASSERT_FALSE(table.get(foreignTable));
+        ASSERT_TRUE(table.set("key", Value{1.0}));
+        ASSERT_TRUE(table.get("key"));
+        ASSERT_TRUE(table.entries());
     }
-
-    EXPECT_EQ(keys, (std::set<std::string>{"a", "b", "c"}));
-    EXPECT_DOUBLE_EQ(sum, 6.0);
-    EXPECT_EQ(static_cast<std::size_t>(std::distance(table.begin(), table.end())), table.size());
 }
 
-TEST(Table, ConstIterationVisitsEveryEntry) {
-    Table table;
-    table.set("a", Value{true});
-    table.set("b", Value{false});
-    const Table& constTable = table;
-
-    std::size_t count = 0;
-    for (auto it = constTable.cbegin(); it != constTable.cend(); ++it) {
-        ++count;
-    }
-    for (auto it = constTable.begin(); it != constTable.end(); ++it) {
-        ++count;
-    }
-
-    EXPECT_EQ(count, 4U);
-}
-
-TEST(Table, MutableIterationAllowsValueModification) {
-    Table table;
-    table.set("a", Value{1.0});
-    table.set("b", Value{2.0});
-
-    for (auto& [key, value] : table) {
-        value.as<double>() *= 10.0;
-    }
-
-    EXPECT_DOUBLE_EQ(table.tryGet("a")->as<double>(), 10.0);
-    EXPECT_DOUBLE_EQ(table.tryGet("b")->as<double>(), 20.0);
-}
-
-TEST(Table, CopyConstructorDuplicatesEntries) {
-    Table original;
-    original.set("key", Value{std::string{"value"}});
-
+TEST(Table, CopyRefersToTheSameTable) {
+    const auto runtime = makeRuntime();
+    Table original = Table::create(runtime.state());
     Table copy{original};
-    copy.set("key", Value{std::string{"changed"}});
-    copy.set("extra", Value{true});
 
-    EXPECT_EQ(original.size(), 1U);
-    EXPECT_EQ(original.tryGet("key")->as<std::string>(), "value");
-    EXPECT_EQ(copy.size(), 2U);
-    EXPECT_EQ(copy.tryGet("key")->as<std::string>(), "changed");
+    ASSERT_TRUE(copy.set("shared", Value{1.0}));
+    ASSERT_TRUE(original.set("other", Value{2.0}));
+
+    EXPECT_DOUBLE_EQ(number(original, "shared"), 1.0);
+    EXPECT_DOUBLE_EQ(number(copy, "other"), 2.0);
+    EXPECT_TRUE(original.refersToSame(copy));
 }
 
-TEST(Table, CopyAssignmentReplacesContent) {
-    Table source;
-    source.set("new", Value{1.0});
-    Table target;
-    target.set("old", Value{2.0});
+TEST(Table, CopyAssignmentRefersToTheOtherTable) {
+    const auto runtime = makeRuntime();
+    const Table source = Table::create(runtime.state());
+    Table target = Table::create(runtime.state());
 
     target = source;
 
-    EXPECT_EQ(target.size(), 1U);
-    EXPECT_EQ(target.tryGet("old"), nullptr);
-    EXPECT_NE(target.tryGet("new"), nullptr);
-    EXPECT_EQ(source.size(), 1U);
+    EXPECT_TRUE(target.refersToSame(source));
 }
 
-TEST(Table, MoveConstructorTransfersEntries) {
-    Table source;
-    source.set("key", Value{std::string{"value"}});
+TEST(Table, DistinctTablesDoNotReferToTheSame) {
+    const auto runtime = makeRuntime();
+    const Table first = Table::create(runtime.state());
+    const Table second = Table::create(runtime.state());
+    const auto foreign = makeRuntime();
+    const Table other = Table::create(foreign.state());
+
+    EXPECT_FALSE(first.refersToSame(second));
+    EXPECT_FALSE(first.refersToSame(other));
+}
+
+TEST(Table, MovedFromHandleThrowsInvalidRef) {
+    const auto runtime = makeRuntime();
+    Table source = Table::create(runtime.state());
 
     const Table moved{std::move(source)};
 
-    EXPECT_EQ(moved.size(), 1U);
-    ASSERT_NE(moved.tryGet("key"), nullptr);
-    EXPECT_EQ(moved.tryGet("key")->as<std::string>(), "value");
+    EXPECT_EQ(moved.count(), 0U);
+    // NOLINTNEXTLINE(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
+    EXPECT_THROW(static_cast<void>(source.count()), rtype::luau::exceptions::InvalidRef);
 }
 
-TEST(Table, MoveAssignmentTransfersEntries) {
-    Table source;
-    source.set("new", Value{1.0});
-    Table target;
-    target.set("old", Value{2.0});
-
-    target = std::move(source);
-
-    EXPECT_EQ(target.size(), 1U);
-    EXPECT_EQ(target.tryGet("old"), nullptr);
-    EXPECT_NE(target.tryGet("new"), nullptr);
-}
-
-TEST(Table, IsCopyableAndMovable) {
-    static_assert(std::is_copy_constructible_v<Table>);
-    static_assert(std::is_copy_assignable_v<Table>);
+TEST(Table, IsCheapToCopyAndMove) {
+    static_assert(std::is_nothrow_copy_constructible_v<Table>);
+    static_assert(std::is_nothrow_copy_assignable_v<Table>);
     static_assert(std::is_nothrow_move_constructible_v<Table>);
     static_assert(std::is_nothrow_move_assignable_v<Table>);
+    static_assert(!std::is_default_constructible_v<Table>);
+}
+
+TEST(Table, ScriptSeesChangesMadeFromCpp) {
+    const auto runtime = makeRuntime();
+    Table table = Table::create(runtime.state());
+    ASSERT_TRUE(table.set("hp", Value{10.0}));
+    ValuePack args{};
+    args.add({table});
+
+    const ValuePack results = run(runtime, "local t = ...; return t.hp * 2", args);
+
+    ASSERT_EQ(results.size(), 1U);
+    EXPECT_DOUBLE_EQ(results.values()[0].as<double>(), 20.0);
+}
+
+TEST(Table, CppSeesChangesMadeByScript) {
+    const auto runtime = makeRuntime();
+    Table table = Table::create(runtime.state());
+    ValuePack args{};
+    args.add({table});
+
+    static_cast<void>(run(runtime, "local t = ...; t.hp = 99; t[1] = 'first'", args));
+
+    EXPECT_DOUBLE_EQ(number(table, "hp"), 99.0);
+    EXPECT_EQ(table.getAt(1)->as<std::string>(), "first");
+}
+
+TEST(Table, ReadsTableReturnedByScript) {
+    const auto runtime = makeRuntime();
+
+    const Table table = runForTable(runtime, "return {name = 'r-type', lives = 3, {1, 2}}");
+
+    EXPECT_EQ(table.get("name")->as<std::string>(), "r-type");
+    EXPECT_DOUBLE_EQ(number(table, "lives"), 3.0);
+    EXPECT_EQ(table.size(), 1U);
+    EXPECT_EQ(table.count(), 3U);
+}
+
+TEST(Table, NestedTablesAreLiveHandles) {
+    const auto runtime = makeRuntime();
+    const Table outer = runForTable(runtime, "return {inner = {x = 1}}");
+
+    const auto inner = outer.get("inner");
+    ASSERT_TRUE(inner);
+    ASSERT_TRUE(inner->is<Table>());
+    Table handle = inner->as<Table>();
+    ASSERT_TRUE(handle.set("x", Value{5.0}));
+
+    EXPECT_DOUBLE_EQ(number(outer.get("inner")->as<Table>(), "x"), 5.0);
+    EXPECT_TRUE(handle.refersToSame(outer.get("inner")->as<Table>()));
+}
+
+TEST(Table, PushThenFromStackGivesTheSameTable) {
+    const auto runtime = makeRuntime();
+    const Table table = Table::create(runtime.state());
+
+    table.push(runtime.state());
+    const auto read = Table::fromStack(runtime.state());
+
+    ASSERT_TRUE(read);
+    EXPECT_TRUE(read->refersToSame(table));
+    EXPECT_TRUE(Value::pop(runtime.state()));
+}
+
+TEST(Table, FromStackFailsForOtherTypes) {
+    const auto runtime = makeRuntime();
+    ValuePack pack{};
+    pack.add({1.0});
+    ASSERT_EQ(pack.push(runtime.state()), 1U);
+
+    const auto read = Table::fromStack(runtime.state());
+
+    ASSERT_FALSE(read);
+    EXPECT_EQ(read.error().kind(), ErrorKind::kTypeMismatch);
+}
+
+TEST(Table, PushThrowsForTableOfAnotherState) {
+    const auto runtime = makeRuntime();
+    const auto foreign = makeRuntime();
+    const Table table = Table::create(foreign.state());
+
+    EXPECT_THROW(table.push(runtime.state()), rtype::luau::exceptions::InvalidOperation);
+}
+
+TEST(Table, AccessIgnoresMetatables) {
+    const auto runtime = makeRuntime();
+    Table table = runForTable(runtime, R"(
+        return setmetatable({}, {
+            __index = function() return 1 end,
+            __newindex = function() error("should not run") end,
+        })
+    )");
+
+    EXPECT_TRUE(table.get("missing")->is<Value::Nil>());
+    EXPECT_TRUE(table.set("key", Value{2.0}));
+    EXPECT_DOUBLE_EQ(number(table, "key"), 2.0);
+}
+
+TEST(Table, EntriesCopyEveryPair) {
+    const auto runtime = makeRuntime();
+    const Table table = runForTable(runtime, "return {a = 1, b = 2, 'x'}");
+
+    const auto entries = table.entries();
+
+    ASSERT_TRUE(entries);
+    ASSERT_EQ(entries->size(), 3U);
+    double sum = 0.0;
+    for (const auto& [key, value] : *entries) {
+        if (key.is<std::string>()) {
+            sum += value.as<double>();
+        } else {
+            EXPECT_DOUBLE_EQ(key.as<double>(), 1.0);
+            EXPECT_EQ(value.as<std::string>(), "x");
+        }
+    }
+    EXPECT_DOUBLE_EQ(sum, 3.0);
+}
+
+TEST(Table, EntriesFailForUnreadableValue) {
+    const auto runtime = makeRuntime();
+    const Table table = runForTable(runtime, "return {f = function() end}");
+
+    const auto entries = table.entries();
+
+    ASSERT_FALSE(entries);
+    EXPECT_EQ(entries.error().kind(), ErrorKind::kTypeMismatch);
+    EXPECT_FALSE(table.get("f"));
+}
+
+TEST(Table, ToMapCopiesStringKeyedEntries) {
+    const auto runtime = makeRuntime();
+    const Table table = runForTable(runtime, "return {a = 1, b = 'two', c = {}}");
+
+    const auto map = table.toMap();
+
+    ASSERT_TRUE(map);
+    EXPECT_EQ(map->size(), 3U);
+    EXPECT_DOUBLE_EQ(map->find("a")->second.as<double>(), 1.0);
+    EXPECT_EQ(map->find(std::string_view{"b"})->second.as<std::string>(), "two");
+    EXPECT_TRUE(map->find("c")->second.is<Table>());
+}
+
+TEST(Table, ToMapIsASnapshot) {
+    const auto runtime = makeRuntime();
+    Table table = Table::create(runtime.state());
+    ASSERT_TRUE(table.set("key", Value{1.0}));
+
+    const auto map = table.toMap();
+    ASSERT_TRUE(table.set("key", Value{2.0}));
+    ASSERT_TRUE(table.set("added", Value{3.0}));
+
+    ASSERT_TRUE(map);
+    EXPECT_EQ(map->size(), 1U);
+    EXPECT_DOUBLE_EQ(map->at("key").as<double>(), 1.0);
+}
+
+TEST(Table, ToMapFailsForNonStringKey) {
+    const auto runtime = makeRuntime();
+    Table table = Table::create(runtime.state());
+    ASSERT_TRUE(table.set("name", Value{1.0}));
+    ASSERT_TRUE(table.setAt(1, Value{2.0}));
+
+    const auto map = table.toMap();
+
+    ASSERT_FALSE(map);
+    EXPECT_EQ(map.error().kind(), ErrorKind::kTypeMismatch);
+}
+
+TEST(Table, ToMapOfEmptyTableIsEmpty) {
+    const auto runtime = makeRuntime();
+    const Table table = Table::create(runtime.state());
+
+    const auto map = table.toMap();
+
+    ASSERT_TRUE(map);
+    EXPECT_TRUE(map->empty());
 }

@@ -114,12 +114,13 @@ TEST(ValuePack, PushThrowsStackOverflowWhenStackCannotGrow) {
     EXPECT_THROW(static_cast<void>(pack.push(runtime.state())), rtype::luau::exceptions::StackOverflow);
 }
 
-TEST(ValuePack, PushThrowsNotImplementedForTable) {
+TEST(ValuePack, PushThrowsInvalidOperationForTableOfAnotherState) {
     const auto runtime = makeRuntime();
+    const auto foreign = makeRuntime();
     ValuePack pack{};
-    pack.add({rtype::luau::Table{}});
+    pack.add({rtype::luau::Table::create(foreign.state())});
 
-    EXPECT_THROW(static_cast<void>(pack.push(runtime.state())), rtype::luau::exceptions::NotImplemented);
+    EXPECT_THROW(static_cast<void>(pack.push(runtime.state())), rtype::luau::exceptions::InvalidOperation);
 }
 
 TEST(ValuePack, FromStackReadsRangeInOrder) {

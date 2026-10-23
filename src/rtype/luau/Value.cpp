@@ -20,10 +20,10 @@
 #include <variant>
 
 #include "ErrorKind.hpp"
-#include "Exceptions.hpp"
 #include "Failure.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
+#include "Table.hpp"
 #include "VariantHelper.hpp"
 
 static_assert(LUA_VECTOR_SIZE == 3, "rtype::luau::Value::Vector assumes 3-component Luau vectors");
@@ -75,6 +75,13 @@ Result<Value> Value::fromStack(lua_State* state, const int stackIndex) {
             const char* str{lua_tolstring(state, stackIndex, &length)};
             return Value{std::string{str, length}};
         }
+        case LUA_TTABLE: {
+            auto table = Table::fromStack(state, stackIndex);
+            if (!table) {
+                return forwardError<Value>(std::move(table));
+            }
+            return Value{std::move(*table)};
+        }
         default:
             return Failure{ErrorKind::kTypeMismatch,
                            std::format("cannot read a value of type '{}' yet", lua_typename(state, type))};
@@ -105,7 +112,7 @@ void Value::push(lua_State* state) const {
                    [state](const double v) { lua_pushnumber(state, v); },
                    [state](const Vector v) { lua_pushvector(state, v.x, v.y, v.z); },
                    [state](const std::string& v) { lua_pushlstring(state, v.data(), v.size()); },
-                   [](auto&) { throw exceptions::NotImplemented{}; },
+                   [state](const Table& v) { v.push(state); },
                },
                _variant);
 }

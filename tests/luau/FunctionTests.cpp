@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -52,14 +53,18 @@ Function makeFunction(const rtype::luau::Runtime& runtime, const std::string& so
 }
 
 /// @brief Builds arguments whose last one cannot be pushed, after @p validArgs pushable ones.
-ValuePack makeUnpushableArgs(const std::size_t validArgs) {
+///
+/// The last one is a table of @p foreign, which no other runtime can push; @p foreign must outlive the arguments.
+ValuePack makeUnpushableArgs(const rtype::luau::Runtime& foreign, const std::size_t validArgs) {
     ValuePack args{};
     for (std::size_t i = 0; i < validArgs; ++i) {
         args.add({0.0});
     }
-    args.add({rtype::luau::Table{}});
+    args.add({rtype::luau::Table::create(foreign.state())});
     return args;
 }
+
+constexpr std::string_view kForeignTableMessage = "the table belongs to another Lua state";
 }  // namespace
 
 TEST(Function, CallWithoutArgumentsPassesNoArguments) {
@@ -149,19 +154,21 @@ TEST(Function, CallFailsWithTooManyArguments) {
 
 TEST(Function, CallFailsForTableArgument) {
     const auto runtime = makeRuntime();
+    const auto foreign = makeRuntime();
     const Function function = makeFunction(runtime, "error('should not run')");
 
-    const auto result = function.call(makeUnpushableArgs(0));
+    const auto result = function.call(makeUnpushableArgs(foreign, 0));
 
     ASSERT_FALSE(result);
     EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kRuntime);
-    EXPECT_EQ(result.error().message(), "not implemented");
+    EXPECT_EQ(result.error().message(), kForeignTableMessage);
 }
 
 TEST(Function, CallWorksAfterFailedPush) {
     const auto runtime = makeRuntime();
+    const auto foreign = makeRuntime();
     const Function function = makeFunction(runtime, R"(local a = ...; assert(a == "ok"))");
-    EXPECT_FALSE(function.call(makeUnpushableArgs(3)));
+    EXPECT_FALSE(function.call(makeUnpushableArgs(foreign, 3)));
     ValuePack args{};
     args.add({std::string{"ok"}});
 
@@ -170,17 +177,18 @@ TEST(Function, CallWorksAfterFailedPush) {
 
 TEST(Function, FailedPushDoesNotLeaveValuesOnStack) {
     const auto runtime = makeRuntime();
+    const auto foreign = makeRuntime();
     const Function function = makeFunction(runtime, "error('should not run')");
     // Each failed call pushes the function and 100 arguments. If they were left on the stack, they would add
     // up past Luau's 8000-slot cap within 100 calls, and pushing the arguments would fail with a stack overflow
     // instead.
     constexpr int kCalls = 100;
-    const ValuePack args = makeUnpushableArgs(100);
+    const ValuePack args = makeUnpushableArgs(foreign, 100);
 
     for (int i = 0; i < kCalls; ++i) {
         const auto result = function.call(args);
         ASSERT_FALSE(result) << "call " << i;
-        ASSERT_EQ(result.error().message(), "not implemented") << "call " << i;
+        ASSERT_EQ(result.error().message(), kForeignTableMessage) << "call " << i;
     }
 }
 
@@ -210,7 +218,7 @@ TEST(Function, CallReturnsValuesInOrder) {
 
 TEST(Function, CallFailsForUnreadableReturnValue) {
     const auto runtime = makeRuntime();
-    const Function function = makeFunction(runtime, "return 1, {}, 3");
+    const Function function = makeFunction(runtime, "return 1, function() end, 3");
 
     const auto result = function.call();
 
@@ -220,11 +228,11 @@ TEST(Function, CallFailsForUnreadableReturnValue) {
 
 TEST(Function, UnreadableReturnValueDoesNotLeaveValuesOnStack) {
     const auto runtime = makeRuntime();
-    // Each call returns 100 numbers followed by a table. If they were left on the stack, they would add up
+    // Each call returns 100 numbers followed by a function. If they were left on the stack, they would add up
     // past Luau's 8000-slot cap within 100 calls, and the call would fail with a stack overflow instead.
     const Function function = makeFunction(runtime, R"(
         local values = table.create(100, 0)
-        values[101] = {}
+        values[101] = function() end
         return table.unpack(values, 1, 101)
     )");
     constexpr int kCalls = 100;
@@ -335,7 +343,7 @@ TEST(Function, NativeRaisesErrorForUnreadableArgument) {
         return {};
     });
     const Function function = makeFunction(runtime, R"(
-        local ok, err = pcall(native, 1, {})
+        local ok, err = pcall(native, 1, function() end)
         assert(not ok)
         assert(string.find(err, "invalid argument to 'native' (value #2: ", 1, true), err)
     )");
@@ -348,16 +356,17 @@ TEST(Function, NativeRaisesErrorForUnreadableArgument) {
 
 TEST(Function, NativeRaisesErrorForUnpushableValue) {
     const auto runtime = makeRuntime();
+    const auto foreign = makeRuntime();
     Function native = Function::create(runtime.state(), "native");
-    native.setHandler([](const CallContext&) -> ValuePack {
+    native.setHandler([&foreign](const CallContext&) -> ValuePack {
         ValuePack result{};
-        result.add({rtype::luau::Table{}});
+        result.add({rtype::luau::Table::create(foreign.state())});
         return result;
     });
     const Function function = makeFunction(runtime, R"(
         local ok, err = pcall(native)
         assert(not ok)
-        assert(err == "native function 'native': not implemented", err)
+        assert(err == "native function 'native': the table belongs to another Lua state", err)
     )");
 
     const auto result = function.call();
