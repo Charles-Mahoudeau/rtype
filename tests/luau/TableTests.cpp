@@ -240,12 +240,17 @@ TEST(Table, SetFailsForTableOfAnotherState) {
 
 TEST(Table, FailedOperationsLeaveTheStackAsTheyFoundIt) {
     const auto runtime = makeRuntime();
+    const auto foreign = makeRuntime();
     Table table = Table::create(runtime.state());
+    const Value foreignTable{Table::create(foreign.state())};
     constexpr int kCalls = 10000;
 
     // The stack of Luau is capped at 8000 slots: leaking one slot per call would overflow it.
     for (int i = 0; i < kCalls; ++i) {
         ASSERT_FALSE(table.set(Value{Value::Nil{}}, Value{1.0}));
+        // These fail once the table is already on the stack, so they exercise the cleanup after stack access.
+        ASSERT_FALSE(table.set("other", foreignTable));
+        ASSERT_FALSE(table.get(foreignTable));
         ASSERT_TRUE(table.set("key", Value{1.0}));
         ASSERT_TRUE(table.get("key"));
         ASSERT_TRUE(table.entries());
