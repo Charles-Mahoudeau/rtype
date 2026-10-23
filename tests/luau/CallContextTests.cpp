@@ -67,7 +67,7 @@ TEST(CallContext, FromStackReadsWholeStackInOrder) {
     pushed.add({std::string{"first"}});
     pushed.add({2.0});
     pushed.add({true});
-    ASSERT_EQ(pushed.push(runtime.state()), 3U);
+    ASSERT_EQ(pushed.push(runtime.state()).value(), 3U);
 
     const auto context = CallContext::fromStack(runtime.state());
 
