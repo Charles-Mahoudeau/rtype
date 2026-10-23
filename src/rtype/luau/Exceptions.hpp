@@ -58,8 +58,6 @@ class RTYPE_LUAU_API StackOverflow : public Base {
 };
 
 /// @brief Exception thrown when a feature of the module is not implemented yet.
-///
-/// For instance, reading a Luau function into a Value.
 class RTYPE_LUAU_API NotImplemented : public Base {
   public:
     /// @brief Creates the exception with the message "not implemented".
