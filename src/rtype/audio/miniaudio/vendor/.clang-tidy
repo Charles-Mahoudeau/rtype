@@ -1,0 +1,7 @@
+---
+# Not linted: MiniaudioImplementation.cpp compiles miniaudio's and stb_vorbis's implementations, tens of thousands of
+# lines of third-party C that would trip almost every check. Disabling every check makes clang-tidy skip this folder
+# before compiling anything; the rest of the module is linted as usual.
+InheritParentConfig: false
+Checks: '-*'
+...
