@@ -64,6 +64,11 @@ are added.
     side, with query-only bodies on clients. Jolt is a private package of `plugins`: only `.cpp` files and `detail/`
     include it. The debug view is in `physics/debug/` (`rtype::plugins::physics::debug`). Design in
     `docs/physics/design.md`.
+  - `plugins/audio/` (`rtype::plugins::audio`) — `AudioPlugin`: the `IAudioDevice` contract audio backends implement,
+    `AudioRegistry` (backends by name, `"null"` always registered, filled by the executable as the backend registry
+    is), the `AudioAssets` resource (sounds by `AssetId`, opened and decoded by the device), `AudioVolumes`, the
+    `AudioSource` and `AudioListener` components and the `PlaySound` / `PlayMusic` / `StopMusic` events, played by
+    client-side PostUpdate systems. Design in `docs/audio/design.md`.
   - `plugins/config/` (`rtype::plugins::config`) — `Settings`: the flat configuration every plugin and backend reads
     its own section of, and its `SettingsException` (`config/exceptions/`).
   - `plugins/asset/` (`rtype::plugins::asset`) — `AssetId`: the hash of an asset's path, the same in every process,
