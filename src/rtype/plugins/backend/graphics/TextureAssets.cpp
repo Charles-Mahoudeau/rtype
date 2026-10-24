@@ -30,8 +30,8 @@
 #include <utility>
 #include <vector>
 
+#include "plugins/asset/AssetId.hpp"
 #include "plugins/backend/exceptions/AssetExceptions.hpp"
-#include "plugins/backend/graphics/AssetId.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 
@@ -84,27 +84,27 @@ std::vector<std::byte> decodeImage(const std::string& name, std::span<const std:
 
 std::size_t TextureAssets::getCount() const noexcept { return _entries.size(); }
 
-AssetId TextureAssets::load(const std::filesystem::path& path, const graphics::TextureDesc& desc) {
+asset::AssetId TextureAssets::load(const std::filesystem::path& path, const graphics::TextureDesc& desc) {
     return request(path.lexically_normal().generic_string(), {}, desc);
 }
 
-AssetId TextureAssets::load(const std::string& name, std::span<const std::byte> encoded,
-                            const graphics::TextureDesc& desc) {
+asset::AssetId TextureAssets::load(const std::string& name, std::span<const std::byte> encoded,
+                                   const graphics::TextureDesc& desc) {
     return request(std::filesystem::path{name}.lexically_normal().generic_string(), {encoded.begin(), encoded.end()},
                    desc);
 }
 
-const TextureAssets::Entry* TextureAssets::get(AssetId id) const {
+const TextureAssets::Entry* TextureAssets::get(asset::AssetId id) const {
     const auto found = _entries.find(id);
     return found != _entries.end() ? &found->second : nullptr;
 }
 
-std::optional<graphics::TextureId> TextureAssets::getTexture(AssetId id) const {
+std::optional<graphics::TextureId> TextureAssets::getTexture(asset::AssetId id) const {
     const Entry* entry = get(id);
     return entry != nullptr && entry->state == AssetState::kLoaded ? std::optional{entry->texture} : std::nullopt;
 }
 
-bool TextureAssets::unload(AssetId id) {
+bool TextureAssets::unload(asset::AssetId id) {
     const auto found = _entries.find(id);
     if (found == _entries.end()) {
         return false;
@@ -117,9 +117,9 @@ bool TextureAssets::unload(AssetId id) {
     return true;
 }
 
-const std::vector<AssetId>& TextureAssets::getQueued() const noexcept { return _queued; }
+const std::vector<asset::AssetId>& TextureAssets::getQueued() const noexcept { return _queued; }
 
-void TextureAssets::setLoaded(AssetId id, graphics::TextureId texture, const graphics::TextureDesc& desc) {
+void TextureAssets::setLoaded(asset::AssetId id, graphics::TextureId texture, const graphics::TextureDesc& desc) {
     if (Entry* entry = dequeue(id)) {
         entry->state = AssetState::kLoaded;
         entry->texture = texture;
@@ -128,7 +128,7 @@ void TextureAssets::setLoaded(AssetId id, graphics::TextureId texture, const gra
     }
 }
 
-void TextureAssets::setFailed(AssetId id, std::string error) {
+void TextureAssets::setFailed(asset::AssetId id, std::string error) {
     if (Entry* entry = dequeue(id)) {
         entry->state = AssetState::kFailed;
         entry->error = std::move(error);
@@ -138,8 +138,9 @@ void TextureAssets::setFailed(AssetId id, std::string error) {
 
 std::vector<graphics::TextureId> TextureAssets::takeUnloaded() { return std::exchange(_unloaded, {}); }
 
-AssetId TextureAssets::request(std::string path, std::vector<std::byte> encoded, const graphics::TextureDesc& desc) {
-    const AssetId id = AssetId::fromPath(path);
+asset::AssetId TextureAssets::request(std::string path, std::vector<std::byte> encoded,
+                                      const graphics::TextureDesc& desc) {
+    const asset::AssetId id = asset::AssetId::fromPath(path);
     if (const Entry* known = get(id)) {
         if (known->path != path) {
             throw exceptions::AssetLoadException{
@@ -152,7 +153,7 @@ AssetId TextureAssets::request(std::string path, std::vector<std::byte> encoded,
     return id;
 }
 
-TextureAssets::Entry* TextureAssets::dequeue(AssetId id) {
+TextureAssets::Entry* TextureAssets::dequeue(asset::AssetId id) {
     const auto queued = std::ranges::find(_queued, id);
     if (queued == _queued.end()) {
         return nullptr;
@@ -165,8 +166,8 @@ void updateTextures(TextureAssets& assets, graphics::IRenderer& renderer) {
     for (const graphics::TextureId texture : assets.takeUnloaded()) {
         renderer.destroy(texture);
     }
-    const std::vector<AssetId> queued = assets.getQueued();
-    for (const AssetId id : queued) {
+    const std::vector<asset::AssetId> queued = assets.getQueued();
+    for (const asset::AssetId id : queued) {
         const TextureAssets::Entry& entry = *assets.get(id);
         try {
             graphics::TextureDesc desc = entry.desc;

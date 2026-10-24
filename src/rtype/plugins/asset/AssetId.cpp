@@ -5,18 +5,18 @@
 ** AssetId
 */
 
-#include "plugins/backend/graphics/AssetId.hpp"
+#include "plugins/asset/AssetId.hpp"
 
 #include <cstdint>
 #include <filesystem>
 
 #include "rtype/ecs/type/NameHash.hpp"
 
-namespace rtype::plugins::backend {
+namespace rtype::plugins::asset {
 
 AssetId AssetId::fromPath(const std::filesystem::path& path) {
     const std::uint64_t hash = ecs::hashName(path.lexically_normal().generic_string());
-    return AssetId{.value = hash == 0 ? 1 : hash};  // 0 means "no asset"
+    return AssetId{.value = hash == 0 ? 1 : hash};
 }
 
-}  // namespace rtype::plugins::backend
+}  // namespace rtype::plugins::asset

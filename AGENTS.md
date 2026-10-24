@@ -47,10 +47,9 @@ are added.
     speak, in sub-folders whose namespaces follow them: `platform/` (`IPlatform`, `WindowConfig`), `graphics/`
     (`IRenderer`, `Sprite`, `Texture`, `View`..., the `Camera` (projection and priority, placed by its entity's
     `Transform`) and `SpriteRenderer` components, `CameraView` (what a `View`
-    shows: letterboxed viewport, view-projection, screen and world conversions), `AssetId` (the hash of an
-    asset's path, the same in every process), and the `TextureAssets` resource: the textures by
-    `AssetId`, queued by `load()` and decoded with stb by the backend plugin), `event/` (the `Event` variant),
-    `input/` (`Key`, `MouseButton`...), `config/` (`Settings`), `exceptions/`, `math/`, `system/`; plus
+    shows: letterboxed viewport, view-projection, screen and world conversions), and the `TextureAssets` resource:
+    the textures by `AssetId`, queued by `load()` and decoded with stb by the backend plugin), `event/` (the `Event`
+    variant), `input/` (`Key`, `MouseButton`...), `config/` (`Settings`), `exceptions/`, `math/`, `system/`; plus
     `BackendRegistry` and `BackendPlugin`, which starts the platform and the renderer from a registry the executable
     fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the window events and the
     PreUpdate / Render systems that poll the window, frame the drawing and draw the sprites by layer.
@@ -65,6 +64,8 @@ are added.
     side, with query-only bodies on clients. Jolt is a private package of `plugins`: only `.cpp` files and `detail/`
     include it. The debug view is in `physics/debug/` (`rtype::plugins::physics::debug`). Design in
     `docs/physics/design.md`.
+  - `plugins/asset/` (`rtype::plugins::asset`) — `AssetId`: the hash of an asset's path, the same in every process,
+    which components keep to name a texture or a sound (reflected as `kAssetId`).
   - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
   `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
