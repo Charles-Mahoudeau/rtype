@@ -10,8 +10,8 @@
 #include <memory>
 
 #include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/config/Settings.hpp"
 #include "plugins/backend/graphics/Color.hpp"
+#include "plugins/config/Settings.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
 // The started platform and renderer, as a main-thread resource: GLFW and Vulkan must be used from the main thread.
@@ -32,7 +32,7 @@ RTYPE_ECS_RESOURCE(ClearColor, "rtype.ClearColor");
 /// configuration naming the pair to start. Inserted by BackendPlugin::build(), which may not open a window itself.
 struct BackendSetup {
     std::unique_ptr<plugins::backend::BackendRegistry> registry;  ///< The platforms and renderers by name.
-    plugins::backend::config::Settings settings;                  ///< `platform`, `renderer`, `window`...
+    plugins::config::Settings settings;                           ///< `platform`, `renderer`, `window`...
 };
 RTYPE_ECS_RESOURCE(BackendSetup, "rtype.BackendSetup");
 }  // namespace rtype::plugins::backend

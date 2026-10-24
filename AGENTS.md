@@ -49,7 +49,7 @@ are added.
     `Transform`) and `SpriteRenderer` components, `CameraView` (what a `View`
     shows: letterboxed viewport, view-projection, screen and world conversions), and the `TextureAssets` resource:
     the textures by `AssetId`, queued by `load()` and decoded with stb by the backend plugin), `event/` (the `Event`
-    variant), `input/` (`Key`, `MouseButton`...), `config/` (`Settings`), `exceptions/`, `math/`, `system/`; plus
+    variant), `input/` (`Key`, `MouseButton`...), `exceptions/`, `math/`, `system/`; plus
     `BackendRegistry` and `BackendPlugin`, which starts the platform and the renderer from a registry the executable
     fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the window events and the
     PreUpdate / Render systems that poll the window, frame the drawing and draw the sprites by layer.
@@ -64,6 +64,8 @@ are added.
     side, with query-only bodies on clients. Jolt is a private package of `plugins`: only `.cpp` files and `detail/`
     include it. The debug view is in `physics/debug/` (`rtype::plugins::physics::debug`). Design in
     `docs/physics/design.md`.
+  - `plugins/config/` (`rtype::plugins::config`) — `Settings`: the flat configuration every plugin and backend reads
+    its own section of, and its `SettingsException` (`config/exceptions/`).
   - `plugins/asset/` (`rtype::plugins::asset`) — `AssetId`: the hash of an asset's path, the same in every process,
     which components keep to name a texture or a sound (reflected as `kAssetId`).
   - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.

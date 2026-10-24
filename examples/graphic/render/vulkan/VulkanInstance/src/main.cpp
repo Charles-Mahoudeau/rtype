@@ -13,16 +13,16 @@
 
 #include "platform/glfw/Registration.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/config/Settings.hpp"
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/input/Key.hpp"
+#include "plugins/config/Settings.hpp"
 #include "render/vulkan/Registration.hpp"
 
 using namespace rtype::plugins::backend::event;
 using rtype::plugins::backend::Backend;
 using rtype::plugins::backend::BackendRegistry;
-using rtype::plugins::backend::config::Settings;
 using rtype::plugins::backend::input::Key;
+using rtype::plugins::config::Settings;
 
 /// @warning FOR MACOS ONLY: brew install molten-vk vulkan-loader (+ vulkan-validationlayers in debug builds)
 

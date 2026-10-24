@@ -31,8 +31,8 @@
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
-#include "plugins/backend/config/Settings.hpp"
 #include "plugins/backend/graphics/Color.hpp"
+#include "plugins/config/Settings.hpp"
 #include "plugins/physics/Collider.hpp"
 #include "plugins/physics/PhysicsPlugin.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
@@ -129,8 +129,8 @@ void quitWhenDone(ecs::Res<ecs::Time> time, ecs::ResMut<Lifetime> lifetime, ecs:
 }
 
 // The window, the renderer and, when asked, the validation layer.
-plugins::backend::config::Settings makeSettings(bool validate) {
-    plugins::backend::config::Settings settings;
+plugins::config::Settings makeSettings(bool validate) {
+    plugins::config::Settings settings;
     settings.set("platform", "glfw");
     settings.set("renderer", "vulkan");
     settings.set("window.title", "Physics debug view (F3 toggles)");
