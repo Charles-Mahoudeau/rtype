@@ -38,7 +38,8 @@ are added.
   `component/`, `event/`, `serialization/`, `manifest/`, `input/`, `snapshot/`, `server/`, `client/`,
   `packet/`, `exceptions/`.
 - `src/rtype/engine/` — `engine` target: the executable, built from `main.cpp` only. It fills the backend registry
-  with `platform-glfw` and `render-vulkan` and runs an `App` with the plugins.
+  with `platform-glfw` and `render-vulkan`, the audio registry with `audio-miniaudio`, and runs an `App` with the
+  plugins.
 - `src/rtype/plugins/` — `plugins` target, static library (`rtype-plugins`): the engine, as ECS plugins, one folder
   per plugin, included as `plugins/<name>/<File>.hpp`, namespace `rtype::plugins::<name>`. Each plugin keeps its own
   code and declares its own components, resources and events (`RTYPE_ECS_*`). `Export.hpp` holds
@@ -88,6 +89,16 @@ are added.
     the Vulkan implementation of `IRenderer` (`rtype::render::vulkan`), registered as `"vulkan"` by
     `registerRenderer()` (`Registration.hpp`). Shaders go in `shaders/` and are compiled to SPIR-V by
     the `glsl.spirv` rule defined in its `xmake.lua`.
+- `src/rtype/audio/<library>/` — one target per audio backend, named `audio-<library>`.
+  - `audio/miniaudio/` — `audio-miniaudio` target, static library (`rtype-audio-miniaudio`): `MiniaudioDevice`,
+    the miniaudio implementation of `IAudioDevice` (`rtype::audio::miniaudio`), configured by `MiniaudioConfig`
+    (its `miniaudio` settings section) and registered as `"miniaudio"` by `registerAudio()`
+    (`Registration.hpp`). `core/` (`rtype::audio::miniaudio::core`) holds the RAII wrappers of miniaudio's objects
+    (`Engine`, `SoundGroup`, one per bus, `Sound`), `VoicePool` the playing voices behind the generational
+    `VoiceId`s, `exceptions/` the `MiniaudioException`. miniaudio and stb are private packages: the only module that
+    includes `miniaudio.h`, and the executable sees `Registration.hpp` only. The implementation of miniaudio (and of
+    stb_vorbis, its OGG decoder) is compiled once, in `vendor/MiniaudioImplementation.cpp`, which clang-tidy skips
+    (`vendor/.clang-tidy`).
 - `src/rtype/luau/` — `luau` target, shared library (`rtype-luau`) for Luau scripting.
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `examples/<category>/.../<Name>/` — standalone examples, each with its own `xmake.lua`, grouped in
@@ -95,12 +106,13 @@ are added.
   `examples/` is an example named after its folder. They are only built when enabled (see Commands).
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `docs/` — design documentation (e.g. `docs/Input.md` for the event and input pipeline, `docs/physics/design.md`
-  for the physics).
+  for the physics, `docs/audio/design.md` for the audio).
 - `.github/` — CI workflow and issue templates.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
 
 Each module has its own `xmake.lua`, included from the root `xmake.lua`. Add new sources under the
-matching module: `plugins`, `ecs`, `network`, `replication`, `platform-glfw`, `render-vulkan` and `luau` glob
+matching module: `plugins`, `ecs`, `network`, `replication`, `platform-glfw`, `render-vulkan`, `audio-miniaudio`
+and `luau` glob
 `**.cpp` in their own folder.
 
 ### Dependency rules
@@ -109,6 +121,7 @@ Dependencies always point towards `ecs` and `plugins`, never away from them:
 
 ```
 ecs  ←  plugins, interop-*  ←  platform-*, render-*  ←  engine (executable)
+        plugins             ←  audio-*             ←  engine (executable)
 luau                                                 ←  engine (executable)
 network  ←  replication  ←  engine (executable)
 ecs      ←  replication
@@ -119,11 +132,15 @@ ecs      ←  replication
   `replication` depends on `ecs` and `network` and is the only module that knows both; the renderer, the
   platforms and `luau` never include its headers.
 - `plugins` depends on nothing but `ecs` and glm, plus Jolt as a private package of the physics plugin (no public
-  header includes it). Never add a dependency on a `platform-*`, `render-*` or `luau`
-  target to it: the platforms and renderers implement its contracts (`plugins/backend/`), so it would create a cycle.
-  The executable fills the backend registry instead.
+  header includes it). Never add a dependency on a `platform-*`, `render-*`, `audio-*` or `luau`
+  target to it: the platforms, renderers and audio backends implement its contracts (`plugins/backend/`,
+  `plugins/audio/`), so it would create a cycle. The executable fills the backend and audio registries instead.
 - The platforms and renderers link `plugins` (and so the ECS) for the contracts, but never include ECS headers or
-  plugin code beyond `plugins/backend/`'s interfaces and types.
+  plugin code beyond `plugins/backend/`'s interfaces and types. Likewise, the audio backends include nothing of
+  `plugins` but the contract of `plugins/audio/` (`IAudioDevice`, `AudioTypes`, `AudioConfig`, `AudioRegistry`) and
+  `plugins/config/`'s `Settings`.
+- An audio backend never depends on a platform or a renderer, nor they on it. miniaudio never leaves
+  `audio/miniaudio/`: no header outside it includes `<miniaudio.h>`.
 - Modules exchange backend types only (`rtype::plugins::backend::Event`, `rtype::plugins::backend::input::Key`...).
   GLFW never leaves `platform/glfw/`: no header outside it includes `<GLFW/glfw3.h>` or uses a
   `GLFW_*` code.
