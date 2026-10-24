@@ -21,6 +21,7 @@
 #include <memory>
 #include <span>
 #include <string_view>
+#include <utility>
 
 #include "plugins/asset/AssetId.hpp"
 #include "plugins/audio/AudioAssets.hpp"
