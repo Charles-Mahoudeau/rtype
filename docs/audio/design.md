@@ -84,7 +84,8 @@ src/rtype/audio/fmod/               later, same shape, behind an xmake option (s
 ```
 
 - **`audio-miniaudio` is a static library** (`rtype-audio-miniaudio`), like `platform-glfw`: it links `plugins` for the
-  contract and nothing else. Only its `.cpp` files include `miniaudio.h`.
+  contract and nothing else. Only its own files include `miniaudio.h`: `MiniaudioDevice.hpp` is internal, the
+  executable includes `Registration.hpp` only.
 - **Dependency rules** gain one line, with the same direction as the platforms and renderers:
 
   ```
@@ -116,8 +117,8 @@ return {
     },
     miniaudio = {                -- only for the "miniaudio" backend
         sampleRate = 48000,      -- 0: the device's own rate
-        channels = 2,
-        device = "",             -- an output device name; "": the system default
+        channels = 2,            -- 0: the device's own channel count
+        periodSizeInMilliseconds = 10, -- mixing block length: lower is less latency, more CPU; 0: the default
     },
 }
 ```
