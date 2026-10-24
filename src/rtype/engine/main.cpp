@@ -15,6 +15,7 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <random>
 #include <span>
 #include <string>
 #include <string_view>
@@ -22,8 +23,16 @@
 #include <utility>
 #include <vector>
 
+#include "audio/miniaudio/Registration.hpp"
 #include "platform/glfw/Registration.hpp"
 #include "plugins/GlmReflection.hpp"  // IWYU pragma: keep
+#include "plugins/asset/AssetId.hpp"
+#include "plugins/audio/AudioAssets.hpp"
+#include "plugins/audio/AudioEvents.hpp"
+#include "plugins/audio/AudioListener.hpp"
+#include "plugins/audio/AudioPlugin.hpp"
+#include "plugins/audio/AudioRegistry.hpp"
+#include "plugins/audio/AudioTypes.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"  // IWYU pragma: keep
@@ -60,6 +69,7 @@
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/query/Query.hpp"
 #include "rtype/ecs/query/QueryTerms.hpp"
+#include "rtype/ecs/resource/ResourceTraits.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/system/EventReader.hpp"
@@ -86,7 +96,9 @@
 // fires lasers; the first laser that touches the other ship wins. Obstacles in the middle stop the lasers, and the
 // ships slide along them. The server simulates everything with the physics plugin and replicates Ship, Laser,
 // Obstacle and Winner (the physics replicates Collider and RigidBody); the clients send their inputs and draw what
-// they receive. F3 shows the colliders.
+// they receive. F3 shows the colliders. One shot in ten misfires: the server fires nothing and replicates a Misfire
+// instead. The clients play a looping music, and a sound for every laser and misfire, panned where it happened, with a
+// random pitch and volume.
 //
 //   engine server [port]           headless server, waits for two clients
 //   engine client [host] [port]    a player (default 127.0.0.1:4242)
@@ -120,6 +132,34 @@ struct Winner {
 };
 RTYPE_ECS_COMPONENT(Winner, "game.Winner", player);
 
+/// @brief Spawned by the server instead of a laser when a shot misfires: replicated on every change, so that the
+/// clients play the misfire sound where it happened. The server removes it after kMisfireLifetime.
+struct Misfire {
+    glm::vec2 position{0.0F};  ///< Where the laser would have left the ship, in world units.
+    std::uint32_t shooter{0};  ///< The player whose shot misfired.
+};
+RTYPE_ECS_COMPONENT(Misfire, "game.Misfire", position, shooter);
+
+/// @brief Server only: how long a Misfire still lives, long enough for a snapshot to carry it to the clients.
+struct MisfireTimer {
+    float remaining = 0.0F;  ///< Seconds.
+};
+RTYPE_ECS_COMPONENT(MisfireTimer, "game.MisfireTimer");
+
+/// @brief A random engine: the server rolls the misfires, the clients vary the shot sounds.
+struct Randomness {
+    std::mt19937 engine{std::random_device{}()};  ///< Seeded differently on every run.
+};
+RTYPE_ECS_RESOURCE(Randomness, "game.Randomness");
+
+/// @brief Client only: the sounds of the game, asked for at startup.
+struct GameSounds {
+    plugins::asset::AssetId music;    ///< The background track, looping.
+    plugins::asset::AssetId laser;    ///< A laser fired.
+    plugins::asset::AssetId misfire;  ///< A shot that misfired.
+};
+RTYPE_ECS_RESOURCE(GameSounds, "game.GameSounds");
+
 /// @brief Client only: plays the frames of a sprite sheet laid out in a row, by changing the SpriteRenderer's source.
 struct SpriteAnimation {
     glm::vec2 firstFrame{0.0F};  ///< Top-left corner of the first frame, in pixels.
@@ -141,6 +181,13 @@ constexpr glm::vec2 kShipHalfSize{24.0F, 24.0F};
 constexpr glm::vec2 kLaserHalfSize{30.0F, 6.0F};
 constexpr std::uint32_t kPlayerCount = 2;
 constexpr float kMiddleX = kViewWidth / 2.0F;  ///< Each ship stays on its side of it.
+constexpr std::uint32_t kMisfireOdds = 10;     ///< One shot in kMisfireOdds misfires.
+constexpr float kMisfireLifetime = 0.25F;      ///< Seconds a Misfire lives on the server.
+constexpr float kShotPitchMin = 0.9F;          ///< The shot sounds play at a random pitch in [min, max]...
+constexpr float kShotPitchMax = 1.1F;
+constexpr float kShotVolumeMin = 0.8F;  ///< ... and at a random volume in [min, max].
+constexpr float kShotVolumeMax = 1.0F;
+constexpr double kMusicVolume = 0.6;  ///< The music bus, under the shots.
 
 // The collision categories: each Collider belongs to some (layer) and collides with some (mask).
 constexpr std::uint32_t kObstacleLayer = 1U << 0;
@@ -157,6 +204,9 @@ constexpr std::string_view kShootAction = "shoot";  ///< The left mouse button.
 constexpr const char* kLeftShipSheet = "assets/r-typesheet24.gif";
 constexpr const char* kRightShipSheet = "assets/r-typesheet26.gif";
 constexpr const char* kLaserSheet = "assets/bullet.gif";
+constexpr const char* kMusicSound = "assets/maint.ogg";
+constexpr const char* kLaserSound = "assets/laser.mp3";
+constexpr const char* kMisfireSound = "assets/laser-no.mp3";
 
 /// @return Whether a Winner exists: the game is over.
 bool isOver(ecs::Query<const Winner>& winners) { return winners.begin() != ecs::Query<const Winner>::end(); }
@@ -195,6 +245,7 @@ void registerGame(ecs::App& app) {
     static_cast<void>(components.registerType<Laser>({.replication = ecs::ReplicationMode::kEveryChange}));
     static_cast<void>(components.registerType<Obstacle>({.replication = ecs::ReplicationMode::kEveryChange}));
     static_cast<void>(components.registerType<Winner>({.replication = ecs::ReplicationMode::kEveryChange}));
+    static_cast<void>(components.registerType<Misfire>({.replication = ecs::ReplicationMode::kEveryChange}));
 }
 
 /// @brief Declares the input actions both sides agree on; after the server or client plugin inserted the layout.
@@ -271,9 +322,9 @@ void removePlayers(ecs::Commands& commands, ecs::EventReader<replication::event:
 }
 
 /// @brief FixedUpdate, before the Transforms drive the bodies: moves the ships in their half of the arena, sliding
-/// along the obstacles, and fires on a click, until someone has won.
-void moveShips(ecs::Commands& commands, ecs::Res<ecs::Time> time, ecs::Res<replication::input::InputLayout> layout,
-               ecs::Res<plugins::physics::PhysicsWorld> world,
+/// along the obstacles, and fires on a click (one shot in kMisfireOdds misfires), until someone has won.
+void moveShips(ecs::Commands& commands, ecs::ResMut<Randomness> randomness, ecs::Res<ecs::Time> time,
+               ecs::Res<replication::input::InputLayout> layout, ecs::Res<plugins::physics::PhysicsWorld> world,
                ecs::Query<Ship, plugins::transform::Transform, const plugins::physics::Collider,
                           const replication::component::PlayerInput>
                    ships,
@@ -296,6 +347,13 @@ void moveShips(ecs::Commands& commands, ecs::Res<ecs::Time> time, ecs::Res<repli
             const float direction = directionOf(ship->player);
             const glm::vec2 muzzle{ship->position.x + (direction * (kShipHalfSize.x + kLaserHalfSize.x + 1.0F)),
                                    ship->position.y};
+            std::uniform_int_distribution<std::uint32_t> roll{1, kMisfireOdds};
+            if (roll(randomness->engine) == 1) {
+                commands.spawn()
+                    .add(Misfire{.position = muzzle, .shooter = ship->player})
+                    .add(MisfireTimer{.remaining = kMisfireLifetime});
+                continue;
+            }
             // A dynamic body flying at its Velocity, without gravity, never tunnelling through a thin wall.
             commands.spawn()
                 .add(Laser{.position = muzzle, .shooter = ship->player})
@@ -314,6 +372,16 @@ void followLaserBodies(ecs::Commands& commands, ecs::Query<Laser, const plugins:
     for (auto [entity, laser, transform] : lasers) {
         laser->position = transform.position;
         if (laser->position.x < -kLaserHalfSize.x || laser->position.x > kViewWidth + kLaserHalfSize.x) {
+            commands.despawn(entity);
+        }
+    }
+}
+
+/// @brief FixedUpdate: removes the Misfires once a snapshot had time to carry them to the clients.
+void expireMisfires(ecs::Commands& commands, ecs::Res<ecs::Time> time, ecs::Query<MisfireTimer> timers) {
+    for (auto [entity, timer] : timers) {
+        timer->remaining -= time->fixedDelta;
+        if (timer->remaining <= 0.0F) {
             commands.despawn(entity);
         }
     }
@@ -367,6 +435,8 @@ int runServer(std::uint16_t port) {
     network.port = port;
     app.addPlugin(replication::server::ServerPlugin{network, replication::ReplicationSettings{}});
     declareInputs(app);
+    app.insertResource(Randomness{});
+    static_cast<void>(app.getWorld().getComponents().registerType<MisfireTimer>());
 
     app.addSystem(ecs::Phase::kStartup, "game.spawnObstacles", &spawnObstacles);
     app.addSystem(ecs::Phase::kUpdate, "game.spawnPlayers", &spawnPlayers);
@@ -379,6 +449,7 @@ int runServer(std::uint16_t port) {
         .before(std::string{plugins::physics::PhysicsPlugin::kSyncToPhysicsSystem});
     app.addSystem(ecs::Phase::kFixedUpdate, "game.followLaserBodies", &followLaserBodies)
         .after(std::string{plugins::physics::PhysicsPlugin::kSyncFromPhysicsSystem});
+    app.addSystem(ecs::Phase::kFixedUpdate, "game.expireMisfires", &expireMisfires);
     app.addSystem(ecs::Phase::kFixedUpdate, "game.detectHits", &detectHits)
         .after(std::string{plugins::physics::PhysicsPlugin::kEventsSystem})
         .after("game.followLaserBodies");
@@ -401,11 +472,40 @@ void bindControls(ecs::ResMut<plugins::input::Input> input) {
         .bind(Control::mouseButton(plugins::backend::input::MouseButton::kLeft));
 }
 
-/// @brief Startup: spawns the camera, centred on the arena, so the whole 800x600 view is shown.
+/// @brief Startup: spawns the camera, centred on the arena, so the whole 800x600 view is shown; the sounds are panned
+/// from it.
 void spawnCamera(ecs::Commands& commands) {
     commands.spawn()
         .add(plugins::transform::Transform{.position = {kViewWidth / 2.0F, kViewHeight / 2.0F}})
-        .add(plugins::backend::graphics::Camera{});
+        .add(plugins::backend::graphics::Camera{})
+        .add(plugins::audio::AudioListener{});
+}
+
+/// @brief Startup: asks for the sounds, and starts the music, which loops once it is loaded.
+void loadSounds(ecs::ResMut<plugins::audio::AudioAssets> sounds, ecs::ResMut<GameSounds> game,
+                ecs::EventWriter<plugins::audio::PlayMusic> music) {
+    game->music = sounds->load(kMusicSound, plugins::audio::SoundDesc{.stream = true});
+    game->laser = sounds->load(kLaserSound);
+    game->misfire = sounds->load(kMisfireSound);
+    music.send(plugins::audio::PlayMusic{.sound = game->music, .crossfade = 1.0F});
+}
+
+/// @brief Update: plays a sound for every laser and misfire the server just created, panned where it happened, at a
+/// random pitch and volume, so that no two shots sound the same.
+void playShots(ecs::ResMut<Randomness> randomness, ecs::Res<GameSounds> game,
+               ecs::EventWriter<plugins::audio::PlaySound> sounds, ecs::Query<const Laser, ecs::Added<Laser>> lasers,
+               ecs::Query<const Misfire, ecs::Added<Misfire>> misfires) {
+    std::uniform_real_distribution<float> pitch{kShotPitchMin, kShotPitchMax};
+    std::uniform_real_distribution<float> volume{kShotVolumeMin, kShotVolumeMax};
+    std::mt19937& engine = randomness->engine;
+    for (auto [entity, laser] : lasers) {
+        sounds.send(plugins::audio::PlaySound{
+            .sound = game->laser, .volume = volume(engine), .pitch = pitch(engine), .position = laser.position});
+    }
+    for (auto [entity, misfire] : misfires) {
+        sounds.send(plugins::audio::PlaySound{
+            .sound = game->misfire, .volume = volume(engine), .pitch = pitch(engine), .position = misfire.position});
+    }
 }
 
 /// @brief PostUpdate, before the input is sent: copies the local controls into the network input.
@@ -537,7 +637,7 @@ void quitOnEscape(ecs::Res<plugins::input::Input> input, ecs::EventWriter<ecs::A
     }
 }
 
-/// @return The configuration of the window and the renderer.
+/// @return The configuration of the window, the renderer and the sound.
 plugins::config::Settings makeSettings() {
     plugins::config::Settings settings;
     settings.set("platform", "glfw");
@@ -546,6 +646,8 @@ plugins::config::Settings makeSettings() {
     settings.set("window.size", std::vector<double>{kViewWidth, kViewHeight});
     // The world the game is designed for, in world units: the same on a HiDPI screen and in a resized window.
     settings.set("vulkan.virtualResolution", std::vector<double>{kViewWidth, kViewHeight});
+    settings.set("audio.backend", "miniaudio");
+    settings.set("audio.volume.music", kMusicVolume);
 #ifndef NDEBUG
     // Debug builds only: the validation layer (with synchronization validation) is slow.
     settings.set("vulkan.layers", std::vector<std::string>{"VK_LAYER_KHRONOS_validation"});
@@ -561,15 +663,20 @@ int runClient(const std::string& host, std::uint16_t port) {
         std::cerr << "Error: cannot resolve " << host << '\n';
         return 1;
     }
-    // The only place that knows GLFW and Vulkan: the plugins pick them by name from the settings.
+    // The only place that knows GLFW, Vulkan and miniaudio: the plugins pick them by name from the settings.
     auto registry = std::make_unique<plugins::backend::BackendRegistry>();
     platform::glfw::registerPlatform(*registry);
     render::vulkan::registerRenderer(*registry);
+    auto audio = std::make_unique<plugins::audio::AudioRegistry>();
+    audio::miniaudio::registerAudio(*audio);
 
     ecs::App app{ecs::RunMode::kClient};
     app.addPlugins(ecs::MinimalPlugins{})
-        .addPlugin(plugins::backend::BackendPlugin{std::move(registry), makeSettings()});
+        .addPlugin(plugins::backend::BackendPlugin{std::move(registry), makeSettings()})
+        .addPlugin(plugins::audio::AudioPlugin{std::move(audio), makeSettings()});
     registerGame(app);
+    app.insertResource(Randomness{});
+    app.insertResource(GameSounds{});
     // F3 outlines every collider; hidden at first.
     app.insertResource(plugins::physics::debug::PhysicsDebugSettings{.enabled = false, .drawAll = true});
     app.addPlugin(plugins::physics::debug::PhysicsDebugPlugin{});
@@ -579,6 +686,8 @@ int runClient(const std::string& host, std::uint16_t port) {
 
     app.addSystem(ecs::Phase::kStartup, "game.bindControls", &bindControls).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kStartup, "game.spawnCamera", &spawnCamera).setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kStartup, "game.loadSounds", &loadSounds).setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kUpdate, "game.playShots", &playShots).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kPostUpdate, "game.sendControls", &sendControls)
         .before(std::string{replication::client::ClientPlugin::kSendInputSystem})
         .setSide(ecs::Side::kClient);
