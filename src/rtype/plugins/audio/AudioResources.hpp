@@ -30,8 +30,16 @@ struct SourceVoice {
 
 /// @brief The started audio device and what the audio plugin plays on it, as the main-thread resource "rtype.Audio":
 /// the backends' libraries must be called from one thread.
-/// @details Null until the Startup system created the device, and on a server, which never does.
+/// @details Null until the Startup system created the device, and on a server, which never does. Its moves are declared
+/// noexcept: MSVC's std::unordered_map may throw when moved (it allocates a sentinel node), and a resource must not.
 struct Audio {
+    Audio() = default;
+    ~Audio() = default;
+    Audio(const Audio& other) = delete;
+    Audio& operator=(const Audio& other) = delete;
+    Audio(Audio&& other) noexcept = default;
+    Audio& operator=(Audio&& other) noexcept = default;
+
     std::unique_ptr<IAudioDevice> device;                  ///< The backend the config names.
     float panDistance{400.0F};                             ///< From AudioConfig.
     std::unordered_map<ecs::Entity, SourceVoice> sources;  ///< The voice of each AudioSource that started.
