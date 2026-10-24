@@ -44,4 +44,4 @@ class RTYPE_LUAU_API Failure {
 };
 }  // namespace rtype::luau
 
-#include "Failure.tpp"
+#include "Failure.tpp"  // IWYU pragma: export

@@ -25,17 +25,11 @@ T& Value::as() {
 
 template <typename T>
 const T* Value::tryAs() const noexcept {
-    if (is<T>()) {
-        return &as<T>();
-    }
-    return nullptr;
+    return std::get_if<T>(&_variant);
 }
 
 template <typename T>
 T* Value::tryAs() noexcept {
-    if (is<T>()) {
-        return as<T>();
-    }
-    return std::nullopt;
+    return std::get_if<T>(&_variant);
 }
 }  // namespace rtype::luau

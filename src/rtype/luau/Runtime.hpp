@@ -46,6 +46,13 @@ class RTYPE_LUAU_API Runtime {
     /// @brief Transfers ownership of the Lua state from another runtime, closing the current one.
     Runtime& operator=(Runtime&& other) noexcept = default;
 
+    /// @brief Gives direct access to the runtime's main Lua state.
+    ///
+    /// Unsafe escape hatch for what the API does not cover yet: it prints a warning on `std::cerr` on
+    /// every call. The state stays owned by the runtime and must not be closed.
+    /// @return The main Lua state, valid as long as the runtime is alive.
+    [[nodiscard]] lua_State* state() const;
+
     /// @brief Compiles and loads a script from its source code, without running it.
     ///
     /// The script is loaded in its own sandboxed thread, which the returned `Script` keeps alive.
@@ -71,6 +78,14 @@ class RTYPE_LUAU_API Runtime {
     /// @param script Script to run; it must have been loaded by this runtime.
     /// @return Success, or an `ErrorKind::kRuntime` error if the script raised an error.
     [[nodiscard]] Result<> run(const Script& script) const;
+
+    /// @brief Creates a reference to a global variable of the runtime's main state.
+    ///
+    /// Prints a warning on `std::cerr` if the global is nil.
+    /// @note Temporary helper, will be removed soon.
+    /// @param name Name of the global variable.
+    /// @return A Ref to the value of the global, which references nil if the global is not set.
+    [[nodiscard, deprecated("temporary helper, will be removed soon")]] Ref global(const std::string& name) const;
 
   private:
     /// @brief Deleter closing a `lua_State`.
