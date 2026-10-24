@@ -45,7 +45,7 @@ rtype::plugins::backend::BackendRegistry registry;
 rtype::platform::glfw::registerPlatform(registry);   // "glfw"
 rtype::render::vulkan::registerRenderer(registry);  // "vulkan"
 
-rtype::plugins::backend::config::Settings config;
+rtype::plugins::config::Settings config;
 config.set("platform", "glfw");
 config.set("renderer", "vulkan");
 config.set("vulkan.layers", std::vector<std::string>{"VK_LAYER_KHRONOS_validation"});  // debug builds

@@ -10,7 +10,7 @@
 #include <glm/ext/vector_uint2.hpp>
 #include <string>
 
-#include "plugins/backend/config/Settings.hpp"
+#include "plugins/config/Settings.hpp"
 
 namespace rtype::plugins::backend::platform {
 
@@ -24,7 +24,7 @@ struct WindowConfig {
 
     /// @brief Reads the keys `size` ({width, height}), `title`, `resizable` and `fullscreen`; the missing ones keep
     /// their default.
-    /// @throws exceptions::SettingsException If a key is unknown or has the wrong type.
+    /// @throws config::exceptions::SettingsException If a key is unknown or has the wrong type.
     [[nodiscard]] static WindowConfig fromSettings(const config::Settings& settings);
 };
 }  // namespace rtype::plugins::backend::platform

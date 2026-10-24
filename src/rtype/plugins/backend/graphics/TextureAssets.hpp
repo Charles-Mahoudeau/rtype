@@ -16,7 +16,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "plugins/backend/graphics/AssetId.hpp"
+#include "plugins/asset/AssetId.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
@@ -39,7 +39,7 @@ enum class AssetState : std::uint8_t {
 /// @code
 /// void spawnShip(rtype::ecs::Commands& commands, rtype::ecs::ResMut<rtype::plugins::backend::TextureAssets> textures)
 /// {
-///     const rtype::plugins::backend::AssetId ship = textures->load("assets/ship.png");
+///     const rtype::plugins::asset::AssetId ship = textures->load("assets/ship.png");
 ///     commands.spawn(rtype::plugins::backend::SpriteRenderer{.texture = ship});
 /// }
 /// @endcode
@@ -70,36 +70,37 @@ class TextureAssets {
     /// first request wins.
     /// @return Its id (AssetId::fromPath()), at once: put it in components, the texture is drawn once loaded.
     /// @throws exceptions::AssetLoadException If another path already has this id (a hash collision).
-    AssetId load(const std::filesystem::path& path, const graphics::TextureDesc& desc = {});
+    asset::AssetId load(const std::filesystem::path& path, const graphics::TextureDesc& desc = {});
 
     /// @brief Asks for an image already in memory (embedded, downloaded), known by @p name.
     /// @param encoded The image file's bytes (PNG...), copied.
     /// @return Its id (AssetId::fromPath(name)).
     /// @throws exceptions::AssetLoadException If another name already has this id (a hash collision).
-    AssetId load(const std::string& name, std::span<const std::byte> encoded, const graphics::TextureDesc& desc = {});
+    asset::AssetId load(const std::string& name, std::span<const std::byte> encoded,
+                        const graphics::TextureDesc& desc = {});
 
     /// @return The texture @p id names, or nullptr if it was never asked for or was unloaded.
-    [[nodiscard]] const Entry* get(AssetId id) const;
+    [[nodiscard]] const Entry* get(asset::AssetId id) const;
 
     /// @return The renderer's id of the texture @p id names, or nothing if it is not loaded (yet).
-    [[nodiscard]] std::optional<graphics::TextureId> getTexture(AssetId id) const;
+    [[nodiscard]] std::optional<graphics::TextureId> getTexture(asset::AssetId id) const;
 
     /// @brief Forgets the texture @p id names; if it was loaded, the next updateTextures() destroys it.
     /// @return False, doing nothing, if no texture has this id.
-    bool unload(AssetId id);
+    bool unload(asset::AssetId id);
 
     /// @name For updateTextures()
     /// @{
 
     /// @return The ids of the queued textures, in the order they were asked for.
-    [[nodiscard]] const std::vector<AssetId>& getQueued() const noexcept;
+    [[nodiscard]] const std::vector<asset::AssetId>& getQueued() const noexcept;
 
     /// @brief Records that the queued texture @p id was created as @p texture with @p desc (its size filled), and
     /// frees its in-memory bytes. Does nothing if @p id is not queued.
-    void setLoaded(AssetId id, graphics::TextureId texture, const graphics::TextureDesc& desc);
+    void setLoaded(asset::AssetId id, graphics::TextureId texture, const graphics::TextureDesc& desc);
 
     /// @brief Records that the queued texture @p id could not be loaded, and why. Does nothing if @p id is not queued.
-    void setFailed(AssetId id, std::string error);
+    void setFailed(asset::AssetId id, std::string error);
 
     /// @return The textures unloaded since the last call, for the renderer to destroy.
     [[nodiscard]] std::vector<graphics::TextureId> takeUnloaded();
@@ -108,14 +109,14 @@ class TextureAssets {
   private:
     /// @brief Records a queued texture, or returns the id of the one already asked for.
     /// @throws exceptions::AssetLoadException If another path already has the id.
-    AssetId request(std::string path, std::vector<std::byte> encoded, const graphics::TextureDesc& desc);
+    asset::AssetId request(std::string path, std::vector<std::byte> encoded, const graphics::TextureDesc& desc);
 
     /// @return The queued entry @p id names, removed from the queue, or nullptr if it is not queued.
-    Entry* dequeue(AssetId id);
+    Entry* dequeue(asset::AssetId id);
 
-    std::unordered_map<AssetId, Entry> _entries;  ///< Every texture asked for, by id.
-    std::vector<AssetId> _queued;                 ///< The queued textures, in the order they were asked for.
-    std::vector<graphics::TextureId> _unloaded;   ///< Textures to destroy, from unload().
+    std::unordered_map<asset::AssetId, Entry> _entries;  ///< Every texture asked for, by id.
+    std::vector<asset::AssetId> _queued;                 ///< The queued textures, in the order they were asked for.
+    std::vector<graphics::TextureId> _unloaded;          ///< Textures to destroy, from unload().
 };
 RTYPE_ECS_RESOURCE(TextureAssets, "rtype.TextureAssets");
 

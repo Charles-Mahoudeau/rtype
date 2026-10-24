@@ -14,23 +14,23 @@
 #include "SfmlPlatform.hpp"
 #include "SfmlRenderer.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/config/Settings.hpp"
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/input/Key.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
+#include "plugins/config/Settings.hpp"
 
 using namespace rtype::plugins::backend::event;
 using example::SfmlPlatform;
 using example::SfmlRenderer;
 using rtype::plugins::backend::Backend;
 using rtype::plugins::backend::BackendRegistry;
-using rtype::plugins::backend::config::Settings;
 using rtype::plugins::backend::graphics::Color;
 using rtype::plugins::backend::graphics::IRenderer;
 using rtype::plugins::backend::input::Key;
 using rtype::plugins::backend::platform::IPlatform;
+using rtype::plugins::config::Settings;
 
 int main() {
     try {

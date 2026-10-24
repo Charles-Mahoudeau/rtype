@@ -17,13 +17,13 @@
 
 #include "FakeBackend.hpp"
 #include "TestImages.hpp"
+#include "plugins/asset/AssetId.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
 #include "plugins/backend/WindowEvents.hpp"
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/event/PlatformEvent.hpp"
-#include "plugins/backend/graphics/AssetId.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
@@ -93,7 +93,7 @@ TEST(BackendPlugin, LoadsTheQueuedTexturesBeforeTheFrame) {
 
 namespace {
 /// @brief Spawns an entity drawn with @p texture at @p position on @p layer.
-rtype::ecs::Entity spawnSprite(BackendApp& app, rtype::plugins::backend::AssetId texture, glm::vec2 position,
+rtype::ecs::Entity spawnSprite(BackendApp& app, rtype::plugins::asset::AssetId texture, glm::vec2 position,
                                std::int32_t layer) {
     rtype::ecs::World& world = app.app().getWorld();
     const rtype::ecs::Entity entity = world.spawn();
@@ -103,7 +103,7 @@ rtype::ecs::Entity spawnSprite(BackendApp& app, rtype::plugins::backend::AssetId
 }
 
 /// @return The id of a texture asked for under @p name, loaded at the next frame.
-rtype::plugins::backend::AssetId loadTexture(BackendApp& app, const std::string& name) {
+rtype::plugins::asset::AssetId loadTexture(BackendApp& app, const std::string& name) {
     return app.app().getWorld().getResources().getMut<rtype::plugins::backend::TextureAssets>()->load(
         name, rtype::test::plugins::twoPixelPng());
 }
@@ -152,7 +152,7 @@ TEST(BackendPlugin, GroupsTheSpritesOfALayerByTexture) {
 
 TEST(BackendPlugin, SkipsSpritesWhoseTextureIsNotLoaded) {
     BackendApp app;
-    spawnSprite(app, rtype::plugins::backend::AssetId::fromPath("never-loaded.png"), {0.0F, 0.0F}, 0);
+    spawnSprite(app, rtype::plugins::asset::AssetId::fromPath("never-loaded.png"), {0.0F, 0.0F}, 0);
     app.app().runFrame();
     EXPECT_TRUE(app.state().sprites.empty());
 }

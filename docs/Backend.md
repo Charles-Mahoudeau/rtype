@@ -65,7 +65,7 @@ code that registers the backends (`main.cpp`, an example) names the modules.
 | [`plugins/backend/platform/IPlatform.hpp`](../src/rtype/plugins/backend/platform/IPlatform.hpp) | The window and its events |
 | [`plugins/backend/platform/WindowConfig.hpp`](../src/rtype/plugins/backend/platform/WindowConfig.hpp) | How the window is created, read from the `window` settings |
 | [`plugins/backend/graphics/IRenderer.hpp`](../src/rtype/plugins/backend/graphics/IRenderer.hpp) | Textures, camera, sprites and shapes |
-| [`plugins/backend/config/Settings.hpp`](../src/rtype/plugins/backend/config/Settings.hpp) | The configuration |
+| [`plugins/config/Settings.hpp`](../src/rtype/plugins/config/Settings.hpp) | The configuration |
 | [`plugins/backend/BackendRegistry.hpp`](../src/rtype/plugins/backend/BackendRegistry.hpp) | Backends by name, and the start-up sequence |
 | [`interop/vulkan/IVulkanSurfaceSource.hpp`](../src/rtype/interop/vulkan/IVulkanSurfaceSource.hpp) | What a Vulkan renderer needs from a window |
 | [`platform/glfw/Registration.hpp`](../src/rtype/platform/glfw/Registration.hpp) | Registers `glfw` |
@@ -80,7 +80,7 @@ rtype::platform::glfw::registerPlatform(registry);   // "glfw"
 rtype::render::vulkan::registerRenderer(registry);  // "vulkan"
 
 // 2. The configuration picks the pair and sets it up.
-rtype::plugins::backend::config::Settings config;
+rtype::plugins::config::Settings config;
 config.set("platform", "glfw");
 config.set("renderer", "vulkan");
 config.set("window.title", "R-Type");

@@ -1122,7 +1122,7 @@ gameplay systems read it like any other component.
 - **Assets:** replicated components reference assets by **`AssetId`**, a stable id derived from the
   asset path. A backend id (such as `TextureId`) is a slot in one process's renderer: the server has
   no renderer and each client allocates slots in its own order, so it must **not** be replicated
-  (`Texture.hpp` says so). `plugins::backend::AssetId` (`graphics/AssetId.hpp`) is that id: the FNV-1a hash
+  (`Texture.hpp` says so). `plugins::asset::AssetId` (`plugins/asset/AssetId.hpp`) is that id: the FNV-1a hash
   of the normalized path, reflected as `kAssetId`; `SpriteRenderer` keeps one. A hash cannot be turned back into a path:
   a client draws a replicated texture only if it loaded that path itself (the game plugin loads its textures at
   startup), until an asset manifest sends the paths.

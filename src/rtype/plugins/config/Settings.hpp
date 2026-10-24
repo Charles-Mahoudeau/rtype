@@ -15,7 +15,7 @@
 #include <variant>
 #include <vector>
 
-namespace rtype::plugins::backend::config {
+namespace rtype::plugins::config {
 
 /// @brief Configuration values, independent of where they come from (filled in code for now, a config file later).
 ///
@@ -66,4 +66,4 @@ class Settings {
   private:
     std::map<std::string, Value, std::less<>> _values;  ///< Values by dotted key.
 };
-}  // namespace rtype::plugins::backend::config
+}  // namespace rtype::plugins::config
