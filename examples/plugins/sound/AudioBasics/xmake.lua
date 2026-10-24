@@ -1,6 +1,6 @@
 target("AudioBasics")
     set_kind("binary")
     set_default(false)
-    add_deps("plugins")
+    add_deps("plugins", "audio-miniaudio")
     add_files("src/**.cpp")
     set_rundir("$(projectdir)")

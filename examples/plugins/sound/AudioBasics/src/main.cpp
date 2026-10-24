@@ -6,10 +6,15 @@
 */
 
 // The audio plugin, frame by frame: gameplay loads sounds by path, sends PlaySound / PlayMusic / StopMusic, and gives
-// entities an AudioSource; the plugin turns that into calls on the audio backend the config names. The backend here is
-// a "log" device defined below, which plays nothing and prints every call it receives, so reading the output next to
-// the script shows what each gameplay action costs the backend. Swap `audio.backend` for a real backend to hear it.
+// entities an AudioSource; the plugin turns that into calls on the audio backend the config names. Two backends are
+// registered, as the executable would: "miniaudio", which plays the sounds of assets/ (maint.ogg, laser.mp3,
+// laser-no.mp3), one step every 1.5 seconds; and "log", defined below, which plays nothing and prints every call it
+// receives, so reading the output next to the script shows what each gameplay action costs the backend.
+//
+//   xmake run AudioBasics        hear it, through miniaudio
+//   xmake run AudioBasics log    read the backend calls instead
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -20,9 +25,12 @@
 #include <map>
 #include <memory>
 #include <span>
+#include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 
+#include "audio/miniaudio/Registration.hpp"
 #include "plugins/asset/AssetId.hpp"
 #include "plugins/audio/AudioAssets.hpp"
 #include "plugins/audio/AudioConfig.hpp"
@@ -148,9 +156,9 @@ class LogAudioDevice : public IAudioDevice {
 
 /// @brief The sounds of the game, loaded at startup.
 struct GameSounds {
-    AssetId music;   ///< The background track, streamed.
-    AssetId shot;    ///< A one-shot effect.
-    AssetId engine;  ///< The ship's looping engine.
+    AssetId music;    ///< The background track, streamed.
+    AssetId misfire;  ///< A one-shot effect.
+    AssetId laser;    ///< The ship's cannon, looped as an autofire.
 };
 RTYPE_ECS_RESOURCE(GameSounds, "example.GameSounds");
 
@@ -165,16 +173,16 @@ struct Ship {};
 RTYPE_ECS_COMPONENT(Ship, "example.Ship");
 
 /// @brief Startup: asks for the sounds (they load in this frame's PostUpdate), places the listener in the middle of an
-/// 800-unit-wide screen, and spawns the ship on the left with its engine running.
+/// 800-unit-wide screen, and spawns the ship on the left with its cannon firing.
 void setup(ecs::ResMut<AudioAssets> sounds, ecs::ResMut<GameSounds> game, ecs::Commands& commands) {
-    game->music = sounds->load("assets/sounds/music.ogg", SoundDesc{.stream = true});
-    game->shot = sounds->load("assets/sounds/shot.wav");
-    game->engine = sounds->load("assets/sounds/engine.ogg");
+    game->music = sounds->load("assets/maint.ogg", SoundDesc{.stream = true});
+    game->misfire = sounds->load("assets/laser-no.mp3");
+    game->laser = sounds->load("assets/laser.mp3");
     commands.spawn().add(Transform{.position = {400.0F, 300.0F}}).add(AudioListener{});
     commands.spawn()
         .add(Ship{})
         .add(Transform{.position = {200.0F, 300.0F}})
-        .add(AudioSource{.sound = game->engine, .volume = 0.5F, .loop = true});
+        .add(AudioSource{.sound = game->laser, .volume = 0.5F, .loop = true});
 }
 
 /// @brief Update: what gameplay does, one step per frame.
@@ -184,19 +192,19 @@ void script(ecs::ResMut<Script> script, ecs::Res<GameSounds> game, ecs::ResMut<A
             ecs::Commands& commands) {
     switch (++script->frame) {
         case 1:
-            std::cout << "  (the sounds load, then the engine of the ship starts, panned left)\n";
+            std::cout << "  (the sounds load, then the cannon of the ship starts firing, panned left)\n";
             playMusics.send(PlayMusic{.sound = game->music, .crossfade = 2.0F});
             std::cout << "  (PlayMusic: the music starts in the same frame, fading in)\n";
             break;
         case 2:
-            playSounds.send(PlaySound{.sound = game->shot, .position = glm::vec2{700.0F, 300.0F}});
+            playSounds.send(PlaySound{.sound = game->misfire, .position = glm::vec2{700.0F, 300.0F}});
             std::cout << "  (PlaySound on the right of the screen)\n";
             break;
         case 3:
             for (auto [entity, transform] : ships) {
                 transform->position.x = 800.0F;
             }
-            std::cout << "  (the ship flies to the right edge: its engine pans right)\n";
+            std::cout << "  (the ship flies to the right edge: its cannon pans right)\n";
             break;
         case 4:
             volumes->music = 0.4F;
@@ -206,7 +214,7 @@ void script(ecs::ResMut<Script> script, ecs::Res<GameSounds> game, ecs::ResMut<A
             for (auto [entity, ship] : ships) {
                 commands.despawn(entity);
             }
-            std::cout << "  (the ship is destroyed: its engine stops)\n";
+            std::cout << "  (the ship is destroyed: its cannon stops)\n";
             break;
         case 6:
             stopMusics.send(StopMusic{.fadeOut = 1.5F});
@@ -217,10 +225,14 @@ void script(ecs::ResMut<Script> script, ecs::Res<GameSounds> game, ecs::ResMut<A
     }
 }
 
-/// @brief Runs the example, printing each frame.
-void run() {
-    // The executable fills the registry: here with the "log" device; with a real backend, its register function.
+/// @brief How long a step of the script lasts when it is heard: long enough to hear each sound.
+constexpr std::chrono::milliseconds kHeardStep{1500};
+
+/// @brief Runs the example through @p backend ("miniaudio" or "log"), printing each frame.
+void run(const std::string& backend) {
+    // The executable fills the registry: the real backends through their register function, and here the "log" device.
     auto registry = std::make_unique<AudioRegistry>();
+    audio::miniaudio::registerAudio(*registry);
     registry->add(
         "log",
         [](const plugins::config::Settings& section, const AudioConfig& /*config*/) -> std::unique_ptr<IAudioDevice> {
@@ -229,7 +241,7 @@ void run() {
         });
 
     plugins::config::Settings settings;
-    settings.set("audio.backend", "log");
+    settings.set("audio.backend", backend);
     settings.set("audio.volume.music", 0.8);
 
     ecs::App app{ecs::RunMode::kStandalone};
@@ -239,19 +251,23 @@ void run() {
     app.addSystem(ecs::Phase::kStartup, "example.setup", &setup);
     app.addSystem(ecs::Phase::kUpdate, "example.script", &script);
 
-    for (int frame = 1; frame <= 7; ++frame) {
+    const bool heard = backend != "log";
+    for (int frame = 1; frame <= 8; ++frame) {
         std::cout << std::format("== Frame {} ==\n", frame);
         if (frame == 1) {
             std::cout << "  (Startup creates the device with the volumes of the config)\n";
         }
         app.runFrame();
+        if (heard) {
+            std::this_thread::sleep_for(kHeardStep);  // The device mixes on its own thread meanwhile.
+        }
     }
 }
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
     try {
-        run();
+        run(argc > 1 ? std::string{argv[1]} : std::string{"miniaudio"});
     } catch (const std::exception& error) {
         std::cerr << "error: " << error.what() << "\n";
         return 1;
