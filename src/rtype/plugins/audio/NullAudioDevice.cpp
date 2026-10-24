@@ -44,7 +44,7 @@ VoiceId NullAudioDevice::play(SoundId sound, const PlayParams& params) {
         return {};
     }
     std::size_t index = 0;
-    while (index < _voices.size() && _voices[index].playing) {
+    while (index < _voices.size() && _voices.at(index).playing) {
         ++index;
     }
     if (index == _voices.size()) {
@@ -53,7 +53,7 @@ VoiceId NullAudioDevice::play(SoundId sound, const PlayParams& params) {
         }
         _voices.emplace_back();
     }
-    Voice& voice = _voices[index];
+    Voice& voice = _voices.at(index);
     voice = Voice{.generation = voice.generation + 1, .sound = sound, .playing = true, .loop = params.loop};
     return VoiceId{.index = static_cast<std::uint32_t>(index), .generation = voice.generation};
 }
@@ -94,7 +94,7 @@ NullAudioDevice::Voice* NullAudioDevice::find(VoiceId voice) {
     if (voice.index >= _voices.size()) {
         return nullptr;
     }
-    Voice& found = _voices[voice.index];
+    Voice& found = _voices.at(voice.index);
     return found.playing && found.generation == voice.generation ? &found : nullptr;
 }
 
@@ -102,7 +102,7 @@ const NullAudioDevice::Voice* NullAudioDevice::find(VoiceId voice) const {
     if (voice.index >= _voices.size()) {
         return nullptr;
     }
-    const Voice& found = _voices[voice.index];
+    const Voice& found = _voices.at(voice.index);
     return found.playing && found.generation == voice.generation ? &found : nullptr;
 }
 }  // namespace rtype::plugins::audio
