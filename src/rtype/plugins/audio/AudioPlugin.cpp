@@ -196,7 +196,7 @@ void followSources(ecs::NonSendMut<Audio> audio, ecs::Res<AudioAssets> sounds,
         }
         const std::optional<SoundId> sound = sounds->getSound(source.sound);
         if (!sound) {
-            continue;  // Not loaded yet: tried again next frame.
+            continue;
         }
         const VoiceId voice = device.play(
             *sound,
