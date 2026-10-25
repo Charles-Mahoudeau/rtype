@@ -35,9 +35,11 @@ struct ShapeInstance {
     float rotation = 0.0F;          ///< In radians, clockwise on screen, around center. Location 2.
     float radius = 0.0F;            ///< Circle and capsule radius, or the rectangle's corner radius. Location 3.
     float outlineThickness = 0.0F;  ///< In world units, inside the shape; 0: no outline. Location 4.
-    ShapeInstanceKind kind = ShapeInstanceKind::kRect;  ///< Which distance the fragment computes. Location 5.
-    glm::vec4 fillColor{1.0F};                          ///< Fully transparent: outline only. Location 6.
-    glm::vec4 outlineColor{0.0F};                       ///< The outline's colour. Location 7.
+    ShapeInstanceKind kind = ShapeInstanceKind::kRect;  ///< Which distance the fragment computes. Location 5, low byte.
+    std::uint8_t blend = 0;        ///< kBlendAlpha or kBlendAdditive (rendering/Blend.hpp). Location 5, second byte.
+    std::uint16_t padding = 0;     ///< Read with kind and blend as one uint by shape.vert: must stay zero.
+    glm::vec4 fillColor{1.0F};     ///< Fully transparent: outline only. Location 6.
+    glm::vec4 outlineColor{0.0F};  ///< The outline's colour. Location 7.
 
     /// @return The instance that draws @p shape.
     [[nodiscard]] RTYPE_RENDER_VULKAN_API static ShapeInstance fromShape(
@@ -51,7 +53,8 @@ struct ShapeInstance {
         std::uint32_t binding = 0) noexcept;
 };
 static_assert(sizeof(ShapeInstance) == 64 && offsetof(ShapeInstance, kind) == 28 &&
-                  offsetof(ShapeInstance, fillColor) == 32 && offsetof(ShapeInstance, outlineColor) == 48,
+                  offsetof(ShapeInstance, blend) == 29 && offsetof(ShapeInstance, fillColor) == 32 &&
+                  offsetof(ShapeInstance, outlineColor) == 48,
               "ShapeInstance must stay 64 tightly packed bytes: its attribute offsets assume it");
 
 }  // namespace rtype::render::vulkan::rendering

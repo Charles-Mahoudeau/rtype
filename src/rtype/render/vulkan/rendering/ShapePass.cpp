@@ -41,7 +41,7 @@ pipeline::GraphicsPipeline createPipeline(const core::Device& device, pipeline::
         .setShaders(shaders.get("shape.vert", rtype_shader_shape_vert),
                     shaders.get("shape.frag", rtype_shader_shape_frag))
         .setVertexInput(bindings, attributes)
-        .setBlend(pipeline::GraphicsPipeline::BlendMode::kAlpha)
+        .setBlend(pipeline::GraphicsPipeline::BlendMode::kPremultipliedAlpha)
         .setColorFormat(colorFormat)
         .setLayout(layout)
         .build(device, cache);

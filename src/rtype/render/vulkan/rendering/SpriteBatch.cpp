@@ -14,6 +14,7 @@
 #include <glm/ext/vector_uint2.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
+#include "Blend.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 
@@ -31,6 +32,7 @@ SpriteInstance SpriteInstance::fromSprite(const plugins::backend::graphics::Spri
         .size = sourceSize * sprite.scale,
         .origin = sprite.origin * sprite.scale,
         .rotation = sprite.rotation,
+        .blend = toShaderBlend(sprite.blend),
         .uvRect = {uvMin.x, uvMin.y, uvMax.x, uvMax.y},
         .color = sprite.color,
     };
@@ -40,7 +42,7 @@ std::array<vk::VertexInputBindingDescription, 1> SpriteInstance::getBindings(std
     return {vk::VertexInputBindingDescription{binding, sizeof(SpriteInstance), vk::VertexInputRate::eInstance}};
 }
 
-std::array<vk::VertexInputAttributeDescription, 6> SpriteInstance::getAttributes(std::uint32_t binding) noexcept {
+std::array<vk::VertexInputAttributeDescription, 7> SpriteInstance::getAttributes(std::uint32_t binding) noexcept {
     return {
         vk::VertexInputAttributeDescription{0, binding, vk::Format::eR32G32Sfloat, offsetof(SpriteInstance, position)},
         vk::VertexInputAttributeDescription{1, binding, vk::Format::eR32G32Sfloat, offsetof(SpriteInstance, size)},
@@ -50,6 +52,7 @@ std::array<vk::VertexInputAttributeDescription, 6> SpriteInstance::getAttributes
                                             offsetof(SpriteInstance, uvRect)},
         vk::VertexInputAttributeDescription{5, binding, vk::Format::eR32G32B32A32Sfloat,
                                             offsetof(SpriteInstance, color)},
+        vk::VertexInputAttributeDescription{6, binding, vk::Format::eR32Uint, offsetof(SpriteInstance, blend)},
     };
 }
 

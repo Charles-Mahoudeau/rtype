@@ -30,7 +30,7 @@ struct SpriteInstance {
     glm::vec2 size{0.0F};                      ///< In world units: source size times scale. Location 1.
     glm::vec2 origin{0.0F};                    ///< Pivot from the quad's top-left corner, in world units. Location 2.
     float rotation = 0.0F;                     ///< In radians, clockwise on screen. Location 3.
-    float padding = 0.0F;                      ///< Keeps uvRect on 16 bytes.
+    std::uint32_t blend = 0;                   ///< graphics::BlendMode, as shaders/include/Blend.glsl. Location 6.
     glm::vec4 uvRect{0.0F, 0.0F, 1.0F, 1.0F};  ///< Part of the texture: (u0, v0, u1, v1), 0 to 1. Location 4.
     glm::vec4 color{1.0F};                     ///< Multiplies the texture. Location 5.
 
@@ -41,12 +41,12 @@ struct SpriteInstance {
     /// @return The binding of the instance buffer: one SpriteInstance per instance.
     [[nodiscard]] RTYPE_RENDER_VULKAN_API static std::array<vk::VertexInputBindingDescription, 1> getBindings(
         std::uint32_t binding = 0) noexcept;
-    /// @return The attributes, locations 0 to 5.
-    [[nodiscard]] RTYPE_RENDER_VULKAN_API static std::array<vk::VertexInputAttributeDescription, 6> getAttributes(
+    /// @return The attributes, locations 0 to 6.
+    [[nodiscard]] RTYPE_RENDER_VULKAN_API static std::array<vk::VertexInputAttributeDescription, 7> getAttributes(
         std::uint32_t binding = 0) noexcept;
 };
-static_assert(sizeof(SpriteInstance) == 64 && offsetof(SpriteInstance, uvRect) == 32 &&
-                  offsetof(SpriteInstance, color) == 48,
+static_assert(sizeof(SpriteInstance) == 64 && offsetof(SpriteInstance, blend) == 28 &&
+                  offsetof(SpriteInstance, uvRect) == 32 && offsetof(SpriteInstance, color) == 48,
               "SpriteInstance must stay 64 tightly packed bytes: its attribute offsets assume it");
 
 /// @brief The sprites of a frame, in draw order, grouped in batches: consecutive sprites of the same texture are drawn
