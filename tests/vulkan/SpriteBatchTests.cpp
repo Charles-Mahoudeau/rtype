@@ -12,9 +12,11 @@
 #include <glm/ext/vector_uint2.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
+#include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/math/Rect.hpp"
+#include "render/vulkan/rendering/Blend.hpp"
 #include "render/vulkan/rendering/SpriteBatch.hpp"
 
 namespace {
@@ -64,6 +66,18 @@ TEST(SpriteInstance, DescribesOnePerInstanceVertex) {
     EXPECT_EQ(attributes[3].format, vk::Format::eR32Sfloat);
     EXPECT_EQ(attributes[4].offset, 32U);
     EXPECT_EQ(attributes[5].offset, 48U);
+    EXPECT_EQ(attributes[6].format, vk::Format::eR32Uint);  // The blend mode is an integer.
+    EXPECT_EQ(attributes[6].offset, 28U);
+}
+
+TEST(SpriteInstance, CarriesItsBlendModeAsTheShadersReadIt) {
+    using rtype::plugins::backend::graphics::BlendMode;
+    using rtype::plugins::backend::graphics::Sprite;
+    EXPECT_EQ(SpriteInstance::fromSprite(Sprite{}, {1, 1}).blend, rtype::render::vulkan::rendering::kBlendAlpha);
+    EXPECT_EQ(SpriteInstance::fromSprite(Sprite{.blend = BlendMode::kAdditive}, {1, 1}).blend,
+              rtype::render::vulkan::rendering::kBlendAdditive);
+    EXPECT_EQ(SpriteInstance::fromSprite(Sprite{.blend = BlendMode::kCutout}, {1, 1}).blend,
+              rtype::render::vulkan::rendering::kBlendCutout);
 }
 
 TEST(SpriteBatch, MergesConsecutiveSpritesOfATexture) {
