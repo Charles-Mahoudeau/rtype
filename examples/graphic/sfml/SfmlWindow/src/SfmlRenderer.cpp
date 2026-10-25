@@ -7,11 +7,13 @@
 
 #include "SfmlRenderer.hpp"
 
+#include <SFML/Graphics/BlendMode.hpp>
 #include <SFML/Graphics/CircleShape.hpp>
 #include <SFML/Graphics/Color.hpp>
 #include <SFML/Graphics/ConvexShape.hpp>
 #include <SFML/Graphics/Rect.hpp>
 #include <SFML/Graphics/RectangleShape.hpp>
+#include <SFML/Graphics/RenderStates.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Graphics/Texture.hpp>
 #include <SFML/Graphics/View.hpp>
@@ -31,6 +33,7 @@
 
 #include "SfmlPlatform.hpp"
 #include "plugins/backend/exceptions/PlatformExceptions.hpp"
+#include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
@@ -83,6 +86,11 @@ sf::View pixelView(glm::uvec2 size) {
     return sf::View(sf::FloatRect({0.0F, 0.0F}, {static_cast<float>(size.x), static_cast<float>(size.y)}));
 }
 
+/// @return How SFML draws @p mode. SFML blends straight alpha and cannot drop pixels without a shader, so kCutout is
+/// drawn as kAlpha.
+sf::RenderStates statesOf(graphics::BlendMode mode) {
+    return sf::RenderStates{mode == graphics::BlendMode::kAdditive ? sf::BlendAdd : sf::BlendAlpha};
+}
 }  // namespace
 
 namespace example {
@@ -168,7 +176,7 @@ void SfmlRenderer::draw(const graphics::Sprite& sprite) {
     sfSprite.setScale({sprite.scale.x, sprite.scale.y});
     sfSprite.setRotation(sf::radians(sprite.rotation));
     sfSprite.setColor(toSfColor(sprite.color));
-    _window->draw(sfSprite);
+    _window->draw(sfSprite, statesOf(sprite.blend));
 }
 
 void SfmlRenderer::draw(const graphics::Shape& shape) {
@@ -179,7 +187,7 @@ void SfmlRenderer::draw(const graphics::Shape& shape) {
             rect.setPosition({shape.position.x, shape.position.y});
             rect.setRotation(sf::radians(shape.rotation));
             paint(rect, shape);
-            _window->draw(rect);
+            _window->draw(rect, statesOf(shape.blend));
             break;
         }
         case graphics::ShapeKind::kCircle: {
@@ -187,13 +195,13 @@ void SfmlRenderer::draw(const graphics::Shape& shape) {
             circle.setOrigin({shape.radius, shape.radius});
             circle.setPosition({shape.position.x, shape.position.y});
             paint(circle, shape);
-            _window->draw(circle);
+            _window->draw(circle, statesOf(shape.blend));
             break;
         }
         case graphics::ShapeKind::kCapsule: {
             sf::ConvexShape capsule = capsuleShape(shape.position, shape.halfHeight, shape.radius, shape.rotation);
             paint(capsule, shape);
-            _window->draw(capsule);
+            _window->draw(capsule, statesOf(shape.blend));
             break;
         }
         case graphics::ShapeKind::kLine: {
@@ -203,7 +211,7 @@ void SfmlRenderer::draw(const graphics::Shape& shape) {
             sf::ConvexShape line =
                 capsuleShape((shape.position + shape.end) * 0.5F, glm::length(segment) * 0.5F, shape.radius, rotation);
             paint(line, shape);
-            _window->draw(line);
+            _window->draw(line, statesOf(shape.blend));
             break;
         }
     }
