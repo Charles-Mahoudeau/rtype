@@ -29,6 +29,9 @@ class RTYPE_RENDER_VULKAN_API GraphicsPipeline {
         kOpaque,    ///< Replaces it.
         kAlpha,     ///< Blends by the fragment's alpha: transparent shapes, sprites, text.
         kAdditive,  ///< Adds to it, weighted by alpha: glows, explosions, lasers.
+        /// Blends a colour already multiplied by its alpha: `src + dst * (1 - src.a)`. Covers kAlpha (rgb * a, a) and
+        /// kAdditive (rgb * a, 0) in one pipeline, and filters textures without dark fringes.
+        kPremultipliedAlpha,
     };
 
     /// @brief Builds graphics pipelines in a few lines, with defaults that suit 2D.
