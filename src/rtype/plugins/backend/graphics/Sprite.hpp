@@ -9,6 +9,7 @@
 
 #include <glm/ext/vector_float2.hpp>
 
+#include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/math/Rect.hpp"
@@ -25,5 +26,6 @@ struct Sprite {
     glm::vec2 origin{0.0F};    ///< Pivot of the position and the rotation, in pixels from the top-left of source.
     float rotation = 0.0F;     ///< In radians, clockwise on screen.
     Color color{1.0F};         ///< Multiplies the texture: tint and transparency.
+    BlendMode blend = BlendMode::kAlpha;  ///< How it is combined with what is under it.
 };
 }  // namespace rtype::plugins::backend::graphics
