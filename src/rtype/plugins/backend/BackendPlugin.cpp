@@ -175,7 +175,8 @@ void drawSprites(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<Te
                                                               .scale = global.scale,
                                                               .origin = sprite.origin,
                                                               .rotation = global.rotation,
-                                                              .color = sprite.color}});
+                                                              .color = sprite.color,
+                                                              .blend = sprite.blend}});
     }
     std::ranges::stable_sort(items, [](const SpriteItem& left, const SpriteItem& right) {
         if (left.layer != right.layer) {
