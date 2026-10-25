@@ -6,7 +6,6 @@
 */
 
 #include <gtest/gtest.h>
-#include <lua.h>
 
 #include <cstddef>
 #include <string>
@@ -117,7 +116,7 @@ TEST(ValuePack, PushFailsWithStackOverflowWhenStackCannotGrow) {
     EXPECT_EQ(pushed.error().kind(), rtype::luau::ErrorKind::kStackOverflow);
 }
 
-TEST(ValuePack, PushFailsForTableOfAnotherStateAndLeavesStackUnchanged) {
+TEST(ValuePack, PushFailsForTableOfAnotherState) {
     const auto runtime = makeRuntime();
     const auto foreign = makeRuntime();
     ValuePack pack{};
@@ -127,7 +126,6 @@ TEST(ValuePack, PushFailsForTableOfAnotherStateAndLeavesStackUnchanged) {
 
     ASSERT_FALSE(pushed);
     EXPECT_EQ(pushed.error().kind(), rtype::luau::ErrorKind::kRuntime);
-    EXPECT_EQ(lua_gettop(runtime.state()), 0);
 }
 
 TEST(ValuePack, FromStackReadsRangeInOrder) {

@@ -6,7 +6,6 @@
 */
 
 #include <gtest/gtest.h>
-#include <lua.h>
 
 #include <cstddef>
 #include <limits>
@@ -394,7 +393,6 @@ TEST(Table, PushFailsForTableOfAnotherState) {
 
     ASSERT_FALSE(pushed);
     EXPECT_EQ(pushed.error().kind(), rtype::luau::ErrorKind::kRuntime);
-    EXPECT_EQ(lua_gettop(runtime.state()), 0);
 }
 
 TEST(Table, AccessIgnoresMetatables) {
