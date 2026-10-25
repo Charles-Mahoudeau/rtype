@@ -25,6 +25,7 @@
 #include <glm/ext/vector_float2.hpp>
 #include <initializer_list>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <span>
@@ -47,7 +48,6 @@
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
-#include "plugins/backend/math/Rect.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "render/vulkan/Registration.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -80,11 +80,15 @@ constexpr float kShipY = 130.0F;
 constexpr float kBandY = 300.0F;
 constexpr float kCirclesY = 480.0F;
 
-// Frames of the sprite sheets of assets/, in pixels.
-const math::Rect kShotFrame{{110.0F, 151.0F}, {78.0F, 16.0F}};  // bullet.gif: the first shot.
-const math::Rect kShipFrame{{9.0F, 9.0F}, {48.0F, 48.0F}};      // r-typesheet24.gif: the first ship.
-constexpr float kBandFrameWidth = 65.0F;                        // r-typesheet26.gif: one frame every 65 pixels.
-const math::Rect kBandFrame{{1.0F, 1.0F}, {63.0F, 48.0F}};
+// Frames of the sprite sheets of assets/: top-left corner and size, in pixels.
+constexpr glm::vec2 kShotPosition{110.0F, 151.0F};  // bullet.gif: the first shot.
+constexpr glm::vec2 kShotSize{78.0F, 16.0F};
+constexpr glm::vec2 kShipPosition{9.0F, 9.0F};  // r-typesheet24.gif: the first ship.
+constexpr glm::vec2 kShipSize{48.0F, 48.0F};
+constexpr glm::vec2 kBandPosition{1.0F, 1.0F};  // r-typesheet26.gif: six frames, one every 65 pixels.
+constexpr glm::vec2 kBandSize{63.0F, 48.0F};
+constexpr float kBandFrameWidth = 65.0F;
+constexpr int kBandFrames = 6;
 
 // Colours of the demo.
 constexpr Color kClear{0.05F, 0.05F, 0.08F, 1.0F};
@@ -117,32 +121,34 @@ void spawnScene(ecs::ResMut<TextureAssets> textures, ecs::Commands& commands) {
     const AssetId band = textures->load("assets/r-typesheet26.gif");
 
     constexpr float kBandScale = 2.0F;
-    const float step = kBandFrame.getWidth() * kBandScale;
+    const float step = kBandSize.x * kBandScale;
+    const auto count = static_cast<int>(std::ceil(static_cast<float>(kWidth) / step));
     for (const float y : {kShipY, kBandY}) {
-        for (float x = step * 0.5F; x - (step * 0.5F) < static_cast<float>(kWidth); x += step) {
-            const auto frame = static_cast<float>(static_cast<int>(x / step) % 6);
+        for (int index = 0; index < count; ++index) {
+            const auto frame = static_cast<float>(index % kBandFrames);
             commands.spawn()
-                .add(Transform{.position = {x, y}, .scale = glm::vec2{kBandScale}})
-                .add(SpriteRenderer{.texture = band,
-                                    .source = {{kBandFrame.getX() + (frame * kBandFrameWidth), kBandFrame.getY()},
-                                               {kBandFrame.getWidth(), kBandFrame.getHeight()}},
-                                    .origin = {kBandFrame.getWidth() * 0.5F, kBandFrame.getHeight() * 0.5F},
-                                    .layer = -1});
+                .add(Transform{.position = {step * (static_cast<float>(index) + 0.5F), y},
+                               .scale = glm::vec2{kBandScale}})
+                .add(SpriteRenderer{
+                    .texture = band,
+                    .source = {{kBandPosition.x + (frame * kBandFrameWidth), kBandPosition.y}, kBandSize},
+                    .origin = kBandSize * 0.5F,
+                    .layer = -1});
         }
     }
     for (std::size_t column = 0; column < kColumnX.size(); ++column) {
         commands.spawn()
             .add(Transform{.position = {kColumnX.at(column), kShipY}, .scale = glm::vec2{2.0F}})
             .add(SpriteRenderer{.texture = ships,
-                                .source = kShipFrame,
+                                .source = {kShipPosition, kShipSize},
                                 .color = kSeeThrough,
-                                .origin = {kShipFrame.getWidth() * 0.5F, kShipFrame.getHeight() * 0.5F},
+                                .origin = kShipSize * 0.5F,
                                 .blend = kModes.at(column)});
         commands.spawn()
             .add(Transform{.position = {kColumnX.at(column), kBandY}, .scale = glm::vec2{3.0F}})
             .add(SpriteRenderer{.texture = shots,
-                                .source = kShotFrame,
-                                .origin = {kShotFrame.getWidth() * 0.5F, kShotFrame.getHeight() * 0.5F},
+                                .source = {kShotPosition, kShotSize},
+                                .origin = kShotSize * 0.5F,
                                 .layer = 1,
                                 .blend = kModes.at(column)})
             .add(Shot{.columnX = kColumnX.at(column)});
@@ -203,22 +209,23 @@ config::Settings makeSettings(bool validate) {
 }  // namespace
 
 int main(int argc, char** argv) {
-    bool validate = false;
-    Lifetime lifetime;
-    const std::span<char*> arguments{argv, static_cast<std::size_t>(argc)};
-    for (std::size_t index = 1; index < arguments.size(); ++index) {
-        const std::string_view argument{arguments[index]};
-        if (argument == "--validate") {
-            validate = true;
-        } else if (argument == "--seconds" && index + 1 < arguments.size()) {
-            const std::string value{arguments[++index]};
-            float seconds = 0.0F;
-            if (std::from_chars(value.c_str(), std::to_address(value.end()), seconds).ec == std::errc{}) {
-                lifetime.seconds = seconds;
+    try {
+        bool validate = false;
+        Lifetime lifetime;
+        const std::span<char*> arguments{argv, static_cast<std::size_t>(argc)};
+        const std::span<char*> options = arguments.empty() ? arguments : arguments.subspan(1);  // Without the program.
+        for (auto option = options.begin(); option != options.end(); ++option) {
+            const std::string_view argument{*option};
+            if (argument == "--validate") {
+                validate = true;
+            } else if (argument == "--seconds" && std::next(option) != options.end()) {
+                const std::string value{*++option};
+                float seconds = 0.0F;
+                if (std::from_chars(value.c_str(), std::to_address(value.end()), seconds).ec == std::errc{}) {
+                    lifetime.seconds = seconds;
+                }
             }
         }
-    }
-    try {
         auto registry = std::make_unique<BackendRegistry>();
         rtype::platform::glfw::registerPlatform(*registry);
         render::vulkan::registerRenderer(*registry);
