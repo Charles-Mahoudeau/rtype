@@ -13,6 +13,7 @@
 
 #include "CallContext.hpp"
 #include "Export.hpp"
+#include "FunctionRef.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
 #include "ValuePack.hpp"
@@ -58,6 +59,13 @@ class RTYPE_LUAU_API Function {
     /// @param name Name of the function, used in error messages.
     /// @return The Function wrapping the referenced function.
     [[nodiscard]] static Function fromRef(Ref ref, std::string name);
+
+    /// @brief Wraps a function defined in Luau, from a handle on it, so C++ can call it.
+    /// @param ref Handle on the Luau function; it is left untouched and the Function gets a reference of its own.
+    /// @param name Name of the function, used in error messages.
+    /// @return The Function wrapping the referenced function.
+    /// @throws exceptions::InvalidRef If @p ref was moved from.
+    [[nodiscard]] static Function fromRef(const FunctionRef& ref, std::string name);
 
     /// @brief Unbinds the native closure from this Function, so calling it from Lua raises an error.
     ~Function();

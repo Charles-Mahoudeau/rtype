@@ -39,6 +39,12 @@ Function Function::fromRef(Ref ref, std::string name) {
     return Function{ref.state(), BindingType::kScript, std::move(ref), std::move(name)};
 }
 
+Function Function::fromRef(const FunctionRef& ref, std::string name) {
+    lua_State* const state{ref.ref().state()};
+    ref.ref().push(state);
+    return fromRef(Ref::pop(state), std::move(name));
+}
+
 Function::~Function() { rebindUpvalue(this, nullptr); }
 
 Function::Function(Function&& other) noexcept
