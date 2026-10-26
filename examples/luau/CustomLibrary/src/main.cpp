@@ -33,8 +33,9 @@ int main() {
     }
 
     // A library is a table of functions. The builder creates the table, and `function` adds a native function to it
-    // under the given name: it is bound like any other Function (see the FunctionBinding example). The Functions
-    // must stay alive as long as Luau may call them.
+    // under the given name: it is bound like any other Function (see the FunctionBinding example). The library owns
+    // its functions, so there is no need to keep them: the Library itself must stay alive as long as Luau may call
+    // them.
     LibraryBuilder builder{*runtime};
 
     builder.setName("mathx");
@@ -54,8 +55,8 @@ int main() {
 
     const Library library = builder.build();
 
-    // `build` hands over the finished table. Setting it as a global makes it reachable from every script, as `math`
-    // or `string` are.
+    // `build` hands over the finished library. Registering it sets its table as a global named after it, which makes
+    // it reachable from every script, as `math` or `string` are. `library` must outlive every call made from Luau.
     if (auto result = runtime->globals().registerLibrary(library); !result) {
         std::cerr << "failed to register mathx: " << result.error().message() << std::endl;
         return 1;
