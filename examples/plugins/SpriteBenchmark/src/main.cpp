@@ -33,7 +33,6 @@
 #include <span>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -112,6 +111,7 @@ void spawnSprites(ecs::ResMut<AtlasAssets> atlases, ecs::Res<Measure> measure, e
     atlas.addAnimation("fly", {0, 1, 2, 3, 4, 5}, kFrameDuration);
     const AssetId sheet = atlases->add("benchmark", std::move(atlas));
 
+    // NOLINTNEXTLINE(bugprone-random-generator-seed): the same sprites on every run, so runs compare.
     std::mt19937 random{42};
     std::uniform_real_distribution<float> x{0.0F, kWidth};
     std::uniform_real_distribution<float> y{0.0F, kHeight};
