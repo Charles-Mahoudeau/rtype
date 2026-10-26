@@ -11,6 +11,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <exception>
 #include <format>
 #include <memory>
 #include <string>
@@ -59,7 +60,12 @@ Result<Table> Table::create(lua_State* state, const int arrayCapacity, const int
     if (lua_checkstack(state, 1) == 0) {
         return stackOverflow();
     }
-    lua_createtable(state, arrayCapacity, hashCapacity);
+    try {
+        lua_createtable(state, arrayCapacity, hashCapacity);
+    } catch (const std::exception&) {
+        // Luau raises its allocation failures as C++ exceptions.
+        return Failure{ErrorKind::kOutOfMemory, "Lua out of memory"};
+    }
     return Table{Ref::pop(state)};
 }
 

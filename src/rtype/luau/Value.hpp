@@ -79,7 +79,7 @@ class RTYPE_LUAU_API Value {
     /// caller makes sure there is room for one more slot (`lua_checkstack`).
     /// @param state The Lua state to push onto; must not be null.
     /// @return Nothing on success, or a Failure of kind `kRuntime` if the Value holds a `Table` of another Lua state
-    ///         than @p state.
+    ///         than @p state, or of kind `kOutOfMemory` if a string cannot be allocated.
     /// @throws exceptions::InvalidState If @p state is null.
     [[nodiscard]] Result<void> push(lua_State* state) const;
 

@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <format>
 #include <limits>
 #include <optional>
@@ -128,7 +129,12 @@ Result<void> Value::push(lua_State* state) const {
                               return {};
                           },
                           [state](const std::string& v) -> Result<void> {
-                              lua_pushlstring(state, v.data(), v.size());
+                              try {
+                                  lua_pushlstring(state, v.data(), v.size());
+                              } catch (const std::exception&) {
+                                  // Luau raises its allocation failures as C++ exceptions.
+                                  return Failure{ErrorKind::kOutOfMemory, "Lua out of memory"};
+                              }
                               return {};
                           },
                           [state](const Table& v) -> Result<void> { return v.push(state); },

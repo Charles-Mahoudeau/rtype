@@ -46,7 +46,7 @@ class RTYPE_LUAU_API Table {
     /// @param arrayCapacity Number of array slots to preallocate.
     /// @param hashCapacity Number of hash entries to preallocate.
     /// @return A handle on the new table, or a Failure of kind `kStackOverflow` if the stack of @p state cannot grow
-    ///         by one slot.
+    ///         by one slot, or of kind `kOutOfMemory` if the table cannot be allocated.
     /// @throws exceptions::InvalidState If @p state is null.
     [[nodiscard]] static Result<Table> create(lua_State* state, int arrayCapacity = 0, int hashCapacity = 0);
     /// @brief Makes a handle on the table at a stack index of a Lua state.
