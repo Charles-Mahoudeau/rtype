@@ -40,8 +40,8 @@ namespace rtype::plugins::backend {
 /// - Render "rtype.backend.sprites", after the camera: draws every entity with a GlobalTransform and a SpriteRenderer
 ///   whose texture is loaded, sorted by layer (higher on top), then by texture within a layer (fewer batches).
 /// It also inserts the TextureAssets resource (the textures by AssetId) and registers the SpriteRenderer component. A
-/// window always comes with input and positions: it adds the InputPlugin and the TransformPlugin (nothing happens if
-/// the game added them first), which know nothing of this plugin.
+/// window always comes with input, positions and animated sprites: it adds the InputPlugin, the TransformPlugin and the
+/// SpritePlugin (nothing happens if the game added them first), which know nothing of this plugin.
 /// @code
 /// auto registry = std::make_unique<rtype::plugins::backend::BackendRegistry>();
 /// rtype::platform::glfw::registerPlatform(*registry);
