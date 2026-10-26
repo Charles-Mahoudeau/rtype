@@ -8,6 +8,8 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <format>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -458,4 +460,178 @@ TEST(Function, NativeCallsDoNotLeaveValuesOnStack) {
         const auto result = function.call();
         ASSERT_TRUE(result) << "call " << i << ": " << result.error().message();
     }
+}
+
+/// @brief Runs a chunk in which the global `native` was bound with `bind`, failing the test if the chunk fails.
+void expectChunkSucceeds(const rtype::luau::Runtime& runtime, const std::string& source) {
+    const auto result = makeFunction(runtime, source).call();
+    EXPECT_TRUE(result) << result.error().message();
+}
+
+TEST(FunctionBind, ReadsTypedArgumentsInOrder) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    std::string name{};
+    double number{};
+    bool flag{};
+    native.bind([&](const std::string& s, const double d, const bool b) {
+        name = s;
+        number = d;
+        flag = b;
+        return ValuePack{};
+    });
+
+    expectChunkSucceeds(runtime, R"(native("first", 2, true))");
+
+    EXPECT_EQ(name, "first");
+    EXPECT_EQ(number, 2.0);
+    EXPECT_TRUE(flag);
+}
+
+TEST(FunctionBind, ReadsVectorTableAndNilArguments) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    Value::Vector vector{};
+    bool tableRead = false;
+    bool nilRead = false;
+    native.bind([&](const Value::Vector& v, const rtype::luau::Table& t, const Value::Nil&) {
+        vector = v;
+        tableRead = t.size().value_or(1) == 0;
+        nilRead = true;
+        return ValuePack{};
+    });
+
+    expectChunkSucceeds(runtime, "native(vector.create(1, 2, 3), {}, nil)");
+
+    EXPECT_EQ(vector, (Value::Vector{1.0F, 2.0F, 3.0F}));
+    EXPECT_TRUE(tableRead);
+    EXPECT_TRUE(nilRead);
+}
+
+TEST(FunctionBind, ReturnsValuesToLua) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    native.bind([](const double a, const double b) {
+        ValuePack result{};
+        result.add({a + b});
+        result.add({std::string{"sum"}});
+        return result;
+    });
+
+    expectChunkSucceeds(runtime, R"(
+        local sum, label = native(1, 2)
+        assert(sum == 3 and label == "sum")
+    )");
+}
+
+TEST(FunctionBind, AcceptsHandlerWithoutParameters) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    int calls = 0;
+    native.bind([&calls]() {
+        ++calls;
+        return ValuePack{};
+    });
+
+    expectChunkSucceeds(runtime, R"(
+        native()
+        assert(not pcall(native, 1))
+    )");
+
+    EXPECT_EQ(calls, 1);
+}
+
+TEST(FunctionBind, AcceptsFunctionPointer) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    native.bind(+[](const double d) {
+        ValuePack result{};
+        result.add({d * 2});
+        return result;
+    });
+
+    expectChunkSucceeds(runtime, "assert(native(4) == 8)");
+}
+
+TEST(FunctionBind, RaisesErrorForWrongArgumentCountWithoutRunningHandler) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    int calls = 0;
+    native.bind([&calls](const double, const double) {
+        ++calls;
+        return ValuePack{};
+    });
+
+    expectChunkSucceeds(runtime, R"(
+        local ok, err = pcall(native, 1)
+        assert(not ok and err == "native function 'native': expected 2 arguments, got 1", err)
+        ok, err = pcall(native, 1, 2, 3)
+        assert(not ok and err == "native function 'native': expected 2 arguments, got 3", err)
+    )");
+
+    EXPECT_EQ(calls, 0);
+}
+
+TEST(FunctionBind, RaisesErrorNamingArgumentAndTypesForWrongType) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    int calls = 0;
+    native.bind([&calls](const double, const double) {
+        ++calls;
+        return ValuePack{};
+    });
+
+    expectChunkSucceeds(runtime, R"(
+        local ok, err = pcall(native, 1, "x")
+        assert(not ok and err == "native function 'native': argument 2: expected number, got string", err)
+        ok, err = pcall(native, nil, 1)
+        assert(not ok and err == "native function 'native': argument 1: expected number, got nil", err)
+        ok, err = pcall(native, {}, 1)
+        assert(not ok and err == "native function 'native': argument 1: expected number, got table", err)
+    )");
+
+    EXPECT_EQ(calls, 0);
+}
+
+TEST(FunctionBind, OptionalTrailingArgumentsMayBeOmittedOrNil) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    std::vector<std::string> calls{};
+    native.bind([&calls](const double, const std::optional<std::string>& label, const std::optional<double> extra) {
+        calls.push_back(std::format("{}/{}", label.value_or("-"), extra ? "x" : "-"));
+        return ValuePack{};
+    });
+
+    expectChunkSucceeds(runtime, R"(
+        native(1)
+        native(1, "a")
+        native(1, nil, 2)
+        native(1, "b", 2)
+        local ok, err = pcall(native, 1, 2)
+        assert(not ok and err == "native function 'native': argument 2: expected string, got number", err)
+        ok, err = pcall(native)
+        assert(not ok and err == "native function 'native': expected 1 to 3 arguments, got 0", err)
+        ok, err = pcall(native, 1, "a", 2, 3)
+        assert(not ok and err == "native function 'native': expected 1 to 3 arguments, got 4", err)
+    )");
+
+    EXPECT_EQ(calls, (std::vector<std::string>{"-/-", "a/-", "-/x", "b/x"}));
+}
+
+TEST(FunctionBind, CallsDoNotLeaveValuesOnStack) {
+    const auto runtime = makeRuntime();
+    Function native = Function::create(runtime.state(), "native");
+    native.bind([](const double d) {
+        ValuePack result{};
+        result.add({d});
+        return result;
+    });
+
+    // 10000 successful and failing calls would overflow Luau's 8000-slot stack if any value were left behind.
+    expectChunkSucceeds(runtime, R"(
+        for i = 1, 10000 do
+            assert(native(i) == i)
+            assert(not pcall(native, "x"))
+        end
+    )");
 }
