@@ -10,6 +10,7 @@
 #include <iostream>
 #include <optional>
 #include <rtype/luau/Function.hpp>
+#include <rtype/luau/FunctionRef.hpp>
 #include <rtype/luau/Runtime.hpp>
 #include <rtype/luau/ValuePack.hpp>
 #include <string>
