@@ -27,11 +27,13 @@
 
 #include "Bytecode.hpp"
 #include "ErrorKind.hpp"
+#include "Exceptions.hpp"
 #include "Failure.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
 #include "RuntimeConfig.hpp"
 #include "Script.hpp"
+#include "Table.hpp"
 
 namespace {
 constexpr std::int32_t kLuauGlobalEnv = 0;
@@ -157,10 +159,13 @@ Result<> Runtime::run(const Ref& closure) const { return runClosure(_state.get()
 // NOLINTNEXTLINE(*-convert-member-functions-to-static)
 Result<> Runtime::run(const Script& script) const { return runClosure(script.state(), script.closure()); }
 
-Ref Runtime::global(const std::string& name) const {
-    if (lua_getglobal(_state.get(), name.c_str()) == LUA_TNIL) {
-        std::cerr << "warning: global '" << name << "' not found\n";
+Table Runtime::globals() const {
+    lua_pushvalue(_state.get(), LUA_GLOBALSINDEX);
+    auto result = Table::fromStack(_state.get());
+    if (!result) {
+        // if globals' table is nil, there is a big problem
+        throw exceptions::InvalidState{};
     }
-    return Ref::pop(_state.get());
+    return *result;
 }
 }  // namespace rtype::luau

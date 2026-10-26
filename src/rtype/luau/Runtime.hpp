@@ -17,6 +17,7 @@
 #include "Result.hpp"
 #include "RuntimeConfig.hpp"
 #include "Script.hpp"
+#include "Table.hpp"
 
 struct lua_State;
 
@@ -79,13 +80,7 @@ class RTYPE_LUAU_API Runtime {
     /// @return Success, or an `ErrorKind::kRuntime` error if the script raised an error.
     [[nodiscard]] Result<> run(const Script& script) const;
 
-    /// @brief Creates a reference to a global variable of the runtime's main state.
-    ///
-    /// Prints a warning on `std::cerr` if the global is nil.
-    /// @note Temporary helper, will be removed soon.
-    /// @param name Name of the global variable.
-    /// @return A Ref to the value of the global, which references nil if the global is not set.
-    [[nodiscard, deprecated("temporary helper, will be removed soon")]] Ref global(const std::string& name) const;
+    [[nodiscard]] Table globals() const;
 
   private:
     /// @brief Deleter closing a `lua_State`.
