@@ -431,7 +431,7 @@ TEST(Table, EntriesCopyEveryPair) {
 
 TEST(Table, EntriesFailForUnreadableValue) {
     const auto runtime = makeRuntime();
-    const Table table = runForTable(runtime, "return {f = function() end}");
+    const Table table = runForTable(runtime, "return {f = coroutine.create(function() end)}");
 
     const auto entries = table.entries();
 

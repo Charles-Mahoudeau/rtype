@@ -6,6 +6,7 @@
 */
 
 #include <gtest/gtest.h>
+#include <lua.h>
 
 #include <cstddef>
 #include <string>
@@ -174,8 +175,8 @@ TEST(ValuePack, FromStackFailsWithPositionOfUnreadableValue) {
     ValuePack pushed{};
     pushed.add({1.0});
     ASSERT_EQ(pushed.push(runtime.state()).value(), 1U);
-    // A function cannot be read yet.
-    script->closure().push(runtime.state());
+    // A thread cannot be read yet.
+    lua_newthread(runtime.state());
 
     const auto pack = ValuePack::fromStack(runtime.state(), 1, 2);
 
@@ -221,8 +222,8 @@ TEST(ValuePack, PopLeavesValuesOnFailure) {
     ValuePack pushed{};
     pushed.add({1.0});
     ASSERT_EQ(pushed.push(runtime.state()).value(), 1U);
-    // A function cannot be read yet.
-    script->closure().push(runtime.state());
+    // A thread cannot be read yet.
+    lua_newthread(runtime.state());
 
     const auto pack = ValuePack::pop(runtime.state(), 2);
 

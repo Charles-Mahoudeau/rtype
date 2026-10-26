@@ -6,6 +6,7 @@
 */
 
 #include <gtest/gtest.h>
+#include <lua.h>
 
 #include <string>
 #include <utility>
@@ -91,8 +92,8 @@ TEST(CallContext, FromStackFailsForUnreadableArgument) {
     const auto runtime = makeRuntime();
     const auto script = runtime.load("chunk", "local _ = 1");
     ASSERT_TRUE(script);
-    // A function cannot be read yet.
-    script->closure().push(runtime.state());
+    // A thread cannot be read yet.
+    lua_newthread(runtime.state());
 
     const auto context = CallContext::fromStack(runtime.state());
 

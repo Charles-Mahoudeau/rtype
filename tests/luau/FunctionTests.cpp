@@ -220,7 +220,7 @@ TEST(Function, CallReturnsValuesInOrder) {
 
 TEST(Function, CallFailsForUnreadableReturnValue) {
     const auto runtime = makeRuntime();
-    const Function function = makeFunction(runtime, "return 1, function() end, 3");
+    const Function function = makeFunction(runtime, "return 1, coroutine.create(function() end), 3");
 
     const auto result = function.call();
 
@@ -230,11 +230,11 @@ TEST(Function, CallFailsForUnreadableReturnValue) {
 
 TEST(Function, UnreadableReturnValueDoesNotLeaveValuesOnStack) {
     const auto runtime = makeRuntime();
-    // Each call returns 100 numbers followed by a function. If they were left on the stack, they would add up
+    // Each call returns 100 numbers followed by a thread. If they were left on the stack, they would add up
     // past Luau's 8000-slot cap within 100 calls, and the call would fail with a stack overflow instead.
     const Function function = makeFunction(runtime, R"(
         local values = table.create(100, 0)
-        values[101] = function() end
+        values[101] = coroutine.create(function() end)
         return table.unpack(values, 1, 101)
     )");
     constexpr int kCalls = 100;
@@ -345,7 +345,7 @@ TEST(Function, NativeRaisesErrorForUnreadableArgument) {
         return {};
     });
     const Function function = makeFunction(runtime, R"(
-        local ok, err = pcall(native, 1, function() end)
+        local ok, err = pcall(native, 1, coroutine.create(function() end))
         assert(not ok)
         assert(string.find(err, "invalid argument to 'native' (value #2: ", 1, true), err)
     )");
