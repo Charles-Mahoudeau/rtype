@@ -6,12 +6,13 @@
 */
 
 #include <cmath>
+#include <format>
 #include <iostream>
-#include <rtype/luau/CallContext.hpp>
-#include <rtype/luau/Exceptions.hpp>
+#include <optional>
 #include <rtype/luau/Function.hpp>
 #include <rtype/luau/Runtime.hpp>
 #include <rtype/luau/ValuePack.hpp>
+#include <string>
 #include <utility>
 
 using namespace rtype::luau;
@@ -35,21 +36,25 @@ int main() {
     // `create` stores a native closure in the global `cpp_divide`, and every call from Luau runs the handler. It is
     // set before the script runs, since the script calls `cpp_divide` at its top level. `cppDivide` must stay alive
     // as long as Luau may call it.
+    // `bind` takes a typed handler: it checks that Luau passes two arguments and that both are numbers (`double`)
+    // before running the lambda, and raises a Lua error otherwise. To read the arguments yourself, use `setHandler`
+    // with a `CallContext` instead.
     Function cppDivide = Function::create(runtime->state(), "cpp_divide");
-    cppDivide.setHandler([](const CallContext& context) -> ValuePack {
-        // The handler receives the arguments in order, and checks there are as many as it expects: throwing an
-        // exception of the module raises a Lua error in the script.
-        const auto args = context.args();
-        if (args.size() != 2) {
-            throw exceptions::InvalidOperation{"expects 2 arguments"};
-        }
-        const double dividend = args[0].as<double>();
-        const double divisor = args[1].as<double>();
-
+    cppDivide.bind([](const double dividend, const double divisor) {
         // The values added to the returned pack are returned to Luau, in order.
         ValuePack results{};
         results.add({std::floor(dividend / divisor)});
         results.add({std::fmod(dividend, divisor)});
+        return results;
+    });
+
+    // A trailing `std::optional` parameter is optional for Luau: it may omit the argument or pass `nil`, and the
+    // handler then receives an empty optional. `cpp_greet("Ada")` and `cpp_greet("Ada", "Dr.")` are both valid, while
+    // `cpp_greet()` or `cpp_greet("Ada", "Dr.", 1)` raise a Lua error (expected 1 to 2 arguments).
+    Function cppGreet = Function::create(runtime->state(), "cpp_greet");
+    cppGreet.bind([](const std::string& name, const std::optional<std::string>& title) {
+        ValuePack results{};
+        results.add({title ? std::format("Hello, {} {}!", *title, name) : std::format("Hello, {}!", name)});
         return results;
     });
 
