@@ -1,0 +1,46 @@
+/*
+** EPITECH PROJECT, 2026
+** rtype
+** File description:
+** LibraryBuilder
+*/
+
+#include "LibraryBuilder.hpp"
+
+#include <cassert>
+#include <format>
+#include <string>
+#include <utility>
+
+#include "Function.hpp"
+#include "Runtime.hpp"
+#include "Table.hpp"
+#include "Value.hpp"
+
+namespace rtype::luau {
+LibraryBuilder::LibraryBuilder(Runtime& runtime) : _runtime{runtime} {
+    auto result = Table::create(_runtime.state());
+    if (!result) {
+        throw exceptions::RuntimeError{std::format("cannot create the library table: {}", result.error().message())};
+    }
+    _table = *result;
+}
+
+Library LibraryBuilder::build() { return Library{std::move(_name), std::move(*_table), std::move(_ownedMembers)}; }
+
+void LibraryBuilder::setName(const std::string& name) {
+    _name = name;
+    [[maybe_unused]] const auto result = _table->set("__name", {_name});
+    assert(result);
+}
+
+Function& LibraryBuilder::function(std::string name) {
+    auto& it = _ownedMembers.emplace_back(Function::create(_runtime.state(), name));
+    auto& function = std::get<Function>(it);
+    const auto result = table().set(Value{std::move(name)}, Value{function.ref()});
+    assert(result);
+    return function;
+}
+
+Table& LibraryBuilder::table() { return *_table; }
+}  // namespace rtype::luau
