@@ -20,6 +20,7 @@
 #include <variant>
 
 #include "ErrorKind.hpp"
+#include "Exceptions.hpp"
 #include "Failure.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
@@ -106,6 +107,9 @@ Value::Value(Value&&) noexcept = default;
 Value& Value::operator=(Value&&) noexcept = default;
 
 Result<void> Value::push(lua_State* state) const {
+    if (state == nullptr) {
+        throw exceptions::InvalidState{};
+    }
     return std::visit(Overload{
                           [state](const Nil) -> Result<void> {
                               lua_pushnil(state);

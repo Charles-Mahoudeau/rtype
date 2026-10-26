@@ -80,6 +80,7 @@ class RTYPE_LUAU_API Value {
     /// @param state The Lua state to push onto; must not be null.
     /// @return Nothing on success, or a Failure of kind `kRuntime` if the Value holds a `Table` of another Lua state
     ///         than @p state.
+    /// @throws exceptions::InvalidState If @p state is null.
     [[nodiscard]] Result<void> push(lua_State* state) const;
 
     /// @brief Checks whether the Value currently holds a `T`.

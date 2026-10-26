@@ -87,6 +87,7 @@ class RTYPE_LUAU_API ValuePack {
     /// @return The number of values pushed, or a Failure of kind `kStackOverflow` if the stack cannot grow enough
     ///         to hold every value, or the failure of `Value::push` for a value that cannot be pushed. Nothing stays
     ///         on the stack on failure.
+    /// @throws exceptions::InvalidState If @p state is null.
     [[nodiscard]] Result<std::size_t> push(lua_State* state) const;
 
   private:
