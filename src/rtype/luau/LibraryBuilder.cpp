@@ -13,6 +13,7 @@
 #include <utility>
 
 #include "Function.hpp"
+#include "Library.hpp"
 #include "Runtime.hpp"
 #include "Table.hpp"
 #include "Value.hpp"
