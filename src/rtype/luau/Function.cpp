@@ -20,6 +20,7 @@
 #include "ErrorKind.hpp"
 #include "Exceptions.hpp"
 #include "Failure.hpp"
+#include "FunctionRef.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
 #include "ValuePack.hpp"
