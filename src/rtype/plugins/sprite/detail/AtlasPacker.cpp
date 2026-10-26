@@ -91,7 +91,8 @@ PackedImages packImages(std::span<const std::filesystem::path> images, std::uint
             if (!rects) {
                 continue;
             }
-            PackedImages packed{.size = size, .pixels = std::vector<std::byte>(size.x * size.y * kChannels)};
+            PackedImages packed{
+                .size = size, .pixels = std::vector<std::byte>(static_cast<std::size_t>(size.x) * size.y * kChannels)};
             // stbrp_pack_rects() gives the rectangles back in the order they were given: the images' order.
             for (const stbrp_rect& rect : *rects) {
                 const Decoded& decodedImage = decoded.at(static_cast<std::size_t>(rect.id));
@@ -101,7 +102,8 @@ PackedImages packImages(std::span<const std::filesystem::path> images, std::uint
                 const std::span<const std::byte> source{image.pixels};
                 for (std::uint32_t row = 0; row < image.size.y; ++row) {
                     const std::span<const std::byte> line = source.subspan(row * rowBytes, rowBytes);
-                    const std::size_t offset = (((corner.y + row) * size.x) + corner.x) * kChannels;
+                    const std::size_t offset =
+                        ((static_cast<std::size_t>(corner.y + row) * size.x) + corner.x) * kChannels;
                     std::ranges::copy(line, std::next(packed.pixels.begin(), static_cast<std::ptrdiff_t>(offset)));
                 }
                 packed.placements.push_back(

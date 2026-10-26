@@ -92,7 +92,9 @@ SpriteAtlas SpriteAtlas::grid(std::string texturePath, glm::vec2 frameSize, std:
     SpriteAtlas atlas{std::move(texturePath), desc};
     const std::uint32_t perRow = columns == 0 ? count : columns;
     for (std::uint32_t index = 0; index < count; ++index) {
-        const glm::vec2 cell{static_cast<float>(index % perRow), static_cast<float>(index / perRow)};
+        const std::uint32_t column = index % perRow;
+        const std::uint32_t row = index / perRow;
+        const glm::vec2 cell{static_cast<float>(column), static_cast<float>(row)};
         atlas.addFrame(std::format("{}", index),
                        backend::math::Rect{offset + (cell * (frameSize + spacing)), frameSize});
     }

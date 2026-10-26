@@ -9,12 +9,13 @@
 
 #include <algorithm>
 #include <charconv>
-#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <format>
 #include <glm/ext/vector_float2.hpp>
+#include <memory>
 #include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -94,8 +95,8 @@ std::uint32_t readRepeat(const Json& tag) {
     }
     const std::string text = repeat.get<std::string>();
     std::uint32_t count = 0;
-    const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), count);
-    if (error != std::errc{} || end != text.data() + text.size()) {
+    const auto [end, error] = std::from_chars(text.c_str(), std::to_address(text.end()), count);
+    if (error != std::errc{} || end != std::to_address(text.end())) {
         throw exceptions::AtlasException{
             std::format("tag '{}': repeat '{}' is not a count", tag.at("name").get<std::string>(), text)};
     }

@@ -7,7 +7,6 @@
 
 #pragma once
 
-#include <cstddef>
 #include <cstdint>
 #include <glm/ext/vector_float2.hpp>
 #include <optional>
