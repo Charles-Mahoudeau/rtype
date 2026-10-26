@@ -22,6 +22,8 @@
 #include "ErrorKind.hpp"
 #include "Exceptions.hpp"
 #include "Failure.hpp"
+#include "Function.hpp"
+#include "FunctionRef.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
 #include "Value.hpp"
@@ -102,6 +104,26 @@ Result<Value> Table::get(const Value& key) const {
 Result<Value> Table::get(const std::string_view key) const { return get(Value{std::string{key}}); }
 
 Result<Value> Table::getAt(const std::size_t index) const { return get(Value{static_cast<double>(index)}); }
+
+Result<FunctionRef> Table::functionRef(const std::string_view key) const {
+    auto result = get(key);
+    if (!result) {
+        return forwardError<FunctionRef>(std::move(result));
+    }
+    const auto* const ref = result->tryAs<FunctionRef>();
+    if (ref == nullptr) {
+        return Failure{ErrorKind::kTypeMismatch, std::format("'{}' is not a function", key)};
+    }
+    return *ref;
+}
+
+Result<Function> Table::function(const std::string_view key) const {
+    auto ref = functionRef(key);
+    if (!ref) {
+        return forwardError<Function>(std::move(ref));
+    }
+    return Function::fromRef(*ref, std::string{key});
+}
 
 Result<void> Table::set(const Value& key, const Value& value) {
     if (key.is<Value::Nil>()) {

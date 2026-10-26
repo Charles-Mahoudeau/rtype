@@ -66,13 +66,11 @@ int main() {
 
     // C++ -> Luau
     // `apply_damage` is defined by the script, so it is looked up once the script has run.
-    auto applyDamageResult = runtime->globals().get("apply_damage");
-    const FunctionRef* applyDamageRef = applyDamageResult ? applyDamageResult->tryAs<FunctionRef>() : nullptr;
-    if (applyDamageRef == nullptr) {
-        std::cerr << "the script did not define apply_damage" << std::endl;
+    auto applyDamage = runtime->globals().function("apply_damage");
+    if (!applyDamage) {
+        std::cerr << "failed to get apply_damage: " << applyDamage.error().message() << std::endl;
         return 1;
     }
-    const Function applyDamage = Function::fromRef(*applyDamageRef, "apply_damage");
 
     // The arguments are added in order: the first one becomes the first parameter of the Luau function.
     ValuePack args{};
@@ -81,7 +79,7 @@ int main() {
     args.add({true});  // shielded
 
     // `call` returns the values of the `return` statement in order, or an error if the function failed.
-    const auto results = applyDamage.call(args);
+    const auto results = applyDamage->call(args);
     if (!results) {
         std::cerr << "failed to call apply_damage: " << results.error().message() << std::endl;
         return 1;

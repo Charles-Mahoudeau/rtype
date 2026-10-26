@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "Export.hpp"
+#include "FunctionRef.hpp"
 #include "MapHelper.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
@@ -24,6 +25,7 @@
 struct lua_State;
 
 namespace rtype::luau {
+class Function;
 class Value;
 /// @brief Handle on a table that lives in a Luau state.
 ///
@@ -82,6 +84,16 @@ class RTYPE_LUAU_API Table {
     /// @param index 1-based index, matching the Luau convention.
     /// @return Same as `get(const Value&)`.
     [[nodiscard]] Result<Value> getAt(std::size_t index) const;
+
+    /// @brief Reads the function stored under a string key.
+    /// @param key Key to look up.
+    /// @return A handle on the function, or a Failure of kind `kTypeMismatch` if the entry is absent or is not a
+    ///         function, or the Failure of `get(std::string_view)`.
+    [[nodiscard]] Result<FunctionRef> functionRef(std::string_view key) const;
+    /// @brief Reads the function stored under a string key, ready to be called.
+    /// @param key Key to look up; also used as the name of the returned Function.
+    /// @return Same as `functionRef`, as a `Function`.
+    [[nodiscard]] Result<Function> function(std::string_view key) const;
 
     /// @brief Stores a value under a key, overwriting the existing one. Storing `nil` removes the entry.
     /// @param key Key to store the value under; cannot be `nil` or NaN.
