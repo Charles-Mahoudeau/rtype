@@ -488,3 +488,49 @@ TEST(Table, ToMapOfEmptyTableIsEmpty) {
     ASSERT_TRUE(map);
     EXPECT_TRUE(map->empty());
 }
+
+TEST(Table, FunctionReadsAFunctionDefinedByAScript) {
+    const auto runtime = makeRuntime();
+    const Table table = runForTable(runtime, "return {double = function(x) return x * 2 end}");
+
+    const auto function = table.function("double");
+
+    ASSERT_TRUE(function);
+    ValuePack args{};
+    args.add({21.0});
+    const auto results = function->call(args);
+    ASSERT_TRUE(results);
+    ASSERT_EQ(results->size(), 1U);
+    EXPECT_DOUBLE_EQ(results->values()[0].as<double>(), 42.0);
+}
+
+TEST(Table, FunctionRefReadsAFunctionDefinedByAScript) {
+    const auto runtime = makeRuntime();
+    const Table table = runForTable(runtime, "return {noop = function() end}");
+
+    EXPECT_TRUE(table.functionRef("noop"));
+}
+
+TEST(Table, FunctionFailsForMissingKey) {
+    const auto runtime = makeRuntime();
+    const Table table = Table::create(runtime.state()).value();
+
+    const auto function = table.function("missing");
+
+    ASSERT_FALSE(function);
+    EXPECT_EQ(function.error().kind(), ErrorKind::kTypeMismatch);
+    EXPECT_NE(function.error().message().find("missing"), std::string::npos);
+}
+
+TEST(Table, FunctionFailsForAnotherType) {
+    const auto runtime = makeRuntime();
+    const Table table = runForTable(runtime, "return {hp = 3}");
+
+    const auto function = table.function("hp");
+    const auto ref = table.functionRef("hp");
+
+    ASSERT_FALSE(function);
+    EXPECT_EQ(function.error().kind(), ErrorKind::kTypeMismatch);
+    ASSERT_FALSE(ref);
+    EXPECT_EQ(ref.error().kind(), ErrorKind::kTypeMismatch);
+}
