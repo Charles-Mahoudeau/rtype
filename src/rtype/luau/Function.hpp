@@ -46,11 +46,13 @@ class RTYPE_LUAU_API Function {
     /// error, with its message unchanged, and so does anything else that is thrown, with a generic message.
     using Handler = std::function<ValuePack(const CallContext&)>;
 
-    /// @brief Creates a native closure bound to a new Function and registers it as a global of the Lua state.
+    /// @brief Creates a native closure bound to a new Function.
     ///
-    /// The closure has no handler yet: calling it from Lua raises a Lua error until `setHandler` gives it one.
+    /// The closure is not stored anywhere: it is only reachable through `ref()`, so store it (in a table, or in the
+    /// globals) for Lua to call it. It has no handler yet: calling it from Lua raises a Lua error until `setHandler`
+    /// gives it one.
     /// @param state The Lua state to create the closure in.
-    /// @param name Name of the global the closure is stored in, also used as its debug name and in error messages.
+    /// @param name Debug name of the closure, also used in error messages.
     /// @return The Function bound to the new closure.
     [[nodiscard]] static Function create(lua_State* state, std::string name);
 

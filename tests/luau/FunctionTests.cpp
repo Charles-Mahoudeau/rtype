@@ -54,6 +54,14 @@ Function makeFunction(const rtype::luau::Runtime& runtime, const std::string& so
     return Function::fromRef(rtype::luau::Ref::pop(runtime.state()), "function");
 }
 
+/// @brief Creates a native Function and stores its closure in the global `native`.
+Function makeNative(const rtype::luau::Runtime& runtime) {
+    Function native = Function::create(runtime.state(), "native");
+    const auto result = runtime.globals().set("native", Value{native.ref()});
+    EXPECT_TRUE(result);
+    return native;
+}
+
 /// @brief Builds arguments whose last one cannot be pushed, after @p validArgs pushable ones.
 ///
 /// The last one is a table of @p foreign, which no other runtime can push; @p foreign must outlive the arguments.
@@ -248,7 +256,7 @@ TEST(Function, UnreadableReturnValueDoesNotLeaveValuesOnStack) {
 
 TEST(Function, NativeReceivesArgumentsInOrder) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     std::vector<Value> received{};
     native.setHandler([&received](const CallContext& context) -> ValuePack {
         received.assign(context.args().begin(), context.args().end());
@@ -267,7 +275,7 @@ TEST(Function, NativeReceivesArgumentsInOrder) {
 
 TEST(Function, NativeReturnsValuesInOrder) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     native.setHandler([](const CallContext&) -> ValuePack {
         ValuePack result{};
         result.add({std::string{"first"}});
@@ -287,7 +295,7 @@ TEST(Function, NativeReturnsValuesInOrder) {
 
 TEST(Function, NativeWithoutValuesReturnsNothing) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     native.setHandler([](const CallContext&) -> ValuePack { return {}; });
     const Function function = makeFunction(runtime, R"(assert(select("#", native(1, 2)) == 0))");
 
@@ -296,7 +304,7 @@ TEST(Function, NativeWithoutValuesReturnsNothing) {
 
 TEST(Function, NativeEchoesArgumentsBackToLuau) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     native.setHandler([](const CallContext& context) -> ValuePack {
         ValuePack result{};
         for (const Value& arg : context.args()) {
@@ -320,7 +328,7 @@ TEST(Function, NativeEchoesArgumentsBackToLuau) {
 TEST(Function, NativeReturnsMoreValuesThanMinimumStack) {
     const auto runtime = makeRuntime();
     constexpr std::size_t kValueCount = 1000;
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     native.setHandler([](const CallContext&) -> ValuePack {
         ValuePack result{};
         for (std::size_t i = 0; i < kValueCount; ++i) {
@@ -338,7 +346,7 @@ TEST(Function, NativeReturnsMoreValuesThanMinimumStack) {
 
 TEST(Function, NativeRaisesErrorForUnreadableArgument) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     bool called{false};
     native.setHandler([&called](const CallContext&) -> ValuePack {
         called = true;
@@ -359,7 +367,7 @@ TEST(Function, NativeRaisesErrorForUnreadableArgument) {
 TEST(Function, NativeRaisesErrorForUnpushableValue) {
     const auto runtime = makeRuntime();
     const auto foreign = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     native.setHandler([&foreign](const CallContext&) -> ValuePack {
         ValuePack result{};
         result.add({rtype::luau::Table::create(foreign.state()).value()});
@@ -378,7 +386,7 @@ TEST(Function, NativeRaisesErrorForUnpushableValue) {
 
 TEST(Function, NativeRaisesErrorWhenHandlerThrowsModuleException) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     native.setHandler([](const CallContext&) -> ValuePack { throw rtype::luau::exceptions::InvalidOperation{"boom"}; });
     const Function function = makeFunction(runtime, R"(
         local ok, err = pcall(native)
@@ -393,7 +401,7 @@ TEST(Function, NativeRaisesErrorWhenHandlerThrowsModuleException) {
 
 TEST(Function, NativeRaisesErrorWhenHandlerThrowsStdException) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     native.setHandler([](const CallContext&) -> ValuePack { throw std::runtime_error{"oops"}; });
     const Function function = makeFunction(runtime, "native()");
 
@@ -406,7 +414,7 @@ TEST(Function, NativeRaisesErrorWhenHandlerThrowsStdException) {
 
 TEST(Function, NativeRaisesErrorWhenHandlerThrowsNonStdException) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     native.setHandler([](const CallContext&) -> ValuePack { throw 42; });
     const Function function = makeFunction(runtime, "native()");
 
@@ -419,7 +427,7 @@ TEST(Function, NativeRaisesErrorWhenHandlerThrowsNonStdException) {
 
 TEST(Function, NativeHandlerCanCallBackIntoLuau) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     // The handler calls back into Luau: the nested call runs in protected mode, so its error comes back as a
     // Result and the native call itself succeeds.
     const Function failing = makeFunction(runtime, "error('nested', 0)");
@@ -438,7 +446,7 @@ TEST(Function, NativeHandlerCanCallBackIntoLuau) {
 
 TEST(Function, NativeCallsDoNotLeaveValuesOnStack) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     native.setHandler([](const CallContext& context) -> ValuePack {
         ValuePack result{};
         for (const Value& arg : context.args()) {
@@ -470,7 +478,7 @@ void expectChunkSucceeds(const rtype::luau::Runtime& runtime, const std::string&
 
 TEST(FunctionBind, ReadsTypedArgumentsInOrder) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     std::string name{};
     double number{};
     bool flag{};
@@ -490,7 +498,7 @@ TEST(FunctionBind, ReadsTypedArgumentsInOrder) {
 
 TEST(FunctionBind, ReadsVectorTableAndNilArguments) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     Value::Vector vector{};
     bool tableRead = false;
     bool nilRead = false;
@@ -510,7 +518,7 @@ TEST(FunctionBind, ReadsVectorTableAndNilArguments) {
 
 TEST(FunctionBind, ReturnsValuesToLua) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     native.bind([](const double a, const double b) {
         ValuePack result{};
         result.add({a + b});
@@ -526,7 +534,7 @@ TEST(FunctionBind, ReturnsValuesToLua) {
 
 TEST(FunctionBind, AcceptsHandlerWithoutParameters) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     int calls = 0;
     native.bind([&calls]() {
         ++calls;
@@ -543,7 +551,7 @@ TEST(FunctionBind, AcceptsHandlerWithoutParameters) {
 
 TEST(FunctionBind, AcceptsFunctionPointer) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     native.bind(+[](const double d) {
         ValuePack result{};
         result.add({d * 2});
@@ -555,7 +563,7 @@ TEST(FunctionBind, AcceptsFunctionPointer) {
 
 TEST(FunctionBind, RaisesErrorForWrongArgumentCountWithoutRunningHandler) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     int calls = 0;
     native.bind([&calls](const double, const double) {
         ++calls;
@@ -574,7 +582,7 @@ TEST(FunctionBind, RaisesErrorForWrongArgumentCountWithoutRunningHandler) {
 
 TEST(FunctionBind, RaisesErrorNamingArgumentAndTypesForWrongType) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     int calls = 0;
     native.bind([&calls](const double, const double) {
         ++calls;
@@ -595,7 +603,7 @@ TEST(FunctionBind, RaisesErrorNamingArgumentAndTypesForWrongType) {
 
 TEST(FunctionBind, OptionalTrailingArgumentsMayBeOmittedOrNil) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     std::vector<std::string> calls{};
     native.bind([&calls](const double, const std::optional<std::string>& label, const std::optional<double> extra) {
         calls.push_back(std::format("{}/{}", label.value_or("-"), extra ? "x" : "-"));
@@ -620,7 +628,7 @@ TEST(FunctionBind, OptionalTrailingArgumentsMayBeOmittedOrNil) {
 
 TEST(FunctionBind, CallsDoNotLeaveValuesOnStack) {
     const auto runtime = makeRuntime();
-    Function native = Function::create(runtime.state(), "native");
+    Function native = makeNative(runtime);
     native.bind([](const double d) {
         ValuePack result{};
         result.add({d});

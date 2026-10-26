@@ -31,8 +31,6 @@ Function Function::create(lua_State* state, std::string name) {
     lua_pushlightuserdata(state, &func);
     lua_pushcclosure(state, &Function::handle, func.cStrName(), 1);
     func.setRef(Ref::pop(state));
-    func._ref.ref().push(state);
-    lua_setglobal(state, func.cStrName());
     return func;
 }
 

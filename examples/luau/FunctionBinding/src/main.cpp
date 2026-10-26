@@ -12,6 +12,7 @@
 #include <rtype/luau/Function.hpp>
 #include <rtype/luau/FunctionRef.hpp>
 #include <rtype/luau/Runtime.hpp>
+#include <rtype/luau/Value.hpp>
 #include <rtype/luau/ValuePack.hpp>
 #include <string>
 #include <utility>
@@ -34,9 +35,9 @@ int main() {
     }
 
     // Luau -> C++
-    // `create` stores a native closure in the global `cpp_divide`, and every call from Luau runs the handler. It is
-    // set before the script runs, since the script calls `cpp_divide` at its top level. `cppDivide` must stay alive
-    // as long as Luau may call it.
+    // `create` makes a native closure, which is stored in the global `cpp_divide` to make it callable from Luau: every
+    // call from Luau then runs the handler. It is set before the script runs, since the script calls `cpp_divide` at
+    // its top level. `cppDivide` must stay alive as long as Luau may call it.
     // `bind` takes a typed handler: it checks that Luau passes two arguments and that both are numbers (`double`)
     // before running the lambda, and raises a Lua error otherwise. To read the arguments yourself, use `setHandler`
     // with a `CallContext` instead.
@@ -48,6 +49,10 @@ int main() {
         results.add({std::fmod(dividend, divisor)});
         return results;
     });
+    if (const auto result = runtime->globals().set("cpp_divide", Value{cppDivide.ref()}); !result) {
+        std::cerr << "failed to register cpp_divide: " << result.error().message() << std::endl;
+        return 1;
+    }
 
     // A trailing `std::optional` parameter is optional for Luau: it may omit the argument or pass `nil`, and the
     // handler then receives an empty optional. `cpp_greet("Ada")` and `cpp_greet("Ada", "Dr.")` are both valid, while
@@ -58,6 +63,10 @@ int main() {
         results.add({title ? std::format("Hello, {} {}!", *title, name) : std::format("Hello, {}!", name)});
         return results;
     });
+    if (const auto result = runtime->globals().set("cpp_greet", Value{cppGreet.ref()}); !result) {
+        std::cerr << "failed to register cpp_greet: " << result.error().message() << std::endl;
+        return 1;
+    }
 
     if (auto result = runtime->run(*script); !result) {
         std::cerr << "failed to run script: " << result.error().message() << std::endl;

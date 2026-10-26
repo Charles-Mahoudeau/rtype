@@ -61,7 +61,7 @@ int main() {
     }
 
     // Luau -> C++
-    // `create` makes a native closure and stores it in the global `cpp_reverse`, so the script calls it like any
+    // `create` makes a native closure, which is stored in the global `cpp_reverse` so the script calls it like any
     // Luau function. The script calls it at its top level, so the handler is set before the script runs: until
     // then, calling it raises a Lua error. `cppReverse` must outlive every call from Luau: once it is destroyed,
     // calling the closure raises a Lua error instead of reaching a dangling object.
@@ -85,6 +85,10 @@ int main() {
         }
         return reversed;
     });
+    if (const auto result = runtime->globals().set("cpp_reverse", Value{cppReverse.ref()}); !result) {
+        std::cerr << "failed to register cpp_reverse: " << result.error().message() << std::endl;
+        return 1;
+    }
 
     // Run the script: it calls `cpp_reverse`, then defines the global function `luau_reverse`.
     if (auto result = runtime->run(*script); !result) {
