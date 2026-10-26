@@ -85,9 +85,9 @@ class RTYPE_LUAU_API Function {
     /// @return A reference to this Function.
     Function& operator=(Function&& other) noexcept;
 
-    /// @brief Gives access to the registry reference to the wrapped function.
-    /// @return The reference, empty if the Function was moved from.
-    [[nodiscard]] const Ref& ref() const noexcept;
+    /// @brief Gives access to the handle on the wrapped function.
+    /// @return The handle, empty if the Function was moved from.
+    [[nodiscard]] const FunctionRef& ref() const noexcept;
 
     /// @brief Sets the C++ handler run when Lua calls the native closure, replacing the previous one.
     /// @param handler The handler to run; an empty one makes calls from Lua raise a Lua error.
@@ -129,9 +129,9 @@ class RTYPE_LUAU_API Function {
     /// @brief Creates a Function wrapping an existing function.
     /// @param state The Lua state the function lives in.
     /// @param type Where the body of the function lives.
-    /// @param ref Reference to the function.
+    /// @param ref Handle on the function.
     /// @param name Name used in error messages.
-    Function(lua_State* state, BindingType type, Ref ref, std::string name = "unknown");
+    Function(lua_State* state, BindingType type, FunctionRef ref, std::string name = "unknown");
 
     /// @brief Creates a native Function that references no closure yet; `create` makes and binds it.
     /// @param state The Lua state the closure will live in.
@@ -174,7 +174,7 @@ class RTYPE_LUAU_API Function {
 
     lua_State* _state;  ///< Lua state the function lives in.
     BindingType _type;  ///< Where the body of the wrapped function lives.
-    Ref _ref;           ///< Registry reference to the function.
+    FunctionRef _ref;   ///< Handle on the function.
     std::string _name;  ///< Name used in error messages.
     Handler _handler;   ///< C++ handler called by the native closure.
 };

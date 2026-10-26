@@ -16,6 +16,8 @@
 struct lua_State;
 
 namespace rtype::luau {
+class Function;
+
 /// @brief Copyable handle on a Luau function, kept alive through a registry reference.
 ///
 /// A pure handle: it can be held, copied and pushed back to Lua, but not called. Turn it into a callable
@@ -44,6 +46,10 @@ class RTYPE_LUAU_API FunctionRef {
     /// @brief Move assignment.
     FunctionRef& operator=(FunctionRef&&) noexcept = default;
 
+    /// @brief Tells whether the handle holds a registry reference.
+    /// @return False if the handle was moved from, true otherwise.
+    [[nodiscard]] bool isValid() const noexcept;
+
     /// @brief Gives access to the registry reference to the function.
     /// @return The reference.
     /// @throws exceptions::InvalidRef If the handle was moved from.
@@ -61,8 +67,13 @@ class RTYPE_LUAU_API FunctionRef {
     [[nodiscard]] Result<void> push(lua_State* state) const;
 
   private:
+    friend class Function;
+
+    /// @brief Creates an empty handle, which references nothing until a valid one is assigned to it.
+    FunctionRef() noexcept = default;
+
     /// @brief Wraps a reference to a function.
-    /// @param ref Registry reference to the function.
+    /// @param ref Registry reference to the function; the caller makes sure it references a function.
     explicit FunctionRef(Ref ref);
 
     std::shared_ptr<Ref> _ref;  ///< Registry reference to the function, shared by every copy of the handle.

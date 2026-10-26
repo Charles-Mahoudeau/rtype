@@ -31,6 +31,8 @@ Result<FunctionRef> FunctionRef::fromStack(lua_State* state, const int stackInde
     return FunctionRef{Ref{state, stackIndex}};
 }
 
+bool FunctionRef::isValid() const noexcept { return _ref && _ref->isValid(); }
+
 const Ref& FunctionRef::ref() const {
     if (!_ref) {
         throw exceptions::InvalidRef{};

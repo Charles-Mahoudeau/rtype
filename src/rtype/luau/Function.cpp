@@ -31,19 +31,18 @@ Function Function::create(lua_State* state, std::string name) {
     lua_pushlightuserdata(state, &func);
     lua_pushcclosure(state, &Function::handle, func.cStrName(), 1);
     func.setRef(Ref::pop(state));
-    func.ref().push(state);
+    func._ref.ref().push(state);
     lua_setglobal(state, func.cStrName());
     return func;
 }
 
 Function Function::fromRef(Ref ref, std::string name) {
-    return Function{ref.state(), BindingType::kScript, std::move(ref), std::move(name)};
+    lua_State* const state{ref.state()};
+    return Function{state, BindingType::kScript, FunctionRef{std::move(ref)}, std::move(name)};
 }
 
 Function Function::fromRef(const FunctionRef& ref, std::string name) {
-    lua_State* const state{ref.ref().state()};
-    ref.ref().push(state);
-    return fromRef(Ref::pop(state), std::move(name));
+    return Function{ref.ref().state(), BindingType::kScript, ref, std::move(name)};
 }
 
 Function::~Function() { rebindUpvalue(this, nullptr); }
@@ -76,7 +75,7 @@ Function& Function::operator=(Function&& other) noexcept {
     return *this;
 }
 
-const Ref& Function::ref() const noexcept { return _ref; }
+const FunctionRef& Function::ref() const noexcept { return _ref; }
 
 void Function::setHandler(Handler handler) { _handler = std::move(handler); }
 
@@ -85,7 +84,7 @@ Result<ValuePack> Function::call(const ValuePack& args) const {
         std::cerr << "warning: you are calling a native function from a script binding" << std::endl;
     }
     const int top{lua_gettop(_state)};
-    _ref.push(_state);
+    _ref.ref().push(_state);
     auto argCount = args.push(_state);
     if (!argCount) {
         // Drop the function, to leave the stack as it was.
@@ -111,7 +110,7 @@ Result<ValuePack> Function::call(const ValuePack& args) const {
     return results;
 }
 
-Function::Function(lua_State* state, const BindingType type, Ref ref, std::string name)
+Function::Function(lua_State* state, const BindingType type, FunctionRef ref, std::string name)
     : _state{state}, _type{type}, _ref{std::move(ref)}, _name{std::move(name)} {}
 
 Function::Function(lua_State* state, const BindingType type, std::string name)
@@ -125,14 +124,14 @@ void Function::setRef(Ref ref) {
     if (_type == BindingType::kScript) {
         throw exceptions::InvalidOperation{"unable to bind a script function"};
     }
-    _ref = std::move(ref);
+    _ref = FunctionRef{std::move(ref)};
 }
 
 void Function::rebindUpvalue(const Function* from, Function* to) const noexcept {
     if (!_ref.isValid()) {
         return;
     }
-    _ref.push(_state);
+    _ref.ref().push(_state);
     if (lua_tocfunction(_state, -1) == &Function::handle && lua_getupvalue(_state, -1, 1) != nullptr) {
         const bool bound = lua_touserdata(_state, -1) == from;
         lua_pop(_state, 1);
