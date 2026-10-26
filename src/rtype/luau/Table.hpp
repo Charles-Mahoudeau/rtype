@@ -26,6 +26,7 @@ struct lua_State;
 
 namespace rtype::luau {
 class Function;
+class Library;
 class Value;
 /// @brief Handle on a table that lives in a Luau state.
 ///
@@ -94,6 +95,11 @@ class RTYPE_LUAU_API Table {
     /// @param key Key to look up; also used as the name of the returned Function.
     /// @return Same as `functionRef`, as a `Function`.
     [[nodiscard]] Result<Function> function(std::string_view key) const;
+
+    /// @brief Stores a library's table under the library's name, making it reachable from scripts.
+    /// @param library Library to register.
+    /// @return Nothing on success, or the failure of `set`.
+    [[nodiscard]] Result<void> registerLibrary(const Library& library);
 
     /// @brief Stores a value under a key, overwriting the existing one. Storing `nil` removes the entry.
     /// @param key Key to store the value under; cannot be `nil` or NaN.

@@ -24,6 +24,7 @@
 #include "Failure.hpp"
 #include "Function.hpp"
 #include "FunctionRef.hpp"
+#include "Library.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
 #include "Value.hpp"
@@ -125,6 +126,9 @@ Result<Function> Table::function(const std::string_view key) const {
     return Function::fromRef(*ref, std::string{key});
 }
 
+Result<void> Table::registerLibrary(const Library& library) { return set(library.name(), Value{library.table()}); }
+
+// ReSharper disable once CppMemberFunctionMayBeConst
 Result<void> Table::set(const Value& key, const Value& value) {
     if (key.is<Value::Nil>()) {
         return Failure{ErrorKind::kTypeMismatch, "table index is nil"};
