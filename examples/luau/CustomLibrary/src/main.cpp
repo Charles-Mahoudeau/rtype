@@ -52,11 +52,11 @@ int main() {
         return results;
     });
 
-    Library library = builder.build();
+    const Library library = builder.build();
 
     // `build` hands over the finished table. Setting it as a global makes it reachable from every script, as `math`
     // or `string` are.
-    if (auto result = runtime->globals().set("mathx", Value{library.table()}); !result) {
+    if (auto result = runtime->globals().registerLibrary(library); !result) {
         std::cerr << "failed to register mathx: " << result.error().message() << std::endl;
         return 1;
     }
