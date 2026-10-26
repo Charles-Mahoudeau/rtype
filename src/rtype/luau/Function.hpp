@@ -85,6 +85,25 @@ class RTYPE_LUAU_API Function {
     /// @param handler The handler to run; an empty one makes calls from Lua raise a Lua error.
     void setHandler(Handler handler);
 
+    /// @brief Sets a typed C++ handler run when Lua calls the native closure, replacing the previous one.
+    ///
+    /// Unlike `setHandler`, the handler takes its arguments directly instead of a `CallContext`: `bind` checks that
+    /// Lua passed as many arguments as the handler has parameters and that each one holds the type of its parameter,
+    /// and raises a Lua error (an `exceptions::RuntimeError` naming the faulty argument, the type it expected and the
+    /// one it got) otherwise, without running the handler. The returned pack is returned to Lua, as with
+    /// `setHandler`.
+    ///
+    /// Each parameter must be taken by value or by `const&` (not `&` or `&&`), and its type, without cv-qualifiers and
+    /// reference, must be one of the alternatives of `Value::Variant` (for example `double` for a number, not `int` or
+    /// `float`). Trailing parameters may be `std::optional<T>` of such a type: Lua may then omit the argument or pass
+    /// `nil`, and the handler receives an empty optional. No required parameter may follow an optional one. The
+    /// callable must be copy-constructible and deducible by `std::function`, so move-only captures, generic lambdas
+    /// and overloaded functors are not supported.
+    /// @tparam F Type of the callable, returning a `ValuePack`.
+    /// @param f The callable to run; it is copied or moved into the Function.
+    template <typename F>
+    void bind(F&& f);
+
     /// @brief Calls the wrapped function in protected mode with the given arguments, and reads the values it returns.
     ///
     /// Prints a warning on `std::cerr` if the Function wraps a native closure. If the call fails, the Lua stack is
@@ -152,3 +171,7 @@ class RTYPE_LUAU_API Function {
     Handler _handler;   ///< C++ handler called by the native closure.
 };
 }  // namespace rtype::luau
+
+#define RTYPE_FUNCTION_INCLUDING_TPP
+#include "Function.tpp"  // IWYU pragma: export
+#undef RTYPE_FUNCTION_INCLUDING_TPP
