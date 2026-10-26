@@ -23,6 +23,7 @@
 #include "ErrorKind.hpp"
 #include "Exceptions.hpp"
 #include "Failure.hpp"
+#include "FunctionRef.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
 #include "Table.hpp"
@@ -84,6 +85,13 @@ Result<Value> Value::fromStack(lua_State* state, const int stackIndex) {
             }
             return Value{std::move(*table)};
         }
+        case LUA_TFUNCTION: {
+            auto function = FunctionRef::fromStack(state, stackIndex);
+            if (!function) {
+                return forwardError<Value>(std::move(function));
+            }
+            return Value{std::move(*function)};
+        }
         default:
             return Failure{ErrorKind::kTypeMismatch,
                            std::format("cannot read a value of type '{}' yet", lua_typename(state, type))};
@@ -138,6 +146,7 @@ Result<void> Value::push(lua_State* state) const {
                               return {};
                           },
                           [state](const Table& v) -> Result<void> { return v.push(state); },
+                          [state](const FunctionRef& v) -> Result<void> { return v.push(state); },
                       },
                       _variant);
 }
