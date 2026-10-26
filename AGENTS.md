@@ -289,6 +289,10 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
     #include <cassert>
     #include <utility>
     ```
+  - Include paths: avoid `#include "../MyInclude.hpp"` as much as possible (really). A sibling file (same
+    folder) is included by its bare name (`"Window.hpp"`); anything else in the engine is included from the
+    `src/` root as `"rtype/<module>/..."` (e.g. `"rtype/ecs/entity/Entity.hpp"`, `"rtype/plugins/backend/..."`),
+    never through a relative path going up the tree.
   - Include order is handled by `clang-format`: run it instead of ordering includes by hand.
 
 ## Definition of done
