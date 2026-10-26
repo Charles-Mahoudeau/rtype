@@ -12,10 +12,10 @@
 #include <string>
 
 #include "Library.hpp"
-#include "Table.hpp"
 
 namespace rtype::luau {
 class Runtime;
+class Table;
 
 /// @brief Builds a Library step by step: sets its name and registers its members.
 ///

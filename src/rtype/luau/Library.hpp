@@ -13,9 +13,9 @@
 #include <variant>
 
 #include "Function.hpp"
-#include "rtype/luau/Table.hpp"
 
 namespace rtype::luau {
+class Table;
 class LibraryBuilder;
 
 /// @brief A named Luau library: a table of members (functions...) that scripts can use.
