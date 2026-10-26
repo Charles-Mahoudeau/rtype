@@ -23,6 +23,11 @@ class Function;
 /// A pure handle: it can be held, copied and pushed back to Lua, but not called. Turn it into a callable
 /// `Function` with `Function::fromRef`. Every copy shares the same registry reference, which is released with the
 /// last copy. The referenced `lua_State` must outlive the handle.
+///
+/// @note Naming convention: a `*Ref` type is a bare handle, while a type without the suffix adds operations to it.
+///       `Table` is a handle with its operations built in. A function cannot be, because calling it needs
+///       `ValuePack`, which includes `Value.hpp`, so the handle stays here and `Function` adds `call` and the native
+///       binding.
 class RTYPE_LUAU_API FunctionRef {
   public:
     /// @brief Reads a function from the stack of a Lua state.
