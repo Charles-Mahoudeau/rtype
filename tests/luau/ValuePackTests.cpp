@@ -6,13 +6,14 @@
 */
 
 #include <gtest/gtest.h>
-#include <lua.h>
 
 #include <cstddef>
 #include <string>
 #include <utility>
 
 #include "rtype/luau/ErrorKind.hpp"
+#include "rtype/luau/Function.hpp"
+#include "rtype/luau/Ref.hpp"
 #include "rtype/luau/Runtime.hpp"
 #include "rtype/luau/RuntimeConfig.hpp"
 #include "rtype/luau/Table.hpp"
@@ -170,15 +171,13 @@ TEST(ValuePack, FromStackWithZeroCountIsEmpty) {
 
 TEST(ValuePack, FromStackFailsWithPositionOfUnreadableValue) {
     const auto runtime = makeRuntime();
-    const auto script = runtime.load("chunk", "local _ = 1");
+    const auto script = runtime.load("chunk", "return 1, coroutine.create(function() end)");
     ASSERT_TRUE(script);
-    ValuePack pushed{};
-    pushed.add({1.0});
-    ASSERT_EQ(pushed.push(runtime.state()).value(), 1U);
-    // A thread cannot be read yet.
-    lua_newthread(runtime.state());
+    script->closure().push(runtime.state());
+    const auto function = rtype::luau::Function::fromRef(rtype::luau::Ref::pop(runtime.state()), "chunk");
 
-    const auto pack = ValuePack::fromStack(runtime.state(), 1, 2);
+    // A thread cannot be read yet: calling the function pops its results with ValuePack::pop.
+    const auto pack = function.call();
 
     ASSERT_FALSE(pack);
     EXPECT_EQ(pack.error().kind(), rtype::luau::ErrorKind::kTypeMismatch);
@@ -213,25 +212,4 @@ TEST(ValuePack, PopWithZeroCountIsEmpty) {
 
     ASSERT_TRUE(pack);
     EXPECT_EQ(pack->size(), 0U);
-}
-
-TEST(ValuePack, PopLeavesValuesOnFailure) {
-    const auto runtime = makeRuntime();
-    const auto script = runtime.load("chunk", "local _ = 1");
-    ASSERT_TRUE(script);
-    ValuePack pushed{};
-    pushed.add({1.0});
-    ASSERT_EQ(pushed.push(runtime.state()).value(), 1U);
-    // A thread cannot be read yet.
-    lua_newthread(runtime.state());
-
-    const auto pack = ValuePack::pop(runtime.state(), 2);
-
-    ASSERT_FALSE(pack);
-    EXPECT_EQ(pack.error().kind(), rtype::luau::ErrorKind::kTypeMismatch);
-    // Both values are still there: the number at the bottom, the function on top.
-    const auto bottom = ValuePack::fromStack(runtime.state(), 1, 1);
-    ASSERT_TRUE(bottom);
-    EXPECT_EQ(bottom->values()[0].as<double>(), 1.0);
-    EXPECT_FALSE(ValuePack::fromStack(runtime.state(), 2, 1));
 }

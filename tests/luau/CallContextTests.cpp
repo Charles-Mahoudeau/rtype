@@ -6,13 +6,14 @@
 */
 
 #include <gtest/gtest.h>
-#include <lua.h>
 
 #include <string>
 #include <utility>
 
 #include "rtype/luau/CallContext.hpp"
 #include "rtype/luau/ErrorKind.hpp"
+#include "rtype/luau/Function.hpp"
+#include "rtype/luau/Ref.hpp"
 #include "rtype/luau/Runtime.hpp"
 #include "rtype/luau/RuntimeConfig.hpp"
 #include "rtype/luau/Value.hpp"
@@ -90,13 +91,21 @@ TEST(CallContext, FromStackOfEmptyStackHasNoArguments) {
 
 TEST(CallContext, FromStackFailsForUnreadableArgument) {
     const auto runtime = makeRuntime();
-    const auto script = runtime.load("chunk", "local _ = 1");
+    auto native = rtype::luau::Function::create(runtime.state(), "native");
+    bool handlerRan{false};
+    native.setHandler([&handlerRan](const CallContext&) -> ValuePack {
+        handlerRan = true;
+        return {};
+    });
+    // A thread cannot be read yet: the native closure builds its CallContext from the stack and fails.
+    const auto script = runtime.load("chunk", "return native(coroutine.create(function() end))");
     ASSERT_TRUE(script);
-    // A thread cannot be read yet.
-    lua_newthread(runtime.state());
+    script->closure().push(runtime.state());
+    const auto caller = rtype::luau::Function::fromRef(rtype::luau::Ref::pop(runtime.state()), "chunk");
 
-    const auto context = CallContext::fromStack(runtime.state());
+    const auto result = caller.call();
 
-    ASSERT_FALSE(context);
-    EXPECT_EQ(context.error().kind(), rtype::luau::ErrorKind::kTypeMismatch);
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kRuntime);
+    EXPECT_FALSE(handlerRan);
 }
