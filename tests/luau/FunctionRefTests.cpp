@@ -6,7 +6,6 @@
 */
 
 #include <gtest/gtest.h>
-#include <lua.h>
 
 #include <string>
 #include <utility>
@@ -65,7 +64,9 @@ TEST(FunctionRef, FromStackReadsFunction) {
 
 TEST(FunctionRef, FromStackFailsForOtherTypes) {
     const auto runtime = makeRuntime();
-    lua_pushnumber(runtime.state(), 1.0);
+    ValuePack pushed{};
+    pushed.add({1.0});
+    ASSERT_EQ(pushed.push(runtime.state()).value(), 1U);
 
     const auto read = FunctionRef::fromStack(runtime.state());
 
