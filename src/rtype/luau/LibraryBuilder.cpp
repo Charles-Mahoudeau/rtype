@@ -41,6 +41,13 @@ void LibraryBuilder::setName(const std::string& name) {
     assert(result);
 }
 
+void LibraryBuilder::registryLibrary(Library library) {
+    const auto& it = _ownedMembers.emplace_back(std::move(library));
+    const auto& lib = std::get<Library>(it);
+    const auto result = table().registerLibrary(lib);
+    assert(result);
+}
+
 Function& LibraryBuilder::function(std::string name) {
     auto& it = _ownedMembers.emplace_back(Function::create(_runtime.state(), name));
     auto& function = std::get<Function>(it);

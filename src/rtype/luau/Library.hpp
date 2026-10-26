@@ -26,7 +26,7 @@ class LibraryBuilder;
 class RTYPE_LUAU_API Library {
   public:
     /// @brief Something a library exports and owns.
-    using Member = std::variant<Function>;
+    using Member = std::variant<Function, Library>;
 
     /// @brief Builds a library from its parts.
     /// @param name Name of the library.
