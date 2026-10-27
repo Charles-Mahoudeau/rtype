@@ -162,6 +162,7 @@ Result<> Runtime::run(const Script& script) const { return runClosure(script.sta
 Table Runtime::globals() const {
     lua_pushvalue(_state.get(), LUA_GLOBALSINDEX);
     auto result = Table::fromStack(_state.get());
+    lua_pop(_state.get(), 1);
     if (!result) {
         // if globals' table is nil, there is a big problem
         throw exceptions::InvalidState{};
