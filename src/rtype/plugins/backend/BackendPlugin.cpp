@@ -8,8 +8,12 @@
 #include "BackendPlugin.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
+#include <glm/common.hpp>
+#include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -26,15 +30,19 @@
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/event/PlatformEvent.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
+#include "plugins/backend/graphics/CameraView.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
+#include "plugins/backend/graphics/SpriteQueue.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/backend/graphics/View.hpp"
+#include "plugins/backend/graphics/VisibleArea.hpp"
 #include "plugins/config/Settings.hpp"
 #include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputPlugin.hpp"
 #include "plugins/sprite/SpritePlugin.hpp"
+#include "plugins/tilemap/TilemapPlugin.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -128,12 +136,29 @@ void beginFrame(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<Cle
     }
 }
 
+/// @return The box around what @p view shows in a @p framebufferSize framebuffer, for a renderer of @p viewSize.
+graphics::VisibleArea visibleAreaOf(const graphics::View& view, glm::vec2 viewSize, glm::uvec2 framebufferSize) {
+    const graphics::CameraView shown{view, viewSize, framebufferSize};
+    const graphics::Viewport& viewport = shown.getViewport();
+    const std::array corners{viewport.position, viewport.position + glm::vec2{viewport.size.x, 0.0F},
+                             viewport.position + glm::vec2{0.0F, viewport.size.y}, viewport.position + viewport.size};
+    graphics::VisibleArea area{.min = shown.screenToWorld(corners.front()),
+                               .max = shown.screenToWorld(corners.front())};
+    for (const glm::vec2 corner : corners) {
+        const glm::vec2 world = shown.screenToWorld(corner);
+        area.min = glm::min(area.min, world);
+        area.max = glm::max(area.max, world);
+    }
+    return area;
+}
+
 /// @brief Render: shows the world from the camera entity with the highest priority, at its GlobalTransform; the first
-/// one found wins a tie.
-void applyCamera(ecs::NonSendMut<plugins::backend::Backend> backend,
+/// one found wins a tie. Records what the frame shows in the VisibleArea resource.
+void applyCamera(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::ResMut<graphics::VisibleArea> visible,
                  ecs::Query<const transform::GlobalTransform, const graphics::Camera> cameras) {
     plugins::backend::Backend& started = *backend;
     if (!isStarted(started) || isMinimized(started)) {
+        *visible = graphics::VisibleArea{};
         return;
     }
     std::optional<graphics::View> shown;
@@ -148,44 +173,47 @@ void applyCamera(ecs::NonSendMut<plugins::backend::Backend> backend,
     if (shown) {
         started.renderer->setView(*shown);
     }
+    const glm::vec2 viewSize = started.renderer->getViewSize();
+    const glm::uvec2 framebufferSize = started.platform->getFramebufferSize();
+    *visible = visibleAreaOf(shown.value_or(graphics::CameraView::makeDefaultView(viewSize, framebufferSize)), viewSize,
+                             framebufferSize);
 }
 
-/// @brief One sprite to draw, with the layer it is sorted by.
-struct SpriteItem {
-    std::int32_t layer;       ///< Draw order: higher on top.
-    graphics::Sprite sprite;  ///< The draw command.
-};
-
-/// @brief Render: draws the sprites whose texture is loaded, by layer then by texture.
+/// @brief Render: draws the sprites whose texture is loaded and the queued ones (SpriteQueue), by layer then by
+/// texture.
 void drawSprites(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<TextureAssets> textures,
+                 ecs::ResMut<graphics::SpriteQueue> queue,
                  ecs::Query<const transform::GlobalTransform, const SpriteRenderer> sprites) {
     plugins::backend::Backend& started = *backend;
+    std::vector<graphics::SpriteQueue::Item> queued = queue->take();
     if (!isStarted(started) || isMinimized(started)) {
         return;
     }
-    std::vector<SpriteItem> items;
+    std::vector<graphics::SpriteQueue::Item> items;
     for (auto [entity, global, sprite] : sprites) {
         const std::optional<graphics::TextureId> texture = textures->getTexture(sprite.texture);
         if (!texture) {
             continue;
         }
-        items.push_back(SpriteItem{.layer = sprite.layer,
-                                   .sprite = graphics::Sprite{.texture = *texture,
-                                                              .source = sprite.source,
-                                                              .position = global.position,
-                                                              .scale = global.scale,
-                                                              .origin = sprite.origin,
-                                                              .rotation = global.rotation,
-                                                              .color = sprite.color,
-                                                              .blend = sprite.blend}});
+        items.push_back(graphics::SpriteQueue::Item{.layer = sprite.layer,
+                                                    .sprite = graphics::Sprite{.texture = *texture,
+                                                                               .source = sprite.source,
+                                                                               .position = global.position,
+                                                                               .scale = global.scale,
+                                                                               .origin = sprite.origin,
+                                                                               .rotation = global.rotation,
+                                                                               .color = sprite.color,
+                                                                               .blend = sprite.blend}});
     }
-    std::ranges::stable_sort(items, [](const SpriteItem& left, const SpriteItem& right) {
-        if (left.layer != right.layer) {
-            return left.layer < right.layer;
-        }
-        return left.sprite.texture.index < right.sprite.texture.index;
-    });
-    for (const SpriteItem& item : items) {
+    items.insert(items.end(), std::make_move_iterator(queued.begin()), std::make_move_iterator(queued.end()));
+    std::ranges::stable_sort(items,
+                             [](const graphics::SpriteQueue::Item& left, const graphics::SpriteQueue::Item& right) {
+                                 if (left.layer != right.layer) {
+                                     return left.layer < right.layer;
+                                 }
+                                 return left.sprite.texture.index < right.sprite.texture.index;
+                             });
+    for (const graphics::SpriteQueue::Item& item : items) {
         started.renderer->draw(item.sprite);
     }
 }
@@ -215,6 +243,7 @@ void BackendPlugin::build(ecs::App& app) {
     app.addPlugin(plugins::input::InputPlugin{});
     app.addPlugin(plugins::transform::TransformPlugin{});
     app.addPlugin(plugins::sprite::SpritePlugin{});
+    app.addPlugin(plugins::tilemap::TilemapPlugin{});
     ecs::Events& events = app.getWorld().getEvents();
     registerEvent<plugins::backend::event::PlatformEvent>(events);
     registerEvent<plugins::backend::event::Closed>(events);
@@ -241,6 +270,12 @@ void BackendPlugin::build(ecs::App& app) {
     }
     if (!resources.has<TextureAssets>()) {
         resources.insert(TextureAssets{});
+    }
+    if (!resources.has<graphics::SpriteQueue>()) {
+        resources.insert(graphics::SpriteQueue{});
+    }
+    if (!resources.has<graphics::VisibleArea>()) {
+        resources.insert(graphics::VisibleArea{});
     }
     static_cast<void>(app.getWorld().getComponents().registerType<SpriteRenderer>());
     static_cast<void>(app.getWorld().getComponents().registerType<graphics::Camera>());
