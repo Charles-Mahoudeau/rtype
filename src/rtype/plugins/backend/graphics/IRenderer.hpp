@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstddef>
+#include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
 #include <span>
 
@@ -62,6 +63,10 @@ class RTYPE_PLUGINS_API IRenderer {
 
     /// @brief Adapts to a new framebuffer size. Called by the engine on every Resized event.
     virtual void resize(glm::uvec2 framebufferSize) = 0;
+
+    /// @return The resolution the game is designed for, which setView() fits in the window with bars (the viewSize of
+    /// graphics::CameraView); 0x0 when the view is the framebuffer itself, one world unit per pixel at zoom 1.
+    [[nodiscard]] virtual glm::vec2 getViewSize() const { return glm::vec2{0.0F}; }
 
     /// @name Textures
     /// @brief The ids own nothing: destroy() frees a texture early, and the renderer frees every texture left when it
