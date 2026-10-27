@@ -7,13 +7,12 @@
 
 #include "Library.hpp"
 
-#include <deque>
 #include <string>
 #include <string_view>
 #include <utility>
 
 namespace rtype::luau {
-Library::Library(std::string name, Table table, std::deque<Member> ownedMembers)
+Library::Library(std::string name, Table table, LibraryMembers ownedMembers)
     : _name{std::move(name)}, _table{std::move(table)}, _ownedMembers{std::move(ownedMembers)} {}
 
 Library::~Library() = default;

@@ -8,9 +8,9 @@
 #pragma once
 
 #include <deque>
+#include <memory>
 #include <string>
 #include <string_view>
-#include <variant>
 
 #include "Export.hpp"
 #include "Function.hpp"
@@ -18,6 +18,16 @@
 namespace rtype::luau {
 class Table;
 class LibraryBuilder;
+class Library;
+
+/// @brief What a library owns: the members referenced by its table, grouped by kind.
+///
+/// Sub-libraries are held through pointers because Library is incomplete here, and a deque of an incomplete type is
+/// not allowed. Deques keep the references handed out by the builder valid when more members are added.
+struct LibraryMembers {
+    std::deque<Function> functions;                  ///< Functions of the library.
+    std::deque<std::unique_ptr<Library>> libraries;  ///< Sub-libraries of the library.
+};
 
 /// @brief A named Luau library: a table of members (functions...) that scripts can use.
 ///
@@ -25,14 +35,11 @@ class LibraryBuilder;
 /// It is produced by a LibraryBuilder.
 class RTYPE_LUAU_API Library {
   public:
-    /// @brief Something a library exports and owns.
-    using Member = std::variant<Function, Library>;
-
     /// @brief Builds a library from its parts.
     /// @param name Name of the library.
     /// @param table Table holding the library's members, indexed by name.
     /// @param ownedMembers Members referenced by the table, kept here so they stay alive.
-    Library(std::string name, Table table, std::deque<Member> ownedMembers);
+    Library(std::string name, Table table, LibraryMembers ownedMembers);
     ~Library();
     Library(const Library&) = delete;
     Library& operator=(const Library&) = delete;
@@ -48,9 +55,8 @@ class RTYPE_LUAU_API Library {
     [[nodiscard]] const Table& table() const;
 
   private:
-    std::string _name;  ///< Name of the library.
-    Table _table;       ///< Table of the library's members, indexed by name.
-    /// Owns the members referenced by the table. A deque keeps references handed out by the builder valid.
-    std::deque<Member> _ownedMembers;
+    std::string _name;             ///< Name of the library.
+    Table _table;                  ///< Table of the library's members, indexed by name.
+    LibraryMembers _ownedMembers;  ///< Owns the members referenced by the table.
 };
 }  // namespace rtype::luau

@@ -7,7 +7,6 @@
 
 #pragma once
 
-#include <deque>
 #include <string>
 
 #include "Export.hpp"
@@ -60,8 +59,7 @@ class RTYPE_LUAU_API LibraryBuilder {
     Table _table;       ///< Table of the library's members, moved into the library by build().
     std::string _name;  ///< Name of the library.
 
-    /// Owns the members registered in the table so they outlive the builder's callers. A deque keeps the
-    /// references returned by function() valid when more members are added.
-    std::deque<Library::Member> _ownedMembers;
+    /// Owns the members registered in the table so they outlive the builder's callers.
+    LibraryMembers _ownedMembers;
 };
 }  // namespace rtype::luau
