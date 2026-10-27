@@ -77,8 +77,8 @@ are added.
   - `plugins/asset/` (`rtype::plugins::asset`) — `AssetId`: the hash of an asset's path, the same in every process,
     which components keep to name a texture or a sound (reflected as `kAssetId`); `AssetFiles` (`normalizePath()`,
     `readTextFile()`) and `AssetStore<T>`, the bookkeeping the asset resources read from files share (entries by id,
-    collisions, failures, unload): `AtlasAssets` and `TilemapAssets` keep only their parser and their texture
-    requests. A new kind of asset file goes through them.
+    collisions, failures, unload): `AtlasAssets`, `TilemapAssets` and `FontAssets` keep only their parser and their
+    texture requests. A new kind of asset file goes through them.
   - `plugins/sprite/` (`rtype::plugins::sprite`) — `SpritePlugin`: sprite atlases and animations. `SpriteAtlas`
     (named frames and `SpriteAnimation`s, built by `grid()` or in code), the `AtlasAssets` resource (atlases by
     `AssetId`: Aseprite / TexturePacker JSON files read with nlohmann_json, or images packed at load time with
@@ -93,6 +93,13 @@ are added.
     the `Parallax` entities before the camera, and another pushes the visible chunks' tiles to the backend's
     `SpriteQueue`.
     The backend plugin adds it; its Render systems are ordered against the backend plugin's. See `docs/Tilemap.md`.
+  - `plugins/text/` (`rtype::plugins::text`) — `TextPlugin`: text from MSDF font atlases made offline by
+    msdf-atlas-gen (`assets/fonts/`). `Font` (glyph metrics and kerning), the `FontAssets` resource (fonts by
+    `AssetId`, msdf-atlas-gen JSON read with nlohmann_json in `text/detail/`, with the UTF-8 decoder), `layoutText()` /
+    `measureText()` (`TextLayout.hpp`) and the `TextRenderer` component. A client Render system lays out each text and
+    pushes it to the backend's `SpriteQueue` as a `graphics::Text`, drawn by `IRenderer::draw(Text)` (Vulkan batches
+    its glyphs with the sprites, read by the MSDF branch of `sprite.frag`). The backend plugin adds it, after the
+    tilemap plugin. See `docs/Text.md`.
   - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
   `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
@@ -127,7 +134,7 @@ are added.
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `docs/` — design documentation (e.g. `docs/Input.md` for the event and input pipeline, `docs/physics/design.md`
   for the physics, `docs/audio/design.md` for the audio, `docs/Sprites.md` for atlases and animations,
-  `docs/Tilemap.md` for tilemaps and parallax).
+  `docs/Tilemap.md` for tilemaps and parallax, `docs/Text.md` for MSDF text).
 - `.github/` — CI workflow and issue templates.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
 
@@ -152,9 +159,9 @@ ecs      ←  replication
 - `network` depends on Asio only (private): never on the ECS, `plugins` or any other project target.
   `replication` depends on `ecs` and `network` and is the only module that knows both; the renderer, the
   platforms and `luau` never include its headers.
-- `plugins` depends on nothing but `ecs` and glm, plus Jolt (physics), nlohmann_json (sprite atlases, tilemaps) and stb
-  (images) as private packages (no public header includes them). Never add a dependency on a `platform-*`, `render-*`,
-  `audio-*` or `luau` target to it: the platforms, renderers and audio backends implement its contracts
+- `plugins` depends on nothing but `ecs` and glm, plus Jolt (physics), nlohmann_json (sprite atlases, tilemaps, fonts)
+  and stb (images) as private packages (no public header includes them). Never add a dependency on a `platform-*`,
+  `render-*`, `audio-*` or `luau` target to it: the platforms, renderers and audio backends implement its contracts
   (`plugins/backend/`, `plugins/audio/`), so it would create a cycle. The executable fills the backend and audio
   registries instead.
 - The platforms and renderers link `plugins` (and so the ECS) for the contracts, but never include ECS headers or
