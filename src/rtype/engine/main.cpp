@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -45,6 +46,7 @@
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
+#include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/backend/input/Key.hpp"
 #include "plugins/backend/math/Rect.hpp"
 #include "plugins/config/Settings.hpp"
@@ -65,6 +67,7 @@
 #include "plugins/sprite/AtlasAssets.hpp"
 #include "plugins/sprite/SpriteAnimator.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
+#include "plugins/tilemap/Parallax.hpp"
 #include "plugins/tilemap/SpawnTilemap.hpp"
 #include "plugins/tilemap/TilemapAssets.hpp"
 #include "plugins/transform/Transform.hpp"
@@ -106,7 +109,7 @@
 // ships slide along them. The server simulates everything with the physics plugin and replicates Ship, Laser,
 // Obstacle and Winner (the physics replicates Collider and RigidBody); the clients send their inputs and draw what
 // they receive, animated by the sprite plugin, over a space background whose layers scroll at their own speed (a
-// Tiled map); a ship that is hit explodes. F3 shows the colliders. One shot in ten
+// Tiled map), where a planet passes now and then; a ship that is hit explodes. F3 shows the colliders. One shot in ten
 // misfires: the server fires nothing and replicates a Misfire instead. The clients play a looping music, and a sound
 // for every laser and misfire, panned where it happened, with a random pitch and volume.
 //
@@ -183,6 +186,19 @@ RTYPE_ECS_RESOURCE(GameAtlases, "game.GameAtlases");
 struct Explosion {};
 RTYPE_ECS_COMPONENT(Explosion, "game.Explosion");
 
+/// @brief Client only: a planet passing behind the arena, removed once it has left the view on the left.
+struct BackgroundPlanet {
+    float width = 0.0F;  ///< On screen, in world units.
+};
+RTYPE_ECS_COMPONENT(BackgroundPlanet, "game.BackgroundPlanet");
+
+/// @brief Client only: the images of the planets that pass behind the arena now and then, and when the next one comes.
+struct BackgroundPlanets {
+    std::array<plugins::asset::AssetId, 2> images;  ///< The textures of kPlanetImages, asked for at startup.
+    float countdown = 0.0F;                         ///< Seconds before the next planet.
+};
+RTYPE_ECS_RESOURCE(BackgroundPlanets, "game.BackgroundPlanets");
+
 constexpr std::uint16_t kDefaultPort = 4242;
 constexpr float kViewWidth = 800.0F;
 constexpr float kViewHeight = 600.0F;
@@ -224,6 +240,16 @@ constexpr float kExplosionScale = 1.5F;  ///< The 64-pixel explosion, over a 48-
 constexpr const char* kBackgroundMap = "assets/levels/space-background.tmj";
 constexpr glm::vec2 kBackgroundSize{272.0F, 160.0F};  ///< Its images, in pixels: scaled to the view's height.
 constexpr std::int32_t kBackgroundDrawLayer = -100;   ///< Under every sprite.
+constexpr std::array<const char*, 2> kPlanetImages{"assets/backgrounds/space/parallax-space-ring-planet.png",
+                                                   "assets/backgrounds/space/parallax-space-big-planet.png"};
+constexpr std::array<glm::vec2, 2> kPlanetSizes{glm::vec2{51.0F, 115.0F}, glm::vec2{88.0F, 87.0F}};  ///< In pixels.
+constexpr float kFirstPlanetDelay = 8.0F;  ///< Seconds before the first planet passes.
+constexpr float kPlanetDelayMin = 25.0F;   ///< Seconds between two planets, random in [min, max].
+constexpr float kPlanetDelayMax = 50.0F;
+constexpr float kPlanetScaleMin = 0.6F;   ///< The size of the farthest planet, from 1 for the closest...
+constexpr float kPlanetSpeedMin = 22.0F;  ///< ... and its speed, in background pixels per second (far planets: 18)...
+constexpr float kPlanetSpeedMax = 34.0F;  ///< ... up to the closest one's.
+constexpr std::int32_t kPlanetDrawLayer = kBackgroundDrawLayer + 3;  ///< Over the background's three layers.
 
 /// @return Whether a Winner exists: the game is over.
 bool isOver(ecs::Query<const Winner>& winners) { return winners.begin() != ecs::Query<const Winner>::end(); }
@@ -547,6 +573,52 @@ void spawnBackground(ecs::ResMut<plugins::tilemap::TilemapAssets> maps, ecs::Com
                                            .firstDrawLayer = kBackgroundDrawLayer}));
 }
 
+/// @brief Startup: asks for the images of the planets that pass behind the arena; the first one comes soon after.
+void loadPlanets(ecs::ResMut<plugins::backend::TextureAssets> textures, ecs::ResMut<BackgroundPlanets> planets) {
+    for (std::size_t index = 0; index < kPlanetImages.size(); ++index) {
+        planets->images.at(index) = textures->load(kPlanetImages.at(index));
+    }
+    planets->countdown = kFirstPlanetDelay;
+}
+
+/// @brief Update: now and then, sends a random planet across the background at a random height and distance, scrolling
+/// left a little faster than the background's layers.
+void spawnPlanets(ecs::Commands& commands, ecs::ResMut<Randomness> randomness, ecs::ResMut<BackgroundPlanets> planets,
+                  ecs::Res<ecs::Time> time) {
+    planets->countdown -= time->delta;
+    if (planets.get().countdown > 0.0F) {
+        return;
+    }
+    std::mt19937& engine = randomness->engine;
+    planets->countdown = std::uniform_real_distribution<float>{kPlanetDelayMin, kPlanetDelayMax}(engine);
+    const std::size_t index = std::uniform_int_distribution<std::size_t>{0, kPlanetImages.size() - 1}(engine);
+    const float closeness = std::uniform_real_distribution<float>{0.0F, 1.0F}(engine);
+    const float backgroundScale = kViewHeight / kBackgroundSize.y;
+    const float scale = backgroundScale * std::lerp(kPlanetScaleMin, 1.0F, closeness);
+    const float speed = backgroundScale * std::lerp(kPlanetSpeedMin, kPlanetSpeedMax, closeness);
+    const glm::vec2 size = kPlanetSizes.at(index) * scale;
+    commands.spawn()
+        .add(plugins::transform::Transform{
+            .position = {kViewWidth, std::uniform_real_distribution<float>{0.0F, kViewHeight - size.y}(engine)},
+            .scale = glm::vec2{scale}})
+        .add(plugins::backend::SpriteRenderer{.texture = planets.get().images.at(index),
+                                              .source = {glm::vec2{0.0F}, kPlanetSizes.at(index)},
+                                              .layer = kPlanetDrawLayer})
+        .add(plugins::tilemap::Parallax{.scroll = {-speed, 0.0F}})
+        .add(BackgroundPlanet{.width = size.x});
+}
+
+/// @brief Update: removes the planets that have left the view on the left.
+void removePlanets(
+    ecs::Commands& commands,
+    ecs::Query<const plugins::transform::Transform, const plugins::tilemap::Parallax, const BackgroundPlanet> planets) {
+    for (auto [entity, transform, parallax, planet] : planets) {
+        if (transform.position.x + parallax.scrolled.x + planet.width < 0.0F) {
+            commands.despawn(entity);
+        }
+    }
+}
+
 /// @brief Startup: builds the atlases of the ships, the lasers and the explosion, cut from the sheets of assets/.
 void loadAtlases(ecs::ResMut<plugins::sprite::AtlasAssets> atlases, ecs::ResMut<GameAtlases> game) {
     // The left sheet: 5 frames of 48x48, every 65 pixels.
@@ -741,6 +813,8 @@ int runClient(const ProjectSettings& projectSettings, const std::string& host, s
     app.addPlugin(plugins::physics::debug::PhysicsDebugPlugin{});
     static_cast<void>(app.getWorld().getComponents().registerType<Explosion>());
     app.insertResource(GameAtlases{});
+    static_cast<void>(app.getWorld().getComponents().registerType<BackgroundPlanet>());
+    app.insertResource(BackgroundPlanets{});
     app.addPlugin(replication::client::ClientPlugin{*server, network::NetworkSettings{}});
     declareInputs(app);
 
@@ -750,6 +824,13 @@ int runClient(const ProjectSettings& projectSettings, const std::string& host, s
     app.addSystem(ecs::Phase::kUpdate, "game.playShots", &playShots).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kStartup, "game.loadAtlases", &loadAtlases).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kStartup, "game.spawnBackground", &spawnBackground).setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kStartup, "game.loadPlanets", &loadPlanets).setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kUpdate, "game.spawnPlanets", &spawnPlanets)
+        .after("game.playShots")
+        .setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kUpdate, "game.removePlanets", &removePlanets)
+        .after("game.followLasers")
+        .setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kPostUpdate, "game.sendControls", &sendControls)
         .before(std::string{replication::client::ClientPlugin::kSendInputSystem})
         .setSide(ecs::Side::kClient);
