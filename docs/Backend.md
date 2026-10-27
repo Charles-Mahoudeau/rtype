@@ -125,6 +125,7 @@ the backend.
 | `setup(IPlatform&)` | Optional (default: nothing). Sets the platform up before its window exists, and may throw early if the pair does not fit. |
 | `init(IPlatform&)` | Attaches to the window. Called once, by the registry, after `IPlatform::init()`. |
 | `resize(size)` | Called on every `Resized` event. |
+| `getViewSize()` | Optional (default: 0x0, the view is the framebuffer). The resolution the game is designed for, which the view fits in the window with bars; the `BackendPlugin` uses it to record what each frame shows (`VisibleArea`). |
 | `createTexture(desc, pixels)`, `destroy(id)` | Textures from RGBA pixels, referred to by `TextureId`. |
 | `beginFrame(clearColor)`, `endFrame()` | One frame. |
 | `setView(view)`, `draw(Sprite)`, `draw(Shape)` | Drawing, between `beginFrame()` and `endFrame()`. A `Shape` is a rectangle (rounded corners), circle, capsule or line, filled and/or outlined; shapes are overlays, drawn after the sprites. |
