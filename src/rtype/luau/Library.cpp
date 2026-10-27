@@ -8,6 +8,9 @@
 #include "Library.hpp"
 
 #include <deque>
+#include <string>
+#include <string_view>
+#include <utility>
 
 namespace rtype::luau {
 Library::Library(std::string name, Table table, std::deque<Member> ownedMembers)
