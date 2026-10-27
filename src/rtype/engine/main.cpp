@@ -67,6 +67,9 @@
 #include "plugins/sprite/AtlasAssets.hpp"
 #include "plugins/sprite/SpriteAnimator.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
+#include "plugins/text/FontAssets.hpp"
+#include "plugins/text/TextLayout.hpp"
+#include "plugins/text/TextRenderer.hpp"
 #include "plugins/tilemap/Parallax.hpp"
 #include "plugins/tilemap/SpawnTilemap.hpp"
 #include "plugins/tilemap/TilemapAssets.hpp"
@@ -109,7 +112,8 @@
 // ships slide along them. The server simulates everything with the physics plugin and replicates Ship, Laser,
 // Obstacle and Winner (the physics replicates Collider and RigidBody); the clients send their inputs and draw what
 // they receive, animated by the sprite plugin, over a space background whose layers scroll at their own speed (a
-// Tiled map), where a planet passes now and then; a ship that is hit explodes. F3 shows the colliders. One shot in ten
+// Tiled map), where a planet passes now and then; a ship that is hit explodes. Each player's name is written at the top
+// of their half, and the winner in the middle at the end (MSDF text). F3 shows the colliders. One shot in ten
 // misfires: the server fires nothing and replicates a Misfire instead. The clients play a looping music, and a sound
 // for every laser and misfire, panned where it happened, with a random pitch and volume.
 //
@@ -182,6 +186,12 @@ struct GameAtlases {
 };
 RTYPE_ECS_RESOURCE(GameAtlases, "game.GameAtlases");
 
+/// @brief Client only: the font of the game's texts, read at startup.
+struct GameFonts {
+    plugins::asset::AssetId text;  ///< assets/fonts/orbitron.json.
+};
+RTYPE_ECS_RESOURCE(GameFonts, "game.GameFonts");
+
 /// @brief Client only: an explosion, removed when its animation ends.
 struct Explosion {};
 RTYPE_ECS_COMPONENT(Explosion, "game.Explosion");
@@ -250,6 +260,14 @@ constexpr float kPlanetScaleMin = 0.6F;   ///< The size of the farthest planet, 
 constexpr float kPlanetSpeedMin = 22.0F;  ///< ... and its speed, in background pixels per second (far planets: 18)...
 constexpr float kPlanetSpeedMax = 34.0F;  ///< ... up to the closest one's.
 constexpr std::int32_t kPlanetDrawLayer = kBackgroundDrawLayer + 3;  ///< Over the background's three layers.
+constexpr const char* kFont = "assets/fonts/orbitron.json";
+constexpr std::int32_t kTextLayer = 10;  ///< Over every sprite.
+constexpr float kNameSize = 22.0F;       ///< The players' names, at the top of their half.
+constexpr float kNameTop = 12.0F;
+constexpr plugins::backend::graphics::Color kNameColor{1.0F, 1.0F, 1.0F, 0.85F};
+constexpr float kWinnerSize = 52.0F;  ///< The end of the game, in the middle of the arena.
+constexpr plugins::backend::graphics::Color kWinColor{1.0F, 0.85F, 0.3F, 1.0F};
+constexpr plugins::backend::graphics::Color kLoseColor{1.0F, 0.45F, 0.4F, 1.0F};
 
 /// @return Whether a Winner exists: the game is over.
 bool isOver(ecs::Query<const Winner>& winners) { return winners.begin() != ecs::Query<const Winner>::end(); }
@@ -747,9 +765,25 @@ void removeExplosions(ecs::Commands& commands, ecs::EventReader<plugins::sprite:
     }
 }
 
-/// @brief Update: tells the player who won, once.
-void announceWinner(ecs::Res<replication::client::ClientState> client,
-                    ecs::Query<const Winner, ecs::Added<Winner>> winners,
+/// @brief Startup: reads the font, and writes each player's name at the top of their half of the arena.
+void spawnNames(ecs::ResMut<plugins::text::FontAssets> fonts, ecs::ResMut<GameFonts> game, ecs::Commands& commands) {
+    game->text = fonts->load(kFont);
+    for (std::uint32_t player = 0; player < kPlayerCount; ++player) {
+        const float x = (kViewWidth / 4.0F) * static_cast<float>((2 * player) + 1);  // The middle of their half.
+        commands.spawn()
+            .add(plugins::transform::Transform{.position = {x, kNameTop}})
+            .add(plugins::text::TextRenderer{.text = std::format("Player {}", player + 1),
+                                             .font = game.get().text,
+                                             .size = kNameSize,
+                                             .color = kNameColor,
+                                             .anchor = {0.5F, 0.0F},
+                                             .layer = kTextLayer});
+    }
+}
+
+/// @brief Update: tells the player who won, once, in the middle of the arena.
+void announceWinner(ecs::Commands& commands, ecs::Res<replication::client::ClientState> client,
+                    ecs::Res<GameFonts> game, ecs::Query<const Winner, ecs::Added<Winner>> winners,
                     ecs::Query<const Ship, const replication::component::Owner> ships) {
     const std::optional<network::ClientId> me = client->clientId();
     for (auto [entity, winner] : winners) {
@@ -757,7 +791,16 @@ void announceWinner(ecs::Res<replication::client::ClientState> client,
         for (auto [shipEntity, ship, owner] : ships) {
             mine = mine || (me && ship.player == winner.player && owner.client == *me);
         }
-        std::cout << "Player " << winner.player + 1 << " wins! " << (mine ? "You win :)" : "You lose :(") << '\n';
+        commands.spawn()
+            .add(plugins::transform::Transform{.position = {kViewWidth / 2.0F, kViewHeight / 2.0F}})
+            .add(plugins::text::TextRenderer{
+                .text = std::format("Player {} wins!\n{}", winner.player + 1, mine ? "You win :)" : "You lose :("),
+                .font = game->text,
+                .size = kWinnerSize,
+                .color = mine ? kWinColor : kLoseColor,
+                .align = plugins::text::TextAlign::kCenter,
+                .anchor = {0.5F, 0.5F},
+                .layer = kTextLayer});
     }
 }
 
@@ -813,6 +856,7 @@ int runClient(const ProjectSettings& projectSettings, const std::string& host, s
     app.addPlugin(plugins::physics::debug::PhysicsDebugPlugin{});
     static_cast<void>(app.getWorld().getComponents().registerType<Explosion>());
     app.insertResource(GameAtlases{});
+    app.insertResource(GameFonts{});
     static_cast<void>(app.getWorld().getComponents().registerType<BackgroundPlanet>());
     app.insertResource(BackgroundPlanets{});
     app.addPlugin(replication::client::ClientPlugin{*server, network::NetworkSettings{}});
@@ -825,6 +869,7 @@ int runClient(const ProjectSettings& projectSettings, const std::string& host, s
     app.addSystem(ecs::Phase::kStartup, "game.loadAtlases", &loadAtlases).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kStartup, "game.spawnBackground", &spawnBackground).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kStartup, "game.loadPlanets", &loadPlanets).setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kStartup, "game.spawnNames", &spawnNames).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kUpdate, "game.spawnPlanets", &spawnPlanets)
         .after("game.playShots")
         .setSide(ecs::Side::kClient);
