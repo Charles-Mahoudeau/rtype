@@ -43,7 +43,8 @@ class RTYPE_LUAU_API LibraryBuilder {
     /// @brief Registers a library as a sub-library of this one, under its own name in the library table.
     /// @param library Library to register. The builder takes ownership, so it stays alive as long as the member exists,
     /// including after build().
-    void registryLibrary(Library library);
+    /// @see `linkLibrary` to link a library without taking ownership.
+    void adoptLibrary(Library library);
 
     /// @brief Creates a function and registers it in the library table under its name.
     /// @param name Name of the function, used as its key in the library table.

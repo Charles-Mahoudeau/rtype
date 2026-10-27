@@ -42,7 +42,7 @@ void LibraryBuilder::setName(const std::string& name) {
     assert(result);
 }
 
-void LibraryBuilder::registryLibrary(Library library) {
+void LibraryBuilder::adoptLibrary(Library library) {
     const auto& lib = *_ownedMembers.libraries.emplace_back(std::make_unique<Library>(std::move(library)));
     const auto result = table().registerLibrary(lib);
     assert(result);

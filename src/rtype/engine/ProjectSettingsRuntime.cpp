@@ -53,7 +53,7 @@ ProjectSettings ProjectSettingsRuntime::result() const { return *_result; }
 luau::Library ProjectSettingsRuntime::buildLibrary() {
     luau::LibraryBuilder builder{_runtime};
     builder.setName("engine");
-    builder.registryLibrary(buildSettingsLibrary());
+    builder.adoptLibrary(buildSettingsLibrary());
     return builder.build();
 }
 
