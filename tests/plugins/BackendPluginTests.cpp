@@ -26,9 +26,12 @@
 #include "plugins/backend/event/PlatformEvent.hpp"
 #include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
+#include "plugins/backend/graphics/Sprite.hpp"
+#include "plugins/backend/graphics/SpriteQueue.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/backend/graphics/View.hpp"
+#include "plugins/backend/graphics/VisibleArea.hpp"
 #include "plugins/backend/input/Key.hpp"
 #include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
@@ -319,6 +322,51 @@ TEST(BackendPlugin, AppliesTheCameraEveryFrameItIsDrawn) {
     app.state().framebufferSize = {0, 0};
     app.app().runFrame();
     EXPECT_EQ(app.state().views.size(), 2U);
+}
+
+TEST(BackendPlugin, RecordsWhatTheCameraShows) {
+    BackendApp app;
+    app.app().getWorld().spawn(rtype::plugins::transform::Transform{.position = {1000.0F, 500.0F}},
+                               rtype::plugins::backend::graphics::Camera{
+                                   .projection = rtype::plugins::backend::graphics::Orthographic{.zoom = 2.0F}});
+    app.app().runFrame();
+    const auto& visible = app.app().getWorld().getResources().require<rtype::plugins::backend::graphics::VisibleArea>();
+    constexpr float kTolerance = 0.01F;
+    EXPECT_NEAR(visible.min.x, 800.0F, kTolerance);  // The 800x600 window at zoom 2: 400x300 world units.
+    EXPECT_NEAR(visible.min.y, 350.0F, kTolerance);
+    EXPECT_NEAR(visible.max.x, 1200.0F, kTolerance);
+    EXPECT_NEAR(visible.max.y, 650.0F, kTolerance);
+}
+
+TEST(BackendPlugin, RecordsTheDefaultViewWithoutACamera) {
+    BackendApp app;
+    app.app().runFrame();
+    const auto& visible = app.app().getWorld().getResources().require<rtype::plugins::backend::graphics::VisibleArea>();
+    EXPECT_EQ(visible.min, (glm::vec2{0.0F, 0.0F}));
+    EXPECT_EQ(visible.max, (glm::vec2{800.0F, 600.0F}));
+    app.state().framebufferSize = {0, 0};
+    app.app().runFrame();
+    EXPECT_TRUE(visible.isEmpty());  // Minimized: nothing is shown.
+}
+
+TEST(BackendPlugin, DrawsTheQueuedSpritesSortedWithTheEntities) {
+    BackendApp app;
+    const auto texture = loadTexture(app, "ship.png");
+    spawnSprite(app, texture, {5.0F, 0.0F}, 5);
+    app.app().runFrame();  // Loads the texture.
+    const auto loaded =
+        app.app().getWorld().getResources().require<rtype::plugins::backend::TextureAssets>().getTexture(texture);
+    ASSERT_TRUE(loaded);
+    auto& queue = *app.app().getWorld().getResources().getMut<rtype::plugins::backend::graphics::SpriteQueue>();
+    queue.push(0, rtype::plugins::backend::graphics::Sprite{.texture = *loaded, .position = {1.0F, 0.0F}});
+    queue.push(9, rtype::plugins::backend::graphics::Sprite{.texture = *loaded, .position = {9.0F, 0.0F}});
+    app.state().sprites.clear();
+    app.app().runFrame();
+    ASSERT_EQ(app.state().sprites.size(), 3U);
+    EXPECT_FLOAT_EQ(app.state().sprites[0].position.x, 1.0F);
+    EXPECT_FLOAT_EQ(app.state().sprites[1].position.x, 5.0F);
+    EXPECT_FLOAT_EQ(app.state().sprites[2].position.x, 9.0F);
+    EXPECT_TRUE(queue.getItems().empty());  // Emptied once drawn.
 }
 
 TEST(BackendPlugin, BringsTheInputPlugin) {
