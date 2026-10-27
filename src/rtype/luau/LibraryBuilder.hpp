@@ -8,14 +8,14 @@
 #pragma once
 
 #include <deque>
-#include <optional>
 #include <string>
 
+#include "Function.hpp"
 #include "Library.hpp"
+#include "Table.hpp"
 
 namespace rtype::luau {
 class Runtime;
-class Table;
 
 /// @brief Builds a Library step by step: sets its name and registers its members.
 ///
@@ -50,9 +50,9 @@ class LibraryBuilder {
     /// @return The library table.
     [[nodiscard]] Table& table();
 
-    Runtime& _runtime;            ///< Runtime the library belongs to.
-    std::optional<Table> _table;  ///< Table of the library's members, moved into the library by build().
-    std::string _name;            ///< Name of the library.
+    Runtime& _runtime;  ///< Runtime the library belongs to.
+    Table _table;       ///< Table of the library's members, moved into the library by build().
+    std::string _name;  ///< Name of the library.
 
     /// Owns the members registered in the table so they outlive the builder's callers. A deque keeps the
     /// references returned by function() valid when more members are added.

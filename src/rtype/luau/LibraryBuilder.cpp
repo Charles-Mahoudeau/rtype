@@ -19,19 +19,25 @@
 #include "Value.hpp"
 
 namespace rtype::luau {
-LibraryBuilder::LibraryBuilder(Runtime& runtime) : _runtime{runtime} {
-    auto result = Table::create(_runtime.state());
+namespace {
+/// Creates the table of a library.
+/// @throws exceptions::RuntimeError If the table cannot be created.
+Table createLibraryTable(const Runtime& runtime) {
+    auto result = Table::create(runtime.state());
     if (!result) {
         throw exceptions::RuntimeError{std::format("cannot create the library table: {}", result.error().message())};
     }
-    _table = *result;
+    return *std::move(result);
 }
+}  // namespace
 
-Library LibraryBuilder::build() { return Library{std::move(_name), std::move(*_table), std::move(_ownedMembers)}; }
+LibraryBuilder::LibraryBuilder(Runtime& runtime) : _runtime{runtime}, _table{createLibraryTable(runtime)} {}
+
+Library LibraryBuilder::build() { return Library{std::move(_name), std::move(_table), std::move(_ownedMembers)}; }
 
 void LibraryBuilder::setName(const std::string& name) {
     _name = name;
-    [[maybe_unused]] const auto result = _table->set("__name", {_name});
+    [[maybe_unused]] const auto result = _table.set("__name", {_name});
     assert(result);
 }
 
@@ -43,5 +49,5 @@ Function& LibraryBuilder::function(std::string name) {
     return function;
 }
 
-Table& LibraryBuilder::table() { return *_table; }
+Table& LibraryBuilder::table() { return _table; }
 }  // namespace rtype::luau
