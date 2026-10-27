@@ -9,6 +9,7 @@
 
 #include <charconv>
 #include <cstdint>
+#include <exception>
 #include <filesystem>
 #include <format>
 #include <glm/ext/vector_float2.hpp>
@@ -23,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "plugins/asset/AssetFiles.hpp"
 #include "plugins/asset/AssetId.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/tilemap/Tilemap.hpp"
@@ -46,9 +48,6 @@ struct Inherited {
     backend::graphics::Color tint{1.0F};  ///< Multiplied.
     bool visible = true;                  ///< All must be visible.
 };
-
-/// @return @p path, normalized as AssetId::fromPath() sees it, with forward slashes.
-std::string normalize(const std::filesystem::path& path) { return path.lexically_normal().generic_string(); }
 
 /// @return The colour of Tiled's "#RRGGBB" or "#AARRGGBB" @p text.
 backend::graphics::Color readColor(const std::string& text) {
@@ -112,7 +111,7 @@ Tileset readTileset(const Json& object, const std::filesystem::path& directory, 
         throw exceptions::TilemapException{
             std::format("tileset '{}': a tileset of separate images is not supported, use one image", name)};
     }
-    const std::string imagePath = normalize(directory / object.at("image").get<std::string>());
+    const std::string imagePath = asset::normalizePath(directory / object.at("image").get<std::string>());
     Tileset tileset{
         .name = name,
         .imagePath = imagePath,
@@ -211,7 +210,7 @@ class LayerReader {
             return;
         }
         MapLayer picture = makeLayer(own, std::move(name), LayerKind::kImage);
-        picture.imagePath = normalize(_directory / image);
+        picture.imagePath = asset::normalizePath(_directory / image);
         picture.image = asset::AssetId::fromPath(picture.imagePath);
         picture.repeatX = layer.value("repeatx", false);
         picture.repeatY = layer.value("repeaty", false);
@@ -249,9 +248,7 @@ Tilemap parseTiledMap(std::string_view text, const std::filesystem::path& path, 
                        std::move(tilesets),
                        std::move(layers.getLayers()),
                        {root.value("parallaxoriginx", 0.0F), root.value("parallaxoriginy", 0.0F)}};
-    } catch (const nlohmann::json::exception& error) {
-        throw exceptions::TilemapException{std::format("Tilemap '{}': {}", name, error.what())};
-    } catch (const exceptions::TilemapException& error) {
+    } catch (const std::exception& error) {
         throw exceptions::TilemapException{std::format("Tilemap '{}': {}", name, error.what())};
     }
 }

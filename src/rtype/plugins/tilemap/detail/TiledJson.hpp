@@ -28,14 +28,14 @@ using TextReader = std::function<std::string(const std::filesystem::path& path)>
 ///   `repeaty`), each with `offsetx`, `offsety`, `parallaxx`, `parallaxy`, `opacity`, `tintcolor` and `visible`;
 /// - its group layers, flattened into the layers they hold;
 /// - `parallaxoriginx` and `parallaxoriginy`, and the custom float properties `scrollx` and `scrolly` of a layer
-/// (pixels
-///   per second it scrolls on its own).
+///   (pixels per second it scrolls on its own).
 /// Object layers are skipped. Image paths are relative to the file that names them.
 /// @param text The map file's content.
 /// @param path Where it was read from: names the map in errors and resolves relative paths.
-/// @param readText Reads an external tileset.
-/// @throws exceptions::TilemapException If a file is not JSON, lacks or mistypes a field this reads, or uses what this
-/// does not support: another orientation, base64 tile data, a tileset of separate images.
+/// @param readText Reads an external tileset (asset::readTextFile() for files on disk).
+/// @throws exceptions::TilemapException Naming the map, if a file is not JSON, lacks or mistypes a field this reads,
+/// uses what this does not support (another orientation, base64 tile data, a tileset of separate images), or cannot be
+/// read by @p readText.
 [[nodiscard]] Tilemap parseTiledMap(std::string_view text, const std::filesystem::path& path,
                                     const TextReader& readText);
 

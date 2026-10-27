@@ -9,12 +9,11 @@
 
 #include <cstddef>
 #include <filesystem>
-#include <optional>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "plugins/asset/AssetId.hpp"
+#include "plugins/asset/AssetStore.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/tilemap/Tilemap.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
@@ -36,12 +35,9 @@ namespace rtype::plugins::tilemap {
 /// @endcode
 class TilemapAssets {
   public:
-    /// @brief One map.
-    struct Entry {
-        std::string path;            ///< Its file, or the name it was added under.
-        std::optional<Tilemap> map;  ///< The map; nothing if it could not be built.
-        std::string error;           ///< Why it could not be built.
-    };
+    /// @brief One map: its file (or the name it was added under), the map (nothing if it could not be built) and why it
+    /// could not be.
+    using Entry = asset::AssetStore<Tilemap>::Entry;
 
     /// @brief An image a map needs, for TextureAssets.
     struct TextureRequest {
@@ -83,18 +79,11 @@ class TilemapAssets {
     [[nodiscard]] std::vector<TextureRequest> takeTextureRequests();
 
   private:
-    /// @return The id of @p path, or nothing if it is already known.
-    /// @throws backend::exceptions::AssetLoadException If another path already has the id.
-    [[nodiscard]] std::optional<asset::AssetId> reserve(const std::string& path) const;
+    /// @brief Asks for the images of @p map, just stored, once each: repeated if an image layer repeats it.
+    void requestTextures(const Tilemap& map);
 
-    /// @brief Records @p map under @p path and asks for its images.
-    void store(asset::AssetId id, std::string path, Tilemap map);
-
-    /// @brief Records that the map @p path could not be built, and prints why.
-    void fail(asset::AssetId id, std::string path, std::string error);
-
-    std::unordered_map<asset::AssetId, Entry> _entries;  ///< Every map asked for, by id.
-    std::vector<TextureRequest> _textureRequests;        ///< Images to hand to TextureAssets.
+    asset::AssetStore<Tilemap> _maps{"Tilemap"};   ///< Every map asked for, by id.
+    std::vector<TextureRequest> _textureRequests;  ///< Images to hand to TextureAssets.
 };
 RTYPE_ECS_RESOURCE(TilemapAssets, "rtype.TilemapAssets");
 
