@@ -42,9 +42,10 @@ namespace rtype::plugins::backend {
 ///   whose texture is loaded, and the sprites and texts other systems pushed to the SpriteQueue resource before it,
 ///   sorted by layer (higher on top), then by texture within a layer (fewer batches).
 /// It also inserts the TextureAssets (the textures by AssetId), SpriteQueue and VisibleArea resources, and registers
-/// the SpriteRenderer component. A window always comes with input, positions, animated sprites and tilemaps: it adds
-/// the InputPlugin, the TransformPlugin, the SpritePlugin and the TilemapPlugin (nothing happens if the game added them
-/// first). Only the TilemapPlugin knows this plugin, to draw between its camera and its sprites.
+/// the SpriteRenderer component. A window always comes with input, positions, animated sprites, tilemaps and text: it
+/// adds the InputPlugin, the TransformPlugin, the SpritePlugin, the TilemapPlugin and the TextPlugin (nothing happens
+/// if the game added them first). Only the TilemapPlugin and the TextPlugin know this plugin, to draw between its
+/// camera and its sprites.
 /// @code
 /// auto registry = std::make_unique<rtype::plugins::backend::BackendRegistry>();
 /// rtype::platform::glfw::registerPlatform(*registry);

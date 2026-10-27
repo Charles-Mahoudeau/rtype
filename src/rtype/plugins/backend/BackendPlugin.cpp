@@ -42,6 +42,7 @@
 #include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputPlugin.hpp"
 #include "plugins/sprite/SpritePlugin.hpp"
+#include "plugins/text/TextPlugin.hpp"
 #include "plugins/tilemap/TilemapPlugin.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
@@ -244,6 +245,7 @@ void BackendPlugin::build(ecs::App& app) {
     app.addPlugin(plugins::transform::TransformPlugin{});
     app.addPlugin(plugins::sprite::SpritePlugin{});
     app.addPlugin(plugins::tilemap::TilemapPlugin{});
+    app.addPlugin(plugins::text::TextPlugin{});
     ecs::Events& events = app.getWorld().getEvents();
     registerEvent<plugins::backend::event::PlatformEvent>(events);
     registerEvent<plugins::backend::event::Closed>(events);
