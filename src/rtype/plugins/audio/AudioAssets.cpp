@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "plugins/asset/AssetFiles.hpp"
 #include "plugins/asset/AssetId.hpp"
 #include "plugins/audio/AudioTypes.hpp"
 #include "plugins/audio/IAudioDevice.hpp"
@@ -29,12 +30,11 @@ namespace rtype::plugins::audio {
 std::size_t AudioAssets::getCount() const noexcept { return _entries.size(); }
 
 asset::AssetId AudioAssets::load(const std::filesystem::path& path, const SoundDesc& desc) {
-    return request(path.lexically_normal().generic_string(), {}, desc);
+    return request(asset::normalizePath(path), {}, desc);
 }
 
 asset::AssetId AudioAssets::load(const std::string& name, std::span<const std::byte> encoded, const SoundDesc& desc) {
-    return request(std::filesystem::path{name}.lexically_normal().generic_string(), {encoded.begin(), encoded.end()},
-                   desc);
+    return request(asset::normalizePath(name), {encoded.begin(), encoded.end()}, desc);
 }
 
 const AudioAssets::Entry* AudioAssets::get(asset::AssetId id) const {
