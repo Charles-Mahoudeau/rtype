@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "plugins/asset/AssetFiles.hpp"
 #include "plugins/asset/AssetId.hpp"
 #include "plugins/backend/exceptions/AssetExceptions.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
@@ -34,13 +35,12 @@ constexpr std::size_t kChannels = 4;
 std::size_t TextureAssets::getCount() const noexcept { return _entries.size(); }
 
 asset::AssetId TextureAssets::load(const std::filesystem::path& path, const graphics::TextureDesc& desc) {
-    return request(path.lexically_normal().generic_string(), {}, {}, desc);
+    return request(asset::normalizePath(path), {}, {}, desc);
 }
 
 asset::AssetId TextureAssets::load(const std::string& name, std::span<const std::byte> encoded,
                                    const graphics::TextureDesc& desc) {
-    return request(std::filesystem::path{name}.lexically_normal().generic_string(), {encoded.begin(), encoded.end()},
-                   {}, desc);
+    return request(asset::normalizePath(name), {encoded.begin(), encoded.end()}, {}, desc);
 }
 
 asset::AssetId TextureAssets::loadPixels(const std::string& name, std::span<const std::byte> pixels,
@@ -50,8 +50,7 @@ asset::AssetId TextureAssets::loadPixels(const std::string& name, std::span<cons
         throw exceptions::AssetLoadException{
             std::format("Texture '{}': {} bytes for {}x{} RGBA pixels", name, pixels.size(), desc.size.x, desc.size.y)};
     }
-    return request(std::filesystem::path{name}.lexically_normal().generic_string(), {}, {pixels.begin(), pixels.end()},
-                   desc);
+    return request(asset::normalizePath(name), {}, {pixels.begin(), pixels.end()}, desc);
 }
 
 const TextureAssets::Entry* TextureAssets::get(asset::AssetId id) const {
