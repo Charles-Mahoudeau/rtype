@@ -11,15 +11,22 @@
 #include <SFML/Graphics/CircleShape.hpp>
 #include <SFML/Graphics/Color.hpp>
 #include <SFML/Graphics/ConvexShape.hpp>
+#include <SFML/Graphics/Glsl.hpp>
+#include <SFML/Graphics/PrimitiveType.hpp>
 #include <SFML/Graphics/Rect.hpp>
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Graphics/RenderStates.hpp>
+#include <SFML/Graphics/Shader.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Graphics/Texture.hpp>
+#include <SFML/Graphics/Transformable.hpp>
+#include <SFML/Graphics/Vertex.hpp>
+#include <SFML/Graphics/VertexArray.hpp>
 #include <SFML/Graphics/View.hpp>
 #include <SFML/System/Angle.hpp>
 #include <SFML/System/Vector2.hpp>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -37,6 +44,7 @@
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
+#include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
@@ -85,6 +93,25 @@ void paint(sf::Shape& target, const graphics::Shape& shape) {
 sf::View pixelView(glm::uvec2 size) {
     return sf::View(sf::FloatRect({0.0F, 0.0F}, {static_cast<float>(size.x), static_cast<float>(size.y)}));
 }
+
+/// @brief Turns the distances of an MSDF font atlas into the glyph's coverage, smoothed over about one screen pixel,
+/// in the GLSL SFML compiles (its fixed-function inputs: gl_TexCoord, gl_Color).
+constexpr const char* kMsdfShader = R"(
+uniform sampler2D texture;
+uniform float distanceRange;
+uniform vec2 textureSize;
+
+float median(float r, float g, float b) { return max(min(r, g), min(max(r, g), b)); }
+
+void main() {
+    vec2 uv = gl_TexCoord[0].xy;
+    vec3 distances = texture2D(texture, uv).rgb;
+    vec2 unitRange = vec2(distanceRange) / textureSize;
+    float screenRange = max(0.5 * dot(unitRange, vec2(1.0) / fwidth(uv)), 1.0);
+    float coverage = clamp((median(distances.r, distances.g, distances.b) - 0.5) * screenRange + 0.5, 0.0, 1.0);
+    gl_FragColor = vec4(gl_Color.rgb, gl_Color.a * coverage);
+}
+)";
 
 /// @return How SFML draws @p mode. SFML blends straight alpha and cannot drop pixels without a shader, so kCutout is
 /// drawn as kAlpha.
@@ -179,6 +206,52 @@ void SfmlRenderer::draw(const graphics::Sprite& sprite) {
     _window->draw(sfSprite, statesOf(sprite.blend));
 }
 
+void SfmlRenderer::draw(const graphics::Text& text) {
+    const sf::Texture* texture = find(text.texture);
+    if (texture == nullptr) {
+        throw std::invalid_argument("SfmlRenderer::draw: the text's texture was destroyed");
+    }
+    sf::Shader* shader = msdfShader();
+    if (shader == nullptr || text.glyphs.empty()) {
+        return;
+    }
+    const sf::Vector2f textureSize{texture->getSize()};
+    shader->setUniform("texture", sf::Shader::CurrentTexture);
+    shader->setUniform("distanceRange", text.distanceRange);
+    shader->setUniform("textureSize", sf::Glsl::Vec2{textureSize});
+
+    // Two triangles per glyph, its texture coordinates in pixels (SFML's), kept as floats: atlas bounds fall on
+    // half pixels.
+    constexpr std::size_t kVerticesPerGlyph = 6;
+    sf::VertexArray vertices{sf::PrimitiveType::Triangles, text.glyphs.size() * kVerticesPerGlyph};
+    const sf::Color color = toSfColor(text.color);
+    std::size_t index = 0;
+    for (const graphics::GlyphQuad& glyph : text.glyphs) {
+        const sf::Vector2f min{glyph.bounds.getX(), glyph.bounds.getY()};
+        const sf::Vector2f max = min + sf::Vector2f{glyph.bounds.getWidth(), glyph.bounds.getHeight()};
+        const sf::Vector2f uvMin{glyph.source.getX(), glyph.source.getY()};
+        const sf::Vector2f uvMax = uvMin + sf::Vector2f{glyph.source.getWidth(), glyph.source.getHeight()};
+        const std::array<sf::Vector2f, kVerticesPerGlyph> corners{
+            {{0.0F, 0.0F}, {1.0F, 0.0F}, {1.0F, 1.0F}, {0.0F, 0.0F}, {1.0F, 1.0F}, {0.0F, 1.0F}}};
+        for (const sf::Vector2f corner : corners) {
+            vertices[index++] = sf::Vertex{
+                .position = {min.x + ((max.x - min.x) * corner.x), min.y + ((max.y - min.y) * corner.y)},
+                .color = color,
+                .texCoords = {uvMin.x + ((uvMax.x - uvMin.x) * corner.x), uvMin.y + ((uvMax.y - uvMin.y) * corner.y)}};
+        }
+    }
+    sf::Transformable placement;
+    placement.setOrigin({text.origin.x, text.origin.y});
+    placement.setPosition({text.position.x, text.position.y});
+    placement.setScale({text.scale.x, text.scale.y});
+    placement.setRotation(sf::radians(text.rotation));
+    sf::RenderStates states = statesOf(text.blend);
+    states.transform = placement.getTransform();
+    states.texture = texture;
+    states.shader = shader;
+    _window->draw(vertices, states);
+}
+
 void SfmlRenderer::draw(const graphics::Shape& shape) {
     switch (shape.kind) {
         case graphics::ShapeKind::kRect: {
@@ -215,6 +288,19 @@ void SfmlRenderer::draw(const graphics::Shape& shape) {
             break;
         }
     }
+}
+
+sf::Shader* SfmlRenderer::msdfShader() {
+    if (!_msdfTried) {
+        _msdfTried = true;
+        if (sf::Shader::isAvailable()) {
+            sf::Shader shader;
+            if (shader.loadFromMemory(kMsdfShader, sf::Shader::Type::Fragment)) {
+                _msdfShader.emplace(std::move(shader));
+            }
+        }
+    }
+    return _msdfShader ? &*_msdfShader : nullptr;
 }
 
 const sf::Texture* SfmlRenderer::find(graphics::TextureId texture) const {

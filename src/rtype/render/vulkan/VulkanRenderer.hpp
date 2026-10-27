@@ -43,6 +43,7 @@
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
+#include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
@@ -61,12 +62,12 @@ namespace rtype::render::vulkan {
 /// @details init() creates the instance, the debug messenger (if requested), the surface, the device, the swapchain,
 /// the frames in flight and the allocator. beginFrame() clears the next swapchain image with dynamic rendering and
 /// endFrame() presents it. createTexture() uploads RGBA8 sRGB images, premultiplied by their alpha
-/// (texture::premultiplySrgb()), and data (TextureEncoding::kLinear) as it is. draw(Sprite) collects the frame's
-/// sprites, and endFrame() draws them in batches (one instanced draw per run of sprites sharing a texture), through the
-/// view given to setView(). draw(Shape) collects the
-/// frame's shapes, and endFrame() draws them all after the sprites, in one instanced draw, from their signed distance
-/// (rendering/ShapePass.hpp). Sprites and shapes are blended with premultiplied alpha: every graphics::BlendMode is
-/// drawn by the same pipeline, read per instance (shaders/include/Blend.glsl), so the mode never splits a batch.
+/// (texture::premultiplySrgb()), and data (TextureEncoding::kLinear) as it is. draw(Sprite) and draw(Text) collect the
+/// frame's sprites, and endFrame() draws them in batches (one instanced draw per run of sprites sharing a texture),
+/// through the view given to setView(). draw(Shape) collects the frame's shapes, and endFrame() draws them all after
+/// the sprites, in one instanced draw, from their signed distance (rendering/ShapePass.hpp). Sprites and shapes are
+/// blended with premultiplied alpha: every graphics::BlendMode is drawn by the same pipeline, read per instance
+/// (shaders/include/Blend.glsl), so the mode never splits a batch.
 ///
 /// Needs a platform that implements interop::vulkan::IVulkanSurfaceSource (GlfwPlatform does).
 class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::graphics::IRenderer {
@@ -173,6 +174,12 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// @brief Adds @p shape to the frame, drawn by endFrame() after every sprite, on top of the shapes drawn before
     /// it. Does nothing if beginFrame() skipped the frame.
     void draw(const plugins::backend::graphics::Shape& shape) override;
+
+    /// @brief Adds the glyphs of @p text to the frame's sprites, one instance each, drawn by the MSDF branch of the
+    /// sprite shaders: batched with the sprites before and after it that share its atlas. Does nothing if beginFrame()
+    /// skipped the frame.
+    /// @throws std::invalid_argument If its texture was destroyed or never created.
+    void draw(const plugins::backend::graphics::Text& text) override;
 
   private:
     /// @return The platform's IVulkanSurfaceSource.

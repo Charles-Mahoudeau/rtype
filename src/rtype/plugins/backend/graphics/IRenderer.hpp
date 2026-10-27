@@ -16,6 +16,7 @@
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
+#include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
@@ -103,6 +104,9 @@ class RTYPE_PLUGINS_API IRenderer {
     /// @details A backend may draw every shape of a frame after its sprites, as Vulkan does (one draw call for them
     /// all): shapes are for overlays (debug views, outlines, UI), never under a sprite.
     virtual void draw(const Shape& shape) = 0;
+    /// @brief Draws a text laid out by the text plugin: its glyphs, from an MSDF font atlas, in the order of the other
+    /// sprites (Vulkan batches them with the sprites).
+    virtual void draw(const Text& text) = 0;
     /// @}
 };
 }  // namespace rtype::plugins::backend::graphics

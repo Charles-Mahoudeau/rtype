@@ -39,6 +39,7 @@
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
+#include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
@@ -387,6 +388,19 @@ void VulkanRenderer::draw(const plugins::backend::graphics::Shape& shape) {
         return;
     }
     _shapes.push_back(rendering::ShapeInstance::fromShape(shape));
+}
+
+void VulkanRenderer::draw(const plugins::backend::graphics::Text& text) {
+    if (!_acquiredImage) {
+        return;
+    }
+    const texture::Texture* texture = _textures.find(text.texture);
+    if (texture == nullptr) {
+        throw std::invalid_argument("VulkanRenderer::draw(): the text's texture was destroyed or never created");
+    }
+    for (const plugins::backend::graphics::GlyphQuad& glyph : text.glyphs) {
+        _sprites.add(text.texture, rendering::SpriteInstance::fromGlyph(text, glyph, texture->desc.size));
+    }
 }
 
 interop::vulkan::IVulkanSurfaceSource& VulkanRenderer::surfaceSourceOf(

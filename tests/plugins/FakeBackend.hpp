@@ -22,6 +22,7 @@
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
+#include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
@@ -48,6 +49,8 @@ struct FakeBackendState {
     std::vector<rtype::plugins::backend::graphics::View> views;                   ///< Every setView() call.
     std::vector<rtype::plugins::backend::graphics::Sprite> sprites;               ///< Every draw(Sprite) call.
     std::vector<rtype::plugins::backend::graphics::Shape> shapes;                 ///< Every draw(Shape) call.
+    std::vector<rtype::plugins::backend::graphics::Text> texts;                   ///< Every draw(Text) call.
+    std::vector<char> drawOrder;  ///< 's' (sprite), 'h' (shape) or 't' (text) for each draw() call, in order.
 };
 
 /// @brief A window that returns scripted events.
@@ -127,8 +130,18 @@ class FakeRenderer : public rtype::plugins::backend::graphics::IRenderer {
     }
     void endFrame() override { ++_state->endFrames; }
     void setView(const rtype::plugins::backend::graphics::View& view) override { _state->views.push_back(view); }
-    void draw(const rtype::plugins::backend::graphics::Sprite& sprite) override { _state->sprites.push_back(sprite); }
-    void draw(const rtype::plugins::backend::graphics::Shape& shape) override { _state->shapes.push_back(shape); }
+    void draw(const rtype::plugins::backend::graphics::Sprite& sprite) override {
+        _state->sprites.push_back(sprite);
+        _state->drawOrder.push_back('s');
+    }
+    void draw(const rtype::plugins::backend::graphics::Shape& shape) override {
+        _state->shapes.push_back(shape);
+        _state->drawOrder.push_back('h');
+    }
+    void draw(const rtype::plugins::backend::graphics::Text& text) override {
+        _state->texts.push_back(text);
+        _state->drawOrder.push_back('t');
+    }
 
   private:
     std::shared_ptr<FakeBackendState> _state;  ///< Shared with the test.
