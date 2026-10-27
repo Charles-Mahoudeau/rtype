@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/config/Settings.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/graphics/Color.hpp"
@@ -26,7 +27,6 @@
 #include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
 #include "plugins/backend/platform/WindowConfig.hpp"
-#include "plugins/config/Settings.hpp"
 
 namespace rtype::test::plugins {
 /// @brief What the fake platform and renderer do and record, shared with the test that drives them.
@@ -138,18 +138,18 @@ class FakeRenderer : public rtype::plugins::backend::graphics::IRenderer {
 inline std::unique_ptr<rtype::plugins::backend::BackendRegistry> makeFakeRegistry(
     const std::shared_ptr<FakeBackendState>& state) {
     auto registry = std::make_unique<rtype::plugins::backend::BackendRegistry>();
-    registry->addPlatform("fake", [state](const rtype::plugins::config::Settings& /*settings*/) {
+    registry->addPlatform("fake", [state](const rtype::core::config::Settings& /*settings*/) {
         return std::make_unique<FakePlatform>(state);
     });
-    registry->addRenderer("fake", [state](const rtype::plugins::config::Settings& /*settings*/) {
+    registry->addRenderer("fake", [state](const rtype::core::config::Settings& /*settings*/) {
         return std::make_unique<FakeRenderer>(state);
     });
     return registry;
 }
 
 /// @return Settings naming the fake platform and renderer.
-inline rtype::plugins::config::Settings makeFakeSettings() {
-    rtype::plugins::config::Settings settings;
+inline rtype::core::config::Settings makeFakeSettings() {
+    rtype::core::config::Settings settings;
     settings.set("platform", "fake");
     settings.set("renderer", "fake");
     settings.set("window.title", "Test");

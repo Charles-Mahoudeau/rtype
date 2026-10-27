@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
@@ -33,7 +34,6 @@
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
-#include "plugins/config/Settings.hpp"
 #include "render/vulkan/Registration.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
@@ -148,8 +148,8 @@ void drawShapes(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<ecs
 }
 
 // The window, the renderer and, when asked, the validation layer.
-plugins::config::Settings makeSettings(bool validate) {
-    plugins::config::Settings settings;
+core::config::Settings makeSettings(bool validate) {
+    core::config::Settings settings;
     settings.set("platform", "glfw");
     settings.set("renderer", "vulkan");
     settings.set("window.title", "Vulkan shapes");

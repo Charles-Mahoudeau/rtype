@@ -20,6 +20,7 @@
 #include <variant>
 #include <vector>
 
+#include "core/config/Settings.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
 #include "plugins/backend/WindowEvents.hpp"  // IWYU pragma: keep
@@ -31,7 +32,6 @@
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/backend/graphics/View.hpp"
-#include "plugins/config/Settings.hpp"
 #include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputPlugin.hpp"
 #include "plugins/sprite/SpritePlugin.hpp"
@@ -206,7 +206,7 @@ void registerEvent(ecs::Events& events) {
 }  // namespace
 
 BackendPlugin::BackendPlugin(std::unique_ptr<plugins::backend::BackendRegistry> registry,
-                             plugins::config::Settings settings)
+                             core::config::Settings settings)
     : _registry{std::move(registry)}, _settings{std::move(settings)} {}
 
 std::string_view BackendPlugin::getName() const noexcept { return kName; }

@@ -10,8 +10,8 @@
 #include <cstdint>
 #include <string>
 
+#include "core/config/Settings.hpp"
 #include "plugins/audio/AudioVolumes.hpp"
-#include "plugins/config/Settings.hpp"
 
 namespace rtype::plugins::audio {
 /// @brief The settings every audio backend shares, read from the `audio` section of the config (fromSettings()). Each
@@ -35,7 +35,7 @@ struct AudioConfig {
     /// @brief Reads the keys `backend`, `required`, `maxVoices`, `volume.master`, `volume.music`, `volume.effects` and
     /// `panDistance`; the missing ones keep their default.
     /// @param settings The `audio` section.
-    /// @throws config::exceptions::SettingsException If a key is unknown, has the wrong type or an invalid value.
-    [[nodiscard]] static AudioConfig fromSettings(const config::Settings& settings);
+    /// @throws core::config::exceptions::SettingsException If a key is unknown, has the wrong type or an invalid value.
+    [[nodiscard]] static AudioConfig fromSettings(const core::config::Settings& settings);
 };
 }  // namespace rtype::plugins::audio

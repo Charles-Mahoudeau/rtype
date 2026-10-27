@@ -27,6 +27,7 @@
 #include "Engine.hpp"
 #include "ProjectSettings.hpp"
 #include "audio/miniaudio/Registration.hpp"
+#include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
 #include "plugins/GlmReflection.hpp"  // IWYU pragma: keep
 #include "plugins/asset/AssetId.hpp"
@@ -47,7 +48,6 @@
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/input/Key.hpp"
 #include "plugins/backend/math/Rect.hpp"
-#include "plugins/config/Settings.hpp"
 #include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
 #include "plugins/input/InputAction.hpp"
@@ -679,8 +679,8 @@ void quitOnEscape(ecs::Res<plugins::input::Input> input, ecs::EventWriter<ecs::A
 }
 
 /// @return The configuration of the window, the renderer and the sound.
-plugins::config::Settings makeSettings(const ProjectSettings& projectSettings) {
-    plugins::config::Settings settings;
+core::config::Settings makeSettings(const ProjectSettings& projectSettings) {
+    core::config::Settings settings;
     settings.set("platform", projectSettings.platform);
     settings.set("renderer", projectSettings.renderer);
     settings.set("window.title", std::format("{} - {}", projectSettings.gameName, projectSettings.gameVersion));

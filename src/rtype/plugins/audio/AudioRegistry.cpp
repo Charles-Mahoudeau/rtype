@@ -15,17 +15,17 @@
 #include <utility>
 #include <vector>
 
+#include "core/config/Settings.hpp"
+#include "core/config/exceptions/ConfigExceptions.hpp"
 #include "plugins/audio/AudioConfig.hpp"
 #include "plugins/audio/IAudioDevice.hpp"
 #include "plugins/audio/NullAudioDevice.hpp"
 #include "plugins/audio/exceptions/AudioExceptions.hpp"
-#include "plugins/config/Settings.hpp"
-#include "plugins/config/exceptions/ConfigExceptions.hpp"
 
 namespace rtype::plugins::audio {
 
 AudioRegistry::AudioRegistry() {
-    add("null", [](const config::Settings& section, const AudioConfig& config) -> std::unique_ptr<IAudioDevice> {
+    add("null", [](const core::config::Settings& section, const AudioConfig& config) -> std::unique_ptr<IAudioDevice> {
         section.checkKeys({}, "null");
         return std::make_unique<NullAudioDevice>(config.maxVoices);
     });
@@ -44,7 +44,7 @@ std::vector<std::string> AudioRegistry::getNames() const {
     return names;
 }
 
-std::unique_ptr<IAudioDevice> AudioRegistry::createDevice(const config::Settings& settings) const {
+std::unique_ptr<IAudioDevice> AudioRegistry::createDevice(const core::config::Settings& settings) const {
     const AudioConfig config = AudioConfig::fromSettings(settings.section("audio"));
     if (config.backend.empty()) {
         throw exceptions::AudioBackendException(
@@ -66,7 +66,7 @@ std::unique_ptr<IAudioDevice> AudioRegistry::createDevice(const config::Settings
             return device;
         }
         failure = "its factory returned no device";
-    } catch (const config::exceptions::SettingsException&) {
+    } catch (const core::config::exceptions::SettingsException&) {
         throw;
     } catch (const std::exception& error) {
         failure = error.what();

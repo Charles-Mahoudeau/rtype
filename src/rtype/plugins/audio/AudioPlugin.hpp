@@ -10,8 +10,8 @@
 #include <memory>
 #include <string_view>
 
+#include "core/config/Settings.hpp"
 #include "plugins/audio/AudioRegistry.hpp"
-#include "plugins/config/Settings.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -55,7 +55,7 @@ class AudioPlugin : public ecs::Plugin {
 
     /// @param registry The audio backends, registered by the executable.
     /// @param settings The configuration: `audio` and a section per backend.
-    AudioPlugin(std::unique_ptr<AudioRegistry> registry, config::Settings settings);
+    AudioPlugin(std::unique_ptr<AudioRegistry> registry, core::config::Settings settings);
     ~AudioPlugin() override = default;
     AudioPlugin(const AudioPlugin& other) = delete;
     AudioPlugin& operator=(const AudioPlugin& other) = delete;
@@ -71,6 +71,6 @@ class AudioPlugin : public ecs::Plugin {
 
   private:
     std::unique_ptr<AudioRegistry> _registry;  ///< Handed to the Startup system by build().
-    config::Settings _settings;                ///< Handed to the Startup system by build().
+    core::config::Settings _settings;          ///< Handed to the Startup system by build().
 };
 }  // namespace rtype::plugins::audio

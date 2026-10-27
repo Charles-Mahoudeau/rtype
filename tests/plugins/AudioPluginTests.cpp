@@ -13,6 +13,7 @@
 #include <utility>
 
 #include "FakeAudioDevice.hpp"
+#include "core/config/Settings.hpp"
 #include "plugins/asset/AssetId.hpp"
 #include "plugins/audio/AudioAssets.hpp"
 #include "plugins/audio/AudioEvents.hpp"
@@ -22,7 +23,6 @@
 #include "plugins/audio/AudioSource.hpp"
 #include "plugins/audio/AudioTypes.hpp"
 #include "plugins/audio/AudioVolumes.hpp"
-#include "plugins/config/Settings.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -34,7 +34,7 @@ namespace {
 /// @brief An App with the AudioPlugin over the fake device.
 class AudioApp {
   public:
-    explicit AudioApp(rtype::plugins::config::Settings settings = rtype::test::plugins::makeFakeAudioSettings(),
+    explicit AudioApp(rtype::core::config::Settings settings = rtype::test::plugins::makeFakeAudioSettings(),
                       rtype::ecs::RunMode mode = rtype::ecs::RunMode::kClient)
         : _state{std::make_shared<rtype::test::plugins::FakeAudioState>()}, _app{mode} {
         _app.addPlugin(rtype::plugins::audio::AudioPlugin{rtype::test::plugins::makeFakeAudioRegistry(_state),
@@ -99,7 +99,7 @@ TEST(AudioPlugin, RegistersItsTypesAndBringsTheTransformPlugin) {
 }
 
 TEST(AudioPlugin, CreatesTheDeviceWithTheVolumesOfTheConfig) {
-    rtype::plugins::config::Settings settings = rtype::test::plugins::makeFakeAudioSettings();
+    rtype::core::config::Settings settings = rtype::test::plugins::makeFakeAudioSettings();
     settings.set("audio.volume.master", 0.5);
     settings.set("audio.volume.music", 0.25);
     AudioApp app{settings};

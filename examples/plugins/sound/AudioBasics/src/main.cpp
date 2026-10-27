@@ -31,6 +31,7 @@
 #include <utility>
 
 #include "audio/miniaudio/Registration.hpp"
+#include "core/config/Settings.hpp"
 #include "plugins/asset/AssetId.hpp"
 #include "plugins/audio/AudioAssets.hpp"
 #include "plugins/audio/AudioConfig.hpp"
@@ -42,7 +43,6 @@
 #include "plugins/audio/AudioTypes.hpp"
 #include "plugins/audio/AudioVolumes.hpp"
 #include "plugins/audio/IAudioDevice.hpp"
-#include "plugins/config/Settings.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/MinimalPlugins.hpp"
@@ -235,12 +235,12 @@ void run(const std::string& backend) {
     audio::miniaudio::registerAudio(*registry);
     registry->add(
         "log",
-        [](const plugins::config::Settings& section, const AudioConfig& /*config*/) -> std::unique_ptr<IAudioDevice> {
+        [](const core::config::Settings& section, const AudioConfig& /*config*/) -> std::unique_ptr<IAudioDevice> {
             section.checkKeys({}, "log");
             return std::make_unique<LogAudioDevice>();
         });
 
-    plugins::config::Settings settings;
+    core::config::Settings settings;
     settings.set("audio.backend", backend);
     settings.set("audio.volume.music", 0.8);
 

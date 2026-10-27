@@ -11,13 +11,13 @@
 #include <optional>
 #include <unordered_map>
 
+#include "core/config/Settings.hpp"
 #include "plugins/asset/AssetId.hpp"
 #include "plugins/audio/AudioEvents.hpp"
 #include "plugins/audio/AudioRegistry.hpp"
 #include "plugins/audio/AudioTypes.hpp"
 #include "plugins/audio/AudioVolumes.hpp"
 #include "plugins/audio/IAudioDevice.hpp"
-#include "plugins/config/Settings.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
@@ -53,7 +53,7 @@ RTYPE_ECS_RESOURCE(Audio, "rtype.Audio");
 /// the one to start. Inserted by AudioPlugin::build(), which opens nothing itself.
 struct AudioSetup {
     std::unique_ptr<AudioRegistry> registry;  ///< The backends by name.
-    config::Settings settings;                ///< `audio`, and a section per backend.
+    core::config::Settings settings;          ///< `audio`, and a section per backend.
 };
 RTYPE_ECS_RESOURCE(AudioSetup, "rtype.AudioSetup");
 }  // namespace rtype::plugins::audio

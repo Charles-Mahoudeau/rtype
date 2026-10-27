@@ -1,5 +1,5 @@
 -- Plugins: the engine as ECS plugins, one folder per plugin. Each plugin keeps its own code (the backend plugin also
--- holds the contracts the platforms and renderers implement: IPlatform, IRenderer, Event, Settings...) and declares
+-- holds the contracts the platforms and renderers implement: IPlatform, IRenderer, Event, ...) and declares
 -- its own components, resources and events.
 
 -- Keep debug_renderer at its default: that option does not reach Jolt's CMake (the library is always built with
@@ -16,7 +16,7 @@ target("plugins")
     add_headerfiles("**.hpp", "**.tpp")
     -- Headers are included as "plugins/...".
     add_includedirs("..", {public = true})
-    add_deps("ecs", {public = true})
+    add_deps("core", "ecs", {public = true})
     add_packages("glm", {public = true})
     -- Decodes image files into texture pixels (backend/graphics/ImageDecoding.cpp) and packs atlases
     -- (sprite/detail/AtlasPacker.cpp).
