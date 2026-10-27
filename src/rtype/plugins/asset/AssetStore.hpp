@@ -20,13 +20,13 @@
 namespace rtype::plugins::asset {
 
 /// @brief The assets of one kind read from files or built in code, by AssetId: the bookkeeping the asset resources
-/// (AtlasAssets, TilemapAssets) share, so each keeps only how its files are read and what it asks of
+/// (AtlasAssets, TilemapAssets, FontAssets) share, so each keeps only how its files are read and what it asks of
 /// TextureAssets.
 ///
 /// @details An asset is known by its normalized path (normalizePath()), or the name it was added under, and its id is
 /// AssetId::fromPath() of it. Asking for a known one again gives its id without reading anything. An asset that cannot
 /// be read is recorded as failed, with the reason, which is also printed: one missing asset does not stop the game.
-/// @tparam T The asset: a SpriteAtlas, a Tilemap...
+/// @tparam T The asset: a SpriteAtlas, a Tilemap, a Font...
 template <typename T>
 class AssetStore {
   public:
