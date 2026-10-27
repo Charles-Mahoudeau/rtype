@@ -112,7 +112,7 @@ Tileset readTileset(const Json& object, const std::filesystem::path& directory, 
         throw exceptions::TilemapException{
             std::format("tileset '{}': a tileset of separate images is not supported, use one image", name)};
     }
-    std::string imagePath = normalize(directory / object.at("image").get<std::string>());
+    const std::string imagePath = normalize(directory / object.at("image").get<std::string>());
     Tileset tileset{
         .name = name,
         .imagePath = imagePath,

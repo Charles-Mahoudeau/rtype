@@ -34,7 +34,6 @@
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
-#include "rtype/ecs/change/Mut.hpp"
 #include "rtype/ecs/query/Query.hpp"
 #include "rtype/ecs/query/QueryTerms.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
