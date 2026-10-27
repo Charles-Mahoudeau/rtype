@@ -126,9 +126,9 @@ the backend.
 | `init(IPlatform&)` | Attaches to the window. Called once, by the registry, after `IPlatform::init()`. |
 | `resize(size)` | Called on every `Resized` event. |
 | `getViewSize()` | Optional (default: 0x0, the view is the framebuffer). The resolution the game is designed for, which the view fits in the window with bars; the `BackendPlugin` uses it to record what each frame shows (`VisibleArea`). |
-| `createTexture(desc, pixels)`, `destroy(id)` | Textures from RGBA pixels, referred to by `TextureId`. |
+| `createTexture(desc, pixels)`, `destroy(id)` | Textures from RGBA pixels, referred to by `TextureId`. `desc.encoding` says whether they are sRGB colours (images, which a renderer may premultiply) or data sampled as stored (`TextureEncoding::kLinear`: the distances of a font atlas). |
 | `beginFrame(clearColor)`, `endFrame()` | One frame. |
-| `setView(view)`, `draw(Sprite)`, `draw(Shape)` | Drawing, between `beginFrame()` and `endFrame()`. A `Shape` is a rectangle (rounded corners), circle, capsule or line, filled and/or outlined; shapes are overlays, drawn after the sprites. |
+| `setView(view)`, `draw(Sprite)`, `draw(Shape)`, `draw(Text)` | Drawing, between `beginFrame()` and `endFrame()`. A `Shape` is a rectangle (rounded corners), circle, capsule or line, filled and/or outlined; shapes are overlays, drawn after the sprites. A `Text` is already laid out: its glyphs, cut from an MSDF font atlas, drawn in order with the sprites. |
 
 Conventions, the ones of those libraries: world units with X to the right and Y down, angles in radians and
 clockwise on screen, shapes drawn in call order (the last one on top). Until `setView()` is called, a frame shows
