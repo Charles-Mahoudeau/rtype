@@ -10,6 +10,12 @@ are added.
 
 ## Project structure
 
+- `src/rtype/core/` — `core` target, static library (`rtype-core`): what several modules share and that belongs to
+  none of them, one folder per feature, included as `core/<feature>/<File>.hpp`, namespace `rtype::core::<feature>`.
+  It depends on no other project target and keeps no global state. A class goes in only if two or more unrelated
+  modules need it; what only `plugins` needs stays in `plugins`.
+  - `core/config/` (`rtype::core::config`) — `Settings`: the flat configuration every plugin and backend reads
+    its own section of, and its `SettingsException` (`config/exceptions/`).
 - `src/rtype/ecs/` — `ecs` target, shared library (`rtype-ecs`): the Entity Component System and,
   later, the App and its plugins (`rtype::ecs`). Design in `docs/ecs/design.md`. It depends on no other
   project target. Exported classes and functions are marked `RTYPE_ECS_API`, and the library keeps no
@@ -70,8 +76,6 @@ are added.
     is), the `AudioAssets` resource (sounds by `AssetId`, opened and decoded by the device), `AudioVolumes`, the
     `AudioSource` and `AudioListener` components and the `PlaySound` / `PlayMusic` / `StopMusic` events, played by
     client-side PostUpdate systems. Design in `docs/audio/design.md`.
-  - `plugins/config/` (`rtype::plugins::config`) — `Settings`: the flat configuration every plugin and backend reads
-    its own section of, and its `SettingsException` (`config/exceptions/`).
   - `plugins/asset/` (`rtype::plugins::asset`) — `AssetId`: the hash of an asset's path, the same in every process,
     which components keep to name a texture or a sound (reflected as `kAssetId`).
   - `plugins/sprite/` (`rtype::plugins::sprite`) — `SpritePlugin`: sprite atlases and animations. `SpriteAtlas`
@@ -119,7 +123,7 @@ are added.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
 
 Each module has its own `xmake.lua`, included from the root `xmake.lua`. Add new sources under the
-matching module: `plugins`, `ecs`, `network`, `replication`, `platform-glfw`, `render-vulkan`, `audio-miniaudio`
+matching module: `plugins`, `core`, `ecs`, `network`, `replication`, `platform-glfw`, `render-vulkan`, `audio-miniaudio`
 and `luau` glob
 `**.cpp` in their own folder.
 
@@ -128,6 +132,7 @@ and `luau` glob
 Dependencies always point towards `ecs` and `plugins`, never away from them:
 
 ```
+core ←  plugins, platform-*, render-*, audio-*, engine (executable)
 ecs  ←  plugins, interop-*  ←  platform-*, render-*  ←  engine (executable)
         plugins             ←  audio-*             ←  engine (executable)
 luau                                                 ←  engine (executable)
@@ -135,7 +140,7 @@ network  ←  replication  ←  engine (executable)
 ecs      ←  replication
 ```
 
-- `ecs` depends on no other project target.
+- `core` and `ecs` depend on no other project target.
 - `network` depends on Asio only (private): never on the ECS, `plugins` or any other project target.
   `replication` depends on `ecs` and `network` and is the only module that knows both; the renderer, the
   platforms and `luau` never include its headers.
@@ -146,7 +151,7 @@ ecs      ←  replication
 - The platforms and renderers link `plugins` (and so the ECS) for the contracts, but never include ECS headers or
   plugin code beyond `plugins/backend/`'s interfaces and types. Likewise, the audio backends include nothing of
   `plugins` but the contract of `plugins/audio/` (`IAudioDevice`, `AudioTypes`, `AudioConfig`, `AudioRegistry`) and
-  `plugins/config/`'s `Settings`.
+  `core/config/`'s `Settings` (through `core`).
 - An audio backend never depends on a platform or a renderer, nor they on it. miniaudio never leaves
   `audio/miniaudio/`: no header outside it includes `<miniaudio.h>`.
 - Modules exchange backend types only (`rtype::plugins::backend::Event`, `rtype::plugins::backend::input::Key`...).
