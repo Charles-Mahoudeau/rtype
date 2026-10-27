@@ -62,8 +62,12 @@ namespace {
 /// @brief Waits on fences and acquires images without a timeout.
 constexpr std::uint64_t kNoTimeout = std::numeric_limits<std::uint64_t>::max();
 
-/// @brief Format of every texture: the RGBA8 pixels IRenderer::createTexture() takes, decoded from sRGB when sampled.
+/// @brief Format of the colour textures: the RGBA8 pixels IRenderer::createTexture() takes, decoded from sRGB when
+/// sampled.
 constexpr vk::Format kTextureFormat = vk::Format::eR8G8B8A8Srgb;
+
+/// @brief Format of the data textures (TextureEncoding::kLinear): the same pixels, sampled as they are stored.
+constexpr vk::Format kDataTextureFormat = vk::Format::eR8G8B8A8Unorm;
 
 /// @brief Texture sets per descriptor pool: a new pool is added each time this many textures are alive.
 constexpr std::uint32_t kTextureSetsPerPool = 64;
@@ -239,10 +243,16 @@ plugins::backend::graphics::TextureId VulkanRenderer::createTexture(const plugin
             std::format("VulkanRenderer::createTexture(): a {}x{} texture, sides must be 1 to {}", desc.size.x,
                         desc.size.y, maxSize));
     }
-    memory::Image image{*_device, *_allocator, vk::Extent2D{desc.size.x, desc.size.y}, kTextureFormat,
+    const bool data = desc.encoding == plugins::backend::graphics::TextureEncoding::kLinear;
+    memory::Image image{*_device, *_allocator, vk::Extent2D{desc.size.x, desc.size.y},
+                        data ? kDataTextureFormat : kTextureFormat,
                         vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst};
-    // Premultiplied once here, so the shaders and the blending can assume it (rendering/Blend.hpp).
-    _uploader->upload(texture::premultiplySrgb(pixels), image);
+    if (data) {
+        _uploader->upload(pixels, image);
+    } else {
+        // Premultiplied once here, so the shaders and the blending can assume it (rendering/Blend.hpp).
+        _uploader->upload(texture::premultiplySrgb(pixels), image);
+    }
     _uploader->flush();
     vk::raii::DescriptorSet set = _textureDescriptors->allocate(*_textureSetLayout);
     descriptor::DescriptorWriter{}
