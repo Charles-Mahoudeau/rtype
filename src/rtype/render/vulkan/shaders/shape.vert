@@ -18,7 +18,7 @@ layout(location = 1) in vec2 inHalfSize;         // Half its bounding box, befor
 layout(location = 2) in float inRotation;        // Radians, clockwise on screen.
 layout(location = 3) in float inRadius;          // Circle / capsule radius, or corner radius.
 layout(location = 4) in float inOutlineThickness;
-layout(location = 5) in uint inKind;             // 0 rect, 1 circle, 2 capsule.
+layout(location = 5) in uint inKindAndBlend;     // Low byte: 0 rect, 1 circle, 2 capsule. Next byte: Blend.glsl mode.
 layout(location = 6) in vec4 inFillColor;
 layout(location = 7) in vec4 inOutlineColor;
 
@@ -29,6 +29,7 @@ layout(location = 3) flat out float outOutlineThickness;
 layout(location = 4) flat out uint outKind;
 layout(location = 5) flat out vec4 outFillColor;
 layout(location = 6) flat out vec4 outOutlineColor;
+layout(location = 7) flat out uint outBlend;
 
 const vec2 kCorners[6] = vec2[](vec2(-1.0, -1.0), vec2(1.0, -1.0), vec2(1.0, 1.0),
                                 vec2(-1.0, -1.0), vec2(1.0, 1.0), vec2(-1.0, 1.0));
@@ -46,7 +47,8 @@ void main() {
     outHalfSize = inHalfSize;
     outRadius = inRadius;
     outOutlineThickness = inOutlineThickness;
-    outKind = inKind;
+    outKind = inKindAndBlend & 0xFFu;
+    outBlend = (inKindAndBlend >> 8u) & 0xFFu;
     outFillColor = inFillColor;
     outOutlineColor = inOutlineColor;
 }

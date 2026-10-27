@@ -34,6 +34,7 @@
 #include "plugins/config/Settings.hpp"
 #include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputPlugin.hpp"
+#include "plugins/sprite/SpritePlugin.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -175,7 +176,8 @@ void drawSprites(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<Te
                                                               .scale = global.scale,
                                                               .origin = sprite.origin,
                                                               .rotation = global.rotation,
-                                                              .color = sprite.color}});
+                                                              .color = sprite.color,
+                                                              .blend = sprite.blend}});
     }
     std::ranges::stable_sort(items, [](const SpriteItem& left, const SpriteItem& right) {
         if (left.layer != right.layer) {
@@ -212,6 +214,7 @@ std::string_view BackendPlugin::getName() const noexcept { return kName; }
 void BackendPlugin::build(ecs::App& app) {
     app.addPlugin(plugins::input::InputPlugin{});
     app.addPlugin(plugins::transform::TransformPlugin{});
+    app.addPlugin(plugins::sprite::SpritePlugin{});
     ecs::Events& events = app.getWorld().getEvents();
     registerEvent<plugins::backend::event::PlatformEvent>(events);
     registerEvent<plugins::backend::event::Closed>(events);

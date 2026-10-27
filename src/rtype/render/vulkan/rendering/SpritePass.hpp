@@ -26,7 +26,8 @@
 
 namespace rtype::render::vulkan::rendering {
 
-/// @brief Draws a frame's SpriteBatch: one instanced draw of a unit quad per batch, alpha blended.
+/// @brief Draws a frame's SpriteBatch: one instanced draw of a unit quad per batch, with premultiplied alpha (each
+/// sprite's graphics::BlendMode is read per instance by the shaders, so it never splits a batch).
 ///
 /// @details Owns the sprite pipeline (shaders/sprite.vert and sprite.frag, on the shared layout) and one instance
 /// buffer per frame in flight, CPU-written and read by the GPU as per-instance vertex attributes. A frame's buffer is
@@ -68,7 +69,7 @@ class RTYPE_RENDER_VULKAN_API SpritePass {
 
     const memory::Allocator* _allocator;                  ///< Allocates the instance buffers; not owned.
     const pipeline::PipelineLayout* _layout;              ///< The shared layout; not owned.
-    pipeline::GraphicsPipeline _pipeline;                 ///< Sprite shaders, instanced input, alpha blending.
+    pipeline::GraphicsPipeline _pipeline;                 ///< Sprite shaders, instanced input, premultiplied alpha.
     std::vector<std::optional<memory::Buffer>> _buffers;  ///< One instance buffer per frame in flight.
 };
 

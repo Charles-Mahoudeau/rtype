@@ -74,6 +74,13 @@ are added.
     its own section of, and its `SettingsException` (`config/exceptions/`).
   - `plugins/asset/` (`rtype::plugins::asset`) — `AssetId`: the hash of an asset's path, the same in every process,
     which components keep to name a texture or a sound (reflected as `kAssetId`).
+  - `plugins/sprite/` (`rtype::plugins::sprite`) — `SpritePlugin`: sprite atlases and animations. `SpriteAtlas`
+    (named frames and `SpriteAnimation`s, built by `grid()` or in code), the `AtlasAssets` resource (atlases by
+    `AssetId`: Aseprite / TexturePacker JSON files read with nlohmann_json, or images packed at load time with
+    stb_rect_pack), the `SpriteAnimator` component and the `AnimationFinished` event. A PostUpdate system on every
+    side plays the animators into their `SpriteRenderer`, and a client one hands the atlases' textures to
+    `TextureAssets`. nlohmann_json is a private package of `plugins`: only `sprite/detail/` includes it. The backend
+    plugin adds it. See `docs/Sprites.md`.
   - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
   `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
@@ -106,7 +113,7 @@ are added.
   `examples/` is an example named after its folder. They are only built when enabled (see Commands).
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `docs/` — design documentation (e.g. `docs/Input.md` for the event and input pipeline, `docs/physics/design.md`
-  for the physics, `docs/audio/design.md` for the audio).
+  for the physics, `docs/audio/design.md` for the audio, `docs/Sprites.md` for atlases and animations).
 - `.github/` — CI workflow and issue templates.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
 
@@ -131,9 +138,9 @@ ecs      ←  replication
 - `network` depends on Asio only (private): never on the ECS, `plugins` or any other project target.
   `replication` depends on `ecs` and `network` and is the only module that knows both; the renderer, the
   platforms and `luau` never include its headers.
-- `plugins` depends on nothing but `ecs` and glm, plus Jolt as a private package of the physics plugin (no public
-  header includes it). Never add a dependency on a `platform-*`, `render-*`, `audio-*` or `luau`
-  target to it: the platforms, renderers and audio backends implement its contracts (`plugins/backend/`,
+- `plugins` depends on nothing but `ecs` and glm, plus Jolt (physics), nlohmann_json (sprite atlases) and stb (images)
+  as private packages (no public header includes them). Never add a dependency on a `platform-*`, `render-*`, `audio-*`
+  or `luau` target to it: the platforms, renderers and audio backends implement its contracts (`plugins/backend/`,
   `plugins/audio/`), so it would create a cycle. The executable fills the backend and audio registries instead.
 - The platforms and renderers link `plugins` (and so the ECS) for the contracts, but never include ECS headers or
   plugin code beyond `plugins/backend/`'s interfaces and types. Likewise, the audio backends include nothing of

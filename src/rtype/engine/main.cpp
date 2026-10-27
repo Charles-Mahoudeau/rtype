@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <exception>
+#include <format>
 #include <glm/ext/vector_float2.hpp>
 #include <iostream>
 #include <memory>
@@ -36,12 +37,12 @@
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"  // IWYU pragma: keep
+#include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
-#include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/backend/input/Key.hpp"
 #include "plugins/backend/math/Rect.hpp"
 #include "plugins/config/Settings.hpp"
@@ -58,6 +59,10 @@
 #include "plugins/physics/Velocity.hpp"
 #include "plugins/physics/debug/PhysicsDebugPlugin.hpp"
 #include "plugins/physics/debug/PhysicsDebugSettings.hpp"
+#include "plugins/sprite/AnimationEvents.hpp"
+#include "plugins/sprite/AtlasAssets.hpp"
+#include "plugins/sprite/SpriteAnimator.hpp"
+#include "plugins/sprite/SpriteAtlas.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "render/vulkan/Registration.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -96,9 +101,9 @@
 // fires lasers; the first laser that touches the other ship wins. Obstacles in the middle stop the lasers, and the
 // ships slide along them. The server simulates everything with the physics plugin and replicates Ship, Laser,
 // Obstacle and Winner (the physics replicates Collider and RigidBody); the clients send their inputs and draw what
-// they receive. F3 shows the colliders. One shot in ten misfires: the server fires nothing and replicates a Misfire
-// instead. The clients play a looping music, and a sound for every laser and misfire, panned where it happened, with a
-// random pitch and volume.
+// they receive, animated by the sprite plugin; a ship that is hit explodes. F3 shows the colliders. One shot in ten
+// misfires: the server fires nothing and replicates a Misfire instead. The clients play a looping music, and a sound
+// for every laser and misfire, panned where it happened, with a random pitch and volume.
 //
 //   engine server [port]           headless server, waits for two clients
 //   engine client [host] [port]    a player (default 127.0.0.1:4242)
@@ -160,16 +165,18 @@ struct GameSounds {
 };
 RTYPE_ECS_RESOURCE(GameSounds, "game.GameSounds");
 
-/// @brief Client only: plays the frames of a sprite sheet laid out in a row, by changing the SpriteRenderer's source.
-struct SpriteAnimation {
-    glm::vec2 firstFrame{0.0F};  ///< Top-left corner of the first frame, in pixels.
-    glm::vec2 frameSize{0.0F};   ///< Size of a frame, in pixels.
-    float stride = 0.0F;         ///< Pixels from one frame's left edge to the next.
-    std::uint32_t frameCount = 1;
-    float frameDuration = 0.1F;  ///< Seconds per frame.
-    float elapsed = 0.0F;        ///< Seconds since the animation started.
+/// @brief Client only: the atlases of the game's sprites, built at startup.
+struct GameAtlases {
+    plugins::asset::AssetId leftShip;   ///< r-typesheet24.gif: animation "fly".
+    plugins::asset::AssetId rightShip;  ///< r-typesheet26.gif: animation "fly".
+    plugins::asset::AssetId laser;      ///< bullet.gif: animations "right" and "left".
+    plugins::asset::AssetId explosion;  ///< r-fx-explosions.gif: animation "explode", played once.
 };
-RTYPE_ECS_COMPONENT(SpriteAnimation, "game.SpriteAnimation");
+RTYPE_ECS_RESOURCE(GameAtlases, "game.GameAtlases");
+
+/// @brief Client only: an explosion, removed when its animation ends.
+struct Explosion {};
+RTYPE_ECS_COMPONENT(Explosion, "game.Explosion");
 
 constexpr std::uint16_t kDefaultPort = 4242;
 constexpr float kViewWidth = 800.0F;
@@ -207,6 +214,8 @@ constexpr const char* kLaserSheet = "assets/bullet.gif";
 constexpr const char* kMusicSound = "assets/maint.ogg";
 constexpr const char* kLaserSound = "assets/laser.mp3";
 constexpr const char* kMisfireSound = "assets/laser-no.mp3";
+constexpr const char* kExplosionSheet = "assets/r-fx-explosions.gif";
+constexpr float kExplosionScale = 1.5F;  ///< The 64-pixel explosion, over a 48-pixel ship.
 
 /// @return Whether a Winner exists: the game is over.
 bool isOver(ecs::Query<const Winner>& winners) { return winners.begin() != ecs::Query<const Winner>::end(); }
@@ -518,44 +527,52 @@ void sendControls(ecs::Res<plugins::input::Input> input, ecs::Res<replication::i
     client->setInput(sent);
 }
 
+/// @brief Startup: builds the atlases of the ships, the lasers and the explosion, cut from the sheets of assets/.
+void loadAtlases(ecs::ResMut<plugins::sprite::AtlasAssets> atlases, ecs::ResMut<GameAtlases> game) {
+    // The left sheet: 5 frames of 48x48, every 65 pixels.
+    plugins::sprite::SpriteAtlas left =
+        plugins::sprite::SpriteAtlas::grid(kLeftShipSheet, {48.0F, 48.0F}, 5, {17.0F, 0.0F}, 0, {9.0F, 9.0F});
+    left.addAnimation("fly", {0, 1, 2, 3, 4}, 0.1F);
+    // The right sheet: 3 frames of 63x48 facing left, every 65 pixels, then the same 3 mirrored (facing right).
+    plugins::sprite::SpriteAtlas right =
+        plugins::sprite::SpriteAtlas::grid(kRightShipSheet, {63.0F, 48.0F}, 3, {2.0F, 0.0F}, 0, {1.0F, 1.0F});
+    right.addAnimation("fly", {0, 1, 2}, 0.1F, plugins::sprite::AnimationDirection::kPingPong);
+    // Two frames of 80x16 flying right from x 108, then two flying left from x 271, every 81 pixels.
+    plugins::sprite::SpriteAtlas laser{kLaserSheet};
+    for (const float x : {108.0F, 189.0F, 271.0F, 352.0F}) {
+        laser.addFrame(std::format("{}", laser.getFrames().size()),
+                       plugins::backend::math::Rect{{x, 151.0F}, {80.0F, 16.0F}});
+    }
+    laser.addAnimation("right", {0, 1}, 0.08F);
+    laser.addAnimation("left", {2, 3}, 0.08F);
+    game->laser = atlases->add("game.laser", std::move(laser));
+    game->leftShip = atlases->add("game.leftShip", std::move(left));
+    game->rightShip = atlases->add("game.rightShip", std::move(right));
+    // The big explosions, the bottom row: 10 frames of 64x64, every 65 pixels; the first six burst and fade.
+    plugins::sprite::SpriteAtlas explosion =
+        plugins::sprite::SpriteAtlas::grid(kExplosionSheet, {64.0F, 64.0F}, 10, {1.0F, 0.0F}, 0, {1.0F, 99.0F});
+    explosion.addAnimation("explode", {0, 1, 2, 3, 4, 5}, 0.07F, plugins::sprite::AnimationDirection::kForward, 1);
+    game->explosion = atlases->add("game.explosion", std::move(explosion));
+}
+
 /// @brief Update: gives the ships and lasers the server created a Transform, a sprite and an animation.
-void dressEntities(ecs::Commands& commands, ecs::ResMut<plugins::backend::TextureAssets> textures,
+void dressEntities(ecs::Commands& commands, ecs::Res<GameAtlases> game,
                    ecs::Query<const Ship, ecs::Without<plugins::backend::SpriteRenderer>> ships,
                    ecs::Query<const Laser, ecs::Without<plugins::backend::SpriteRenderer>> lasers) {
     for (auto [entity, ship] : ships) {
-        const bool left = ship.player == 0;
-        // The left sheet has 5 frames of 48x48 every 65 pixels; the right one 6 frames of 63x48, about every 65.4.
-        const SpriteAnimation animation =
-            left ? SpriteAnimation{.firstFrame = {9.0F, 9.0F},
-                                   .frameSize = {48.0F, 48.0F},
-                                   .stride = 65.0F,
-                                   .frameCount = 5}
-                 : SpriteAnimation{
-                       .firstFrame = {1.0F, 1.0F}, .frameSize = {63.0F, 48.0F}, .stride = 65.4F, .frameCount = 6};
         commands.entity(entity)
             .add(plugins::transform::Transform{.position = ship.position})
-            .add(plugins::backend::SpriteRenderer{
-                .texture = textures->load(left ? kLeftShipSheet : kRightShipSheet),
-                .source = plugins::backend::math::Rect{animation.firstFrame, animation.frameSize},
-                .origin = animation.frameSize / 2.0F,
-                .layer = 1})
-            .add(animation);
+            .add(plugins::backend::SpriteRenderer{.layer = 1})
+            .add(plugins::sprite::SpriteAnimator{.atlas = ship.player == 0 ? game->leftShip : game->rightShip,
+                                                 .animation = plugins::sprite::animationId("fly")});
     }
     for (auto [entity, laser] : lasers) {
-        // bullet.gif: two frames flying right from x 108, two flying left from x 271, 80x16 every 81 pixels.
-        const SpriteAnimation animation{.firstFrame = {laser.shooter == 0 ? 108.0F : 271.0F, 151.0F},
-                                        .frameSize = {80.0F, 16.0F},
-                                        .stride = 81.0F,
-                                        .frameCount = 2,
-                                        .frameDuration = 0.08F};
         commands.entity(entity)
             .add(plugins::transform::Transform{.position = laser.position})
-            .add(plugins::backend::SpriteRenderer{
-                .texture = textures->load(kLaserSheet),
-                .source = plugins::backend::math::Rect{animation.firstFrame, animation.frameSize},
-                .origin = animation.frameSize / 2.0F,
-                .layer = 2})
-            .add(animation);
+            .add(plugins::backend::SpriteRenderer{.layer = 2})
+            .add(plugins::sprite::SpriteAnimator{
+                .atlas = game->laser,
+                .animation = plugins::sprite::animationId(laser.shooter == 0 ? "right" : "left")});
     }
 }
 
@@ -604,15 +621,37 @@ void followLasers(ecs::Query<plugins::transform::Transform, const Laser> lasers)
     }
 }
 
-/// @brief Update: shows each animation's current frame.
-void animateSprites(ecs::Res<ecs::Time> time, ecs::Query<plugins::backend::SpriteRenderer, SpriteAnimation> sprites) {
-    for (auto [entity, sprite, animation] : sprites) {
-        animation->elapsed += time->delta;
-        const auto frame =
-            static_cast<std::uint32_t>(animation->elapsed / animation->frameDuration) % animation->frameCount;
-        const glm::vec2 corner{animation->firstFrame.x + (static_cast<float>(frame) * animation->stride),
-                               animation->firstFrame.y};
-        sprite->source = plugins::backend::math::Rect{corner, animation->frameSize};
+/// @brief Update: when a laser wins the game, blows up the ship it hit (the other player's): hides its sprite and plays
+/// an explosion where it was.
+void explodeLoser(ecs::Commands& commands, ecs::Res<GameAtlases> game,
+                  ecs::Query<const Winner, ecs::Added<Winner>> winners,
+                  ecs::Query<const Ship, plugins::backend::SpriteRenderer> ships) {
+    for (auto [entity, winner] : winners) {
+        for (auto [shipEntity, ship, sprite] : ships) {
+            if (ship.player == winner.player) {
+                continue;
+            }
+            sprite->color.w = 0.0F;  // Its alpha: the ship is gone.
+            commands.spawn()
+                .add(plugins::transform::Transform{.position = ship.position, .scale = glm::vec2{kExplosionScale}})
+                .add(plugins::backend::SpriteRenderer{.layer = 3,
+                                                      .blend = plugins::backend::graphics::BlendMode::kAdditive})
+                .add(plugins::sprite::SpriteAnimator{.atlas = game->explosion,
+                                                     .animation = plugins::sprite::animationId("explode")})
+                .add(Explosion{});
+        }
+    }
+}
+
+/// @brief Update: removes the explosions whose animation ended.
+void removeExplosions(ecs::Commands& commands, ecs::EventReader<plugins::sprite::AnimationFinished> finished,
+                      ecs::Query<const plugins::sprite::SpriteAnimator, ecs::With<Explosion>> explosions) {
+    for (const plugins::sprite::AnimationFinished& event : finished) {
+        for (auto [entity, animator] : explosions) {
+            if (entity == event.entity) {
+                commands.despawn(entity);
+            }
+        }
     }
 }
 
@@ -680,7 +719,8 @@ int runClient(const std::string& host, std::uint16_t port) {
     // F3 outlines every collider; hidden at first.
     app.insertResource(plugins::physics::debug::PhysicsDebugSettings{.enabled = false, .drawAll = true});
     app.addPlugin(plugins::physics::debug::PhysicsDebugPlugin{});
-    static_cast<void>(app.getWorld().getComponents().registerType<SpriteAnimation>());
+    static_cast<void>(app.getWorld().getComponents().registerType<Explosion>());
+    app.insertResource(GameAtlases{});
     app.addPlugin(replication::client::ClientPlugin{*server, network::NetworkSettings{}});
     declareInputs(app);
 
@@ -688,6 +728,7 @@ int runClient(const std::string& host, std::uint16_t port) {
     app.addSystem(ecs::Phase::kStartup, "game.spawnCamera", &spawnCamera).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kStartup, "game.loadSounds", &loadSounds).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kUpdate, "game.playShots", &playShots).setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kStartup, "game.loadAtlases", &loadAtlases).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kPostUpdate, "game.sendControls", &sendControls)
         .before(std::string{replication::client::ClientPlugin::kSendInputSystem})
         .setSide(ecs::Side::kClient);
@@ -701,7 +742,8 @@ int runClient(const std::string& host, std::uint16_t port) {
     app.addSystem(ecs::Phase::kUpdate, "game.followLasers", &followLasers)
         .after("game.followShips")
         .setSide(ecs::Side::kClient);
-    app.addSystem(ecs::Phase::kUpdate, "game.animateSprites", &animateSprites).setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kUpdate, "game.explodeLoser", &explodeLoser).setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kUpdate, "game.removeExplosions", &removeExplosions).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kUpdate, "game.announceWinner", &announceWinner).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kUpdate, "game.quitOnEscape", &quitOnEscape).setSide(ecs::Side::kClient);
     std::cout << "Connecting to " << host << ':' << port

@@ -47,6 +47,13 @@ vk::PipelineColorBlendAttachmentState blendAttachment(GraphicsPipeline::BlendMod
                 .setDstColorBlendFactor(Factor::eOne)
                 .setSrcAlphaBlendFactor(Factor::eZero)
                 .setDstAlphaBlendFactor(Factor::eOne);
+        case GraphicsPipeline::BlendMode::kPremultipliedAlpha:
+            return vk::PipelineColorBlendAttachmentState{state}
+                .setBlendEnable(vk::True)
+                .setSrcColorBlendFactor(Factor::eOne)
+                .setDstColorBlendFactor(Factor::eOneMinusSrcAlpha)
+                .setSrcAlphaBlendFactor(Factor::eOne)
+                .setDstAlphaBlendFactor(Factor::eOneMinusSrcAlpha);
     }
     throw std::logic_error("GraphicsPipeline: invalid blend mode");
 }

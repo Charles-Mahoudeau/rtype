@@ -153,10 +153,27 @@ size and origin scaled, rotation, UV rect from the source and the texture size, 
 `rendering::SpriteBatch`, where consecutive sprites of the same texture form one batch. `endFrame()` then hands the
 batch to `rendering::SpritePass`, which copies the instances into the frame's instance buffer (one per frame in
 flight, doubled when too small) and records, for each batch, the texture's set and one instanced draw of a 6-vertex
-quad (`shaders/sprite.vert` builds it from `gl_VertexIndex`; `sprite.frag` multiplies the texture by the colour,
-alpha blended). Only consecutive sprites merge, so the draw order is kept: sort by layer, then by texture within a
-layer, for fewer draw calls. A debug build with the validation layer draws 10,000 sprites in about 8 ms a frame on an
-Apple M-series GPU.
+quad (`shaders/sprite.vert` builds it from `gl_VertexIndex`; `sprite.frag` multiplies the texture by the colour).
+Only consecutive sprites merge, so the draw order is kept: sort by layer, then by texture within a layer, for fewer
+draw calls. A debug build with the validation layer draws 10,000 sprites in about 8 ms a frame on an Apple M-series
+GPU.
+
+**Blending.** Every sprite and shape is blended with **premultiplied alpha** (`src + dst * (1 - src.a)`,
+`GraphicsPipeline::BlendMode::kPremultipliedAlpha`):
+
+- `createTexture()` multiplies each pixel's colour by its alpha before uploading it (`texture::premultiplySrgb()`), in
+  linear space since the textures are sRGB, through a 64 KiB table computed once. The `IRenderer` contract still takes
+  straight alpha. Filtering then mixes a sprite's edge with its transparent surroundings without a dark fringe.
+- The `graphics::BlendMode` of a `Sprite` or a `Shape` travels **per instance** (`SpriteInstance::blend`, the second
+  byte of `ShapeInstance::kind`), and `shaders/include/Blend.glsl` (mirrored by `rendering/Blend.hpp`) finishes the
+  premultiplied colour for it: `kAlpha` as is, `kAdditive` with an alpha of 0 (nothing is taken from what is under it),
+  `kCutout` opaque or fully transparent around half opacity (no `discard`: without a depth buffer a transparent
+  fragment changes nothing, and `discard` would need `shaderDemoteToHelperInvocation`). One pipeline draws every mode,
+  so a mode never splits a batch, and no sort by pipeline is needed. Shapes have no cutout (it would lose their
+  antialiased edge): `kCutout` is drawn as `kAlpha`.
+- The passes are rebuilt when a recreated swapchain changes its image format, since a pipeline is built for one.
+
+`examples/graphic/render/vulkan/VulkanBlendModes` shows the three modes side by side.
 
 ## Shaders
 

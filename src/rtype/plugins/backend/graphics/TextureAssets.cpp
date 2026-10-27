@@ -7,23 +7,12 @@
 
 #include "TextureAssets.hpp"
 
-// stb_image's implementation, compiled in the only file that uses it. Static, so it cannot clash with another module
-// that compiles its own copy.
-#define STB_IMAGE_STATIC
-#define STB_IMAGE_IMPLEMENTATION
-
-#include <stb_image.h>
-
 #include <algorithm>
 #include <cstddef>
 #include <exception>
 #include <filesystem>
 #include <format>
-#include <fstream>
-#include <ios>
 #include <iostream>
-#include <iterator>
-#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -33,64 +22,35 @@
 #include "plugins/asset/AssetId.hpp"
 #include "plugins/backend/exceptions/AssetExceptions.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
+#include "plugins/backend/graphics/ImageDecoding.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 
 namespace rtype::plugins::backend {
 namespace {
-/// @brief Bytes of one decoded pixel: RGBA, 8 bits per channel.
-constexpr int kChannels = 4;
-
-/// @brief Frees the pixels stb_image decoded.
-struct StbFree {
-    void operator()(stbi_uc* pixels) const noexcept { stbi_image_free(pixels); }
-};
-
-/// @return The whole content of a file.
-/// @throws exceptions::AssetLoadException If it cannot be read.
-std::vector<std::byte> readFile(const std::filesystem::path& path) {
-    std::ifstream file{path, std::ios::binary};
-    if (!file) {
-        throw exceptions::AssetLoadException{std::format("Texture '{}': cannot open the file", path.generic_string())};
-    }
-    const std::vector<char> content{std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
-    std::vector<std::byte> bytes(content.size());
-    std::ranges::transform(content, bytes.begin(), [](char byte) { return static_cast<std::byte>(byte); });
-    return bytes;
-}
-
-/// @return The RGBA pixels of the encoded image @p encoded, and @p desc completed with its size.
-/// @throws exceptions::AssetLoadException If the bytes are not an image stb_image decodes.
-std::vector<std::byte> decodeImage(const std::string& name, std::span<const std::byte> encoded,
-                                   graphics::TextureDesc& desc) {
-    int width = 0;
-    int height = 0;
-    int fileChannels = 0;
-    // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast): stb_image reads unsigned bytes.
-    const std::unique_ptr<stbi_uc, StbFree> pixels{
-        stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(encoded.data()), static_cast<int>(encoded.size()),
-                              &width, &height, &fileChannels, kChannels)};
-    // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
-    if (pixels == nullptr) {
-        throw exceptions::AssetLoadException{
-            std::format("Texture '{}': cannot decode the image ({})", name, stbi_failure_reason())};
-    }
-    desc.size = {static_cast<unsigned>(width), static_cast<unsigned>(height)};
-    const std::size_t byteCount = static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * kChannels;
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    const std::span<const std::byte> rgba{reinterpret_cast<const std::byte*>(pixels.get()), byteCount};
-    return {rgba.begin(), rgba.end()};
-}
+/// @brief Bytes of one pixel: RGBA, 8 bits per channel.
+constexpr std::size_t kChannels = 4;
 }  // namespace
 
 std::size_t TextureAssets::getCount() const noexcept { return _entries.size(); }
 
 asset::AssetId TextureAssets::load(const std::filesystem::path& path, const graphics::TextureDesc& desc) {
-    return request(path.lexically_normal().generic_string(), {}, desc);
+    return request(path.lexically_normal().generic_string(), {}, {}, desc);
 }
 
 asset::AssetId TextureAssets::load(const std::string& name, std::span<const std::byte> encoded,
                                    const graphics::TextureDesc& desc) {
     return request(std::filesystem::path{name}.lexically_normal().generic_string(), {encoded.begin(), encoded.end()},
+                   {}, desc);
+}
+
+asset::AssetId TextureAssets::loadPixels(const std::string& name, std::span<const std::byte> pixels,
+                                         const graphics::TextureDesc& desc) {
+    const std::size_t expected = static_cast<std::size_t>(desc.size.x) * desc.size.y * kChannels;
+    if (desc.size.x == 0 || desc.size.y == 0 || pixels.size() != expected) {
+        throw exceptions::AssetLoadException{
+            std::format("Texture '{}': {} bytes for {}x{} RGBA pixels", name, pixels.size(), desc.size.x, desc.size.y)};
+    }
+    return request(std::filesystem::path{name}.lexically_normal().generic_string(), {}, {pixels.begin(), pixels.end()},
                    desc);
 }
 
@@ -125,6 +85,7 @@ void TextureAssets::setLoaded(asset::AssetId id, graphics::TextureId texture, co
         entry->texture = texture;
         entry->desc = desc;
         entry->encoded = {};
+        entry->pixels = {};
     }
 }
 
@@ -133,12 +94,13 @@ void TextureAssets::setFailed(asset::AssetId id, std::string error) {
         entry->state = AssetState::kFailed;
         entry->error = std::move(error);
         entry->encoded = {};
+        entry->pixels = {};
     }
 }
 
 std::vector<graphics::TextureId> TextureAssets::takeUnloaded() { return std::exchange(_unloaded, {}); }
 
-asset::AssetId TextureAssets::request(std::string path, std::vector<std::byte> encoded,
+asset::AssetId TextureAssets::request(std::string path, std::vector<std::byte> encoded, std::vector<std::byte> pixels,
                                       const graphics::TextureDesc& desc) {
     const asset::AssetId id = asset::AssetId::fromPath(path);
     if (const Entry* known = get(id)) {
@@ -148,7 +110,8 @@ asset::AssetId TextureAssets::request(std::string path, std::vector<std::byte> e
         }
         return id;
     }
-    _entries.emplace(id, Entry{.path = std::move(path), .desc = desc, .encoded = std::move(encoded)});
+    _entries.emplace(
+        id, Entry{.path = std::move(path), .desc = desc, .encoded = std::move(encoded), .pixels = std::move(pixels)});
     _queued.push_back(id);
     return id;
 }
@@ -171,13 +134,18 @@ void updateTextures(TextureAssets& assets, graphics::IRenderer& renderer) {
         const TextureAssets::Entry& entry = *assets.get(id);
         try {
             graphics::TextureDesc desc = entry.desc;
-            const std::vector<std::byte> pixels = entry.encoded.empty()
-                                                      ? decodeImage(entry.path, readFile(entry.path), desc)
-                                                      : decodeImage(entry.path, entry.encoded, desc);
-            assets.setLoaded(id, renderer.createTexture(desc, pixels), desc);
+            if (!entry.pixels.empty()) {
+                assets.setLoaded(id, renderer.createTexture(desc, entry.pixels), desc);
+                continue;
+            }
+            const DecodedImage image =
+                decodeImage(entry.path, entry.encoded.empty() ? readFile(entry.path) : entry.encoded);
+            desc.size = image.size;
+            assets.setLoaded(id, renderer.createTexture(desc, image.pixels), desc);
         } catch (const std::exception& error) {
-            std::cerr << "[TextureAssets] " << error.what() << '\n';
-            assets.setFailed(id, error.what());
+            const std::string message = std::format("Texture {}", error.what());
+            std::cerr << "[TextureAssets] " << message << '\n';
+            assets.setFailed(id, message);
         }
     }
 }

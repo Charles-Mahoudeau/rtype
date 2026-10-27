@@ -25,7 +25,8 @@
 
 namespace rtype::render::vulkan::rendering {
 
-/// @brief Draws a frame's shapes: every one of them in a single instanced draw of a quad, alpha blended.
+/// @brief Draws a frame's shapes: every one of them in a single instanced draw of a quad, with premultiplied alpha
+/// (each shape's graphics::BlendMode is read per instance by the shaders).
 ///
 /// @details Owns the shape pipeline (shaders/shape.vert and shape.frag, on the shared layout) and one instance buffer
 /// per frame in flight, CPU-written and read by the GPU as per-instance vertex attributes, like SpritePass. The kind of
@@ -63,7 +64,7 @@ class RTYPE_RENDER_VULKAN_API ShapePass {
     memory::Buffer& reserve(std::size_t frameIndex, std::size_t count);
 
     const memory::Allocator* _allocator;                  ///< Allocates the instance buffers; not owned.
-    pipeline::GraphicsPipeline _pipeline;                 ///< Shape shaders, instanced input, alpha blending.
+    pipeline::GraphicsPipeline _pipeline;                 ///< Shape shaders, instanced input, premultiplied alpha.
     std::vector<std::optional<memory::Buffer>> _buffers;  ///< One instance buffer per frame in flight.
 };
 

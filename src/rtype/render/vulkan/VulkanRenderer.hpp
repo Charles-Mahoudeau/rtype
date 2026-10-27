@@ -59,10 +59,12 @@ namespace rtype::render::vulkan {
 ///
 /// @details init() creates the instance, the debug messenger (if requested), the surface, the device, the swapchain,
 /// the frames in flight and the allocator. beginFrame() clears the next swapchain image with dynamic rendering and
-/// endFrame() presents it. createTexture() uploads RGBA8 sRGB images. draw(Sprite) collects the frame's sprites, and
-/// endFrame() draws them in batches (one instanced draw per run of sprites sharing a texture), through the view given
-/// to setView(). draw(Shape) collects the frame's shapes, and endFrame() draws them all after the sprites, in one
-/// instanced draw, from their signed distance (rendering/ShapePass.hpp).
+/// endFrame() presents it. createTexture() uploads RGBA8 sRGB images, premultiplied by their alpha
+/// (texture::premultiplySrgb()). draw(Sprite) collects the frame's sprites, and endFrame() draws them in batches (one
+/// instanced draw per run of sprites sharing a texture), through the view given to setView(). draw(Shape) collects the
+/// frame's shapes, and endFrame() draws them all after the sprites, in one instanced draw, from their signed distance
+/// (rendering/ShapePass.hpp). Sprites and shapes are blended with premultiplied alpha: every graphics::BlendMode is
+/// drawn by the same pipeline, read per instance (shaders/include/Blend.glsl), so the mode never splits a batch.
 ///
 /// Needs a platform that implements interop::vulkan::IVulkanSurfaceSource (GlfwPlatform does).
 class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::graphics::IRenderer {
@@ -172,9 +174,13 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     static interop::vulkan::IVulkanSurfaceSource& surfaceSourceOf(plugins::backend::platform::IPlatform& platform);
 
     /// @brief Waits for the GPU, builds a new swapchain from the old one (oldSwapchain) and new renderFinished
-    /// semaphores, defers the old ones to the deletion queue, then notifies the listeners. Does nothing but keep the
-    /// swapchain out of date while the window is minimized.
+    /// semaphores, defers the old ones to the deletion queue, rebuilds the passes if the image format changed, then
+    /// notifies the listeners. Does nothing but keep the swapchain out of date while the window is minimized.
     void recreateSwapchain();
+
+    /// @brief Builds the sprite and shape passes for the swapchain's image format, deferring the previous ones (their
+    /// pipelines render into the old format) to the deletion queue.
+    void createPasses();
 
     /// @brief Writes this frame's FrameUniforms (time, delta time, swapchain extent, @p view's matrix) into its uniform
     /// buffer.

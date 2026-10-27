@@ -51,6 +51,7 @@
 #include "rendering/ShapePass.hpp"
 #include "rendering/SpriteBatch.hpp"
 #include "rendering/SpritePass.hpp"
+#include "texture/Premultiply.hpp"
 #include "texture/SamplerCache.hpp"
 #include "texture/Texture.hpp"
 
@@ -153,12 +154,7 @@ void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
     const std::array pushConstants{vk::PushConstantRange{
         vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0, sizeof(rendering::DrawConstants)}};
     _layout = std::make_unique<pipeline::PipelineLayout>(*_device, setLayouts, pushConstants);
-    _spritePass =
-        std::make_unique<rendering::SpritePass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
-                                                &_pipelineCache->getCache(), kFramesInFlight);
-    _shapePass =
-        std::make_unique<rendering::ShapePass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
-                                               &_pipelineCache->getCache(), kFramesInFlight);
+    createPasses();
     _startTime = std::chrono::steady_clock::now();
     _lastFrameTime = _startTime;
 }
@@ -181,11 +177,35 @@ void VulkanRenderer::recreateSwapchain() {
     auto swapchain = std::make_unique<presentation::Swapchain>(*_physicalDevice, _surface, *_device, _framebufferSize,
                                                                _config.presentMode, *_swapchain->getSwapchain());
     const std::size_t frameIndex = _frames->getFrameIndex();
+    const vk::Format oldFormat = _swapchain->getFormat();
     _deletionQueue.defer(frameIndex, std::exchange(_swapchain, std::move(swapchain)));
     _deletionQueue.defer(frameIndex, _frames->recreateRenderFinished(*_device, _swapchain->getImages().size()));
+    if (_swapchain->getFormat() != oldFormat) {
+        createPasses();
+    }
     _swapchainOutOfDate = false;
     for (const SwapchainListener& listener : _swapchainListeners) {
         listener(*_swapchain);
+    }
+}
+
+void VulkanRenderer::createPasses() {
+    auto spritePass =
+        std::make_unique<rendering::SpritePass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
+                                                &_pipelineCache->getCache(), kFramesInFlight);
+    auto shapePass =
+        std::make_unique<rendering::ShapePass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
+                                               &_pipelineCache->getCache(), kFramesInFlight);
+    const std::size_t frameIndex = _frames->getFrameIndex();
+    if (_spritePass) {
+        _deletionQueue.defer(frameIndex, std::exchange(_spritePass, std::move(spritePass)));
+    } else {
+        _spritePass = std::move(spritePass);
+    }
+    if (_shapePass) {
+        _deletionQueue.defer(frameIndex, std::exchange(_shapePass, std::move(shapePass)));
+    } else {
+        _shapePass = std::move(shapePass);
     }
 }
 
@@ -221,7 +241,8 @@ plugins::backend::graphics::TextureId VulkanRenderer::createTexture(const plugin
     }
     memory::Image image{*_device, *_allocator, vk::Extent2D{desc.size.x, desc.size.y}, kTextureFormat,
                         vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst};
-    _uploader->upload(pixels, image);
+    // Premultiplied once here, so the shaders and the blending can assume it (rendering/Blend.hpp).
+    _uploader->upload(texture::premultiplySrgb(pixels), image);
     _uploader->flush();
     vk::raii::DescriptorSet set = _textureDescriptors->allocate(*_textureSetLayout);
     descriptor::DescriptorWriter{}

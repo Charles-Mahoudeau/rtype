@@ -24,6 +24,7 @@
 #include "plugins/backend/WindowEvents.hpp"
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/event/PlatformEvent.hpp"
+#include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
@@ -120,6 +121,16 @@ TEST(BackendPlugin, DrawsTheSpritesAtTheirGlobalTransform) {
     app.app().runFrame();
     ASSERT_EQ(app.state().sprites.size(), 1U);
     EXPECT_EQ(app.state().sprites[0].position, (glm::vec2{10.0F, 20.0F}));
+}
+
+TEST(BackendPlugin, DrawsTheSpritesWithTheirBlendMode) {
+    BackendApp app;
+    const rtype::ecs::Entity entity = spawnSprite(app, loadTexture(app, "laser.png"), {0.0F, 0.0F}, 0);
+    app.app().getWorld().getComponents().getMut<rtype::plugins::backend::SpriteRenderer>(entity)->blend =
+        rtype::plugins::backend::graphics::BlendMode::kAdditive;
+    app.app().runFrame();
+    ASSERT_EQ(app.state().sprites.size(), 1U);
+    EXPECT_EQ(app.state().sprites[0].blend, rtype::plugins::backend::graphics::BlendMode::kAdditive);
 }
 
 TEST(BackendPlugin, DrawsTheSpritesByLayer) {

@@ -13,7 +13,9 @@
 #include <glm/ext/vector_float4.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
+#include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
+#include "render/vulkan/rendering/Blend.hpp"
 #include "render/vulkan/rendering/ShapeInstance.hpp"
 
 namespace {
@@ -111,6 +113,22 @@ TEST(ShapeInstance, KeepsItsColoursAndOutline) {
     EXPECT_FLOAT_EQ(instance.outlineThickness, 1.5F);
 }
 
+TEST(ShapeInstance, BlendsOrAddsButNeverCutsOut) {
+    using rtype::plugins::backend::graphics::BlendMode;
+    EXPECT_EQ(ShapeInstance::fromShape(Shape{}).blend, rtype::render::vulkan::rendering::kBlendAlpha);
+    EXPECT_EQ(ShapeInstance::fromShape(Shape{.blend = BlendMode::kAdditive}).blend,
+              rtype::render::vulkan::rendering::kBlendAdditive);
+    // A cutout would lose the antialiased edge: drawn as kAlpha.
+    EXPECT_EQ(ShapeInstance::fromShape(Shape{.blend = BlendMode::kCutout}).blend,
+              rtype::render::vulkan::rendering::kBlendAlpha);
+}
+
+TEST(ShapeInstance, KeepsThePaddingReadWithItsKindZero) {
+    const ShapeInstance instance = ShapeInstance::fromShape(
+        Shape{.kind = ShapeKind::kCircle, .blend = rtype::plugins::backend::graphics::BlendMode::kAdditive});
+    EXPECT_EQ(instance.padding, 0U);
+}
+
 TEST(ShapeInstance, NegativeSizesAreClampedToZero) {
     const ShapeInstance instance = ShapeInstance::fromShape(
         Shape{.kind = ShapeKind::kCapsule, .radius = -4.0F, .halfHeight = -2.0F, .outlineThickness = -1.0F});
@@ -130,6 +148,7 @@ TEST(ShapeInstance, DescribesEightPerInstanceAttributes) {
         EXPECT_EQ(attributes.at(location).location, location);
         EXPECT_EQ(attributes.at(location).binding, 2U);
     }
-    EXPECT_EQ(attributes.at(5).format, vk::Format::eR32Uint);  // The kind is an integer.
+    EXPECT_EQ(attributes.at(5).format, vk::Format::eR32Uint);  // The kind and the blend mode, read as one integer.
     EXPECT_EQ(attributes.at(5).offset, offsetof(ShapeInstance, kind));
+    EXPECT_EQ(offsetof(ShapeInstance, blend), offsetof(ShapeInstance, kind) + 1);
 }

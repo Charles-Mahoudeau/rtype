@@ -17,6 +17,8 @@
 #include <glm/geometric.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
+#include "Blend.hpp"
+#include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 
 namespace rtype::render::vulkan::rendering {
@@ -29,6 +31,8 @@ ShapeInstance ShapeInstance::fromShape(const plugins::backend::graphics::Shape& 
         .rotation = shape.rotation,
         .radius = radius,
         .outlineThickness = std::max(shape.outlineThickness, 0.0F),
+        .blend = static_cast<std::uint8_t>(
+            shape.blend == plugins::backend::graphics::BlendMode::kAdditive ? kBlendAdditive : kBlendAlpha),
         .fillColor = shape.fillColor,
         .outlineColor = shape.outlineColor,
     };

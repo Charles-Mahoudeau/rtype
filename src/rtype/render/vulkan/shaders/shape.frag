@@ -8,6 +8,9 @@
 // Colours a shape from its signed distance (negative inside): the fill inside the outline band, the outline in the band
 // [-thickness, 0], both antialiased over a pixel. The shape's kinds: 0 rounded box, 1 circle, 2 capsule along Y.
 #version 450
+#extension GL_GOOGLE_include_directive : require
+
+#include "Blend.glsl"
 
 layout(location = 0) in vec2 inLocal;
 layout(location = 1) flat in vec2 inHalfSize;
@@ -16,6 +19,7 @@ layout(location = 3) flat in float inOutlineThickness;
 layout(location = 4) flat in uint inKind;
 layout(location = 5) flat in vec4 inFillColor;
 layout(location = 6) flat in vec4 inOutlineColor;
+layout(location = 7) flat in uint inBlend;
 
 layout(location = 0) out vec4 outColor;
 
@@ -49,10 +53,10 @@ void main() {
     const float fill = inOutlineThickness > 0.0 ? clamp(0.5 - (distance + inOutlineThickness) / pixel, 0.0, 1.0)
                                                 : shape;
     const float outline = shape - fill;
-    // Mixed with premultiplied alpha, then straightened for the pipeline's alpha blending.
+    // Mixed with premultiplied alpha, as the pipeline blends it.
     // No discard outside the shape: a transparent pixel blends to nothing, and discard would need the
     // shaderDemoteToHelperInvocation feature under Vulkan 1.3's SPIR-V.
     const float alpha = inFillColor.a * fill + inOutlineColor.a * outline;
     const vec3 premultiplied = inFillColor.rgb * inFillColor.a * fill + inOutlineColor.rgb * inOutlineColor.a * outline;
-    outColor = alpha > 0.0 ? vec4(premultiplied / alpha, alpha) : vec4(0.0);
+    outColor = finishBlend(vec4(premultiplied, alpha), inBlend);
 }
