@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 
+#include "rtype/luau/FunctionRef.hpp"
 #include "rtype/luau/Table.hpp"
 #include "rtype/luau/Value.hpp"
 
@@ -30,6 +31,9 @@ std::string_view luaTypeNameOf(const Value& value) noexcept {
     }
     if (value.is<Table>()) {
         return luaTypeName<Table>();
+    }
+    if (value.is<FunctionRef>()) {
+        return luaTypeName<FunctionRef>();
     }
     return luaTypeName<Value::Nil>();
 }
