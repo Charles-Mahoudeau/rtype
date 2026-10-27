@@ -179,8 +179,8 @@ void applyCamera(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::ResMut
                              framebufferSize);
 }
 
-/// @brief Render: draws the sprites whose texture is loaded and the queued ones (SpriteQueue), by layer then by
-/// texture.
+/// @brief Render: draws the sprites whose texture is loaded and the queued sprites and texts (SpriteQueue), by layer
+/// then by texture.
 void drawSprites(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<TextureAssets> textures,
                  ecs::ResMut<graphics::SpriteQueue> queue,
                  ecs::Query<const transform::GlobalTransform, const SpriteRenderer> sprites) {
@@ -196,14 +196,14 @@ void drawSprites(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<Te
             continue;
         }
         items.push_back(graphics::SpriteQueue::Item{.layer = sprite.layer,
-                                                    .sprite = graphics::Sprite{.texture = *texture,
-                                                                               .source = sprite.source,
-                                                                               .position = global.position,
-                                                                               .scale = global.scale,
-                                                                               .origin = sprite.origin,
-                                                                               .rotation = global.rotation,
-                                                                               .color = sprite.color,
-                                                                               .blend = sprite.blend}});
+                                                    .drawing = graphics::Sprite{.texture = *texture,
+                                                                                .source = sprite.source,
+                                                                                .position = global.position,
+                                                                                .scale = global.scale,
+                                                                                .origin = sprite.origin,
+                                                                                .rotation = global.rotation,
+                                                                                .color = sprite.color,
+                                                                                .blend = sprite.blend}});
     }
     items.insert(items.end(), std::make_move_iterator(queued.begin()), std::make_move_iterator(queued.end()));
     std::ranges::stable_sort(items,
@@ -211,10 +211,10 @@ void drawSprites(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<Te
                                  if (left.layer != right.layer) {
                                      return left.layer < right.layer;
                                  }
-                                 return left.sprite.texture.index < right.sprite.texture.index;
+                                 return left.getTexture().index < right.getTexture().index;
                              });
     for (const graphics::SpriteQueue::Item& item : items) {
-        started.renderer->draw(item.sprite);
+        std::visit([&started](const auto& drawn) { started.renderer->draw(drawn); }, item.drawing);
     }
 }
 

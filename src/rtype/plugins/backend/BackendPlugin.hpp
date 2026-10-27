@@ -39,8 +39,8 @@ namespace rtype::plugins::backend {
 ///   `.before("rtype.backend.endFrame")`). Both are skipped while the window is minimized. The camera system also
 ///   records what the frame shows in the VisibleArea resource, for systems that skip what is off screen.
 /// - Render "rtype.backend.sprites", after the camera: draws every entity with a GlobalTransform and a SpriteRenderer
-///   whose texture is loaded, and the sprites other systems pushed to the SpriteQueue resource before it, sorted by
-///   layer (higher on top), then by texture within a layer (fewer batches).
+///   whose texture is loaded, and the sprites and texts other systems pushed to the SpriteQueue resource before it,
+///   sorted by layer (higher on top), then by texture within a layer (fewer batches).
 /// It also inserts the TextureAssets (the textures by AssetId), SpriteQueue and VisibleArea resources, and registers
 /// the SpriteRenderer component. A window always comes with input, positions, animated sprites and tilemaps: it adds
 /// the InputPlugin, the TransformPlugin, the SpritePlugin and the TilemapPlugin (nothing happens if the game added them
