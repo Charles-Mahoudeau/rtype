@@ -1,3 +1,4 @@
+includes("core")
 includes("ecs")
 includes("luau")
 includes("network")
