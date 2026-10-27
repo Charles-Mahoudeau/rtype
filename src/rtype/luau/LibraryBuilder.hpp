@@ -10,6 +10,7 @@
 #include <deque>
 #include <string>
 
+#include "Export.hpp"
 #include "Function.hpp"
 #include "Library.hpp"
 #include "Table.hpp"
@@ -20,7 +21,7 @@ class Runtime;
 /// @brief Builds a Library step by step: sets its name and registers its members.
 ///
 /// The builder is single-use: build() moves its table and members into the library.
-class LibraryBuilder {
+class RTYPE_LUAU_API LibraryBuilder {
   public:
     /// @brief Creates a builder with an empty library table.
     /// @param runtime Runtime the library belongs to, it must outlive the builder.

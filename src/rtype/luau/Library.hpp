@@ -12,6 +12,7 @@
 #include <string_view>
 #include <variant>
 
+#include "Export.hpp"
 #include "Function.hpp"
 
 namespace rtype::luau {
@@ -22,7 +23,7 @@ class LibraryBuilder;
 ///
 /// A library owns its table and the members registered in it, so they live as long as the library does.
 /// It is produced by a LibraryBuilder.
-class Library {
+class RTYPE_LUAU_API Library {
   public:
     /// @brief Something a library exports and owns.
     using Member = std::variant<Function>;
