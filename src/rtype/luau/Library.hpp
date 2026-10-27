@@ -33,11 +33,11 @@ class RTYPE_LUAU_API Library {
     /// @param table Table holding the library's members, indexed by name.
     /// @param ownedMembers Members referenced by the table, kept here so they stay alive.
     Library(std::string name, Table table, std::deque<Member> ownedMembers);
-    ~Library() = default;
+    ~Library();
     Library(const Library&) = delete;
     Library& operator=(const Library&) = delete;
-    Library(Library&&) noexcept = default;
-    Library& operator=(Library&&) noexcept = default;
+    Library(Library&&) noexcept;
+    Library& operator=(Library&&) noexcept;
 
     /// @brief Gets the name of the library.
     /// @return A view on the name, valid as long as the library is alive and not modified.
