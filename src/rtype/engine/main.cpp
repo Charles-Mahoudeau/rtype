@@ -65,6 +65,8 @@
 #include "plugins/sprite/AtlasAssets.hpp"
 #include "plugins/sprite/SpriteAnimator.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
+#include "plugins/tilemap/SpawnTilemap.hpp"
+#include "plugins/tilemap/TilemapAssets.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "render/vulkan/Registration.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -103,7 +105,8 @@
 // fires lasers; the first laser that touches the other ship wins. Obstacles in the middle stop the lasers, and the
 // ships slide along them. The server simulates everything with the physics plugin and replicates Ship, Laser,
 // Obstacle and Winner (the physics replicates Collider and RigidBody); the clients send their inputs and draw what
-// they receive, animated by the sprite plugin; a ship that is hit explodes. F3 shows the colliders. One shot in ten
+// they receive, animated by the sprite plugin, over a space background whose layers scroll at their own speed (a
+// Tiled map); a ship that is hit explodes. F3 shows the colliders. One shot in ten
 // misfires: the server fires nothing and replicates a Misfire instead. The clients play a looping music, and a sound
 // for every laser and misfire, panned where it happened, with a random pitch and volume.
 //
@@ -218,6 +221,9 @@ constexpr const char* kLaserSound = "assets/laser.mp3";
 constexpr const char* kMisfireSound = "assets/laser-no.mp3";
 constexpr const char* kExplosionSheet = "assets/r-fx-explosions.gif";
 constexpr float kExplosionScale = 1.5F;  ///< The 64-pixel explosion, over a 48-pixel ship.
+constexpr const char* kBackgroundMap = "assets/levels/space-background.tmj";
+constexpr glm::vec2 kBackgroundSize{272.0F, 160.0F};  ///< Its images, in pixels: scaled to the view's height.
+constexpr std::int32_t kBackgroundDrawLayer = -100;   ///< Under every sprite.
 
 /// @return Whether a Winner exists: the game is over.
 bool isOver(ecs::Query<const Winner>& winners) { return winners.begin() != ecs::Query<const Winner>::end(); }
@@ -529,6 +535,18 @@ void sendControls(ecs::Res<plugins::input::Input> input, ecs::Res<replication::i
     client->setInput(sent);
 }
 
+/// @brief Startup: spawns the space background, its layers scrolling left at their own speed behind the arena.
+void spawnBackground(ecs::ResMut<plugins::tilemap::TilemapAssets> maps, ecs::Commands& commands) {
+    const float scale = kViewHeight / kBackgroundSize.y;
+    // The map's parallax origin is its centre: put it where the camera looks, the centre of the view.
+    const glm::vec2 view{kViewWidth, kViewHeight};
+    static_cast<void>(plugins::tilemap::spawnTilemap(
+        commands, *maps, maps->load(kBackgroundMap),
+        plugins::tilemap::TilemapPlacement{.position = (view - (kBackgroundSize * scale)) / 2.0F,
+                                           .scale = glm::vec2{scale},
+                                           .firstDrawLayer = kBackgroundDrawLayer}));
+}
+
 /// @brief Startup: builds the atlases of the ships, the lasers and the explosion, cut from the sheets of assets/.
 void loadAtlases(ecs::ResMut<plugins::sprite::AtlasAssets> atlases, ecs::ResMut<GameAtlases> game) {
     // The left sheet: 5 frames of 48x48, every 65 pixels.
@@ -731,6 +749,7 @@ int runClient(const ProjectSettings& projectSettings, const std::string& host, s
     app.addSystem(ecs::Phase::kStartup, "game.loadSounds", &loadSounds).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kUpdate, "game.playShots", &playShots).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kStartup, "game.loadAtlases", &loadAtlases).setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kStartup, "game.spawnBackground", &spawnBackground).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kPostUpdate, "game.sendControls", &sendControls)
         .before(std::string{replication::client::ClientPlugin::kSendInputSystem})
         .setSide(ecs::Side::kClient);
