@@ -11,6 +11,7 @@
 #include <rtype/luau/CallContext.hpp>
 #include <rtype/luau/Exceptions.hpp>
 #include <rtype/luau/Function.hpp>
+#include <rtype/luau/FunctionRef.hpp>
 #include <rtype/luau/Runtime.hpp>
 #include <rtype/luau/Value.hpp>
 #include <rtype/luau/ValuePack.hpp>
@@ -37,6 +38,9 @@ std::string describe(const Value& value) {
     if (const auto* string = value.tryAs<std::string>()) {
         return std::format("string {}", *string);
     }
+    if (value.is<FunctionRef>()) {
+        return "function";
+    }
     return "table";
 }
 }  // namespace
@@ -57,7 +61,7 @@ int main() {
     }
 
     // Luau -> C++
-    // `create` makes a native closure and stores it in the global `cpp_reverse`, so the script calls it like any
+    // `create` makes a native closure, which is stored in the global `cpp_reverse` so the script calls it like any
     // Luau function. The script calls it at its top level, so the handler is set before the script runs: until
     // then, calling it raises a Lua error. `cppReverse` must outlive every call from Luau: once it is destroyed,
     // calling the closure raises a Lua error instead of reaching a dangling object.
@@ -81,6 +85,10 @@ int main() {
         }
         return reversed;
     });
+    if (const auto result = runtime->globals().set("cpp_reverse", Value{cppReverse.ref()}); !result) {
+        std::cerr << "failed to register cpp_reverse: " << result.error().message() << std::endl;
+        return 1;
+    }
 
     // Run the script: it calls `cpp_reverse`, then defines the global function `luau_reverse`.
     if (auto result = runtime->run(*script); !result) {
@@ -89,15 +97,16 @@ int main() {
     }
 
     // C++ -> Luau
-    // `luau_reverse` only exists once the script has run, so it is looked up afterwards. `global` returns a
-    // reference to nil if the global is not set, hence the check. `fromRef` takes over the reference, which keeps
-    // the Luau function alive for as long as `luauReverse` exists.
-    Ref luauReverseRef = runtime->global("luau_reverse");
-    if (luauReverseRef.isNil()) {
+    // `luau_reverse` only exists once the script has run, so it is looked up afterwards. `globals().get` returns nil
+    // if the global is not set, hence the check on the type. `fromRef` gives the Function a handle on the Luau
+    // function, which keeps it alive for as long as `luauReverse` exists.
+    const auto luauReverseValue = runtime->globals().get("luau_reverse");
+    const FunctionRef* luauReverseRef = luauReverseValue ? luauReverseValue->tryAs<FunctionRef>() : nullptr;
+    if (luauReverseRef == nullptr) {
         std::cerr << "the script did not define luau_reverse" << std::endl;
         return 1;
     }
-    const Function luauReverse = Function::fromRef(std::move(luauReverseRef), "luau_reverse");
+    const Function luauReverse = Function::fromRef(*luauReverseRef, "luau_reverse");
 
     // The arguments are gathered in a ValuePack: `add` appends them in order, and `call` pushes each one as the
     // matching Luau type. Every type C++ can push is passed: nil, boolean, number, vector and string.
@@ -110,7 +119,7 @@ int main() {
 
     // `call` runs the function in protected mode, and returns every value it returned in a ValuePack, in the order
     // of its `return` statement. It fails if the function raises an error, or if it returns a value that cannot be
-    // read yet (e.g. a table).
+    // read yet (e.g. a thread).
     const auto results = luauReverse.call(args);
     if (!results) {
         std::cerr << "failed to call luau_reverse: " << results.error().message() << std::endl;

@@ -11,6 +11,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <exception>
 #include <format>
 #include <memory>
 #include <string>
@@ -21,6 +22,9 @@
 #include "ErrorKind.hpp"
 #include "Exceptions.hpp"
 #include "Failure.hpp"
+#include "Function.hpp"
+#include "FunctionRef.hpp"
+#include "Library.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
 #include "Value.hpp"
@@ -52,14 +56,19 @@ class StackGuard {
 }  // namespace
 
 namespace rtype::luau {
-Table Table::create(lua_State* state, const int arrayCapacity, const int hashCapacity) {
+Result<Table> Table::create(lua_State* state, const int arrayCapacity, const int hashCapacity) {
     if (state == nullptr) {
         throw exceptions::InvalidState{};
     }
     if (lua_checkstack(state, 1) == 0) {
-        throw exceptions::StackOverflow{};
+        return stackOverflow();
     }
-    lua_createtable(state, arrayCapacity, hashCapacity);
+    try {
+        lua_createtable(state, arrayCapacity, hashCapacity);
+    } catch (const std::exception&) {
+        // Luau raises its allocation failures as C++ exceptions.
+        return Failure{ErrorKind::kOutOfMemory, "Lua out of memory"};
+    }
     return Table{Ref::pop(state)};
 }
 
@@ -86,10 +95,8 @@ Result<Value> Table::get(const Value& key) const {
     }
     const StackGuard guard{target};
     _ref->push(target);
-    try {
-        key.push(target);
-    } catch (const exceptions::Base& e) {
-        return Failure{ErrorKind::kRuntime, e.what()};
+    if (auto pushed = key.push(target); !pushed) {
+        return forwardError<Value>(std::move(pushed));
     }
     lua_rawget(target, -2);
     return Value::fromStack(target, Ref::kLuaStackTop);
@@ -99,6 +106,29 @@ Result<Value> Table::get(const std::string_view key) const { return get(Value{st
 
 Result<Value> Table::getAt(const std::size_t index) const { return get(Value{static_cast<double>(index)}); }
 
+Result<FunctionRef> Table::functionRef(const std::string_view key) const {
+    auto result = get(key);
+    if (!result) {
+        return forwardError<FunctionRef>(std::move(result));
+    }
+    const auto* const ref = result->tryAs<FunctionRef>();
+    if (ref == nullptr) {
+        return Failure{ErrorKind::kTypeMismatch, std::format("'{}' is not a function", key)};
+    }
+    return *ref;
+}
+
+Result<Function> Table::function(const std::string_view key) const {
+    auto ref = functionRef(key);
+    if (!ref) {
+        return forwardError<Function>(std::move(ref));
+    }
+    return Function::fromRef(*ref, std::string{key});
+}
+
+Result<void> Table::registerLibrary(const Library& library) { return set(library.name(), Value{library.table()}); }
+
+// ReSharper disable once CppMemberFunctionMayBeConst
 Result<void> Table::set(const Value& key, const Value& value) {
     if (key.is<Value::Nil>()) {
         return Failure{ErrorKind::kTypeMismatch, "table index is nil"};
@@ -115,11 +145,11 @@ Result<void> Table::set(const Value& key, const Value& value) {
     if (lua_getreadonly(target, -1) != 0) {
         return Failure{ErrorKind::kRuntime, "attempt to modify a readonly table"};
     }
-    try {
-        key.push(target);
-        value.push(target);
-    } catch (const exceptions::Base& e) {
-        return Failure{ErrorKind::kRuntime, e.what()};
+    if (auto pushed = key.push(target); !pushed) {
+        return pushed;
+    }
+    if (auto pushed = value.push(target); !pushed) {
+        return pushed;
     }
     lua_rawset(target, -3);
     return {};
@@ -138,10 +168,8 @@ Result<bool> Table::has(const Value& key) const {
     }
     const StackGuard guard{target};
     _ref->push(target);
-    try {
-        key.push(target);
-    } catch (const exceptions::Base& e) {
-        return Failure{ErrorKind::kRuntime, e.what()};
+    if (auto pushed = key.push(target); !pushed) {
+        return forwardError<bool>(std::move(pushed));
     }
     lua_rawget(target, -2);
     return lua_type(target, -1) != LUA_TNIL;
@@ -149,20 +177,20 @@ Result<bool> Table::has(const Value& key) const {
 
 Result<bool> Table::has(const std::string_view key) const { return has(Value{std::string{key}}); }
 
-std::size_t Table::size() const {
+Result<std::size_t> Table::size() const {
     lua_State* const target{state()};
     if (!reserveStack(target)) {
-        throw exceptions::StackOverflow{};
+        return stackOverflow();
     }
     const StackGuard guard{target};
     _ref->push(target);
     return static_cast<std::size_t>(lua_objlen(target, -1));
 }
 
-std::size_t Table::count() const {
+Result<std::size_t> Table::count() const {
     lua_State* const target{state()};
     if (!reserveStack(target)) {
-        throw exceptions::StackOverflow{};
+        return stackOverflow();
     }
     const StackGuard guard{target};
     _ref->push(target);
@@ -217,7 +245,7 @@ Result<Table::Map> Table::toMap() const {
     return result;
 }
 
-void Table::push(lua_State* state) const {
+Result<void> Table::push(lua_State* state) const {
     if (state == nullptr) {
         throw exceptions::InvalidState{};
     }
@@ -225,18 +253,19 @@ void Table::push(lua_State* state) const {
         throw exceptions::InvalidRef{};
     }
     if (lua_mainthread(state) != _ref->state()) {
-        throw exceptions::InvalidOperation{"the table belongs to another Lua state"};
+        return Failure{ErrorKind::kRuntime, "the table belongs to another Lua state"};
     }
     _ref->push(state);
+    return {};
 }
 
-bool Table::refersToSame(const Table& other) const {
+Result<bool> Table::refersToSame(const Table& other) const {
     lua_State* const target{state()};
     if (target != other.state()) {
         return false;
     }
     if (!reserveStack(target)) {
-        throw exceptions::StackOverflow{};
+        return stackOverflow();
     }
     const StackGuard guard{target};
     _ref->push(target);

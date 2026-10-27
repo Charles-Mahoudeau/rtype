@@ -24,6 +24,8 @@
 #include <utility>
 #include <vector>
 
+#include "Engine.hpp"
+#include "ProjectSettings.hpp"
 #include "audio/miniaudio/Registration.hpp"
 #include "platform/glfw/Registration.hpp"
 #include "plugins/GlmReflection.hpp"  // IWYU pragma: keep
@@ -436,7 +438,7 @@ void detectHits(ecs::Commands& commands, ecs::EventReader<plugins::physics::Coll
 }
 
 /// @brief Runs the headless server until it is stopped.
-int runServer(std::uint16_t port) {
+int runServer(const ProjectSettings& /* projectSettings */, std::uint16_t port) {
     ecs::App app{ecs::RunMode::kServer};
     app.addPlugins(ecs::MinimalPlugins{});
     registerGame(app);
@@ -677,11 +679,11 @@ void quitOnEscape(ecs::Res<plugins::input::Input> input, ecs::EventWriter<ecs::A
 }
 
 /// @return The configuration of the window, the renderer and the sound.
-plugins::config::Settings makeSettings() {
+plugins::config::Settings makeSettings(const ProjectSettings& projectSettings) {
     plugins::config::Settings settings;
-    settings.set("platform", "glfw");
-    settings.set("renderer", "vulkan");
-    settings.set("window.title", "R-Type duel");
+    settings.set("platform", projectSettings.platform);
+    settings.set("renderer", projectSettings.renderer);
+    settings.set("window.title", std::format("{} - {}", projectSettings.gameName, projectSettings.gameVersion));
     settings.set("window.size", std::vector<double>{kViewWidth, kViewHeight});
     // The world the game is designed for, in world units: the same on a HiDPI screen and in a resized window.
     settings.set("vulkan.virtualResolution", std::vector<double>{kViewWidth, kViewHeight});
@@ -696,7 +698,7 @@ plugins::config::Settings makeSettings() {
 }
 
 /// @brief Runs a player's window until it is closed or Escape is pressed.
-int runClient(const std::string& host, std::uint16_t port) {
+int runClient(const ProjectSettings& projectSettings, const std::string& host, std::uint16_t port) {
     const std::optional<network::io::Address> server = network::io::Address::resolve(host, port);
     if (!server) {
         std::cerr << "Error: cannot resolve " << host << '\n';
@@ -711,8 +713,8 @@ int runClient(const std::string& host, std::uint16_t port) {
 
     ecs::App app{ecs::RunMode::kClient};
     app.addPlugins(ecs::MinimalPlugins{})
-        .addPlugin(plugins::backend::BackendPlugin{std::move(registry), makeSettings()})
-        .addPlugin(plugins::audio::AudioPlugin{std::move(audio), makeSettings()});
+        .addPlugin(plugins::backend::BackendPlugin{std::move(registry), makeSettings(projectSettings)})
+        .addPlugin(plugins::audio::AudioPlugin{std::move(audio), makeSettings(projectSettings)});
     registerGame(app);
     app.insertResource(Randomness{});
     app.insertResource(GameSounds{});
@@ -763,18 +765,25 @@ std::uint16_t toPort(std::string_view text) {
 }  // namespace
 }  // namespace rtype::engine
 
-int main(int argc, char** argv) {
+int main(const int argc, char** argv) {
     try {
-        const std::span<char*> args{argv, static_cast<std::size_t>(argc)};
-        const auto arg = [&args](std::size_t index, std::string_view fallback) {
+        const std::span args{argv, static_cast<std::size_t>(argc)};
+        const rtype::engine::ProjectSettings projectSettings =
+            rtype::engine::Engine::loadProjectSettings("game/project.luau");
+
+        // In the future, we would create an `Engine` class with ProjectSettings, that manages ECS, Luau, ...
+        // rtype::engine::Engine engine{projectSettings};
+
+        const auto arg = [&args](const std::size_t index, const std::string_view fallback) {
             return index < args.size() ? std::string_view{args.subspan(index).front()} : fallback;
         };
         const std::string_view mode = arg(1, "client");
         if (mode == "server") {
-            return rtype::engine::runServer(rtype::engine::toPort(arg(2, "")));
+            return rtype::engine::runServer(projectSettings, rtype::engine::toPort(arg(2, "")));
         }
         if (mode == "client") {
-            return rtype::engine::runClient(std::string{arg(2, "127.0.0.1")}, rtype::engine::toPort(arg(3, "")));
+            return rtype::engine::runClient(projectSettings, std::string{arg(2, "127.0.0.1")},
+                                            rtype::engine::toPort(arg(3, "")));
         }
         std::cerr << "Usage: engine server [port] | engine client [host] [port]\n";
         return 1;

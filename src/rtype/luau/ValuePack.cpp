@@ -53,13 +53,20 @@ std::size_t ValuePack::size() const noexcept { return _values.size(); }
 
 void ValuePack::add(Value value) { _values.push_back(std::move(value)); }
 
-std::size_t ValuePack::push(lua_State* state) const {
+Result<std::size_t> ValuePack::push(lua_State* state) const {
+    if (state == nullptr) {
+        throw exceptions::InvalidState{};
+    }
     if (_values.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()) ||
         lua_checkstack(state, static_cast<int>(_values.size())) == 0) {
-        throw exceptions::StackOverflow{};
+        return Failure{ErrorKind::kStackOverflow, "Lua stack overflow"};
     }
+    const int top{lua_gettop(state)};
     for (const auto& value : _values) {
-        value.push(state);
+        if (auto pushed = value.push(state); !pushed) {
+            lua_settop(state, top);
+            return forwardError<std::size_t>(std::move(pushed));
+        }
     }
     return _values.size();
 }

@@ -13,6 +13,7 @@
 
 #include "CallContext.hpp"
 #include "Export.hpp"
+#include "FunctionRef.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
 #include "ValuePack.hpp"
@@ -45,11 +46,13 @@ class RTYPE_LUAU_API Function {
     /// error, with its message unchanged, and so does anything else that is thrown, with a generic message.
     using Handler = std::function<ValuePack(const CallContext&)>;
 
-    /// @brief Creates a native closure bound to a new Function and registers it as a global of the Lua state.
+    /// @brief Creates a native closure bound to a new Function.
     ///
-    /// The closure has no handler yet: calling it from Lua raises a Lua error until `setHandler` gives it one.
+    /// The closure is not stored anywhere: it is only reachable through `ref()`, so store it (in a table, or in the
+    /// globals) for Lua to call it. It has no handler yet: calling it from Lua raises a Lua error until `setHandler`
+    /// gives it one.
     /// @param state The Lua state to create the closure in.
-    /// @param name Name of the global the closure is stored in, also used as its debug name and in error messages.
+    /// @param name Debug name of the closure, also used in error messages.
     /// @return The Function bound to the new closure.
     [[nodiscard]] static Function create(lua_State* state, std::string name);
 
@@ -58,6 +61,13 @@ class RTYPE_LUAU_API Function {
     /// @param name Name of the function, used in error messages.
     /// @return The Function wrapping the referenced function.
     [[nodiscard]] static Function fromRef(Ref ref, std::string name);
+
+    /// @brief Wraps a function defined in Luau, from a handle on it, so C++ can call it.
+    /// @param ref Handle on the Luau function; it is left untouched and the Function gets a reference of its own.
+    /// @param name Name of the function, used in error messages.
+    /// @return The Function wrapping the referenced function.
+    /// @throws exceptions::InvalidRef If @p ref was moved from.
+    [[nodiscard]] static Function fromRef(const FunctionRef& ref, std::string name);
 
     /// @brief Unbinds the native closure from this Function, so calling it from Lua raises an error.
     ~Function();
@@ -77,13 +87,32 @@ class RTYPE_LUAU_API Function {
     /// @return A reference to this Function.
     Function& operator=(Function&& other) noexcept;
 
-    /// @brief Gives access to the registry reference to the wrapped function.
-    /// @return The reference, empty if the Function was moved from.
-    [[nodiscard]] const Ref& ref() const noexcept;
+    /// @brief Gives access to the handle on the wrapped function.
+    /// @return The handle, empty if the Function was moved from.
+    [[nodiscard]] const FunctionRef& ref() const noexcept;
 
     /// @brief Sets the C++ handler run when Lua calls the native closure, replacing the previous one.
     /// @param handler The handler to run; an empty one makes calls from Lua raise a Lua error.
     void setHandler(Handler handler);
+
+    /// @brief Sets a typed C++ handler run when Lua calls the native closure, replacing the previous one.
+    ///
+    /// Unlike `setHandler`, the handler takes its arguments directly instead of a `CallContext`: `bind` checks that
+    /// Lua passed as many arguments as the handler has parameters and that each one holds the type of its parameter,
+    /// and raises a Lua error (an `exceptions::RuntimeError` naming the faulty argument, the type it expected and the
+    /// one it got) otherwise, without running the handler. The returned pack is returned to Lua, as with
+    /// `setHandler`.
+    ///
+    /// Each parameter must be taken by value or by `const&` (not `&` or `&&`), and its type, without cv-qualifiers and
+    /// reference, must be one of the alternatives of `Value::Variant` (for example `double` for a number, not `int` or
+    /// `float`). Trailing parameters may be `std::optional<T>` of such a type: Lua may then omit the argument or pass
+    /// `nil`, and the handler receives an empty optional. No required parameter may follow an optional one. The
+    /// callable must be copy-constructible and deducible by `std::function`, so move-only captures, generic lambdas
+    /// and overloaded functors are not supported.
+    /// @tparam F Type of the callable, returning a `ValuePack`.
+    /// @param f The callable to run; it is copied or moved into the Function.
+    template <typename F>
+    void bind(F&& f);
 
     /// @brief Calls the wrapped function in protected mode with the given arguments, and reads the values it returns.
     ///
@@ -102,9 +131,9 @@ class RTYPE_LUAU_API Function {
     /// @brief Creates a Function wrapping an existing function.
     /// @param state The Lua state the function lives in.
     /// @param type Where the body of the function lives.
-    /// @param ref Reference to the function.
+    /// @param ref Handle on the function.
     /// @param name Name used in error messages.
-    Function(lua_State* state, BindingType type, Ref ref, std::string name = "unknown");
+    Function(lua_State* state, BindingType type, FunctionRef ref, std::string name = "unknown");
 
     /// @brief Creates a native Function that references no closure yet; `create` makes and binds it.
     /// @param state The Lua state the closure will live in.
@@ -147,8 +176,12 @@ class RTYPE_LUAU_API Function {
 
     lua_State* _state;  ///< Lua state the function lives in.
     BindingType _type;  ///< Where the body of the wrapped function lives.
-    Ref _ref;           ///< Registry reference to the function.
+    FunctionRef _ref;   ///< Handle on the function.
     std::string _name;  ///< Name used in error messages.
     Handler _handler;   ///< C++ handler called by the native closure.
 };
 }  // namespace rtype::luau
+
+#define RTYPE_FUNCTION_INCLUDING_TPP
+#include "Function.tpp"  // IWYU pragma: export
+#undef RTYPE_FUNCTION_INCLUDING_TPP

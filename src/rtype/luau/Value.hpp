@@ -14,6 +14,7 @@
 #include <variant>
 
 #include "Export.hpp"
+#include "FunctionRef.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
 #include "Table.hpp"
@@ -35,9 +36,9 @@ class RTYPE_LUAU_API Value {
     /// @brief The set of Luau types a Value can hold.
     ///
     /// See https://luau.org/api/#type-inspection. Numbers are all `double` for now: 64-bit integers
-    /// come with a later Luau version. A `Table` is a handle on a table of the Lua state, not a copy of its
-    /// contents. Not implemented types (yet): Function, Userdata, Thread, Buffer, Class.
-    using Variant = std::variant<Nil, bool, double, Vector, std::string, Table>;
+    /// come with a later Luau version. A `Table` and a `FunctionRef` are handles on a table and a function of the Lua
+    /// state, not copies of them. Not implemented types (yet): Userdata, Thread, Buffer, Class.
+    using Variant = std::variant<Nil, bool, double, Vector, std::string, Table, FunctionRef>;
 
     /// @brief Reads a value from the stack of a Lua state, as the matching Value alternative.
     ///
@@ -46,7 +47,7 @@ class RTYPE_LUAU_API Value {
     /// @param stackIndex Stack index of the value to read (defaults to the top). It must be a valid index
     ///        of @p state's stack.
     /// @return A Value holding a copy of the Luau value, or a Failure of kind `kTypeMismatch` if the
-    ///         value has a type that cannot be read yet (function, userdata, thread, buffer).
+    ///         value has a type that cannot be read yet (userdata, thread, buffer).
     [[nodiscard]] static Result<Value> fromStack(lua_State* state, int stackIndex = Ref::kLuaStackTop);
     /// @brief Reads the value on top of the stack of a Lua state and pops it.
     ///
@@ -54,7 +55,7 @@ class RTYPE_LUAU_API Value {
     /// stack is left untouched: the value stays on top.
     /// @param state The Lua state to read from; must not be null, and its stack must not be empty.
     /// @return A Value holding a copy of the Luau value, or a Failure of kind `kTypeMismatch` if the
-    ///         value has a type that cannot be read yet (function, userdata, thread, buffer).
+    ///         value has a type that cannot be read yet (userdata, thread, buffer).
     [[nodiscard]] static Result<Value> pop(lua_State* state);
 
     /// @brief Constructs a Value from any of the supported types.
@@ -75,11 +76,13 @@ class RTYPE_LUAU_API Value {
 
     /// @brief Pushes the held value onto the stack of a Lua state, as the matching Luau type.
     ///
-    /// Pushes exactly one value on success and nothing when it throws. Does not grow the stack: the
+    /// Pushes exactly one value on success and nothing on failure. Does not grow the stack: the
     /// caller makes sure there is room for one more slot (`lua_checkstack`).
     /// @param state The Lua state to push onto; must not be null.
-    /// @throws exceptions::InvalidOperation If the Value holds a `Table` of another Lua state than @p state.
-    void push(lua_State* state) const;
+    /// @return Nothing on success, or a Failure of kind `kRuntime` if the Value holds a `Table` of another Lua state
+    ///         than @p state, or of kind `kOutOfMemory` if a string cannot be allocated.
+    /// @throws exceptions::InvalidState If @p state is null.
+    [[nodiscard]] Result<void> push(lua_State* state) const;
 
     /// @brief Checks whether the Value currently holds a `T`.
     /// @tparam T One of the alternatives of `Variant`.

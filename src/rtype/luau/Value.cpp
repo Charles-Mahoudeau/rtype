@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <format>
 #include <limits>
 #include <optional>
@@ -20,7 +21,9 @@
 #include <variant>
 
 #include "ErrorKind.hpp"
+#include "Exceptions.hpp"
 #include "Failure.hpp"
+#include "FunctionRef.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
 #include "Table.hpp"
@@ -82,6 +85,13 @@ Result<Value> Value::fromStack(lua_State* state, const int stackIndex) {
             }
             return Value{std::move(*table)};
         }
+        case LUA_TFUNCTION: {
+            auto function = FunctionRef::fromStack(state, stackIndex);
+            if (!function) {
+                return forwardError<Value>(std::move(function));
+            }
+            return Value{std::move(*function)};
+        }
         default:
             return Failure{ErrorKind::kTypeMismatch,
                            std::format("cannot read a value of type '{}' yet", lua_typename(state, type))};
@@ -105,16 +115,40 @@ Value& Value::operator=(const Value&) noexcept = default;
 Value::Value(Value&&) noexcept = default;
 Value& Value::operator=(Value&&) noexcept = default;
 
-void Value::push(lua_State* state) const {
-    std::visit(Overload{
-                   [state](const Nil) { lua_pushnil(state); },
-                   [state](const bool v) { lua_pushboolean(state, v); },
-                   [state](const double v) { lua_pushnumber(state, v); },
-                   [state](const Vector v) { lua_pushvector(state, v.x, v.y, v.z); },
-                   [state](const std::string& v) { lua_pushlstring(state, v.data(), v.size()); },
-                   [state](const Table& v) { v.push(state); },
-               },
-               _variant);
+Result<void> Value::push(lua_State* state) const {
+    if (state == nullptr) {
+        throw exceptions::InvalidState{};
+    }
+    return std::visit(Overload{
+                          [state](const Nil) -> Result<void> {
+                              lua_pushnil(state);
+                              return {};
+                          },
+                          [state](const bool v) -> Result<void> {
+                              lua_pushboolean(state, v);
+                              return {};
+                          },
+                          [state](const double v) -> Result<void> {
+                              lua_pushnumber(state, v);
+                              return {};
+                          },
+                          [state](const Vector v) -> Result<void> {
+                              lua_pushvector(state, v.x, v.y, v.z);
+                              return {};
+                          },
+                          [state](const std::string& v) -> Result<void> {
+                              try {
+                                  lua_pushlstring(state, v.data(), v.size());
+                              } catch (const std::exception&) {
+                                  // Luau raises its allocation failures as C++ exceptions.
+                                  return Failure{ErrorKind::kOutOfMemory, "Lua out of memory"};
+                              }
+                              return {};
+                          },
+                          [state](const Table& v) -> Result<void> { return v.push(state); },
+                          [state](const FunctionRef& v) -> Result<void> { return v.push(state); },
+                      },
+                      _variant);
 }
 
 bool Value::isNumeric() const noexcept {

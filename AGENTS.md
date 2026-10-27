@@ -106,7 +106,8 @@ are added.
     includes `miniaudio.h`, and the executable sees `Registration.hpp` only. The implementation of miniaudio (and of
     stb_vorbis, its OGG decoder) is compiled once, in `vendor/MiniaudioImplementation.cpp`, which clang-tidy skips
     (`vendor/.clang-tidy`).
-- `src/rtype/luau/` — `luau` target, shared library (`rtype-luau`) for Luau scripting.
+- `src/rtype/luau/` — `luau` target, shared library (`rtype-luau`) for Luau scripting. Failures a correct program can hit return
+  `Result<T>`; exceptions are only for API misuse (`docs/luau/error-handling.md`).
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `examples/<category>/.../<Name>/` — standalone examples, each with its own `xmake.lua`, grouped in
   folders of any depth (e.g. `examples/graphic/render/vulkan/VulkanInstance/`). Every `xmake.lua` under
@@ -266,7 +267,32 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
   - Template implementations go in a `.tpp` file next to the `.hpp` that declares them (e.g.
     `Pool.hpp` and `Pool.tpp`), not inline in the `.hpp`. The `.hpp` only declares the template
     and ends by including its `.tpp` (`#include "Pool.tpp"`); the `.tpp` carries the Epitech
-    header but no include guard of its own, and is never included from anywhere else.
+    header and `#pragma once`, and is never included from anywhere else.
+    A `.tpp` may, and should, `#include` the standard and project headers its code uses, instead of relying on
+    what its `.hpp` happens to include. Because it must never be included directly, right after `#pragma once` it has a
+    check that fails when its `.hpp` is not the includer: the `.hpp` defines `RTYPE_<NAME>_INCLUDING_TPP` around the
+    include and the `.tpp` tests it.
+
+    ```cpp
+    // Pool.hpp
+    #define RTYPE_POOL_INCLUDING_TPP
+    #include "Pool.tpp"  // IWYU pragma: export
+    #undef RTYPE_POOL_INCLUDING_TPP
+
+    // Pool.tpp (after the Epitech header)
+    #pragma once
+
+    #ifndef RTYPE_POOL_INCLUDING_TPP
+    #error "Pool.tpp is an implementation detail of Pool.hpp: include Pool.hpp instead"
+    #endif
+
+    #include <cassert>
+    #include <utility>
+    ```
+  - Include paths: avoid `#include "../MyInclude.hpp"` as much as possible (really). A sibling file (same
+    folder) is included by its bare name (`"Window.hpp"`); anything else in the engine is included from the
+    `src/` root as `"rtype/<module>/..."` (e.g. `"rtype/ecs/entity/Entity.hpp"`, `"rtype/plugins/backend/..."`),
+    never through a relative path going up the tree.
   - Include order is handled by `clang-format`: run it instead of ordering includes by hand.
 
 ## Definition of done

@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "Export.hpp"
+#include "FunctionRef.hpp"
 #include "MapHelper.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
@@ -24,6 +25,8 @@
 struct lua_State;
 
 namespace rtype::luau {
+class Function;
+class Library;
 class Value;
 /// @brief Handle on a table that lives in a Luau state.
 ///
@@ -45,10 +48,10 @@ class RTYPE_LUAU_API Table {
     /// @param state The Lua state to create the table in; must not be null.
     /// @param arrayCapacity Number of array slots to preallocate.
     /// @param hashCapacity Number of hash entries to preallocate.
-    /// @return A handle on the new table.
+    /// @return A handle on the new table, or a Failure of kind `kStackOverflow` if the stack of @p state cannot grow
+    ///         by one slot, or of kind `kOutOfMemory` if the table cannot be allocated.
     /// @throws exceptions::InvalidState If @p state is null.
-    /// @throws exceptions::StackOverflow If the stack of @p state cannot grow by one slot.
-    [[nodiscard]] static Table create(lua_State* state, int arrayCapacity = 0, int hashCapacity = 0);
+    [[nodiscard]] static Result<Table> create(lua_State* state, int arrayCapacity = 0, int hashCapacity = 0);
     /// @brief Makes a handle on the table at a stack index of a Lua state.
     ///
     /// Leaves the stack untouched. The reverse of `push()`.
@@ -83,6 +86,21 @@ class RTYPE_LUAU_API Table {
     /// @return Same as `get(const Value&)`.
     [[nodiscard]] Result<Value> getAt(std::size_t index) const;
 
+    /// @brief Reads the function stored under a string key.
+    /// @param key Key to look up.
+    /// @return A handle on the function, or a Failure of kind `kTypeMismatch` if the entry is absent or is not a
+    ///         function, or the Failure of `get(std::string_view)`.
+    [[nodiscard]] Result<FunctionRef> functionRef(std::string_view key) const;
+    /// @brief Reads the function stored under a string key, ready to be called.
+    /// @param key Key to look up; also used as the name of the returned Function.
+    /// @return Same as `functionRef`, as a `Function`.
+    [[nodiscard]] Result<Function> function(std::string_view key) const;
+
+    /// @brief Stores a library's table under the library's name, making it reachable from scripts.
+    /// @param library Library to register.
+    /// @return Nothing on success, or the failure of `set`.
+    [[nodiscard]] Result<void> registerLibrary(const Library& library);
+
     /// @brief Stores a value under a key, overwriting the existing one. Storing `nil` removes the entry.
     /// @param key Key to store the value under; cannot be `nil` or NaN.
     /// @param value Value to store.
@@ -112,13 +130,13 @@ class RTYPE_LUAU_API Table {
     /// @brief Returns the length of the array part, like the `#` operator without its metamethod.
     ///
     /// With holes in the array, any border is a valid answer, as in Luau.
-    /// @throws exceptions::StackOverflow If the stack cannot grow by one slot.
-    [[nodiscard]] std::size_t size() const;
+    /// @return The length, or a Failure of kind `kStackOverflow` if the stack cannot grow by one slot.
+    [[nodiscard]] Result<std::size_t> size() const;
     /// @brief Returns the number of entries of the table, array and hash parts together.
     ///
     /// Walks the whole table: linear in its size.
-    /// @throws exceptions::StackOverflow If the stack cannot grow enough.
-    [[nodiscard]] std::size_t count() const;
+    /// @return The number of entries, or a Failure of kind `kStackOverflow` if the stack cannot grow enough.
+    [[nodiscard]] Result<std::size_t> count() const;
 
     /// @brief Copies every entry of the table, in the unspecified order of `pairs()`.
     ///
@@ -134,18 +152,21 @@ class RTYPE_LUAU_API Table {
 
     /// @brief Pushes the table onto the stack of a Lua state.
     ///
-    /// Pushes exactly one value. Does not grow the stack: the caller makes sure there is room for one more slot
-    /// (`lua_checkstack`).
-    /// @param state The Lua state to push onto; must not be null, and share its main thread with the table's.
+    /// Pushes exactly one value on success and nothing on failure. Does not grow the stack: the caller makes sure
+    /// there is room for one more slot (`lua_checkstack`).
+    /// @param state The Lua state to push onto; must not be null.
+    /// @return Nothing on success, or a Failure of kind `kRuntime` if @p state belongs to another Lua state than the
+    ///         table.
     /// @throws exceptions::InvalidState If @p state is null.
-    /// @throws exceptions::InvalidOperation If @p state belongs to another Lua state than the table.
     /// @throws exceptions::InvalidRef If the handle was moved from.
-    void push(lua_State* state) const;
+    [[nodiscard]] Result<void> push(lua_State* state) const;
 
     /// @brief Checks whether two handles refer to the same table (raw identity, not equal contents).
     /// @param other The handle to compare with.
-    /// @throws exceptions::StackOverflow If the stack cannot grow enough.
-    [[nodiscard]] bool refersToSame(const Table& other) const;
+    /// @return `true` if they do (`false` for a table of another Lua state), or a Failure of kind `kStackOverflow`
+    ///         if the stack cannot grow enough.
+    /// @throws exceptions::InvalidRef If a handle was moved from.
+    [[nodiscard]] Result<bool> refersToSame(const Table& other) const;
 
   private:
     /// @brief Wraps a reference to a table.

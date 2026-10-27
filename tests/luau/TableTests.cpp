@@ -73,22 +73,22 @@ double number(const Table& table, const std::string& key) {
 TEST(Table, IsEmptyWhenCreated) {
     const auto runtime = makeRuntime();
 
-    const Table table = Table::create(runtime.state());
+    const Table table = Table::create(runtime.state()).value();
 
-    EXPECT_EQ(table.size(), 0U);
-    EXPECT_EQ(table.count(), 0U);
+    EXPECT_EQ(table.size().value(), 0U);
+    EXPECT_EQ(table.count().value(), 0U);
 }
 
 TEST(Table, CreateLeavesTheStackUntouched) {
     const auto runtime = makeRuntime();
     ValuePack probe{};
     probe.add({1.0});
-    ASSERT_EQ(probe.push(runtime.state()), 1U);
+    ASSERT_EQ(probe.push(runtime.state()).value(), 1U);
 
-    const Table table = Table::create(runtime.state(), 4, 4);
+    const Table table = Table::create(runtime.state(), 4, 4).value();
 
     EXPECT_TRUE(Value::pop(runtime.state()));
-    EXPECT_EQ(table.count(), 0U);
+    EXPECT_EQ(table.count().value(), 0U);
 }
 
 TEST(Table, CreateThrowsForNullState) {
@@ -97,30 +97,30 @@ TEST(Table, CreateThrowsForNullState) {
 
 TEST(Table, SetStoresStringKey) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state());
+    Table table = Table::create(runtime.state()).value();
 
     ASSERT_TRUE(table.set("answer", Value{42.0}));
 
     const auto value = table.get("answer");
     ASSERT_TRUE(value);
     EXPECT_DOUBLE_EQ(value->as<double>(), 42.0);
-    EXPECT_EQ(table.count(), 1U);
+    EXPECT_EQ(table.count().value(), 1U);
 }
 
 TEST(Table, SetOverwritesExistingKey) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state());
+    Table table = Table::create(runtime.state()).value();
     ASSERT_TRUE(table.set("key", Value{1.0}));
 
     ASSERT_TRUE(table.set("key", Value{std::string{"replaced"}}));
 
-    EXPECT_EQ(table.count(), 1U);
+    EXPECT_EQ(table.count().value(), 1U);
     EXPECT_EQ(table.get("key")->as<std::string>(), "replaced");
 }
 
 TEST(Table, GetReturnsNilForMissingKey) {
     const auto runtime = makeRuntime();
-    const Table table = Table::create(runtime.state());
+    const Table table = Table::create(runtime.state()).value();
 
     const auto value = table.get("absent");
 
@@ -130,7 +130,7 @@ TEST(Table, GetReturnsNilForMissingKey) {
 
 TEST(Table, KeysAreCaseSensitiveAndMayBeEmpty) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state());
+    Table table = Table::create(runtime.state()).value();
     ASSERT_TRUE(table.set("Key", Value{1.0}));
     ASSERT_TRUE(table.set("", Value{2.0}));
 
@@ -141,18 +141,18 @@ TEST(Table, KeysAreCaseSensitiveAndMayBeEmpty) {
 
 TEST(Table, SettingNilRemovesTheEntry) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state());
+    Table table = Table::create(runtime.state()).value();
     ASSERT_TRUE(table.set("key", Value{true}));
 
     ASSERT_TRUE(table.set("key", Value{Value::Nil{}}));
 
-    EXPECT_EQ(table.count(), 0U);
+    EXPECT_EQ(table.count().value(), 0U);
     EXPECT_FALSE(*table.has("key"));
 }
 
 TEST(Table, HasTellsPresentFromAbsentKeys) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state());
+    Table table = Table::create(runtime.state()).value();
     ASSERT_TRUE(table.set("present", Value{false}));
 
     EXPECT_TRUE(*table.has("present"));
@@ -162,14 +162,14 @@ TEST(Table, HasTellsPresentFromAbsentKeys) {
 
 TEST(Table, ArrayIndicesAreOneBased) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state());
+    Table table = Table::create(runtime.state()).value();
 
     for (std::size_t i = 1; i <= 3; ++i) {
         ASSERT_TRUE(table.setAt(i, Value{static_cast<double>(i) * 10.0}));
     }
 
-    EXPECT_EQ(table.size(), 3U);
-    EXPECT_EQ(table.count(), 3U);
+    EXPECT_EQ(table.size().value(), 3U);
+    EXPECT_EQ(table.count().value(), 3U);
     EXPECT_DOUBLE_EQ(table.getAt(1)->as<double>(), 10.0);
     EXPECT_DOUBLE_EQ(table.getAt(3)->as<double>(), 30.0);
     EXPECT_TRUE(table.getAt(0)->is<Value::Nil>());
@@ -178,9 +178,9 @@ TEST(Table, ArrayIndicesAreOneBased) {
 
 TEST(Table, AcceptsKeysOfAnySupportedType) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state());
+    Table table = Table::create(runtime.state()).value();
     const Value vectorKey{Value::Vector{1.0F, 2.0F, 3.0F}};
-    const Value tableKey{Table::create(runtime.state())};
+    const Value tableKey{Table::create(runtime.state()).value()};
 
     ASSERT_TRUE(table.set(Value{true}, Value{1.0}));
     ASSERT_TRUE(table.set(Value{2.5}, Value{2.0}));
@@ -191,23 +191,23 @@ TEST(Table, AcceptsKeysOfAnySupportedType) {
     EXPECT_DOUBLE_EQ(table.get(Value{2.5})->as<double>(), 2.0);
     EXPECT_DOUBLE_EQ(table.get(vectorKey)->as<double>(), 3.0);
     EXPECT_DOUBLE_EQ(table.get(tableKey)->as<double>(), 4.0);
-    EXPECT_EQ(table.count(), 4U);
+    EXPECT_EQ(table.count().value(), 4U);
 }
 
 TEST(Table, SetRejectsNilKey) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state());
+    Table table = Table::create(runtime.state()).value();
 
     const auto result = table.set(Value{Value::Nil{}}, Value{1.0});
 
     ASSERT_FALSE(result);
     EXPECT_EQ(result.error().kind(), ErrorKind::kTypeMismatch);
-    EXPECT_EQ(table.count(), 0U);
+    EXPECT_EQ(table.count().value(), 0U);
 }
 
 TEST(Table, SetRejectsNaNKey) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state());
+    Table table = Table::create(runtime.state()).value();
 
     const auto result = table.set(Value{std::numeric_limits<double>::quiet_NaN()}, Value{1.0});
 
@@ -229,20 +229,20 @@ TEST(Table, SetFailsOnReadOnlyTable) {
 TEST(Table, SetFailsForTableOfAnotherState) {
     const auto runtime = makeRuntime();
     const auto foreign = makeRuntime();
-    Table table = Table::create(runtime.state());
+    Table table = Table::create(runtime.state()).value();
 
-    const auto result = table.set("other", Value{Table::create(foreign.state())});
+    const auto result = table.set("other", Value{Table::create(foreign.state()).value()});
 
     ASSERT_FALSE(result);
     EXPECT_EQ(result.error().kind(), ErrorKind::kRuntime);
-    EXPECT_EQ(table.count(), 0U);
+    EXPECT_EQ(table.count().value(), 0U);
 }
 
 TEST(Table, FailedOperationsLeaveTheStackAsTheyFoundIt) {
     const auto runtime = makeRuntime();
     const auto foreign = makeRuntime();
-    Table table = Table::create(runtime.state());
-    const Value foreignTable{Table::create(foreign.state())};
+    Table table = Table::create(runtime.state()).value();
+    const Value foreignTable{Table::create(foreign.state()).value()};
     constexpr int kCalls = 10000;
 
     // The stack of Luau is capped at 8000 slots: leaking one slot per call would overflow it.
@@ -259,7 +259,7 @@ TEST(Table, FailedOperationsLeaveTheStackAsTheyFoundIt) {
 
 TEST(Table, CopyRefersToTheSameTable) {
     const auto runtime = makeRuntime();
-    Table original = Table::create(runtime.state());
+    Table original = Table::create(runtime.state()).value();
     Table copy{original};
 
     ASSERT_TRUE(copy.set("shared", Value{1.0}));
@@ -267,39 +267,39 @@ TEST(Table, CopyRefersToTheSameTable) {
 
     EXPECT_DOUBLE_EQ(number(original, "shared"), 1.0);
     EXPECT_DOUBLE_EQ(number(copy, "other"), 2.0);
-    EXPECT_TRUE(original.refersToSame(copy));
+    EXPECT_TRUE(original.refersToSame(copy).value());
 }
 
 TEST(Table, CopyAssignmentRefersToTheOtherTable) {
     const auto runtime = makeRuntime();
-    const Table source = Table::create(runtime.state());
-    Table target = Table::create(runtime.state());
+    const Table source = Table::create(runtime.state()).value();
+    Table target = Table::create(runtime.state()).value();
 
     target = source;
 
-    EXPECT_TRUE(target.refersToSame(source));
+    EXPECT_TRUE(target.refersToSame(source).value());
 }
 
 TEST(Table, DistinctTablesDoNotReferToTheSame) {
     const auto runtime = makeRuntime();
-    const Table first = Table::create(runtime.state());
-    const Table second = Table::create(runtime.state());
+    const Table first = Table::create(runtime.state()).value();
+    const Table second = Table::create(runtime.state()).value();
     const auto foreign = makeRuntime();
-    const Table other = Table::create(foreign.state());
+    const Table other = Table::create(foreign.state()).value();
 
-    EXPECT_FALSE(first.refersToSame(second));
-    EXPECT_FALSE(first.refersToSame(other));
+    EXPECT_FALSE(first.refersToSame(second).value());
+    EXPECT_FALSE(first.refersToSame(other).value());
 }
 
 TEST(Table, MovedFromHandleThrowsInvalidRef) {
     const auto runtime = makeRuntime();
-    Table source = Table::create(runtime.state());
+    Table source = Table::create(runtime.state()).value();
 
     const Table moved{std::move(source)};
 
-    EXPECT_EQ(moved.count(), 0U);
+    EXPECT_EQ(moved.count().value(), 0U);
     // NOLINTNEXTLINE(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
-    EXPECT_THROW(static_cast<void>(source.count()), rtype::luau::exceptions::InvalidRef);
+    EXPECT_THROW(static_cast<void>(source.count().value()), rtype::luau::exceptions::InvalidRef);
 }
 
 TEST(Table, IsCheapToCopyAndMove) {
@@ -312,7 +312,7 @@ TEST(Table, IsCheapToCopyAndMove) {
 
 TEST(Table, ScriptSeesChangesMadeFromCpp) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state());
+    Table table = Table::create(runtime.state()).value();
     ASSERT_TRUE(table.set("hp", Value{10.0}));
     ValuePack args{};
     args.add({table});
@@ -325,7 +325,7 @@ TEST(Table, ScriptSeesChangesMadeFromCpp) {
 
 TEST(Table, CppSeesChangesMadeByScript) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state());
+    Table table = Table::create(runtime.state()).value();
     ValuePack args{};
     args.add({table});
 
@@ -342,8 +342,8 @@ TEST(Table, ReadsTableReturnedByScript) {
 
     EXPECT_EQ(table.get("name")->as<std::string>(), "r-type");
     EXPECT_DOUBLE_EQ(number(table, "lives"), 3.0);
-    EXPECT_EQ(table.size(), 1U);
-    EXPECT_EQ(table.count(), 3U);
+    EXPECT_EQ(table.size().value(), 1U);
+    EXPECT_EQ(table.count().value(), 3U);
 }
 
 TEST(Table, NestedTablesAreLiveHandles) {
@@ -357,18 +357,18 @@ TEST(Table, NestedTablesAreLiveHandles) {
     ASSERT_TRUE(handle.set("x", Value{5.0}));
 
     EXPECT_DOUBLE_EQ(number(outer.get("inner")->as<Table>(), "x"), 5.0);
-    EXPECT_TRUE(handle.refersToSame(outer.get("inner")->as<Table>()));
+    EXPECT_TRUE(handle.refersToSame(outer.get("inner")->as<Table>()).value());
 }
 
 TEST(Table, PushThenFromStackGivesTheSameTable) {
     const auto runtime = makeRuntime();
-    const Table table = Table::create(runtime.state());
+    const Table table = Table::create(runtime.state()).value();
 
-    table.push(runtime.state());
+    ASSERT_TRUE(table.push(runtime.state()));
     const auto read = Table::fromStack(runtime.state());
 
     ASSERT_TRUE(read);
-    EXPECT_TRUE(read->refersToSame(table));
+    EXPECT_TRUE(read->refersToSame(table).value());
     EXPECT_TRUE(Value::pop(runtime.state()));
 }
 
@@ -376,7 +376,7 @@ TEST(Table, FromStackFailsForOtherTypes) {
     const auto runtime = makeRuntime();
     ValuePack pack{};
     pack.add({1.0});
-    ASSERT_EQ(pack.push(runtime.state()), 1U);
+    ASSERT_EQ(pack.push(runtime.state()).value(), 1U);
 
     const auto read = Table::fromStack(runtime.state());
 
@@ -384,12 +384,15 @@ TEST(Table, FromStackFailsForOtherTypes) {
     EXPECT_EQ(read.error().kind(), ErrorKind::kTypeMismatch);
 }
 
-TEST(Table, PushThrowsForTableOfAnotherState) {
+TEST(Table, PushFailsForTableOfAnotherState) {
     const auto runtime = makeRuntime();
     const auto foreign = makeRuntime();
-    const Table table = Table::create(foreign.state());
+    const Table table = Table::create(foreign.state()).value();
 
-    EXPECT_THROW(table.push(runtime.state()), rtype::luau::exceptions::InvalidOperation);
+    const auto pushed = table.push(runtime.state());
+
+    ASSERT_FALSE(pushed);
+    EXPECT_EQ(pushed.error().kind(), rtype::luau::ErrorKind::kRuntime);
 }
 
 TEST(Table, AccessIgnoresMetatables) {
@@ -428,7 +431,7 @@ TEST(Table, EntriesCopyEveryPair) {
 
 TEST(Table, EntriesFailForUnreadableValue) {
     const auto runtime = makeRuntime();
-    const Table table = runForTable(runtime, "return {f = function() end}");
+    const Table table = runForTable(runtime, "return {f = coroutine.create(function() end)}");
 
     const auto entries = table.entries();
 
@@ -452,7 +455,7 @@ TEST(Table, ToMapCopiesStringKeyedEntries) {
 
 TEST(Table, ToMapIsASnapshot) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state());
+    Table table = Table::create(runtime.state()).value();
     ASSERT_TRUE(table.set("key", Value{1.0}));
 
     const auto map = table.toMap();
@@ -466,7 +469,7 @@ TEST(Table, ToMapIsASnapshot) {
 
 TEST(Table, ToMapFailsForNonStringKey) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state());
+    Table table = Table::create(runtime.state()).value();
     ASSERT_TRUE(table.set("name", Value{1.0}));
     ASSERT_TRUE(table.setAt(1, Value{2.0}));
 
@@ -478,10 +481,56 @@ TEST(Table, ToMapFailsForNonStringKey) {
 
 TEST(Table, ToMapOfEmptyTableIsEmpty) {
     const auto runtime = makeRuntime();
-    const Table table = Table::create(runtime.state());
+    const Table table = Table::create(runtime.state()).value();
 
     const auto map = table.toMap();
 
     ASSERT_TRUE(map);
     EXPECT_TRUE(map->empty());
+}
+
+TEST(Table, FunctionReadsAFunctionDefinedByAScript) {
+    const auto runtime = makeRuntime();
+    const Table table = runForTable(runtime, "return {double = function(x) return x * 2 end}");
+
+    const auto function = table.function("double");
+
+    ASSERT_TRUE(function);
+    ValuePack args{};
+    args.add({21.0});
+    const auto results = function->call(args);
+    ASSERT_TRUE(results);
+    ASSERT_EQ(results->size(), 1U);
+    EXPECT_DOUBLE_EQ(results->values()[0].as<double>(), 42.0);
+}
+
+TEST(Table, FunctionRefReadsAFunctionDefinedByAScript) {
+    const auto runtime = makeRuntime();
+    const Table table = runForTable(runtime, "return {noop = function() end}");
+
+    EXPECT_TRUE(table.functionRef("noop"));
+}
+
+TEST(Table, FunctionFailsForMissingKey) {
+    const auto runtime = makeRuntime();
+    const Table table = Table::create(runtime.state()).value();
+
+    const auto function = table.function("missing");
+
+    ASSERT_FALSE(function);
+    EXPECT_EQ(function.error().kind(), ErrorKind::kTypeMismatch);
+    EXPECT_NE(function.error().message().find("missing"), std::string::npos);
+}
+
+TEST(Table, FunctionFailsForAnotherType) {
+    const auto runtime = makeRuntime();
+    const Table table = runForTable(runtime, "return {hp = 3}");
+
+    const auto function = table.function("hp");
+    const auto ref = table.functionRef("hp");
+
+    ASSERT_FALSE(function);
+    EXPECT_EQ(function.error().kind(), ErrorKind::kTypeMismatch);
+    ASSERT_FALSE(ref);
+    EXPECT_EQ(ref.error().kind(), ErrorKind::kTypeMismatch);
 }
