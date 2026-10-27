@@ -357,6 +357,8 @@ void VulkanRenderer::endFrame() {
     _frames->advance();
 }
 
+glm::vec2 VulkanRenderer::getViewSize() const { return glm::vec2{_config.virtualResolution}; }
+
 void VulkanRenderer::setView(const plugins::backend::graphics::View& view) { _view = view; }
 
 void VulkanRenderer::draw(const plugins::backend::graphics::Sprite& sprite) {

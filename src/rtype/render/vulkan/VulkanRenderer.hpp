@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <functional>
+#include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
 #include <memory>
 #include <optional>
@@ -153,6 +154,9 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// @brief Forgets @p texture at once, and destroys its image once the frames that may draw it are done. Does
     /// nothing if @p texture was already destroyed or never created.
     void destroy(plugins::backend::graphics::TextureId texture) override;
+
+    /// @return Config::virtualResolution, or 0x0 when the view is the framebuffer.
+    [[nodiscard]] glm::vec2 getViewSize() const override;
 
     /// @brief Sets the view of the frame (graphics::CameraView, with Config::virtualResolution): the last one set
     /// before endFrame() applies to every sprite of the frame. Until it is called, a frame shows the view from the
