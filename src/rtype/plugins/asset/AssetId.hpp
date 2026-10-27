@@ -16,7 +16,7 @@
 #include "rtype/ecs/type/Field.hpp"
 #include "rtype/ecs/type/FieldTypeOf.hpp"
 
-namespace rtype::plugins::backend {
+namespace rtype::plugins::asset {
 
 /// @brief Names an asset (a texture...) the same way in every process: the hash of its path.
 ///
@@ -34,17 +34,17 @@ struct AssetId {
     [[nodiscard]] bool operator==(const AssetId& other) const = default;
 };
 
-}  // namespace rtype::plugins::backend
+}  // namespace rtype::plugins::asset
 
 /// @brief Hashes an AssetId for unordered containers: it already is a hash.
 template <>
-struct std::hash<rtype::plugins::backend::AssetId> {
-    [[nodiscard]] std::size_t operator()(rtype::plugins::backend::AssetId id) const noexcept {
+struct std::hash<rtype::plugins::asset::AssetId> {
+    [[nodiscard]] std::size_t operator()(rtype::plugins::asset::AssetId id) const noexcept {
         return static_cast<std::size_t>(id.value);
     }
 };
 
 /// @brief An AssetId field is reflected as kAssetId: written as is by the network, the same in every process.
 template <>
-struct rtype::ecs::FieldTypeOf<rtype::plugins::backend::AssetId>
+struct rtype::ecs::FieldTypeOf<rtype::plugins::asset::AssetId>
     : std::integral_constant<rtype::ecs::FieldType, rtype::ecs::FieldType::kAssetId> {};

@@ -16,9 +16,9 @@
 #include <utility>
 #include <vector>
 
-#include "plugins/backend/config/Settings.hpp"
-#include "plugins/backend/exceptions/ConfigExceptions.hpp"
+#include "plugins/backend/exceptions/BackendExceptions.hpp"
 #include "plugins/backend/platform/WindowConfig.hpp"
+#include "plugins/config/Settings.hpp"
 
 namespace rtype::plugins::backend {
 

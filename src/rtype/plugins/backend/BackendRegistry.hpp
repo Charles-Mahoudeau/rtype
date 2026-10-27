@@ -13,9 +13,9 @@
 #include <string>
 #include <vector>
 
-#include "plugins/backend/config/Settings.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
+#include "plugins/config/Settings.hpp"
 
 namespace rtype::plugins::backend {
 
@@ -68,7 +68,7 @@ class BackendRegistry {
     /// IRenderer::setup(), IPlatform::init() with the `window` section, then IRenderer::init().
     /// @param config The whole configuration: `platform`, `renderer`, `window`, and a section per backend.
     /// @throws exceptions::BackendException If a name is missing or not registered.
-    /// @throws exceptions::SettingsException If a setting is unknown or has the wrong type.
+    /// @throws config::exceptions::SettingsException If a setting is unknown or has the wrong type.
     /// @throws exceptions::UnsupportedFeatureException If the renderer does not fit the platform.
     [[nodiscard]] Backend createBackend(const config::Settings& config) const;
 

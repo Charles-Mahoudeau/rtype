@@ -14,19 +14,19 @@
 
 #include "SdlPlatform.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/config/Settings.hpp"
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/input/Key.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
+#include "plugins/config/Settings.hpp"
 #include "render/vulkan/Registration.hpp"
 
 using namespace rtype::plugins::backend::event;
 using example::SdlPlatform;
 using rtype::plugins::backend::Backend;
 using rtype::plugins::backend::BackendRegistry;
-using rtype::plugins::backend::config::Settings;
 using rtype::plugins::backend::input::Key;
 using rtype::plugins::backend::platform::IPlatform;
+using rtype::plugins::config::Settings;
 
 /// @warning macOS: brew install molten-vk vulkan-loader (+ vulkan-validationlayers in debug builds)
 
