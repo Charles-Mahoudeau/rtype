@@ -46,11 +46,12 @@ are added.
   `RTYPE_PLUGINS_API`, which keeps the RTTI of the backend interfaces visible across binaries.
   - `plugins/backend/` (`rtype::plugins::backend`) — the contracts the backends implement and the vocabulary they
     speak, in sub-folders whose namespaces follow them: `platform/` (`IPlatform`, `WindowConfig`), `graphics/`
-    (`IRenderer`, `Sprite`, `Texture`, `View`..., the `Camera` (projection and priority, placed by its entity's
-    `Transform`) and `SpriteRenderer` components, `CameraView` (what a `View`
+    (`IRenderer`, `Sprite`, `Text` (a laid-out text: MSDF glyphs), `Texture`, `View`..., the `Camera` (projection and
+    priority, placed by its entity's `Transform`) and `SpriteRenderer` components, `CameraView` (what a `View`
     shows: letterboxed viewport, view-projection, screen and world conversions), and the `TextureAssets` resource:
     the textures by `AssetId`, queued by `load()` and decoded with stb by the backend plugin, the `SpriteQueue`
-    resource (sprites that are not entities, drawn with them) and the `VisibleArea` resource (what the frame shows)),
+    resource (sprites and texts that are not sprite entities, drawn with them) and the `VisibleArea` resource (what
+    the frame shows)),
     `event/` (the `Event` variant), `input/` (`Key`, `MouseButton`...), `exceptions/`, `math/`, `system/`; plus
     `BackendRegistry` and `BackendPlugin`, which starts the platform and the renderer from a registry the executable
     fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the window events and the
