@@ -31,10 +31,17 @@ enum class TextureFilter : std::uint8_t {
     kLinear,   ///< Smooth interpolation.
 };
 
+/// @brief What the pixels of a texture hold.
+enum class TextureEncoding : std::uint8_t {
+    kSrgb,    ///< sRGB colours with straight alpha: images. The renderer may convert and premultiply them.
+    kLinear,  ///< Data sampled as stored, untouched: the distances of a font atlas (Text), normal maps.
+};
+
 /// @brief Creation parameters of a texture. The pixels are always RGBA, 8 bits per channel.
 struct TextureDesc {
     glm::uvec2 size{0};  ///< In pixels.
     TextureFilter filter = TextureFilter::kNearest;
-    bool repeat = false;  ///< Tiles the texture when the source rect goes past its edges.
+    bool repeat = false;                                ///< Tiles the texture when the source rect goes past its edges.
+    TextureEncoding encoding = TextureEncoding::kSrgb;  ///< Colours or data.
 };
 }  // namespace rtype::plugins::backend::graphics
