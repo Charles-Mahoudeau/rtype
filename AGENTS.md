@@ -74,7 +74,10 @@ are added.
   - `plugins/config/` (`rtype::plugins::config`) — `Settings`: the flat configuration every plugin and backend reads
     its own section of, and its `SettingsException` (`config/exceptions/`).
   - `plugins/asset/` (`rtype::plugins::asset`) — `AssetId`: the hash of an asset's path, the same in every process,
-    which components keep to name a texture or a sound (reflected as `kAssetId`).
+    which components keep to name a texture or a sound (reflected as `kAssetId`); `AssetFiles` (`normalizePath()`,
+    `readTextFile()`) and `AssetStore<T>`, the bookkeeping the asset resources read from files share (entries by id,
+    collisions, failures, unload): `AtlasAssets` and `TilemapAssets` keep only their parser and their texture
+    requests. A new kind of asset file goes through them.
   - `plugins/sprite/` (`rtype::plugins::sprite`) — `SpritePlugin`: sprite atlases and animations. `SpriteAtlas`
     (named frames and `SpriteAnimation`s, built by `grid()` or in code), the `AtlasAssets` resource (atlases by
     `AssetId`: Aseprite / TexturePacker JSON files read with nlohmann_json, or images packed at load time with
