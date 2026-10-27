@@ -34,8 +34,8 @@ class RTYPE_LUAU_API Library {
     /// @param ownedMembers Members referenced by the table, kept here so they stay alive.
     Library(std::string name, Table table, std::deque<Member> ownedMembers);
     ~Library() = default;
-    Library(const Library&) = default;
-    Library& operator=(const Library&) = default;
+    Library(const Library&) = delete;
+    Library& operator=(const Library&) = delete;
     Library(Library&&) noexcept = default;
     Library& operator=(Library&&) noexcept = default;
 
