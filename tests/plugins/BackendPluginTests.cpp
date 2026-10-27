@@ -29,6 +29,7 @@
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/SpriteQueue.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
+#include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/graphics/VisibleArea.hpp"
@@ -367,6 +368,25 @@ TEST(BackendPlugin, DrawsTheQueuedSpritesSortedWithTheEntities) {
     EXPECT_FLOAT_EQ(app.state().sprites[1].position.x, 5.0F);
     EXPECT_FLOAT_EQ(app.state().sprites[2].position.x, 9.0F);
     EXPECT_TRUE(queue.getItems().empty());  // Emptied once drawn.
+}
+
+TEST(BackendPlugin, DrawsTheQueuedTextsInTheirLayer) {
+    BackendApp app;
+    const auto texture = loadTexture(app, "ship.png");
+    spawnSprite(app, texture, {5.0F, 0.0F}, 5);
+    app.app().runFrame();  // Loads the texture.
+    const auto loaded =
+        app.app().getWorld().getResources().require<rtype::plugins::backend::TextureAssets>().getTexture(texture);
+    ASSERT_TRUE(loaded);
+    auto& queue = *app.app().getWorld().getResources().getMut<rtype::plugins::backend::graphics::SpriteQueue>();
+    queue.push(9, rtype::plugins::backend::graphics::Text{.texture = *loaded, .position = {9.0F, 0.0F}});
+    queue.push(0, rtype::plugins::backend::graphics::Text{.texture = *loaded, .position = {1.0F, 0.0F}});
+    app.state().drawOrder.clear();
+    app.app().runFrame();
+    EXPECT_EQ(app.state().drawOrder, (std::vector<char>{'t', 's', 't'}));
+    ASSERT_EQ(app.state().texts.size(), 2U);
+    EXPECT_FLOAT_EQ(app.state().texts.at(0).position.x, 1.0F);
+    EXPECT_FLOAT_EQ(app.state().texts.at(1).position.x, 9.0F);
 }
 
 TEST(BackendPlugin, BringsTheInputPlugin) {
