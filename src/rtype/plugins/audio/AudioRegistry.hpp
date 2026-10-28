@@ -13,9 +13,9 @@
 #include <string>
 #include <vector>
 
+#include "core/config/Settings.hpp"
 #include "plugins/audio/AudioConfig.hpp"
 #include "plugins/audio/IAudioDevice.hpp"
-#include "plugins/config/Settings.hpp"
 
 namespace rtype::plugins::audio {
 /// @brief Audio backends by name, so the configuration picks one instead of the code.
@@ -36,7 +36,7 @@ class AudioRegistry {
     /// @param config The common `audio` section, already typed.
     /// @throws Anything if the device cannot open: createDevice() falls back to "null", or rethrows if required.
     using Factory =
-        std::function<std::unique_ptr<IAudioDevice>(const config::Settings& section, const AudioConfig& config)>;
+        std::function<std::unique_ptr<IAudioDevice>(const core::config::Settings& section, const AudioConfig& config)>;
 
     /// @brief Registers "null" (NullAudioDevice).
     AudioRegistry();
@@ -57,8 +57,8 @@ class AudioRegistry {
     /// @return The device; a NullAudioDevice, with a warning, if the backend cannot open and `audio.required` is false.
     /// @throws exceptions::AudioBackendException If the name is missing or not registered, or if the device cannot
     /// open and `audio.required` is true.
-    /// @throws config::exceptions::SettingsException If a setting is unknown or has the wrong type.
-    [[nodiscard]] std::unique_ptr<IAudioDevice> createDevice(const config::Settings& settings) const;
+    /// @throws core::config::exceptions::SettingsException If a setting is unknown or has the wrong type.
+    [[nodiscard]] std::unique_ptr<IAudioDevice> createDevice(const core::config::Settings& settings) const;
 
   private:
     std::map<std::string, Factory, std::less<>> _factories;  ///< Factories by name.

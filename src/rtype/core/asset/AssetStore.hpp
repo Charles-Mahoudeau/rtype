@@ -15,9 +15,9 @@
 #include <string_view>
 #include <unordered_map>
 
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
 
-namespace rtype::plugins::asset {
+namespace rtype::core::asset {
 
 /// @brief The assets of one kind read from files or built in code, by AssetId: the bookkeeping the asset resources
 /// (AtlasAssets, TilemapAssets, FontAssets) share, so each keeps only how its files are read and what it asks of
@@ -64,14 +64,14 @@ class AssetStore {
     /// @param parse Builds the asset from the file's text and its path; it throws (any std::exception) when it cannot,
     /// with a message that names the file.
     /// @return Its id, at once, even if it failed, and the asset if it was read now.
-    /// @throws backend::exceptions::AssetLoadException If another path already has this id (a hash collision).
+    /// @throws core::asset::exceptions::AssetLoadException If another path already has this id (a hash collision).
     template <typename Parse>
         requires std::invocable<const Parse&, std::string_view, const std::filesystem::path&>
     Stored load(const std::filesystem::path& path, const Parse& parse);
 
     /// @brief Adds @p value, known by @p name, unless the name is already known (the first asset is kept).
     /// @return Its id, and the asset if it was added now.
-    /// @throws backend::exceptions::AssetLoadException If another name already has this id (a hash collision).
+    /// @throws core::asset::exceptions::AssetLoadException If another name already has this id (a hash collision).
     Stored add(const std::string& name, T value);
 
     /// @brief Forgets the asset @p id names.
@@ -80,7 +80,7 @@ class AssetStore {
 
     /// @return The id of @p path, already normalized, or nothing if it is already known: for an asset built another
     /// way, then store() or fail().
-    /// @throws backend::exceptions::AssetLoadException If another path already has the id.
+    /// @throws core::asset::exceptions::AssetLoadException If another path already has the id.
     [[nodiscard]] std::optional<AssetId> reserve(const std::string& path) const;
 
     /// @brief Records @p value under @p path, reserved by reserve().
@@ -95,6 +95,6 @@ class AssetStore {
     std::unordered_map<AssetId, Entry> _entries;  ///< Every asset asked for, by id.
 };
 
-}  // namespace rtype::plugins::asset
+}  // namespace rtype::core::asset
 
 #include "AssetStore.tpp"

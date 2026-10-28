@@ -18,14 +18,14 @@
 #include <utility>
 #include <vector>
 
+#include "core/asset/AssetId.hpp"
+#include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
-#include "plugins/asset/AssetId.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/Color.hpp"
-#include "plugins/config/Settings.hpp"
 #include "plugins/tilemap/SpawnTilemap.hpp"
 #include "plugins/tilemap/TilemapAssets.hpp"
 #include "plugins/transform/Transform.hpp"
@@ -43,7 +43,7 @@
 using namespace rtype;
 using namespace rtype::plugins::backend;
 using namespace rtype::plugins::tilemap;
-using rtype::plugins::asset::AssetId;
+using rtype::core::asset::AssetId;
 using rtype::plugins::transform::Transform;
 
 namespace {
@@ -74,8 +74,8 @@ void flyCamera(ecs::Res<ecs::Time> time, ecs::Query<Transform, ecs::With<graphic
 }
 
 // The window and the renderer.
-plugins::config::Settings makeSettings() {
-    plugins::config::Settings settings;
+core::config::Settings makeSettings() {
+    core::config::Settings settings;
     settings.set("platform", "glfw");
     settings.set("renderer", "vulkan");
     settings.set("window.title", "Tilemap and parallax");

@@ -91,7 +91,7 @@ struct Storage {
 TEST(ComponentTraits, RecordsNameAndHash) {
     using Traits = rtype::ecs::ComponentTraits<rtype::test::traits::Health>;
     EXPECT_EQ(Traits::kName, "rtype.Health");
-    EXPECT_EQ(Traits::kHash, rtype::ecs::hashName("rtype.Health"));
+    EXPECT_EQ(Traits::kHash, rtype::core::hash::hashName("rtype.Health"));
 }
 
 TEST(ComponentTraits, WorksInsideANamespaceAndAtGlobalScope) {

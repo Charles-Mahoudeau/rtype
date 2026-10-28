@@ -45,7 +45,7 @@ struct Decoded {
 };
 
 /// @return The RGBA pixels of the image file at @p path.
-/// @throws backend::exceptions::AssetLoadException If it cannot be read or decoded.
+/// @throws core::asset::exceptions::AssetLoadException If it cannot be read or decoded.
 Decoded decode(const std::filesystem::path& path) {
     return Decoded{.name = path.stem().string(),
                    .image = backend::decodeImage(path.generic_string(), backend::readFile(path))};

@@ -7,13 +7,13 @@
 
 #include <gtest/gtest.h>
 
+#include "core/config/Settings.hpp"
+#include "core/config/exceptions/ConfigExceptions.hpp"
 #include "plugins/audio/AudioConfig.hpp"
-#include "plugins/config/Settings.hpp"
-#include "plugins/config/exceptions/ConfigExceptions.hpp"
 
 TEST(AudioConfig, KeepsTheDefaultsOfAnEmptySection) {
     const rtype::plugins::audio::AudioConfig config =
-        rtype::plugins::audio::AudioConfig::fromSettings(rtype::plugins::config::Settings{});
+        rtype::plugins::audio::AudioConfig::fromSettings(rtype::core::config::Settings{});
     EXPECT_TRUE(config.backend.empty());
     EXPECT_FALSE(config.required);
     EXPECT_EQ(config.maxVoices, 64U);
@@ -24,7 +24,7 @@ TEST(AudioConfig, KeepsTheDefaultsOfAnEmptySection) {
 }
 
 TEST(AudioConfig, ReadsEveryKey) {
-    rtype::plugins::config::Settings settings;
+    rtype::core::config::Settings settings;
     settings.set("backend", "miniaudio");
     settings.set("required", true);
     settings.set("maxVoices", 32.0);
@@ -43,46 +43,46 @@ TEST(AudioConfig, ReadsEveryKey) {
 }
 
 TEST(AudioConfig, RejectsAnUnknownKey) {
-    rtype::plugins::config::Settings settings;
+    rtype::core::config::Settings settings;
     settings.set("maxVoice", 32.0);
     EXPECT_THROW(static_cast<void>(rtype::plugins::audio::AudioConfig::fromSettings(settings)),
-                 rtype::plugins::config::exceptions::SettingsException);
+                 rtype::core::config::exceptions::SettingsException);
 }
 
 TEST(AudioConfig, RejectsAnUnknownVolume) {
-    rtype::plugins::config::Settings settings;
+    rtype::core::config::Settings settings;
     settings.set("volume.voice", 1.0);
     EXPECT_THROW(static_cast<void>(rtype::plugins::audio::AudioConfig::fromSettings(settings)),
-                 rtype::plugins::config::exceptions::SettingsException);
+                 rtype::core::config::exceptions::SettingsException);
 }
 
 TEST(AudioConfig, RejectsAWrongType) {
-    rtype::plugins::config::Settings settings;
+    rtype::core::config::Settings settings;
     settings.set("backend", 3.0);
     EXPECT_THROW(static_cast<void>(rtype::plugins::audio::AudioConfig::fromSettings(settings)),
-                 rtype::plugins::config::exceptions::SettingsException);
+                 rtype::core::config::exceptions::SettingsException);
 }
 
 TEST(AudioConfig, RejectsANegativeVolume) {
-    rtype::plugins::config::Settings settings;
+    rtype::core::config::Settings settings;
     settings.set("volume.music", -0.1);
     EXPECT_THROW(static_cast<void>(rtype::plugins::audio::AudioConfig::fromSettings(settings)),
-                 rtype::plugins::config::exceptions::SettingsException);
+                 rtype::core::config::exceptions::SettingsException);
 }
 
 TEST(AudioConfig, RejectsAnInvalidVoiceCount) {
     for (const double maxVoices : {0.0, -4.0, 2.5}) {
-        rtype::plugins::config::Settings settings;
+        rtype::core::config::Settings settings;
         settings.set("maxVoices", maxVoices);
         EXPECT_THROW(static_cast<void>(rtype::plugins::audio::AudioConfig::fromSettings(settings)),
-                     rtype::plugins::config::exceptions::SettingsException)
+                     rtype::core::config::exceptions::SettingsException)
             << maxVoices;
     }
 }
 
 TEST(AudioConfig, RejectsANonPositivePanDistance) {
-    rtype::plugins::config::Settings settings;
+    rtype::core::config::Settings settings;
     settings.set("panDistance", 0.0);
     EXPECT_THROW(static_cast<void>(rtype::plugins::audio::AudioConfig::fromSettings(settings)),
-                 rtype::plugins::config::exceptions::SettingsException);
+                 rtype::core::config::exceptions::SettingsException);
 }

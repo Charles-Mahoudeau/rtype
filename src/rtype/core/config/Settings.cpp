@@ -18,9 +18,9 @@
 #include <variant>
 #include <vector>
 
-#include "plugins/config/exceptions/ConfigExceptions.hpp"
+#include "core/config/exceptions/ConfigExceptions.hpp"
 
-namespace rtype::plugins::config {
+namespace rtype::core::config {
 
 namespace {
 
@@ -99,4 +99,4 @@ void Settings::checkKeys(std::initializer_list<std::string_view> allowed, std::s
     }
 }
 
-}  // namespace rtype::plugins::config
+}  // namespace rtype::core::config

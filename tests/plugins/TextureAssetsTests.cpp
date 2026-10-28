@@ -21,8 +21,8 @@
 
 #include "FakeBackend.hpp"
 #include "TestImages.hpp"
-#include "plugins/asset/AssetId.hpp"
-#include "plugins/backend/exceptions/AssetExceptions.hpp"
+#include "core/asset/AssetId.hpp"
+#include "core/asset/exceptions/AssetExceptions.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
@@ -123,7 +123,7 @@ TEST(TextureAssets, LoadsAFileByItsPath) {
     Fixture fixture;
     const auto id = fixture.assets.load(png.getPath());
     fixture.update();
-    EXPECT_EQ(id, rtype::plugins::asset::AssetId::fromPath(png.getPath()));
+    EXPECT_EQ(id, rtype::core::asset::AssetId::fromPath(png.getPath()));
     EXPECT_TRUE(fixture.assets.getTexture(id));
     EXPECT_EQ(fixture.assets.get(id)->desc.size, glm::uvec2(2, 1));
 }
@@ -156,14 +156,14 @@ TEST(TextureAssets, StartsEmpty) {
     const rtype::plugins::backend::TextureAssets assets;
     EXPECT_EQ(assets.getCount(), 0U);
     EXPECT_TRUE(assets.getQueued().empty());
-    EXPECT_EQ(assets.get(rtype::plugins::asset::AssetId::fromPath("ship.png")), nullptr);
+    EXPECT_EQ(assets.get(rtype::core::asset::AssetId::fromPath("ship.png")), nullptr);
 }
 
 TEST(TextureAssets, LoadQueuesTheAssetAndReturnsTheIdOfItsPath) {
     rtype::plugins::backend::TextureAssets assets;
-    const rtype::plugins::asset::AssetId id =
+    const rtype::core::asset::AssetId id =
         assets.load("assets/ship.png", {.filter = rtype::plugins::backend::graphics::TextureFilter::kLinear});
-    EXPECT_EQ(id, rtype::plugins::asset::AssetId::fromPath("assets/ship.png"));
+    EXPECT_EQ(id, rtype::core::asset::AssetId::fromPath("assets/ship.png"));
     EXPECT_EQ(assets.getQueued(), std::vector{id});
     const auto* entry = assets.get(id);
     ASSERT_NE(entry, nullptr);
@@ -188,7 +188,7 @@ TEST(TextureAssets, KeepsTheBytesOfAnAssetGivenInMemory) {
     rtype::plugins::backend::TextureAssets assets;
     const std::array<std::byte, 2> bytes{std::byte{1}, std::byte{2}};
     const auto id = assets.load("embedded/logo.png", bytes);
-    EXPECT_EQ(id, rtype::plugins::asset::AssetId::fromPath("embedded/logo.png"));
+    EXPECT_EQ(id, rtype::core::asset::AssetId::fromPath("embedded/logo.png"));
     EXPECT_EQ(assets.get(id)->encoded, (std::vector<std::byte>{bytes.begin(), bytes.end()}));
 }
 
@@ -219,7 +219,7 @@ TEST(TextureAssets, IgnoresResultsForAnAssetThatIsNotQueued) {
     const auto id = assets.load("ship.png");
     assets.setLoaded(id, kShip, {.size = {32, 16}});
     assets.setFailed(id, "late");
-    assets.setLoaded(rtype::plugins::asset::AssetId::fromPath("other.png"), kShip, {});
+    assets.setLoaded(rtype::core::asset::AssetId::fromPath("other.png"), kShip, {});
     EXPECT_EQ(assets.get(id)->state, rtype::plugins::backend::AssetState::kLoaded);
     EXPECT_EQ(assets.getCount(), 1U);
 }

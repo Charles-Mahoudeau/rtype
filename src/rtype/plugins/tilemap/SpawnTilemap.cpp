@@ -10,7 +10,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugins/tilemap/Parallax.hpp"
 #include "plugins/tilemap/Tilemap.hpp"
 #include "plugins/tilemap/TilemapAssets.hpp"
@@ -21,7 +21,7 @@
 
 namespace rtype::plugins::tilemap {
 
-std::vector<ecs::Entity> spawnTilemap(ecs::Commands& commands, const TilemapAssets& maps, asset::AssetId map,
+std::vector<ecs::Entity> spawnTilemap(ecs::Commands& commands, const TilemapAssets& maps, core::asset::AssetId map,
                                       const TilemapPlacement& placement) {
     std::vector<ecs::Entity> entities;
     const Tilemap* tilemap = maps.get(map);

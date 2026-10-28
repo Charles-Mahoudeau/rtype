@@ -35,8 +35,9 @@
 #include <utility>
 #include <vector>
 
+#include "core/asset/AssetId.hpp"
+#include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
-#include "plugins/asset/AssetId.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
@@ -47,7 +48,6 @@
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
-#include "plugins/config/Settings.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "render/vulkan/Registration.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -64,7 +64,7 @@
 
 using namespace rtype;
 using namespace rtype::plugins::backend;
-using rtype::plugins::asset::AssetId;
+using rtype::core::asset::AssetId;
 using namespace rtype::plugins::backend::graphics;
 using rtype::plugins::transform::Transform;
 
@@ -194,8 +194,8 @@ void drawCircles(ecs::NonSendMut<Backend> backend) {
 }
 
 // The window, the renderer and, when asked, the validation layer.
-plugins::config::Settings makeSettings(bool validate) {
-    plugins::config::Settings settings;
+core::config::Settings makeSettings(bool validate) {
+    core::config::Settings settings;
     settings.set("platform", "glfw");
     settings.set("renderer", "vulkan");
     settings.set("window.title", "Vulkan blend modes");

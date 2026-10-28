@@ -15,7 +15,7 @@
 
 #include "FakeBackend.hpp"
 #include "TestImages.hpp"
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/Text.hpp"
@@ -33,7 +33,7 @@
 #include "rtype/ecs/time/TimePlugin.hpp"
 #include "rtype/ecs/world/World.hpp"
 
-using rtype::plugins::asset::AssetId;
+using rtype::core::asset::AssetId;
 using rtype::plugins::backend::math::Rect;
 using rtype::plugins::text::Font;
 using rtype::plugins::text::FontAssets;

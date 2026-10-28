@@ -7,7 +7,8 @@
 
 #pragma once
 
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
+#include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
 #include "rtype/ecs/component/ComponentTraits.hpp"
 
 namespace rtype::plugins::sprite {
@@ -26,11 +27,11 @@ namespace rtype::plugins::sprite {
 ///                                                 .animation = rtype::plugins::sprite::animationId("idle")});
 /// @endcode
 struct SpriteAnimator {
-    asset::AssetId atlas;      ///< The atlas, from AtlasAssets.
-    asset::AssetId animation;  ///< animationId() of the animation's name.
-    float time = 0.0F;         ///< Seconds since the animation started, at speed 1.
-    float speed = 1.0F;        ///< Multiplies the time: 2 plays twice as fast, 0 freezes it.
-    bool playing = true;       ///< False: the time stands still, the current frame stays.
+    core::asset::AssetId atlas;      ///< The atlas, from AtlasAssets.
+    core::asset::AssetId animation;  ///< animationId() of the animation's name.
+    float time = 0.0F;               ///< Seconds since the animation started, at speed 1.
+    float speed = 1.0F;              ///< Multiplies the time: 2 plays twice as fast, 0 freezes it.
+    bool playing = true;             ///< False: the time stands still, the current frame stays.
 };
 RTYPE_ECS_COMPONENT(SpriteAnimator, "rtype.SpriteAnimator", atlas, animation, time, speed, playing);
 

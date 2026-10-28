@@ -10,11 +10,11 @@
 #include <cstdint>
 #include <memory>
 
+#include "core/hash/NameHash.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/event/EventInfo.hpp"
 #include "rtype/ecs/event/EventTraits.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
-#include "rtype/ecs/type/NameHash.hpp"
 #include "rtype/ecs/type/TypeTraits.hpp"
 
 namespace rtype::test::event_traits {
@@ -60,7 +60,8 @@ TEST(EventTraits, ConceptOnlyAcceptsEvents) {
 TEST(EventTraits, RecordsTheNameKindAndHash) {
     static_assert(rtype::ecs::EventTraits<evt::Collision>::kName == "test.traits.Collision");
     static_assert(rtype::ecs::EventTraits<evt::Collision>::kKind == rtype::ecs::TypeKind::kEvent);
-    static_assert(rtype::ecs::EventTraits<evt::Collision>::kHash == rtype::ecs::hashName("test.traits.Collision"));
+    static_assert(rtype::ecs::EventTraits<evt::Collision>::kHash ==
+                  rtype::core::hash::hashName("test.traits.Collision"));
 }
 
 TEST(EventTraits, MakesTheDescription) {

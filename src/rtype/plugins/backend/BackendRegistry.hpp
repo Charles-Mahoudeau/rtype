@@ -13,9 +13,9 @@
 #include <string>
 #include <vector>
 
+#include "core/config/Settings.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
-#include "plugins/config/Settings.hpp"
 
 namespace rtype::plugins::backend {
 
@@ -42,8 +42,8 @@ struct Backend {
 /// a renderer that do not fit together are reported by the renderer's init(), which throws.
 class BackendRegistry {
   public:
-    using PlatformFactory = std::function<std::unique_ptr<platform::IPlatform>(const config::Settings&)>;
-    using RendererFactory = std::function<std::unique_ptr<graphics::IRenderer>(const config::Settings&)>;
+    using PlatformFactory = std::function<std::unique_ptr<platform::IPlatform>(const core::config::Settings&)>;
+    using RendererFactory = std::function<std::unique_ptr<graphics::IRenderer>(const core::config::Settings&)>;
 
     BackendRegistry() = default;
     ~BackendRegistry() = default;
@@ -68,9 +68,9 @@ class BackendRegistry {
     /// IRenderer::setup(), IPlatform::init() with the `window` section, then IRenderer::init().
     /// @param config The whole configuration: `platform`, `renderer`, `window`, and a section per backend.
     /// @throws exceptions::BackendException If a name is missing or not registered.
-    /// @throws config::exceptions::SettingsException If a setting is unknown or has the wrong type.
+    /// @throws core::config::exceptions::SettingsException If a setting is unknown or has the wrong type.
     /// @throws exceptions::UnsupportedFeatureException If the renderer does not fit the platform.
-    [[nodiscard]] Backend createBackend(const config::Settings& config) const;
+    [[nodiscard]] Backend createBackend(const core::config::Settings& config) const;
 
   private:
     std::map<std::string, PlatformFactory, std::less<>> _platforms;  ///< Platform factories by name.

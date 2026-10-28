@@ -18,7 +18,7 @@
 
 #include "FakeBackend.hpp"
 #include "TestImages.hpp"
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/SpriteQueue.hpp"
@@ -44,7 +44,7 @@
 #include "rtype/ecs/time/TimePlugin.hpp"
 #include "rtype/ecs/world/World.hpp"
 
-using rtype::plugins::asset::AssetId;
+using rtype::core::asset::AssetId;
 using rtype::plugins::tilemap::LayerKind;
 using rtype::plugins::tilemap::MapLayer;
 using rtype::plugins::tilemap::Parallax;

@@ -16,10 +16,10 @@
 #include <utility>
 #include <vector>
 
+#include "core/hash/NameHash.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/resource/ResourceInfo.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
-#include "rtype/ecs/type/NameHash.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 
 namespace rtype::test::resource_traits {
@@ -100,7 +100,7 @@ TEST(ResourceTraits, LayoutHashMatchesTheRunTimeHash) {
 
 TEST(ResourceTraits, NameAndHash) {
     static_assert(rtype::ecs::ResourceTraits<traits::Time>::kName == "rtype.Time");
-    static_assert(rtype::ecs::ResourceTraits<traits::Time>::kHash == rtype::ecs::hashName("rtype.Time"));
+    static_assert(rtype::ecs::ResourceTraits<traits::Time>::kHash == rtype::core::hash::hashName("rtype.Time"));
 }
 
 TEST(ResourceTraits, PlainDataHasNoHooks) {

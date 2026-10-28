@@ -13,13 +13,13 @@
 #include <string>
 #include <string_view>
 
-#include "plugins/asset/AssetFiles.hpp"
-#include "plugins/asset/AssetId.hpp"
-#include "plugins/asset/AssetStore.hpp"
-#include "plugins/backend/exceptions/AssetExceptions.hpp"
+#include "core/asset/AssetFiles.hpp"
+#include "core/asset/AssetId.hpp"
+#include "core/asset/AssetStore.hpp"
+#include "core/asset/exceptions/AssetExceptions.hpp"
 
-using rtype::plugins::asset::AssetId;
-using rtype::plugins::asset::AssetStore;
+using rtype::core::asset::AssetId;
+using rtype::core::asset::AssetStore;
 
 namespace {
 /// @brief A text file in the temporary directory, removed when the test ends.
@@ -57,15 +57,15 @@ struct Parse {
 }  // namespace
 
 TEST(AssetFiles, NormalizesAPathAsAssetIdsSeeIt) {
-    EXPECT_EQ(rtype::plugins::asset::normalizePath("assets/./fonts/../fonts/a.json"), "assets/fonts/a.json");
+    EXPECT_EQ(rtype::core::asset::normalizePath("assets/./fonts/../fonts/a.json"), "assets/fonts/a.json");
     EXPECT_EQ(AssetId::fromPath("assets/./a.png"), AssetId::fromPath("assets/a.png"));
 }
 
 TEST(AssetFiles, ReadsAWholeFileOrThrows) {
     const TemporaryFile file{"rtype-asset-store-tests.txt", "line 1\nline 2"};
-    EXPECT_EQ(rtype::plugins::asset::readTextFile(file.getPath()), "line 1\nline 2");
-    EXPECT_THROW(static_cast<void>(rtype::plugins::asset::readTextFile("no/such/file.txt")),
-                 rtype::plugins::backend::exceptions::AssetLoadException);
+    EXPECT_EQ(rtype::core::asset::readTextFile(file.getPath()), "line 1\nline 2");
+    EXPECT_THROW(static_cast<void>(rtype::core::asset::readTextFile("no/such/file.txt")),
+                 rtype::core::asset::exceptions::AssetLoadException);
 }
 
 TEST(AssetStore, ReadsAFileOnce) {

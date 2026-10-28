@@ -10,7 +10,7 @@
 #include <glm/ext/vector_uint2.hpp>
 #include <string_view>
 
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/text/Font.hpp"
 #include "plugins/text/detail/FontJson.hpp"
@@ -62,7 +62,7 @@ void expectA(const Glyph& glyph) {
 TEST(FontJson, ReadsTheAtlasAndTheMetrics) {
     const Font font = parseFontJson(kFontTop, "assets/fonts/test.json");
     EXPECT_EQ(font.getTexturePath(), "assets/fonts/test.png");
-    EXPECT_EQ(font.getTexture(), rtype::plugins::asset::AssetId::fromPath("assets/fonts/test.png"));
+    EXPECT_EQ(font.getTexture(), rtype::core::asset::AssetId::fromPath("assets/fonts/test.png"));
     EXPECT_EQ(font.getTextureDesc().size, (glm::uvec2{256, 128}));
     EXPECT_EQ(font.getTextureDesc().filter, rtype::plugins::backend::graphics::TextureFilter::kLinear);
     EXPECT_EQ(font.getTextureDesc().encoding, rtype::plugins::backend::graphics::TextureEncoding::kLinear);

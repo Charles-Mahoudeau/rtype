@@ -17,7 +17,7 @@
 #include <string>
 #include <string_view>
 
-#include "plugins/asset/AssetFiles.hpp"
+#include "core/asset/AssetFiles.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/math/Rect.hpp"
 #include "plugins/text/Font.hpp"
@@ -93,7 +93,7 @@ Font parseFontJson(std::string_view text, const std::filesystem::path& path) {
         const float flip = yUp ? -1.0F : 1.0F;
         std::filesystem::path image = path;
         image.replace_extension(".png");
-        Font font{asset::normalizePath(image),
+        Font font{core::asset::normalizePath(image),
                   backend::graphics::TextureDesc{.size = size,
                                                  .filter = backend::graphics::TextureFilter::kLinear,
                                                  .encoding = backend::graphics::TextureEncoding::kLinear},

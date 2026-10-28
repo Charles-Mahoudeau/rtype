@@ -11,7 +11,7 @@
 #include <string>
 #include <utility>
 
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 
 namespace rtype::plugins::text {
@@ -24,7 +24,7 @@ constexpr std::uint32_t kCodepointBits = 32;
 Font::Font(std::string texturePath, const backend::graphics::TextureDesc& textureDesc, float distanceRange,
            const Metrics& metrics)
     : _texturePath{std::move(texturePath)},
-      _texture{asset::AssetId::fromPath(_texturePath)},
+      _texture{core::asset::AssetId::fromPath(_texturePath)},
       _textureDesc{textureDesc},
       _distanceRange{distanceRange},
       _metrics{metrics} {}

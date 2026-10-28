@@ -10,28 +10,41 @@ are added.
 
 ## Project structure
 
+- `src/rtype/core/` — `core` target, static library (`rtype-core`): what several modules share and that belongs to
+  none of them, one folder per feature, included as `core/<feature>/<File>.hpp`, namespace `rtype::core::<feature>`.
+  It depends on no other project target and keeps no global state. A class goes in only if two or more unrelated
+  modules need it; what only `plugins` needs stays in `plugins`.
+    - `core/asset/` (`rtype::core::asset`) — `AssetId`: the hash of an asset's path, the same in every process, which
+      components keep to name a texture or a sound. The ECS reflection of it (`kAssetId`) is in
+      `plugins/AssetIdReflection.hpp`. `AssetFiles.hpp` (`normalizePath`, `readTextFile`) and `AssetStore<T>` (the assets
+      of a resource by id, with hash-collision checks) are shared by the asset resources of `plugins`, which throw
+      `AssetLoadException` (`asset/exceptions/`).
+    - `core/hash/` (`rtype::core::hash`) — `NameHash.hpp`: the FNV-1a 64-bit hash (`hashName`, `hashString`,
+      `hashInteger`), the same in every compiler and process.
+    - `core/config/` (`rtype::core::config`) — `Settings`: the flat configuration every plugin and backend reads
+      its own section of, and its `SettingsException` (`config/exceptions/`).
 - `src/rtype/ecs/` — `ecs` target, shared library (`rtype-ecs`): the Entity Component System and,
-  later, the App and its plugins (`rtype::ecs`). Design in `docs/ecs/design.md`. It depends on no other
-  project target. Exported classes and functions are marked `RTYPE_ECS_API`, and the library keeps no
+  later, the App and its plugins (`rtype::ecs`). Design in `docs/ecs/design.md`. It depends on `core` only.
+  Exported classes and functions are marked `RTYPE_ECS_API`, and the library keeps no
   global mutable state (state lives in the world), so it can also be built static by switching its
   kind and defining `RTYPE_ECS_STATIC` publicly (see `Export.hpp`).
-  - Files are grouped in one folder per feature (`entity/`, `type/` (the core shared by every kind of ECS
-    data: fields, hooks, descriptions, registry), `component/`, `resource/`, `event/`, `storage/`, `change/`
-    (change ticks), `world/`, `command/` (deferred structural changes), `query/`, `system/`, `schedule/`, `time/`,
-    `app/` (the App and its plugins)), included as `rtype/ecs/<feature>/<File>.hpp`.
-  - Exception to the namespace rule: the types users write every day stay in the flat `rtype::ecs`
-    namespace whatever their folder (`rtype/ecs/entity/Entity.hpp` declares `rtype::ecs::Entity`).
-    Only internal parts get a sub-namespace, named after their folder: `rtype::ecs::storage`,
-    `rtype::ecs::detail` (`detail/`), `rtype::ecs::exceptions` (`exceptions/`).
+    - Files are grouped in one folder per feature (`entity/`, `type/` (the core shared by every kind of ECS
+      data: fields, hooks, descriptions, registry), `component/`, `resource/`, `event/`, `storage/`, `change/`
+      (change ticks), `world/`, `command/` (deferred structural changes), `query/`, `system/`, `schedule/`, `time/`,
+      `app/` (the App and its plugins)), included as `rtype/ecs/<feature>/<File>.hpp`.
+    - Exception to the namespace rule: the types users write every day stay in the flat `rtype::ecs`
+      namespace whatever their folder (`rtype/ecs/entity/Entity.hpp` declares `rtype::ecs::Entity`).
+      Only internal parts get a sub-namespace, named after their folder: `rtype::ecs::storage`,
+      `rtype::ecs::detail` (`detail/`), `rtype::ecs::exceptions` (`exceptions/`).
 - `src/rtype/network/` — `network` target, shared library (`rtype-network`): the transport, which moves bytes
   between machines (sockets, connections, acks, reliability). It knows nothing about the ECS and depends on
   Asio only, as a private package: no public header includes Asio, and only `.cpp` files of `io/` do.
   Exported symbols are marked `RTYPE_NETWORK_API`. Design in `docs/network/design.md`, task plan in
   `docs/network/implementation.md`.
-  - Namespaces mirror the folders (no flat-namespace exception as in `ecs`): `rtype::network` for the root
-    (`Types.hpp`, `NetworkSettings.hpp`, `RandomSource.hpp`), then one folder and sub-namespace per feature:
-    `protocol/` (`rtype::network::protocol`, wire constants, sequences, packets), `bytes/`, `connection/`,
-    `io/`, `server/`, `client/`, `exceptions/`. A folder is created only when a file goes in it.
+    - Namespaces mirror the folders (no flat-namespace exception as in `ecs`): `rtype::network` for the root
+      (`Types.hpp`, `NetworkSettings.hpp`, `RandomSource.hpp`), then one folder and sub-namespace per feature:
+      `protocol/` (`rtype::network::protocol`, wire constants, sequences, packets), `bytes/`, `connection/`,
+      `io/`, `server/`, `client/`, `exceptions/`. A folder is created only when a file goes in it.
 - `src/rtype/replication/` — `replication` target, shared library (`rtype-replication`): the only code that
   knows both the ECS and the network; it turns a `World` into messages and back (`rtype::replication`).
   Exported symbols are marked `RTYPE_REPLICATION_API`. Feature folders and sub-namespaces as in `network`:
@@ -44,88 +57,84 @@ are added.
   per plugin, included as `plugins/<name>/<File>.hpp`, namespace `rtype::plugins::<name>`. Each plugin keeps its own
   code and declares its own components, resources and events (`RTYPE_ECS_*`). `Export.hpp` holds
   `RTYPE_PLUGINS_API`, which keeps the RTTI of the backend interfaces visible across binaries.
-  - `plugins/backend/` (`rtype::plugins::backend`) — the contracts the backends implement and the vocabulary they
-    speak, in sub-folders whose namespaces follow them: `platform/` (`IPlatform`, `WindowConfig`), `graphics/`
-    (`IRenderer`, `Sprite`, `Text` (a laid-out text: MSDF glyphs), `Texture`, `View`..., the `Camera` (projection and
-    priority, placed by its entity's `Transform`) and `SpriteRenderer` components, `CameraView` (what a `View`
-    shows: letterboxed viewport, view-projection, screen and world conversions), and the `TextureAssets` resource:
-    the textures by `AssetId`, queued by `load()` and decoded with stb by the backend plugin, the `SpriteQueue`
-    resource (sprites and texts that are not sprite entities, drawn with them) and the `VisibleArea` resource (what
-    the frame shows)),
-    `event/` (the `Event` variant), `input/` (`Key`, `MouseButton`...), `exceptions/`, `math/`, `system/`; plus
-    `BackendRegistry` and `BackendPlugin`, which starts the platform and the renderer from a registry the executable
-    fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the window events and the
-    PreUpdate / Render systems that poll the window, frame the drawing and draw the sprites by layer.
-  - `plugins/input/` (`rtype::plugins::input`) — `InputPlugin`: `Control`, `Input`, `InputAction`, `ButtonStates`,
-    the `rtype.Input` resource, fed by a `PreUpdate` system from the `PlatformEvent`s in order, and the typed input
-    events (`InputEvents.hpp`) for gameplay code. It knows nothing of the backend plugin, which adds it.
-  - `plugins/transform/` (`rtype::plugins::transform`) — `TransformPlugin`: the `Transform` component gameplay writes
-    and the `GlobalTransform` rendering reads, computed from it in `PostUpdate` on every side. The backend plugin adds
-    it and draws each `SpriteRenderer` at its `GlobalTransform`.
-  - `plugins/physics/` (`rtype::plugins::physics`) — `PhysicsPlugin`: 2D physics on Jolt (`Collider`, `RigidBody`,
-    `Velocity`, the `PhysicsWorld` resource, collision events, scene queries, `moveAndSlide`), simulated on the server
-    side, with query-only bodies on clients. Jolt is a private package of `plugins`: only `.cpp` files and `detail/`
-    include it. The debug view is in `physics/debug/` (`rtype::plugins::physics::debug`). Design in
-    `docs/physics/design.md`.
-  - `plugins/audio/` (`rtype::plugins::audio`) — `AudioPlugin`: the `IAudioDevice` contract audio backends implement,
-    `AudioRegistry` (backends by name, `"null"` always registered, filled by the executable as the backend registry
-    is), the `AudioAssets` resource (sounds by `AssetId`, opened and decoded by the device), `AudioVolumes`, the
-    `AudioSource` and `AudioListener` components and the `PlaySound` / `PlayMusic` / `StopMusic` events, played by
-    client-side PostUpdate systems. Design in `docs/audio/design.md`.
-  - `plugins/config/` (`rtype::plugins::config`) — `Settings`: the flat configuration every plugin and backend reads
-    its own section of, and its `SettingsException` (`config/exceptions/`).
-  - `plugins/asset/` (`rtype::plugins::asset`) — `AssetId`: the hash of an asset's path, the same in every process,
-    which components keep to name a texture or a sound (reflected as `kAssetId`); `AssetFiles` (`normalizePath()`,
-    `readTextFile()`) and `AssetStore<T>`, the bookkeeping the asset resources read from files share (entries by id,
-    collisions, failures, unload): `AtlasAssets`, `TilemapAssets` and `FontAssets` keep only their parser and their
-    texture requests. A new kind of asset file goes through them.
-  - `plugins/sprite/` (`rtype::plugins::sprite`) — `SpritePlugin`: sprite atlases and animations. `SpriteAtlas`
-    (named frames and `SpriteAnimation`s, built by `grid()` or in code), the `AtlasAssets` resource (atlases by
-    `AssetId`: Aseprite / TexturePacker JSON files read with nlohmann_json, or images packed at load time with
-    stb_rect_pack), the `SpriteAnimator` component and the `AnimationFinished` event. A PostUpdate system on every
-    side plays the animators into their `SpriteRenderer`, and a client one hands the atlases' textures to
-    `TextureAssets`. nlohmann_json is a private package of `plugins`: only `sprite/detail/` includes it. The backend
-    plugin adds it. See `docs/Sprites.md`.
-  - `plugins/tilemap/` (`rtype::plugins::tilemap`) — `TilemapPlugin`: levels made in Tiled and parallax backgrounds.
-    `Tilemap` (tilesets, tile layers stored in 16x16 chunks, image layers), the `TilemapAssets` resource (maps by
-    `AssetId`, Tiled `.tmj` files and external `.tsj` tilesets read with nlohmann_json in `tilemap/detail/`),
-    `spawnTilemap()` (one `TilemapLayer` entity per layer) and the `Parallax` component. A client Render system moves
-    the `Parallax` entities before the camera, and another pushes the visible chunks' tiles to the backend's
-    `SpriteQueue`.
-    The backend plugin adds it; its Render systems are ordered against the backend plugin's. See `docs/Tilemap.md`.
-  - `plugins/text/` (`rtype::plugins::text`) — `TextPlugin`: text from MSDF font atlases made offline by
-    msdf-atlas-gen (`assets/fonts/`). `Font` (glyph metrics and kerning), the `FontAssets` resource (fonts by
-    `AssetId`, msdf-atlas-gen JSON read with nlohmann_json in `text/detail/`, with the UTF-8 decoder), `layoutText()` /
-    `measureText()` (`TextLayout.hpp`) and the `TextRenderer` component. A client Render system lays out each text and
-    pushes it to the backend's `SpriteQueue` as a `graphics::Text`, drawn by `IRenderer::draw(Text)` (Vulkan batches
-    its glyphs with the sprites, read by the MSDF branch of `sprite.frag`). The backend plugin adds it, after the
-    tilemap plugin. See `docs/Text.md`.
-  - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
+    - `plugins/backend/` (`rtype::plugins::backend`) — the contracts the backends implement and the vocabulary they
+      speak, in sub-folders whose namespaces follow them: `platform/` (`IPlatform`, `WindowConfig`), `graphics/`
+      (`IRenderer`, `Sprite`, `Text` (a laid-out text: MSDF glyphs), `Texture`, `View`..., the `Camera` (projection and
+      priority, placed by its entity's `Transform`) and `SpriteRenderer` components, `CameraView` (what a `View`
+      shows: letterboxed viewport, view-projection, screen and world conversions), and the `TextureAssets` resource:
+      the textures by `AssetId`, queued by `load()` and decoded with stb by the backend plugin, the `SpriteQueue`
+      resource (sprites and texts that are not sprite entities, drawn with them) and the `VisibleArea` resource (what
+      the frame shows)),
+      `event/` (the `Event` variant), `input/` (`Key`, `MouseButton`...), `exceptions/`, `math/`, `system/`; plus
+      `BackendRegistry` and `BackendPlugin`, which starts the platform and the renderer from a registry the executable
+      fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the window events and the
+      PreUpdate / Render systems that poll the window, frame the drawing and draw the sprites by layer.
+    - `plugins/input/` (`rtype::plugins::input`) — `InputPlugin`: `Control`, `Input`, `InputAction`, `ButtonStates`,
+      the `rtype.Input` resource, fed by a `PreUpdate` system from the `PlatformEvent`s in order, and the typed input
+      events (`InputEvents.hpp`) for gameplay code. It knows nothing of the backend plugin, which adds it.
+    - `plugins/transform/` (`rtype::plugins::transform`) — `TransformPlugin`: the `Transform` component gameplay writes
+      and the `GlobalTransform` rendering reads, computed from it in `PostUpdate` on every side. The backend plugin adds
+      it and draws each `SpriteRenderer` at its `GlobalTransform`.
+    - `plugins/physics/` (`rtype::plugins::physics`) — `PhysicsPlugin`: 2D physics on Jolt (`Collider`, `RigidBody`,
+      `Velocity`, the `PhysicsWorld` resource, collision events, scene queries, `moveAndSlide`), simulated on the server
+      side, with query-only bodies on clients. Jolt is a private package of `plugins`: only `.cpp` files and `detail/`
+      include it. The debug view is in `physics/debug/` (`rtype::plugins::physics::debug`). Design in
+      `docs/physics/design.md`.
+    - `plugins/audio/` (`rtype::plugins::audio`) — `AudioPlugin`: the `IAudioDevice` contract audio backends implement,
+      `AudioRegistry` (backends by name, `"null"` always registered, filled by the executable as the backend registry
+      is), the `AudioAssets` resource (sounds by `AssetId`, opened and decoded by the device), `AudioVolumes`, the
+      `AudioSource` and `AudioListener` components and the `PlaySound` / `PlayMusic` / `StopMusic` events, played by
+      client-side PostUpdate systems. Design in `docs/audio/design.md`.
+    - `plugins/sprite/` (`rtype::plugins::sprite`) — `SpritePlugin`: sprite atlases and animations. `SpriteAtlas`
+      (named frames and `SpriteAnimation`s, built by `grid()` or in code), the `AtlasAssets` resource (atlases by
+      `AssetId`: Aseprite / TexturePacker JSON files read with nlohmann_json, or images packed at load time with
+      stb_rect_pack), the `SpriteAnimator` component and the `AnimationFinished` event. A PostUpdate system on every
+      side plays the animators into their `SpriteRenderer`, and a client one hands the atlases' textures to
+      `TextureAssets`. nlohmann_json is a private package of `plugins`: only `sprite/detail/` includes it. The backend
+      plugin adds it. See `docs/Sprites.md`.
+    - `plugins/tilemap/` (`rtype::plugins::tilemap`) — `TilemapPlugin`: levels made in Tiled and parallax backgrounds.
+      `Tilemap` (tilesets, tile layers stored in 16x16 chunks, image layers), the `TilemapAssets` resource (maps by
+      `AssetId`, Tiled `.tmj` files and external `.tsj` tilesets read with nlohmann_json in `tilemap/detail/`),
+      `spawnTilemap()` (one `TilemapLayer` entity per layer) and the `Parallax` component. A client Render system moves
+      the `Parallax` entities before the camera, and another pushes the visible chunks' tiles to the backend's
+      `SpriteQueue`.
+      The backend plugin adds it; its Render systems are ordered against the backend plugin's. See `docs/Tilemap.md`.
+    - `plugins/text/` (`rtype::plugins::text`) — `TextPlugin`: text from MSDF font atlases made offline by
+      msdf-atlas-gen (`assets/fonts/`). `Font` (glyph metrics and kerning), the `FontAssets` resource (fonts by
+      `AssetId`, msdf-atlas-gen JSON read with nlohmann_json in `text/detail/`, with the UTF-8 decoder),
+      `layoutText()` /
+      `measureText()` (`TextLayout.hpp`) and the `TextRenderer` component. A client Render system lays out each text and
+      pushes it to the backend's `SpriteQueue` as a `graphics::Text`, drawn by `IRenderer::draw(Text)` (Vulkan batches
+      its glyphs with the sprites, read by the MSDF branch of `sprite.frag`). The backend plugin adds it, after the
+      tilemap plugin. See `docs/Text.md`.
+    - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
+    - `plugins/AssetIdReflection.hpp` — lets components reflect `core::asset::AssetId` fields (`kAssetId`).
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
   `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
   (`IVulkanSurfaceSource`). See `docs/Backend.md`.
 - `src/rtype/platform/<library>/` — one target per windowing backend, named `platform-<library>`.
-  - `platform/glfw/` — `platform-glfw` target, static library (`rtype-platform-glfw`): `GlfwPlatform`,
-    the GLFW implementation of `IPlatform` and `IVulkanSurfaceSource` (`rtype::platform::glfw`,
-    exceptions in `platform/glfw/exceptions/`), registered as `"glfw"` by `registerPlatform()`
-    (`Registration.hpp`). The only module that includes GLFW: it translates every GLFW callback and the
-    gamepad state into `rtype::plugins::backend::Event`s.
+    - `platform/glfw/` — `platform-glfw` target, static library (`rtype-platform-glfw`): `GlfwPlatform`,
+      the GLFW implementation of `IPlatform` and `IVulkanSurfaceSource` (`rtype::platform::glfw`,
+      exceptions in `platform/glfw/exceptions/`), registered as `"glfw"` by `registerPlatform()`
+      (`Registration.hpp`). The only module that includes GLFW: it translates every GLFW callback and the
+      gamepad state into `rtype::plugins::backend::Event`s.
 - `src/rtype/render/<api>/` — one target per renderer, named `render-<api>`.
-  - `render/vulkan/` — `render-vulkan` target, shared library (`rtype-render-vulkan`): `VulkanRenderer`,
-    the Vulkan implementation of `IRenderer` (`rtype::render::vulkan`), registered as `"vulkan"` by
-    `registerRenderer()` (`Registration.hpp`). Shaders go in `shaders/` and are compiled to SPIR-V by
-    the `glsl.spirv` rule defined in its `xmake.lua`.
+    - `render/vulkan/` — `render-vulkan` target, shared library (`rtype-render-vulkan`): `VulkanRenderer`,
+      the Vulkan implementation of `IRenderer` (`rtype::render::vulkan`), registered as `"vulkan"` by
+      `registerRenderer()` (`Registration.hpp`). Shaders go in `shaders/` and are compiled to SPIR-V by
+      the `glsl.spirv` rule defined in its `xmake.lua`.
 - `src/rtype/audio/<library>/` — one target per audio backend, named `audio-<library>`.
-  - `audio/miniaudio/` — `audio-miniaudio` target, static library (`rtype-audio-miniaudio`): `MiniaudioDevice`,
-    the miniaudio implementation of `IAudioDevice` (`rtype::audio::miniaudio`), configured by `MiniaudioConfig`
-    (its `miniaudio` settings section) and registered as `"miniaudio"` by `registerAudio()`
-    (`Registration.hpp`). `core/` (`rtype::audio::miniaudio::core`) holds the RAII wrappers of miniaudio's objects
-    (`Engine`, `SoundGroup`, one per bus, `Sound`), `VoicePool` the playing voices behind the generational
-    `VoiceId`s, `exceptions/` the `MiniaudioException`. miniaudio and stb are private packages: the only module that
-    includes `miniaudio.h`, and the executable sees `Registration.hpp` only. The implementation of miniaudio (and of
-    stb_vorbis, its OGG decoder) is compiled once, in `vendor/MiniaudioImplementation.cpp`, which clang-tidy skips
-    (`vendor/.clang-tidy`).
-- `src/rtype/luau/` — `luau` target, shared library (`rtype-luau`) for Luau scripting. Failures a correct program can hit return
+    - `audio/miniaudio/` — `audio-miniaudio` target, static library (`rtype-audio-miniaudio`): `MiniaudioDevice`,
+      the miniaudio implementation of `IAudioDevice` (`rtype::audio::miniaudio`), configured by `MiniaudioConfig`
+      (its `miniaudio` settings section) and registered as `"miniaudio"` by `registerAudio()`
+      (`Registration.hpp`). `core/` (`rtype::audio::miniaudio::core`) holds the RAII wrappers of miniaudio's objects
+      (`Engine`, `SoundGroup`, one per bus, `Sound`), `VoicePool` the playing voices behind the generational
+      `VoiceId`s, `exceptions/` the `MiniaudioException`. miniaudio and stb are private packages: the only module that
+      includes `miniaudio.h`, and the executable sees `Registration.hpp` only. The implementation of miniaudio (and of
+      stb_vorbis, its OGG decoder) is compiled once, in `vendor/MiniaudioImplementation.cpp`, which clang-tidy skips
+      (`vendor/.clang-tidy`).
+- `src/rtype/luau/` — `luau` target, shared library (`rtype-luau`) for Luau scripting. Failures a correct program can
+  hit return
   `Result<T>`; exceptions are only for API misuse (`docs/luau/error-handling.md`).
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `examples/<category>/.../<Name>/` — standalone examples, each with its own `xmake.lua`, grouped in
@@ -139,7 +148,7 @@ are added.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
 
 Each module has its own `xmake.lua`, included from the root `xmake.lua`. Add new sources under the
-matching module: `plugins`, `ecs`, `network`, `replication`, `platform-glfw`, `render-vulkan`, `audio-miniaudio`
+matching module: `plugins`, `core`, `ecs`, `network`, `replication`, `platform-glfw`, `render-vulkan`, `audio-miniaudio`
 and `luau` glob
 `**.cpp` in their own folder.
 
@@ -148,6 +157,7 @@ and `luau` glob
 Dependencies always point towards `ecs` and `plugins`, never away from them:
 
 ```
+core ←  ecs, plugins, platform-*, render-*, audio-*, engine (executable)
 ecs  ←  plugins, interop-*  ←  platform-*, render-*  ←  engine (executable)
         plugins             ←  audio-*             ←  engine (executable)
 luau                                                 ←  engine (executable)
@@ -155,11 +165,12 @@ network  ←  replication  ←  engine (executable)
 ecs      ←  replication
 ```
 
-- `ecs` depends on no other project target.
+- `core` depends on no other project target; `ecs` depends on `core` only. `core` never depends on `ecs`.
 - `network` depends on Asio only (private): never on the ECS, `plugins` or any other project target.
   `replication` depends on `ecs` and `network` and is the only module that knows both; the renderer, the
   platforms and `luau` never include its headers.
-- `plugins` depends on nothing but `ecs` and glm, plus Jolt (physics), nlohmann_json (sprite atlases, tilemaps, fonts)
+- `plugins` depends on nothing but `core`, `ecs` and glm, plus Jolt (physics), nlohmann_json (sprite atlases, tilemaps,
+  fonts)
   and stb (images) as private packages (no public header includes them). Never add a dependency on a `platform-*`,
   `render-*`, `audio-*` or `luau` target to it: the platforms, renderers and audio backends implement its contracts
   (`plugins/backend/`, `plugins/audio/`), so it would create a cycle. The executable fills the backend and audio
@@ -167,7 +178,7 @@ ecs      ←  replication
 - The platforms and renderers link `plugins` (and so the ECS) for the contracts, but never include ECS headers or
   plugin code beyond `plugins/backend/`'s interfaces and types. Likewise, the audio backends include nothing of
   `plugins` but the contract of `plugins/audio/` (`IAudioDevice`, `AudioTypes`, `AudioConfig`, `AudioRegistry`) and
-  `plugins/config/`'s `Settings`.
+  `core/config/`'s `Settings` (through `core`).
 - An audio backend never depends on a platform or a renderer, nor they on it. miniaudio never leaves
   `audio/miniaudio/`: no header outside it includes `<miniaudio.h>`.
 - Modules exchange backend types only (`rtype::plugins::backend::Event`, `rtype::plugins::backend::input::Key`...).
@@ -199,7 +210,8 @@ The project uses `xmake` with the `clang` toolchain and C++23.
 - Lint: `clang-tidy -p . <files>` (checks in `.clang-tidy`)
 
 Tests live in `tests/<module>/` (e.g. `tests/ecs/`, target `ecs-tests`, `tests/network/`, target
-`network-tests`, or `tests/luau/`, target `luau-tests`), one folder per module with its own `xmake.lua` included from `tests/xmake.lua`. They
+`network-tests`, or `tests/luau/`, target `luau-tests`), one folder per module with its own `xmake.lua` included from
+`tests/xmake.lua`. They
 are opt-in (`--Tests=y`) and use GoogleTest; the shared `tests/main.cpp` provides `main`. The CI
 `test` job builds with `--Tests=y` and runs `xmake test -v`.
 
@@ -214,48 +226,48 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
 - clang-tidy checks: `bugprone`, `cppcoreguidelines`, `clang-analyzer`, `modernize`,
   `performance`, `readability`, `misc`.
 - Match the existing conventions in `src/rtype/plugins/` and `src/rtype/platform/glfw/`:
-  - Files named in PascalCase after their class (`Window.hpp`, `Window.cpp`).
-  - Every source and header file starts with the Epitech header, with the current year, the
-    project name (`rtype`) and the file name without extension as the description:
+    - Files named in PascalCase after their class (`Window.hpp`, `Window.cpp`).
+    - Every source and header file starts with the Epitech header, with the current year, the
+      project name (`rtype`) and the file name without extension as the description:
 
-    ```cpp
-    /*
-    ** EPITECH PROJECT, 2026
-    ** rtype
-    ** File description:
-    ** Window
-    */
-    ```
+      ```cpp
+      /*
+      ** EPITECH PROJECT, 2026
+      ** rtype
+      ** File description:
+      ** Window
+      */
+      ```
 
-  - Headers use `#pragma once` as their include guard, placed right after the Epitech header —
-    never `#ifndef`/`#define`/`#endif` guards.
-  - Namespaces mirror the directory path under `src/rtype/` (`rtype::plugins::backend::input`,
-    `rtype::platform::glfw`, `rtype::render::vulkan`). The ECS feature folders are the one exception
-    (see `src/rtype/ecs/` in Project structure).
-  - Private members prefixed with `_` (`_window`), documented with `///<` comments.
-  - Constants (`constexpr` / `static constexpr` variables) and enumerators are named `kName`
-    (`kGamepadAxisCount`, `Key::kEscape`, `GamepadButton::kSouth`). Enum types themselves keep
-    PascalCase (`GamepadButton`). Local `const` variables keep camelCase.
-  - Doxygen comments use the `///` style (not `/** ... */`), with `@brief` on public classes and
-    functions.
-  - `[[nodiscard]]` on getters, `noexcept` where applicable, copy/move explicitly deleted for
-    resource-owning classes (RAII).
-  - The rule of five is mandatory: every class explicitly declares its destructor, copy
-    constructor, copy assignment, move constructor and move assignment, each one `= default` or
-    `= delete` when there is nothing custom to write. Never rely on implicit special members.
-  - Class members follow the Google Style Guide declaration order: `public`, then `protected`,
-    then `private` sections (omit empty ones); within each section, in this order: types and type
-    aliases, static constants, factory functions, constructors, the destructor and the copy/move
-    special members, all other member functions (static and non-static), then data members.
-  - Within those groups, order members as follows:
-    1. Custom constructors first (parameterized, then default).
-    2. The rule of five in textbook order, right after the custom constructors: destructor, copy
-       constructor, copy assignment, move constructor, move assignment.
-    3. Accessors: getters, then setters, in the same order as the data members they expose.
-    4. Other member functions: public behavior in logical groups, static functions together.
-    5. Data members, in the same order as their accessors.
-  - Errors reported through exceptions derived from `std::runtime_error`, kept in an `exceptions/`
-    folder next to the code that throws them.
+    - Headers use `#pragma once` as their include guard, placed right after the Epitech header —
+      never `#ifndef`/`#define`/`#endif` guards.
+    - Namespaces mirror the directory path under `src/rtype/` (`rtype::plugins::backend::input`,
+      `rtype::platform::glfw`, `rtype::render::vulkan`). The ECS feature folders are the one exception (see
+      `src/rtype/ecs/` in Project structure).
+    - Private members prefixed with `_` (`_window`), documented with `///<` comments.
+    - Constants (`constexpr` / `static constexpr` variables) and enumerators are named `kName`
+      (`kGamepadAxisCount`, `Key::kEscape`, `GamepadButton::kSouth`). Enum types themselves keep
+      PascalCase (`GamepadButton`). Local `const` variables keep camelCase.
+    - Doxygen comments use the `///` style (not `/** ... */`), with `@brief` on public classes and
+      functions.
+    - `[[nodiscard]]` on getters, `noexcept` where applicable, copy/move explicitly deleted for
+      resource-owning classes (RAII).
+    - The rule of five is mandatory: every class explicitly declares its destructor, copy
+      constructor, copy assignment, move constructor and move assignment, each one `= default` or
+      `= delete` when there is nothing custom to write. Never rely on implicit special members.
+    - Class members follow the Google Style Guide declaration order: `public`, then `protected`,
+      then `private` sections (omit empty ones); within each section, in this order: types and type
+      aliases, static constants, factory functions, constructors, the destructor and the copy/move
+      special members, all other member functions (static and non-static), then data members.
+    - Within those groups, order members as follows:
+        1. Custom constructors first (parameterized, then default).
+        2. The rule of five in textbook order, right after the custom constructors: destructor, copy
+           constructor, copy assignment, move constructor, move assignment.
+        3. Accessors: getters, then setters, in the same order as the data members they expose.
+        4. Other member functions: public behavior in logical groups, static functions together.
+        5. Data members, in the same order as their accessors.
+    - Errors reported through exceptions derived from `std::runtime_error`, kept in an `exceptions/`
+      folder next to the code that throws them.
 - Exported symbols from shared libraries use the per-library `RTYPE_<LIB>_API` macro, named after the
   target (`RTYPE_RENDER_VULKAN_API`, `RTYPE_LUAU_API`; `__declspec(dllexport)` on Windows).
 - Keep code portable across Linux, macOS and Windows.
@@ -266,55 +278,56 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
 - New dependencies go through `add_requires` in the relevant target's `xmake.lua`. A package used
   by several modules (glm, glfw) is declared once in the root `xmake.lua`.
 - C++ practices:
-  - Never use `using namespace` in `src/` (headers or sources) or in tests: always qualify names
-    explicitly. The only exception is `examples/`, where `using namespace` is allowed in `.cpp`
-    files to keep examples short and readable.
-  - Prefer the short form over the verbose one:
-    - Test a `std::optional` with its `bool` conversion: `if (opt)` / `if (!opt)`, not
-      `opt.has_value()`.
-    - Initialize with braces: `MyClass hello{arg1, arg2};` and `: _member{value}`, not
-      `MyClass hello(arg1, arg2);`. Braces reject narrowing conversions, so cast explicitly when
-      one is intended. Keep parentheses only where braces would call a different constructor
-      (`std::initializer_list` overloads, e.g. `std::vector<int> v(3, 0);` builds `{0, 0, 0}` while
-      `v{3, 0}` builds `{3, 0}`).
-    - Build strings with `std::format`: `std::format("Unknown setting '{}' in '{}'", key, context)`,
-      not `"Unknown setting '" + key + "' in '" + std::string(context) + "'"`. It takes `std::string_view`
-      and numbers directly (no `std::string(...)` or `std::to_string`). Use a raw string literal
-      (`R"(...)"`) when the text contains quotes. Appending in a loop (`result += ...`) stays as it is.
-  - Manage resources with RAII and smart pointers (`std::unique_ptr` by default,
-    `std::shared_ptr` only for genuinely shared ownership). No raw owning pointers, and no
-    `new`/`delete` or `malloc`/`free` outside code that wraps a C API.
-  - Headers use the `.hpp` extension and sources the `.cpp` extension.
-  - Template implementations go in a `.tpp` file next to the `.hpp` that declares them (e.g.
-    `Pool.hpp` and `Pool.tpp`), not inline in the `.hpp`. The `.hpp` only declares the template
-    and ends by including its `.tpp` (`#include "Pool.tpp"`); the `.tpp` carries the Epitech
-    header and `#pragma once`, and is never included from anywhere else.
-    A `.tpp` may, and should, `#include` the standard and project headers its code uses, instead of relying on
-    what its `.hpp` happens to include. Because it must never be included directly, right after `#pragma once` it has a
-    check that fails when its `.hpp` is not the includer: the `.hpp` defines `RTYPE_<NAME>_INCLUDING_TPP` around the
-    include and the `.tpp` tests it.
+    - Never use `using namespace` in `src/` (headers or sources) or in tests: always qualify names
+      explicitly. The only exception is `examples/`, where `using namespace` is allowed in `.cpp`
+      files to keep examples short and readable.
+    - Prefer the short form over the verbose one:
+        - Test a `std::optional` with its `bool` conversion: `if (opt)` / `if (!opt)`, not
+          `opt.has_value()`.
+        - Initialize with braces: `MyClass hello{arg1, arg2};` and `: _member{value}`, not
+          `MyClass hello(arg1, arg2);`. Braces reject narrowing conversions, so cast explicitly when
+          one is intended. Keep parentheses only where braces would call a different constructor
+          (`std::initializer_list` overloads, e.g. `std::vector<int> v(3, 0);` builds `{0, 0, 0}` while
+          `v{3, 0}` builds `{3, 0}`).
+        - Build strings with `std::format`: `std::format("Unknown setting '{}' in '{}'", key, context)`,
+          not `"Unknown setting '" + key + "' in '" + std::string(context) + "'"`. It takes `std::string_view`
+          and numbers directly (no `std::string(...)` or `std::to_string`). Use a raw string literal (`R"(...)"`) when
+          the text contains quotes. Appending in a loop (`result += ...`) stays as it is.
+    - Manage resources with RAII and smart pointers (`std::unique_ptr` by default,
+      `std::shared_ptr` only for genuinely shared ownership). No raw owning pointers, and no
+      `new`/`delete` or `malloc`/`free` outside code that wraps a C API.
+    - Headers use the `.hpp` extension and sources the `.cpp` extension.
+    - Template implementations go in a `.tpp` file next to the `.hpp` that declares them (e.g.
+      `Pool.hpp` and `Pool.tpp`), not inline in the `.hpp`. The `.hpp` only declares the template
+      and ends by including its `.tpp` (`#include "Pool.tpp"`); the `.tpp` carries the Epitech
+      header and `#pragma once`, and is never included from anywhere else.
+      A `.tpp` may, and should, `#include` the standard and project headers its code uses, instead of relying on
+      what its `.hpp` happens to include. Because it must never be included directly, right after `#pragma once` it has
+      a
+      check that fails when its `.hpp` is not the includer: the `.hpp` defines `RTYPE_<NAME>_INCLUDING_TPP` around the
+      include and the `.tpp` tests it.
 
-    ```cpp
-    // Pool.hpp
-    #define RTYPE_POOL_INCLUDING_TPP
-    #include "Pool.tpp"  // IWYU pragma: export
-    #undef RTYPE_POOL_INCLUDING_TPP
-
-    // Pool.tpp (after the Epitech header)
-    #pragma once
-
-    #ifndef RTYPE_POOL_INCLUDING_TPP
-    #error "Pool.tpp is an implementation detail of Pool.hpp: include Pool.hpp instead"
-    #endif
-
-    #include <cassert>
-    #include <utility>
-    ```
-  - Include paths: avoid `#include "../MyInclude.hpp"` as much as possible (really). A sibling file (same
-    folder) is included by its bare name (`"Window.hpp"`); anything else in the engine is included from the
-    `src/` root as `"rtype/<module>/..."` (e.g. `"rtype/ecs/entity/Entity.hpp"`, `"rtype/plugins/backend/..."`),
-    never through a relative path going up the tree.
-  - Include order is handled by `clang-format`: run it instead of ordering includes by hand.
+      ```cpp
+      // Pool.hpp
+      #define RTYPE_POOL_INCLUDING_TPP
+      #include "Pool.tpp"  // IWYU pragma: export
+      #undef RTYPE_POOL_INCLUDING_TPP
+  
+      // Pool.tpp (after the Epitech header)
+      #pragma once
+  
+      #ifndef RTYPE_POOL_INCLUDING_TPP
+      #error "Pool.tpp is an implementation detail of Pool.hpp: include Pool.hpp instead"
+      #endif
+  
+      #include <cassert>
+      #include <utility>
+      ```
+    - Include paths: avoid `#include "../MyInclude.hpp"` as much as possible (really). A sibling file (same
+      folder) is included by its bare name (`"Window.hpp"`); anything else in the engine is included from the
+      `src/` root as `"rtype/<module>/..."` (e.g. `"rtype/ecs/entity/Entity.hpp"`, `"rtype/plugins/backend/..."`),
+      never through a relative path going up the tree.
+    - Include order is handled by `clang-format`: run it instead of ordering includes by hand.
 
 ## Definition of done
 
@@ -373,8 +386,8 @@ explicit confirmation before running `git commit`, regardless of how the request
 When you are asked to commit, make atomic and descriptive commits that follow the commit norm above:
 
 - Atomic: one logical change per commit, self-contained and building on its own. Tests go in their
-  own `test(...)` commit, separate from the `feat`/`fix` they cover. Never mix unrelated concerns
-  (a feature, a refactor, a formatting pass...) in one commit.
+  own `test(...)` commit, separate from the `feat`/`fix` they cover. Never mix unrelated concerns (a feature, a
+  refactor, a formatting pass...) in one commit.
 - Split by file, not just by feature: before committing, list every changed or new file and ask
   of each one "does this work and make sense on its own?". A file that does (a helper, a utility,
   a type, an exception, a build-file change) gets its own commit, made *before* the commit of the
@@ -385,8 +398,8 @@ When you are asked to commit, make atomic and descriptive commits that follow th
   feature" is not a reason to group them.
 - Only group files in one commit when they cannot exist separately (e.g. a class's `.hpp` and its
   `.cpp`, or a change and the call sites it forces to update).
-- Descriptive: a precise lowercase Conventional Commits subject saying what changed, plus a body
-  (separated by a blank line) explaining what was done and why. Every commit has a body.
+- Descriptive: a precise lowercase Conventional Commits subject saying what changed, plus a body (separated by a blank
+  line) explaining what was done and why. Every commit has a body.
 - If the pending changes cover several concerns, split them into several commits: propose the
   split to the user and ask before staging each one, instead of lumping everything together.
   Stage explicitly by path (`git add <files>`), never `git add -A` or `git add .`, so each commit

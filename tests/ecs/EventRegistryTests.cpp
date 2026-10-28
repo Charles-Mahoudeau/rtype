@@ -9,13 +9,13 @@
 
 #include <cstdint>
 
+#include "core/hash/NameHash.hpp"
 #include "rtype/ecs/error/Error.hpp"
 #include "rtype/ecs/error/Result.hpp"
 #include "rtype/ecs/event/EventInfo.hpp"
 #include "rtype/ecs/event/EventRegistry.hpp"
 #include "rtype/ecs/event/EventTraits.hpp"
 #include "rtype/ecs/exceptions/TypeExceptions.hpp"
-#include "rtype/ecs/type/NameHash.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 
 namespace rtype::test::event_registry {
@@ -60,7 +60,7 @@ TEST(EventRegistry, FindsEventsByIdNameHashAndType) {
     const rtype::ecs::EventInfo* info = registry.findById(id);
     ASSERT_NE(info, nullptr);
     EXPECT_EQ(registry.findByName("test.registry.Collision"), info);
-    EXPECT_EQ(registry.findByHash(rtype::ecs::hashName("test.registry.Collision")), info);
+    EXPECT_EQ(registry.findByHash(rtype::core::hash::hashName("test.registry.Collision")), info);
     EXPECT_EQ(registry.find<evr::Collision>(), info);
     EXPECT_EQ(registry.find<evr::Resized>(), nullptr);
 }

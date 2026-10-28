@@ -14,8 +14,8 @@
 #include <tl/expected.hpp>
 #include <utility>
 
+#include "core/hash/NameHash.hpp"
 #include "rtype/ecs/exceptions/TypeExceptions.hpp"
-#include "rtype/ecs/type/NameHash.hpp"
 
 namespace rtype::ecs {
 template <typename Info>
@@ -34,7 +34,7 @@ Result<TypeId> TypeRegistry<Info>::registerType(Info info) {
         return tl::unexpected<Error>{std::move(valid.error())};
     }
     info.type.layoutHash = computeLayoutHash(info.type);
-    const std::uint64_t nameHash = hashName(info.type.name);
+    const std::uint64_t nameHash = core::hash::hashName(info.type.name);
     if (const Info* registered = findByHash(nameHash); registered != nullptr) {
         // Same name hash: the same type registered again, or a conflict.
         if (Result<void> same = detail::checkSameType(Traits::kLabel, registered->type, info.type); !same) {
@@ -80,7 +80,7 @@ const Info* TypeRegistry<Info>::findById(TypeId id) const noexcept {
 
 template <typename Info>
 const Info* TypeRegistry<Info>::findByName(std::string_view name) const noexcept {
-    const Info* info = findByHash(hashName(name));
+    const Info* info = findByHash(core::hash::hashName(name));
     return info != nullptr && info->type.name == name ? info : nullptr;
 }
 

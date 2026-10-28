@@ -7,7 +7,7 @@ add_requires("miniaudio 0.11.x", {alias = "miniaudio", configs = {encoding = fal
 target("audio-miniaudio")
     set_kind("static")
     set_basename("rtype-audio-miniaudio")
-    add_deps("plugins")
+    add_deps("core", "plugins")
     -- Private: only this module includes miniaudio.h (MiniaudioDevice.hpp is internal: the executable sees
     -- Registration.hpp only), and only vendor/ includes stb_vorbis.c.
     add_packages("miniaudio", "stb")

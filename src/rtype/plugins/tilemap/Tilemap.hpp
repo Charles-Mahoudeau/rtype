@@ -19,7 +19,7 @@
 #include <string_view>
 #include <vector>
 
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/math/Rect.hpp"
 
@@ -38,17 +38,17 @@ inline constexpr std::int32_t kChunkSize = 16;
 
 /// @brief An image cut into same-size tiles, as a Tiled tileset: tile `firstGid + n` of a map is its tile n.
 struct Tileset {
-    std::string name;             ///< As named in Tiled.
-    std::string imagePath;        ///< The image, as TextureAssets loads it (relative to the working directory).
-    asset::AssetId texture;       ///< AssetId::fromPath(imagePath).
-    glm::uvec2 imageSize{0};      ///< In pixels.
-    glm::uvec2 tileSize{0};       ///< In pixels.
-    std::uint32_t firstGid = 1;   ///< The map's id of its first tile.
-    std::uint32_t tileCount = 0;  ///< How many tiles it has.
-    std::uint32_t columns = 0;    ///< Tiles per row of the image.
-    std::uint32_t spacing = 0;    ///< Pixels between two tiles.
-    std::uint32_t margin = 0;     ///< Pixels around the tiles, at the image's edges.
-    glm::vec2 tileOffset{0.0F};   ///< Added to where each of its tiles is drawn, in pixels.
+    std::string name;              ///< As named in Tiled.
+    std::string imagePath;         ///< The image, as TextureAssets loads it (relative to the working directory).
+    core::asset::AssetId texture;  ///< AssetId::fromPath(imagePath).
+    glm::uvec2 imageSize{0};       ///< In pixels.
+    glm::uvec2 tileSize{0};        ///< In pixels.
+    std::uint32_t firstGid = 1;    ///< The map's id of its first tile.
+    std::uint32_t tileCount = 0;   ///< How many tiles it has.
+    std::uint32_t columns = 0;     ///< Tiles per row of the image.
+    std::uint32_t spacing = 0;     ///< Pixels between two tiles.
+    std::uint32_t margin = 0;      ///< Pixels around the tiles, at the image's edges.
+    glm::vec2 tileOffset{0.0F};    ///< Added to where each of its tiles is drawn, in pixels.
 
     /// @return Where its tile @p localId (0 for the first) is in the image, in pixels.
     [[nodiscard]] backend::math::Rect getSource(std::uint32_t localId) const;
@@ -81,7 +81,7 @@ struct MapLayer {
     bool visible = true;                  ///< Hidden layers are kept but not drawn.
     std::vector<TileChunk> chunks;        ///< kTiles: the chunks that have tiles.
     std::string imagePath;                ///< kImage: the image, as TextureAssets loads it.
-    asset::AssetId image;                 ///< kImage: AssetId::fromPath(imagePath).
+    core::asset::AssetId image;           ///< kImage: AssetId::fromPath(imagePath).
     bool repeatX = false;                 ///< kImage: repeated to fill the view horizontally.
     bool repeatY = false;                 ///< kImage: repeated to fill the view vertically.
 

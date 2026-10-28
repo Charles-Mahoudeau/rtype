@@ -32,7 +32,7 @@ using TextReader = std::function<std::string(const std::filesystem::path& path)>
 /// Object layers are skipped. Image paths are relative to the file that names them.
 /// @param text The map file's content.
 /// @param path Where it was read from: names the map in errors and resolves relative paths.
-/// @param readText Reads an external tileset (asset::readTextFile() for files on disk).
+/// @param readText Reads an external tileset (core::asset::readTextFile() for files on disk).
 /// @throws exceptions::TilemapException Naming the map, if a file is not JSON, lacks or mistypes a field this reads,
 /// uses what this does not support (another orientation, base64 tile data, a tileset of separate images), or cannot be
 /// read by @p readText.

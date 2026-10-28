@@ -12,8 +12,8 @@
 #include <string>
 #include <vector>
 
-#include "plugins/asset/AssetId.hpp"
-#include "plugins/asset/AssetStore.hpp"
+#include "core/asset/AssetId.hpp"
+#include "core/asset/AssetStore.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/text/Font.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
@@ -39,7 +39,7 @@ class FontAssets {
   public:
     /// @brief One font: its file (or the name it was added under), the font (nothing if it could not be read) and why
     /// it could not be.
-    using Entry = asset::AssetStore<Font>::Entry;
+    using Entry = core::asset::AssetStore<Font>::Entry;
 
     /// @brief An atlas image a font needs, for TextureAssets.
     struct TextureRequest {
@@ -60,23 +60,23 @@ class FontAssets {
     /// @brief Reads the msdf-atlas-gen JSON file at @p path (detail::parseFontJson()); its image is the same path with
     /// the extension `.png`.
     /// @return Its id (AssetId::fromPath()), at once, even if it failed. Asking twice gives the first one.
-    /// @throws backend::exceptions::AssetLoadException If another path already has this id (a hash collision).
-    asset::AssetId load(const std::filesystem::path& path);
+    /// @throws core::asset::exceptions::AssetLoadException If another path already has this id (a hash collision).
+    core::asset::AssetId load(const std::filesystem::path& path);
 
     /// @brief Adds a font built in code, known by @p name.
     /// @return Its id (AssetId::fromPath(name)). Adding a name twice keeps the first font.
-    /// @throws backend::exceptions::AssetLoadException If another name already has this id (a hash collision).
-    asset::AssetId add(const std::string& name, Font font);
+    /// @throws core::asset::exceptions::AssetLoadException If another name already has this id (a hash collision).
+    core::asset::AssetId add(const std::string& name, Font font);
 
     /// @return The font @p id names, or nullptr if it is unknown or failed.
-    [[nodiscard]] const Font* get(asset::AssetId id) const;
+    [[nodiscard]] const Font* get(core::asset::AssetId id) const;
 
     /// @return The entry of @p id, read or failed, or nullptr if it is unknown.
-    [[nodiscard]] const Entry* getEntry(asset::AssetId id) const;
+    [[nodiscard]] const Entry* getEntry(core::asset::AssetId id) const;
 
     /// @brief Forgets the font @p id names. Its image stays in TextureAssets.
     /// @return False, doing nothing, if no font has this id.
-    bool unload(asset::AssetId id);
+    bool unload(core::asset::AssetId id);
 
     /// @return The images the fonts added since the last call need, for TextureAssets. Called by the TextPlugin.
     [[nodiscard]] std::vector<TextureRequest> takeTextureRequests();
@@ -85,7 +85,7 @@ class FontAssets {
     /// @brief Asks for the atlas image of @p font, just stored.
     void requestTexture(const Font& font);
 
-    asset::AssetStore<Font> _fonts{"Font"};        ///< Every font asked for, by id.
+    core::asset::AssetStore<Font> _fonts{"Font"};  ///< Every font asked for, by id.
     std::vector<TextureRequest> _textureRequests;  ///< Images to hand to TextureAssets.
 };
 RTYPE_ECS_RESOURCE(FontAssets, "rtype.FontAssets");

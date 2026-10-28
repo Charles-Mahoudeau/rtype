@@ -18,14 +18,14 @@
 #include <vector>
 
 #include "TestImages.hpp"
-#include "plugins/asset/AssetId.hpp"
-#include "plugins/backend/exceptions/AssetExceptions.hpp"
+#include "core/asset/AssetId.hpp"
+#include "core/asset/exceptions/AssetExceptions.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/sprite/AtlasAssets.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
-using rtype::plugins::asset::AssetId;
+using rtype::core::asset::AssetId;
 using rtype::plugins::sprite::AtlasAssets;
 using rtype::plugins::sprite::SpriteAtlas;
 

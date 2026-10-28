@@ -9,7 +9,7 @@
 
 #include <cstdint>
 
-#include "plugins/config/Settings.hpp"
+#include "core/config/Settings.hpp"
 
 namespace rtype::audio::miniaudio {
 /// @brief The settings of the "miniaudio" backend, read from the `miniaudio` section of the config (fromSettings()).
@@ -25,8 +25,8 @@ struct MiniaudioConfig {
     /// @brief Reads the keys `sampleRate`, `channels` and `periodSizeInMilliseconds`; the missing ones keep their
     /// default.
     /// @param settings The `miniaudio` section.
-    /// @throws plugins::config::exceptions::SettingsException If a key is unknown, has the wrong type, or is not a
+    /// @throws rtype::core::config::exceptions::SettingsException If a key is unknown, has the wrong type, or is not a
     /// non-negative integer.
-    [[nodiscard]] static MiniaudioConfig fromSettings(const plugins::config::Settings& settings);
+    [[nodiscard]] static MiniaudioConfig fromSettings(const rtype::core::config::Settings& settings);
 };
 }  // namespace rtype::audio::miniaudio

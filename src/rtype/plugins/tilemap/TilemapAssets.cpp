@@ -15,9 +15,9 @@
 #include <utility>
 #include <vector>
 
-#include "plugins/asset/AssetFiles.hpp"
-#include "plugins/asset/AssetId.hpp"
-#include "plugins/asset/AssetStore.hpp"
+#include "core/asset/AssetFiles.hpp"
+#include "core/asset/AssetId.hpp"
+#include "core/asset/AssetStore.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/tilemap/Tilemap.hpp"
 #include "plugins/tilemap/detail/TiledJson.hpp"
@@ -26,9 +26,9 @@ namespace rtype::plugins::tilemap {
 
 std::size_t TilemapAssets::getCount() const noexcept { return _maps.getCount(); }
 
-asset::AssetId TilemapAssets::load(const std::filesystem::path& path) {
+core::asset::AssetId TilemapAssets::load(const std::filesystem::path& path) {
     const auto stored = _maps.load(path, [](std::string_view text, const std::filesystem::path& file) {
-        return detail::parseTiledMap(text, file, &asset::readTextFile);
+        return detail::parseTiledMap(text, file, &core::asset::readTextFile);
     });
     if (stored.added != nullptr) {
         requestTextures(*stored.added);
@@ -36,7 +36,7 @@ asset::AssetId TilemapAssets::load(const std::filesystem::path& path) {
     return stored.id;
 }
 
-asset::AssetId TilemapAssets::add(const std::string& name, Tilemap map) {
+core::asset::AssetId TilemapAssets::add(const std::string& name, Tilemap map) {
     const auto stored = _maps.add(name, std::move(map));
     if (stored.added != nullptr) {
         requestTextures(*stored.added);
@@ -44,11 +44,11 @@ asset::AssetId TilemapAssets::add(const std::string& name, Tilemap map) {
     return stored.id;
 }
 
-const Tilemap* TilemapAssets::get(asset::AssetId id) const { return _maps.get(id); }
+const Tilemap* TilemapAssets::get(core::asset::AssetId id) const { return _maps.get(id); }
 
-const TilemapAssets::Entry* TilemapAssets::getEntry(asset::AssetId id) const { return _maps.getEntry(id); }
+const TilemapAssets::Entry* TilemapAssets::getEntry(core::asset::AssetId id) const { return _maps.getEntry(id); }
 
-bool TilemapAssets::unload(asset::AssetId id) { return _maps.unload(id); }
+bool TilemapAssets::unload(core::asset::AssetId id) { return _maps.unload(id); }
 
 std::vector<TilemapAssets::TextureRequest> TilemapAssets::takeTextureRequests() {
     return std::exchange(_textureRequests, {});

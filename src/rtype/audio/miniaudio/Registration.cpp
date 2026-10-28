@@ -11,16 +11,16 @@
 
 #include "audio/miniaudio/MiniaudioConfig.hpp"
 #include "audio/miniaudio/MiniaudioDevice.hpp"
+#include "core/config/Settings.hpp"
 #include "plugins/audio/AudioConfig.hpp"
 #include "plugins/audio/AudioRegistry.hpp"
 #include "plugins/audio/IAudioDevice.hpp"
-#include "plugins/config/Settings.hpp"
 
 namespace rtype::audio::miniaudio {
 
 void registerAudio(plugins::audio::AudioRegistry& registry) {
     registry.add("miniaudio",
-                 [](const plugins::config::Settings& section,
+                 [](const rtype::core::config::Settings& section,
                     const plugins::audio::AudioConfig& config) -> std::unique_ptr<plugins::audio::IAudioDevice> {
                      return std::make_unique<MiniaudioDevice>(config, MiniaudioConfig::fromSettings(section));
                  });

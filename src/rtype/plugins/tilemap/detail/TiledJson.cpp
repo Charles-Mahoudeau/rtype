@@ -24,8 +24,8 @@
 #include <utility>
 #include <vector>
 
-#include "plugins/asset/AssetFiles.hpp"
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetFiles.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/tilemap/Tilemap.hpp"
 #include "plugins/tilemap/exceptions/TilemapExceptions.hpp"
@@ -111,11 +111,11 @@ Tileset readTileset(const Json& object, const std::filesystem::path& directory, 
         throw exceptions::TilemapException{
             std::format("tileset '{}': a tileset of separate images is not supported, use one image", name)};
     }
-    const std::string imagePath = asset::normalizePath(directory / object.at("image").get<std::string>());
+    const std::string imagePath = core::asset::normalizePath(directory / object.at("image").get<std::string>());
     Tileset tileset{
         .name = name,
         .imagePath = imagePath,
-        .texture = asset::AssetId::fromPath(imagePath),
+        .texture = core::asset::AssetId::fromPath(imagePath),
         .imageSize = {object.at("imagewidth").get<std::uint32_t>(), object.at("imageheight").get<std::uint32_t>()},
         .tileSize = {object.at("tilewidth").get<std::uint32_t>(), object.at("tileheight").get<std::uint32_t>()},
         .firstGid = firstGid,
@@ -210,8 +210,8 @@ class LayerReader {
             return;
         }
         MapLayer picture = makeLayer(own, std::move(name), LayerKind::kImage);
-        picture.imagePath = asset::normalizePath(_directory / image);
-        picture.image = asset::AssetId::fromPath(picture.imagePath);
+        picture.imagePath = core::asset::normalizePath(_directory / image);
+        picture.image = core::asset::AssetId::fromPath(picture.imagePath);
         picture.repeatX = layer.value("repeatx", false);
         picture.repeatY = layer.value("repeaty", false);
         _layers.push_back(std::move(picture));

@@ -12,8 +12,9 @@
 #include <string>
 #include <type_traits>
 
-#include "plugins/GlmReflection.hpp"  // IWYU pragma: keep
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
+#include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
+#include "plugins/GlmReflection.hpp"      // IWYU pragma: keep
 #include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/text/TextLayout.hpp"
@@ -42,7 +43,7 @@ namespace rtype::plugins::text {
 /// @endcode
 struct TextRenderer {
     std::string text;                      ///< UTF-8; `\n` starts a new line.
-    asset::AssetId font;                   ///< From FontAssets::load().
+    core::asset::AssetId font;             ///< From FontAssets::load().
     float size = 32.0F;                    ///< The font size: world units per em, before the entity's scale.
     backend::graphics::Color color{1.0F};  ///< Fills the glyphs: colour and transparency.
     TextAlign align = TextAlign::kLeft;    ///< How the lines line up, for a text of several lines.

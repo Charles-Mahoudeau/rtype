@@ -26,7 +26,7 @@
 #include <string_view>
 #include <vector>
 
-#include "plugins/backend/exceptions/AssetExceptions.hpp"
+#include "core/asset/exceptions/AssetExceptions.hpp"
 
 namespace rtype::plugins::backend {
 
@@ -43,7 +43,8 @@ struct StbFree {
 std::vector<std::byte> readFile(const std::filesystem::path& path) {
     std::ifstream file{path, std::ios::binary};
     if (!file) {
-        throw exceptions::AssetLoadException{std::format("'{}': cannot open the file", path.generic_string())};
+        throw core::asset::exceptions::AssetLoadException{
+            std::format("'{}': cannot open the file", path.generic_string())};
     }
     const std::vector<char> content{std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
     std::vector<std::byte> bytes(content.size());
@@ -61,7 +62,7 @@ DecodedImage decodeImage(std::string_view name, std::span<const std::byte> encod
                               &width, &height, &fileChannels, kChannels)};
     // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
     if (pixels == nullptr) {
-        throw exceptions::AssetLoadException{
+        throw core::asset::exceptions::AssetLoadException{
             std::format("'{}': cannot decode the image ({})", name, stbi_failure_reason())};
     }
     const std::size_t byteCount = static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * kChannels;

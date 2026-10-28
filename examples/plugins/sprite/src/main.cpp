@@ -20,14 +20,14 @@
 #include <utility>
 #include <vector>
 
+#include "core/asset/AssetId.hpp"
+#include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
-#include "plugins/asset/AssetId.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
-#include "plugins/config/Settings.hpp"
 #include "plugins/sprite/AtlasAssets.hpp"
 #include "plugins/sprite/SpriteAnimator.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
@@ -41,7 +41,7 @@
 
 using namespace rtype;
 using namespace rtype::plugins::backend;
-using rtype::plugins::asset::AssetId;
+using rtype::core::asset::AssetId;
 using namespace rtype::plugins::sprite;
 using rtype::plugins::transform::Transform;
 
@@ -72,8 +72,8 @@ void spawnSprites(ecs::ResMut<AtlasAssets> atlases, ecs::Commands& commands) {
 }
 
 // The window and the renderer.
-plugins::config::Settings makeSettings() {
-    plugins::config::Settings settings;
+core::config::Settings makeSettings() {
+    core::config::Settings settings;
     settings.set("platform", "glfw");
     settings.set("renderer", "vulkan");
     settings.set("window.title", "Sprite atlases: grid and JSON");

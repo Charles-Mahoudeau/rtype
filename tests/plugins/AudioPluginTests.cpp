@@ -13,7 +13,8 @@
 #include <utility>
 
 #include "FakeAudioDevice.hpp"
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
+#include "core/config/Settings.hpp"
 #include "plugins/audio/AudioAssets.hpp"
 #include "plugins/audio/AudioEvents.hpp"
 #include "plugins/audio/AudioListener.hpp"
@@ -22,7 +23,6 @@
 #include "plugins/audio/AudioSource.hpp"
 #include "plugins/audio/AudioTypes.hpp"
 #include "plugins/audio/AudioVolumes.hpp"
-#include "plugins/config/Settings.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -34,7 +34,7 @@ namespace {
 /// @brief An App with the AudioPlugin over the fake device.
 class AudioApp {
   public:
-    explicit AudioApp(rtype::plugins::config::Settings settings = rtype::test::plugins::makeFakeAudioSettings(),
+    explicit AudioApp(rtype::core::config::Settings settings = rtype::test::plugins::makeFakeAudioSettings(),
                       rtype::ecs::RunMode mode = rtype::ecs::RunMode::kClient)
         : _state{std::make_shared<rtype::test::plugins::FakeAudioState>()}, _app{mode} {
         _app.addPlugin(rtype::plugins::audio::AudioPlugin{rtype::test::plugins::makeFakeAudioRegistry(_state),
@@ -51,7 +51,7 @@ class AudioApp {
     [[nodiscard]] rtype::test::plugins::FakeAudioState& state() noexcept { return *_state; }
 
     /// @return The id of a sound asked for under @p path, loaded at the next frame.
-    rtype::plugins::asset::AssetId load(const std::string& path, rtype::plugins::audio::SoundDesc desc = {}) {
+    rtype::core::asset::AssetId load(const std::string& path, rtype::plugins::audio::SoundDesc desc = {}) {
         return world().getResources().getMut<rtype::plugins::audio::AudioAssets>()->load(path, desc);
     }
 
@@ -99,7 +99,7 @@ TEST(AudioPlugin, RegistersItsTypesAndBringsTheTransformPlugin) {
 }
 
 TEST(AudioPlugin, CreatesTheDeviceWithTheVolumesOfTheConfig) {
-    rtype::plugins::config::Settings settings = rtype::test::plugins::makeFakeAudioSettings();
+    rtype::core::config::Settings settings = rtype::test::plugins::makeFakeAudioSettings();
     settings.set("audio.volume.master", 0.5);
     settings.set("audio.volume.music", 0.25);
     AudioApp app{settings};
@@ -135,7 +135,7 @@ TEST(AudioPlugin, AppliesTheVolumesWhenTheyChange) {
 
 TEST(AudioPlugin, LoadsAndPlaysASoundAskedForInTheSameFrame) {
     AudioApp app;
-    const rtype::plugins::asset::AssetId shot = app.load("shot.wav");
+    const rtype::core::asset::AssetId shot = app.load("shot.wav");
     app.send(rtype::plugins::audio::PlaySound{.sound = shot, .volume = 0.8F, .pitch = 1.2F});
     app.app().runFrame();
     ASSERT_EQ(app.state().plays.size(), 1U);
@@ -150,7 +150,7 @@ TEST(AudioPlugin, DropsASoundThatIsNotLoaded) {
     AudioApp app;
     app.state().failingPaths.insert("missing.wav");
     app.send(rtype::plugins::audio::PlaySound{.sound = app.load("missing.wav")});
-    app.send(rtype::plugins::audio::PlaySound{.sound = rtype::plugins::asset::AssetId::fromPath("never-asked.wav")});
+    app.send(rtype::plugins::audio::PlaySound{.sound = rtype::core::asset::AssetId::fromPath("never-asked.wav")});
     app.app().runFrame();
     EXPECT_TRUE(app.state().plays.empty());
 }
@@ -158,7 +158,7 @@ TEST(AudioPlugin, DropsASoundThatIsNotLoaded) {
 TEST(AudioPlugin, PansASoundFromTheListener) {
     AudioApp app;
     app.spawnListener(100.0F);
-    const rtype::plugins::asset::AssetId shot = app.load("shot.wav");
+    const rtype::core::asset::AssetId shot = app.load("shot.wav");
     app.send(rtype::plugins::audio::PlaySound{.sound = shot, .position = glm::vec2{300.0F, 0.0F}});
     app.send(rtype::plugins::audio::PlaySound{.sound = shot, .position = glm::vec2{-900.0F, 0.0F}});
     app.send(rtype::plugins::audio::PlaySound{.sound = shot});
@@ -179,7 +179,7 @@ TEST(AudioPlugin, CentresEverySoundWithoutAListener) {
 
 TEST(AudioPlugin, PlaysTheMusicLoopingOnTheMusicBus) {
     AudioApp app;
-    const rtype::plugins::asset::AssetId music = app.load("music.ogg", {.stream = true});
+    const rtype::core::asset::AssetId music = app.load("music.ogg", {.stream = true});
     app.send(rtype::plugins::audio::PlayMusic{.sound = music, .crossfade = 2.0F});
     app.app().runFrame();
     ASSERT_EQ(app.state().plays.size(), 1U);
@@ -190,8 +190,8 @@ TEST(AudioPlugin, PlaysTheMusicLoopingOnTheMusicBus) {
 
 TEST(AudioPlugin, CrossfadesFromTheCurrentMusic) {
     AudioApp app;
-    const rtype::plugins::asset::AssetId first = app.load("first.ogg");
-    const rtype::plugins::asset::AssetId second = app.load("second.ogg");
+    const rtype::core::asset::AssetId first = app.load("first.ogg");
+    const rtype::core::asset::AssetId second = app.load("second.ogg");
     app.send(rtype::plugins::audio::PlayMusic{.sound = first});
     app.app().runFrame();
     app.send(rtype::plugins::audio::PlayMusic{.sound = second, .crossfade = 3.0F});
@@ -216,7 +216,7 @@ TEST(AudioPlugin, StopsTheMusic) {
 
 TEST(AudioPlugin, LetsAPlayMusicSentWithAStopMusicWin) {
     AudioApp app;
-    const rtype::plugins::asset::AssetId music = app.load("music.ogg");
+    const rtype::core::asset::AssetId music = app.load("music.ogg");
     app.send(rtype::plugins::audio::PlayMusic{.sound = music});
     app.send(rtype::plugins::audio::StopMusic{});
     app.app().runFrame();
@@ -276,8 +276,8 @@ TEST(AudioPlugin, CentresANonSpatialSource) {
 
 TEST(AudioPlugin, RestartsASourceWhoseSoundChanged) {
     AudioApp app;
-    const rtype::plugins::asset::AssetId idle = app.load("idle.ogg");
-    const rtype::plugins::asset::AssetId boost = app.load("boost.ogg");
+    const rtype::core::asset::AssetId idle = app.load("idle.ogg");
+    const rtype::core::asset::AssetId boost = app.load("boost.ogg");
     const rtype::ecs::Entity ship = app.spawnSource({.sound = idle, .loop = true});
     app.app().runFrame();
     app.world().getComponents().getMut<rtype::plugins::audio::AudioSource>(ship)->sound = boost;

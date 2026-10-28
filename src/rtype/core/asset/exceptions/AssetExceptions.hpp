@@ -10,7 +10,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace rtype::plugins::backend::exceptions {
+namespace rtype::core::asset::exceptions {
 /// @brief Exception thrown when an asset cannot be loaded: its file cannot be read, or its content cannot be decoded.
 class AssetLoadException : public std::runtime_error {
   public:
@@ -21,4 +21,4 @@ class AssetLoadException : public std::runtime_error {
     AssetLoadException(AssetLoadException&& other) noexcept = default;
     AssetLoadException& operator=(AssetLoadException&& other) noexcept = default;
 };
-}  // namespace rtype::plugins::backend::exceptions
+}  // namespace rtype::core::asset::exceptions

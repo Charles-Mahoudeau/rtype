@@ -9,7 +9,8 @@
 
 #include <cstdint>
 
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
+#include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
 #include "rtype/ecs/component/ComponentTraits.hpp"
 
 namespace rtype::plugins::tilemap {
@@ -21,7 +22,7 @@ namespace rtype::plugins::tilemap {
 /// camera shows, and an image layer once (repeated to fill the view if Tiled says so), through the SpriteQueue, sorted
 /// with the sprites by `drawLayer`. Every field is reflected.
 struct TilemapLayer {
-    asset::AssetId map;          ///< The map, from TilemapAssets::load().
+    core::asset::AssetId map;    ///< The map, from TilemapAssets::load().
     std::uint32_t layer = 0;     ///< Index in Tilemap::getLayers().
     std::int32_t drawLayer = 0;  ///< Draw order among sprites: as SpriteRenderer::layer, higher on top.
 };

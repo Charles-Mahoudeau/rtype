@@ -28,9 +28,10 @@
 #include "Engine.hpp"
 #include "ProjectSettings.hpp"
 #include "audio/miniaudio/Registration.hpp"
+#include "core/asset/AssetId.hpp"
+#include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
 #include "plugins/GlmReflection.hpp"  // IWYU pragma: keep
-#include "plugins/asset/AssetId.hpp"
 #include "plugins/audio/AudioAssets.hpp"
 #include "plugins/audio/AudioEvents.hpp"
 #include "plugins/audio/AudioListener.hpp"
@@ -49,7 +50,6 @@
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/backend/input/Key.hpp"
 #include "plugins/backend/math/Rect.hpp"
-#include "plugins/config/Settings.hpp"
 #include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
 #include "plugins/input/InputAction.hpp"
@@ -171,24 +171,24 @@ RTYPE_ECS_RESOURCE(Randomness, "game.Randomness");
 
 /// @brief Client only: the sounds of the game, asked for at startup.
 struct GameSounds {
-    plugins::asset::AssetId music;    ///< The background track, looping.
-    plugins::asset::AssetId laser;    ///< A laser fired.
-    plugins::asset::AssetId misfire;  ///< A shot that misfired.
+    core::asset::AssetId music;    ///< The background track, looping.
+    core::asset::AssetId laser;    ///< A laser fired.
+    core::asset::AssetId misfire;  ///< A shot that misfired.
 };
 RTYPE_ECS_RESOURCE(GameSounds, "game.GameSounds");
 
 /// @brief Client only: the atlases of the game's sprites, built at startup.
 struct GameAtlases {
-    plugins::asset::AssetId leftShip;   ///< r-typesheet24.gif: animation "fly".
-    plugins::asset::AssetId rightShip;  ///< r-typesheet26.gif: animation "fly".
-    plugins::asset::AssetId laser;      ///< bullet.gif: animations "right" and "left".
-    plugins::asset::AssetId explosion;  ///< r-fx-explosions.gif: animation "explode", played once.
+    core::asset::AssetId leftShip;   ///< r-typesheet24.gif: animation "fly".
+    core::asset::AssetId rightShip;  ///< r-typesheet26.gif: animation "fly".
+    core::asset::AssetId laser;      ///< bullet.gif: animations "right" and "left".
+    core::asset::AssetId explosion;  ///< r-fx-explosions.gif: animation "explode", played once.
 };
 RTYPE_ECS_RESOURCE(GameAtlases, "game.GameAtlases");
 
 /// @brief Client only: the font of the game's texts, read at startup.
 struct GameFonts {
-    plugins::asset::AssetId text;  ///< assets/fonts/orbitron.json.
+    core::asset::AssetId text;  ///< assets/fonts/orbitron.json.
 };
 RTYPE_ECS_RESOURCE(GameFonts, "game.GameFonts");
 
@@ -204,8 +204,8 @@ RTYPE_ECS_COMPONENT(BackgroundPlanet, "game.BackgroundPlanet");
 
 /// @brief Client only: the images of the planets that pass behind the arena now and then, and when the next one comes.
 struct BackgroundPlanets {
-    std::array<plugins::asset::AssetId, 2> images;  ///< The textures of kPlanetImages, asked for at startup.
-    float countdown = 0.0F;                         ///< Seconds before the next planet.
+    std::array<core::asset::AssetId, 2> images;  ///< The textures of kPlanetImages, asked for at startup.
+    float countdown = 0.0F;                      ///< Seconds before the next planet.
 };
 RTYPE_ECS_RESOURCE(BackgroundPlanets, "game.BackgroundPlanets");
 
@@ -812,8 +812,8 @@ void quitOnEscape(ecs::Res<plugins::input::Input> input, ecs::EventWriter<ecs::A
 }
 
 /// @return The configuration of the window, the renderer and the sound.
-plugins::config::Settings makeSettings(const ProjectSettings& projectSettings) {
-    plugins::config::Settings settings;
+core::config::Settings makeSettings(const ProjectSettings& projectSettings) {
+    core::config::Settings settings;
     settings.set("platform", projectSettings.platform);
     settings.set("renderer", projectSettings.renderer);
     settings.set("window.title", std::format("{} - {}", projectSettings.gameName, projectSettings.gameVersion));

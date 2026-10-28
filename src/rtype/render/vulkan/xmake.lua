@@ -70,7 +70,7 @@ target("render-vulkan")
     set_kind("shared")
     set_basename("rtype-render-vulkan")
     -- plugins for IRenderer (plugins/backend), interop-vulkan for IVulkanSurfaceSource (implemented by the platforms).
-    add_deps("plugins", "interop-vulkan")
+    add_deps("core", "plugins", "interop-vulkan")
     add_packages("vulkan-headers", "vulkan-memory-allocator", "vulkan-memory-allocator-hpp", "glm", "stb", "imgui")
     add_packages("vulkan-headers", {public = true})
     -- vk::raii::Context takes the linked vkGetInstanceProcAddr instead of dlopen()-ing its own loader. Public: it

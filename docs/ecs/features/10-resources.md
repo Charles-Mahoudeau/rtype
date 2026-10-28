@@ -89,7 +89,7 @@ system's signature tells the scheduler what it reads, writes, and whether it nee
 
 ```c++
 app.insertResource(Time{.fixedDelta = 1.F / 60.F});
-app.insertResource(std::move(settings));               // Ethan's plugins::config::Settings
+app.insertResource(std::move(settings));               // Ethan's core::config::Settings
 app.insertNonSendResource(std::move(backend));         // Ethan's plugins::backend::Backend
 
 void tick(rtype::ecs::ResMut<Time> time);

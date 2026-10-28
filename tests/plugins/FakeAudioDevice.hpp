@@ -19,12 +19,12 @@
 #include <utility>
 #include <vector>
 
+#include "core/config/Settings.hpp"
 #include "plugins/audio/AudioConfig.hpp"
 #include "plugins/audio/AudioRegistry.hpp"
 #include "plugins/audio/AudioTypes.hpp"
 #include "plugins/audio/IAudioDevice.hpp"
 #include "plugins/audio/exceptions/AudioExceptions.hpp"
-#include "plugins/config/Settings.hpp"
 
 namespace rtype::test::plugins {
 /// @brief One play() call.
@@ -150,7 +150,7 @@ inline std::unique_ptr<rtype::plugins::audio::AudioRegistry> makeFakeAudioRegist
     auto registry = std::make_unique<rtype::plugins::audio::AudioRegistry>();
     registry->add(
         "fake",
-        [state](const rtype::plugins::config::Settings& section, const rtype::plugins::audio::AudioConfig& /*config*/)
+        [state](const rtype::core::config::Settings& section, const rtype::plugins::audio::AudioConfig& /*config*/)
             -> std::unique_ptr<rtype::plugins::audio::IAudioDevice> {
             section.checkKeys({}, "fake");
             if (state->failToOpen) {
@@ -162,8 +162,8 @@ inline std::unique_ptr<rtype::plugins::audio::AudioRegistry> makeFakeAudioRegist
 }
 
 /// @return A configuration naming the fake device.
-inline rtype::plugins::config::Settings makeFakeAudioSettings() {
-    rtype::plugins::config::Settings settings;
+inline rtype::core::config::Settings makeFakeAudioSettings() {
+    rtype::core::config::Settings settings;
     settings.set("audio.backend", "fake");
     return settings;
 }

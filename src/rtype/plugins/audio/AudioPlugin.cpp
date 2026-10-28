@@ -17,7 +17,8 @@
 #include <unordered_map>
 #include <utility>
 
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
+#include "core/config/Settings.hpp"
 #include "plugins/audio/AudioAssets.hpp"
 #include "plugins/audio/AudioConfig.hpp"
 #include "plugins/audio/AudioEvents.hpp"
@@ -28,7 +29,6 @@
 #include "plugins/audio/AudioTypes.hpp"
 #include "plugins/audio/AudioVolumes.hpp"
 #include "plugins/audio/IAudioDevice.hpp"
-#include "plugins/config/Settings.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -222,7 +222,7 @@ void updateDevice(ecs::NonSendMut<Audio> audio, ecs::Res<AudioVolumes> volumes) 
 }
 }  // namespace
 
-AudioPlugin::AudioPlugin(std::unique_ptr<AudioRegistry> registry, config::Settings settings)
+AudioPlugin::AudioPlugin(std::unique_ptr<AudioRegistry> registry, core::config::Settings settings)
     : _registry{std::move(registry)}, _settings{std::move(settings)} {}
 
 std::string_view AudioPlugin::getName() const noexcept { return kName; }

@@ -12,7 +12,7 @@
 #include <optional>
 #include <vector>
 
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugins/backend/math/Rect.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
 #include "plugins/sprite/exceptions/SpriteExceptions.hpp"
@@ -50,7 +50,7 @@ SpriteAnimation animationOf(std::uint32_t count, AnimationDirection direction, s
 TEST(SpriteAtlas, NamesItsTextureByItsPath) {
     const SpriteAtlas atlas{"assets/ship.png"};
     EXPECT_EQ(atlas.getTexturePath(), "assets/ship.png");
-    EXPECT_EQ(atlas.getTexture(), rtype::plugins::asset::AssetId::fromPath("assets/ship.png"));
+    EXPECT_EQ(atlas.getTexture(), rtype::core::asset::AssetId::fromPath("assets/ship.png"));
 }
 
 TEST(SpriteAtlas, GridCutsRowsOfFramesWithTheirSpacing) {

@@ -13,12 +13,12 @@
 #include <utility>
 #include <vector>
 
+#include "core/hash/NameHash.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/ComponentRegistry.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/error/Error.hpp"
 #include "rtype/ecs/exceptions/ComponentExceptions.hpp"
-#include "rtype/ecs/type/NameHash.hpp"
 
 namespace rtype::test::registry {
 struct Health {
@@ -79,7 +79,7 @@ TEST(ComponentRegistry, FindsComponentsByIdNameHashAndType) {
     EXPECT_EQ(byId->type.name, "rtype.Health");
     EXPECT_EQ(byId->type.id, id);
     EXPECT_EQ(registry.findByName("rtype.Health"), byId);
-    EXPECT_EQ(registry.findByHash(rtype::ecs::hashName("rtype.Health")), byId);
+    EXPECT_EQ(registry.findByHash(rtype::core::hash::hashName("rtype.Health")), byId);
     EXPECT_EQ(registry.find<rtype::test::registry::Health>(), byId);
 }
 
@@ -113,7 +113,7 @@ TEST(ComponentRegistry, ReturnsNullForUnknownComponents) {
     EXPECT_EQ(registry.findById(1), nullptr);
     EXPECT_EQ(registry.findById(rtype::ecs::kInvalidComponentId), nullptr);
     EXPECT_EQ(registry.findByName("rtype.Unknown"), nullptr);
-    EXPECT_EQ(registry.findByHash(rtype::ecs::hashName("rtype.Unknown")), nullptr);
+    EXPECT_EQ(registry.findByHash(rtype::core::hash::hashName("rtype.Unknown")), nullptr);
     EXPECT_EQ(registry.find<rtype::test::registry::Transform>(), nullptr);
 }
 

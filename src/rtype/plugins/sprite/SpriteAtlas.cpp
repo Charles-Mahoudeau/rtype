@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/math/Rect.hpp"
 #include "plugins/sprite/exceptions/SpriteExceptions.hpp"
@@ -85,7 +85,9 @@ SpriteAnimation::Sample SpriteAnimation::sample(float time) const noexcept {
 }
 
 SpriteAtlas::SpriteAtlas(std::string texturePath, const backend::graphics::TextureDesc& desc)
-    : _texturePath{std::move(texturePath)}, _texture{asset::AssetId::fromPath(_texturePath)}, _textureDesc{desc} {}
+    : _texturePath{std::move(texturePath)},
+      _texture{core::asset::AssetId::fromPath(_texturePath)},
+      _textureDesc{desc} {}
 
 SpriteAtlas SpriteAtlas::grid(std::string texturePath, glm::vec2 frameSize, std::uint32_t count, glm::vec2 spacing,
                               std::uint32_t columns, glm::vec2 offset, const backend::graphics::TextureDesc& desc) {
@@ -134,7 +136,7 @@ SpriteAtlas& SpriteAtlas::addAnimation(SpriteAnimation animation) {
                                                          _texturePath, animation.name, frame, _frames.size())};
         }
     }
-    const asset::AssetId id = animationId(animation.name);
+    const core::asset::AssetId id = animationId(animation.name);
     if (_animations.contains(id)) {
         throw exceptions::AtlasException{
             std::format("Atlas '{}': two animations are named '{}'", _texturePath, animation.name)};
@@ -148,11 +150,13 @@ std::optional<std::uint32_t> SpriteAtlas::findFrame(std::string_view name) const
     return found != _frameIndices.end() ? std::optional{found->second} : std::nullopt;
 }
 
-const SpriteAnimation* SpriteAtlas::findAnimation(asset::AssetId id) const {
+const SpriteAnimation* SpriteAtlas::findAnimation(core::asset::AssetId id) const {
     const auto found = _animations.find(id);
     return found != _animations.end() ? &found->second : nullptr;
 }
 
-asset::AssetId animationId(std::string_view name) { return asset::AssetId::fromPath(std::filesystem::path{name}); }
+core::asset::AssetId animationId(std::string_view name) {
+    return core::asset::AssetId::fromPath(std::filesystem::path{name});
+}
 
 }  // namespace rtype::plugins::sprite

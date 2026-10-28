@@ -13,14 +13,14 @@
 #include <string_view>
 #include <vector>
 
-#include "plugins/asset/AssetId.hpp"
-#include "plugins/backend/exceptions/AssetExceptions.hpp"
+#include "core/asset/AssetId.hpp"
+#include "core/asset/exceptions/AssetExceptions.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/text/Font.hpp"
 #include "plugins/text/FontAssets.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
-using rtype::plugins::asset::AssetId;
+using rtype::core::asset::AssetId;
 using rtype::plugins::text::Font;
 using rtype::plugins::text::FontAssets;
 

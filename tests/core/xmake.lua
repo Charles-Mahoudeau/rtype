@@ -1,0 +1,8 @@
+target("core-tests")
+    set_kind("binary")
+    set_default(false)
+    set_group("tests")
+    add_deps("core")
+    add_files("*.cpp", "../main.cpp")
+    add_packages("gtest")
+    add_tests("default")

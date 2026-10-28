@@ -10,8 +10,8 @@
 #include <memory>
 #include <string_view>
 
+#include "core/config/Settings.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/config/Settings.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -65,7 +65,7 @@ class BackendPlugin : public ecs::Plugin {
 
     /// @param registry The platforms and renderers, registered by the executable.
     /// @param settings The configuration: `platform`, `renderer`, `window` and a section per backend.
-    BackendPlugin(std::unique_ptr<plugins::backend::BackendRegistry> registry, plugins::config::Settings settings);
+    BackendPlugin(std::unique_ptr<plugins::backend::BackendRegistry> registry, core::config::Settings settings);
     ~BackendPlugin() override = default;
     BackendPlugin(const BackendPlugin& other) = delete;
     BackendPlugin& operator=(const BackendPlugin& other) = delete;
@@ -81,6 +81,6 @@ class BackendPlugin : public ecs::Plugin {
 
   private:
     std::unique_ptr<plugins::backend::BackendRegistry> _registry;  ///< Handed to the Startup system by build().
-    plugins::config::Settings _settings;                           ///< Handed to the Startup system by build().
+    core::config::Settings _settings;                              ///< Handed to the Startup system by build().
 };
 }  // namespace rtype::plugins::backend

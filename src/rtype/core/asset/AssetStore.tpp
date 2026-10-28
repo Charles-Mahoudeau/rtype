@@ -15,11 +15,11 @@
 #include <string_view>
 #include <utility>
 
-#include "plugins/asset/AssetFiles.hpp"
-#include "plugins/asset/AssetId.hpp"
-#include "plugins/backend/exceptions/AssetExceptions.hpp"
+#include "core/asset/AssetFiles.hpp"
+#include "core/asset/AssetId.hpp"
+#include "core/asset/exceptions/AssetExceptions.hpp"
 
-namespace rtype::plugins::asset {
+namespace rtype::core::asset {
 
 template <typename T>
 AssetStore<T>::AssetStore(std::string kind) : _kind{std::move(kind)} {}
@@ -53,7 +53,7 @@ auto AssetStore<T>::load(const std::filesystem::path& path, const Parse& parse) 
     std::string text;
     try {
         text = readTextFile(path);
-    } catch (const backend::exceptions::AssetLoadException& error) {
+    } catch (const exceptions::AssetLoadException& error) {
         fail(*id, name, std::format("{} '{}': {}", _kind, name, error.what()));
         return Stored{.id = *id};
     }
@@ -85,7 +85,7 @@ std::optional<AssetId> AssetStore<T>::reserve(const std::string& path) const {
     const AssetId id = AssetId::fromPath(path);
     if (const Entry* known = getEntry(id)) {
         if (known->path != path) {
-            throw backend::exceptions::AssetLoadException{
+            throw exceptions::AssetLoadException{
                 std::format("{} '{}' has the same id as '{}': rename one of them", _kind, path, known->path)};
         }
         return std::nullopt;
@@ -110,4 +110,4 @@ void AssetStore<T>::fail(AssetId id, std::string path, std::string error) {
     _entries.insert_or_assign(id, std::move(entry));
 }
 
-}  // namespace rtype::plugins::asset
+}  // namespace rtype::core::asset

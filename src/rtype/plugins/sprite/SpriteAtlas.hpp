@@ -15,7 +15,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/math/Rect.hpp"
 
@@ -96,13 +96,13 @@ class SpriteAtlas {
     /// @return The image of the atlas, or the name of its packed pixels.
     [[nodiscard]] const std::string& getTexturePath() const noexcept { return _texturePath; }
     /// @return The id the texture has in TextureAssets: AssetId::fromPath(getTexturePath()).
-    [[nodiscard]] asset::AssetId getTexture() const noexcept { return _texture; }
+    [[nodiscard]] core::asset::AssetId getTexture() const noexcept { return _texture; }
     /// @return How the texture is sampled.
     [[nodiscard]] const backend::graphics::TextureDesc& getTextureDesc() const noexcept { return _textureDesc; }
     /// @return The frames, in the order they were added.
     [[nodiscard]] const std::vector<AtlasFrame>& getFrames() const noexcept { return _frames; }
     /// @return The animations, by animationId() of their name.
-    [[nodiscard]] const std::unordered_map<asset::AssetId, SpriteAnimation>& getAnimations() const noexcept {
+    [[nodiscard]] const std::unordered_map<core::asset::AssetId, SpriteAnimation>& getAnimations() const noexcept {
         return _animations;
     }
 
@@ -130,18 +130,18 @@ class SpriteAtlas {
     [[nodiscard]] std::optional<std::uint32_t> findFrame(std::string_view name) const;
 
     /// @return The animation @p id names (animationId() of its name), or nullptr.
-    [[nodiscard]] const SpriteAnimation* findAnimation(asset::AssetId id) const;
+    [[nodiscard]] const SpriteAnimation* findAnimation(core::asset::AssetId id) const;
 
   private:
-    std::string _texturePath;                                         ///< The image, or the packed pixels' name.
-    asset::AssetId _texture;                                          ///< AssetId::fromPath(_texturePath).
-    backend::graphics::TextureDesc _textureDesc;                      ///< How the texture is sampled.
-    std::vector<AtlasFrame> _frames;                                  ///< In the order they were added.
-    std::unordered_map<std::string, std::uint32_t> _frameIndices;     ///< Index of each frame, by name.
-    std::unordered_map<asset::AssetId, SpriteAnimation> _animations;  ///< By animationId() of their name.
+    std::string _texturePath;                                               ///< The image, or the packed pixels' name.
+    core::asset::AssetId _texture;                                          ///< AssetId::fromPath(_texturePath).
+    backend::graphics::TextureDesc _textureDesc;                            ///< How the texture is sampled.
+    std::vector<AtlasFrame> _frames;                                        ///< In the order they were added.
+    std::unordered_map<std::string, std::uint32_t> _frameIndices;           ///< Index of each frame, by name.
+    std::unordered_map<core::asset::AssetId, SpriteAnimation> _animations;  ///< By animationId() of their name.
 };
 
 /// @return The id of the animation named @p name, as SpriteAnimator::animation keeps it: the same in every process.
-[[nodiscard]] asset::AssetId animationId(std::string_view name);
+[[nodiscard]] core::asset::AssetId animationId(std::string_view name);
 
 }  // namespace rtype::plugins::sprite

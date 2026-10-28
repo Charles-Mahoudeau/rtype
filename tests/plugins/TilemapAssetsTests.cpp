@@ -13,12 +13,12 @@
 #include <string_view>
 #include <vector>
 
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugins/tilemap/Tilemap.hpp"
 #include "plugins/tilemap/TilemapAssets.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
-using rtype::plugins::asset::AssetId;
+using rtype::core::asset::AssetId;
 using rtype::plugins::tilemap::Tilemap;
 using rtype::plugins::tilemap::TilemapAssets;
 

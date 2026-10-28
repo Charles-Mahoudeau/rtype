@@ -12,7 +12,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/math/Rect.hpp"
 
@@ -57,7 +57,7 @@ class Font {
     /// @return The path of the atlas image.
     [[nodiscard]] const std::string& getTexturePath() const noexcept { return _texturePath; }
     /// @return The id of the atlas image in TextureAssets.
-    [[nodiscard]] asset::AssetId getTexture() const noexcept { return _texture; }
+    [[nodiscard]] core::asset::AssetId getTexture() const noexcept { return _texture; }
     /// @return How the atlas image is sampled, and its size.
     [[nodiscard]] const backend::graphics::TextureDesc& getTextureDesc() const noexcept { return _textureDesc; }
     /// @return The width of the distance field, in atlas pixels.
@@ -84,7 +84,7 @@ class Font {
     [[nodiscard]] static std::uint64_t pairKey(char32_t left, char32_t right) noexcept;
 
     std::string _texturePath;                           ///< The atlas image.
-    asset::AssetId _texture;                            ///< AssetId::fromPath(_texturePath).
+    core::asset::AssetId _texture;                      ///< AssetId::fromPath(_texturePath).
     backend::graphics::TextureDesc _textureDesc;        ///< Its size and sampling.
     float _distanceRange;                               ///< In atlas pixels.
     Metrics _metrics;                                   ///< Vertical metrics.

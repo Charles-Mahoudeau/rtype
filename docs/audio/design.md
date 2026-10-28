@@ -99,7 +99,7 @@ src/rtype/audio/fmod/               later, same shape, behind an xmake option (s
 
 ## 4. Configuration
 
-The plugin reads the same `config::Settings` as the backend plugin: a common `audio` section, plus one section per
+The plugin reads the same `core::config::Settings` as the backend plugin: a common `audio` section, plus one section per
 backend named after it, handed to that backend's factory only (as `vulkan = { ... }` is to the Vulkan renderer).
 
 ```lua
@@ -250,7 +250,7 @@ class AudioRegistry {
   public:
     /// @param section The backend's own section (`miniaudio`...), to check and read.
     /// @param config The common `audio` section, already typed.
-    using Factory = std::function<std::unique_ptr<IAudioDevice>(const config::Settings& section,
+    using Factory = std::function<std::unique_ptr<IAudioDevice>(const core::config::Settings& section,
                                                                 const AudioConfig& config)>;
 
     /// @brief Registers "null".
@@ -267,7 +267,7 @@ class AudioRegistry {
     /// @throws exceptions::AudioBackendException If the name is missing or not registered, or if the device cannot
     /// open and `audio.required` is true. Falls back to "null", with a warning, if it cannot open and is not required.
     /// @throws exceptions::SettingsException If a setting is unknown or has the wrong type.
-    [[nodiscard]] std::unique_ptr<IAudioDevice> createDevice(const config::Settings& settings) const;
+    [[nodiscard]] std::unique_ptr<IAudioDevice> createDevice(const core::config::Settings& settings) const;
 
   private:
     std::map<std::string, Factory, std::less<>> _factories;  ///< Factories by name.
@@ -289,7 +289,7 @@ The resource `"rtype.AudioAssets"` works as `TextureAssets` does, so gameplay co
 ```cpp
 void spawnShip(rtype::ecs::Commands& commands, rtype::ecs::ResMut<rtype::plugins::audio::AudioAssets> sounds)
 {
-    const rtype::plugins::asset::AssetId engine = sounds->load("assets/sounds/engine.ogg");
+    const rtype::core::asset::AssetId engine = sounds->load("assets/sounds/engine.ogg");
     commands.spawn(rtype::plugins::audio::AudioSource{.sound = engine, .loop = true});
 }
 ```
@@ -430,8 +430,9 @@ Hands out ids and tracks the voices' state (a looping voice plays until stopped,
 
 Each step builds and is tested on its own, in this order:
 
-1. **Shared configuration and asset ids** (done): `config::Settings` and `SettingsException` moved to `plugins/config/`,
-   `AssetId` to `plugins/asset/`, so `audio` does not depend on `backend`.
+1. **Shared configuration and asset ids** (done): `Settings` and `SettingsException` moved out of `plugins/backend/`, to
+   `core/config/` (first `core/config/`, then the `core` library, since `Settings` is not a plugin), `AssetId` to
+   `core/asset/`, so `audio` does not depend on `backend`.
 2. **The contract** (done): `AudioTypes`, `IAudioDevice`, `AudioConfig`, the exceptions, `NullAudioDevice`, `AudioRegistry`,
    with unit tests (`tests/plugins/`).
 3. **`AudioAssets`** (done) and `updateSounds()`, tested against the null backend.
@@ -448,9 +449,10 @@ Each step builds and is tested on its own, in this order:
 
 Settled:
 
-1. **`config::Settings`** moved, with `SettingsException`, to `plugins/config/` (`rtype::plugins::config`).
+1. **`Settings`** moved, with `SettingsException`, to `core/config/` (`rtype::core::config`), in the `core` library,
+   which depends on no other target. It was first in `core/config/`, but it is not a plugin.
    `BackendException` stays in `plugins/backend/exceptions/BackendExceptions.hpp`.
-2. **`AssetId`** moved to `plugins/asset/` (`rtype::plugins::asset`).
+2. **`AssetId`** moved to `core/asset/` (`rtype::core::asset`).
 3. **Buses** are a fixed enum (music, effects) for now.
 4. **A device that cannot open** falls back to `"null"` with a warning, unless `audio.required` is true. A mistake in
    the config (`SettingsException`) is always thrown.

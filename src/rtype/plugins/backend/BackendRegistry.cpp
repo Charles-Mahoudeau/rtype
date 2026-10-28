@@ -16,9 +16,9 @@
 #include <utility>
 #include <vector>
 
+#include "core/config/Settings.hpp"
 #include "plugins/backend/exceptions/BackendExceptions.hpp"
 #include "plugins/backend/platform/WindowConfig.hpp"
-#include "plugins/config/Settings.hpp"
 
 namespace rtype::plugins::backend {
 
@@ -38,8 +38,8 @@ std::vector<std::string> namesOf(const std::map<std::string, Factory, std::less<
 /// @return The factory registered under the name the config gives for `kind` ("platform" or "renderer").
 /// @throws exceptions::BackendException If the config has no such name, or nothing is registered under it.
 template <typename Factory>
-const Factory& findFactory(const std::map<std::string, Factory, std::less<>>& factories, const config::Settings& config,
-                           std::string_view kind, std::string& name) {
+const Factory& findFactory(const std::map<std::string, Factory, std::less<>>& factories,
+                           const core::config::Settings& config, std::string_view kind, std::string& name) {
     name = config.getString(kind, "");
     if (name.empty()) {
         throw exceptions::BackendException(std::format(R"(The config does not choose a {0} ('{0} = "..."'))", kind));
@@ -70,7 +70,7 @@ std::vector<std::string> BackendRegistry::getPlatformNames() const { return name
 
 std::vector<std::string> BackendRegistry::getRendererNames() const { return namesOf(_renderers); }
 
-Backend BackendRegistry::createBackend(const config::Settings& config) const {
+Backend BackendRegistry::createBackend(const core::config::Settings& config) const {
     std::string platformName;
     std::string rendererName;
     const PlatformFactory& createPlatform = findFactory(_platforms, config, "platform", platformName);
