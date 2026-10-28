@@ -26,6 +26,7 @@
 #include "Sprites.hpp"
 #include "audio/miniaudio/Registration.hpp"
 #include "core/config/Settings.hpp"
+#include "engine/scripting/SettingsLoader.hpp"
 #include "platform/glfw/Registration.hpp"
 #include "plugins/audio/AudioPlugin.hpp"
 #include "plugins/audio/AudioRegistry.hpp"
@@ -49,27 +50,23 @@ namespace rtype_duel {
 namespace {
 
 /// @return The configuration of the window, the renderer and the sound.
-core::config::Settings makeSettings(const engine::ProjectSettings& projectSettings) {
-    core::config::Settings settings;
-    settings.set("platform", projectSettings.platform);
-    settings.set("renderer", projectSettings.renderer);
-    settings.set("window.title", std::format("{} - {}", projectSettings.gameName, projectSettings.gameVersion));
-    settings.set("window.size", std::vector<double>{kViewWidth, kViewHeight});
-    // The world the game is designed for, in world units: the same on a HiDPI screen and in a resized window.
-    settings.set("vulkan.virtualResolution", std::vector<double>{kViewWidth, kViewHeight});
-    settings.set("audio.backend", "miniaudio");
-    settings.set("audio.volume.music", kMusicVolume);
-#ifndef NDEBUG
-    // Debug builds only: the validation layer (with synchronization validation) is slow.
-    settings.set("vulkan.layers", std::vector<std::string>{"VK_LAYER_KHRONOS_validation"});
-    settings.set("vulkan.debugging", true);
+core::config::Settings makeSettings() {
+    engine::scripting::SettingsLoader settingsLoader;
+    settingsLoader.setFlag("isClient", true);
+    settingsLoader.setFlag("isServer", false);
+#ifdef NDEBUG
+    settingsLoader.setFlag("isDebug", false);
+#else
+    settingsLoader.setFlag("isDebug", true);
 #endif
-    return settings;
+    settingsLoader.declareGroups({"window", "audio", "vulkan"});
+    settingsLoader.load("game/project.luau");
+    return settingsLoader.build();
 }
 
 }  // namespace
 
-int runClient(const engine::ProjectSettings& projectSettings, const std::string& host, std::uint16_t port) {
+int runClient(const std::string& host, const std::uint16_t port) {
     const std::optional<network::io::Address> server = network::io::Address::resolve(host, port);
     if (!server) {
         std::cerr << "Error: cannot resolve " << host << '\n';
@@ -82,10 +79,12 @@ int runClient(const engine::ProjectSettings& projectSettings, const std::string&
     auto audio = std::make_unique<plugins::audio::AudioRegistry>();
     audio::miniaudio::registerAudio(*audio);
 
+    core::config::Settings settings{makeSettings()};
+
     ecs::App app{ecs::RunMode::kClient};
     app.addPlugins(ecs::MinimalPlugins{})
-        .addPlugin(plugins::backend::BackendPlugin{std::move(registry), makeSettings(projectSettings)})
-        .addPlugin(plugins::audio::AudioPlugin{std::move(audio), makeSettings(projectSettings)});
+        .addPlugin(plugins::backend::BackendPlugin{std::move(registry), settings})
+        .addPlugin(plugins::audio::AudioPlugin{std::move(audio), settings});
     registerGame(app);
     app.insertResource(Randomness{});
     app.insertResource(GameSounds{});
