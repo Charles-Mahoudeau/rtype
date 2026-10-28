@@ -5,6 +5,8 @@ target("ecs")
     set_basename("rtype-ecs")
     add_files("**.cpp")
     add_headerfiles("**.hpp", "**.tpp")
+    -- Public: the type headers include core/hash/NameHash.hpp.
+    add_deps("core", {public = true})
     add_defines("RTYPE_ECS_BUILD", {public = false})
     -- Headers are included as "rtype/ecs/...".
     add_includedirs("$(projectdir)/src", {public = true})

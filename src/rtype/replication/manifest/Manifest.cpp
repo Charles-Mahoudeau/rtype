@@ -18,8 +18,8 @@
 #include <string>
 #include <vector>
 
+#include "core/hash/NameHash.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
-#include "rtype/ecs/type/NameHash.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/world/World.hpp"
 #include "rtype/network/Types.hpp"
@@ -136,23 +136,23 @@ std::optional<std::uint16_t> Manifest::toShort(const ecs::ComponentId id) const 
 
 std::uint64_t Manifest::computeHash(const std::span<const ComponentEntry> components,
                                     const std::span<const input::InputAction> actions) noexcept {
-    std::uint64_t hash = ecs::kNameHashOffsetBasis;
+    std::uint64_t hash = core::hash::kNameHashOffsetBasis;
     std::uint64_t shortId = 0;
     for (const ComponentEntry& entry : components) {
-        hash = ecs::hashInteger(hash, static_cast<std::uint64_t>(MessageType::kManifestComponent));
-        hash = ecs::hashInteger(hash, shortId);
-        hash = ecs::hashInteger(hash, entry.name.size());
-        hash = ecs::hashString(hash, entry.name);
-        hash = ecs::hashInteger(hash, entry.layoutHash);
+        hash = core::hash::hashInteger(hash, static_cast<std::uint64_t>(MessageType::kManifestComponent));
+        hash = core::hash::hashInteger(hash, shortId);
+        hash = core::hash::hashInteger(hash, entry.name.size());
+        hash = core::hash::hashString(hash, entry.name);
+        hash = core::hash::hashInteger(hash, entry.layoutHash);
         ++shortId;
     }
     std::uint64_t index = 0;
     for (const input::InputAction& action : actions) {
-        hash = ecs::hashInteger(hash, static_cast<std::uint64_t>(MessageType::kManifestInputAction));
-        hash = ecs::hashInteger(hash, index);
-        hash = ecs::hashInteger(hash, action.name.size());
-        hash = ecs::hashString(hash, action.name);
-        hash = ecs::hashInteger(hash, static_cast<std::uint64_t>(action.kind));
+        hash = core::hash::hashInteger(hash, static_cast<std::uint64_t>(MessageType::kManifestInputAction));
+        hash = core::hash::hashInteger(hash, index);
+        hash = core::hash::hashInteger(hash, action.name.size());
+        hash = core::hash::hashString(hash, action.name);
+        hash = core::hash::hashInteger(hash, static_cast<std::uint64_t>(action.kind));
         ++index;
     }
     return hash;

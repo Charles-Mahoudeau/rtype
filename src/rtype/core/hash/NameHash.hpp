@@ -10,7 +10,7 @@
 #include <cstdint>
 #include <string_view>
 
-namespace rtype::ecs {
+namespace rtype::core::hash {
 /// @brief Starting value of the FNV-1a 64-bit hash.
 inline constexpr std::uint64_t kNameHashOffsetBasis = 14695981039346656037ULL;
 
@@ -46,4 +46,4 @@ inline constexpr std::uint64_t kNameHashPrime = 1099511628211ULL;
 [[nodiscard]] constexpr std::uint64_t hashName(std::string_view name) noexcept {
     return hashString(kNameHashOffsetBasis, name);
 }
-}  // namespace rtype::ecs
+}  // namespace rtype::core::hash

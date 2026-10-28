@@ -13,10 +13,10 @@
 #include <string_view>
 #include <type_traits>
 
+#include "core/hash/NameHash.hpp"
 #include "rtype/ecs/detail/ForEach.hpp"
 #include "rtype/ecs/type/Field.hpp"
 #include "rtype/ecs/type/LayoutHash.hpp"
-#include "rtype/ecs/type/NameHash.hpp"
 #include "rtype/ecs/type/TypeHooks.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 
@@ -71,7 +71,7 @@ struct TypeTraits {
     static constexpr TypeKind kKind = kDescription.kind;
 
     /// @brief hashName() of kName.
-    static constexpr std::uint64_t kHash = hashName(kName);
+    static constexpr std::uint64_t kHash = core::hash::hashName(kName);
 
     /// @brief Reflected fields.
     static constexpr auto kFields = kDescription.fields;
