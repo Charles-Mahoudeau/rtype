@@ -18,6 +18,7 @@
 #include <vulkan/vulkan_raii.hpp>
 
 #include "plugins/backend/graphics/Sprite.hpp"
+#include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "render/vulkan/Export.hpp"
 
@@ -26,17 +27,23 @@ namespace rtype::render::vulkan::rendering {
 /// @brief One sprite in the per-frame instance buffer, read by shaders/sprite.vert as per-instance vertex attributes:
 /// 64 bytes. The vertex shader turns a unit quad into the sprite: `position + rotate(corner * size - origin)`.
 struct SpriteInstance {
-    glm::vec2 position{0.0F};                  ///< World point the origin sits on. Location 0.
-    glm::vec2 size{0.0F};                      ///< In world units: source size times scale. Location 1.
-    glm::vec2 origin{0.0F};                    ///< Pivot from the quad's top-left corner, in world units. Location 2.
-    float rotation = 0.0F;                     ///< In radians, clockwise on screen. Location 3.
-    std::uint32_t blend = 0;                   ///< graphics::BlendMode, as shaders/include/Blend.glsl. Location 6.
+    glm::vec2 position{0.0F};  ///< World point the origin sits on. Location 0.
+    glm::vec2 size{0.0F};      ///< In world units: source size times scale. Location 1.
+    glm::vec2 origin{0.0F};    ///< Pivot from the quad's top-left corner, in world units. Location 2.
+    float rotation = 0.0F;     ///< In radians, clockwise on screen. Location 3.
+    std::uint32_t blend = 0;  ///< graphics::BlendMode and the MSDF flag, as rendering/Blend.hpp packs them. Location 6.
     glm::vec4 uvRect{0.0F, 0.0F, 1.0F, 1.0F};  ///< Part of the texture: (u0, v0, u1, v1), 0 to 1. Location 4.
     glm::vec4 color{1.0F};                     ///< Multiplies the texture. Location 5.
 
     /// @return The instance of @p sprite, drawn from a texture of @p textureSize pixels.
     [[nodiscard]] RTYPE_RENDER_VULKAN_API static SpriteInstance fromSprite(
         const plugins::backend::graphics::Sprite& sprite, glm::uvec2 textureSize) noexcept;
+
+    /// @return The instance of @p glyph of @p text, drawn from its MSDF font atlas of @p textureSize pixels: placed by
+    /// the text's position, scale, rotation and origin, read as distances by the sprite shaders (kShaderMsdf).
+    [[nodiscard]] RTYPE_RENDER_VULKAN_API static SpriteInstance fromGlyph(
+        const plugins::backend::graphics::Text& text, const plugins::backend::graphics::GlyphQuad& glyph,
+        glm::uvec2 textureSize) noexcept;
 
     /// @return The binding of the instance buffer: one SpriteInstance per instance.
     [[nodiscard]] RTYPE_RENDER_VULKAN_API static std::array<vk::VertexInputBindingDescription, 1> getBindings(

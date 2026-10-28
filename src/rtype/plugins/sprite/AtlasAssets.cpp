@@ -12,70 +12,47 @@
 #include <exception>
 #include <filesystem>
 #include <format>
-#include <fstream>
-#include <iostream>
-#include <iterator>
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
+#include "plugins/asset/AssetFiles.hpp"
 #include "plugins/asset/AssetId.hpp"
-#include "plugins/backend/exceptions/AssetExceptions.hpp"
+#include "plugins/asset/AssetStore.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
 #include "plugins/sprite/detail/AtlasJson.hpp"
 #include "plugins/sprite/detail/AtlasPacker.hpp"
-#include "plugins/sprite/exceptions/SpriteExceptions.hpp"
 
 namespace rtype::plugins::sprite {
 
-namespace {
-/// @return @p path, normalized as AssetId::fromPath() sees it, with forward slashes.
-std::string normalize(const std::filesystem::path& path) { return path.lexically_normal().generic_string(); }
-
-/// @return The whole content of the text file at @p path.
-/// @throws exceptions::AtlasException If it cannot be read.
-std::string readText(const std::filesystem::path& path) {
-    std::ifstream file{path, std::ios::binary};
-    if (!file) {
-        throw exceptions::AtlasException{std::format("Atlas '{}': cannot open the file", path.generic_string())};
-    }
-    return {std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
-}
-}  // namespace
-
-std::size_t AtlasAssets::getCount() const noexcept { return _entries.size(); }
+std::size_t AtlasAssets::getCount() const noexcept { return _atlases.getCount(); }
 
 asset::AssetId AtlasAssets::load(const std::filesystem::path& path, const backend::graphics::TextureDesc& desc) {
-    std::string name = normalize(path);
-    const std::optional<asset::AssetId> id = reserve(name);
-    if (!id) {
-        return asset::AssetId::fromPath(name);
+    const auto stored = _atlases.load(path, [&desc](std::string_view text, const std::filesystem::path& file) {
+        return detail::parseAtlasJson(text, file, desc);
+    });
+    if (stored.added != nullptr) {
+        requestTexture(*stored.added);
     }
-    try {
-        store(*id, std::move(name), detail::parseAtlasJson(readText(path), path, desc));
-    } catch (const std::exception& error) {
-        fail(*id, std::move(name), error.what());
-    }
-    return *id;
+    return stored.id;
 }
 
 asset::AssetId AtlasAssets::add(const std::string& name, SpriteAtlas atlas) {
-    std::string path = normalize(name);
-    const std::optional<asset::AssetId> id = reserve(path);
-    if (!id) {
-        return asset::AssetId::fromPath(path);
+    const auto stored = _atlases.add(name, std::move(atlas));
+    if (stored.added != nullptr) {
+        requestTexture(*stored.added);
     }
-    store(*id, std::move(path), std::move(atlas));
-    return *id;
+    return stored.id;
 }
 
 asset::AssetId AtlasAssets::pack(const std::string& name, std::span<const std::filesystem::path> images,
                                  std::uint32_t padding, const backend::graphics::TextureDesc& desc) {
-    std::string path = normalize(name);
-    const std::optional<asset::AssetId> id = reserve(path);
+    std::string path = asset::normalizePath(name);
+    const std::optional<asset::AssetId> id = _atlases.reserve(path);
     if (!id) {
         return asset::AssetId::fromPath(path);
     }
@@ -87,50 +64,26 @@ asset::AssetId AtlasAssets::pack(const std::string& name, std::span<const std::f
         for (const detail::PackedImages::Placement& placement : packed.placements) {
             atlas.addFrame(placement.name, placement.source);
         }
-        store(*id, std::move(path), std::move(atlas), std::move(packed.pixels));
+        requestTexture(_atlases.store(*id, std::move(path), std::move(atlas)), std::move(packed.pixels));
     } catch (const std::exception& error) {
-        fail(*id, std::move(path), std::format("Atlas '{}': {}", name, error.what()));
+        _atlases.fail(*id, std::move(path), std::format("Atlas '{}': {}", name, error.what()));
     }
     return *id;
 }
 
-const SpriteAtlas* AtlasAssets::get(asset::AssetId id) const {
-    const Entry* entry = getEntry(id);
-    return entry != nullptr && entry->atlas ? &*entry->atlas : nullptr;
-}
+const SpriteAtlas* AtlasAssets::get(asset::AssetId id) const { return _atlases.get(id); }
 
-const AtlasAssets::Entry* AtlasAssets::getEntry(asset::AssetId id) const {
-    const auto found = _entries.find(id);
-    return found != _entries.end() ? &found->second : nullptr;
-}
+const AtlasAssets::Entry* AtlasAssets::getEntry(asset::AssetId id) const { return _atlases.getEntry(id); }
 
-bool AtlasAssets::unload(asset::AssetId id) { return _entries.erase(id) != 0; }
+bool AtlasAssets::unload(asset::AssetId id) { return _atlases.unload(id); }
 
 std::vector<AtlasAssets::TextureRequest> AtlasAssets::takeTextureRequests() {
     return std::exchange(_textureRequests, {});
 }
 
-std::optional<asset::AssetId> AtlasAssets::reserve(const std::string& path) const {
-    const asset::AssetId id = asset::AssetId::fromPath(path);
-    if (const Entry* known = getEntry(id)) {
-        if (known->path != path) {
-            throw backend::exceptions::AssetLoadException{
-                std::format("Atlas '{}' has the same id as '{}': rename one of them", path, known->path)};
-        }
-        return std::nullopt;
-    }
-    return id;
-}
-
-void AtlasAssets::store(asset::AssetId id, std::string path, SpriteAtlas atlas, std::vector<std::byte> pixels) {
+void AtlasAssets::requestTexture(const SpriteAtlas& atlas, std::vector<std::byte> pixels) {
     _textureRequests.push_back(
         TextureRequest{.path = atlas.getTexturePath(), .desc = atlas.getTextureDesc(), .pixels = std::move(pixels)});
-    _entries.emplace(id, Entry{.path = std::move(path), .atlas = std::move(atlas)});
-}
-
-void AtlasAssets::fail(asset::AssetId id, std::string path, std::string error) {
-    std::cerr << "[AtlasAssets] " << error << '\n';
-    _entries.emplace(id, Entry{.path = std::move(path), .error = std::move(error)});
 }
 
 }  // namespace rtype::plugins::sprite

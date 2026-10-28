@@ -46,11 +46,13 @@ are added.
   `RTYPE_PLUGINS_API`, which keeps the RTTI of the backend interfaces visible across binaries.
   - `plugins/backend/` (`rtype::plugins::backend`) — the contracts the backends implement and the vocabulary they
     speak, in sub-folders whose namespaces follow them: `platform/` (`IPlatform`, `WindowConfig`), `graphics/`
-    (`IRenderer`, `Sprite`, `Texture`, `View`..., the `Camera` (projection and priority, placed by its entity's
-    `Transform`) and `SpriteRenderer` components, `CameraView` (what a `View`
+    (`IRenderer`, `Sprite`, `Text` (a laid-out text: MSDF glyphs), `Texture`, `View`..., the `Camera` (projection and
+    priority, placed by its entity's `Transform`) and `SpriteRenderer` components, `CameraView` (what a `View`
     shows: letterboxed viewport, view-projection, screen and world conversions), and the `TextureAssets` resource:
-    the textures by `AssetId`, queued by `load()` and decoded with stb by the backend plugin), `event/` (the `Event`
-    variant), `input/` (`Key`, `MouseButton`...), `exceptions/`, `math/`, `system/`; plus
+    the textures by `AssetId`, queued by `load()` and decoded with stb by the backend plugin, the `SpriteQueue`
+    resource (sprites and texts that are not sprite entities, drawn with them) and the `VisibleArea` resource (what
+    the frame shows)),
+    `event/` (the `Event` variant), `input/` (`Key`, `MouseButton`...), `exceptions/`, `math/`, `system/`; plus
     `BackendRegistry` and `BackendPlugin`, which starts the platform and the renderer from a registry the executable
     fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the window events and the
     PreUpdate / Render systems that poll the window, frame the drawing and draw the sprites by layer.
@@ -73,7 +75,10 @@ are added.
   - `plugins/config/` (`rtype::plugins::config`) — `Settings`: the flat configuration every plugin and backend reads
     its own section of, and its `SettingsException` (`config/exceptions/`).
   - `plugins/asset/` (`rtype::plugins::asset`) — `AssetId`: the hash of an asset's path, the same in every process,
-    which components keep to name a texture or a sound (reflected as `kAssetId`).
+    which components keep to name a texture or a sound (reflected as `kAssetId`); `AssetFiles` (`normalizePath()`,
+    `readTextFile()`) and `AssetStore<T>`, the bookkeeping the asset resources read from files share (entries by id,
+    collisions, failures, unload): `AtlasAssets`, `TilemapAssets` and `FontAssets` keep only their parser and their
+    texture requests. A new kind of asset file goes through them.
   - `plugins/sprite/` (`rtype::plugins::sprite`) — `SpritePlugin`: sprite atlases and animations. `SpriteAtlas`
     (named frames and `SpriteAnimation`s, built by `grid()` or in code), the `AtlasAssets` resource (atlases by
     `AssetId`: Aseprite / TexturePacker JSON files read with nlohmann_json, or images packed at load time with
@@ -81,6 +86,20 @@ are added.
     side plays the animators into their `SpriteRenderer`, and a client one hands the atlases' textures to
     `TextureAssets`. nlohmann_json is a private package of `plugins`: only `sprite/detail/` includes it. The backend
     plugin adds it. See `docs/Sprites.md`.
+  - `plugins/tilemap/` (`rtype::plugins::tilemap`) — `TilemapPlugin`: levels made in Tiled and parallax backgrounds.
+    `Tilemap` (tilesets, tile layers stored in 16x16 chunks, image layers), the `TilemapAssets` resource (maps by
+    `AssetId`, Tiled `.tmj` files and external `.tsj` tilesets read with nlohmann_json in `tilemap/detail/`),
+    `spawnTilemap()` (one `TilemapLayer` entity per layer) and the `Parallax` component. A client Render system moves
+    the `Parallax` entities before the camera, and another pushes the visible chunks' tiles to the backend's
+    `SpriteQueue`.
+    The backend plugin adds it; its Render systems are ordered against the backend plugin's. See `docs/Tilemap.md`.
+  - `plugins/text/` (`rtype::plugins::text`) — `TextPlugin`: text from MSDF font atlases made offline by
+    msdf-atlas-gen (`assets/fonts/`). `Font` (glyph metrics and kerning), the `FontAssets` resource (fonts by
+    `AssetId`, msdf-atlas-gen JSON read with nlohmann_json in `text/detail/`, with the UTF-8 decoder), `layoutText()` /
+    `measureText()` (`TextLayout.hpp`) and the `TextRenderer` component. A client Render system lays out each text and
+    pushes it to the backend's `SpriteQueue` as a `graphics::Text`, drawn by `IRenderer::draw(Text)` (Vulkan batches
+    its glyphs with the sprites, read by the MSDF branch of `sprite.frag`). The backend plugin adds it, after the
+    tilemap plugin. See `docs/Text.md`.
   - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
   `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
@@ -114,7 +133,8 @@ are added.
   `examples/` is an example named after its folder. They are only built when enabled (see Commands).
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `docs/` — design documentation (e.g. `docs/Input.md` for the event and input pipeline, `docs/physics/design.md`
-  for the physics, `docs/audio/design.md` for the audio, `docs/Sprites.md` for atlases and animations).
+  for the physics, `docs/audio/design.md` for the audio, `docs/Sprites.md` for atlases and animations,
+  `docs/Tilemap.md` for tilemaps and parallax, `docs/Text.md` for MSDF text).
 - `.github/` — CI workflow and issue templates.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
 
@@ -139,10 +159,11 @@ ecs      ←  replication
 - `network` depends on Asio only (private): never on the ECS, `plugins` or any other project target.
   `replication` depends on `ecs` and `network` and is the only module that knows both; the renderer, the
   platforms and `luau` never include its headers.
-- `plugins` depends on nothing but `ecs` and glm, plus Jolt (physics), nlohmann_json (sprite atlases) and stb (images)
-  as private packages (no public header includes them). Never add a dependency on a `platform-*`, `render-*`, `audio-*`
-  or `luau` target to it: the platforms, renderers and audio backends implement its contracts (`plugins/backend/`,
-  `plugins/audio/`), so it would create a cycle. The executable fills the backend and audio registries instead.
+- `plugins` depends on nothing but `ecs` and glm, plus Jolt (physics), nlohmann_json (sprite atlases, tilemaps, fonts)
+  and stb (images) as private packages (no public header includes them). Never add a dependency on a `platform-*`,
+  `render-*`, `audio-*` or `luau` target to it: the platforms, renderers and audio backends implement its contracts
+  (`plugins/backend/`, `plugins/audio/`), so it would create a cycle. The executable fills the backend and audio
+  registries instead.
 - The platforms and renderers link `plugins` (and so the ECS) for the contracts, but never include ECS headers or
   plugin code beyond `plugins/backend/`'s interfaces and types. Likewise, the audio backends include nothing of
   `plugins` but the contract of `plugins/audio/` (`IAudioDevice`, `AudioTypes`, `AudioConfig`, `AudioRegistry`) and

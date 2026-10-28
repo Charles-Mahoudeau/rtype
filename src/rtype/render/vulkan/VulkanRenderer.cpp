@@ -39,6 +39,7 @@
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
+#include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
@@ -62,8 +63,12 @@ namespace {
 /// @brief Waits on fences and acquires images without a timeout.
 constexpr std::uint64_t kNoTimeout = std::numeric_limits<std::uint64_t>::max();
 
-/// @brief Format of every texture: the RGBA8 pixels IRenderer::createTexture() takes, decoded from sRGB when sampled.
+/// @brief Format of the colour textures: the RGBA8 pixels IRenderer::createTexture() takes, decoded from sRGB when
+/// sampled.
 constexpr vk::Format kTextureFormat = vk::Format::eR8G8B8A8Srgb;
+
+/// @brief Format of the data textures (TextureEncoding::kLinear): the same pixels, sampled as they are stored.
+constexpr vk::Format kDataTextureFormat = vk::Format::eR8G8B8A8Unorm;
 
 /// @brief Texture sets per descriptor pool: a new pool is added each time this many textures are alive.
 constexpr std::uint32_t kTextureSetsPerPool = 64;
@@ -239,10 +244,16 @@ plugins::backend::graphics::TextureId VulkanRenderer::createTexture(const plugin
             std::format("VulkanRenderer::createTexture(): a {}x{} texture, sides must be 1 to {}", desc.size.x,
                         desc.size.y, maxSize));
     }
-    memory::Image image{*_device, *_allocator, vk::Extent2D{desc.size.x, desc.size.y}, kTextureFormat,
+    const bool data = desc.encoding == plugins::backend::graphics::TextureEncoding::kLinear;
+    memory::Image image{*_device, *_allocator, vk::Extent2D{desc.size.x, desc.size.y},
+                        data ? kDataTextureFormat : kTextureFormat,
                         vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferDst};
-    // Premultiplied once here, so the shaders and the blending can assume it (rendering/Blend.hpp).
-    _uploader->upload(texture::premultiplySrgb(pixels), image);
+    if (data) {
+        _uploader->upload(pixels, image);
+    } else {
+        // Premultiplied once here, so the shaders and the blending can assume it (rendering/Blend.hpp).
+        _uploader->upload(texture::premultiplySrgb(pixels), image);
+    }
     _uploader->flush();
     vk::raii::DescriptorSet set = _textureDescriptors->allocate(*_textureSetLayout);
     descriptor::DescriptorWriter{}
@@ -357,6 +368,8 @@ void VulkanRenderer::endFrame() {
     _frames->advance();
 }
 
+glm::vec2 VulkanRenderer::getViewSize() const { return glm::vec2{_config.virtualResolution}; }
+
 void VulkanRenderer::setView(const plugins::backend::graphics::View& view) { _view = view; }
 
 void VulkanRenderer::draw(const plugins::backend::graphics::Sprite& sprite) {
@@ -375,6 +388,19 @@ void VulkanRenderer::draw(const plugins::backend::graphics::Shape& shape) {
         return;
     }
     _shapes.push_back(rendering::ShapeInstance::fromShape(shape));
+}
+
+void VulkanRenderer::draw(const plugins::backend::graphics::Text& text) {
+    if (!_acquiredImage) {
+        return;
+    }
+    const texture::Texture* texture = _textures.find(text.texture);
+    if (texture == nullptr) {
+        throw std::invalid_argument("VulkanRenderer::draw(): the text's texture was destroyed or never created");
+    }
+    for (const plugins::backend::graphics::GlyphQuad& glyph : text.glyphs) {
+        _sprites.add(text.texture, rendering::SpriteInstance::fromGlyph(text, glyph, texture->desc.size));
+    }
 }
 
 interop::vulkan::IVulkanSurfaceSource& VulkanRenderer::surfaceSourceOf(
