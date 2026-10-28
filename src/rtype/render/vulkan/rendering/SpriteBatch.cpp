@@ -16,6 +16,7 @@
 
 #include "Blend.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
+#include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 
 namespace rtype::render::vulkan::rendering {
@@ -35,6 +36,27 @@ SpriteInstance SpriteInstance::fromSprite(const plugins::backend::graphics::Spri
         .blend = toShaderBlend(sprite.blend),
         .uvRect = {uvMin.x, uvMin.y, uvMax.x, uvMax.y},
         .color = sprite.color,
+    };
+}
+
+SpriteInstance SpriteInstance::fromGlyph(const plugins::backend::graphics::Text& text,
+                                         const plugins::backend::graphics::GlyphQuad& glyph,
+                                         glm::uvec2 textureSize) noexcept {
+    const glm::vec2 sourcePosition{glyph.source.getX(), glyph.source.getY()};
+    const glm::vec2 sourceSize{glyph.source.getWidth(), glyph.source.getHeight()};
+    const glm::vec2 boundsPosition{glyph.bounds.getX(), glyph.bounds.getY()};
+    const glm::vec2 boundsSize{glyph.bounds.getWidth(), glyph.bounds.getHeight()};
+    const glm::vec2 texture{textureSize};
+    const glm::vec2 uvMin = sourcePosition / texture;
+    const glm::vec2 uvMax = (sourcePosition + sourceSize) / texture;
+    return SpriteInstance{
+        .position = text.position,
+        .size = boundsSize * text.scale,
+        .origin = (text.origin - boundsPosition) * text.scale,
+        .rotation = text.rotation,
+        .blend = toShaderMsdf(text.blend, text.distanceRange),
+        .uvRect = {uvMin.x, uvMin.y, uvMax.x, uvMax.y},
+        .color = text.color,
     };
 }
 

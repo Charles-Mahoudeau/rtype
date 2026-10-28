@@ -8,6 +8,7 @@
 #pragma once
 
 #include <SFML/Graphics/RenderWindow.hpp>
+#include <SFML/Graphics/Shader.hpp>
 #include <SFML/Graphics/Texture.hpp>
 #include <cstddef>
 #include <cstdint>
@@ -20,6 +21,7 @@
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
+#include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
@@ -62,6 +64,10 @@ class SfmlRenderer final : public rtype::plugins::backend::graphics::IRenderer {
     /// @brief Draws a rectangle, circle, capsule or line with SFML's shapes; SFML has no rounded rectangle, so
     /// cornerRadius is ignored.
     void draw(const rtype::plugins::backend::graphics::Shape& shape) override;
+    /// @brief Draws the glyphs of a text in one vertex array, through a small MSDF fragment shader; nothing if the
+    /// graphics driver has no shaders (the raw distances would show as coloured blocks).
+    /// @throws std::invalid_argument If the text's texture was destroyed.
+    void draw(const rtype::plugins::backend::graphics::Text& text) override;
 
   private:
     /// @brief A place for one texture; reused after destroy() with a higher generation.
@@ -73,9 +79,14 @@ class SfmlRenderer final : public rtype::plugins::backend::graphics::IRenderer {
     /// @return The texture a TextureId refers to, or null if it was destroyed (or never existed).
     [[nodiscard]] const sf::Texture* find(rtype::plugins::backend::graphics::TextureId texture) const;
 
+    /// @return The MSDF shader, compiled on first use, or null if shaders are not available.
+    [[nodiscard]] sf::Shader* msdfShader();
+
     sf::RenderWindow* _window{nullptr};     ///< The platform's window, set by init().
     glm::uvec2 _framebufferSize{0};         ///< Window size in pixels, for the default view and setView().
     std::vector<Slot> _slots;               ///< Every texture slot, indexed by TextureId::index.
     std::vector<std::uint32_t> _freeSlots;  ///< Indices of the free slots, reused first.
+    std::optional<sf::Shader> _msdfShader;  ///< Draws the texts; empty until the first one, or if unavailable.
+    bool _msdfTried{false};                 ///< Whether the shader was compiled (or failed to).
 };
 }  // namespace example

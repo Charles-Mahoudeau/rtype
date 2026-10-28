@@ -36,12 +36,16 @@ namespace rtype::plugins::backend {
 ///   frame. In between, "rtype.backend.camera" shows the world from the entity with a Camera (the highest priority)
 ///   and a GlobalTransform, through IRenderer::setView() (none: the renderer's default view, window pixels from the
 ///   top-left corner). Drawing systems run between the two (`.after("rtype.backend.beginFrame")`,
-///   `.before("rtype.backend.endFrame")`). Both are skipped while the window is minimized.
+///   `.before("rtype.backend.endFrame")`). Both are skipped while the window is minimized. The camera system also
+///   records what the frame shows in the VisibleArea resource, for systems that skip what is off screen.
 /// - Render "rtype.backend.sprites", after the camera: draws every entity with a GlobalTransform and a SpriteRenderer
-///   whose texture is loaded, sorted by layer (higher on top), then by texture within a layer (fewer batches).
-/// It also inserts the TextureAssets resource (the textures by AssetId) and registers the SpriteRenderer component. A
-/// window always comes with input, positions and animated sprites: it adds the InputPlugin, the TransformPlugin and the
-/// SpritePlugin (nothing happens if the game added them first), which know nothing of this plugin.
+///   whose texture is loaded, and the sprites and texts other systems pushed to the SpriteQueue resource before it,
+///   sorted by layer (higher on top), then by texture within a layer (fewer batches).
+/// It also inserts the TextureAssets (the textures by AssetId), SpriteQueue and VisibleArea resources, and registers
+/// the SpriteRenderer component. A window always comes with input, positions, animated sprites, tilemaps and text: it
+/// adds the InputPlugin, the TransformPlugin, the SpritePlugin, the TilemapPlugin and the TextPlugin (nothing happens
+/// if the game added them first). Only the TilemapPlugin and the TextPlugin know this plugin, to draw between its
+/// camera and its sprites.
 /// @code
 /// auto registry = std::make_unique<rtype::plugins::backend::BackendRegistry>();
 /// rtype::platform::glfw::registerPlatform(*registry);

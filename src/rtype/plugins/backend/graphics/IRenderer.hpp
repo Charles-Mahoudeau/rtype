@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstddef>
+#include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
 #include <span>
 
@@ -15,6 +16,7 @@
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
+#include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
@@ -63,6 +65,10 @@ class RTYPE_PLUGINS_API IRenderer {
     /// @brief Adapts to a new framebuffer size. Called by the engine on every Resized event.
     virtual void resize(glm::uvec2 framebufferSize) = 0;
 
+    /// @return The resolution the game is designed for, which setView() fits in the window with bars (the viewSize of
+    /// graphics::CameraView); 0x0 when the view is the framebuffer itself, one world unit per pixel at zoom 1.
+    [[nodiscard]] virtual glm::vec2 getViewSize() const { return glm::vec2{0.0F}; }
+
     /// @name Textures
     /// @brief The ids own nothing: destroy() frees a texture early, and the renderer frees every texture left when it
     /// is destroyed. Games load textures through the TextureAssets resource, which also decodes image files.
@@ -98,6 +104,9 @@ class RTYPE_PLUGINS_API IRenderer {
     /// @details A backend may draw every shape of a frame after its sprites, as Vulkan does (one draw call for them
     /// all): shapes are for overlays (debug views, outlines, UI), never under a sprite.
     virtual void draw(const Shape& shape) = 0;
+    /// @brief Draws a text laid out by the text plugin: its glyphs, from an MSDF font atlas, in the order of the other
+    /// sprites (Vulkan batches them with the sprites).
+    virtual void draw(const Text& text) = 0;
     /// @}
 };
 }  // namespace rtype::plugins::backend::graphics

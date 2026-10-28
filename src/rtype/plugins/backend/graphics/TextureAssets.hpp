@@ -70,13 +70,13 @@ class TextureAssets {
     /// @param desc The filter and repeat mode; its size is ignored. Ignored if the texture was already asked for: the
     /// first request wins.
     /// @return Its id (AssetId::fromPath()), at once: put it in components, the texture is drawn once loaded.
-    /// @throws exceptions::AssetLoadException If another path already has this id (a hash collision).
+    /// @throws core::asset::exceptions::AssetLoadException If another path already has this id (a hash collision).
     core::asset::AssetId load(const std::filesystem::path& path, const graphics::TextureDesc& desc = {});
 
     /// @brief Asks for an image already in memory (embedded, downloaded), known by @p name.
     /// @param encoded The image file's bytes (PNG...), copied.
     /// @return Its id (AssetId::fromPath(name)).
-    /// @throws exceptions::AssetLoadException If another name already has this id (a hash collision).
+    /// @throws core::asset::exceptions::AssetLoadException If another name already has this id (a hash collision).
     core::asset::AssetId load(const std::string& name, std::span<const std::byte> encoded,
                               const graphics::TextureDesc& desc = {});
 
@@ -85,8 +85,8 @@ class TextureAssets {
     /// copied.
     /// @param desc Its size (required), filter and repeat mode.
     /// @return Its id (AssetId::fromPath(name)).
-    /// @throws exceptions::AssetLoadException If the pixels do not match desc.size, or another name already has this
-    /// id (a hash collision).
+    /// @throws core::asset::exceptions::AssetLoadException If the pixels do not match desc.size, or another name
+    /// already has this id (a hash collision).
     core::asset::AssetId loadPixels(const std::string& name, std::span<const std::byte> pixels,
                                     const graphics::TextureDesc& desc);
 
@@ -120,7 +120,7 @@ class TextureAssets {
   private:
     /// @brief Records a queued texture, from its file, its encoded bytes or its pixels (at most one of them given), or
     /// returns the id of the one already asked for.
-    /// @throws exceptions::AssetLoadException If another path already has the id.
+    /// @throws core::asset::exceptions::AssetLoadException If another path already has the id.
     core::asset::AssetId request(std::string path, std::vector<std::byte> encoded, std::vector<std::byte> pixels,
                                  const graphics::TextureDesc& desc);
 

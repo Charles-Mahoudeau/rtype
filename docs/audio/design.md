@@ -431,7 +431,7 @@ Hands out ids and tracks the voices' state (a looping voice plays until stopped,
 Each step builds and is tested on its own, in this order:
 
 1. **Shared configuration and asset ids** (done): `Settings` and `SettingsException` moved out of `plugins/backend/`, to
-   `core/config/` (first `plugins/config/`, then the `core` library, since `Settings` is not a plugin), `AssetId` to
+   `core/config/` (first `core/config/`, then the `core` library, since `Settings` is not a plugin), `AssetId` to
    `core/asset/`, so `audio` does not depend on `backend`.
 2. **The contract** (done): `AudioTypes`, `IAudioDevice`, `AudioConfig`, the exceptions, `NullAudioDevice`, `AudioRegistry`,
    with unit tests (`tests/plugins/`).
@@ -450,7 +450,7 @@ Each step builds and is tested on its own, in this order:
 Settled:
 
 1. **`Settings`** moved, with `SettingsException`, to `core/config/` (`rtype::core::config`), in the `core` library,
-   which depends on no other target. It was first in `plugins/config/`, but it is not a plugin.
+   which depends on no other target. It was first in `core/config/`, but it is not a plugin.
    `BackendException` stays in `plugins/backend/exceptions/BackendExceptions.hpp`.
 2. **`AssetId`** moved to `core/asset/` (`rtype::core::asset`).
 3. **Buses** are a fixed enum (music, effects) for now.

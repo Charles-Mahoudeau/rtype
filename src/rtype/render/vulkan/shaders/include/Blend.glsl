@@ -7,6 +7,13 @@ const uint kBlendAlpha = 0u;     // Covers what is under it by its alpha.
 const uint kBlendAdditive = 1u;  // Adds its colour, weighted by its alpha.
 const uint kBlendCutout = 2u;    // Opaque or not drawn.
 
+// A sprite's blend word also says how its texture is read (rendering/Blend.hpp, same values): bits 0 to 7 hold the
+// blend mode, bit 8 kShaderMsdf, and bits 16 to 31 the distance range of an MSDF font atlas, in 1/256 of a pixel.
+const uint kBlendMask = 0xFFu;
+const uint kShaderMsdf = 0x100u;
+const uint kDistanceRangeShift = 16u;
+const float kDistanceRangeUnit = 256.0;
+
 // Opacity under which a kBlendCutout fragment is not drawn.
 const float kCutoutThreshold = 0.5;
 

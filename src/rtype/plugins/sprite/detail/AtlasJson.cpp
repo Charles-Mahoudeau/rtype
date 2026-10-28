@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/asset/AssetFiles.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/math/Rect.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
@@ -140,7 +141,7 @@ SpriteAtlas parseAtlasJson(std::string_view text, const std::filesystem::path& p
         const Json root = Json::parse(text);
         const Json& meta = root.at("meta");
         const std::filesystem::path image = path.parent_path() / meta.at("image").get<std::string>();
-        SpriteAtlas atlas{image.lexically_normal().generic_string(), desc};
+        SpriteAtlas atlas{core::asset::normalizePath(image), desc};
         const std::vector<ParsedFrame> frames = readFrames(root.at("frames"));
         for (const ParsedFrame& frame : frames) {
             atlas.addFrame(frame.name, frame.source, frame.origin);

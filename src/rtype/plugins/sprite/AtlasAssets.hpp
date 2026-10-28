@@ -10,13 +10,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
-#include <optional>
 #include <span>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
+#include "core/asset/AssetStore.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
@@ -43,12 +42,9 @@ namespace rtype::plugins::sprite {
 /// @endcode
 class AtlasAssets {
   public:
-    /// @brief One atlas.
-    struct Entry {
-        std::string path;                  ///< Its file, or the name it was added or packed under.
-        std::optional<SpriteAtlas> atlas;  ///< The atlas; nothing if it could not be built.
-        std::string error;                 ///< Why it could not be built.
-    };
+    /// @brief One atlas: its file (or the name it was added or packed under), the atlas (nothing if it could not be
+    /// built) and why it could not be.
+    using Entry = core::asset::AssetStore<SpriteAtlas>::Entry;
 
     /// @brief A texture an atlas needs, for TextureAssets.
     struct TextureRequest {
@@ -71,12 +67,12 @@ class AtlasAssets {
     /// animations (Aseprite's frame tags) and its image, relative to the file.
     /// @param desc How the image is sampled.
     /// @return Its id (AssetId::fromPath()), at once, even if it failed. Asking twice gives the first one.
-    /// @throws backend::exceptions::AssetLoadException If another path already has this id (a hash collision).
+    /// @throws core::asset::exceptions::AssetLoadException If another path already has this id (a hash collision).
     core::asset::AssetId load(const std::filesystem::path& path, const backend::graphics::TextureDesc& desc = {});
 
     /// @brief Adds an atlas built in code (SpriteAtlas::grid(), addFrame(), addAnimation()), known by @p name.
     /// @return Its id (AssetId::fromPath(name)). Adding a name twice keeps the first atlas.
-    /// @throws backend::exceptions::AssetLoadException If another name already has this id (a hash collision).
+    /// @throws core::asset::exceptions::AssetLoadException If another name already has this id (a hash collision).
     core::asset::AssetId add(const std::string& name, SpriteAtlas atlas);
 
     /// @brief Packs the image files @p images into one texture (detail::packImages()), one frame per image named after
@@ -84,7 +80,7 @@ class AtlasAssets {
     /// @param padding Transparent pixels between two images.
     /// @param desc How the packed texture is sampled; its size is ignored.
     /// @return Its id (AssetId::fromPath(name)), at once, even if it failed. Packing a name twice keeps the first.
-    /// @throws backend::exceptions::AssetLoadException If another name already has this id (a hash collision).
+    /// @throws core::asset::exceptions::AssetLoadException If another name already has this id (a hash collision).
     core::asset::AssetId pack(const std::string& name, std::span<const std::filesystem::path> images,
                               std::uint32_t padding = 1, const backend::graphics::TextureDesc& desc = {});
 
@@ -102,18 +98,11 @@ class AtlasAssets {
     [[nodiscard]] std::vector<TextureRequest> takeTextureRequests();
 
   private:
-    /// @return The id of @p path, or nothing if it is already known.
-    /// @throws backend::exceptions::AssetLoadException If another path already has the id.
-    std::optional<core::asset::AssetId> reserve(const std::string& path) const;
+    /// @brief Asks for the texture of @p atlas, just stored: @p pixels if given, its image file otherwise.
+    void requestTexture(const SpriteAtlas& atlas, std::vector<std::byte> pixels = {});
 
-    /// @brief Records @p atlas under @p path and asks for its texture, @p pixels if given.
-    void store(core::asset::AssetId id, std::string path, SpriteAtlas atlas, std::vector<std::byte> pixels = {});
-
-    /// @brief Records that the atlas @p path could not be built, and prints why.
-    void fail(core::asset::AssetId id, std::string path, std::string error);
-
-    std::unordered_map<core::asset::AssetId, Entry> _entries;  ///< Every atlas asked for, by id.
-    std::vector<TextureRequest> _textureRequests;              ///< Textures to hand to TextureAssets.
+    core::asset::AssetStore<SpriteAtlas> _atlases{"Atlas"};  ///< Every atlas asked for, by id.
+    std::vector<TextureRequest> _textureRequests;            ///< Textures to hand to TextureAssets.
 };
 RTYPE_ECS_RESOURCE(AtlasAssets, "rtype.AtlasAssets");
 

@@ -23,12 +23,12 @@ struct DecodedImage {
 };
 
 /// @return The whole content of the file at @p path.
-/// @throws exceptions::AssetLoadException If it cannot be read.
+/// @throws core::asset::exceptions::AssetLoadException If it cannot be read.
 [[nodiscard]] std::vector<std::byte> readFile(const std::filesystem::path& path);
 
 /// @brief Decodes an image file's bytes (PNG, JPEG, GIF, BMP, TGA... through stb_image) into RGBA pixels.
 /// @param name Names the image in errors.
-/// @throws exceptions::AssetLoadException If the bytes are not an image stb_image decodes.
+/// @throws core::asset::exceptions::AssetLoadException If the bytes are not an image stb_image decodes.
 [[nodiscard]] DecodedImage decodeImage(std::string_view name, std::span<const std::byte> encoded);
 
 }  // namespace rtype::plugins::backend

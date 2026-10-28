@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_float4.hpp>
 #include <glm/ext/vector_uint2.hpp>
@@ -14,6 +15,7 @@
 
 #include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
+#include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/math/Rect.hpp"
 #include "render/vulkan/rendering/Blend.hpp"
@@ -113,4 +115,44 @@ TEST(SpriteBatch, ClearForgetsEverything) {
     EXPECT_TRUE(batch.getBatches().empty());
     batch.add(kShips, {});
     EXPECT_EQ(batch.getBatches().size(), 1U);
+}
+
+TEST(SpriteInstance, PlacesAGlyphAroundTheOriginOfItsText) {
+    const rtype::plugins::backend::graphics::GlyphQuad glyph{
+        .source = rtype::plugins::backend::math::Rect{{16.0F, 0.0F}, {16.0F, 32.0F}},
+        .bounds = rtype::plugins::backend::math::Rect{{10.0F, 4.0F}, {8.0F, 16.0F}}};
+    const rtype::plugins::backend::graphics::Text text{.texture = kShips,
+                                                       .position = {100.0F, 50.0F},
+                                                       .scale = {2.0F, 2.0F},
+                                                       .origin = {5.0F, 5.0F},
+                                                       .rotation = 0.25F,
+                                                       .color = {0.0F, 1.0F, 0.0F, 1.0F}};
+    const SpriteInstance instance = SpriteInstance::fromGlyph(text, glyph, {64, 32});
+    EXPECT_EQ(instance.position, (glm::vec2{100.0F, 50.0F}));
+    EXPECT_EQ(instance.size, (glm::vec2{16.0F, 32.0F}));
+    EXPECT_EQ(instance.origin, (glm::vec2{-10.0F, 2.0F}));  // (origin - glyph corner) * scale.
+    EXPECT_FLOAT_EQ(instance.rotation, 0.25F);
+    EXPECT_EQ(instance.uvRect, (glm::vec4{0.25F, 0.0F, 0.5F, 1.0F}));
+    EXPECT_EQ(instance.color, (glm::vec4{0.0F, 1.0F, 0.0F, 1.0F}));
+    EXPECT_NE(instance.blend & rtype::render::vulkan::rendering::kShaderMsdf, 0U);
+}
+
+TEST(SpriteInstance, PacksTheBlendModeAndTheDistanceRangeOfAGlyph) {
+    using rtype::render::vulkan::rendering::kBlendAdditive;
+    using rtype::render::vulkan::rendering::kBlendMask;
+    using rtype::render::vulkan::rendering::kDistanceRangeShift;
+    using rtype::render::vulkan::rendering::kShaderMsdf;
+    using rtype::render::vulkan::rendering::toShaderMsdf;
+    const std::uint32_t packed = toShaderMsdf(rtype::plugins::backend::graphics::BlendMode::kAdditive, 4.5F);
+    EXPECT_EQ(packed & kBlendMask, kBlendAdditive);
+    EXPECT_NE(packed & kShaderMsdf, 0U);
+    EXPECT_EQ(packed >> kDistanceRangeShift, 4U * 256U + 128U);  // 4.5 pixels, in 1/256 of a pixel.
+    EXPECT_EQ(toShaderMsdf(rtype::plugins::backend::graphics::BlendMode::kAlpha, 1000.0F) >> kDistanceRangeShift,
+              0xFFFFU);  // Clamped.
+}
+
+TEST(SpriteInstance, ReadsASpriteAsAColourTexture) {
+    const SpriteInstance instance =
+        SpriteInstance::fromSprite(rtype::plugins::backend::graphics::Sprite{.texture = kShips}, {1, 1});
+    EXPECT_EQ(instance.blend & rtype::render::vulkan::rendering::kShaderMsdf, 0U);
 }

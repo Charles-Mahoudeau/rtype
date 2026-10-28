@@ -19,7 +19,7 @@
 
 #include "TestImages.hpp"
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/exceptions/AssetExceptions.hpp"
+#include "core/asset/exceptions/AssetExceptions.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/sprite/AtlasAssets.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
