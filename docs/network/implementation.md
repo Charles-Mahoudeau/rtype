@@ -56,7 +56,7 @@ What the network can rely on as of **2026-10-19** (`main` at `2649ee9`):
 | `ecs`: `World`, `Entity`, components, resources, events | Done | Spawn and despawn entities, add/get/remove components by `ComponentId` and by type, `isAlive`, ECS events (`RTYPE_ECS_EVENT`, `Events::send` / `read` / `update`) |
 | `ecs`: type core (`TypeInfo`, `FieldInfo`, `ReplicationMode`, `Presence`, `layoutHash`) | Done | The field list of every replicated component, its replication mode, its layout hash, `TypeRegistry::getReplicatedIds()` |
 | `ecs`: change ticks (`Tick`, `ComponentTicks`, `isNewerThan`, `World::advanceChangeTick`) | Done | "Changed since the client's known tick" (M2) |
-| `ecs`: `NameHash.hpp` (FNV-1a 64) | Done | Manifest and schema hashes |
+| `core`: `hash/NameHash.hpp` (FNV-1a 64) | Done | Manifest and schema hashes |
 | `ecs`: queries (typed and dynamic), commands, systems, scheduler and phases, fixed timestep, `App`, `Plugin`, `RunMode` / `Side` | Done | The replication is written as plugins from the start: resources, systems on phases and sides, `Commands` (spawn, add by `ComponentId`, remove, despawn), queries |
 | `ecs`: prefabs, Luau bridge, field network options (quantization) | **Not started** | Needed by NET-35, NET-41, NET-42 |
 | `plugins/input`: `InputPlugin`, the `rtype.Input` resource, `Control` | Done | Client side: a system of the executable fills a `PlayerInput` from it |
@@ -2084,7 +2084,7 @@ reconnection grace.
    plugin of the game has been built; `ServerPlugin` itself is added after the plugins that register replicated
    components (see NET-16).
 3. Take the input actions from the `InputLayout` (NET-15), which orders them by name; their index is their position.
-4. Compute the manifest hash: FNV-1a 64 (`hashString` / `hashInteger` of the ECS) over every entry in order: entry
+4. Compute the manifest hash: FNV-1a 64 (`hashString` / `hashInteger` of `core/hash`) over every entry in order: entry
    type, short id or index, name, then layout hash (component) or kind (action).
 5. `encode(settings)` produces the welcome messages, all on the reliable channel: one `kManifestComponent` per
    component, one `kManifestInputAction` per action, then `kManifestEnd` with the entry count, the hash, the tick

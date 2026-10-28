@@ -806,8 +806,8 @@ Rules:
   error.
 
 **Schema hash.** It hashes the packet's name, direction, channel and every field (name, type,
-`maxLength`) in order, with the 64-bit FNV-1a of the ECS (`hashString` / `hashInteger` in
-[`NameHash.hpp`](../../src/rtype/ecs/component/NameHash.hpp)). It goes in the manifest: a client whose
+`maxLength`) in order, with the 64-bit FNV-1a of `core/hash` (`hashString` / `hashInteger` in
+[`NameHash.hpp`](../../src/rtype/core/hash/NameHash.hpp)). It goes in the manifest: a client whose
 script declares the packet differently is refused at connection, instead of silently misreading every
 packet after it.
 

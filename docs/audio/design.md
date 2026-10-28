@@ -289,7 +289,7 @@ The resource `"rtype.AudioAssets"` works as `TextureAssets` does, so gameplay co
 ```cpp
 void spawnShip(rtype::ecs::Commands& commands, rtype::ecs::ResMut<rtype::plugins::audio::AudioAssets> sounds)
 {
-    const rtype::plugins::asset::AssetId engine = sounds->load("assets/sounds/engine.ogg");
+    const rtype::core::asset::AssetId engine = sounds->load("assets/sounds/engine.ogg");
     commands.spawn(rtype::plugins::audio::AudioSource{.sound = engine, .loop = true});
 }
 ```
@@ -432,7 +432,7 @@ Each step builds and is tested on its own, in this order:
 
 1. **Shared configuration and asset ids** (done): `Settings` and `SettingsException` moved out of `plugins/backend/`, to
    `core/config/` (first `plugins/config/`, then the `core` library, since `Settings` is not a plugin), `AssetId` to
-   `plugins/asset/`, so `audio` does not depend on `backend`.
+   `core/asset/`, so `audio` does not depend on `backend`.
 2. **The contract** (done): `AudioTypes`, `IAudioDevice`, `AudioConfig`, the exceptions, `NullAudioDevice`, `AudioRegistry`,
    with unit tests (`tests/plugins/`).
 3. **`AudioAssets`** (done) and `updateSounds()`, tested against the null backend.
@@ -452,7 +452,7 @@ Settled:
 1. **`Settings`** moved, with `SettingsException`, to `core/config/` (`rtype::core::config`), in the `core` library,
    which depends on no other target. It was first in `plugins/config/`, but it is not a plugin.
    `BackendException` stays in `plugins/backend/exceptions/BackendExceptions.hpp`.
-2. **`AssetId`** moved to `plugins/asset/` (`rtype::plugins::asset`).
+2. **`AssetId`** moved to `core/asset/` (`rtype::core::asset`).
 3. **Buses** are a fixed enum (music, effects) for now.
 4. **A device that cannot open** falls back to `"null"` with a warning, unless `audio.required` is true. A mistake in
    the config (`SettingsException`) is always thrown.

@@ -14,11 +14,16 @@ are added.
   none of them, one folder per feature, included as `core/<feature>/<File>.hpp`, namespace `rtype::core::<feature>`.
   It depends on no other project target and keeps no global state. A class goes in only if two or more unrelated
   modules need it; what only `plugins` needs stays in `plugins`.
+  - `core/asset/` (`rtype::core::asset`) — `AssetId`: the hash of an asset's path, the same in every process, which
+    components keep to name a texture or a sound. The ECS reflection of it (`kAssetId`) is in
+    `plugins/AssetIdReflection.hpp`.
+  - `core/hash/` (`rtype::core::hash`) — `NameHash.hpp`: the FNV-1a 64-bit hash (`hashName`, `hashString`,
+    `hashInteger`), the same in every compiler and process.
   - `core/config/` (`rtype::core::config`) — `Settings`: the flat configuration every plugin and backend reads
     its own section of, and its `SettingsException` (`config/exceptions/`).
 - `src/rtype/ecs/` — `ecs` target, shared library (`rtype-ecs`): the Entity Component System and,
-  later, the App and its plugins (`rtype::ecs`). Design in `docs/ecs/design.md`. It depends on no other
-  project target. Exported classes and functions are marked `RTYPE_ECS_API`, and the library keeps no
+  later, the App and its plugins (`rtype::ecs`). Design in `docs/ecs/design.md`. It depends on `core` only.
+  Exported classes and functions are marked `RTYPE_ECS_API`, and the library keeps no
   global mutable state (state lives in the world), so it can also be built static by switching its
   kind and defining `RTYPE_ECS_STATIC` publicly (see `Export.hpp`).
   - Files are grouped in one folder per feature (`entity/`, `type/` (the core shared by every kind of ECS
@@ -76,8 +81,6 @@ are added.
     is), the `AudioAssets` resource (sounds by `AssetId`, opened and decoded by the device), `AudioVolumes`, the
     `AudioSource` and `AudioListener` components and the `PlaySound` / `PlayMusic` / `StopMusic` events, played by
     client-side PostUpdate systems. Design in `docs/audio/design.md`.
-  - `plugins/asset/` (`rtype::plugins::asset`) — `AssetId`: the hash of an asset's path, the same in every process,
-    which components keep to name a texture or a sound (reflected as `kAssetId`).
   - `plugins/sprite/` (`rtype::plugins::sprite`) — `SpritePlugin`: sprite atlases and animations. `SpriteAtlas`
     (named frames and `SpriteAnimation`s, built by `grid()` or in code), the `AtlasAssets` resource (atlases by
     `AssetId`: Aseprite / TexturePacker JSON files read with nlohmann_json, or images packed at load time with
@@ -86,6 +89,7 @@ are added.
     `TextureAssets`. nlohmann_json is a private package of `plugins`: only `sprite/detail/` includes it. The backend
     plugin adds it. See `docs/Sprites.md`.
   - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
+  - `plugins/AssetIdReflection.hpp` — lets components reflect `core::asset::AssetId` fields (`kAssetId`).
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
   `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
   (`IVulkanSurfaceSource`). See `docs/Backend.md`.
@@ -132,7 +136,7 @@ and `luau` glob
 Dependencies always point towards `ecs` and `plugins`, never away from them:
 
 ```
-core ←  plugins, platform-*, render-*, audio-*, engine (executable)
+core ←  ecs, plugins, platform-*, render-*, audio-*, engine (executable)
 ecs  ←  plugins, interop-*  ←  platform-*, render-*  ←  engine (executable)
         plugins             ←  audio-*             ←  engine (executable)
 luau                                                 ←  engine (executable)
@@ -140,11 +144,11 @@ network  ←  replication  ←  engine (executable)
 ecs      ←  replication
 ```
 
-- `core` and `ecs` depend on no other project target.
+- `core` depends on no other project target; `ecs` depends on `core` only. `core` never depends on `ecs`.
 - `network` depends on Asio only (private): never on the ECS, `plugins` or any other project target.
   `replication` depends on `ecs` and `network` and is the only module that knows both; the renderer, the
   platforms and `luau` never include its headers.
-- `plugins` depends on nothing but `ecs` and glm, plus Jolt (physics), nlohmann_json (sprite atlases) and stb (images)
+- `plugins` depends on nothing but `core`, `ecs` and glm, plus Jolt (physics), nlohmann_json (sprite atlases) and stb (images)
   as private packages (no public header includes them). Never add a dependency on a `platform-*`, `render-*`, `audio-*`
   or `luau` target to it: the platforms, renderers and audio backends implement its contracts (`plugins/backend/`,
   `plugins/audio/`), so it would create a cycle. The executable fills the backend and audio registries instead.

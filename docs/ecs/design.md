@@ -1122,7 +1122,7 @@ gameplay systems read it like any other component.
 - **Assets:** replicated components reference assets by **`AssetId`**, a stable id derived from the
   asset path. A backend id (such as `TextureId`) is a slot in one process's renderer: the server has
   no renderer and each client allocates slots in its own order, so it must **not** be replicated
-  (`Texture.hpp` says so). `plugins::asset::AssetId` (`plugins/asset/AssetId.hpp`) is that id: the FNV-1a hash
+  (`Texture.hpp` says so). `core::asset::AssetId` (`core/asset/AssetId.hpp`) is that id: the FNV-1a hash
   of the normalized path, reflected as `kAssetId`; `SpriteRenderer` keeps one. A hash cannot be turned back into a path:
   a client draws a replicated texture only if it loaded that path itself (the game plugin loads its textures at
   startup), until an asset manifest sends the paths.
@@ -1383,7 +1383,7 @@ is the same idea as Bevy's modules with a short prelude.
 |---|---|---|
 | *(root)* | `rtype::ecs` | `xmake.lua` (`target("ecs")`), `Export.hpp` (`RTYPE_ECS_API`), `Version.hpp/.cpp` |
 | `entity/` | `rtype::ecs` | `Entity.hpp`, `EntityAllocator.hpp/.cpp`: generational ids, free list, reservation |
-| `type/` | `rtype::ecs` | The core shared by every kind: `Field.hpp` (`FieldType`, `FieldInfo`), `FieldTypeOf.hpp`, `TypeHooks`, `TypeInfo` (`TypeId`, `Presence`, `ReplicationMode`, validation, layout hash), `NameHash`, `LayoutHash`, `TypeTraits`, `TypeRegistry<Info>` |
+| `type/` | `rtype::ecs` | The core shared by every kind: `Field.hpp` (`FieldType`, `FieldInfo`), `FieldTypeOf.hpp`, `TypeHooks`, `TypeInfo` (`TypeId`, `Presence`, `ReplicationMode`, validation, layout hash), `LayoutHash`, `TypeTraits`, `TypeRegistry<Info>` |
 | `component/` | `rtype::ecs` | `ComponentInfo.hpp` (`ComponentId`, `StorageKind`, `ComponentInfo`), `ComponentTraits.hpp` (`RTYPE_ECS_COMPONENT`), `ComponentRegistry.hpp/.cpp` (`KindTraits<ComponentInfo>`, `ComponentRegistry`), `Components.hpp/.tpp/.cpp` (a world's registry, pools and component API) |
 | `resource/` | `rtype::ecs` | `ResourceInfo.hpp` (`ResourceId`, `ResourceInfo`), `ResourceTraits.hpp` (`RTYPE_ECS_RESOURCE`), `ResourceRegistry.hpp/.cpp` (`ResourceOptions`, `KindTraits<ResourceInfo>`, `ResourceRegistry`), `Resources.hpp/.tpp/.cpp` (a world's registry, slots and resource API) |
 | `event/` | `rtype::ecs` | `EventInfo.hpp/.cpp` (`EventId`, `EventInfo`), `EventTraits.hpp` (`RTYPE_ECS_EVENT`), `EventRegistry.hpp` (`EventOptions`, `KindTraits<EventInfo>`, `EventRegistry`), `EventCursor.hpp` (`EventSequence`, `EventCursor`), `EventRange.hpp/.tpp/.cpp` (`RawEventRange`, `EventRange<T>`), `Events.hpp/.tpp/.cpp` (a world's registry, queues and event API) |
