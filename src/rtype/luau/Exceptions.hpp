@@ -8,6 +8,8 @@
 #pragma once
 
 #include <stdexcept>
+#include <string>
+#include <utility>
 
 #include "Export.hpp"
 
@@ -23,15 +25,17 @@ class RTYPE_LUAU_API Base : public std::runtime_error {
 /// @brief Exception thrown when a null Lua state is given where a valid one is required.
 class RTYPE_LUAU_API InvalidState : public Base {
   public:
+    using Base::Base;
     /// @brief Creates the exception with the message "invalid Lua state".
-    InvalidState() : Base{"invalid Lua state"} {}
+    InvalidState() : Base{"invalid luau state"} {}
 };
 
 /// @brief Exception thrown when an empty Ref (default-constructed or moved-from) is used.
 class RTYPE_LUAU_API InvalidRef : public Base {
   public:
+    using Base::Base;
     /// @brief Creates the exception with the message "use of an empty Luau reference".
-    InvalidRef() : Base{"use of an empty Luau reference"} {}
+    InvalidRef() : Base{"use of an empty luau reference"} {}
 };
 
 /// @brief Exception thrown when an operation is not supported by the object it is called on.
@@ -40,6 +44,7 @@ class RTYPE_LUAU_API InvalidRef : public Base {
 class RTYPE_LUAU_API InvalidOperation : public Base {
   public:
     using Base::Base;
+    InvalidOperation() : Base{"invalid luau operation"} {}
 };
 
 /// @brief Exception thrown when Luau code called from C++ raises an error.
@@ -48,19 +53,22 @@ class RTYPE_LUAU_API InvalidOperation : public Base {
 class RTYPE_LUAU_API RuntimeError : public Base {
   public:
     using Base::Base;
+    RuntimeError() : Base{"luau runtime error"} {}
 };
 
 /// @brief Exception thrown when the stack of a Lua state cannot grow enough to hold the values pushed onto it.
 class RTYPE_LUAU_API StackOverflow : public Base {
   public:
+    using Base::Base;
     /// @brief Creates the exception with the message "Lua stack overflow".
-    StackOverflow() : Base{"Lua stack overflow"} {}
+    StackOverflow() : Base{"luau stack overflow"} {}
 };
 
 /// @brief Exception thrown when a feature of the module is not implemented yet.
 class RTYPE_LUAU_API NotImplemented : public Base {
   public:
+    using Base::Base;
     /// @brief Creates the exception with the message "not implemented".
-    NotImplemented() : Base{"not implemented"} {}
+    NotImplemented() : Base{"luau feature not implemented"} {}
 };
 }  // namespace rtype::luau::exceptions
