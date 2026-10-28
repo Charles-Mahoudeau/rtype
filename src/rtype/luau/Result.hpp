@@ -30,6 +30,18 @@ using Result = tl::expected<T, Error>;
 /// @return An `expected<DestT, ErrT>` holding a copy of the error of `from`.
 template <typename DestT, typename SrcT>
 [[nodiscard]] Result<DestT> forwardError(Result<SrcT> from);
+
+/// @brief Unwraps a result, throwing if it holds an error.
+///
+/// @warning Dangerous: a failed result is a failure a correct program can hit, and this turns it into an exception
+/// instead of letting the caller handle it. Use it only when the result is certain to be a success (for example, an
+/// operation on a script the program itself just built); everywhere else, check the `Result` and handle the error.
+/// @tparam T Type of the success value; `void` for operations that only report success or failure.
+/// @param result The result to unwrap.
+/// @return The success value of `result` (nothing when `T` is `void`).
+/// @throws exceptions::RuntimeError If `result` holds an error; its message is the message of that error.
+template <typename T>
+T expect(Result<T> result);
 }  // namespace rtype::luau
 
 #include "Result.tpp"  // IWYU pragma: export
