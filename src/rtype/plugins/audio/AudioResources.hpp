@@ -11,8 +11,9 @@
 #include <optional>
 #include <unordered_map>
 
+#include "core/asset/AssetId.hpp"
 #include "core/config/Settings.hpp"
-#include "plugins/AssetIdReflection.hpp"
+#include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
 #include "plugins/audio/AudioEvents.hpp"
 #include "plugins/audio/AudioRegistry.hpp"
 #include "plugins/audio/AudioTypes.hpp"

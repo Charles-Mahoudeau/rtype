@@ -11,8 +11,9 @@
 #include <glm/ext/vector_float2.hpp>
 #include <type_traits>
 
-#include "plugins/AssetIdReflection.hpp"
-#include "plugins/GlmReflection.hpp"  // IWYU pragma: keep
+#include "core/asset/AssetId.hpp"
+#include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
+#include "plugins/GlmReflection.hpp"      // IWYU pragma: keep
 #include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/math/Rect.hpp"

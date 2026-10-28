@@ -7,7 +7,8 @@
 
 #pragma once
 
-#include "plugins/AssetIdReflection.hpp"
+#include "core/asset/AssetId.hpp"
+#include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/event/EventTraits.hpp"
 

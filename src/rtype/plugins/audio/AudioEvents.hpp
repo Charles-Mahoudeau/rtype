@@ -10,7 +10,8 @@
 #include <glm/ext/vector_float2.hpp>
 #include <optional>
 
-#include "plugins/AssetIdReflection.hpp"
+#include "core/asset/AssetId.hpp"
+#include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
 #include "plugins/audio/AudioTypes.hpp"
 #include "rtype/ecs/event/EventTraits.hpp"
 
