@@ -27,10 +27,10 @@
 #include "Engine.hpp"
 #include "ProjectSettings.hpp"
 #include "audio/miniaudio/Registration.hpp"
+#include "core/asset/AssetId.hpp"
 #include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
 #include "plugins/GlmReflection.hpp"  // IWYU pragma: keep
-#include "plugins/asset/AssetId.hpp"
 #include "plugins/audio/AudioAssets.hpp"
 #include "plugins/audio/AudioEvents.hpp"
 #include "plugins/audio/AudioListener.hpp"
@@ -161,18 +161,18 @@ RTYPE_ECS_RESOURCE(Randomness, "game.Randomness");
 
 /// @brief Client only: the sounds of the game, asked for at startup.
 struct GameSounds {
-    plugins::asset::AssetId music;    ///< The background track, looping.
-    plugins::asset::AssetId laser;    ///< A laser fired.
-    plugins::asset::AssetId misfire;  ///< A shot that misfired.
+    core::asset::AssetId music;    ///< The background track, looping.
+    core::asset::AssetId laser;    ///< A laser fired.
+    core::asset::AssetId misfire;  ///< A shot that misfired.
 };
 RTYPE_ECS_RESOURCE(GameSounds, "game.GameSounds");
 
 /// @brief Client only: the atlases of the game's sprites, built at startup.
 struct GameAtlases {
-    plugins::asset::AssetId leftShip;   ///< r-typesheet24.gif: animation "fly".
-    plugins::asset::AssetId rightShip;  ///< r-typesheet26.gif: animation "fly".
-    plugins::asset::AssetId laser;      ///< bullet.gif: animations "right" and "left".
-    plugins::asset::AssetId explosion;  ///< r-fx-explosions.gif: animation "explode", played once.
+    core::asset::AssetId leftShip;   ///< r-typesheet24.gif: animation "fly".
+    core::asset::AssetId rightShip;  ///< r-typesheet26.gif: animation "fly".
+    core::asset::AssetId laser;      ///< bullet.gif: animations "right" and "left".
+    core::asset::AssetId explosion;  ///< r-fx-explosions.gif: animation "explode", played once.
 };
 RTYPE_ECS_RESOURCE(GameAtlases, "game.GameAtlases");
 

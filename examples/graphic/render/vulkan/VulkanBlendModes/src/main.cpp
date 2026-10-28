@@ -35,9 +35,9 @@
 #include <utility>
 #include <vector>
 
+#include "core/asset/AssetId.hpp"
 #include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
-#include "plugins/asset/AssetId.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
@@ -64,7 +64,7 @@
 
 using namespace rtype;
 using namespace rtype::plugins::backend;
-using rtype::plugins::asset::AssetId;
+using rtype::core::asset::AssetId;
 using namespace rtype::plugins::backend::graphics;
 using rtype::plugins::transform::Transform;
 

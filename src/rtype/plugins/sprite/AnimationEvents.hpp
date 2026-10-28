@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "plugins/asset/AssetId.hpp"
+#include "plugins/AssetIdReflection.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/event/EventTraits.hpp"
 
@@ -22,8 +22,8 @@ namespace rtype::plugins::sprite {
 /// }
 /// @endcode
 struct AnimationFinished {
-    ecs::Entity entity;        ///< The entity whose SpriteAnimator played it.
-    asset::AssetId animation;  ///< animationId() of its name.
+    ecs::Entity entity;              ///< The entity whose SpriteAnimator played it.
+    core::asset::AssetId animation;  ///< animationId() of its name.
 };
 RTYPE_ECS_EVENT(AnimationFinished, "rtype.AnimationFinished", entity, animation);
 

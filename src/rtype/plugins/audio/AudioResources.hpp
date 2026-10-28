@@ -12,7 +12,7 @@
 #include <unordered_map>
 
 #include "core/config/Settings.hpp"
-#include "plugins/asset/AssetId.hpp"
+#include "plugins/AssetIdReflection.hpp"
 #include "plugins/audio/AudioEvents.hpp"
 #include "plugins/audio/AudioRegistry.hpp"
 #include "plugins/audio/AudioTypes.hpp"
@@ -24,8 +24,8 @@
 namespace rtype::plugins::audio {
 /// @brief The voice an AudioSource plays, kept by the audio plugin.
 struct SourceVoice {
-    VoiceId voice;         ///< Stale once a one-shot source ended.
-    asset::AssetId sound;  ///< The sound it was started with: another one restarts the voice.
+    VoiceId voice;               ///< Stale once a one-shot source ended.
+    core::asset::AssetId sound;  ///< The sound it was started with: another one restarts the voice.
 };
 
 /// @brief The started audio device and what the audio plugin plays on it, as the main-thread resource "rtype.Audio":

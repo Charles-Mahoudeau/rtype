@@ -17,8 +17,8 @@
 #include <unordered_map>
 #include <utility>
 
+#include "core/asset/AssetId.hpp"
 #include "core/config/Settings.hpp"
-#include "plugins/asset/AssetId.hpp"
 #include "plugins/audio/AudioAssets.hpp"
 #include "plugins/audio/AudioConfig.hpp"
 #include "plugins/audio/AudioEvents.hpp"

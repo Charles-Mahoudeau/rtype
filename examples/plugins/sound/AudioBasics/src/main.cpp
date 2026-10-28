@@ -31,8 +31,8 @@
 #include <utility>
 
 #include "audio/miniaudio/Registration.hpp"
+#include "core/asset/AssetId.hpp"
 #include "core/config/Settings.hpp"
-#include "plugins/asset/AssetId.hpp"
 #include "plugins/audio/AudioAssets.hpp"
 #include "plugins/audio/AudioConfig.hpp"
 #include "plugins/audio/AudioEvents.hpp"
@@ -59,7 +59,7 @@
 
 using namespace rtype;
 using namespace rtype::plugins::audio;
-using rtype::plugins::asset::AssetId;
+using rtype::core::asset::AssetId;
 using rtype::plugins::transform::Transform;
 
 namespace {

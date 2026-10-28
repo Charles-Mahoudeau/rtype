@@ -16,7 +16,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugins/audio/AudioTypes.hpp"
 #include "plugins/audio/IAudioDevice.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
@@ -40,7 +40,7 @@ enum class SoundState : std::uint8_t {
 /// @code
 /// void spawnShip(rtype::ecs::Commands& commands, rtype::ecs::ResMut<rtype::plugins::audio::AudioAssets> sounds)
 /// {
-///     const rtype::plugins::asset::AssetId engine = sounds->load("assets/sounds/engine.ogg");
+///     const rtype::core::asset::AssetId engine = sounds->load("assets/sounds/engine.ogg");
 ///     commands.spawn(rtype::plugins::audio::AudioSource{.sound = engine, .loop = true});
 /// }
 /// @endcode
@@ -70,37 +70,37 @@ class AudioAssets {
     /// @param desc How to load it. Ignored if the sound was already asked for: the first request wins.
     /// @return Its id (AssetId::fromPath()), at once: put it in components and events, the sound plays once loaded.
     /// @throws exceptions::AudioLoadException If another path already has this id (a hash collision).
-    asset::AssetId load(const std::filesystem::path& path, const SoundDesc& desc = {});
+    core::asset::AssetId load(const std::filesystem::path& path, const SoundDesc& desc = {});
 
     /// @brief Asks for a sound already in memory (embedded, downloaded), known by @p name.
     /// @param encoded The sound file's bytes (OGG...), copied.
     /// @return Its id (AssetId::fromPath(name)).
     /// @throws exceptions::AudioLoadException If another name already has this id (a hash collision).
-    asset::AssetId load(const std::string& name, std::span<const std::byte> encoded, const SoundDesc& desc = {});
+    core::asset::AssetId load(const std::string& name, std::span<const std::byte> encoded, const SoundDesc& desc = {});
 
     /// @return The sound @p id names, or nullptr if it was never asked for or was unloaded.
-    [[nodiscard]] const Entry* get(asset::AssetId id) const;
+    [[nodiscard]] const Entry* get(core::asset::AssetId id) const;
 
     /// @return The device's id of the sound @p id names, or nothing if it is not loaded (yet).
-    [[nodiscard]] std::optional<SoundId> getSound(asset::AssetId id) const;
+    [[nodiscard]] std::optional<SoundId> getSound(core::asset::AssetId id) const;
 
     /// @brief Forgets the sound @p id names; if it was loaded, the next updateSounds() destroys it, which stops its
     /// voices.
     /// @return False, doing nothing, if no sound has this id.
-    bool unload(asset::AssetId id);
+    bool unload(core::asset::AssetId id);
 
     /// @name For updateSounds()
     /// @{
 
     /// @return The ids of the queued sounds, in the order they were asked for.
-    [[nodiscard]] const std::vector<asset::AssetId>& getQueued() const noexcept;
+    [[nodiscard]] const std::vector<core::asset::AssetId>& getQueued() const noexcept;
 
     /// @brief Records that the queued sound @p id was created as @p sound, and frees its in-memory bytes. Does nothing
     /// if @p id is not queued.
-    void setLoaded(asset::AssetId id, SoundId sound);
+    void setLoaded(core::asset::AssetId id, SoundId sound);
 
     /// @brief Records that the queued sound @p id could not be loaded, and why. Does nothing if @p id is not queued.
-    void setFailed(asset::AssetId id, std::string error);
+    void setFailed(core::asset::AssetId id, std::string error);
 
     /// @return The sounds unloaded since the last call, for the device to destroy.
     [[nodiscard]] std::vector<SoundId> takeUnloaded();
@@ -109,14 +109,14 @@ class AudioAssets {
   private:
     /// @brief Records a queued sound, or returns the id of the one already asked for.
     /// @throws exceptions::AudioLoadException If another path already has the id.
-    asset::AssetId request(std::string path, std::vector<std::byte> encoded, const SoundDesc& desc);
+    core::asset::AssetId request(std::string path, std::vector<std::byte> encoded, const SoundDesc& desc);
 
     /// @return The queued entry @p id names, removed from the queue, or nullptr if it is not queued.
-    Entry* dequeue(asset::AssetId id);
+    Entry* dequeue(core::asset::AssetId id);
 
-    std::unordered_map<asset::AssetId, Entry> _entries;  ///< Every sound asked for, by id.
-    std::vector<asset::AssetId> _queued;                 ///< The queued sounds, in the order they were asked for.
-    std::vector<SoundId> _unloaded;                      ///< Sounds to destroy, from unload().
+    std::unordered_map<core::asset::AssetId, Entry> _entries;  ///< Every sound asked for, by id.
+    std::vector<core::asset::AssetId> _queued;                 ///< The queued sounds, in the order they were asked for.
+    std::vector<SoundId> _unloaded;                            ///< Sounds to destroy, from unload().
 };
 RTYPE_ECS_RESOURCE(AudioAssets, "rtype.AudioAssets");
 
