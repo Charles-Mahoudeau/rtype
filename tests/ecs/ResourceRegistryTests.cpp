@@ -13,13 +13,13 @@
 #include <string>
 #include <utility>
 
+#include "core/hash/NameHash.hpp"
 #include "rtype/ecs/error/Error.hpp"
 #include "rtype/ecs/error/Result.hpp"
 #include "rtype/ecs/exceptions/ResourceExceptions.hpp"
 #include "rtype/ecs/resource/ResourceInfo.hpp"
 #include "rtype/ecs/resource/ResourceRegistry.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
-#include "rtype/ecs/type/NameHash.hpp"
 
 namespace rtype::test::resource_registry {
 struct Time {
@@ -71,7 +71,7 @@ TEST(ResourceRegistry, FindsResourcesByIdNameHashAndType) {
     EXPECT_EQ(info->type.id, id);
     EXPECT_EQ(info->type.name, "test.registry.Time");
     EXPECT_EQ(registry.findByName("test.registry.Time"), info);
-    EXPECT_EQ(registry.findByHash(rtype::ecs::hashName("test.registry.Time")), info);
+    EXPECT_EQ(registry.findByHash(rtype::core::hash::hashName("test.registry.Time")), info);
     EXPECT_EQ(registry.find<reg::Time>(), info);
 }
 
@@ -79,7 +79,7 @@ TEST(ResourceRegistry, ReturnsNullForUnknownResources) {
     const rtype::ecs::ResourceRegistry registry;
     EXPECT_EQ(registry.findById(0), nullptr);
     EXPECT_EQ(registry.findByName("test.registry.Time"), nullptr);
-    EXPECT_EQ(registry.findByHash(rtype::ecs::hashName("test.registry.Time")), nullptr);
+    EXPECT_EQ(registry.findByHash(rtype::core::hash::hashName("test.registry.Time")), nullptr);
     EXPECT_EQ(registry.find<reg::Time>(), nullptr);
 }
 

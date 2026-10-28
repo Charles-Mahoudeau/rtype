@@ -15,7 +15,7 @@
 #include <vector>
 
 #include "FakeAudioDevice.hpp"
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugins/audio/AudioAssets.hpp"
 #include "plugins/audio/AudioTypes.hpp"
 #include "plugins/audio/exceptions/AudioExceptions.hpp"
@@ -37,20 +37,20 @@ static_assert(rtype::ecs::ResourceTraits<rtype::plugins::audio::AudioAssets>::kN
 
 TEST(AudioAssets, QueuesASoundAndReturnsTheIdOfItsPath) {
     AudioAssetsFixture fixture;
-    const rtype::plugins::asset::AssetId id = fixture.assets.load("assets/./sounds/../shot.wav");
-    EXPECT_EQ(id, rtype::plugins::asset::AssetId::fromPath("assets/shot.wav"));
+    const rtype::core::asset::AssetId id = fixture.assets.load("assets/./sounds/../shot.wav");
+    EXPECT_EQ(id, rtype::core::asset::AssetId::fromPath("assets/shot.wav"));
     ASSERT_NE(fixture.assets.get(id), nullptr);
     EXPECT_EQ(fixture.assets.get(id)->path, "assets/shot.wav");
     EXPECT_EQ(fixture.assets.get(id)->state, rtype::plugins::audio::SoundState::kQueued);
-    EXPECT_EQ(fixture.assets.getQueued(), std::vector<rtype::plugins::asset::AssetId>{id});
+    EXPECT_EQ(fixture.assets.getQueued(), std::vector<rtype::core::asset::AssetId>{id});
     EXPECT_FALSE(fixture.assets.getSound(id));
     EXPECT_TRUE(fixture.state->sounds.empty());
 }
 
 TEST(AudioAssets, KeepsTheFirstRequestOfAPath) {
     AudioAssetsFixture fixture;
-    const rtype::plugins::asset::AssetId first = fixture.assets.load("music.ogg", {.stream = true});
-    const rtype::plugins::asset::AssetId second = fixture.assets.load("music.ogg", {.stream = false});
+    const rtype::core::asset::AssetId first = fixture.assets.load("music.ogg", {.stream = true});
+    const rtype::core::asset::AssetId second = fixture.assets.load("music.ogg", {.stream = false});
     EXPECT_EQ(first, second);
     EXPECT_EQ(fixture.assets.getCount(), 1U);
     EXPECT_TRUE(fixture.assets.get(first)->desc.stream);
@@ -58,8 +58,8 @@ TEST(AudioAssets, KeepsTheFirstRequestOfAPath) {
 
 TEST(AudioAssets, LoadsTheQueuedSoundsFromTheirFile) {
     AudioAssetsFixture fixture;
-    const rtype::plugins::asset::AssetId shot = fixture.assets.load("shot.wav");
-    const rtype::plugins::asset::AssetId music = fixture.assets.load("music.ogg", {.stream = true});
+    const rtype::core::asset::AssetId shot = fixture.assets.load("shot.wav");
+    const rtype::core::asset::AssetId music = fixture.assets.load("music.ogg", {.stream = true});
     rtype::plugins::audio::updateSounds(fixture.assets, fixture.device);
     ASSERT_EQ(fixture.state->sounds.size(), 2U);
     EXPECT_EQ(fixture.state->sounds[0].path, "shot.wav");
@@ -72,7 +72,7 @@ TEST(AudioAssets, LoadsTheQueuedSoundsFromTheirFile) {
 
 TEST(AudioAssets, LoadsASoundGivenInMemoryAndFreesItsBytes) {
     AudioAssetsFixture fixture;
-    const rtype::plugins::asset::AssetId id = fixture.assets.load(std::string{"embedded/beep.wav"}, kBytes);
+    const rtype::core::asset::AssetId id = fixture.assets.load(std::string{"embedded/beep.wav"}, kBytes);
     EXPECT_EQ(fixture.assets.get(id)->encoded.size(), kBytes.size());
     rtype::plugins::audio::updateSounds(fixture.assets, fixture.device);
     ASSERT_EQ(fixture.state->sounds.size(), 1U);
@@ -85,8 +85,8 @@ TEST(AudioAssets, LoadsASoundGivenInMemoryAndFreesItsBytes) {
 TEST(AudioAssets, MarksASoundThatCannotLoadAsFailed) {
     AudioAssetsFixture fixture;
     fixture.state->failingPaths.insert("missing.wav");
-    const rtype::plugins::asset::AssetId missing = fixture.assets.load("missing.wav");
-    const rtype::plugins::asset::AssetId shot = fixture.assets.load("shot.wav");
+    const rtype::core::asset::AssetId missing = fixture.assets.load("missing.wav");
+    const rtype::core::asset::AssetId shot = fixture.assets.load("shot.wav");
     rtype::plugins::audio::updateSounds(fixture.assets, fixture.device);
     EXPECT_EQ(fixture.assets.get(missing)->state, rtype::plugins::audio::SoundState::kFailed);
     EXPECT_FALSE(fixture.assets.get(missing)->error.empty());
@@ -96,7 +96,7 @@ TEST(AudioAssets, MarksASoundThatCannotLoadAsFailed) {
 
 TEST(AudioAssets, DestroysAnUnloadedSoundAtTheNextUpdate) {
     AudioAssetsFixture fixture;
-    const rtype::plugins::asset::AssetId id = fixture.assets.load("shot.wav");
+    const rtype::core::asset::AssetId id = fixture.assets.load("shot.wav");
     rtype::plugins::audio::updateSounds(fixture.assets, fixture.device);
     const rtype::plugins::audio::SoundId sound = *fixture.assets.getSound(id);
     EXPECT_TRUE(fixture.assets.unload(id));
@@ -108,7 +108,7 @@ TEST(AudioAssets, DestroysAnUnloadedSoundAtTheNextUpdate) {
 
 TEST(AudioAssets, ForgetsAQueuedSoundWithoutLoadingIt) {
     AudioAssetsFixture fixture;
-    const rtype::plugins::asset::AssetId id = fixture.assets.load("shot.wav");
+    const rtype::core::asset::AssetId id = fixture.assets.load("shot.wav");
     EXPECT_TRUE(fixture.assets.unload(id));
     rtype::plugins::audio::updateSounds(fixture.assets, fixture.device);
     EXPECT_TRUE(fixture.state->sounds.empty());
@@ -117,7 +117,7 @@ TEST(AudioAssets, ForgetsAQueuedSoundWithoutLoadingIt) {
 
 TEST(AudioAssets, IgnoresAnUnknownId) {
     AudioAssetsFixture fixture;
-    const rtype::plugins::asset::AssetId unknown = rtype::plugins::asset::AssetId::fromPath("unknown.wav");
+    const rtype::core::asset::AssetId unknown = rtype::core::asset::AssetId::fromPath("unknown.wav");
     EXPECT_FALSE(fixture.assets.unload(unknown));
     fixture.assets.setLoaded(unknown, rtype::plugins::audio::SoundId{.value = 7});
     fixture.assets.setFailed(unknown, "no reason");
@@ -126,8 +126,8 @@ TEST(AudioAssets, IgnoresAnUnknownId) {
 
 TEST(AudioAssets, LoadsANameAndAPathAsTheSameSound) {
     AudioAssetsFixture fixture;
-    const rtype::plugins::asset::AssetId fromPath = fixture.assets.load("sounds/beep.wav");
-    const rtype::plugins::asset::AssetId fromName = fixture.assets.load(std::string{"sounds/beep.wav"}, kBytes);
+    const rtype::core::asset::AssetId fromPath = fixture.assets.load("sounds/beep.wav");
+    const rtype::core::asset::AssetId fromName = fixture.assets.load(std::string{"sounds/beep.wav"}, kBytes);
     EXPECT_EQ(fromPath, fromName);
     EXPECT_EQ(fixture.assets.getCount(), 1U);
 }

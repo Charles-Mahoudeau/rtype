@@ -13,7 +13,7 @@
 #include <string_view>
 #include <vector>
 
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
 #include "plugins/sprite/detail/AtlasJson.hpp"
 #include "plugins/sprite/exceptions/SpriteExceptions.hpp"
@@ -57,7 +57,7 @@ const SpriteAnimation& animationOf(const SpriteAtlas& atlas, std::string_view na
 TEST(AtlasJson, FindsTheImageNextToTheFile) {
     const SpriteAtlas atlas = parse(kAseprite);
     EXPECT_EQ(atlas.getTexturePath(), "assets/sprites/ship.png");
-    EXPECT_EQ(atlas.getTexture(), rtype::plugins::asset::AssetId::fromPath("assets/sprites/ship.png"));
+    EXPECT_EQ(atlas.getTexture(), rtype::core::asset::AssetId::fromPath("assets/sprites/ship.png"));
 }
 
 TEST(AtlasJson, KeepsTheFramesInTheFileOrder) {

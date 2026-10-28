@@ -9,7 +9,7 @@
 
 #include <glm/ext/vector_float2.hpp>
 
-#include "plugins/asset/AssetId.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/sprite/AnimationEvents.hpp"
@@ -26,7 +26,7 @@
 #include "rtype/ecs/type/Field.hpp"
 #include "rtype/ecs/world/World.hpp"
 
-using rtype::plugins::asset::AssetId;
+using rtype::core::asset::AssetId;
 using rtype::plugins::backend::SpriteRenderer;
 using rtype::plugins::sprite::AnimationDirection;
 using rtype::plugins::sprite::animationId;
