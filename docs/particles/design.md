@@ -193,7 +193,9 @@ class IRenderer {
 struct ParticleEmission {
     float deltaTime{0.0F};
     std::uint32_t spawnCount{0};  ///< Particles to emit this frame (rate and bursts, accumulated by the plugin).
-    glm::mat3 transform{1.0F};    ///< The emitter's GlobalTransform: where particles spawn, or the kLocal space.
+    glm::vec2 position{0.0F};     ///< The emitter's GlobalTransform: where particles spawn, or the kLocal space.
+    float rotation{0.0F};         ///< Of the GlobalTransform, in radians, clockwise on screen: turns the shape.
+    glm::vec2 scale{1.0F};        ///< Of the GlobalTransform: scales the shape.
     std::uint32_t seed{0};        ///< The emitter's seed; the random numbers of a particle depend on it.
     std::uint32_t frame{0};       ///< Frames since the emitter started, so each frame draws new random numbers.
 };
