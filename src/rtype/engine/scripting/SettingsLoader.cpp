@@ -16,7 +16,6 @@
 
 #include "rtype/core/config/Settings.hpp"
 #include "rtype/engine/Exceptions.hpp"
-#include "rtype/luau/CallContext.hpp"
 #include "rtype/luau/Function.hpp"
 #include "rtype/luau/Result.hpp"
 #include "rtype/luau/Runtime.hpp"
@@ -72,9 +71,7 @@ void addList(rtype::core::config::Settings& settings, const rtype::luau::Table& 
     if (rtype::luau::expect(table.count()) != size) {
         fail(key, "an array cannot have named keys or holes");
     }
-    const rtype::luau::Value first = rtype::luau::expect(table.getAt(1));
-
-    if (first.is<double>()) {
+    if (const rtype::luau::Value first = rtype::luau::expect(table.getAt(1)); first.is<double>()) {
         settings.set(key, readList<double>(table, size, key));
     } else if (first.is<std::string>()) {
         settings.set(key, readList<std::string>(table, size, key));
@@ -93,9 +90,7 @@ void addValue(rtype::core::config::Settings& settings, const rtype::luau::Value&
     } else if (const auto* text = value.tryAs<std::string>()) {
         settings.set(key, *text);
     } else if (const auto* table = value.tryAs<rtype::luau::Table>()) {
-        const std::size_t size = rtype::luau::expect(table->size());
-
-        if (size > 0) {
+        if (const std::size_t size = rtype::luau::expect(table->size()); size > 0) {
             addList(settings, *table, size, key);
         } else if (rtype::luau::expect(table->count()) > 0) {
             addTable(settings, *table, key);
