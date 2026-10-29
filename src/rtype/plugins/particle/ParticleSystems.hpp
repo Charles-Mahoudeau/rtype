@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <optional>
 #include <unordered_map>
+#include <unordered_set>
 #include <variant>
 
 #include "core/asset/AssetId.hpp"
@@ -31,6 +32,8 @@ struct EmitterState {
     bool finished{false};          ///< ParticlesFinished was sent.
     /// The CPU pool, or the GPU system created by the renderer: chosen once, at start, never switched while playing.
     std::variant<CpuSimulation, backend::graphics::ParticleSystemId> simulation;
+    /// This frame's emission of a GPU system: computed in PostUpdate, given to IRenderer::simulate() in Render.
+    backend::graphics::ParticleEmission emission;
 };
 
 /// @brief The live state of every emitter, by entity, as the resource "rtype.ParticleSystems" the ParticlePlugin
@@ -73,8 +76,17 @@ class ParticleSystems {
     /// @return Its state, whose GPU system the caller destroys; nothing if it was not playing.
     std::optional<EmitterState> stop(ecs::Entity entity);
 
+    /// @return A new seed for an emitter whose ParticleEmitter::seed is 0: a different one at each call.
+    [[nodiscard]] std::uint32_t pickSeed() noexcept;
+
+    /// @brief Records that the fallback of @p effect from the GPU to the CPU was reported, to report it once.
+    /// @return Whether it was not reported yet.
+    bool markFallbackReported(core::asset::AssetId effect);
+
   private:
-    Emitters _emitters;  ///< By emitter entity.
+    Emitters _emitters;                                   ///< By emitter entity.
+    std::uint32_t _seedCount{0};                          ///< Seeds picked so far.
+    std::unordered_set<core::asset::AssetId> _fallbacks;  ///< Effects whose GPU fallback was reported.
 };
 RTYPE_ECS_RESOURCE(ParticleSystems, "rtype.ParticleSystems");
 
