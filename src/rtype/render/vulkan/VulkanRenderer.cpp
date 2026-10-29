@@ -419,10 +419,11 @@ void VulkanRenderer::simulate(plugins::backend::graphics::ParticleSystemId /*sys
 }
 
 void VulkanRenderer::draw(const plugins::backend::graphics::ParticleDraw& /*particles*/) {
-    if (!_acquiredImage) {
+    if (!_acquiredImage || _particlesReported) {
         return;
     }
-    throw plugins::backend::exceptions::UnsupportedFeatureException("VulkanRenderer does not draw particles yet");
+    _particlesReported = true;
+    std::cerr << "[Vulkan] Particles are not drawn yet: they are skipped\n";
 }
 
 interop::vulkan::IVulkanSurfaceSource& VulkanRenderer::surfaceSourceOf(

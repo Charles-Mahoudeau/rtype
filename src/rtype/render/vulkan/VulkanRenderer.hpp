@@ -193,8 +193,8 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// @throws std::invalid_argument Always: no particle system can have been created yet.
     void simulate(plugins::backend::graphics::ParticleSystemId system,
                   const plugins::backend::graphics::ParticleEmission& emission) override;
-    /// @brief Not implemented yet: CPU particles come with the particle vertex shader.
-    /// @throws exceptions::UnsupportedFeatureException When a frame is being drawn.
+    /// @brief Not implemented yet: CPU particles come with the particle vertex shader. Draws nothing, and says so once,
+    /// so a game with particles still runs.
     void draw(const plugins::backend::graphics::ParticleDraw& particles) override;
 
   private:
@@ -249,6 +249,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     std::optional<plugins::backend::graphics::View> _view;  ///< From setView(); reset by beginFrame().
     rendering::SpriteBatch _sprites;                        ///< The frame's sprites; cleared by beginFrame().
     std::vector<rendering::ShapeInstance> _shapes;          ///< The frame's shapes; cleared by beginFrame().
+    bool _particlesReported = false;  ///< draw(ParticleDraw) said once that particles are not drawn yet.
 
     // 2. Context: created by init(), in this order.
     std::optional<core::Instance> _instance;                ///< The VkInstance.
