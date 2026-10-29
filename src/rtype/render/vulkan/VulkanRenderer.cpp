@@ -332,7 +332,8 @@ void VulkanRenderer::endFrame() {
         framebufferSize};
     updateFrameUniforms(view);
     _globals->bind(commandBuffer, *_layout, frameIndex);
-    _spritePass->record(commandBuffer, frameIndex, _sprites, view.getViewport(),
+    _spritePass->upload(frameIndex, _sprites);
+    _spritePass->record(commandBuffer, frameIndex, _sprites.getBatches(), view.getViewport(),
                         [this](plugins::backend::graphics::TextureId texture) {
                             const texture::Texture* found = _textures.find(texture);
                             return found != nullptr ? *found->set : vk::DescriptorSet{};

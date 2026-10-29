@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <span>
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
@@ -53,12 +54,17 @@ class RTYPE_RENDER_VULKAN_API SpritePass {
     SpritePass(SpritePass&&) = delete;
     SpritePass& operator=(SpritePass&&) = delete;
 
-    /// @brief Copies @p batch's instances into frame @p frameIndex's buffer and records its draws, inside dynamic
-    /// rendering, into @p viewport. The frame's set 0 must already be bound. A batch whose texture no longer exists is
-    /// skipped.
+    /// @brief Copies @p batch's instances into frame @p frameIndex's buffer, for record().
     /// @throws vk::SystemError If a bigger instance buffer cannot be created.
-    void record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex, const SpriteBatch& batch,
-                const plugins::backend::graphics::Viewport& viewport, const TextureSetFinder& findTextureSet);
+    void upload(std::size_t frameIndex, const SpriteBatch& batch);
+
+    /// @brief Records the draws of @p batches, some of the uploaded batch's, inside dynamic rendering, into
+    /// @p viewport: binds the pipeline (so call it again after another pass recorded), then draws each batch. The
+    /// frame's set 0 must already be bound. A batch whose texture no longer exists is skipped. Does nothing before
+    /// upload().
+    void record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
+                std::span<const SpriteBatch::Batch> batches, const plugins::backend::graphics::Viewport& viewport,
+                const TextureSetFinder& findTextureSet);
 
   private:
     /// @brief Instances the first buffer holds; each new one doubles until the frame's instances fit.
