@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <optional>
 #include <stdexcept>
 #include <variant>
@@ -106,4 +107,19 @@ TEST(ParticleSystemsTests, GetEmittersListsEveryPlayingEmitter) {
     EXPECT_EQ(systems.getEmitters().size(), 2U);
     EXPECT_TRUE(systems.getEmitters().contains(Entity{1, 1}));
     EXPECT_TRUE(systems.getEmitters().contains(Entity{2, 1}));
+}
+
+TEST(ParticleSystemsTests, PickSeedGivesADifferentSeedEachTime) {
+    ParticleSystems systems;
+    const std::uint32_t first = systems.pickSeed();
+    const std::uint32_t second = systems.pickSeed();
+    EXPECT_NE(first, second);
+    EXPECT_NE(first, 0U);
+}
+
+TEST(ParticleSystemsTests, AFallbackIsReportedOncePerEffect) {
+    ParticleSystems systems;
+    EXPECT_TRUE(systems.markFallbackReported(AssetId::fromPath("sparks")));
+    EXPECT_FALSE(systems.markFallbackReported(AssetId::fromPath("sparks")));
+    EXPECT_TRUE(systems.markFallbackReported(AssetId::fromPath("smoke")));
 }
