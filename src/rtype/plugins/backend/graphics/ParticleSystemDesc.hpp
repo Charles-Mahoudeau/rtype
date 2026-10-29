@@ -77,7 +77,7 @@ struct ParticleSystemDesc {
 
     // Forces
     glm::vec2 gravity{0.0F, 0.0F};  ///< World units per second squared; +Y is down.
-    float drag{0.0F};               ///< Fraction of the velocity lost per second.
+    float drag{0.0F};               ///< Slows particles: velocity times exp(-drag * seconds).
 
     // Over life: 0 at birth, 1 at death
     Gradient colorOverLife;  ///< Multiplies color.

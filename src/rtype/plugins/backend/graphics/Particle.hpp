@@ -76,8 +76,10 @@ struct ParticleEmission {
     float rotation{0.0F};            ///< The emitter's GlobalTransform, in radians: turns the shape.
     float deltaTime{0.0F};           ///< Seconds since the previous frame.
     std::uint32_t seed{0};           ///< The emitter's seed; the random numbers of its particles depend on it.
-    std::uint32_t frame{0};          ///< Frames since the emitter started, so each frame draws new random numbers.
-    std::uint32_t spawnCount{0};     ///< Particles to emit this frame (rate and bursts, counted by the plugin).
+    /// Particles the emitter emitted before this frame: particle i of the frame draws the random numbers of particle
+    /// firstParticle + i, so no two particles of an emitter share them, on the CPU and the GPU alike.
+    std::uint32_t firstParticle{0};
+    std::uint32_t spawnCount{0};  ///< Particles to emit this frame (rate and bursts, counted by the plugin).
 };
 
 /// @brief The particles of one emitter to draw this frame, as a Sprite is one sprite: where they are, and how they

@@ -133,7 +133,7 @@ struct ParticleSystemDesc {
 
     // Forces
     glm::vec2 gravity{0.0F};             ///< World units per second squared.
-    float drag{0.0F};                    ///< Fraction of the velocity lost per second.
+    float drag{0.0F};                    ///< Slows particles: velocity times exp(-drag * seconds).
 
     // Over life (0 at birth, 1 at death)
     Gradient colorOverLife;              ///< Colour and alpha keys.
@@ -200,7 +200,8 @@ struct ParticleEmission {
     float rotation{0.0F};         ///< Of the GlobalTransform, in radians, clockwise on screen: turns the shape.
     glm::vec2 scale{1.0F};        ///< Of the GlobalTransform: scales the shape.
     std::uint32_t seed{0};        ///< The emitter's seed; the random numbers of a particle depend on it.
-    std::uint32_t frame{0};       ///< Frames since the emitter started, so each frame draws new random numbers.
+    std::uint32_t firstParticle{0};  ///< Particles emitted before this frame: particle i of the frame draws the
+                                     ///< random numbers of particle firstParticle + i, on the CPU and the GPU alike.
 };
 
 /// @brief What to draw: the particles of a GPU system, or the instances of a CPU one.
