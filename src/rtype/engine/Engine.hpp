@@ -7,8 +7,6 @@
 
 #pragma once
 
-#include <filesystem>
-
 #include "Export.hpp"
 #include "rtype/ecs/app/App.hpp"
 
