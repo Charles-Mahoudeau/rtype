@@ -6,7 +6,6 @@ if engine.isClient then
 	engine.settings.window.size = { 800, 600 }
 
 	engine.settings.audio.backend = "miniaudio"
-	engine.settings.audio.volume = {} -- FIXME: This need to be handled by C++
 	engine.settings.audio.volume.music = 1.0
 
 	engine.settings.vulkan.virtualResolution = { 800, 600 }
