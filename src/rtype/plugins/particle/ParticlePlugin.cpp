@@ -7,6 +7,7 @@
 
 #include "plugins/particle/ParticlePlugin.hpp"
 
+#include <cstdint>
 #include <exception>
 #include <iostream>
 #include <optional>
@@ -19,7 +20,8 @@
 #include "core/asset/AssetId.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/BackendResources.hpp"
+#include "plugins/backend/BackendResources.hpp"  // IWYU pragma: keep
+#include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Particle.hpp"
 #include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "plugins/backend/graphics/SpriteQueue.hpp"
@@ -114,7 +116,6 @@ EmitterState& startEmitter(ParticleSystems& systems, backend::graphics::IRendere
     if (const auto* simulation = std::get_if<CpuSimulation>(&state.simulation)) {
         return simulation->getCount() == 0;
     }
-    // The GPU's particles are never read back: the last one is dead once the longest lifetime has passed.
     return state.time >= desc.duration + desc.lifetime.max;
 }
 
@@ -131,35 +132,36 @@ void spawnParticles(ecs::EventReader<SpawnParticles> requests, ecs::Commands& co
 
 /// @brief What updating an emitter needs, shared by the one-shot emitters and the others.
 struct UpdateContext {
+    // Not owned: the system's parameters, valid while it runs.
     backend::graphics::IRenderer* renderer;         ///< Null before the backend started.
-    const ParticleEffectAssets& effects;            ///< The effects by id.
-    ParticleSystems& systems;                       ///< The live states.
+    const ParticleEffectAssets* effects;            ///< The effects by id.
+    ParticleSystems* systems;                       ///< The live states.
     float deltaTime;                                ///< Seconds since the previous frame.
-    ecs::EventWriter<ParticlesFinished>& finished;  ///< Where the end of one-shot emitters is told.
-    ecs::Commands& commands;                        ///< Despawns the ParticleOneShot entities.
+    ecs::EventWriter<ParticlesFinished>* finished;  ///< Where the end of one-shot emitters is told.
+    ecs::Commands* commands;                        ///< Despawns the ParticleOneShot entities.
     std::unordered_set<ecs::Entity> playing;        ///< The emitters seen this frame, for the sweep.
 };
 
 /// @brief Starts, restarts or advances @p entity's emitter, despawning it once done if it is @p oneShot.
 void updateEmitter(UpdateContext& context, ecs::Entity entity, const transform::GlobalTransform& global,
                    const ParticleEmitter& emitter, bool oneShot) {
-    const ParticleEffect* effect = context.effects.get(emitter.effect);
+    const ParticleEffect* effect = context.effects->get(emitter.effect);
     if (effect == nullptr) {
-        stopEmitter(context.systems, context.renderer, entity);
-        const ParticleEffectAssets::Entry* entry = context.effects.getEntry(emitter.effect);
+        stopEmitter(*context.systems, context.renderer, entity);
+        const ParticleEffectAssets::Entry* entry = context.effects->getEntry(emitter.effect);
         if (oneShot && entry != nullptr && !entry->value) {
-            context.commands.despawn(entity);
+            context.commands->despawn(entity);
         }
         return;
     }
     context.playing.insert(entity);
-    EmitterState* state = context.systems.find(entity);
+    EmitterState* state = context.systems->find(entity);
     if (state != nullptr && state->effect != emitter.effect) {
-        stopEmitter(context.systems, context.renderer, entity);
+        stopEmitter(*context.systems, context.renderer, entity);
         state = nullptr;
     }
     if (state == nullptr) {
-        state = &startEmitter(context.systems, context.renderer, entity, emitter, *effect);
+        state = &startEmitter(*context.systems, context.renderer, entity, emitter, *effect);
     }
 
     const std::uint32_t spawnCount =
@@ -178,9 +180,9 @@ void updateEmitter(UpdateContext& context, ecs::Entity entity, const transform::
 
     if (!state->finished && isFinished(effect->desc, *state)) {
         state->finished = true;
-        context.finished.send(ParticlesFinished{.entity = entity});
+        context.finished->send(ParticlesFinished{.entity = entity});
         if (oneShot) {
-            context.commands.despawn(entity);
+            context.commands->despawn(entity);
         }
     }
 }
@@ -193,11 +195,11 @@ void updateEmitters(
     ecs::Query<const transform::GlobalTransform, const ParticleEmitter, ecs::With<ParticleOneShot>> oneShots,
     ecs::EventWriter<ParticlesFinished> finished, ecs::Commands& commands) {
     UpdateContext context{.renderer = getRenderer(*backend),
-                          .effects = *effects,
-                          .systems = *systems,
+                          .effects = &*effects,
+                          .systems = &*systems,
                           .deltaTime = time->delta,
-                          .finished = finished,
-                          .commands = commands,
+                          .finished = &finished,
+                          .commands = &commands,
                           .playing = {}};
     for (auto [entity, global, emitter] : emitters) {
         updateEmitter(context, entity, global, emitter, false);

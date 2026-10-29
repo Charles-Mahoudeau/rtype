@@ -8,6 +8,7 @@
 #include "plugins/particle/ParticleSystems.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <format>
 #include <optional>
 #include <stdexcept>
