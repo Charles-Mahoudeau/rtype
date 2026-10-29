@@ -432,7 +432,7 @@ void VulkanRenderer::draw(const plugins::backend::graphics::ParticleDraw& partic
     const auto* instances =
         std::get_if<std::span<const plugins::backend::graphics::ParticleInstance>>(&particles.particles);
     if (instances == nullptr || instances->empty()) {
-        return;  // A GPU system: none can be created yet.
+        return;
     }
     const texture::Texture* texture = _textures.find(particles.texture);
     if (texture == nullptr) {
