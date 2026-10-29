@@ -89,7 +89,7 @@ struct ParticleDraw {
     /// they must stay valid until the renderer has drawn them).
     std::variant<ParticleSystemId, std::span<const ParticleInstance>> particles;
     TextureId texture;                      ///< Not owned, as for Sprite.
-    math::Rect source;                      ///< Part of the texture each particle shows, in pixels.
+    math::Rect source;                      ///< Part of the texture each particle shows, in pixels; empty: all of it.
     BlendMode blend{BlendMode::kAdditive};  ///< How the particles are combined with what is under them.
     ParticleAlignment alignment{ParticleAlignment::kFixed};  ///< How each particle's quad is turned.
 };
