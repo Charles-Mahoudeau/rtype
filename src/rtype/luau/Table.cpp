@@ -162,6 +162,7 @@ Result<void> Table::setAt(const std::size_t index, const Value& value) {
     return set(Value{static_cast<double>(index)}, value);
 }
 
+// ReSharper disable once CppMemberFunctionMayBeConst
 Result<void> Table::setMetatable(const Table& metatable) {
     lua_State* const target{state()};
     if (target != metatable.state()) {
@@ -180,6 +181,7 @@ Result<void> Table::setMetatable(const Table& metatable) {
     return {};
 }
 
+// ReSharper disable once CppMemberFunctionMayBeConst
 Result<void> Table::clearMetatable() {
     lua_State* const target{state()};
     if (!reserveStack(target)) {
