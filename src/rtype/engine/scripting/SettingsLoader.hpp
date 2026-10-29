@@ -8,7 +8,7 @@
 #pragma once
 
 #include <filesystem>
-#include <string>
+#include <string_view>
 
 #include "rtype/core/config/Settings.hpp"
 #include "rtype/engine/Export.hpp"
