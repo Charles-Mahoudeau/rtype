@@ -23,6 +23,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
@@ -200,6 +201,9 @@ void VulkanRenderer::createPasses() {
     auto spritePass =
         std::make_unique<rendering::SpritePass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
                                                 &_pipelineCache->getCache(), kFramesInFlight);
+    auto particlePass =
+        std::make_unique<rendering::ParticlePass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
+                                                  &_pipelineCache->getCache(), kFramesInFlight);
     auto shapePass =
         std::make_unique<rendering::ShapePass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
                                                &_pipelineCache->getCache(), kFramesInFlight);
@@ -208,6 +212,11 @@ void VulkanRenderer::createPasses() {
         _deletionQueue.defer(frameIndex, std::exchange(_spritePass, std::move(spritePass)));
     } else {
         _spritePass = std::move(spritePass);
+    }
+    if (_particlePass) {
+        _deletionQueue.defer(frameIndex, std::exchange(_particlePass, std::move(particlePass)));
+    } else {
+        _particlePass = std::move(particlePass);
     }
     if (_shapePass) {
         _deletionQueue.defer(frameIndex, std::exchange(_shapePass, std::move(shapePass)));
@@ -281,6 +290,9 @@ void VulkanRenderer::beginFrame(const plugins::backend::graphics::Color& clearCo
     }
     _view.reset();
     _sprites.clear();
+    _particleInstances.clear();
+    _particleRanges.clear();
+    _drawList.clear();
     _shapes.clear();
     if (_framebufferSize.x == 0 || _framebufferSize.y == 0) {
         return;
@@ -332,13 +344,7 @@ void VulkanRenderer::endFrame() {
         framebufferSize};
     updateFrameUniforms(view);
     _globals->bind(commandBuffer, *_layout, frameIndex);
-    _spritePass->upload(frameIndex, _sprites);
-    _spritePass->record(commandBuffer, frameIndex, _sprites.getBatches(), view.getViewport(),
-                        [this](plugins::backend::graphics::TextureId texture) {
-                            const texture::Texture* found = _textures.find(texture);
-                            return found != nullptr ? *found->set : vk::DescriptorSet{};
-                        });
-    _sprites.clear();
+    recordSpritesAndParticles(commandBuffer, frameIndex, view);
     _shapePass->record(commandBuffer, frameIndex, _shapes, view.getViewport());
     _shapes.clear();
 
@@ -419,12 +425,59 @@ void VulkanRenderer::simulate(plugins::backend::graphics::ParticleSystemId /*sys
     throw std::invalid_argument("VulkanRenderer::simulate(): the particle system was destroyed or never created");
 }
 
-void VulkanRenderer::draw(const plugins::backend::graphics::ParticleDraw& /*particles*/) {
-    if (!_acquiredImage || _particlesReported) {
+void VulkanRenderer::draw(const plugins::backend::graphics::ParticleDraw& particles) {
+    if (!_acquiredImage) {
         return;
     }
-    _particlesReported = true;
-    std::cerr << "[Vulkan] Particles are not drawn yet: they are skipped\n";
+    const auto* instances =
+        std::get_if<std::span<const plugins::backend::graphics::ParticleInstance>>(&particles.particles);
+    if (instances == nullptr || instances->empty()) {
+        return;  // A GPU system: none can be created yet.
+    }
+    const texture::Texture* texture = _textures.find(particles.texture);
+    if (texture == nullptr) {
+        throw std::invalid_argument("VulkanRenderer::draw(): the particles' texture was destroyed or never created");
+    }
+    _drawList.addParticles(static_cast<std::uint32_t>(_sprites.getBatches().size()),
+                           static_cast<std::uint32_t>(_particleRanges.size()));
+    _sprites.split();
+    _particleRanges.push_back(
+        ParticleRange{.texture = particles.texture,
+                      .constants = rendering::ParticleConstants::fromDraw(particles, texture->desc.size),
+                      .firstInstance = static_cast<std::uint32_t>(_particleInstances.size()),
+                      .instanceCount = static_cast<std::uint32_t>(instances->size())});
+    _particleInstances.insert(_particleInstances.end(), instances->begin(), instances->end());
+}
+
+void VulkanRenderer::recordSpritesAndParticles(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
+                                               const plugins::backend::graphics::CameraView& view) {
+    _spritePass->upload(frameIndex, _sprites);
+    _particlePass->upload(frameIndex, _particleInstances);
+    const std::span<const rendering::SpriteBatch::Batch> batches = _sprites.getBatches();
+    const auto findSet = [this](plugins::backend::graphics::TextureId texture) { return findTextureSet(texture); };
+    for (const rendering::DrawList::Step& step : _drawList.getSteps(static_cast<std::uint32_t>(batches.size()))) {
+        if (const auto* run = std::get_if<rendering::DrawList::SpriteRun>(&step)) {
+            _spritePass->record(commandBuffer, frameIndex, batches.subspan(run->firstBatch, run->batchCount),
+                                view.getViewport(), findSet);
+            continue;
+        }
+        const ParticleRange& range = _particleRanges.at(std::get<rendering::DrawList::ParticleStep>(step).draw);
+        _particlePass->record(commandBuffer, frameIndex,
+                              rendering::ParticlePass::Draw{.constants = range.constants,
+                                                            .textureSet = findTextureSet(range.texture),
+                                                            .firstInstance = range.firstInstance,
+                                                            .instanceCount = range.instanceCount},
+                              view.getViewport());
+    }
+    _sprites.clear();
+    _particleInstances.clear();
+    _particleRanges.clear();
+    _drawList.clear();
+}
+
+vk::DescriptorSet VulkanRenderer::findTextureSet(plugins::backend::graphics::TextureId texture) const {
+    const texture::Texture* found = _textures.find(texture);
+    return found != nullptr ? *found->set : vk::DescriptorSet{};
 }
 
 interop::vulkan::IVulkanSurfaceSource& VulkanRenderer::surfaceSourceOf(

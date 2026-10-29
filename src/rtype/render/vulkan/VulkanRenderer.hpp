@@ -50,6 +50,9 @@
 #include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
 #include "presentation/Swapchain.hpp"
+#include "rendering/DrawList.hpp"
+#include "rendering/ParticleConstants.hpp"
+#include "rendering/ParticlePass.hpp"
 #include "rendering/ShapeInstance.hpp"
 #include "rendering/ShapePass.hpp"
 #include "rendering/SpriteBatch.hpp"
@@ -193,11 +196,20 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// @throws std::invalid_argument Always: no particle system can have been created yet.
     void simulate(plugins::backend::graphics::ParticleSystemId system,
                   const plugins::backend::graphics::ParticleEmission& emission) override;
-    /// @brief Not implemented yet: CPU particles come with the particle vertex shader. Draws nothing, and says so once,
-    /// so a game with particles still runs.
+    /// @brief Draws the instances of a CPU simulation, among the sprites in call order (rendering/DrawList.hpp), with
+    /// rendering::ParticlePass. A GPU system is skipped: none can be created yet.
+    /// @throws std::invalid_argument If the texture was destroyed or never created.
     void draw(const plugins::backend::graphics::ParticleDraw& particles) override;
 
   private:
+    /// @brief A particle draw of the frame, recorded at endFrame().
+    struct ParticleRange {
+        plugins::backend::graphics::TextureId texture;  ///< Its set is found at endFrame(), as for the sprites.
+        rendering::ParticleConstants constants;         ///< Uv rect, blend mode and alignment.
+        std::uint32_t firstInstance = 0;                ///< First instance, in _particleInstances.
+        std::uint32_t instanceCount = 0;                ///< Number of instances.
+    };
+
     /// @return The platform's IVulkanSurfaceSource.
     /// @throws exceptions::UnsupportedFeatureException If the platform does not implement it.
     static interop::vulkan::IVulkanSurfaceSource& surfaceSourceOf(plugins::backend::platform::IPlatform& platform);
@@ -207,14 +219,22 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// notifies the listeners. Does nothing but keep the swapchain out of date while the window is minimized.
     void recreateSwapchain();
 
-    /// @brief Builds the sprite and shape passes for the swapchain's image format, deferring the previous ones (their
-    /// pipelines render into the old format) to the deletion queue.
+    /// @brief Builds the sprite, particle and shape passes for the swapchain's image format, deferring the previous
+    /// ones (their pipelines render into the old format) to the deletion queue.
     void createPasses();
 
     /// @brief Writes this frame's FrameUniforms (time, delta time, swapchain extent, @p view's matrix) into its uniform
     /// buffer.
     /// @warning Only after the frame's fence was waited for: the GPU may still read the buffer before.
     void updateFrameUniforms(const plugins::backend::graphics::CameraView& view);
+
+    /// @brief Uploads the frame's sprites and particles, and records them in the order of _drawList, into @p view's
+    /// viewport.
+    void recordSpritesAndParticles(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
+                                   const plugins::backend::graphics::CameraView& view);
+
+    /// @return The descriptor set of @p texture, or a null handle if it no longer exists.
+    [[nodiscard]] vk::DescriptorSet findTextureSet(plugins::backend::graphics::TextureId texture) const;
 
     /// @return The frame in flight whose fence covers every use recorded so far: the current one while a frame is
     /// recorded, the previous one between frames. What the GPU may still use is deferred to it.
@@ -249,7 +269,9 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     std::optional<plugins::backend::graphics::View> _view;  ///< From setView(); reset by beginFrame().
     rendering::SpriteBatch _sprites;                        ///< The frame's sprites; cleared by beginFrame().
     std::vector<rendering::ShapeInstance> _shapes;          ///< The frame's shapes; cleared by beginFrame().
-    bool _particlesReported = false;  ///< draw(ParticleDraw) said once that particles are not drawn yet.
+    std::vector<plugins::backend::graphics::ParticleInstance> _particleInstances;  ///< The frame's CPU particles.
+    std::vector<ParticleRange> _particleRanges;  ///< The frame's particle draws; cleared by beginFrame().
+    rendering::DrawList _drawList;               ///< Where the particle draws sit among the sprite batches.
 
     // 2. Context: created by init(), in this order.
     std::optional<core::Instance> _instance;                ///< The VkInstance.
@@ -278,6 +300,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
                                                          ///< pipeline: sets 0 and 1, and the DrawConstants.
     std::unique_ptr<rendering::SpritePass> _spritePass;  ///< Draws _sprites at endFrame().
     std::unique_ptr<rendering::ShapePass> _shapePass;    ///< Draws _shapes at endFrame(), after the sprites.
+    std::unique_ptr<rendering::ParticlePass> _particlePass;  ///< Draws _particleRanges at endFrame(), among _sprites.
     core::SlotMap<plugins::backend::graphics::TextureId, texture::Texture> _textures;  ///< By TextureId.
 
     // 7. Deferred deletion.
