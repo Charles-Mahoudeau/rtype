@@ -59,7 +59,7 @@ core::config::Settings makeSettings() {
 #else
     settingsLoader.setFlag("isDebug", true);
 #endif
-    settingsLoader.load("game/project.luau");
+    settingsLoader.load("examples/games/rtype_duel/game/project.luau");
     return settingsLoader.build();
 }
 
