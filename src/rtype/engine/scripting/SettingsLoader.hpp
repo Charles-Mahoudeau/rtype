@@ -12,6 +12,7 @@
 
 #include "rtype/core/config/Settings.hpp"
 #include "rtype/engine/Export.hpp"
+#include "rtype/luau/Function.hpp"
 #include "rtype/luau/Runtime.hpp"
 #include "rtype/luau/Table.hpp"
 
@@ -66,5 +67,8 @@ class RTYPE_ENGINE_API SettingsLoader {
     luau::Runtime _runtime;      ///< The sandboxed runtime the scripts run in.
     luau::Table _engineTable;    ///< The `engine` global.
     luau::Table _settingsTable;  ///< `engine.settings`, flattened by build().
+    luau::Table
+        _groupMetatable;  ///< The metatable of `engine.settings` and of every group: its `__index` is _createGroup.
+    luau::Function _createGroup;  ///< The native `__index` of _groupMetatable, which creates the missing groups.
 };
 }  // namespace rtype::engine::scripting

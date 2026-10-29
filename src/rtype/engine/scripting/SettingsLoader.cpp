@@ -16,35 +16,21 @@
 
 #include "rtype/core/config/Settings.hpp"
 #include "rtype/engine/Exceptions.hpp"
+#include "rtype/luau/CallContext.hpp"
+#include "rtype/luau/Function.hpp"
 #include "rtype/luau/Result.hpp"
 #include "rtype/luau/Runtime.hpp"
 #include "rtype/luau/RuntimeConfig.hpp"
 #include "rtype/luau/Script.hpp"
 #include "rtype/luau/Table.hpp"
 #include "rtype/luau/Value.hpp"
+#include "rtype/luau/ValuePack.hpp"
 
 namespace {
-/// The Luau that makes a table create its missing children when read, so `a.b.c = 1` works without declaring `a.b`.
-/// `setmetatable` and `rawset` are captured first: the globals are removed once this has run.
-constexpr auto kVivifySource = R"(
-local setmetatable, rawset = setmetatable, rawset
-local function vivify(table)
-    return setmetatable(table, {
-        __index = function(self, key)
-            local child = vivify({})
-            rawset(self, key, child)
-            return child
-        end,
-    })
-end
-vivify(engine.settings)
-)";
-
-/// @return A runtime with the standard library opened (the vivifying prelude needs `setmetatable`), to be stripped by
-/// removeLibraries(); without optimization: project scripts only assign settings.
+/// @return A runtime with no standard library and no optimization: project scripts only assign settings.
 rtype::luau::Runtime createRuntime() {
     constexpr rtype::luau::RuntimeConfig config{
-        .libs = rtype::luau::RuntimeConfig::Libs::kStandard,
+        .libs = rtype::luau::RuntimeConfig::Libs::kNone,
         .optimizationLevel = rtype::luau::RuntimeConfig::OptimizationLevel::kDisabled,
     };
     return rtype::luau::expect(rtype::luau::Runtime::create(config));
@@ -133,26 +119,37 @@ void addTable(rtype::core::config::Settings& settings, const rtype::luau::Table&
         addValue(settings, value, prefix.empty() ? *part : std::format("{}.{}", prefix, *part));
     }
 }
-
-/// Sets every global but `engine` to nil, so scripts see no standard library.
-void removeLibraries(rtype::luau::Table globals) {
-    for (const auto& [name, value] : rtype::luau::expect(globals.entries())) {
-        const auto* key = name.tryAs<std::string>();
-
-        if (key != nullptr && *key != "engine") {
-            rtype::luau::expect(globals.set(*key, rtype::luau::Value{rtype::luau::Value::Nil{}}));
-        }
-    }
-}
 }  // namespace
 
 namespace rtype::engine::scripting {
 SettingsLoader::SettingsLoader()
-    : _runtime{createRuntime()}, _engineTable{createTable(_runtime)}, _settingsTable{createTable(_runtime)} {
-    rtype::luau::expect(_engineTable.set("settings", {_settingsTable}));
-    rtype::luau::expect(_runtime.globals().set("engine", luau::Value{_engineTable}));
-    rtype::luau::expect(_runtime.run(rtype::luau::expect(_runtime.load("settings-vivify", kVivifySource))));
-    removeLibraries(_runtime.globals());
+    : _runtime{createRuntime()},
+      _engineTable{createTable(_runtime)},
+      _settingsTable{createTable(_runtime)},
+      _groupMetatable{createTable(_runtime)},
+      _createGroup{luau::Function::create(_runtime.state(), "settings.__index")} {
+    // `__index(group, key)` runs when a script reads a key a group does not have: it stores an empty group under it
+    // and returns it, with the same metatable, so that `a.b.c = 1` works at any depth.
+    _createGroup.setHandler([state = _runtime.state(), metatable = _groupMetatable](const luau::CallContext& context) {
+        const auto args = context.args();
+        const auto* groupHandle = args.size() == 2 ? args[0].tryAs<luau::Table>() : nullptr;
+
+        if (groupHandle == nullptr) {
+            throw exceptions::RuntimeError{"the settings groups expect to be indexed by a key"};
+        }
+        luau::Table child = luau::expect(luau::Table::create(state));
+        luau::Table group = *groupHandle;
+        luau::ValuePack result;
+
+        luau::expect(child.setMetatable(metatable));
+        luau::expect(group.set(args[1], luau::Value{child}));
+        result.add(luau::Value{child});
+        return result;
+    });
+    luau::expect(_groupMetatable.set("__index", luau::Value{_createGroup.ref()}));
+    luau::expect(_settingsTable.setMetatable(_groupMetatable));
+    luau::expect(_engineTable.set("settings", {_settingsTable}));
+    luau::expect(_runtime.globals().set("engine", luau::Value{_engineTable}));
 }
 
 // ReSharper disable once CppMemberFunctionMayBeConst
