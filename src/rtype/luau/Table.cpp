@@ -14,6 +14,7 @@
 #include <exception>
 #include <format>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -159,6 +160,54 @@ Result<void> Table::set(const std::string_view key, const Value& value) { return
 
 Result<void> Table::setAt(const std::size_t index, const Value& value) {
     return set(Value{static_cast<double>(index)}, value);
+}
+
+// ReSharper disable once CppMemberFunctionMayBeConst
+Result<void> Table::setMetatable(const Table& metatable) {
+    lua_State* const target{state()};
+    if (target != metatable.state()) {
+        return Failure{ErrorKind::kRuntime, "the metatable belongs to another Lua state"};
+    }
+    if (!reserveStack(target)) {
+        return stackOverflow();
+    }
+    const StackGuard guard{target};
+    _ref->push(target);
+    if (lua_getreadonly(target, -1) != 0) {
+        return Failure{ErrorKind::kRuntime, "attempt to modify a readonly table"};
+    }
+    metatable._ref->push(target);
+    lua_setmetatable(target, -2);
+    return {};
+}
+
+// ReSharper disable once CppMemberFunctionMayBeConst
+Result<void> Table::clearMetatable() {
+    lua_State* const target{state()};
+    if (!reserveStack(target)) {
+        return stackOverflow();
+    }
+    const StackGuard guard{target};
+    _ref->push(target);
+    if (lua_getreadonly(target, -1) != 0) {
+        return Failure{ErrorKind::kRuntime, "attempt to modify a readonly table"};
+    }
+    lua_pushnil(target);
+    lua_setmetatable(target, -2);
+    return {};
+}
+
+Result<std::optional<Table>> Table::metatable() const {
+    lua_State* const target{state()};
+    if (!reserveStack(target)) {
+        return stackOverflow();
+    }
+    const StackGuard guard{target};
+    _ref->push(target);
+    if (lua_getmetatable(target, -1) == 0) {
+        return std::optional<Table>{};
+    }
+    return std::optional{Table{Ref{target, -1}}};
 }
 
 Result<bool> Table::has(const Value& key) const {

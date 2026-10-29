@@ -11,9 +11,11 @@
 #include <limits>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
+#include "rtype/luau/CallContext.hpp"
 #include "rtype/luau/ErrorKind.hpp"
 #include "rtype/luau/Exceptions.hpp"
 #include "rtype/luau/Function.hpp"
@@ -533,4 +535,85 @@ TEST(Table, FunctionFailsForAnotherType) {
     EXPECT_EQ(function.error().kind(), ErrorKind::kTypeMismatch);
     ASSERT_FALSE(ref);
     EXPECT_EQ(ref.error().kind(), ErrorKind::kTypeMismatch);
+}
+
+TEST(Table, HasNoMetatableByDefault) {
+    const auto runtime = makeRuntime();
+    const Table table = Table::create(runtime.state()).value();
+
+    EXPECT_FALSE(table.metatable().value());
+}
+
+TEST(Table, MetatableReturnsTheTableThatWasSet) {
+    const auto runtime = makeRuntime();
+    Table table = Table::create(runtime.state()).value();
+    const Table metatable = Table::create(runtime.state()).value();
+
+    ASSERT_TRUE(table.setMetatable(metatable));
+
+    const auto read = table.metatable().value();
+    ASSERT_TRUE(read);
+    EXPECT_TRUE(read->refersToSame(metatable).value());
+}
+
+TEST(Table, ClearMetatableRemovesIt) {
+    const auto runtime = makeRuntime();
+    Table table = Table::create(runtime.state()).value();
+
+    ASSERT_TRUE(table.setMetatable(Table::create(runtime.state()).value()));
+    ASSERT_TRUE(table.clearMetatable());
+
+    EXPECT_FALSE(table.metatable().value());
+}
+
+TEST(Table, SetMetatableRejectsATableOfAnotherState) {
+    const auto runtime = makeRuntime();
+    const auto foreign = makeRuntime();
+    Table table = Table::create(runtime.state()).value();
+    const Table metatable = Table::create(foreign.state()).value();
+
+    const auto result = table.setMetatable(metatable);
+
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().kind(), ErrorKind::kRuntime);
+    EXPECT_FALSE(table.metatable().value());
+}
+
+TEST(Table, ScriptsRunTheIndexMetamethodButRawReadsDoNot) {
+    const auto runtime = makeRuntime();
+    lua_State* const state = runtime.state();
+    Table table = Table::create(state).value();
+    Table metatable = Table::create(state).value();
+    Function index = Function::create(state, "index");
+
+    index.setHandler([](const rtype::luau::CallContext&) {
+        ValuePack answer;
+
+        answer.add(Value{42.0});
+        return answer;
+    });
+    ASSERT_TRUE(metatable.set("__index", Value{index.ref()}));
+    ASSERT_TRUE(table.setMetatable(metatable));
+
+    const ValuePack results = run(runtime, "return (...).missing", [&] {
+        ValuePack args;
+        args.add(Value{table});
+        return args;
+    }());
+
+    ASSERT_EQ(results.size(), 1U);
+    EXPECT_DOUBLE_EQ(results.values()[0].as<double>(), 42.0);
+    EXPECT_TRUE(table.get("missing")->is<Value::Nil>());
+    EXPECT_FALSE(table.has("missing").value());
+}
+
+TEST(Table, MovedFromHandleThrowsInvalidRefOnMetatableAccess) {
+    const auto runtime = makeRuntime();
+    Table source = Table::create(runtime.state()).value();
+    const Table moved{std::move(source)};
+
+    // NOLINTBEGIN(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
+    EXPECT_THROW(std::ignore = source.metatable(), rtype::luau::exceptions::InvalidRef);
+    EXPECT_THROW(std::ignore = source.clearMetatable(), rtype::luau::exceptions::InvalidRef);
+    // NOLINTEND(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
 }

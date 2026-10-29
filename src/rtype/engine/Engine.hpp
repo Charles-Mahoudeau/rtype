@@ -10,7 +10,6 @@
 #include <filesystem>
 
 #include "Export.hpp"
-#include "ProjectSettings.hpp"
 #include "rtype/ecs/app/App.hpp"
 
 namespace rtype::engine {
@@ -23,12 +22,6 @@ class RTYPE_ENGINE_API Engine {
     Engine& operator=(const Engine&) = delete;
     Engine(Engine&&) = delete;
     Engine& operator=(Engine&&) = delete;
-
-    /// @brief Runs the project script and collects the settings it declares.
-    /// @param path Path of the Luau project script.
-    /// @return The settings set by the script.
-    /// @throws std::runtime_error If the script cannot be loaded or run.
-    [[nodiscard]] static ProjectSettings loadProjectSettings(const std::filesystem::path& path);
 
   private:
     ecs::App _app;  ///< The application the engine will drive.

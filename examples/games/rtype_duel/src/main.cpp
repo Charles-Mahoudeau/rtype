@@ -19,7 +19,9 @@
 #include "Client.hpp"
 #include "Constants.hpp"
 #include "Server.hpp"
+#include "rtype/core/config/Settings.hpp"
 #include "rtype/engine/Engine.hpp"
+#include "rtype/engine/scripting/SettingsLoader.hpp"
 
 // A two-player duel, the most basic game the engine can run: each player moves a ship in their half of the arena and
 // fires lasers; the first laser that touches the other ship wins. Obstacles in the middle stop the lasers, and the
@@ -53,8 +55,6 @@ std::uint16_t toPort(std::string_view text) {
 int main(const int argc, char** argv) {
     try {
         const std::span args{argv, static_cast<std::size_t>(argc)};
-        const rtype::engine::ProjectSettings projectSettings =
-            rtype::engine::Engine::loadProjectSettings("game/project.luau");
 
         const auto arg = [&args](const std::size_t index, const std::string_view fallback) {
             return index < args.size() ? std::string_view{args.subspan(index).front()} : fallback;
@@ -64,7 +64,7 @@ int main(const int argc, char** argv) {
             return rtype_duel::runServer(toPort(arg(2, "")));
         }
         if (mode == "client") {
-            return rtype_duel::runClient(projectSettings, std::string{arg(2, "127.0.0.1")}, toPort(arg(3, "")));
+            return rtype_duel::runClient(std::string{arg(2, "127.0.0.1")}, toPort(arg(3, "")));
         }
         std::cerr << "Usage: rtype_duel server [port] | rtype_duel client [host] [port]\n";
         return 1;

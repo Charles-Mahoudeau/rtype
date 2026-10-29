@@ -1,5 +1,6 @@
 includes("core")
 includes("ecs")
+includes("engine")
 includes("luau")
 includes("network")
 includes("plugins")

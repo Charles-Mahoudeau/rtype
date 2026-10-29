@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -35,7 +36,8 @@ class Value;
 /// the handle must not outlive the `Runtime` of its state.
 ///
 /// Keys and values are `Value`s. Reads and writes are raw: metatables (`__index`, `__newindex`) are bypassed, so
-/// they never run script code and never raise a Luau error. A table cannot be used from several threads at once,
+/// they never run script code and never raise a Luau error; a metatable only affects what scripts do with the table
+/// (see `setMetatable()`). A table cannot be used from several threads at once,
 /// like the state it belongs to.
 class RTYPE_LUAU_API Table {
   public:
@@ -117,6 +119,26 @@ class RTYPE_LUAU_API Table {
     /// @param value Value to store.
     /// @return Same as `set(const Value&, const Value&)`.
     [[nodiscard]] Result<void> setAt(std::size_t index, const Value& value);
+
+    /// @brief Sets the metatable of the table, replacing the previous one.
+    ///
+    /// Scripts then see the metamethods (`__index`, `__newindex`...) of @p metatable when they use this table; C++
+    /// reads and writes through `Table` still ignore them.
+    /// @param metatable The table holding the metamethods; it must belong to the same Lua state.
+    /// @return Nothing on success, or a Failure of kind `kStackOverflow` if the stack cannot grow enough, or of kind
+    ///         `kRuntime` if @p metatable belongs to another Lua state or this table is read-only.
+    /// @throws exceptions::InvalidRef If a handle was moved from.
+    [[nodiscard]] Result<void> setMetatable(const Table& metatable);
+    /// @brief Removes the metatable of the table, if it has one.
+    /// @return Nothing on success, or a Failure of kind `kStackOverflow` if the stack cannot grow enough, or of kind
+    ///         `kRuntime` if the table is read-only.
+    /// @throws exceptions::InvalidRef If the handle was moved from.
+    [[nodiscard]] Result<void> clearMetatable();
+    /// @brief Gets the metatable of the table.
+    /// @return A handle on the metatable (the live table, not a copy), or `std::nullopt` if the table has none, or a
+    ///         Failure of kind `kStackOverflow` if the stack cannot grow enough.
+    /// @throws exceptions::InvalidRef If the handle was moved from.
+    [[nodiscard]] Result<std::optional<Table>> metatable() const;
 
     /// @brief Checks whether a key has a value (not `nil`) in the table.
     /// @param key Key to look up.
