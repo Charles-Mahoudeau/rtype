@@ -130,22 +130,17 @@ SettingsLoader::SettingsLoader()
       _createGroup{luau::Function::create(_runtime.state(), "settings.__index")} {
     // `__index(group, key)` runs when a script reads a key a group does not have: it stores an empty group under it
     // and returns it, with the same metatable, so that `a.b.c = 1` works at any depth.
-    _createGroup.setHandler([state = _runtime.state(), metatable = _groupMetatable](const luau::CallContext& context) {
-        const auto args = context.args();
-        const auto* groupHandle = args.size() == 2 ? args[0].tryAs<luau::Table>() : nullptr;
+    _createGroup.bind(
+        [state = _runtime.state(), metatable = _groupMetatable](const luau::Table& group, const std::string& key) {
+            luau::Table parent = group;
+            luau::Table child = luau::expect(luau::Table::create(state));
+            luau::ValuePack result;
 
-        if (groupHandle == nullptr) {
-            throw exceptions::RuntimeError{"the settings groups expect to be indexed by a key"};
-        }
-        luau::Table child = luau::expect(luau::Table::create(state));
-        luau::Table group = *groupHandle;
-        luau::ValuePack result;
-
-        luau::expect(child.setMetatable(metatable));
-        luau::expect(group.set(args[1], luau::Value{child}));
-        result.add(luau::Value{child});
-        return result;
-    });
+            luau::expect(child.setMetatable(metatable));
+            luau::expect(parent.set(key, luau::Value{child}));
+            result.add(luau::Value{child});
+            return result;
+        });
     luau::expect(_groupMetatable.set("__index", luau::Value{_createGroup.ref()}));
     luau::expect(_settingsTable.setMetatable(_groupMetatable));
     luau::expect(_engineTable.set("settings", {_settingsTable}));
