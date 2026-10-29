@@ -166,6 +166,10 @@ TEST(SettingsLoader, RejectsAnArrayMixedWithNamedKeys) {
 
 TEST(SettingsLoader, RejectsANonStringKey) { EXPECT_THROW(run("engine.settings.group = { [10] = 1 }"), RuntimeError); }
 
+TEST(SettingsLoader, RejectsReadingAGroupByANonStringKey) {
+    EXPECT_THROW(run("local _ = engine.settings[1]"), rtype::luau::exceptions::RuntimeError);
+}
+
 TEST(SettingsLoader, NamesTheOffendingSettingInTheError) {
     try {
         run("engine.settings.window.title = function() end");
