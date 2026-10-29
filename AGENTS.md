@@ -50,9 +50,9 @@ are added.
   Exported symbols are marked `RTYPE_REPLICATION_API`. Feature folders and sub-namespaces as in `network`:
   `component/`, `event/`, `serialization/`, `manifest/`, `input/`, `snapshot/`, `server/`, `client/`,
   `packet/`, `exceptions/`.
-- `src/rtype/engine/` — `engine` target: the executable, built from `main.cpp` only. It fills the backend registry
-  with `platform-glfw` and `render-vulkan`, the audio registry with `audio-miniaudio`, and runs an `App` with the
-  plugins.
+- `src/rtype/engine/` — `engine` target, shared library (`rtype-engine`): `Engine` and the project settings read from
+  `game/project.luau` through Luau (`ProjectSettings`). Exported symbols are marked `RTYPE_ENGINE_API`. There is no
+  executable in `src/` for now: the runnable game is the example `examples/games/rtype_duel`.
 - `src/rtype/plugins/` — `plugins` target, static library (`rtype-plugins`): the engine, as ECS plugins, one folder
   per plugin, included as `plugins/<name>/<File>.hpp`, namespace `rtype::plugins::<name>`. Each plugin keeps its own
   code and declares its own components, resources and events (`RTYPE_ECS_*`). `Export.hpp` holds
@@ -157,11 +157,11 @@ and `luau` glob
 Dependencies always point towards `ecs` and `plugins`, never away from them:
 
 ```
-core ←  ecs, plugins, platform-*, render-*, audio-*, engine (executable)
-ecs  ←  plugins, interop-*  ←  platform-*, render-*  ←  engine (executable)
-        plugins             ←  audio-*             ←  engine (executable)
-luau                                                 ←  engine (executable)
-network  ←  replication  ←  engine (executable)
+core ←  ecs, plugins, platform-*, render-*, audio-*, examples (rtype_duel)
+ecs  ←  plugins, interop-*  ←  platform-*, render-*  ←  examples (rtype_duel)
+        plugins             ←  audio-*             ←  examples (rtype_duel)
+luau                                                 ←  examples (rtype_duel)
+network  ←  replication  ←  examples (rtype_duel)
 ecs      ←  replication
 ```
 
@@ -187,7 +187,7 @@ ecs      ←  replication
 - A platform module and a renderer module never depend on each other: what a renderer needs from a
   window that is specific to its graphics API goes through the matching `interop-*` target, which
   both sides depend on (see `docs/Backend.md`).
-- Only the `engine` executable (and examples) link everything together.
+- Only the examples (such as `rtype_duel`) link everything together; `engine` links `ecs` and `luau` only.
 
 ## Commands
 
@@ -196,7 +196,8 @@ The project uses `xmake` with the `clang` toolchain and C++23.
 - Configure: `xmake f -y` (add `-m release` for a release build)
 - Build everything: `xmake build -y`
 - Build one target: `xmake build engine`
-- Run the engine: `xmake run engine`
+- Run the duel game (example): `xmake f -y --rtype_duel=y`, then `xmake run rtype_duel server` and
+  `xmake run rtype_duel client`
 - Enable examples, then rebuild: `xmake f --AllExamples=y` enables every discovered example. For
   now `--AllVulkanExamples=y`, `--AllLuauExamples=y` and `--AllEcsExamples=y` behave the same way (the
   root `xmake.lua` does not filter by category yet), so each also enables every discovered example. To

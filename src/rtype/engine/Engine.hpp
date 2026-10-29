@@ -9,12 +9,13 @@
 
 #include <filesystem>
 
+#include "Export.hpp"
 #include "ProjectSettings.hpp"
 #include "rtype/ecs/app/App.hpp"
 
 namespace rtype::engine {
 /// @brief Entry point of the engine: owns the application and loads the project settings.
-class Engine {
+class RTYPE_ENGINE_API Engine {
   public:
     Engine() = default;
     ~Engine() = default;

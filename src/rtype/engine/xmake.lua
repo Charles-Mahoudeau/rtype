@@ -1,8 +1,9 @@
--- The executable: wires the plugins with the platform, the renderer and the scripting.
+-- The engine: loads the project settings (Luau) and, later, owns the application.
 target("engine")
-    set_kind("binary")
-    add_deps("core", "plugins", "platform-glfw", "luau", "render-vulkan", "replication", "audio-miniaudio")
+    set_kind("shared")
+    set_basename("rtype-engine")
+    add_deps("ecs", "luau")
     add_files("**.cpp")
     add_headerfiles("**.hpp")
-    add_includedirs("$(projectdir)/src")
-    set_rundir("$(projectdir)")
+    add_defines("RTYPE_ENGINE_BUILD", {public = false})
+    add_includedirs("$(projectdir)/src", {public = true})
