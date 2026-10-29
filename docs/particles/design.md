@@ -259,29 +259,42 @@ struct ParticleEmitter {
     bool playing{true};               ///< false stops emitting; living particles finish their life.
     std::int32_t layer{0};            ///< Draw order among the sprites.
     float rateScale{1.0F};            ///< Multiplies the effect's rate: more smoke as a ship gets damaged.
-    std::optional<graphics::ParticleSimulation> simulation;  ///< Overrides the effect's choice.
+    bool overrideSimulation{false};   ///< true: simulation replaces the effect's choice.
+    graphics::ParticleSimulation simulation{graphics::ParticleSimulation::kAuto};  ///< If overridden.
     std::uint32_t seed{0};            ///< 0: picked when it starts.
 };
+
+/// @brief Despawns its entity once its emitter has finished, as the component "rtype.ParticleOneShot".
+struct ParticleOneShot {};
 ```
+
+- **The override is a flag and a value,** not a `std::optional`: the ECS reflects no `std::optional`, and every field
+  of the emitter is reflected (Luau, the editor). `ParticleSimulation` is reflected as a `u8`.
+- **`ParticleOneShot`** is for fire-and-forget effects: its entity is despawned once `ParticlesFinished` is sent for
+  it, or at once if its effect cannot be read. Its effect must not loop, or the entity stays.
 
 - **`ParticleEffectAssets`** (resource `rtype.ParticleEffectAssets`) keeps the effects by `AssetId`: `add(name,
   effect)` for an effect built in C++, `load(path)` for a file, read by the loader registered for its extension
   ([Luau](#12-luau)).
 - **`ParticleSystems`** (resource `rtype.ParticleSystems`) keeps each emitter's live state, by entity: its clock and
-  spawn accumulator, and either its CPU pool or its `ParticleSystemId`. It is a resource rather than a component
+  spawn accumulator, the particles it emitted so far (the next `firstParticle`), and either its CPU pool or its
+  `ParticleSystemId` with the frame's `ParticleEmission`. It also picks the seeds of the emitters whose seed is 0, and
+  reports once per effect that one asking for the GPU runs on the CPU. It is a resource rather than a component
   because the ECS has no removal detection yet: a system sweeps it every frame and frees the state of the entities
   whose emitter is gone (destroying their GPU system). Observers ([`docs/ecs/features/16-hooks-and-observers.md`](../ecs/features/16-hooks-and-observers.md))
   will replace the sweep.
 - **Events:** `SpawnParticles{effect, position, layer}` plays a one-shot effect at a position without an entity (the
-  plugin spawns a short-lived one), for explosions in one line; `ParticlesFinished{entity}` is sent when a one-shot
+  plugin spawns an entity with `ParticleOneShot`, which plays from the next frame), for explosions in one line; `ParticlesFinished{entity}` is sent when a one-shot
   emitter has emitted everything and its last particle died (always known on the CPU; on the GPU, when its duration
   plus the longest lifetime has passed, without reading anything back).
 - **Systems,** all client-side (`ecs::Side::kClient`):
-    - `PostUpdate`, after the transform plugin: start and sweep emitters, advance their clocks, compute each one's
-      spawn count, and run the CPU simulation of the CPU emitters.
-    - `Render`, after `rtype.backend.camera` and before `rtype.backend.sprites`: call `simulate()` for each GPU
-      emitter, and push a `ParticleDraw` per emitter to the `SpriteQueue`, skipped when the emitter's bounds are
-      outside the `VisibleArea`.
+    - `PostUpdate` `rtype.Particle.Spawn`: spawn the entities of the `SpawnParticles` events.
+    - `PostUpdate` `rtype.Particle.Update`, after the transform plugin: start and sweep emitters (an emitter whose
+      effect changed restarts), advance their clocks, compute each one's spawn count (`computeSpawnCount()`), run the
+      CPU simulation of the CPU emitters, and send `ParticlesFinished`.
+    - `Render` `rtype.Particle.Draw`, after `rtype.backend.camera` and `rtype.Text.Draw`, before
+      `rtype.backend.sprites`: call `simulate()` for each GPU emitter, and push a `ParticleDraw` per emitter whose
+      texture is loaded to the `SpriteQueue`. Skipping the emitters outside the `VisibleArea` comes later.
 
 ## 8. The CPU simulation
 
