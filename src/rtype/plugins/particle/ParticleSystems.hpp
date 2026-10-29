@@ -67,7 +67,7 @@ class ParticleSystems {
     /// @brief Records that @p entity's emitter started, with @p state. Restarting is stop() then start().
     /// @return The stored state.
     /// @throws std::logic_error If @p entity's emitter is already playing: its GPU system would leak.
-    EmitterState& start(ecs::Entity entity, EmitterState state);
+    EmitterState& start(ecs::Entity entity, EmitterState&& state);
 
     /// @brief Forgets @p entity's emitter.
     /// @return Its state, whose GPU system the caller destroys; nothing if it was not playing.

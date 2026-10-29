@@ -39,7 +39,7 @@ class CpuSimulation {
   public:
     /// @brief Bakes the curves of @p desc, and reserves its capacity.
     /// @throws backend::exceptions::ParticleException If @p desc is invalid (backend::graphics::validate()).
-    explicit CpuSimulation(const backend::graphics::ParticleSystemDesc& desc);
+    explicit CpuSimulation(backend::graphics::ParticleSystemDesc desc);
     ~CpuSimulation() = default;
     CpuSimulation(const CpuSimulation& other) = default;
     CpuSimulation& operator=(const CpuSimulation& other) = default;

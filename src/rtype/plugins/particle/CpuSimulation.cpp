@@ -14,6 +14,7 @@
 #include <glm/ext/vector_float2.hpp>
 #include <numbers>
 #include <span>
+#include <utility>
 #include <variant>
 
 #include "plugins/backend/graphics/Particle.hpp"
@@ -41,7 +42,7 @@ glm::vec2 rotate(glm::vec2 vector, float angle) {
 
 }  // namespace
 
-CpuSimulation::CpuSimulation(const backend::graphics::ParticleSystemDesc& desc) : _desc{desc} {
+CpuSimulation::CpuSimulation(backend::graphics::ParticleSystemDesc desc) : _desc{std::move(desc)} {
     backend::graphics::validate(_desc);
     _colorOverLife = backend::graphics::bakeGradient(_desc.colorOverLife);
     _sizeOverLife = backend::graphics::bakeCurve(_desc.sizeOverLife);
@@ -110,7 +111,7 @@ void CpuSimulation::update(float deltaTime) {
     const float dragFactor = std::exp(-_desc.drag * deltaTime);
     std::size_t i = 0;
     while (i < _particles.size()) {
-        Particle& particle = _particles[i];
+        Particle& particle = _particles.at(i);
         particle.age += deltaTime;
         if (particle.age >= particle.lifetime) {
             particle = _particles.back();
@@ -129,9 +130,9 @@ void CpuSimulation::writeInstances(glm::vec2 emitterPosition) {
     const bool local = _desc.space == backend::graphics::ParticleSpace::kLocal;
     _instances.resize(_particles.size());
     for (std::size_t i = 0; i < _particles.size(); ++i) {
-        const Particle& particle = _particles[i];
+        const Particle& particle = _particles.at(i);
         const float t = particle.age / particle.lifetime;
-        backend::graphics::ParticleInstance& instance = _instances[i];
+        backend::graphics::ParticleInstance& instance = _instances.at(i);
         instance.color = _desc.color * backend::graphics::sampleBaked(_colorOverLife, t);
         instance.position = local ? emitterPosition + particle.position : particle.position;
         instance.velocity = particle.velocity * backend::graphics::sampleBaked(_speedOverLife, t);

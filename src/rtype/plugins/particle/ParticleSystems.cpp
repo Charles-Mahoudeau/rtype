@@ -33,7 +33,7 @@ const EmitterState* ParticleSystems::find(ecs::Entity entity) const {
     return found != _emitters.end() ? &found->second : nullptr;
 }
 
-EmitterState& ParticleSystems::start(ecs::Entity entity, EmitterState state) {
+EmitterState& ParticleSystems::start(ecs::Entity entity, EmitterState&& state) {
     const auto [stored, inserted] = _emitters.try_emplace(entity, std::move(state));
     if (!inserted) {
         throw std::logic_error{std::format(
