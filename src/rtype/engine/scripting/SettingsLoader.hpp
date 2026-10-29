@@ -17,7 +17,8 @@
 #include "rtype/luau/Table.hpp"
 
 namespace rtype::engine::scripting {
-/// @brief Reads the project settings from a Luau script (`game/project.luau`) into a core::config::Settings.
+/// @brief Reads the project settings from a Luau script (`examples/games/rtype_duel/game/project.luau`) into a
+/// core::config::Settings.
 ///
 /// @details The script runs in a sandboxed runtime (no standard library) and sees one global, `engine`:
 /// - `engine.<flag>`: the booleans given to setFlag() (`engine.isClient`, `engine.isDebug`...);

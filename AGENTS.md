@@ -51,8 +51,9 @@ are added.
   `component/`, `event/`, `serialization/`, `manifest/`, `input/`, `snapshot/`, `server/`, `client/`,
   `packet/`, `exceptions/`.
 - `src/rtype/engine/` — `engine` target, shared library (`rtype-engine`): `Engine` and the project settings read from
-  `game/project.luau` through Luau (`ProjectSettings`). Exported symbols are marked `RTYPE_ENGINE_API`. There is no
-  executable in `src/` for now: the runnable game is the example `examples/games/rtype_duel`.
+  `examples/games/rtype_duel/game/project.luau` through Luau (`ProjectSettings`). Exported symbols are marked
+  `RTYPE_ENGINE_API`. There is no executable in `src/` for now: the runnable game is the example
+  `examples/games/rtype_duel`.
 - `src/rtype/plugins/` — `plugins` target, static library (`rtype-plugins`): the engine, as ECS plugins, one folder
   per plugin, included as `plugins/<name>/<File>.hpp`, namespace `rtype::plugins::<name>`. Each plugin keeps its own
   code and declares its own components, resources and events (`RTYPE_ECS_*`). `Export.hpp` holds
