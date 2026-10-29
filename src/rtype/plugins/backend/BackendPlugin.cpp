@@ -41,6 +41,7 @@
 #include "plugins/backend/graphics/VisibleArea.hpp"
 #include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputPlugin.hpp"
+#include "plugins/particle/ParticlePlugin.hpp"
 #include "plugins/sprite/SpritePlugin.hpp"
 #include "plugins/text/TextPlugin.hpp"
 #include "plugins/tilemap/TilemapPlugin.hpp"
@@ -246,6 +247,7 @@ void BackendPlugin::build(ecs::App& app) {
     app.addPlugin(plugins::sprite::SpritePlugin{});
     app.addPlugin(plugins::tilemap::TilemapPlugin{});
     app.addPlugin(plugins::text::TextPlugin{});
+    app.addPlugin(plugins::particle::ParticlePlugin{});
     ecs::Events& events = app.getWorld().getEvents();
     registerEvent<plugins::backend::event::PlatformEvent>(events);
     registerEvent<plugins::backend::event::Closed>(events);
