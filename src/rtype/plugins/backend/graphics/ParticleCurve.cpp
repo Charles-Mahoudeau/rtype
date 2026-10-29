@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <format>
 #include <glm/common.hpp>
+#include <iterator>
 #include <string_view>
 #include <vector>
 
@@ -25,13 +26,13 @@ namespace {
 template <typename Key>
 void validateKeys(const std::vector<Key>& keys, std::string_view what) {
     for (std::size_t i = 0; i < keys.size(); ++i) {
-        const float t = keys[i].t;
+        const float t = keys.at(i).t;
         if (std::isnan(t) || t < 0.0F || t > 1.0F) {
             throw exceptions::ParticleException{std::format("{} key {} has t = {}, outside [0, 1]", what, i, t)};
         }
-        if (i > 0 && t < keys[i - 1].t) {
+        if (i > 0 && t < keys.at(i - 1).t) {
             throw exceptions::ParticleException{std::format(
-                "{} keys are not sorted by t: key {} (t = {}) comes after t = {}", what, i, t, keys[i - 1].t)};
+                "{} keys are not sorted by t: key {} (t = {}) comes after t = {}", what, i, t, keys.at(i - 1).t)};
         }
     }
 }
@@ -79,7 +80,10 @@ Value sampleTable(const std::array<Value, kParticleCurveSamples>& table, float t
     }
     const float position = t * static_cast<float>(kParticleCurveSamples - 1);
     const auto index = static_cast<std::size_t>(position);
-    return glm::mix(table.at(index), table.at(index + 1), position - static_cast<float>(index));
+    // In range (t is in (0, 1)), read without at(), which could throw in this noexcept function.
+    const Value& before = *std::next(table.begin(), static_cast<std::ptrdiff_t>(index));
+    const Value& after = *std::next(table.begin(), static_cast<std::ptrdiff_t>(index + 1));
+    return glm::mix(before, after, position - static_cast<float>(index));
 }
 
 }  // namespace

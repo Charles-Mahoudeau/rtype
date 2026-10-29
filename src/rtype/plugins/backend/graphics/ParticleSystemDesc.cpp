@@ -73,7 +73,7 @@ void validate(const ParticleSystemDesc& desc) {
 
     validateNumber(desc.rate, "rate", 0.0F);
     for (std::size_t i = 0; i < desc.bursts.size(); ++i) {
-        validateBurst(desc.bursts[i], i);
+        validateBurst(desc.bursts.at(i), i);
     }
     validateNumber(desc.duration, "duration", 0.0F);
     if (desc.duration == 0.0F) {
