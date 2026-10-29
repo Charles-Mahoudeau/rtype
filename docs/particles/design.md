@@ -90,10 +90,16 @@ src/rtype/plugins/particle/           namespace rtype::plugins::particle        
 ├── CpuSimulation.hpp/.cpp            the CPU simulation of a ParticleSystemDesc
 └── exceptions/ParticleExceptions.hpp ParticleLoadException
 
+src/rtype/render/vulkan/rendering/    namespace rtype::render::vulkan::rendering       (target render-vulkan)
+├── ParticlePass.hpp/.cpp             draws the particles of both paths (particle.vert, sprite.frag reused)
+├── ParticleConstants.hpp/.cpp        what every particle of a draw shares, as push constants
+├── ParticleVertexInput.hpp/.cpp      ParticleInstance as per-instance vertex input
+└── DrawList.hpp/.cpp                 the order of the sprite batches and the particle draws of a frame
+
 src/rtype/render/vulkan/particle/     namespace rtype::render::vulkan::particle        (target render-vulkan)
 ├── GpuParticleSystem.hpp/.cpp        one GPU system: its buffers and lookup tables
-├── ParticlePass.hpp/.cpp             records emit, simulate (and later sort) for every system of the frame
-└── shaders: particle_emit.comp, particle_simulate.comp, particle.vert (sprite.frag is reused)
+├── ParticleSimulationPass.hpp/.cpp   records emit, simulate (and later sort) for every system of the frame
+└── shaders: particle_emit.comp, particle_simulate.comp
 ```
 
 - **The contract types go in `plugins/backend/graphics/`,** next to `Sprite` and `Text`, never in `render/vulkan/`:
@@ -319,6 +325,7 @@ run in order on the graphics queue, so a frame only starts on the GPU when the p
 | `particles` | One `ParticleInstance` plus age, lifetime and seed per slot, `capacity` slots |
 | `deadList` + counter | Indices of the free slots; full at creation |
 | `aliveA`, `aliveB` + counters | Indices of the live slots, read from one and written to the other, swapped each frame |
+| `instances` | The live particles as `ParticleInstance`s, packed, `capacity` at most: the draw's vertex buffer |
 | `indirectArgs` | The `VkDrawIndirectCommand` of the draw, written by the GPU |
 | curve tables | The baked curves and gradients of the desc, as a small texture |
 
@@ -327,25 +334,31 @@ run in order on the graphics queue, so a frame only starts on the GPU when the p
 1. **Emit:** `spawnCount` threads, clamped to the dead counter. Each pops a free slot with an atomic and fills it from
    the shape and the ranges, with the shared random numbers ([Keeping both paths alike](#10-keeping-both-paths-alike)).
 2. **Simulate:** one thread per particle of `aliveA`: forces, integration, ageing. A particle at the end of its life
-   goes back to `deadList`, a live one is appended to `aliveB`. The last thread to finish writes the alive count into
-   `indirectArgs` (or a one-thread dispatch does).
+   goes back to `deadList`, a live one is appended to `aliveB` and written, as it is drawn, at the same index of
+   `instances`. The last thread to finish writes the alive count into `indirectArgs` (or a one-thread dispatch does).
 3. **Sort** (later): a bitonic sort of `aliveB` by age, for `kAlpha` effects only, where the order of overlapping
    particles shows. Additive particles look the same in any order.
 4. **Barrier** (synchronization2): compute writes → `DRAW_INDIRECT` and `VERTEX_SHADER` reads.
-5. **Draw:** `vkCmdDrawIndirect`, at the system's place among the sprites. `particle.vert` reads the particle through
-   `aliveB` (vertex pulling, no vertex buffer), builds its quad, turned and stretched along its velocity for
-   `kVelocity`; `sprite.frag` shades it, with the premultiplied blend modes of the sprites.
+5. **Draw:** `vkCmdDrawIndirect` of `instances`, at the system's place among the sprites, with the pipeline of the CPU
+   instances (below).
 
-CPU instances are drawn by the same `particle.vert`, from a per-frame buffer the renderer copies them into, without
-the alive list: both paths look the same on screen.
+**Drawing, shared by both paths** (`rendering/ParticlePass`): `particle.vert` reads the `ParticleInstance`s as
+per-instance vertex attributes and builds each quad, centred on the particle, turned by its rotation (and later
+stretched along its velocity for `kVelocity`). `sprite.frag` shades it, with the premultiplied blend modes of the
+sprites. What every particle of a draw shares (uv rect, blend mode, alignment) is in push constants
+(`ParticleConstants`). The CPU instances of a frame are copied into a per-frame buffer and drawn with `vkCmdDraw`; a GPU
+system's `instances` buffer is drawn with `vkCmdDrawIndirect`. The pipeline is the same, so both paths look the same on
+screen.
 
 ### What changes in `VulkanRenderer`
 
 - **Rendering starts in `endFrame()`, not `beginFrame()`.** `beginFrame()` calls `beginRendering()` today, and a
   compute dispatch cannot be recorded inside a rendering scope. Every draw is already recorded in `endFrame()`, so
-  `beginRendering()` moves there, after `ParticlePass` has recorded the emit and simulate dispatches of the frame.
-- **The sprite pass records a draw list, not only batches.** A `ParticleDraw` between two sprites splits the batch at
-  that point; the pass records sprite batches and particle draws in the order they came.
+  `beginRendering()` moves there, after `ParticleSimulationPass` has recorded the emit and simulate dispatches of the
+  frame.
+- **The sprite pass records a draw list, not only batches** (done with the CPU drawing). A `ParticleDraw` between two
+  sprites splits the batch at that point (`SpriteBatch::split()`), and `rendering/DrawList` gives the runs of sprite
+  batches and the particle draws back in the order they came.
 - **Later:** one large particle buffer for every system with a range each, so that the emit and simulate passes are one
   dispatch for all systems instead of one per system; async compute on a dedicated queue.
 
@@ -420,11 +433,12 @@ Each step builds and is tested on its own, in this order:
    `ParticleSystemDesc`, `ParticleCurve`, `ParticleRandom`), the `IRenderer` calls with their defaults, and
    `plugins/particle/` with `CpuSimulation`, `ParticleEffectAssets`, `ParticleEmitter`, `ParticleSystems` and the
    events, unit-tested (`tests/plugins/`). Effects in C++.
-2. **Vulkan draws CPU instances:** `particle.vert`, the per-frame instance buffer. Particles work from end to end; an
-   example (`examples/plugins/particle/ParticleBasics`) shows them.
-3. **Layers:** `ParticleDraw` in the `SpriteQueue`, the draw list of the sprite pass.
-4. **Vulkan simulates:** `beginRendering()` moved to `endFrame()`, `GpuParticleSystem`, `ParticlePass`, the emit and
-   simulate shaders, draw indirect, `supportsGpuParticles()`; the fallback logic in the plugin.
+2. **Vulkan draws CPU instances:** `particle.vert`, `ParticlePass` and its per-frame instance buffer. Particles work
+   from end to end; an example (`examples/plugins/particle`) shows them.
+3. **Layers:** `ParticleDraw` in the `SpriteQueue` (done in step 1), the draw list of the sprite pass (done with step
+   2, since the particle pipeline is separate from the sprite one).
+4. **Vulkan simulates:** `beginRendering()` moved to `endFrame()`, `GpuParticleSystem`, `ParticleSimulationPass`, the
+   emit and simulate shaders, draw indirect, `supportsGpuParticles()`; the fallback logic in the plugin.
 5. **Richer effects, on both paths:** curves and gradients in lookup tables, `kVelocity` alignment, sorting for
    `kAlpha`, atlas frames over life.
 6. **Sub-emitters,** on birth and death, CPU then GPU.
