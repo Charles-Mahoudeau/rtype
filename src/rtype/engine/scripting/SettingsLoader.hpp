@@ -8,7 +8,6 @@
 #pragma once
 
 #include <filesystem>
-#include <initializer_list>
 #include <string>
 
 #include "rtype/core/config/Settings.hpp"
@@ -30,8 +29,9 @@ namespace rtype::engine::scripting {
 /// end
 /// @endcode
 /// gives `renderer`, `window.title` and `window.size`. A setting is a boolean, a number, a string, or an array of
-/// numbers or of strings; tables nest. Intermediate tables a script assigns into must exist first: declare them with
-/// declareGroups().
+/// numbers or of strings; tables nest. Groups need no declaration: reading a missing key of `engine.settings` (or of a
+/// group) creates an empty group, so `engine.settings.a.b.c = 1` works at any depth. A consequence is that reading an
+/// unset setting gives an empty table, not `nil`; empty groups store nothing.
 class RTYPE_ENGINE_API SettingsLoader {
   public:
     /// @brief Creates the sandboxed runtime and exposes the empty `engine` and `engine.settings` tables.
@@ -56,11 +56,6 @@ class RTYPE_ENGINE_API SettingsLoader {
     /// @param enabled Its value.
     /// @throws luau::exceptions::RuntimeError If the flag cannot be set.
     void setFlag(std::string_view name, bool enabled);
-
-    /// @brief Creates empty tables under `engine.settings`, so a script can write `engine.settings.<group>.<key>`.
-    /// @param groups The names of the groups; an existing group is replaced by an empty one.
-    /// @throws luau::exceptions::RuntimeError If a group cannot be created.
-    void declareGroups(std::initializer_list<std::string> groups);
 
     /// @brief Loads and runs a script, which fills `engine.settings`.
     /// @param path The Luau file to run.

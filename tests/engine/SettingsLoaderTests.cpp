@@ -44,12 +44,11 @@ class TempScript {
     std::filesystem::path _path;     ///< Where the script is written.
 };
 
-/// Runs `source` after declaring the `window` group, and returns what it set.
+/// Runs `source` and returns what it set.
 rtype::core::config::Settings run(const std::string& source) {
     SettingsLoader loader;
     const TempScript script{source};
 
-    loader.declareGroups({"window"});
     loader.load(script.path());
     return loader.build();
 }
@@ -93,8 +92,18 @@ TEST(SettingsLoader, StoresNumberAndStringArrays) {
     EXPECT_EQ(settings.getStringList("layers", {}), (std::vector<std::string>{"a", "b"}));
 }
 
-TEST(SettingsLoader, DeclaredEmptyGroupsStoreNothing) {
-    const auto settings = run("");
+TEST(SettingsLoader, GroupsNeedNoDeclaration) {
+    const auto settings = run(R"(
+        engine.settings.window.title = "R-Type"
+        engine.settings.physics.debug.color.red = 1
+    )");
+
+    EXPECT_EQ(settings.getString("window.title", ""), "R-Type");
+    EXPECT_DOUBLE_EQ(settings.getNumber("physics.debug.color.red", 0), 1);
+}
+
+TEST(SettingsLoader, ReadOnlyGroupsStoreNothing) {
+    const auto settings = run("local _ = engine.settings.window.title");
 
     EXPECT_FALSE(settings.has("window"));
     EXPECT_NO_THROW(settings.section("window").checkKeys({}, "window"));

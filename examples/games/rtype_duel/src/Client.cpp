@@ -59,7 +59,6 @@ core::config::Settings makeSettings() {
 #else
     settingsLoader.setFlag("isDebug", true);
 #endif
-    settingsLoader.declareGroups({"window", "audio", "vulkan"});
     settingsLoader.load("game/project.luau");
     return settingsLoader.build();
 }

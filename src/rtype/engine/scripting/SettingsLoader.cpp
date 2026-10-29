@@ -10,7 +10,6 @@
 #include <cstddef>
 #include <filesystem>
 #include <format>
-#include <initializer_list>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -25,10 +24,27 @@
 #include "rtype/luau/Value.hpp"
 
 namespace {
-/// @return A runtime with no standard library and no optimization: project scripts only assign settings.
+/// The Luau that makes a table create its missing children when read, so `a.b.c = 1` works without declaring `a.b`.
+/// `setmetatable` and `rawset` are captured first: the globals are removed once this has run.
+constexpr auto kVivifySource = R"(
+local setmetatable, rawset = setmetatable, rawset
+local function vivify(table)
+    return setmetatable(table, {
+        __index = function(self, key)
+            local child = vivify({})
+            rawset(self, key, child)
+            return child
+        end,
+    })
+end
+vivify(engine.settings)
+)";
+
+/// @return A runtime with the standard library opened (the vivifying prelude needs `setmetatable`), to be stripped by
+/// removeLibraries(); without optimization: project scripts only assign settings.
 rtype::luau::Runtime createRuntime() {
     constexpr rtype::luau::RuntimeConfig config{
-        .libs = rtype::luau::RuntimeConfig::Libs::kNone,
+        .libs = rtype::luau::RuntimeConfig::Libs::kStandard,
         .optimizationLevel = rtype::luau::RuntimeConfig::OptimizationLevel::kDisabled,
     };
     return rtype::luau::expect(rtype::luau::Runtime::create(config));
@@ -98,7 +114,7 @@ void addValue(rtype::core::config::Settings& settings, const rtype::luau::Value&
         } else if (rtype::luau::expect(table->count()) > 0) {
             addTable(settings, *table, key);
         }
-        // An empty table is an empty group (see declareGroups): nothing to store.
+        // An empty table is an empty group (one a script only read): nothing to store.
     } else {
         fail(key, "a setting can only be a boolean, a number, a string, an array or a table");
     }
@@ -117,6 +133,17 @@ void addTable(rtype::core::config::Settings& settings, const rtype::luau::Table&
         addValue(settings, value, prefix.empty() ? *part : std::format("{}.{}", prefix, *part));
     }
 }
+
+/// Sets every global but `engine` to nil, so scripts see no standard library.
+void removeLibraries(rtype::luau::Table globals) {
+    for (const auto& [name, value] : rtype::luau::expect(globals.entries())) {
+        const auto* key = name.tryAs<std::string>();
+
+        if (key != nullptr && *key != "engine") {
+            rtype::luau::expect(globals.set(*key, rtype::luau::Value{rtype::luau::Value::Nil{}}));
+        }
+    }
+}
 }  // namespace
 
 namespace rtype::engine::scripting {
@@ -124,8 +151,11 @@ SettingsLoader::SettingsLoader()
     : _runtime{createRuntime()}, _engineTable{createTable(_runtime)}, _settingsTable{createTable(_runtime)} {
     rtype::luau::expect(_engineTable.set("settings", {_settingsTable}));
     rtype::luau::expect(_runtime.globals().set("engine", luau::Value{_engineTable}));
+    rtype::luau::expect(_runtime.run(rtype::luau::expect(_runtime.load("settings-vivify", kVivifySource))));
+    removeLibraries(_runtime.globals());
 }
 
+// ReSharper disable once CppMemberFunctionMayBeConst
 core::config::Settings SettingsLoader::build() {
     core::config::Settings settings;
 
@@ -135,12 +165,6 @@ core::config::Settings SettingsLoader::build() {
 
 void SettingsLoader::setFlag(const std::string_view name, bool enabled) {
     luau::expect(_engineTable.set(name, {enabled}));
-}
-
-void SettingsLoader::declareGroups(std::initializer_list<std::string> groups) {
-    for (const std::string& group : groups) {
-        luau::expect(_settingsTable.set(group, luau::Value{createTable(_runtime)}));
-    }
 }
 
 // ReSharper disable once CppMemberFunctionMayBeConst
