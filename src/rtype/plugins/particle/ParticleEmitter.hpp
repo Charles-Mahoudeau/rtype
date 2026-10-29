@@ -36,4 +36,10 @@ struct ParticleEmitter {
 RTYPE_ECS_COMPONENT(ParticleEmitter, "rtype.ParticleEmitter", effect, playing, layer, rateScale, overrideSimulation,
                     simulation, seed);
 
+/// @brief Despawns its entity once its ParticleEmitter has finished (ParticlesFinished), as the component
+/// "rtype.ParticleOneShot": for fire-and-forget effects, such as the ones SpawnParticles plays. Its effect must not
+/// loop, or the entity stays. An entity whose effect cannot be read is despawned too.
+struct ParticleOneShot {};
+RTYPE_ECS_COMPONENT(ParticleOneShot, "rtype.ParticleOneShot");
+
 }  // namespace rtype::plugins::particle
