@@ -122,9 +122,10 @@ struct ParticleSystemDesc {
     bool loop{true};                     ///< Restarts after duration; else plays once.
 
     // Shape and initial values
-    EmitterShape shape;                  ///< Point, Circle{radius, edgeOnly}, Rect{size}, Arc{angle, spread}.
+    EmitterShape shape;                  ///< Where particles spawn: Point, Circle{radius, edgeOnly}, Rect{size}.
     Range lifetime{1.0F, 1.0F};          ///< Seconds, picked per particle between min and max.
-    Range speed{0.0F, 0.0F};             ///< World units per second, along the shape's direction.
+    Range speed{0.0F, 0.0F};             ///< World units per second, along the angle.
+    Range angle{0.0F, 2.0F * pi};        ///< Which way particles go, in radians: a cone is a range of angles.
     Range rotation{0.0F, 0.0F};          ///< Radians.
     Range angularVelocity{0.0F, 0.0F};   ///< Radians per second.
     Range size{1.0F, 1.0F};              ///< Scale of the particle's sprite.
@@ -157,6 +158,8 @@ struct ParticleEffect {
 - **Curves and gradients are keys** (`{t, value}`, up to a few per curve), baked into lookup tables of a fixed size by
   `bakeCurve()` / `bakeGradient()` in `ParticleCurve.hpp`. The CPU samples the baked tables; the GPU reads the same
   tables from a 1D texture. Baking happens once, when the effect is created.
+- **The shape says where particles spawn, `angle` which way they go.** An arc or a cone is a shape and a range of
+  angles, so the direction is never described twice.
 - **The modules are fixed fields, not a graph,** for the first version: shape, spawn, initial values, forces, curves.
   New ones (noise, attractors, atlas frames over life) are added as new fields, to both simulations at once
   ([Keeping both paths alike](#10-keeping-both-paths-alike)).
