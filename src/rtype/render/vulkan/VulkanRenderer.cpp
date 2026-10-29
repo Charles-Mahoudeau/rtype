@@ -403,6 +403,26 @@ void VulkanRenderer::draw(const plugins::backend::graphics::Text& text) {
     }
 }
 
+plugins::backend::graphics::ParticleSystemId VulkanRenderer::createParticleSystem(
+    const plugins::backend::graphics::ParticleSystemDesc& /*desc*/) {
+    throw plugins::backend::exceptions::UnsupportedFeatureException(
+        "VulkanRenderer does not simulate particles on the GPU yet");
+}
+
+void VulkanRenderer::destroy(plugins::backend::graphics::ParticleSystemId /*system*/) {}
+
+void VulkanRenderer::simulate(plugins::backend::graphics::ParticleSystemId /*system*/,
+                              const plugins::backend::graphics::ParticleEmission& /*emission*/) {
+    throw std::invalid_argument("VulkanRenderer::simulate(): the particle system was destroyed or never created");
+}
+
+void VulkanRenderer::draw(const plugins::backend::graphics::ParticleDraw& /*particles*/) {
+    if (!_acquiredImage) {
+        return;
+    }
+    throw plugins::backend::exceptions::UnsupportedFeatureException("VulkanRenderer does not draw particles yet");
+}
+
 interop::vulkan::IVulkanSurfaceSource& VulkanRenderer::surfaceSourceOf(
     plugins::backend::platform::IPlatform& platform) {
     auto* surfaceSource = dynamic_cast<interop::vulkan::IVulkanSurfaceSource*>(&platform);

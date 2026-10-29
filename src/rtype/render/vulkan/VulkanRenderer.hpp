@@ -41,6 +41,8 @@
 #include "plugins/backend/graphics/CameraView.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
+#include "plugins/backend/graphics/Particle.hpp"
+#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Text.hpp"
@@ -180,6 +182,20 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// skipped the frame.
     /// @throws std::invalid_argument If its texture was destroyed or never created.
     void draw(const plugins::backend::graphics::Text& text) override;
+
+    /// @brief Not implemented yet: GPU particles come with the particle compute passes (supportsGpuParticles() is
+    /// false).
+    /// @throws exceptions::UnsupportedFeatureException Always.
+    [[nodiscard]] plugins::backend::graphics::ParticleSystemId createParticleSystem(
+        const plugins::backend::graphics::ParticleSystemDesc& desc) override;
+    /// @brief Does nothing: no particle system can have been created yet.
+    void destroy(plugins::backend::graphics::ParticleSystemId system) override;
+    /// @throws std::invalid_argument Always: no particle system can have been created yet.
+    void simulate(plugins::backend::graphics::ParticleSystemId system,
+                  const plugins::backend::graphics::ParticleEmission& emission) override;
+    /// @brief Not implemented yet: CPU particles come with the particle vertex shader.
+    /// @throws exceptions::UnsupportedFeatureException When a frame is being drawn.
+    void draw(const plugins::backend::graphics::ParticleDraw& particles) override;
 
   private:
     /// @return The platform's IVulkanSurfaceSource.
