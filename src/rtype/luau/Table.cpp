@@ -207,7 +207,7 @@ Result<std::optional<Table>> Table::metatable() const {
     if (lua_getmetatable(target, -1) == 0) {
         return std::optional<Table>{};
     }
-    return std::optional<Table>{Table{Ref{target, -1}}};
+    return std::optional{Table{Ref{target, -1}}};
 }
 
 Result<bool> Table::has(const Value& key) const {
