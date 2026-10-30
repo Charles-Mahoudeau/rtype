@@ -140,6 +140,11 @@ void CpuSimulation::writeInstances(glm::vec2 emitterPosition) {
         instance.rotation = particle.rotation;
         instance.life = t;
     }
+    if (_desc.sortByAge) {
+        std::ranges::sort(_instances,
+                          [](const backend::graphics::ParticleInstance& left,
+                             const backend::graphics::ParticleInstance& right) { return left.life > right.life; });
+    }
 }
 
 }  // namespace rtype::plugins::particle

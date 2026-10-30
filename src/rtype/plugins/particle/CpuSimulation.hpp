@@ -31,7 +31,8 @@ namespace rtype::plugins::particle {
 /// - **Age** every particle by the frame's deltaTime; one whose age reaches its lifetime dies, replaced by the last.
 /// - **Move** the others: `velocity += gravity * dt`, `velocity *= exp(-drag * dt)`, `position += velocity *
 ///   speedOverLife(t) * dt`, `rotation += angularVelocity * dt`, where t is age / lifetime.
-/// - **Look**: colour `color * colorOverLife(t)`, size `size * sizeOverLife(t)`.
+/// - **Look**: colour `color * colorOverLife(t)`, size `size * sizeOverLife(t)`. With sortByAge, the instances are
+///   then sorted by life, the furthest into theirs first.
 ///
 /// With ParticleSpace::kLocal, particles keep their position relative to the emitter, and follow it when it moves (not
 /// when it turns); with kWorld, they stay where they were emitted.
