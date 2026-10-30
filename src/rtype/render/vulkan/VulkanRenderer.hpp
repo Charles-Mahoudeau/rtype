@@ -65,8 +65,9 @@ namespace rtype::render::vulkan {
 /// @brief The Vulkan implementation of IRenderer.
 ///
 /// @details init() creates the instance, the debug messenger (if requested), the surface, the device, the swapchain,
-/// the frames in flight and the allocator. beginFrame() clears the next swapchain image with dynamic rendering and
-/// endFrame() presents it. createTexture() uploads RGBA8 sRGB images, premultiplied by their alpha
+/// the frames in flight and the allocator. beginFrame() acquires the next swapchain image and starts recording;
+/// endFrame() records what must come before rendering (compute), clears the image with dynamic rendering, records the
+/// draws and presents it. createTexture() uploads RGBA8 sRGB images, premultiplied by their alpha
 /// (texture::premultiplySrgb()), and data (TextureEncoding::kLinear) as it is. draw(Sprite) and draw(Text) collect the
 /// frame's sprites, and endFrame() draws them in batches (one instanced draw per run of sprites sharing a texture),
 /// through the view given to setView(). draw(Shape) collects the frame's shapes, and endFrame() draws them all after
@@ -145,7 +146,8 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// @throws std::logic_error If init() was not called, or the previous frame was not ended.
     void beginFrame(const plugins::backend::graphics::Color& clearColor) override;
 
-    /// @brief Ends rendering, submits the frame and presents the image. Does nothing if beginFrame() skipped it.
+    /// @brief Records the frame (rendering starts here: compute work is recorded before it), submits it and presents
+    /// the image. Does nothing if beginFrame() skipped it.
     void endFrame() override;
 
     /// @brief Creates a sampled image of @p desc's size, R8G8B8A8_SRGB for colours or R8G8B8A8_UNORM for data
@@ -267,6 +269,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     std::chrono::steady_clock::time_point _startTime;       ///< When init() ran: origin of FrameUniforms::time.
     std::chrono::steady_clock::time_point _lastFrameTime;   ///< When the previous frame ended: for deltaTime.
     std::optional<plugins::backend::graphics::View> _view;  ///< From setView(); reset by beginFrame().
+    plugins::backend::graphics::Color _clearColor{0.0F};    ///< From beginFrame(): what endFrame() clears with.
     rendering::SpriteBatch _sprites;                        ///< The frame's sprites; cleared by beginFrame().
     std::vector<rendering::ShapeInstance> _shapes;          ///< The frame's shapes; cleared by beginFrame().
     std::vector<plugins::backend::graphics::ParticleInstance> _particleInstances;  ///< The frame's CPU particles.

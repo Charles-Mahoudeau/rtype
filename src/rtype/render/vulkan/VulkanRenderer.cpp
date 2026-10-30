@@ -318,11 +318,7 @@ void VulkanRenderer::beginFrame(const plugins::backend::graphics::Color& clearCo
     frame.getCommandPool().reset();
 
     frame.getCommandBuffer().begin();
-    const vk::raii::CommandBuffer& commandBuffer = frame.getCommandBuffer().getCommandBuffer();
-    rendering::transitionImage(commandBuffer, _swapchain->getImages().at(imageIndex), rendering::kToColorAttachment);
-    const vk::RenderingAttachmentInfo color =
-        rendering::colorAttachment(*_swapchain->getImageViews().at(imageIndex), toClearColor(clearColor));
-    commandBuffer.beginRendering(rendering::renderingInfo(_swapchain->getExtent(), {&color, 1}));
+    _clearColor = clearColor;
     _acquiredImage = imageIndex;
 }
 
@@ -343,6 +339,13 @@ void VulkanRenderer::endFrame() {
         _view.value_or(plugins::backend::graphics::CameraView::makeDefaultView(viewSize, framebufferSize)), viewSize,
         framebufferSize};
     updateFrameUniforms(view);
+
+    // Rendering starts here, not in beginFrame(): work that cannot be recorded inside a rendering scope (compute
+    // dispatches) is recorded above, before it.
+    rendering::transitionImage(commandBuffer, _swapchain->getImages().at(imageIndex), rendering::kToColorAttachment);
+    const vk::RenderingAttachmentInfo color =
+        rendering::colorAttachment(*_swapchain->getImageViews().at(imageIndex), toClearColor(_clearColor));
+    commandBuffer.beginRendering(rendering::renderingInfo(_swapchain->getExtent(), {&color, 1}));
     _globals->bind(commandBuffer, *_layout, frameIndex);
     recordSpritesAndParticles(commandBuffer, frameIndex, view);
     _shapePass->record(commandBuffer, frameIndex, _shapes, view.getViewport());
