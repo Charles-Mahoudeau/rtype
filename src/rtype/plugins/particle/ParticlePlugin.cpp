@@ -251,6 +251,7 @@ void drawEmitters(ecs::NonSendMut<backend::Backend> backend, ecs::Res<ParticleEf
         draw.source = effect->source;
         draw.blend = effect->blend;
         draw.alignment = effect->alignment;
+        draw.stretch = effect->stretch;
         queue->push(emitter.layer, draw);
     }
 }
