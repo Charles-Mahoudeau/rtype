@@ -18,6 +18,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
@@ -36,6 +37,7 @@
 #include "memory/Allocator.hpp"
 #include "memory/Uploader.hpp"
 #include "particle/GpuParticleSystem.hpp"
+#include "particle/ParticleSimulationPass.hpp"
 #include "pipeline/PipelineCache.hpp"
 #include "pipeline/PipelineLayout.hpp"
 #include "pipeline/ShaderCache.hpp"
@@ -198,7 +200,9 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
         const plugins::backend::graphics::ParticleSystemDesc& desc) override;
     /// @brief Destroys a GPU particle system once the GPU is done with it; does nothing for one already destroyed.
     void destroy(plugins::backend::graphics::ParticleSystemId system) override;
-    /// @brief Not simulated yet: checks @p system only.
+    /// @brief Simulates @p system this frame with @p emission (particle::ParticleSimulationPass), recorded by
+    /// endFrame() before rendering begins. Called twice for one system in a frame, the last emission wins. Does
+    /// nothing but check @p system if beginFrame() skipped the frame.
     /// @throws std::invalid_argument If @p system was destroyed or never created.
     void simulate(plugins::backend::graphics::ParticleSystemId system,
                   const plugins::backend::graphics::ParticleEmission& emission) override;
@@ -233,6 +237,9 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// buffer.
     /// @warning Only after the frame's fence was waited for: the GPU may still read the buffer before.
     void updateFrameUniforms(const plugins::backend::graphics::CameraView& view);
+
+    /// @brief Records the simulation of the frame's GPU systems (_simulations), before rendering begins.
+    void recordParticleSimulations(const vk::raii::CommandBuffer& commandBuffer);
 
     /// @brief Uploads the frame's sprites and particles, and records them in the order of _drawList, into @p view's
     /// viewport.
@@ -279,6 +286,8 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     std::vector<plugins::backend::graphics::ParticleInstance> _particleInstances;  ///< The frame's CPU particles.
     std::vector<ParticleRange> _particleRanges;  ///< The frame's particle draws; cleared by beginFrame().
     rendering::DrawList _drawList;               ///< Where the particle draws sit among the sprite batches.
+    std::vector<std::pair<plugins::backend::graphics::ParticleSystemId, plugins::backend::graphics::ParticleEmission>>
+        _simulations;  ///< The GPU systems to simulate this frame, by id; cleared by beginFrame().
 
     // 2. Context: created by init(), in this order.
     std::optional<core::Instance> _instance;                ///< The VkInstance.
@@ -310,6 +319,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     std::unique_ptr<rendering::SpritePass> _spritePass;  ///< Draws _sprites at endFrame().
     std::unique_ptr<rendering::ShapePass> _shapePass;    ///< Draws _shapes at endFrame(), after the sprites.
     std::unique_ptr<rendering::ParticlePass> _particlePass;  ///< Draws _particleRanges at endFrame(), among _sprites.
+    std::unique_ptr<particle::ParticleSimulationPass> _particleSimulation;  ///< Runs _simulations at endFrame().
     core::SlotMap<plugins::backend::graphics::TextureId, texture::Texture> _textures;  ///< By TextureId.
     core::SlotMap<plugins::backend::graphics::ParticleSystemId, particle::GpuParticleSystem>
         _particleSystems;  ///< By ParticleSystemId.

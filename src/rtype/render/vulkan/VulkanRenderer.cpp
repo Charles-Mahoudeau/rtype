@@ -7,6 +7,7 @@
 
 #include "VulkanRenderer.hpp"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstddef>
@@ -37,6 +38,7 @@
 #include "memory/Image.hpp"
 #include "particle/GpuParticleData.hpp"
 #include "particle/GpuParticleSystem.hpp"
+#include "particle/ParticleSimulationPass.hpp"
 #include "plugins/backend/exceptions/PlatformExceptions.hpp"
 #include "plugins/backend/graphics/CameraView.hpp"
 #include "plugins/backend/graphics/Color.hpp"
@@ -171,6 +173,8 @@ void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
         vk::DescriptorPoolSize{vk::DescriptorType::eStorageBuffer, kParticleSetsPerPool * particle::kBindingCount}};
     _particleDescriptors =
         std::make_unique<descriptor::DescriptorAllocator>(*_device, kParticleSetsPerPool, particleSizes);
+    _particleSimulation = std::make_unique<particle::ParticleSimulationPass>(*_device, *_shaders, *_particleSetLayout,
+                                                                             &_pipelineCache->getCache());
     const std::array setLayouts{*_globals->getSetLayout().getLayout(), *_textureSetLayout->getLayout()};
     const std::array pushConstants{vk::PushConstantRange{
         vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0, sizeof(rendering::DrawConstants)}};
@@ -306,6 +310,7 @@ void VulkanRenderer::beginFrame(const plugins::backend::graphics::Color& clearCo
     _particleInstances.clear();
     _particleRanges.clear();
     _drawList.clear();
+    _simulations.clear();
     _shapes.clear();
     if (_framebufferSize.x == 0 || _framebufferSize.y == 0) {
         return;
@@ -352,6 +357,7 @@ void VulkanRenderer::endFrame() {
         _view.value_or(plugins::backend::graphics::CameraView::makeDefaultView(viewSize, framebufferSize)), viewSize,
         framebufferSize};
     updateFrameUniforms(view);
+    recordParticleSimulations(commandBuffer);
 
     // Rendering starts here, not in beginFrame(): work that cannot be recorded inside a rendering scope (compute
     // dispatches) is recorded above, before it.
@@ -447,10 +453,31 @@ void VulkanRenderer::destroy(plugins::backend::graphics::ParticleSystemId system
 }
 
 void VulkanRenderer::simulate(plugins::backend::graphics::ParticleSystemId system,
-                              const plugins::backend::graphics::ParticleEmission& /*emission*/) {
+                              const plugins::backend::graphics::ParticleEmission& emission) {
     if (_particleSystems.find(system) == nullptr) {
         throw std::invalid_argument("VulkanRenderer::simulate(): the particle system was destroyed or never created");
     }
+    if (!_acquiredImage) {
+        return;
+    }
+    const auto same = [system](const auto& simulation) { return simulation.first == system; };
+    if (auto found = std::ranges::find_if(_simulations, same); found != _simulations.end()) {
+        found->second = emission;
+        return;
+    }
+    _simulations.emplace_back(system, emission);
+}
+
+void VulkanRenderer::recordParticleSimulations(const vk::raii::CommandBuffer& commandBuffer) {
+    std::vector<particle::ParticleSimulationPass::Job> jobs;
+    jobs.reserve(_simulations.size());
+    for (const auto& [id, emission] : _simulations) {
+        if (particle::GpuParticleSystem* system = _particleSystems.find(id)) {
+            jobs.push_back(particle::ParticleSimulationPass::Job{.system = system, .emission = emission});
+        }
+    }
+    _particleSimulation->record(commandBuffer, jobs);
+    _simulations.clear();
 }
 
 void VulkanRenderer::draw(const plugins::backend::graphics::ParticleDraw& particles) {
