@@ -43,7 +43,7 @@ struct ParticleInstance {
     vec2 velocity;
     vec2 size;
     float rotation;
-    float lifetime;  // Seconds left to live.
+    float life;  // How far into its life: 0 at birth, 1 at death.
 };
 
 layout(set = 0, binding = 0, std430) readonly buffer ParticleParams {

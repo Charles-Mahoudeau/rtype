@@ -138,7 +138,7 @@ void CpuSimulation::writeInstances(glm::vec2 emitterPosition) {
         instance.velocity = particle.velocity * backend::graphics::sampleBaked(_speedOverLife, t);
         instance.size = glm::vec2{particle.size * backend::graphics::sampleBaked(_sizeOverLife, t)};
         instance.rotation = particle.rotation;
-        instance.lifetime = particle.lifetime - particle.age;
+        instance.life = t;
     }
 }
 

@@ -55,7 +55,7 @@ struct ParticleInstance {
     glm::vec2 velocity{0.0F, 0.0F};       ///< In world units per second; turns the quad with kVelocity.
     glm::vec2 size{1.0F, 1.0F};           ///< In world units.
     float rotation{0.0F};                 ///< In radians, clockwise on screen.
-    float lifetime{1.0F};                 ///< Seconds the particle has left to live.
+    float life{0.0F};                     ///< How far into its life: 0 at birth, 1 at death.
 };
 
 // Copied as is into GPU buffers and read by the particle shaders (std430): same size and field offsets as their struct.
@@ -65,7 +65,7 @@ static_assert(offsetof(ParticleInstance, position) == 16, "ParticleInstance::pos
 static_assert(offsetof(ParticleInstance, velocity) == 24, "ParticleInstance::velocity must match the shaders");
 static_assert(offsetof(ParticleInstance, size) == 32, "ParticleInstance::size must match the shaders");
 static_assert(offsetof(ParticleInstance, rotation) == 40, "ParticleInstance::rotation must match the shaders");
-static_assert(offsetof(ParticleInstance, lifetime) == 44, "ParticleInstance::lifetime must match the shaders");
+static_assert(offsetof(ParticleInstance, life) == 44, "ParticleInstance::life must match the shaders");
 
 /// @brief One frame of an emitter, computed by the CPU: what a GPU system needs to emit and move its particles, given
 /// to IRenderer::simulate().

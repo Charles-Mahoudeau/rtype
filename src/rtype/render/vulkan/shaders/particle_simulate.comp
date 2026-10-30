@@ -49,6 +49,6 @@ void main() {
     instance.velocity = particle.velocity * speedScale;
     instance.size = vec2(particle.size * sampleSizeOverLife(t));
     instance.rotation = particle.rotation;
-    instance.lifetime = particle.lifetime - particle.age;
+    instance.life = t;
     drawn.instances[at] = instance;
 }

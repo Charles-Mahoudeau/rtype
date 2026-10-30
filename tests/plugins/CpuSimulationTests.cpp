@@ -78,7 +78,7 @@ TEST(CpuSimulationTests, MovesAlongTheAngleFromTheEmitter) {
     EXPECT_NEAR(instance.position.x, 105.0F, kTolerance);
     EXPECT_NEAR(instance.position.y, 50.0F, kTolerance);
     EXPECT_NEAR(instance.velocity.x, 10.0F, kTolerance);
-    EXPECT_NEAR(instance.lifetime, 0.5F, kTolerance);
+    EXPECT_NEAR(instance.life, 0.5F, kTolerance);
 }
 
 TEST(CpuSimulationTests, EmitterRotationTurnsTheDirection) {
@@ -99,7 +99,7 @@ TEST(CpuSimulationTests, ParticlesDieAtTheEndOfTheirLife) {
     simulation.step(makeEmission(0, 0.5F));
     EXPECT_EQ(simulation.getCount(), 2U);
     for (const auto& instance : simulation.getInstances()) {
-        EXPECT_NEAR(instance.lifetime, 0.5F, kTolerance);
+        EXPECT_NEAR(instance.life, 0.5F, kTolerance);
     }
     simulation.step(makeEmission(0, 0.5F));
     EXPECT_EQ(simulation.getCount(), 0U);
@@ -164,10 +164,15 @@ TEST(CpuSimulationTests, RangesStayWithinTheirBounds) {
     CpuSimulation simulation{desc};
     simulation.step(makeEmission(256, 0.0F));
     for (const auto& instance : simulation.getInstances()) {
-        EXPECT_GE(instance.lifetime, 1.0F);
-        EXPECT_LT(instance.lifetime, 3.0F);
+        EXPECT_FLOAT_EQ(instance.life, 0.0F);
         EXPECT_GE(instance.size.x, 2.0F);
         EXPECT_LT(instance.size.x, 5.0F);
+    }
+    // A second later, each one is 1 / lifetime into its life: lifetimes in [1, 3) give lives in (1/3, 1].
+    simulation.step(makeEmission(0, 1.0F));
+    for (const auto& instance : simulation.getInstances()) {
+        EXPECT_GT(instance.life, 1.0F / 3.0F);
+        EXPECT_LE(instance.life, 1.0F);
     }
 }
 
