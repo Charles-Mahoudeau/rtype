@@ -150,6 +150,7 @@ TEST(ParticlePlugin, DrawsWithTheLookOfTheEffect) {
     sparks.blend = rtype::plugins::backend::graphics::BlendMode::kAlpha;
     sparks.alignment = rtype::plugins::backend::graphics::ParticleAlignment::kVelocity;
     sparks.stretch = 0.1F;
+    sparks.flipbook = {.columns = 4, .rows = 2, .cycles = 2.0F};
     const AssetId id = app.effects().add("sparks", std::move(sparks));
     static_cast<void>(app.spawnEmitter(ParticleEmitter{.effect = id}));
     static_cast<void>(app.drawFrame());
@@ -158,6 +159,8 @@ TEST(ParticlePlugin, DrawsWithTheLookOfTheEffect) {
     EXPECT_EQ(draws.at(0).blend, rtype::plugins::backend::graphics::BlendMode::kAlpha);
     EXPECT_EQ(draws.at(0).alignment, rtype::plugins::backend::graphics::ParticleAlignment::kVelocity);
     EXPECT_FLOAT_EQ(draws.at(0).stretch, 0.1F);
+    EXPECT_EQ(draws.at(0).flipbook,
+              (rtype::plugins::backend::graphics::ParticleFlipbook{.columns = 4, .rows = 2, .cycles = 2.0F}));
 }
 
 TEST(ParticlePlugin, EmitsTheRateOverTheFrames) {
