@@ -268,6 +268,19 @@ TEST(ParticlePlugin, RunsOnTheGpuWhenTheRendererCan) {
     EXPECT_EQ(app.state().destroyedParticleSystems.at(0), std::get<ParticleSystemId>(draws.at(0).particles));
 }
 
+TEST(ParticlePlugin, SortsAlphaEffectsByAge) {
+    ParticleApp app{true};
+    ParticleEffect smoke = *app.effects().get(app.stream());
+    smoke.blend = rtype::plugins::backend::graphics::BlendMode::kAlpha;
+    const AssetId id = app.effects().add("smoke", std::move(smoke));
+    static_cast<void>(app.spawnEmitter(ParticleEmitter{.effect = app.stream()}));
+    static_cast<void>(app.spawnEmitter(ParticleEmitter{.effect = id}));
+    static_cast<void>(app.drawFrame());
+    static_cast<void>(app.drawFrame());
+    ASSERT_EQ(app.state().createdParticleSystems.size(), 2U);
+    EXPECT_NE(app.state().createdParticleSystems.at(0).sortByAge, app.state().createdParticleSystems.at(1).sortByAge);
+}
+
 TEST(ParticlePlugin, FallsBackToTheCpuWhenTheGpuIsAskedButMissing) {
     ParticleApp app;
     static_cast<void>(app.spawnEmitter(
