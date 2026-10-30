@@ -74,6 +74,21 @@ void ParticlePass::record(const vk::raii::CommandBuffer& commandBuffer, std::siz
     if (draw.instanceCount == 0 || !draw.textureSet || !buffer || viewport.size.x <= 0.0F || viewport.size.y <= 0.0F) {
         return;
     }
+    bind(commandBuffer, draw, *buffer->getBuffer(), viewport);
+    commandBuffer.draw(kQuadVertexCount, draw.instanceCount, 0, draw.firstInstance);
+}
+
+void ParticlePass::recordIndirect(const vk::raii::CommandBuffer& commandBuffer, const Draw& draw, vk::Buffer instances,
+                                  vk::Buffer indirect, const plugins::backend::graphics::Viewport& viewport) {
+    if (!draw.textureSet || viewport.size.x <= 0.0F || viewport.size.y <= 0.0F) {
+        return;
+    }
+    bind(commandBuffer, draw, instances, viewport);
+    commandBuffer.drawIndirect(indirect, 0, 1, sizeof(vk::DrawIndirectCommand));
+}
+
+void ParticlePass::bind(const vk::raii::CommandBuffer& commandBuffer, const Draw& draw, vk::Buffer instances,
+                        const plugins::backend::graphics::Viewport& viewport) {
     _pipeline.bind(commandBuffer);
     commandBuffer.setViewport(
         0, vk::Viewport{viewport.position.x, viewport.position.y, viewport.size.x, viewport.size.y, 0.0F, 1.0F});
@@ -81,13 +96,12 @@ void ParticlePass::record(const vk::raii::CommandBuffer& commandBuffer, std::siz
                                                         static_cast<std::int32_t>(viewport.position.y)},
                                            vk::Extent2D{static_cast<std::uint32_t>(viewport.size.x),
                                                         static_cast<std::uint32_t>(viewport.size.y)}});
-    commandBuffer.bindVertexBuffers(0, *buffer->getBuffer(), vk::DeviceSize{0});
+    commandBuffer.bindVertexBuffers(0, instances, vk::DeviceSize{0});
     commandBuffer.pushConstants<ParticleConstants>(
         *_layout->getLayout(), vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0,
         draw.constants);
     commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *_layout->getLayout(), kTextureSet,
                                      draw.textureSet, {});
-    commandBuffer.draw(kQuadVertexCount, draw.instanceCount, 0, draw.firstInstance);
 }
 
 memory::Buffer& ParticlePass::reserve(std::size_t frameIndex, std::size_t count) {

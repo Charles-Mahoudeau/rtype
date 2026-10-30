@@ -69,7 +69,18 @@ class RTYPE_RENDER_VULKAN_API ParticlePass {
     void record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex, const Draw& draw,
                 const plugins::backend::graphics::Viewport& viewport);
 
+    /// @brief Records the draw of a GPU system, inside dynamic rendering, into @p viewport: its packed @p instances,
+    /// as many as the instanceCount its simulation wrote into @p indirect (a VkDrawIndirectCommand). Binds the pipeline
+    /// as record() does. The frame's set 0 must already be bound. Does nothing for a null texture set.
+    /// @param draw Its constants and texture set; its instance range is ignored.
+    void recordIndirect(const vk::raii::CommandBuffer& commandBuffer, const Draw& draw, vk::Buffer instances,
+                        vk::Buffer indirect, const plugins::backend::graphics::Viewport& viewport);
+
   private:
+    /// @brief Binds the pipeline, @p viewport, @p draw's push constants and texture set, and @p instances.
+    void bind(const vk::raii::CommandBuffer& commandBuffer, const Draw& draw, vk::Buffer instances,
+              const plugins::backend::graphics::Viewport& viewport);
+
     /// @brief Instances the first buffer holds; each new one doubles until the frame's instances fit.
     static constexpr std::size_t kInitialCapacity = 1024;
 
