@@ -7,7 +7,9 @@
 
 #include "GpuParticleSystem.hpp"
 
+#include <algorithm>
 #include <array>
+#include <bit>
 #include <cstdint>
 #include <span>
 #include <vector>
@@ -48,6 +50,7 @@ GpuParticleSystem::GpuParticleSystem(const core::Device& device, const memory::A
                                      const descriptor::DescriptorSetLayout& setLayout,
                                      const plugins::backend::graphics::ParticleSystemDesc& desc)
     : _capacity{validatedCapacity(desc)},
+      _sortCount{desc.sortByAge ? std::bit_ceil(_capacity) : 0},
       _params{makeBuffer(allocator, sizeof(GpuParticleParams),
                          vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst)},
       _particles{makeBuffer(allocator, vk::DeviceSize{_capacity} * sizeof(GpuParticle),
@@ -59,8 +62,10 @@ GpuParticleSystem::GpuParticleSystem(const core::Device& device, const memory::A
       _counters{makeBuffer(allocator, sizeof(GpuParticleCounters),
                            vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst |
                                vk::BufferUsageFlagBits::eTransferSrc)},
-      _instances{makeBuffer(allocator, vk::DeviceSize{_capacity} * sizeof(plugins::backend::graphics::ParticleInstance),
-                            vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eVertexBuffer)},
+      _instances{makeBuffer(
+          allocator,
+          vk::DeviceSize{std::max(_capacity, _sortCount)} * sizeof(plugins::backend::graphics::ParticleInstance),
+          vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eVertexBuffer)},
       _indirect{makeBuffer(allocator, sizeof(vk::DrawIndirectCommand),
                            vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eIndirectBuffer |
                                vk::BufferUsageFlagBits::eTransferDst)},

@@ -26,7 +26,8 @@ namespace rtype::render::vulkan::particle {
 /// @details Every buffer lives in device local memory: only the GPU reads and writes them after creation. The
 /// parameters, the dead list (every slot free), the counters and the indirect command (6 vertices, no instance) are
 /// filled through the Uploader, so the caller must flush it before the first simulation. The instances are drawn as a
-/// vertex buffer and the indirect command by vkCmdDrawIndirect.
+/// vertex buffer and the indirect command by vkCmdDrawIndirect; a system sorted by age has room for getSortCount()
+/// instances, sorted in place.
 /// @warning Destroy it before the Allocator, the DescriptorAllocator and the Device, once the GPU is done with it.
 class RTYPE_RENDER_VULKAN_API GpuParticleSystem {
   public:
@@ -45,6 +46,9 @@ class RTYPE_RENDER_VULKAN_API GpuParticleSystem {
 
     /// @return Most particles alive at once.
     [[nodiscard]] std::uint32_t getCapacity() const noexcept { return _capacity; }
+    /// @return Instances sorted by age each frame: the capacity rounded up to a power of two, as the bitonic sort
+    /// needs; 0 when the system is not sorted (ParticleSystemDesc::sortByAge).
+    [[nodiscard]] std::uint32_t getSortCount() const noexcept { return _sortCount; }
     /// @return The alive list read by the next simulation: 0 or 1.
     [[nodiscard]] std::uint32_t getCurrent() const noexcept { return _current; }
     /// @return The descriptor set binding every buffer, set 0 of the particle compute shaders.
@@ -61,6 +65,7 @@ class RTYPE_RENDER_VULKAN_API GpuParticleSystem {
 
   private:
     std::uint32_t _capacity;       ///< Most particles alive at once.
+    std::uint32_t _sortCount;      ///< Instances sorted each frame; 0: not sorted.
     std::uint32_t _current = 0;    ///< Alive list read by the next simulation.
     memory::Buffer _params;        ///< GpuParticleParams.
     memory::Buffer _particles;     ///< GpuParticle per slot.

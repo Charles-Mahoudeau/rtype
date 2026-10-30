@@ -7,6 +7,7 @@
 
 #include "ParticleSimulationPass.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -17,6 +18,7 @@
 #include "GpuParticleSystem.hpp"
 #include "particle_emit.comp.h"
 #include "particle_simulate.comp.h"
+#include "particle_sort.comp.h"
 #include "render/vulkan/core/Device.hpp"
 #include "render/vulkan/descriptor/DescriptorSetLayout.hpp"
 #include "render/vulkan/pipeline/ComputePipeline.hpp"
@@ -61,7 +63,8 @@ ParticleSimulationPass::ParticleSimulationPass(const core::Device& device, pipel
     : _layout{createLayout(device, setLayout)},
       _emit{device, shaders.get("particle_emit.comp", rtype_shader_particle_emit_comp), _layout, nullptr, cache},
       _simulate{device, shaders.get("particle_simulate.comp", rtype_shader_particle_simulate_comp), _layout, nullptr,
-                cache} {}
+                cache},
+      _sort{device, shaders.get("particle_sort.comp", rtype_shader_particle_sort_comp), _layout, nullptr, cache} {}
 
 void ParticleSimulationPass::record(const vk::raii::CommandBuffer& commandBuffer, std::span<const Job> jobs) {
     if (jobs.empty()) {
@@ -114,6 +117,10 @@ void ParticleSimulationPass::record(const vk::raii::CommandBuffer& commandBuffer
         commandBuffer.dispatch(groupsFor(job.system->getCapacity()), 1, 1);
     }
     barrier(commandBuffer, vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderWrite,
+            vk::PipelineStageFlagBits2::eComputeShader,
+            vk::AccessFlagBits2::eShaderRead | vk::AccessFlagBits2::eShaderWrite);
+    recordSorts(commandBuffer, jobs);
+    barrier(commandBuffer, vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderWrite,
             vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead);
 
     // 4. The alive count written this frame becomes the draw's instanceCount.
@@ -130,6 +137,41 @@ void ParticleSimulationPass::record(const vk::raii::CommandBuffer& commandBuffer
             vk::AccessFlagBits2::eShaderWrite | vk::AccessFlagBits2::eTransferWrite,
             vk::PipelineStageFlagBits2::eVertexAttributeInput | vk::PipelineStageFlagBits2::eDrawIndirect,
             vk::AccessFlagBits2::eVertexAttributeRead | vk::AccessFlagBits2::eIndirectCommandRead);
+}
+
+void ParticleSimulationPass::recordSorts(const vk::raii::CommandBuffer& commandBuffer, std::span<const Job> jobs) {
+    std::uint32_t largest = 0;
+    for (const Job& job : jobs) {
+        largest = std::max(largest, job.system->getSortCount());
+    }
+    if (largest == 0) {
+        return;
+    }
+    _sort.bind(commandBuffer);
+    // k == 0 pads first; then every bitonic step, each system taking the steps of its own size.
+    const auto step = [&](std::uint32_t j, std::uint32_t k) {
+        for (const Job& job : jobs) {
+            const std::uint32_t count = job.system->getSortCount();
+            if (count == 0 || k > count) {
+                continue;
+            }
+            commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, *_layout.getLayout(), 0,
+                                             job.system->getSet(), {});
+            commandBuffer.pushConstants<GpuParticleSortPush>(
+                *_layout.getLayout(), vk::ShaderStageFlagBits::eCompute, 0,
+                GpuParticleSortPush{.j = j, .k = k, .count = count, .alive = 1 - job.system->getCurrent()});
+            commandBuffer.dispatch(groupsFor(count), 1, 1);
+        }
+        barrier(commandBuffer, vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderWrite,
+                vk::PipelineStageFlagBits2::eComputeShader,
+                vk::AccessFlagBits2::eShaderRead | vk::AccessFlagBits2::eShaderWrite);
+    };
+    step(0, 0);
+    for (std::uint32_t k = 2; k <= largest; k *= 2) {
+        for (std::uint32_t j = k / 2; j > 0; j /= 2) {
+            step(j, k);
+        }
+    }
 }
 
 }  // namespace rtype::render::vulkan::particle
