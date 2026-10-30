@@ -331,16 +331,28 @@ run in order on the graphics queue, so a frame only starts on the GPU when the p
 
 ### Passes, per frame
 
-1. **Emit:** `spawnCount` threads, clamped to the dead counter. Each pops a free slot with an atomic and fills it from
-   the shape and the ranges, with the shared random numbers ([Keeping both paths alike](#10-keeping-both-paths-alike)).
-2. **Simulate:** one thread per particle of `aliveA`: forces, integration, ageing. A particle at the end of its life
-   goes back to `deadList`, a live one is appended to `aliveB` and written, as it is drawn, at the same index of
-   `instances`. The last thread to finish writes the alive count into `indirectArgs` (or a one-thread dispatch does).
-3. **Sort** (later): a bitonic sort of `aliveB` by age, for `kAlpha` effects only, where the order of overlapping
-   particles shows. Additive particles look the same in any order.
-4. **Barrier** (synchronization2): compute writes → `DRAW_INDIRECT` and `VERTEX_SHADER` reads.
-5. **Draw:** `vkCmdDrawIndirect` of `instances`, at the system's place among the sprites, with the pipeline of the CPU
+Recorded by `ParticleSimulationPass` in `endFrame()`, before rendering begins, every system of the frame batched with
+the others, so the number of barriers does not grow with the number of systems:
+
+1. **Wait** for the previous frame's work on the buffers (its simulation, copies and draws), then reset the count of
+   the alive list written this frame (`vkCmdFillBuffer`).
+2. **Emit** (`particle_emit.comp`): `spawnCount` threads. Each pops a free slot with an atomic (a thread that finds
+   none drops its particle) and fills it from the shape and the ranges, with the shared random numbers
+   ([Keeping both paths alike](#10-keeping-both-paths-alike)), then appends it to the alive list read this frame, so
+   it moves this frame too, as on the CPU.
+3. **Simulate** (`particle_simulate.comp`): one thread per slot of the capacity, those past the alive count returning
+   at once: ageing, forces, integration. A particle at the end of its life goes back to the dead list, a live one is
+   appended to the other alive list and written, as it is drawn, at the same index of `instances`.
+4. **Copy** each alive count into the `instanceCount` of the system's indirect command, and swap the alive lists.
+5. **Barrier** (synchronization2): compute and transfer writes → `DRAW_INDIRECT` and `VERTEX_ATTRIBUTE_INPUT` reads.
+6. **Sort** (later): a bitonic sort by age, for `kAlpha` effects only, where the order of overlapping particles shows.
+   Additive particles look the same in any order.
+7. **Draw:** `vkCmdDrawIndirect` of `instances`, at the system's place among the sprites, with the pipeline of the CPU
    instances (below).
+
+Two differences with the CPU remain, both invisible in practice: when a system is full, the atomics pick which of the
+frame's particles are dropped (the CPU drops the last ones), and the live particles are not in the same order (which
+only shows for overlapping `kAlpha` particles, sorted later).
 
 **Drawing, shared by both paths** (`rendering/ParticlePass`): `particle.vert` reads the `ParticleInstance`s as
 per-instance vertex attributes and builds each quad, centred on the particle, turned by its rotation (and later
@@ -437,8 +449,9 @@ Each step builds and is tested on its own, in this order:
    from end to end; an example (`examples/plugins/particle`) shows them.
 3. **Layers:** `ParticleDraw` in the `SpriteQueue` (done in step 1), the draw list of the sprite pass (done with step
    2, since the particle pipeline is separate from the sprite one).
-4. **Vulkan simulates:** `beginRendering()` moved to `endFrame()`, `GpuParticleSystem`, `ParticleSimulationPass`, the
-   emit and simulate shaders, draw indirect, `supportsGpuParticles()`; the fallback logic in the plugin.
+4. **Vulkan simulates:** `beginRendering()` moved to `endFrame()`, `GpuParticleData` (the std430 layouts),
+   `GpuParticleSystem`, `ParticleSimulationPass`, the emit and simulate shaders, draw indirect, `supportsGpuParticles()`
+   (the fallback logic in the plugin was done in step 1). The example switches between both paths with Space.
 5. **Richer effects, on both paths:** curves and gradients in lookup tables, `kVelocity` alignment, sorting for
    `kAlpha`, atlas frames over life.
 6. **Sub-emitters,** on birth and death, CPU then GPU.
