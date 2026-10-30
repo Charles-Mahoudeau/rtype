@@ -191,9 +191,10 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// @throws std::invalid_argument If its texture was destroyed or never created.
     void draw(const plugins::backend::graphics::Text& text) override;
 
+    /// @return true: particle systems are simulated by compute shaders and drawn indirectly.
+    [[nodiscard]] bool supportsGpuParticles() const noexcept override;
+
     /// @brief Creates a particle::GpuParticleSystem: its buffers, filled before this returns, and its descriptor set.
-    /// supportsGpuParticles() stays false until the systems are simulated and drawn, so the particle plugin does not
-    /// create any yet.
     /// @throws std::logic_error If init() was not called.
     /// @throws exceptions::ParticleException If @p desc is invalid.
     [[nodiscard]] plugins::backend::graphics::ParticleSystemId createParticleSystem(
@@ -206,9 +207,10 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// @throws std::invalid_argument If @p system was destroyed or never created.
     void simulate(plugins::backend::graphics::ParticleSystemId system,
                   const plugins::backend::graphics::ParticleEmission& emission) override;
-    /// @brief Draws the instances of a CPU simulation, among the sprites in call order (rendering/DrawList.hpp), with
-    /// rendering::ParticlePass. A GPU system is skipped: none can be created yet.
-    /// @throws std::invalid_argument If the texture was destroyed or never created.
+    /// @brief Draws the instances of a CPU simulation, or the live particles of a GPU system (an indirect draw, as
+    /// many as its last simulation left), among the sprites in call order (rendering/DrawList.hpp), with
+    /// rendering::ParticlePass.
+    /// @throws std::invalid_argument If the texture or the GPU system was destroyed or never created.
     void draw(const plugins::backend::graphics::ParticleDraw& particles) override;
 
   private:
@@ -218,6 +220,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
         rendering::ParticleConstants constants;         ///< Uv rect, blend mode and alignment.
         std::uint32_t firstInstance = 0;                ///< First instance, in _particleInstances.
         std::uint32_t instanceCount = 0;                ///< Number of instances.
+        std::optional<plugins::backend::graphics::ParticleSystemId> system;  ///< A GPU system, drawn indirectly.
     };
 
     /// @return The platform's IVulkanSurfaceSource.

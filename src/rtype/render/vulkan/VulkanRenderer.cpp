@@ -434,6 +434,8 @@ void VulkanRenderer::draw(const plugins::backend::graphics::Text& text) {
     }
 }
 
+bool VulkanRenderer::supportsGpuParticles() const noexcept { return true; }
+
 plugins::backend::graphics::ParticleSystemId VulkanRenderer::createParticleSystem(
     const plugins::backend::graphics::ParticleSystemDesc& desc) {
     if (!_uploader) {
@@ -484,9 +486,13 @@ void VulkanRenderer::draw(const plugins::backend::graphics::ParticleDraw& partic
     if (!_acquiredImage) {
         return;
     }
+    const auto* system = std::get_if<plugins::backend::graphics::ParticleSystemId>(&particles.particles);
+    if (system != nullptr && _particleSystems.find(*system) == nullptr) {
+        throw std::invalid_argument("VulkanRenderer::draw(): the particle system was destroyed or never created");
+    }
     const auto* instances =
         std::get_if<std::span<const plugins::backend::graphics::ParticleInstance>>(&particles.particles);
-    if (instances == nullptr || instances->empty()) {
+    if (instances != nullptr && instances->empty()) {
         return;
     }
     const texture::Texture* texture = _textures.find(particles.texture);
@@ -496,12 +502,16 @@ void VulkanRenderer::draw(const plugins::backend::graphics::ParticleDraw& partic
     _drawList.addParticles(static_cast<std::uint32_t>(_sprites.getBatches().size()),
                            static_cast<std::uint32_t>(_particleRanges.size()));
     _sprites.split();
-    _particleRanges.push_back(
-        ParticleRange{.texture = particles.texture,
-                      .constants = rendering::ParticleConstants::fromDraw(particles, texture->desc.size),
-                      .firstInstance = static_cast<std::uint32_t>(_particleInstances.size()),
-                      .instanceCount = static_cast<std::uint32_t>(instances->size())});
-    _particleInstances.insert(_particleInstances.end(), instances->begin(), instances->end());
+    ParticleRange range{.texture = particles.texture,
+                        .constants = rendering::ParticleConstants::fromDraw(particles, texture->desc.size)};
+    if (system != nullptr) {
+        range.system = *system;
+    } else {
+        range.firstInstance = static_cast<std::uint32_t>(_particleInstances.size());
+        range.instanceCount = static_cast<std::uint32_t>(instances->size());
+        _particleInstances.insert(_particleInstances.end(), instances->begin(), instances->end());
+    }
+    _particleRanges.push_back(range);
 }
 
 void VulkanRenderer::recordSpritesAndParticles(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
@@ -517,12 +527,16 @@ void VulkanRenderer::recordSpritesAndParticles(const vk::raii::CommandBuffer& co
             continue;
         }
         const ParticleRange& range = _particleRanges.at(std::get<rendering::DrawList::ParticleStep>(step).draw);
-        _particlePass->record(commandBuffer, frameIndex,
-                              rendering::ParticlePass::Draw{.constants = range.constants,
-                                                            .textureSet = findTextureSet(range.texture),
-                                                            .firstInstance = range.firstInstance,
-                                                            .instanceCount = range.instanceCount},
-                              view.getViewport());
+        const rendering::ParticlePass::Draw draw{.constants = range.constants,
+                                                 .textureSet = findTextureSet(range.texture),
+                                                 .firstInstance = range.firstInstance,
+                                                 .instanceCount = range.instanceCount};
+        if (!range.system) {
+            _particlePass->record(commandBuffer, frameIndex, draw, view.getViewport());
+        } else if (const particle::GpuParticleSystem* system = _particleSystems.find(*range.system)) {
+            _particlePass->recordIndirect(commandBuffer, draw, *system->getInstances().getBuffer(),
+                                          *system->getIndirect().getBuffer(), view.getViewport());
+        }
     }
     _sprites.clear();
     _particleInstances.clear();
