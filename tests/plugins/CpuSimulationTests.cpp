@@ -258,3 +258,18 @@ TEST(CpuSimulationTests, ClearKillsEveryParticle) {
     EXPECT_EQ(simulation.getCount(), 0U);
     EXPECT_TRUE(simulation.getInstances().empty());
 }
+
+TEST(CpuSimulationTests, SortByAgeDrawsTheOldestFirst) {
+    ParticleSystemDesc desc = makeDesc();
+    desc.capacity = 64;
+    desc.sortByAge = true;
+    desc.lifetime = {.min = 1.0F, .max = 4.0F};
+    CpuSimulation simulation{desc};
+    simulation.step(makeEmission(16, 0.0F));
+    simulation.step(makeEmission(16, 0.5F));
+    const auto instances = simulation.getInstances();
+    ASSERT_EQ(instances.size(), 32U);
+    for (std::size_t i = 1; i < instances.size(); ++i) {
+        EXPECT_GE(instances[i - 1].life, instances[i].life);
+    }
+}
