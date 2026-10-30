@@ -7,6 +7,7 @@
 
 #include "ParticleConstants.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
@@ -20,7 +21,12 @@ ParticleConstants ParticleConstants::fromDraw(const plugins::backend::graphics::
                                               glm::uvec2 textureSize) noexcept {
     ParticleConstants constants{.blend = toShaderBlend(particles.blend),
                                 .alignment = static_cast<std::uint32_t>(particles.alignment),
-                                .stretch = particles.stretch};
+                                .stretch = particles.stretch,
+                                .columns = std::max(particles.flipbook.columns, 1U),
+                                .rows = std::max(particles.flipbook.rows, 1U),
+                                .cycles = particles.flipbook.cycles};
+    const std::uint32_t cells = constants.columns * constants.rows;
+    constants.frameCount = particles.flipbook.frameCount == 0 ? cells : std::min(particles.flipbook.frameCount, cells);
     const glm::vec2 sourceSize{particles.source.getWidth(), particles.source.getHeight()};
     if (sourceSize.x > 0.0F && sourceSize.y > 0.0F && textureSize.x > 0 && textureSize.y > 0) {
         const glm::vec2 texture{textureSize};
