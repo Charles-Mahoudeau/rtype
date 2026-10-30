@@ -175,11 +175,13 @@ std::vector<std::byte> makeRings() {
     return pixels;
 }
 
-// Rings rising slowly, growing frame by frame (a flipbook played twice over their life), fading out.
+// Rings rising slowly, growing frame by frame (a flipbook played twice over their life), fading out. Alpha-blended, so
+// the plugin sorts them by age: the youngest are drawn over the oldest.
 ParticleEffect makeRingEffect(AssetId rings) {
     ParticleEffect effect;
     effect.texture = rings;
     effect.flipbook = {.columns = kRingFrames, .cycles = 2.0F};
+    effect.blend = BlendMode::kAlpha;
     effect.desc.rate = 8.0F;
     effect.desc.lifetime = {.min = 1.6F, .max = 2.0F};
     effect.desc.speed = {.min = 30.0F, .max = 50.0F};
