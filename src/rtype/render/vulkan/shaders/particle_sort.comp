@@ -1,0 +1,51 @@
+/*
+** EPITECH PROJECT, 2026
+** rtype
+** File description:
+** particle_sort
+*/
+
+// Sorts the packed instances of a GPU system by life, the furthest into theirs first, as CpuSimulation does with
+// sortByAge: a bitonic sort in place, one step per dispatch, over the capacity rounded up to a power of two
+// (sort.count). A first dispatch (sort.k == 0) pads the slots past the live particles with a life of -1, so they sort
+// last and the live ones stay at the front, where the indirect draw reads them.
+#version 450
+#extension GL_GOOGLE_include_directive : require
+
+#define RTYPE_PARTICLE_OWN_PUSH
+#include "ParticleSystem.glsl"
+
+layout(local_size_x = 64) in;
+
+// GpuParticleSortPush.
+layout(push_constant, std430) uniform Sort {
+    uint j;      // Distance between the two instances compared.
+    uint k;      // Size of the sequences being merged; 0: pad.
+    uint count;  // Instances sorted, a power of two.
+    uint alive;  // Alive list this frame's simulation wrote, whose count is the live one.
+} sort;
+
+void main() {
+    const uint i = gl_GlobalInvocationID.x;
+    if (i >= sort.count) {
+        return;
+    }
+    if (sort.k == 0u) {
+        if (i >= counters.alive[sort.alive]) {
+            drawn.instances[i].life = -1.0;
+        }
+        return;
+    }
+    const uint other = i ^ sort.j;
+    if (other <= i) {
+        return;
+    }
+    const ParticleInstance first = drawn.instances[i];
+    const ParticleInstance second = drawn.instances[other];
+    // Descending by life in the blocks where (i & k) == 0, ascending in the others: a bitonic merge.
+    const bool descending = (i & sort.k) == 0u;
+    if (descending ? first.life < second.life : first.life > second.life) {
+        drawn.instances[i] = second;
+        drawn.instances[other] = first;
+    }
+}

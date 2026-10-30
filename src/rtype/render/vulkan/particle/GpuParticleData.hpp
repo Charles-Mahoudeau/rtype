@@ -119,4 +119,15 @@ static_assert(offsetof(plugins::backend::graphics::ParticleEmission, scale) == 8
                   offsetof(GpuParticlePush, current) == 36 && sizeof(GpuParticlePush) == 40,
               "GpuParticlePush must match the push constants of ParticleSystem.glsl");
 
+/// @brief The push constants of shaders/particle_sort.comp: one step of the bitonic sort of a system's instances by
+/// life, or (k == 0) the padding of the slots past the live particles. 16 bytes.
+struct GpuParticleSortPush {
+    std::uint32_t j = 0;      ///< Distance between the two instances compared. Offset 0.
+    std::uint32_t k = 0;      ///< Size of the sequences being merged; 0: pad. Offset 4.
+    std::uint32_t count = 0;  ///< Instances sorted: the capacity rounded up to a power of two. Offset 8.
+    std::uint32_t alive = 0;  ///< Alive list this frame's simulation wrote, whose count is the live one. Offset 12.
+};
+static_assert(offsetof(GpuParticleSortPush, alive) == 12 && sizeof(GpuParticleSortPush) <= sizeof(GpuParticlePush),
+              "GpuParticleSortPush must match particle_sort.comp and fit the particle push constant range");
+
 }  // namespace rtype::render::vulkan::particle

@@ -84,7 +84,7 @@ layout(set = 0, binding = 4, std430) buffer Counters {
     uint alive[2];
 } counters;
 
-layout(set = 0, binding = 5, std430) writeonly buffer Instances {
+layout(set = 0, binding = 5, std430) buffer Instances {
     ParticleInstance instances[];
 } drawn;
 
@@ -93,7 +93,9 @@ layout(set = 0, binding = 6, std430) buffer Indirect {
     uint command[4];
 } indirect;
 
-// GpuParticlePush: the frame's emission (graphics::ParticleEmission) and which alive list is read.
+// GpuParticlePush: the frame's emission (graphics::ParticleEmission) and which alive list is read. A shader with push
+// constants of its own (particle_sort.comp) defines RTYPE_PARTICLE_OWN_PUSH before the include: a stage has one block.
+#ifndef RTYPE_PARTICLE_OWN_PUSH
 layout(push_constant, std430) uniform Emission {
     vec2 position;
     vec2 scale;
@@ -104,6 +106,7 @@ layout(push_constant, std430) uniform Emission {
     uint spawnCount;
     uint current;
 } emission;
+#endif
 
 // The baked tables at t (clamped to [0, 1], NaN reading the first sample), linearly interpolated: sampleBaked() of
 // graphics/ParticleCurve.hpp.
