@@ -24,7 +24,7 @@ std::array<vk::VertexInputBindingDescription, 1> getParticleBindings(std::uint32
     return {vk::VertexInputBindingDescription{binding, sizeof(ParticleInstance), vk::VertexInputRate::eInstance}};
 }
 
-std::array<vk::VertexInputAttributeDescription, 4> getParticleAttributes(std::uint32_t binding) noexcept {
+std::array<vk::VertexInputAttributeDescription, 5> getParticleAttributes(std::uint32_t binding) noexcept {
     return {
         vk::VertexInputAttributeDescription{0, binding, vk::Format::eR32G32B32A32Sfloat,
                                             offsetof(ParticleInstance, color)},
@@ -32,6 +32,8 @@ std::array<vk::VertexInputAttributeDescription, 4> getParticleAttributes(std::ui
                                             offsetof(ParticleInstance, position)},
         vk::VertexInputAttributeDescription{2, binding, vk::Format::eR32G32Sfloat, offsetof(ParticleInstance, size)},
         vk::VertexInputAttributeDescription{3, binding, vk::Format::eR32Sfloat, offsetof(ParticleInstance, rotation)},
+        vk::VertexInputAttributeDescription{4, binding, vk::Format::eR32G32Sfloat,
+                                            offsetof(ParticleInstance, velocity)},
     };
 }
 

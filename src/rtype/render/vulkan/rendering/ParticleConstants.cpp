@@ -19,7 +19,8 @@ namespace rtype::render::vulkan::rendering {
 ParticleConstants ParticleConstants::fromDraw(const plugins::backend::graphics::ParticleDraw& particles,
                                               glm::uvec2 textureSize) noexcept {
     ParticleConstants constants{.blend = toShaderBlend(particles.blend),
-                                .alignment = static_cast<std::uint32_t>(particles.alignment)};
+                                .alignment = static_cast<std::uint32_t>(particles.alignment),
+                                .stretch = particles.stretch};
     const glm::vec2 sourceSize{particles.source.getWidth(), particles.source.getHeight()};
     if (sourceSize.x > 0.0F && sourceSize.y > 0.0F && textureSize.x > 0 && textureSize.y > 0) {
         const glm::vec2 texture{textureSize};

@@ -12,7 +12,7 @@
 // Use it from a shader with:
 //     #extension GL_GOOGLE_include_directive : require
 //     #include "ParticleConstants.glsl"
-// then read particles.uvRect, particles.blend and particles.alignment.
+// then read particles.uvRect, particles.blend, particles.alignment and particles.stretch.
 
 #ifndef RTYPE_PARTICLE_CONSTANTS_GLSL
 #define RTYPE_PARTICLE_CONSTANTS_GLSL
@@ -21,9 +21,10 @@ layout(push_constant, std430) uniform ParticleConstants {
     vec4 uvRect;     // Part of the texture: (u0, v0, u1, v1), 0 to 1. Offset 0.
     uint blend;      // Blend.glsl: kBlendAlpha, kBlendAdditive or kBlendCutout. Offset 16.
     uint alignment;  // graphics::ParticleAlignment: kParticleFixed or kParticleVelocity. Offset 20.
+    float stretch;   // kParticleVelocity: length added per unit of speed, in seconds. Offset 24.
 } particles;
 
 const uint kParticleFixed = 0u;     // Drawn with its own rotation and size.
-const uint kParticleVelocity = 1u;  // Turned along its velocity (not handled yet: drawn as kParticleFixed).
+const uint kParticleVelocity = 1u;  // Turned along its velocity, the texture's +X forward, and stretched by its speed.
 
 #endif

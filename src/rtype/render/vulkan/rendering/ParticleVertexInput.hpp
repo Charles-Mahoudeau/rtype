@@ -20,9 +20,9 @@ namespace rtype::render::vulkan::rendering {
 [[nodiscard]] RTYPE_RENDER_VULKAN_API std::array<vk::VertexInputBindingDescription, 1> getParticleBindings(
     std::uint32_t binding = 0) noexcept;
 
-/// @return The attributes shaders/particle.vert reads: colour (location 0), position (1), size (2) and rotation (3).
-/// The velocity and the lifetime are not read yet.
-[[nodiscard]] RTYPE_RENDER_VULKAN_API std::array<vk::VertexInputAttributeDescription, 4> getParticleAttributes(
+/// @return The attributes shaders/particle.vert reads: colour (location 0), position (1), size (2), rotation (3) and
+/// velocity (4). The lifetime is not read yet.
+[[nodiscard]] RTYPE_RENDER_VULKAN_API std::array<vk::VertexInputAttributeDescription, 5> getParticleAttributes(
     std::uint32_t binding = 0) noexcept;
 
 }  // namespace rtype::render::vulkan::rendering
