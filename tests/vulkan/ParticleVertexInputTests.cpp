@@ -33,6 +33,8 @@ TEST(ParticleVertexInput, ReadsTheFieldsParticleVertReads) {
     EXPECT_EQ(attributes.at(3).format, vk::Format::eR32Sfloat);
     EXPECT_EQ(attributes.at(4).location, 4U);
     EXPECT_EQ(attributes.at(4).offset, offsetof(ParticleInstance, velocity));
+    EXPECT_EQ(attributes.at(5).location, 5U);
+    EXPECT_EQ(attributes.at(5).offset, offsetof(ParticleInstance, life));
     for (const vk::VertexInputAttributeDescription& attribute : attributes) {
         EXPECT_EQ(attribute.binding, 2U);
     }

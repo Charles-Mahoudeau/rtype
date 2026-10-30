@@ -54,3 +54,27 @@ TEST(ParticleConstants, CarriesTheBlendModeTheAlignmentAndTheStretch) {
     EXPECT_EQ(constants.alignment, 1U);
     EXPECT_FLOAT_EQ(constants.stretch, 0.05F);
 }
+
+TEST(ParticleConstants, CarriesTheFlipbook) {
+    ParticleDraw draw;
+    draw.flipbook = {.columns = 4, .rows = 2, .frameCount = 6, .cycles = 3.0F};
+    const ParticleConstants constants = ParticleConstants::fromDraw(draw, glm::uvec2{8, 8});
+    EXPECT_EQ(constants.columns, 4U);
+    EXPECT_EQ(constants.rows, 2U);
+    EXPECT_EQ(constants.frameCount, 6U);
+    EXPECT_FLOAT_EQ(constants.cycles, 3.0F);
+}
+
+TEST(ParticleConstants, MakesTheFlipbookSafe) {
+    ParticleDraw draw;
+    EXPECT_EQ(ParticleConstants::fromDraw(draw, glm::uvec2{8, 8}).frameCount, 1U);
+    draw.flipbook = {.columns = 0, .rows = 0};
+    const ParticleConstants empty = ParticleConstants::fromDraw(draw, glm::uvec2{8, 8});
+    EXPECT_EQ(empty.columns, 1U);
+    EXPECT_EQ(empty.rows, 1U);
+    EXPECT_EQ(empty.frameCount, 1U);
+    draw.flipbook = {.columns = 3, .rows = 2};
+    EXPECT_EQ(ParticleConstants::fromDraw(draw, glm::uvec2{8, 8}).frameCount, 6U);
+    draw.flipbook = {.columns = 3, .rows = 2, .frameCount = 10};
+    EXPECT_EQ(ParticleConstants::fromDraw(draw, glm::uvec2{8, 8}).frameCount, 6U);
+}
