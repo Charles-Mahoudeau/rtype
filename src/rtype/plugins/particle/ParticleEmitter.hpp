@@ -11,9 +11,10 @@
 #include <type_traits>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/AssetIdReflection.hpp"
+#include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
 #include "plugins/backend/graphics/Particle.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
+#include "rtype/ecs/type/Field.hpp"
 #include "rtype/ecs/type/FieldTypeOf.hpp"
 
 /// @brief A ParticleSimulation field is reflected as its underlying std::uint8_t.
