@@ -7,8 +7,9 @@
 
 // Particles on the CPU, drawn by Vulkan among the sprites: a fountain between a dark panel (below it) and a
 // translucent one (above it), a trail that follows the mouse, and an explosion where the left button is pressed
-// (SpawnParticles). The particle texture is a soft dot built in code. The view is the window, one world unit per
-// pixel. --validation enables the Vulkan validation layer.
+// (SpawnParticles). Space switches the fountain and the trail between the GPU and the CPU simulations, which must look
+// the same; the explosions run where the renderer picks (kAuto: the GPU on Vulkan). The particle texture is a soft dot
+// built in code. The view is the window, one world unit per pixel. --validation enables the Vulkan validation layer.
 //   xmake f --particle=y && xmake run particle [--validation]
 
 #include <algorithm>
@@ -35,6 +36,7 @@
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Color.hpp"
+#include "plugins/backend/graphics/Particle.hpp"
 #include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
@@ -45,6 +47,8 @@
 #include "plugins/particle/ParticleEffectAssets.hpp"
 #include "plugins/particle/ParticleEmitter.hpp"
 #include "plugins/particle/ParticleEvents.hpp"
+#include "plugins/text/FontAssets.hpp"
+#include "plugins/text/TextRenderer.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "render/vulkan/Registration.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -65,6 +69,8 @@ using rtype::core::asset::AssetId;
 using rtype::plugins::backend::SpriteRenderer;
 using rtype::plugins::backend::graphics::BlendMode;
 using rtype::plugins::backend::graphics::Color;
+using rtype::plugins::text::FontAssets;
+using rtype::plugins::text::TextRenderer;
 using rtype::plugins::transform::Transform;
 
 namespace {
@@ -72,10 +78,13 @@ constexpr glm::vec2 kWindow{1280.0F, 800.0F};
 constexpr Color kClear{0.03F, 0.03F, 0.06F, 1.0F};
 constexpr std::uint32_t kDotSize = 32;
 constexpr float kPi = std::numbers::pi_v<float>;
+constexpr const char* kFont = "assets/fonts/orbitron.json";
 
 // The ids of what Startup creates, for the Update systems.
 struct Assets {
     AssetId explosion;  // The effect spawned on a click.
+    AssetId fountain;   // The looping effect between the panels.
+    AssetId trail;      // The effect that follows the mouse.
 };
 RTYPE_ECS_RESOURCE(Assets, "example.Assets");
 
@@ -85,9 +94,44 @@ struct Mouse {
 };
 RTYPE_ECS_RESOURCE(Mouse, "example.Mouse");
 
+// Where the fountain and the trail are simulated, switched by Space.
+struct Mode {
+    plugins::backend::graphics::ParticleSimulation simulation = plugins::backend::graphics::ParticleSimulation::kGpu;
+};
+RTYPE_ECS_RESOURCE(Mode, "example.Mode");
+
 // The emitter that follows the mouse.
 struct Trail {};
 RTYPE_ECS_COMPONENT(Trail, "example.Trail");
+
+// An emitter respawned when the mode switches: an emitter never changes path while it plays.
+struct Switched {};
+RTYPE_ECS_COMPONENT(Switched, "example.Switched");
+
+// The text that shows the mode.
+struct Hud {};
+RTYPE_ECS_COMPONENT(Hud, "example.Hud");
+
+// The text of the HUD for @p simulation.
+std::string describe(plugins::backend::graphics::ParticleSimulation simulation) {
+    return simulation == plugins::backend::graphics::ParticleSimulation::kGpu ? "GPU simulation (Space: CPU)"
+                                                                              : "CPU simulation (Space: GPU)";
+}
+
+// Spawns the fountain (layer 1, between the panels) and the trail (layer 3, on top), simulated as @p mode says.
+void spawnEmitters(ecs::Commands& commands, const Assets& assets, const Mode& mode, glm::vec2 mouse) {
+    commands.spawn()
+        .add(Transform{.position = {kWindow.x * 0.5F, kWindow.y * 0.8F}})
+        .add(ParticleEmitter{
+            .effect = assets.fountain, .layer = 1, .overrideSimulation = true, .simulation = mode.simulation})
+        .add(Switched{});
+    commands.spawn()
+        .add(Transform{.position = mouse})
+        .add(ParticleEmitter{
+            .effect = assets.trail, .layer = 3, .overrideSimulation = true, .simulation = mode.simulation})
+        .add(Trail{})
+        .add(Switched{});
+}
 
 // A white dot, opaque at its centre and fading to transparent at its edge.
 std::vector<std::byte> makeDot() {
@@ -158,7 +202,8 @@ ParticleEffect makeTrail(AssetId dot) {
 
 // Startup: the dot and a white texel, the effects, the two panels around the fountain, the fountain and the trail.
 void spawnScene(ecs::ResMut<plugins::backend::TextureAssets> textures, ecs::ResMut<ParticleEffectAssets> effects,
-                ecs::ResMut<Assets> assets, ecs::Commands& commands) {
+                ecs::ResMut<FontAssets> fonts, ecs::ResMut<Assets> assets, ecs::Res<Mode> mode,
+                ecs::Commands& commands) {
     const std::vector<std::byte> dotPixels = makeDot();
     const AssetId dot = textures->loadPixels(
         "example.dot", dotPixels,
@@ -166,8 +211,8 @@ void spawnScene(ecs::ResMut<plugins::backend::TextureAssets> textures, ecs::ResM
     const std::vector<std::byte> white(4, std::byte{255});
     const AssetId texel = textures->loadPixels("example.white", white, {.size = {1, 1}});
     assets->explosion = effects->add("example.explosion", makeExplosion(dot));
-    const AssetId fountain = effects->add("example.fountain", makeFountain(dot));
-    const AssetId trail = effects->add("example.trail", makeTrail(dot));
+    assets->fountain = effects->add("example.fountain", makeFountain(dot));
+    assets->trail = effects->add("example.trail", makeTrail(dot));
 
     // Layer 0, under the fountain: a dark panel.
     commands.spawn()
@@ -177,10 +222,6 @@ void spawnScene(ecs::ResMut<plugins::backend::TextureAssets> textures, ecs::ResM
                             .origin = {0.5F, 0.5F},
                             .color = {0.12F, 0.14F, 0.25F, 1.0F},
                             .layer = 0});
-    // Layer 1: the fountain, between the panels.
-    commands.spawn()
-        .add(Transform{.position = {kWindow.x * 0.5F, kWindow.y * 0.8F}})
-        .add(ParticleEmitter{.effect = fountain, .layer = 1});
     // Layer 2, over the fountain's right half: a translucent panel.
     commands.spawn()
         .add(Transform{.position = {kWindow.x * 0.62F, kWindow.y * 0.4F}, .scale = {220.0F, 360.0F}})
@@ -189,11 +230,35 @@ void spawnScene(ecs::ResMut<plugins::backend::TextureAssets> textures, ecs::ResM
                             .origin = {0.5F, 0.5F},
                             .color = {0.2F, 0.8F, 0.4F, 0.5F},
                             .layer = 2});
-    // Layer 3, on top: the trail.
+    spawnEmitters(commands, *assets, *mode, kWindow * 0.5F);
     commands.spawn()
-        .add(Transform{.position = kWindow * 0.5F})
-        .add(ParticleEmitter{.effect = trail, .layer = 3})
-        .add(Trail{});
+        .add(Transform{.position = {16.0F, 16.0F}})
+        .add(TextRenderer{.text = describe(mode->simulation), .font = fonts->load(kFont), .size = 24.0F, .layer = 10})
+        .add(Hud{});
+}
+
+// Update: on Space, switches the mode, respawns the fountain and the trail in it, and shows it.
+void switchSimulation(ecs::EventReader<plugins::backend::event::KeyPressed> keys, ecs::ResMut<Mode> mode,
+                      ecs::Res<Assets> assets, ecs::Res<Mouse> mouse,
+                      ecs::Query<const Transform, ecs::With<Switched>> switched,
+                      ecs::Query<TextRenderer, ecs::With<Hud>> huds, ecs::Commands& commands) {
+    bool pressed = false;
+    for (const plugins::backend::event::KeyPressed& key : keys) {
+        pressed = pressed || (key.key == plugins::backend::input::Key::kSpace && !key.repeat);
+    }
+    if (!pressed) {
+        return;
+    }
+    mode->simulation = mode->simulation == plugins::backend::graphics::ParticleSimulation::kGpu
+                           ? plugins::backend::graphics::ParticleSimulation::kCpu
+                           : plugins::backend::graphics::ParticleSimulation::kGpu;
+    for (auto [entity, transform] : switched) {
+        commands.despawn(entity);
+    }
+    spawnEmitters(commands, *assets, *mode, mouse->position);
+    for (auto [entity, text] : huds) {
+        text->text = describe(mode->simulation);
+    }
 }
 
 // Update: keeps the mouse position, moves the trail to it, and spawns an explosion where the left button is pressed.
@@ -244,9 +309,13 @@ int main(int argc, char** argv) {
         app.insertResource(plugins::backend::ClearColor{.value = kClear});
         app.insertResource(Assets{});
         app.insertResource(Mouse{});
+        app.insertResource(Mode{});
         static_cast<void>(app.getWorld().getComponents().registerType<Trail>());
+        static_cast<void>(app.getWorld().getComponents().registerType<Switched>());
+        static_cast<void>(app.getWorld().getComponents().registerType<Hud>());
         app.addSystem(ecs::Phase::kStartup, "example.spawnScene", &spawnScene);
         app.addSystem(ecs::Phase::kUpdate, "example.followMouse", &followMouse);
+        app.addSystem(ecs::Phase::kUpdate, "example.switchSimulation", &switchSimulation).after("example.followMouse");
         return app.run();
     } catch (const std::exception& error) {
         std::cerr << "particle: " << error.what() << '\n';
