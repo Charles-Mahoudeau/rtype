@@ -5,11 +5,12 @@
 ** main
 */
 
-// Particles on the CPU, drawn by Vulkan among the sprites: a fountain between a dark panel (below it) and a
+// Particles drawn by Vulkan among the sprites: a fountain between a dark panel (below it) and a
 // translucent one (above it), a trail that follows the mouse, and an explosion where the left button is pressed
-// (SpawnParticles). Space switches the fountain and the trail between the GPU and the CPU simulations, which must look
-// the same; the explosions run where the renderer picks (kAuto: the GPU on Vulkan). The particle texture is a soft dot
-// built in code. The view is the window, one world unit per pixel. --validation enables the Vulkan validation layer.
+// (SpawnParticles), and rings on the left animated by a flipbook. Space switches the fountain and the trail between the
+// GPU and the CPU simulations, which must look the same; the explosions run where the renderer picks (kAuto: the GPU on
+// Vulkan). The particle texture is a soft dot built in code. The view is the window, one world unit per pixel.
+// --validation enables the Vulkan validation layer.
 //   xmake f --particle=y && xmake run particle [--validation]
 
 #include <algorithm>
@@ -77,6 +78,7 @@ namespace {
 constexpr glm::vec2 kWindow{1280.0F, 800.0F};
 constexpr Color kClear{0.03F, 0.03F, 0.06F, 1.0F};
 constexpr std::uint32_t kDotSize = 32;
+constexpr std::uint32_t kRingFrames = 4;
 constexpr float kPi = std::numbers::pi_v<float>;
 constexpr const char* kFont = "assets/fonts/orbitron.json";
 
@@ -151,6 +153,44 @@ std::vector<std::byte> makeDot() {
     return pixels;
 }
 
+// A flipbook of kRingFrames frames side by side: a white ring that grows from frame to frame.
+std::vector<std::byte> makeRings() {
+    constexpr std::uint32_t kWidth = kDotSize * kRingFrames;
+    std::vector<std::byte> pixels(static_cast<std::size_t>(kWidth) * kDotSize * 4);
+    const float centre = (static_cast<float>(kDotSize) - 1.0F) * 0.5F;
+    for (std::uint32_t frame = 0; frame < kRingFrames; ++frame) {
+        const float radius = 4.0F + (static_cast<float>(frame) * 3.5F);
+        for (std::uint32_t y = 0; y < kDotSize; ++y) {
+            for (std::uint32_t x = 0; x < kDotSize; ++x) {
+                const float distance = std::hypot(static_cast<float>(x) - centre, static_cast<float>(y) - centre);
+                const float alpha = std::clamp(1.0F - (std::abs(distance - radius) / 2.0F), 0.0F, 1.0F);
+                const std::size_t pixel = ((static_cast<std::size_t>(y) * kWidth) + (frame * kDotSize) + x) * 4;
+                pixels.at(pixel) = std::byte{255};
+                pixels.at(pixel + 1) = std::byte{255};
+                pixels.at(pixel + 2) = std::byte{255};
+                pixels.at(pixel + 3) = static_cast<std::byte>(alpha * 255.0F);
+            }
+        }
+    }
+    return pixels;
+}
+
+// Rings rising slowly, growing frame by frame (a flipbook played twice over their life), fading out.
+ParticleEffect makeRingEffect(AssetId rings) {
+    ParticleEffect effect;
+    effect.texture = rings;
+    effect.flipbook = {.columns = kRingFrames, .cycles = 2.0F};
+    effect.desc.rate = 8.0F;
+    effect.desc.lifetime = {.min = 1.6F, .max = 2.0F};
+    effect.desc.speed = {.min = 30.0F, .max = 50.0F};
+    effect.desc.angle = {.min = (-kPi * 0.5F) - 0.2F, .max = (-kPi * 0.5F) + 0.2F};
+    effect.desc.size = {.min = 40.0F, .max = 56.0F};
+    effect.desc.color = {0.7F, 0.6F, 1.0F, 1.0F};
+    effect.desc.colorOverLife.keys = {{.t = 0.0F, .value = {1.0F, 1.0F, 1.0F, 1.0F}},
+                                      {.t = 1.0F, .value = {1.0F, 1.0F, 1.0F, 0.0F}}};
+    return effect;
+}
+
 // Sparks thrown up, falling back under gravity, orange to red, fading out.
 ParticleEffect makeFountain(AssetId dot) {
     ParticleEffect effect;
@@ -213,6 +253,14 @@ void spawnScene(ecs::ResMut<plugins::backend::TextureAssets> textures, ecs::ResM
         {.size = {kDotSize, kDotSize}, .filter = plugins::backend::graphics::TextureFilter::kLinear});
     const std::vector<std::byte> white(4, std::byte{255});
     const AssetId texel = textures->loadPixels("example.white", white, {.size = {1, 1}});
+    const std::vector<std::byte> ringPixels = makeRings();
+    const AssetId rings = textures->loadPixels(
+        "example.rings", ringPixels,
+        {.size = {kDotSize * kRingFrames, kDotSize}, .filter = plugins::backend::graphics::TextureFilter::kLinear});
+    // Layer 1, left of the panels: rings animated by a flipbook.
+    commands.spawn()
+        .add(Transform{.position = {kWindow.x * 0.15F, kWindow.y * 0.8F}})
+        .add(ParticleEmitter{.effect = effects->add("example.rings", makeRingEffect(rings)), .layer = 1});
     assets->explosion = effects->add("example.explosion", makeExplosion(dot));
     assets->fountain = effects->add("example.fountain", makeFountain(dot));
     assets->trail = effects->add("example.trail", makeTrail(dot));
