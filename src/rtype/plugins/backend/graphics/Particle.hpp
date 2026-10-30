@@ -81,6 +81,17 @@ struct ParticleEmission {
     std::uint32_t spawnCount{0};  ///< Particles to emit this frame (rate and bursts, counted by the plugin).
 };
 
+/// @brief Frames of an animation laid out in a grid in the draw's source rect, played over each particle's life: a
+/// flame that flickers, a puff that grows. Frames go left to right, then top to bottom.
+struct ParticleFlipbook {
+    std::uint32_t columns{1};     ///< Frames per row of the grid.
+    std::uint32_t rows{1};        ///< Rows of the grid.
+    std::uint32_t frameCount{0};  ///< Frames played, from the first; 0: every cell (columns * rows).
+    float cycles{1.0F};           ///< Times the animation plays over a life.
+
+    [[nodiscard]] bool operator==(const ParticleFlipbook& other) const = default;
+};
+
 /// @brief The particles of one emitter to draw this frame, as a Sprite is one sprite: where they are, and how they
 /// look. Drawn by IRenderer::draw(), in the order of the sprites.
 struct ParticleDraw {
@@ -92,6 +103,7 @@ struct ParticleDraw {
     BlendMode blend{BlendMode::kAdditive};  ///< How the particles are combined with what is under them.
     ParticleAlignment alignment{ParticleAlignment::kFixed};  ///< How each particle's quad is turned.
     float stretch{0.0F};  ///< kVelocity: the quad's length grows by speed * stretch (seconds), so 0 only turns it.
+    ParticleFlipbook flipbook;  ///< Animation over each particle's life; one frame (the whole source) by default.
 };
 
 }  // namespace rtype::plugins::backend::graphics
