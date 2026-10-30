@@ -345,14 +345,17 @@ the others, so the number of barriers does not grow with the number of systems:
    appended to the other alive list and written, as it is drawn, at the same index of `instances`.
 4. **Copy** each alive count into the `instanceCount` of the system's indirect command, and swap the alive lists.
 5. **Barrier** (synchronization2): compute and transfer writes → `DRAW_INDIRECT` and `VERTEX_ATTRIBUTE_INPUT` reads.
-6. **Sort** (later): a bitonic sort by age, for `kAlpha` effects only, where the order of overlapping particles shows.
-   Additive particles look the same in any order.
+6. **Sort** (`particle_sort.comp`), for the systems with `sortByAge` only (the plugin sets it for `kAlpha` effects,
+   where the order of overlapping particles shows; additive ones look the same in any order): a pass pads the
+   `instances` past the live ones with a life of -1, then a bitonic sort in place orders them by life, the furthest
+   into theirs first, over the capacity rounded up to a power of two. One dispatch per step, the steps of every sorted
+   system batched.
 7. **Draw:** `vkCmdDrawIndirect` of `instances`, at the system's place among the sprites, with the pipeline of the CPU
    instances (below).
 
 Two differences with the CPU remain, both invisible in practice: when a system is full, the atomics pick which of the
 frame's particles are dropped (the CPU drops the last ones), and the live particles are not in the same order (which
-only shows for overlapping `kAlpha` particles, sorted later).
+only shows for overlapping `kAlpha` particles, which both paths sort by age).
 
 **Drawing, shared by both paths** (`rendering/ParticlePass`): `particle.vert` reads the `ParticleInstance`s as
 per-instance vertex attributes and builds each quad, centred on the particle, turned by its rotation (and later
@@ -452,8 +455,10 @@ Each step builds and is tested on its own, in this order:
 4. **Vulkan simulates:** `beginRendering()` moved to `endFrame()`, `GpuParticleData` (the std430 layouts),
    `GpuParticleSystem`, `ParticleSimulationPass`, the emit and simulate shaders, draw indirect, `supportsGpuParticles()`
    (the fallback logic in the plugin was done in step 1). The example switches between both paths with Space.
-5. **Richer effects, on both paths:** curves and gradients in lookup tables, `kVelocity` alignment, sorting for
-   `kAlpha`, atlas frames over life.
+5. **Richer effects, on both paths:** curves and gradients in lookup tables (done in step 1); `kVelocity` alignment
+   (`ParticleDraw::stretch`, in `particle.vert`); flipbooks, atlas frames over life (`ParticleFlipbook`, read through
+   `ParticleInstance::life`, now how far into its life a particle is); sorting by age for `kAlpha` (`sortByAge`,
+   `std::ranges::sort` on the CPU, `particle_sort.comp` on the GPU). Done.
 6. **Sub-emitters,** on birth and death, CPU then GPU.
 7. **Luau:** the loader registry, then the Luau loader, once the Luau module is ready.
 8. **Docs:** `CLAUDE.md` (structure), `docs/Backend.md` (the new `IRenderer` calls), a user guide like
