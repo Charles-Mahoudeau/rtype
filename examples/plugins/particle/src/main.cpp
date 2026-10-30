@@ -168,7 +168,8 @@ ParticleEffect makeFountain(AssetId dot) {
     return effect;
 }
 
-// One burst in every direction, slowed by drag, shrinking as it fades.
+// One burst of sparks in every direction, turned along their velocity and stretched by their speed, slowed by drag,
+// shrinking as they fade.
 ParticleEffect makeExplosion(AssetId dot) {
     ParticleEffect effect;
     effect.texture = dot;
@@ -177,8 +178,10 @@ ParticleEffect makeExplosion(AssetId dot) {
     effect.desc.bursts.push_back({.count = 200});
     effect.desc.lifetime = {.min = 0.4F, .max = 1.0F};
     effect.desc.speed = {.min = 60.0F, .max = 420.0F};
-    effect.desc.size = {.min = 8.0F, .max = 18.0F};
+    effect.desc.size = {.min = 6.0F, .max = 10.0F};
     effect.desc.drag = 3.0F;
+    effect.alignment = plugins::backend::graphics::ParticleAlignment::kVelocity;
+    effect.stretch = 0.06F;
     effect.desc.colorOverLife.keys = {{.t = 0.0F, .value = {1.0F, 1.0F, 0.8F, 1.0F}},
                                       {.t = 0.3F, .value = {1.0F, 0.6F, 0.2F, 1.0F}},
                                       {.t = 1.0F, .value = {0.5F, 0.1F, 0.1F, 0.0F}}};
