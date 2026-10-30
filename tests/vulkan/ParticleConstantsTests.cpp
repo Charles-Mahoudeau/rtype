@@ -44,11 +44,13 @@ TEST(ParticleConstants, AnEmptyTextureShowsItWhole) {
     EXPECT_EQ(ParticleConstants::fromDraw(draw, glm::uvec2{0, 0}).uvRect, (glm::vec4{0.0F, 0.0F, 1.0F, 1.0F}));
 }
 
-TEST(ParticleConstants, CarriesTheBlendModeAndTheAlignment) {
+TEST(ParticleConstants, CarriesTheBlendModeTheAlignmentAndTheStretch) {
     ParticleDraw draw;
     draw.blend = BlendMode::kCutout;
     draw.alignment = ParticleAlignment::kVelocity;
+    draw.stretch = 0.05F;
     const ParticleConstants constants = ParticleConstants::fromDraw(draw, glm::uvec2{8, 8});
     EXPECT_EQ(constants.blend, rtype::render::vulkan::rendering::kBlendCutout);
     EXPECT_EQ(constants.alignment, 1U);
+    EXPECT_FLOAT_EQ(constants.stretch, 0.05F);
 }
