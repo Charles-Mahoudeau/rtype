@@ -252,6 +252,7 @@ void drawEmitters(ecs::NonSendMut<backend::Backend> backend, ecs::Res<ParticleEf
         draw.blend = effect->blend;
         draw.alignment = effect->alignment;
         draw.stretch = effect->stretch;
+        draw.flipbook = effect->flipbook;
         queue->push(emitter.layer, draw);
     }
 }
