@@ -21,6 +21,7 @@
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"  // IWYU pragma: keep
+#include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Particle.hpp"
 #include "plugins/backend/graphics/ParticleSystemDesc.hpp"
@@ -91,21 +92,30 @@ void stopEmitter(ParticleSystems& systems, backend::graphics::IRenderer* rendere
     return canGpu;
 }
 
+/// @return What the simulation of @p effect runs: its desc, sorted by age when it is alpha-blended, whose overlapping
+/// particles show their order.
+[[nodiscard]] backend::graphics::ParticleSystemDesc simulatedDesc(const ParticleEffect& effect) {
+    backend::graphics::ParticleSystemDesc desc = effect.desc;
+    desc.sortByAge = desc.sortByAge || effect.blend == backend::graphics::BlendMode::kAlpha;
+    return desc;
+}
+
 /// @brief Starts @p entity's emitter of @p effect, on the GPU or the CPU.
 EmitterState& startEmitter(ParticleSystems& systems, backend::graphics::IRenderer* renderer, ecs::Entity entity,
                            const ParticleEmitter& emitter, const ParticleEffect& effect) {
     const std::uint32_t seed = emitter.seed != 0 ? emitter.seed : systems.pickSeed();
+    const backend::graphics::ParticleSystemDesc desc = simulatedDesc(effect);
     if (pickGpu(emitter, effect, emitter.effect, renderer, systems)) {
         try {
             return systems.start(entity, EmitterState{.effect = emitter.effect,
                                                       .seed = seed,
-                                                      .simulation = renderer->createParticleSystem(effect.desc)});
+                                                      .simulation = renderer->createParticleSystem(desc)});
         } catch (const std::exception& error) {
             std::cerr << "[ParticlePlugin] " << error.what() << ": the effect runs on the CPU\n";
         }
     }
-    return systems.start(
-        entity, EmitterState{.effect = emitter.effect, .seed = seed, .simulation = CpuSimulation{effect.desc}});
+    return systems.start(entity,
+                         EmitterState{.effect = emitter.effect, .seed = seed, .simulation = CpuSimulation{desc}});
 }
 
 /// @return Whether the emitter of @p state, of @p desc, has emitted everything and its last particle died.
