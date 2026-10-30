@@ -57,6 +57,9 @@ struct ParticleSystemDesc {
     ParticleSimulation simulation{ParticleSimulation::kAuto};  ///< Where it runs.
     std::uint32_t capacity{1024};                              ///< Most particles alive at once.
     ParticleSpace space{ParticleSpace::kWorld};                ///< kWorld: left behind; kLocal: follow the emitter.
+    /// Draws the particles the furthest into their life first, so the youngest are on top: what alpha-blended
+    /// particles that overlap need (smoke, dust). Additive ones look the same in any order, so they skip the cost.
+    bool sortByAge{false};
 
     // Spawn
     float rate{0.0F};                   ///< Particles per second while playing.
