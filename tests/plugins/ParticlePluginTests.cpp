@@ -19,6 +19,7 @@
 #include "TestImages.hpp"
 #include "core/asset/AssetId.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
+#include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Particle.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/particle/CpuSimulation.hpp"
@@ -141,6 +142,22 @@ TEST(ParticlePlugin, DrawsACpuEmitterAtItsLayer) {
     EXPECT_EQ(countInstances(draws.at(0)), 1U);
     EXPECT_EQ(app.state().drawOrder, (std::vector<char>{'p'}));
     EXPECT_TRUE(app.state().createdParticleSystems.empty());
+}
+
+TEST(ParticlePlugin, DrawsWithTheLookOfTheEffect) {
+    ParticleApp app;
+    ParticleEffect sparks = *app.effects().get(app.stream());
+    sparks.blend = rtype::plugins::backend::graphics::BlendMode::kAlpha;
+    sparks.alignment = rtype::plugins::backend::graphics::ParticleAlignment::kVelocity;
+    sparks.stretch = 0.1F;
+    const AssetId id = app.effects().add("sparks", std::move(sparks));
+    static_cast<void>(app.spawnEmitter(ParticleEmitter{.effect = id}));
+    static_cast<void>(app.drawFrame());
+    const auto draws = app.drawFrame();
+    ASSERT_EQ(draws.size(), 1U);
+    EXPECT_EQ(draws.at(0).blend, rtype::plugins::backend::graphics::BlendMode::kAlpha);
+    EXPECT_EQ(draws.at(0).alignment, rtype::plugins::backend::graphics::ParticleAlignment::kVelocity);
+    EXPECT_FLOAT_EQ(draws.at(0).stretch, 0.1F);
 }
 
 TEST(ParticlePlugin, EmitsTheRateOverTheFrames) {
