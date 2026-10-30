@@ -44,7 +44,7 @@ enum class ParticleSpace : std::uint8_t {
 /// @brief How each particle's quad is turned.
 enum class ParticleAlignment : std::uint8_t {
     kFixed,     ///< Drawn with its own rotation and size.
-    kVelocity,  ///< Turned along its velocity and stretched by its speed: sparks, rain.
+    kVelocity,  ///< Turned along its velocity (the texture's +X forward) and stretched by its speed: sparks, rain.
 };
 
 /// @brief One particle as it is drawn: what a CPU simulation hands the renderer, and what a GPU one keeps in its
@@ -91,6 +91,7 @@ struct ParticleDraw {
     math::Rect source;                      ///< Part of the texture each particle shows, in pixels; empty: all of it.
     BlendMode blend{BlendMode::kAdditive};  ///< How the particles are combined with what is under them.
     ParticleAlignment alignment{ParticleAlignment::kFixed};  ///< How each particle's quad is turned.
+    float stretch{0.0F};  ///< kVelocity: the quad's length grows by speed * stretch (seconds), so 0 only turns it.
 };
 
 }  // namespace rtype::plugins::backend::graphics
