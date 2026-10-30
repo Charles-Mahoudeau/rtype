@@ -35,6 +35,7 @@
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
 #include "memory/Allocator.hpp"
 #include "memory/Uploader.hpp"
+#include "particle/GpuParticleSystem.hpp"
 #include "pipeline/PipelineCache.hpp"
 #include "pipeline/PipelineLayout.hpp"
 #include "pipeline/ShaderCache.hpp"
@@ -188,14 +189,17 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// @throws std::invalid_argument If its texture was destroyed or never created.
     void draw(const plugins::backend::graphics::Text& text) override;
 
-    /// @brief Not implemented yet: GPU particles come with the particle compute passes (supportsGpuParticles() is
-    /// false).
-    /// @throws exceptions::UnsupportedFeatureException Always.
+    /// @brief Creates a particle::GpuParticleSystem: its buffers, filled before this returns, and its descriptor set.
+    /// supportsGpuParticles() stays false until the systems are simulated and drawn, so the particle plugin does not
+    /// create any yet.
+    /// @throws std::logic_error If init() was not called.
+    /// @throws exceptions::ParticleException If @p desc is invalid.
     [[nodiscard]] plugins::backend::graphics::ParticleSystemId createParticleSystem(
         const plugins::backend::graphics::ParticleSystemDesc& desc) override;
-    /// @brief Does nothing: no particle system can have been created yet.
+    /// @brief Destroys a GPU particle system once the GPU is done with it; does nothing for one already destroyed.
     void destroy(plugins::backend::graphics::ParticleSystemId system) override;
-    /// @throws std::invalid_argument Always: no particle system can have been created yet.
+    /// @brief Not simulated yet: checks @p system only.
+    /// @throws std::invalid_argument If @p system was destroyed or never created.
     void simulate(plugins::backend::graphics::ParticleSystemId system,
                   const plugins::backend::graphics::ParticleEmission& emission) override;
     /// @brief Draws the instances of a CPU simulation, among the sprites in call order (rendering/DrawList.hpp), with
@@ -297,14 +301,18 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     std::unique_ptr<pipeline::ShaderCache> _shaders;          ///< Shader modules, built-in and from the game.
     std::unique_ptr<pipeline::PipelineCache> _pipelineCache;  ///< Shared by every pipeline the renderer builds.
     std::unique_ptr<frame::FrameGlobals> _globals;            ///< Per-frame uniforms, at set 0, binding 0.
-    std::unique_ptr<descriptor::DescriptorSetLayout> _textureSetLayout;    ///< Set 1: one combined image sampler.
-    std::unique_ptr<descriptor::DescriptorAllocator> _textureDescriptors;  ///< Allocates the textures' sets.
+    std::unique_ptr<descriptor::DescriptorSetLayout> _textureSetLayout;     ///< Set 1: one combined image sampler.
+    std::unique_ptr<descriptor::DescriptorAllocator> _textureDescriptors;   ///< Allocates the textures' sets.
+    std::unique_ptr<descriptor::DescriptorSetLayout> _particleSetLayout;    ///< Set 0 of the particle compute shaders.
+    std::unique_ptr<descriptor::DescriptorAllocator> _particleDescriptors;  ///< Allocates the GPU systems' sets.
     std::unique_ptr<pipeline::PipelineLayout> _layout;   ///< The shared layout (rendering/ShaderLayout.hpp) of every
                                                          ///< pipeline: sets 0 and 1, and the DrawConstants.
     std::unique_ptr<rendering::SpritePass> _spritePass;  ///< Draws _sprites at endFrame().
     std::unique_ptr<rendering::ShapePass> _shapePass;    ///< Draws _shapes at endFrame(), after the sprites.
     std::unique_ptr<rendering::ParticlePass> _particlePass;  ///< Draws _particleRanges at endFrame(), among _sprites.
     core::SlotMap<plugins::backend::graphics::TextureId, texture::Texture> _textures;  ///< By TextureId.
+    core::SlotMap<plugins::backend::graphics::ParticleSystemId, particle::GpuParticleSystem>
+        _particleSystems;  ///< By ParticleSystemId.
 
     // 7. Deferred deletion.
     core::DeletionQueue _deletionQueue{kFramesInFlight};  ///< Resources the GPU may still use, one bucket per frame.

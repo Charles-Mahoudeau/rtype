@@ -35,6 +35,8 @@
 #include "frame/FrameData.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
 #include "memory/Image.hpp"
+#include "particle/GpuParticleData.hpp"
+#include "particle/GpuParticleSystem.hpp"
 #include "plugins/backend/exceptions/PlatformExceptions.hpp"
 #include "plugins/backend/graphics/CameraView.hpp"
 #include "plugins/backend/graphics/Color.hpp"
@@ -75,6 +77,8 @@ constexpr vk::Format kDataTextureFormat = vk::Format::eR8G8B8A8Unorm;
 
 /// @brief Texture sets per descriptor pool: a new pool is added each time this many textures are alive.
 constexpr std::uint32_t kTextureSetsPerPool = 64;
+/// @brief Most GPU particle systems' sets in one descriptor pool; a new pool is added when it is full.
+constexpr std::uint32_t kParticleSetsPerPool = 32;
 
 /// @return @p color (x, y, z, w = red, green, blue, alpha) as a Vulkan clear value: linear, an sRGB swapchain encodes
 /// it.
@@ -158,6 +162,15 @@ void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
         vk::DescriptorPoolSize{vk::DescriptorType::eCombinedImageSampler, kTextureSetsPerPool}};
     _textureDescriptors =
         std::make_unique<descriptor::DescriptorAllocator>(*_device, kTextureSetsPerPool, textureSizes);
+    descriptor::DescriptorSetLayout::Builder particleSet;
+    for (std::uint32_t binding = 0; binding < particle::kBindingCount; ++binding) {
+        particleSet.addBinding(binding, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute);
+    }
+    _particleSetLayout = std::make_unique<descriptor::DescriptorSetLayout>(particleSet.build(*_device));
+    const std::array particleSizes{
+        vk::DescriptorPoolSize{vk::DescriptorType::eStorageBuffer, kParticleSetsPerPool * particle::kBindingCount}};
+    _particleDescriptors =
+        std::make_unique<descriptor::DescriptorAllocator>(*_device, kParticleSetsPerPool, particleSizes);
     const std::array setLayouts{*_globals->getSetLayout().getLayout(), *_textureSetLayout->getLayout()};
     const std::array pushConstants{vk::PushConstantRange{
         vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0, sizeof(rendering::DrawConstants)}};
@@ -416,16 +429,28 @@ void VulkanRenderer::draw(const plugins::backend::graphics::Text& text) {
 }
 
 plugins::backend::graphics::ParticleSystemId VulkanRenderer::createParticleSystem(
-    const plugins::backend::graphics::ParticleSystemDesc& /*desc*/) {
-    throw plugins::backend::exceptions::UnsupportedFeatureException(
-        "VulkanRenderer does not simulate particles on the GPU yet");
+    const plugins::backend::graphics::ParticleSystemDesc& desc) {
+    if (!_uploader) {
+        throw std::logic_error("VulkanRenderer::createParticleSystem() called before init()");
+    }
+    particle::GpuParticleSystem system{*_device, *_allocator, *_uploader, *_particleDescriptors, *_particleSetLayout,
+                                       desc};
+    _uploader->flush();
+    return _particleSystems.insert(std::move(system));
 }
 
-void VulkanRenderer::destroy(plugins::backend::graphics::ParticleSystemId /*system*/) {}
+void VulkanRenderer::destroy(plugins::backend::graphics::ParticleSystemId system) {
+    std::optional<particle::GpuParticleSystem> removed = _particleSystems.erase(system);
+    if (removed) {
+        _deletionQueue.defer(getLastRecordedFrame(), std::move(*removed));
+    }
+}
 
-void VulkanRenderer::simulate(plugins::backend::graphics::ParticleSystemId /*system*/,
+void VulkanRenderer::simulate(plugins::backend::graphics::ParticleSystemId system,
                               const plugins::backend::graphics::ParticleEmission& /*emission*/) {
-    throw std::invalid_argument("VulkanRenderer::simulate(): the particle system was destroyed or never created");
+    if (_particleSystems.find(system) == nullptr) {
+        throw std::invalid_argument("VulkanRenderer::simulate(): the particle system was destroyed or never created");
+    }
 }
 
 void VulkanRenderer::draw(const plugins::backend::graphics::ParticleDraw& particles) {
