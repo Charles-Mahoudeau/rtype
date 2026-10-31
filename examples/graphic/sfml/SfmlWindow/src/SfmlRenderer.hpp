@@ -19,6 +19,8 @@
 
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
+#include "plugins/backend/graphics/Particle.hpp"
+#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Text.hpp"
@@ -68,6 +70,19 @@ class SfmlRenderer final : public rtype::plugins::backend::graphics::IRenderer {
     /// graphics driver has no shaders (the raw distances would show as coloured blocks).
     /// @throws std::invalid_argument If the text's texture was destroyed.
     void draw(const rtype::plugins::backend::graphics::Text& text) override;
+
+    /// @brief SFML has no compute shaders: particles run on the CPU (supportsGpuParticles() is false).
+    /// @throws rtype::plugins::backend::exceptions::UnsupportedFeatureException Always.
+    [[nodiscard]] rtype::plugins::backend::graphics::ParticleSystemId createParticleSystem(
+        const rtype::plugins::backend::graphics::ParticleSystemDesc& desc) override;
+    /// @brief Does nothing: no particle system can be created.
+    void destroy(rtype::plugins::backend::graphics::ParticleSystemId system) override;
+    /// @throws std::invalid_argument Always: no particle system can be created.
+    void simulate(rtype::plugins::backend::graphics::ParticleSystemId system,
+                  const rtype::plugins::backend::graphics::ParticleEmission& emission) override;
+    /// @brief Not implemented yet: the example draws no particles.
+    /// @throws rtype::plugins::backend::exceptions::UnsupportedFeatureException Always.
+    void draw(const rtype::plugins::backend::graphics::ParticleDraw& particles) override;
 
   private:
     /// @brief A place for one texture; reused after destroy() with a higher generation.

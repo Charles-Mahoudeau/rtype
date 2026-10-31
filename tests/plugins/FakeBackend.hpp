@@ -19,8 +19,11 @@
 #include "core/config/Settings.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/event/Event.hpp"
+#include "plugins/backend/exceptions/PlatformExceptions.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
+#include "plugins/backend/graphics/Particle.hpp"
+#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Text.hpp"
@@ -50,7 +53,13 @@ struct FakeBackendState {
     std::vector<rtype::plugins::backend::graphics::Sprite> sprites;               ///< Every draw(Sprite) call.
     std::vector<rtype::plugins::backend::graphics::Shape> shapes;                 ///< Every draw(Shape) call.
     std::vector<rtype::plugins::backend::graphics::Text> texts;                   ///< Every draw(Text) call.
-    std::vector<char> drawOrder;  ///< 's' (sprite), 'h' (shape) or 't' (text) for each draw() call, in order.
+    bool gpuParticles{false};  ///< What supportsGpuParticles() returns.
+    std::vector<rtype::plugins::backend::graphics::ParticleSystemDesc> createdParticleSystems;  ///< Every create call.
+    std::vector<rtype::plugins::backend::graphics::ParticleSystemId>
+        destroyedParticleSystems;                                                  ///< Every destroy() call.
+    std::vector<rtype::plugins::backend::graphics::ParticleEmission> simulations;  ///< Every simulate() call.
+    std::vector<rtype::plugins::backend::graphics::ParticleDraw> particleDraws;    ///< Every draw(ParticleDraw) call.
+    std::vector<char> drawOrder;  ///< 's' (sprite), 'h' (shape), 't' (text) or 'p' (particles) per draw() call.
 };
 
 /// @brief A window that returns scripted events.
@@ -141,6 +150,27 @@ class FakeRenderer : public rtype::plugins::backend::graphics::IRenderer {
     void draw(const rtype::plugins::backend::graphics::Text& text) override {
         _state->texts.push_back(text);
         _state->drawOrder.push_back('t');
+    }
+    [[nodiscard]] bool supportsGpuParticles() const noexcept override { return _state->gpuParticles; }
+    [[nodiscard]] rtype::plugins::backend::graphics::ParticleSystemId createParticleSystem(
+        const rtype::plugins::backend::graphics::ParticleSystemDesc& desc) override {
+        if (!_state->gpuParticles) {
+            throw rtype::plugins::backend::exceptions::UnsupportedFeatureException("FakeRenderer: no GPU particles");
+        }
+        _state->createdParticleSystems.push_back(desc);
+        return {.index = static_cast<std::uint32_t>(_state->createdParticleSystems.size() - 1), .generation = 1};
+    }
+    void destroy(rtype::plugins::backend::graphics::ParticleSystemId system) override {
+        _state->destroyedParticleSystems.push_back(system);
+    }
+    void simulate(rtype::plugins::backend::graphics::ParticleSystemId /*system*/,
+                  const rtype::plugins::backend::graphics::ParticleEmission& emission) override {
+        _state->simulations.push_back(emission);
+    }
+    // Copies the draw: the CPU instances it points to are only valid until the frame is drawn.
+    void draw(const rtype::plugins::backend::graphics::ParticleDraw& particles) override {
+        _state->particleDraws.push_back(particles);
+        _state->drawOrder.push_back('p');
     }
 
   private:

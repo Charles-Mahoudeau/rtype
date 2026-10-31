@@ -58,14 +58,21 @@ SpritePass::SpritePass(const core::Device& device, const memory::Allocator& allo
       _pipeline{createPipeline(device, shaders, layout, colorFormat, cache)},
       _buffers(framesInFlight) {}
 
-void SpritePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex, const SpriteBatch& batch,
-                        const plugins::backend::graphics::Viewport& viewport, const TextureSetFinder& findTextureSet) {
+void SpritePass::upload(std::size_t frameIndex, const SpriteBatch& batch) {
     const std::span<const SpriteInstance> instances = batch.getInstances();
-    if (instances.empty() || viewport.size.x <= 0.0F || viewport.size.y <= 0.0F) {
+    if (instances.empty()) {
         return;
     }
-    memory::Buffer& buffer = reserve(frameIndex, instances.size());
-    buffer.write(std::as_bytes(instances));
+    reserve(frameIndex, instances.size()).write(std::as_bytes(instances));
+}
+
+void SpritePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
+                        std::span<const SpriteBatch::Batch> batches,
+                        const plugins::backend::graphics::Viewport& viewport, const TextureSetFinder& findTextureSet) {
+    const std::optional<memory::Buffer>& buffer = _buffers.at(frameIndex);
+    if (batches.empty() || !buffer || viewport.size.x <= 0.0F || viewport.size.y <= 0.0F) {
+        return;
+    }
 
     _pipeline.bind(commandBuffer);
     commandBuffer.setViewport(
@@ -74,8 +81,8 @@ void SpritePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_
                                                         static_cast<std::int32_t>(viewport.position.y)},
                                            vk::Extent2D{static_cast<std::uint32_t>(viewport.size.x),
                                                         static_cast<std::uint32_t>(viewport.size.y)}});
-    commandBuffer.bindVertexBuffers(0, *buffer.getBuffer(), vk::DeviceSize{0});
-    for (const SpriteBatch::Batch& range : batch.getBatches()) {
+    commandBuffer.bindVertexBuffers(0, *buffer->getBuffer(), vk::DeviceSize{0});
+    for (const SpriteBatch::Batch& range : batches) {
         const vk::DescriptorSet set = findTextureSet(range.texture);
         if (!set) {
             continue;

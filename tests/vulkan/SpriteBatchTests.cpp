@@ -117,6 +117,34 @@ TEST(SpriteBatch, ClearForgetsEverything) {
     EXPECT_EQ(batch.getBatches().size(), 1U);
 }
 
+TEST(SpriteBatch, SplitStartsANewBatchWithTheSameTexture) {
+    SpriteBatch batch;
+    batch.add(kShips, {});
+    batch.split();
+    batch.add(kShips, {});
+    batch.add(kShips, {});
+    ASSERT_EQ(batch.getBatches().size(), 2U);
+    EXPECT_EQ(batch.getBatches()[1].firstInstance, 1U);
+    EXPECT_EQ(batch.getBatches()[1].instanceCount, 2U);
+}
+
+TEST(SpriteBatch, SplitBeforeAnyAddChangesNothing) {
+    SpriteBatch batch;
+    batch.split();
+    batch.add(kShips, {});
+    EXPECT_EQ(batch.getBatches().size(), 1U);
+}
+
+TEST(SpriteBatch, ClearForgetsASplit) {
+    SpriteBatch batch;
+    batch.add(kShips, {});
+    batch.split();
+    batch.clear();
+    batch.add(kShips, {});
+    batch.add(kShips, {});
+    EXPECT_EQ(batch.getBatches().size(), 1U);
+}
+
 TEST(SpriteInstance, PlacesAGlyphAroundTheOriginOfItsText) {
     const rtype::plugins::backend::graphics::GlyphQuad glyph{
         .source = rtype::plugins::backend::math::Rect{{16.0F, 0.0F}, {16.0F, 32.0F}},

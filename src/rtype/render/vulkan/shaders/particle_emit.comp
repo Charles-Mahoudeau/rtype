@@ -1,0 +1,79 @@
+/*
+** EPITECH PROJECT, 2026
+** rtype
+** File description:
+** particle_emit
+*/
+
+// Emits the frame's particles of one GPU system: one thread per particle to spawn (emission.spawnCount). Each pops a
+// free slot, fills it as CpuSimulation::spawn() does (the same random numbers, from particle firstParticle + thread),
+// and appends it to the alive list read this frame, so the simulation moves it this frame too. Particles that find no
+// free slot are dropped, as the CPU drops what is beyond the capacity.
+#version 450
+#extension GL_GOOGLE_include_directive : require
+
+#include "ParticleRandom.glsl"
+#include "ParticleSystem.glsl"
+
+layout(local_size_x = 64) in;
+
+const float kTwoPi = 6.28318530717958647692;
+
+// `vector` turned by `angle` radians, clockwise on screen (Y down).
+vec2 rotateVector(vec2 vector, float angle) {
+    const float c = cos(angle);
+    const float s = sin(angle);
+    return vec2((vector.x * c) - (vector.y * s), (vector.x * s) + (vector.y * c));
+}
+
+// A value of `range` (min, max) for particle `index`, from its random number `stream`.
+float pick(vec2 range, uint index, uint stream) {
+    return range.x + ((range.y - range.x) * particleRandomFloat(emission.seed, index, stream));
+}
+
+// Where particle `index` spawns in the shape, relative to the emitter, before its scale and rotation.
+vec2 shapeOffset(uint index) {
+    const float randomX = particleRandomFloat(emission.seed, index, kStreamShapeX);
+    const float randomY = particleRandomFloat(emission.seed, index, kStreamShapeY);
+    if (params.shape == kShapeCircle) {
+        const float angle = kTwoPi * randomX;
+        const float radius = params.shapeSize.x;
+        const float distance = params.edgeOnly != 0u ? radius : radius * sqrt(randomY);
+        return vec2(cos(angle), sin(angle)) * distance;
+    }
+    if (params.shape == kShapeRect) {
+        return (vec2(randomX, randomY) - 0.5) * params.shapeSize;
+    }
+    return vec2(0.0);
+}
+
+void main() {
+    const uint thread = gl_GlobalInvocationID.x;
+    if (thread >= emission.spawnCount) {
+        return;
+    }
+    const int free = atomicAdd(counters.dead, -1);
+    if (free <= 0) {
+        atomicAdd(counters.dead, 1);
+        return;
+    }
+    const uint slot = dead.slots[free - 1];
+    const uint index = emission.firstParticle + thread;
+
+    const vec2 offset = rotateVector(shapeOffset(index) * emission.scale, emission.rotation);
+    const float angle = pick(params.angle, index, kStreamAngle) + emission.rotation;
+    const float speed = pick(params.speed, index, kStreamSpeed);
+    Particle particle;
+    particle.position = params.space == kSpaceLocal ? offset : emission.position + offset;
+    particle.velocity = vec2(cos(angle), sin(angle)) * speed;
+    particle.rotation = pick(params.rotation, index, kStreamRotation);
+    particle.angularVelocity = pick(params.angularVelocity, index, kStreamAngularVelocity);
+    particle.size = pick(params.size, index, kStreamSize);
+    particle.age = 0.0;
+    particle.lifetime = pick(params.lifetime, index, kStreamLifetime);
+    particle.padding = 0.0;
+    particles.slots[slot] = particle;
+
+    const uint at = atomicAdd(counters.alive[emission.current], 1u);
+    alive.slots[(emission.current * params.capacity) + at] = slot;
+}

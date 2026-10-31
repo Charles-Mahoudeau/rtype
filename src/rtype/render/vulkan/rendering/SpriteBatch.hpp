@@ -86,12 +86,17 @@ class RTYPE_RENDER_VULKAN_API SpriteBatch {
     /// texture, or starts a new one.
     void add(plugins::backend::graphics::TextureId texture, const SpriteInstance& instance);
 
+    /// @brief Makes the next add() start a new batch, even with the texture of the last one: something else (a
+    /// particle draw) is drawn between the two.
+    void split() noexcept;
+
     /// @brief Forgets every instance and batch, keeping the memory for the next frame.
     void clear() noexcept;
 
   private:
     std::vector<SpriteInstance> _instances;  ///< In draw order.
     std::vector<Batch> _batches;             ///< In draw order.
+    bool _split = false;                     ///< The next add() starts a new batch.
 };
 
 }  // namespace rtype::render::vulkan::rendering

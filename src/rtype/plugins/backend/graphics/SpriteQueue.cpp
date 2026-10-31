@@ -12,6 +12,7 @@
 #include <variant>
 #include <vector>
 
+#include "plugins/backend/graphics/Particle.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
@@ -28,6 +29,10 @@ void SpriteQueue::push(std::int32_t layer, const Sprite& sprite) {
 
 void SpriteQueue::push(std::int32_t layer, Text text) {
     _items.push_back(Item{.layer = layer, .drawing = std::move(text)});
+}
+
+void SpriteQueue::push(std::int32_t layer, const ParticleDraw& particles) {
+    _items.push_back(Item{.layer = layer, .drawing = particles});
 }
 
 std::vector<SpriteQueue::Item> SpriteQueue::take() { return std::exchange(_items, {}); }

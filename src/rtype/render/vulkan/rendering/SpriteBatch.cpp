@@ -79,16 +79,20 @@ std::array<vk::VertexInputAttributeDescription, 7> SpriteInstance::getAttributes
 }
 
 void SpriteBatch::add(plugins::backend::graphics::TextureId texture, const SpriteInstance& instance) {
-    if (_batches.empty() || _batches.back().texture != texture) {
+    if (_batches.empty() || _split || _batches.back().texture != texture) {
+        _split = false;
         _batches.push_back(Batch{.texture = texture, .firstInstance = static_cast<std::uint32_t>(_instances.size())});
     }
     _instances.push_back(instance);
     ++_batches.back().instanceCount;
 }
 
+void SpriteBatch::split() noexcept { _split = true; }
+
 void SpriteBatch::clear() noexcept {
     _instances.clear();
     _batches.clear();
+    _split = false;
 }
 
 }  // namespace rtype::render::vulkan::rendering

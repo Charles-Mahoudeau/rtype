@@ -42,6 +42,8 @@
 #include "plugins/backend/exceptions/PlatformExceptions.hpp"
 #include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Color.hpp"
+#include "plugins/backend/graphics/Particle.hpp"
+#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Text.hpp"
@@ -312,6 +314,20 @@ const sf::Texture* SfmlRenderer::find(graphics::TextureId texture) const {
         return nullptr;
     }
     return &*slot.texture;
+}
+
+graphics::ParticleSystemId SfmlRenderer::createParticleSystem(const graphics::ParticleSystemDesc& /*desc*/) {
+    throw exceptions::UnsupportedFeatureException("SfmlRenderer cannot simulate particles on the GPU");
+}
+
+void SfmlRenderer::destroy(graphics::ParticleSystemId /*system*/) {}
+
+void SfmlRenderer::simulate(graphics::ParticleSystemId /*system*/, const graphics::ParticleEmission& /*emission*/) {
+    throw std::invalid_argument("SfmlRenderer::simulate: the particle system was never created");
+}
+
+void SfmlRenderer::draw(const graphics::ParticleDraw& /*particles*/) {
+    throw exceptions::UnsupportedFeatureException("SfmlRenderer does not draw particles yet");
 }
 
 }  // namespace example

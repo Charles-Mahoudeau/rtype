@@ -7,6 +7,7 @@
 
 #include "VulkanRenderer.hpp"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstddef>
@@ -23,6 +24,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
@@ -34,9 +36,14 @@
 #include "frame/FrameData.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
 #include "memory/Image.hpp"
+#include "particle/GpuParticleData.hpp"
+#include "particle/GpuParticleSystem.hpp"
+#include "particle/ParticleSimulationPass.hpp"
 #include "plugins/backend/exceptions/PlatformExceptions.hpp"
 #include "plugins/backend/graphics/CameraView.hpp"
 #include "plugins/backend/graphics/Color.hpp"
+#include "plugins/backend/graphics/Particle.hpp"
+#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Text.hpp"
@@ -72,6 +79,8 @@ constexpr vk::Format kDataTextureFormat = vk::Format::eR8G8B8A8Unorm;
 
 /// @brief Texture sets per descriptor pool: a new pool is added each time this many textures are alive.
 constexpr std::uint32_t kTextureSetsPerPool = 64;
+/// @brief Most GPU particle systems' sets in one descriptor pool; a new pool is added when it is full.
+constexpr std::uint32_t kParticleSetsPerPool = 32;
 
 /// @return @p color (x, y, z, w = red, green, blue, alpha) as a Vulkan clear value: linear, an sRGB swapchain encodes
 /// it.
@@ -155,6 +164,17 @@ void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
         vk::DescriptorPoolSize{vk::DescriptorType::eCombinedImageSampler, kTextureSetsPerPool}};
     _textureDescriptors =
         std::make_unique<descriptor::DescriptorAllocator>(*_device, kTextureSetsPerPool, textureSizes);
+    descriptor::DescriptorSetLayout::Builder particleSet;
+    for (std::uint32_t binding = 0; binding < particle::kBindingCount; ++binding) {
+        particleSet.addBinding(binding, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute);
+    }
+    _particleSetLayout = std::make_unique<descriptor::DescriptorSetLayout>(particleSet.build(*_device));
+    const std::array particleSizes{
+        vk::DescriptorPoolSize{vk::DescriptorType::eStorageBuffer, kParticleSetsPerPool * particle::kBindingCount}};
+    _particleDescriptors =
+        std::make_unique<descriptor::DescriptorAllocator>(*_device, kParticleSetsPerPool, particleSizes);
+    _particleSimulation = std::make_unique<particle::ParticleSimulationPass>(*_device, *_shaders, *_particleSetLayout,
+                                                                             &_pipelineCache->getCache());
     const std::array setLayouts{*_globals->getSetLayout().getLayout(), *_textureSetLayout->getLayout()};
     const std::array pushConstants{vk::PushConstantRange{
         vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0, sizeof(rendering::DrawConstants)}};
@@ -198,6 +218,9 @@ void VulkanRenderer::createPasses() {
     auto spritePass =
         std::make_unique<rendering::SpritePass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
                                                 &_pipelineCache->getCache(), kFramesInFlight);
+    auto particlePass =
+        std::make_unique<rendering::ParticlePass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
+                                                  &_pipelineCache->getCache(), kFramesInFlight);
     auto shapePass =
         std::make_unique<rendering::ShapePass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
                                                &_pipelineCache->getCache(), kFramesInFlight);
@@ -206,6 +229,11 @@ void VulkanRenderer::createPasses() {
         _deletionQueue.defer(frameIndex, std::exchange(_spritePass, std::move(spritePass)));
     } else {
         _spritePass = std::move(spritePass);
+    }
+    if (_particlePass) {
+        _deletionQueue.defer(frameIndex, std::exchange(_particlePass, std::move(particlePass)));
+    } else {
+        _particlePass = std::move(particlePass);
     }
     if (_shapePass) {
         _deletionQueue.defer(frameIndex, std::exchange(_shapePass, std::move(shapePass)));
@@ -279,6 +307,10 @@ void VulkanRenderer::beginFrame(const plugins::backend::graphics::Color& clearCo
     }
     _view.reset();
     _sprites.clear();
+    _particleInstances.clear();
+    _particleRanges.clear();
+    _drawList.clear();
+    _simulations.clear();
     _shapes.clear();
     if (_framebufferSize.x == 0 || _framebufferSize.y == 0) {
         return;
@@ -304,11 +336,7 @@ void VulkanRenderer::beginFrame(const plugins::backend::graphics::Color& clearCo
     frame.getCommandPool().reset();
 
     frame.getCommandBuffer().begin();
-    const vk::raii::CommandBuffer& commandBuffer = frame.getCommandBuffer().getCommandBuffer();
-    rendering::transitionImage(commandBuffer, _swapchain->getImages().at(imageIndex), rendering::kToColorAttachment);
-    const vk::RenderingAttachmentInfo color =
-        rendering::colorAttachment(*_swapchain->getImageViews().at(imageIndex), toClearColor(clearColor));
-    commandBuffer.beginRendering(rendering::renderingInfo(_swapchain->getExtent(), {&color, 1}));
+    _clearColor = clearColor;
     _acquiredImage = imageIndex;
 }
 
@@ -329,13 +357,16 @@ void VulkanRenderer::endFrame() {
         _view.value_or(plugins::backend::graphics::CameraView::makeDefaultView(viewSize, framebufferSize)), viewSize,
         framebufferSize};
     updateFrameUniforms(view);
+    recordParticleSimulations(commandBuffer);
+
+    // Rendering starts here, not in beginFrame(): work that cannot be recorded inside a rendering scope (compute
+    // dispatches) is recorded above, before it.
+    rendering::transitionImage(commandBuffer, _swapchain->getImages().at(imageIndex), rendering::kToColorAttachment);
+    const vk::RenderingAttachmentInfo color =
+        rendering::colorAttachment(*_swapchain->getImageViews().at(imageIndex), toClearColor(_clearColor));
+    commandBuffer.beginRendering(rendering::renderingInfo(_swapchain->getExtent(), {&color, 1}));
     _globals->bind(commandBuffer, *_layout, frameIndex);
-    _spritePass->record(commandBuffer, frameIndex, _sprites, view.getViewport(),
-                        [this](plugins::backend::graphics::TextureId texture) {
-                            const texture::Texture* found = _textures.find(texture);
-                            return found != nullptr ? *found->set : vk::DescriptorSet{};
-                        });
-    _sprites.clear();
+    recordSpritesAndParticles(commandBuffer, frameIndex, view);
     _shapePass->record(commandBuffer, frameIndex, _shapes, view.getViewport());
     _shapes.clear();
 
@@ -401,6 +432,121 @@ void VulkanRenderer::draw(const plugins::backend::graphics::Text& text) {
     for (const plugins::backend::graphics::GlyphQuad& glyph : text.glyphs) {
         _sprites.add(text.texture, rendering::SpriteInstance::fromGlyph(text, glyph, texture->desc.size));
     }
+}
+
+bool VulkanRenderer::supportsGpuParticles() const noexcept { return true; }
+
+plugins::backend::graphics::ParticleSystemId VulkanRenderer::createParticleSystem(
+    const plugins::backend::graphics::ParticleSystemDesc& desc) {
+    if (!_uploader) {
+        throw std::logic_error("VulkanRenderer::createParticleSystem() called before init()");
+    }
+    particle::GpuParticleSystem system{*_device, *_allocator, *_uploader, *_particleDescriptors, *_particleSetLayout,
+                                       desc};
+    _uploader->flush();
+    return _particleSystems.insert(std::move(system));
+}
+
+void VulkanRenderer::destroy(plugins::backend::graphics::ParticleSystemId system) {
+    std::optional<particle::GpuParticleSystem> removed = _particleSystems.erase(system);
+    if (removed) {
+        _deletionQueue.defer(getLastRecordedFrame(), std::move(*removed));
+    }
+}
+
+void VulkanRenderer::simulate(plugins::backend::graphics::ParticleSystemId system,
+                              const plugins::backend::graphics::ParticleEmission& emission) {
+    if (_particleSystems.find(system) == nullptr) {
+        throw std::invalid_argument("VulkanRenderer::simulate(): the particle system was destroyed or never created");
+    }
+    if (!_acquiredImage) {
+        return;
+    }
+    const auto same = [system](const auto& simulation) { return simulation.first == system; };
+    if (auto found = std::ranges::find_if(_simulations, same); found != _simulations.end()) {
+        found->second = emission;
+        return;
+    }
+    _simulations.emplace_back(system, emission);
+}
+
+void VulkanRenderer::recordParticleSimulations(const vk::raii::CommandBuffer& commandBuffer) {
+    std::vector<particle::ParticleSimulationPass::Job> jobs;
+    jobs.reserve(_simulations.size());
+    for (const auto& [id, emission] : _simulations) {
+        if (particle::GpuParticleSystem* system = _particleSystems.find(id)) {
+            jobs.push_back(particle::ParticleSimulationPass::Job{.system = system, .emission = emission});
+        }
+    }
+    _particleSimulation->record(commandBuffer, jobs);
+    _simulations.clear();
+}
+
+void VulkanRenderer::draw(const plugins::backend::graphics::ParticleDraw& particles) {
+    if (!_acquiredImage) {
+        return;
+    }
+    const auto* system = std::get_if<plugins::backend::graphics::ParticleSystemId>(&particles.particles);
+    if (system != nullptr && _particleSystems.find(*system) == nullptr) {
+        throw std::invalid_argument("VulkanRenderer::draw(): the particle system was destroyed or never created");
+    }
+    const auto* instances =
+        std::get_if<std::span<const plugins::backend::graphics::ParticleInstance>>(&particles.particles);
+    if (instances != nullptr && instances->empty()) {
+        return;
+    }
+    const texture::Texture* texture = _textures.find(particles.texture);
+    if (texture == nullptr) {
+        throw std::invalid_argument("VulkanRenderer::draw(): the particles' texture was destroyed or never created");
+    }
+    _drawList.addParticles(static_cast<std::uint32_t>(_sprites.getBatches().size()),
+                           static_cast<std::uint32_t>(_particleRanges.size()));
+    _sprites.split();
+    ParticleRange range{.texture = particles.texture,
+                        .constants = rendering::ParticleConstants::fromDraw(particles, texture->desc.size)};
+    if (system != nullptr) {
+        range.system = *system;
+    } else {
+        range.firstInstance = static_cast<std::uint32_t>(_particleInstances.size());
+        range.instanceCount = static_cast<std::uint32_t>(instances->size());
+        _particleInstances.insert(_particleInstances.end(), instances->begin(), instances->end());
+    }
+    _particleRanges.push_back(range);
+}
+
+void VulkanRenderer::recordSpritesAndParticles(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
+                                               const plugins::backend::graphics::CameraView& view) {
+    _spritePass->upload(frameIndex, _sprites);
+    _particlePass->upload(frameIndex, _particleInstances);
+    const std::span<const rendering::SpriteBatch::Batch> batches = _sprites.getBatches();
+    const auto findSet = [this](plugins::backend::graphics::TextureId texture) { return findTextureSet(texture); };
+    for (const rendering::DrawList::Step& step : _drawList.getSteps(static_cast<std::uint32_t>(batches.size()))) {
+        if (const auto* run = std::get_if<rendering::DrawList::SpriteRun>(&step)) {
+            _spritePass->record(commandBuffer, frameIndex, batches.subspan(run->firstBatch, run->batchCount),
+                                view.getViewport(), findSet);
+            continue;
+        }
+        const ParticleRange& range = _particleRanges.at(std::get<rendering::DrawList::ParticleStep>(step).draw);
+        const rendering::ParticlePass::Draw draw{.constants = range.constants,
+                                                 .textureSet = findTextureSet(range.texture),
+                                                 .firstInstance = range.firstInstance,
+                                                 .instanceCount = range.instanceCount};
+        if (!range.system) {
+            _particlePass->record(commandBuffer, frameIndex, draw, view.getViewport());
+        } else if (const particle::GpuParticleSystem* system = _particleSystems.find(*range.system)) {
+            _particlePass->recordIndirect(commandBuffer, draw, *system->getInstances().getBuffer(),
+                                          *system->getIndirect().getBuffer(), view.getViewport());
+        }
+    }
+    _sprites.clear();
+    _particleInstances.clear();
+    _particleRanges.clear();
+    _drawList.clear();
+}
+
+vk::DescriptorSet VulkanRenderer::findTextureSet(plugins::backend::graphics::TextureId texture) const {
+    const texture::Texture* found = _textures.find(texture);
+    return found != nullptr ? *found->set : vk::DescriptorSet{};
 }
 
 interop::vulkan::IVulkanSurfaceSource& VulkanRenderer::surfaceSourceOf(

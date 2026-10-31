@@ -1,0 +1,54 @@
+/*
+** EPITECH PROJECT, 2026
+** rtype
+** File description:
+** particle_simulate
+*/
+
+// Moves the particles of one GPU system by one frame: one thread per particle of the alive list read this frame. As
+// CpuSimulation::update() and writeInstances() do, each ages its particle, frees its slot at the end of its life, or
+// moves it (gravity, exponential drag, speed over life) and appends it to the other alive list, writing it as drawn
+// (colour and size over life) at the same index of the packed instances.
+#version 450
+#extension GL_GOOGLE_include_directive : require
+
+#include "ParticleSystem.glsl"
+
+layout(local_size_x = 64) in;
+
+void main() {
+    const uint thread = gl_GlobalInvocationID.x;
+    const uint current = emission.current;
+    if (thread >= counters.alive[current]) {
+        return;
+    }
+    const uint slot = alive.slots[(current * params.capacity) + thread];
+    Particle particle = particles.slots[slot];
+    const float deltaTime = emission.deltaTime;
+
+    particle.age += deltaTime;
+    if (particle.age >= particle.lifetime) {
+        const int free = atomicAdd(counters.dead, 1);
+        dead.slots[free] = slot;
+        return;
+    }
+    const float t = particle.age / particle.lifetime;
+    const float speedScale = sampleSpeedOverLife(t);
+    particle.velocity = (particle.velocity + (params.gravity * deltaTime)) * exp(-params.drag * deltaTime);
+    particle.position += particle.velocity * speedScale * deltaTime;
+    particle.rotation += particle.angularVelocity * deltaTime;
+    particles.slots[slot] = particle;
+
+    const uint next = 1u - current;
+    const uint at = atomicAdd(counters.alive[next], 1u);
+    alive.slots[(next * params.capacity) + at] = slot;
+
+    ParticleInstance instance;
+    instance.color = params.color * sampleColorOverLife(t);
+    instance.position = params.space == kSpaceLocal ? emission.position + particle.position : particle.position;
+    instance.velocity = particle.velocity * speedScale;
+    instance.size = vec2(particle.size * sampleSizeOverLife(t));
+    instance.rotation = particle.rotation;
+    instance.life = t;
+    drawn.instances[at] = instance;
+}

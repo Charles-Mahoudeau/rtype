@@ -14,6 +14,8 @@
 
 #include "plugins/Export.hpp"
 #include "plugins/backend/graphics/Color.hpp"
+#include "plugins/backend/graphics/Particle.hpp"
+#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Text.hpp"
@@ -107,6 +109,34 @@ class RTYPE_PLUGINS_API IRenderer {
     /// @brief Draws a text laid out by the text plugin: its glyphs, from an MSDF font atlas, in the order of the other
     /// sprites (Vulkan batches them with the sprites).
     virtual void draw(const Text& text) = 0;
+    /// @}
+
+    /// @name Particles
+    /// @brief A renderer simulates particles on the GPU if it can (supportsGpuParticles()); every renderer draws the
+    /// particles a CPU simulation hands it. The particle plugin picks the path of each emitter (docs/particles/).
+    /// @{
+
+    /// @return Whether createParticleSystem() and simulate() are implemented: false, the default, means every effect
+    /// runs on the CPU.
+    [[nodiscard]] virtual bool supportsGpuParticles() const noexcept { return false; }
+
+    /// @brief Creates a GPU particle system for @p desc: its buffers, sized by its capacity, and its baked curves.
+    /// @throws exceptions::UnsupportedFeatureException If supportsGpuParticles() is false.
+    [[nodiscard]] virtual ParticleSystemId createParticleSystem(const ParticleSystemDesc& desc) = 0;
+
+    /// @brief Destroys a GPU particle system. Safe to call while the backend may still be simulating it; does nothing
+    /// for a system already destroyed.
+    virtual void destroy(ParticleSystemId system) = 0;
+
+    /// @brief Advances a GPU particle system by one frame: emits @p emission.spawnCount particles at the emitter's
+    /// transform, then moves, ages and kills them. Between beginFrame() and endFrame(), once per system per frame.
+    /// @throws std::invalid_argument If @p system was destroyed or never created.
+    virtual void simulate(ParticleSystemId system, const ParticleEmission& emission) = 0;
+
+    /// @brief Draws the particles of one emitter, a GPU system or the instances of a CPU one, in the order of the
+    /// sprites. Between beginFrame() and endFrame().
+    /// @throws std::invalid_argument If a GPU system or the texture was destroyed or never created.
+    virtual void draw(const ParticleDraw& particles) = 0;
     /// @}
 };
 }  // namespace rtype::plugins::backend::graphics
