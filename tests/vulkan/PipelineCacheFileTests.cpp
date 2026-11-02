@@ -13,11 +13,15 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <functional>
 #include <iterator>
+#include <random>
 #include <span>
 #include <stdexcept>
+#include <string>
+#include <system_error>
 #include <thread>
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
@@ -50,13 +54,23 @@ std::vector<std::byte> makeCache(const vk::PhysicalDeviceProperties& properties,
     return data;
 }
 
-/// @return A path in a fresh temporary directory, removed when the test ends.
+/// @return The name of a directory no other fixture uses, even in another run of the tests at the same time.
+std::string makeUniqueDirectoryName() {
+    std::random_device device;
+    return std::format("rtype_pipeline_cache_tests_{:08x}{:08x}", device(), device());
+}
+
+/// @brief A fresh temporary directory of its own, created by the constructor and removed, with only what it holds, when
+/// the test ends.
 class TemporaryDirectory {
   public:
-    TemporaryDirectory() : _path{std::filesystem::temp_directory_path() / "rtype_pipeline_cache_tests"} {
-        std::filesystem::remove_all(_path);
+    TemporaryDirectory() : _path{std::filesystem::temp_directory_path() / makeUniqueDirectoryName()} {
+        std::filesystem::create_directories(_path);
     }
-    ~TemporaryDirectory() { std::filesystem::remove_all(_path); }
+    ~TemporaryDirectory() {
+        std::error_code error;
+        std::filesystem::remove_all(_path, error);  // never throws from a destructor; a leftover is harmless
+    }
     TemporaryDirectory(const TemporaryDirectory& other) = delete;
     TemporaryDirectory& operator=(const TemporaryDirectory& other) = delete;
     TemporaryDirectory(TemporaryDirectory&& other) = delete;
@@ -152,7 +166,6 @@ TEST(PipelineCacheFile, ReadsNothingFromADamagedFile) {
 
 TEST(PipelineCacheFile, ReadsNothingFromAFileWithoutItsHeader) {
     const TemporaryDirectory directory;
-    std::filesystem::create_directories(directory.getPath());
     const std::filesystem::path path = directory.getPath() / "raw.bin";
     const std::vector<std::byte> cache = makeCache(makeProperties());
     {
