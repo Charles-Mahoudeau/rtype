@@ -218,6 +218,21 @@ shader (e.g. `layout(constant_id = 0) const bool USE_TEXTURE = false;`) without 
 `builder.add(0, true).add(1, 4U)`, then `builder.build()`. The result points into the builder: keep both alive until
 the pipeline is created.
 
+## Pipeline cache
+
+Every pipeline is created through one `VkPipelineCache`, saved to disk when the renderer is destroyed and read back by
+`init()` at the next launch, so the driver does not compile the same pipelines again. The file is the
+`vulkan.pipelineCache` setting (`"pipeline_cache.bin"` by default), relative to the user's cache directory's `rtype`
+folder: `~/Library/Caches/rtype` on macOS, `$XDG_CACHE_HOME/rtype` or `~/.cache/rtype` on Linux,
+`%LOCALAPPDATA%\rtype` on Windows. It stays writable even when the game is installed in a read-only directory. An
+absolute path is used as is, and an empty one keeps nothing.
+
+The file is written to a temporary file then renamed over the old one, so a crash while saving never leaves a
+truncated cache. At launch, its header is checked against the GPU (vendor, device and the driver's pipeline cache
+UUID): a cache from another GPU or driver, or a corrupted one, is ignored with a message and rebuilt, since some
+drivers crash on such data instead of ignoring it. Measured on the particle example (Apple M-series, MoltenVK): the
+pipelines are created in about 27 ms on the first launch, and about 1.5 to 2 ms with the cache.
+
 ## Run the example
 
 ```sh
