@@ -59,7 +59,7 @@ bool isCompatiblePipelineCache(std::span<const std::byte> data,
                   .vendorId = readUint32(data, 8),
                   .deviceId = readUint32(data, 12)};
     std::memcpy(header.uuid.data(), data.subspan(16, VK_UUID_SIZE).data(), VK_UUID_SIZE);
-    return header.size >= kHeaderSize && header.size <= data.size() &&
+    return header.size == kHeaderSize &&
            header.version == static_cast<std::uint32_t>(vk::PipelineCacheHeaderVersion::eOne) &&
            header.vendorId == properties.vendorID && header.deviceId == properties.deviceID &&
            std::ranges::equal(header.uuid, properties.pipelineCacheUUID);

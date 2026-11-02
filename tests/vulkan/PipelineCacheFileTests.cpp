@@ -100,6 +100,9 @@ TEST(PipelineCacheFile, RejectsTruncatedOrCorruptedData) {
     cache = makeCache(properties, 0);
     cache.at(0) = std::byte{200};  // headerSize past the end of the data
     EXPECT_FALSE(isCompatiblePipelineCache(cache, properties));
+    cache = makeCache(properties, 8);
+    cache.at(0) = std::byte{36};  // within the data, but a version-one header is exactly 32 bytes
+    EXPECT_FALSE(isCompatiblePipelineCache(cache, properties));
 }
 
 TEST(PipelineCacheFile, ReadsNothingForAMissingFile) {
