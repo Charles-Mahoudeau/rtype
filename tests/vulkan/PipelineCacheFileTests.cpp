@@ -14,7 +14,11 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
+#include <iterator>
 #include <span>
+#include <stdexcept>
+#include <thread>
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
@@ -116,7 +120,10 @@ TEST(PipelineCacheFile, WritesThenReadsTheSameBytes) {
     const std::vector<std::byte> cache = makeCache(makeProperties());
     writePipelineCacheFile(path, toData(cache));
     EXPECT_EQ(readPipelineCacheFile(path), cache);
-    EXPECT_FALSE(std::filesystem::exists(path.string() + ".tmp"));
+    // Only the cache is left: no temporary file.
+    EXPECT_EQ(
+        std::distance(std::filesystem::directory_iterator{path.parent_path()}, std::filesystem::directory_iterator{}),
+        1);
 }
 
 TEST(PipelineCacheFile, WritingReplacesThePreviousFile) {
@@ -155,4 +162,31 @@ TEST(PipelineCacheFile, ReadsNothingFromAFileWithoutItsHeader) {
         file.write(content.data(), static_cast<std::streamsize>(content.size()));
     }
     EXPECT_TRUE(readPipelineCacheFile(path).empty());
+}
+
+TEST(PipelineCacheFile, WritersOfTheSameCacheDoNotMixTheirData) {
+    const TemporaryDirectory directory;
+    const std::filesystem::path path = directory.getPath() / "pipeline_cache.bin";
+    const std::vector<std::uint8_t> small = toData(makeCache(makeProperties(), 16));
+    const std::vector<std::uint8_t> large = toData(makeCache(makeProperties(), 4096));
+    // A replace may fail while the other writer replaces the same file (Windows refuses it): the other write wins, as
+    // the renderer, which only reports a failed save, would have it.
+    const auto write = [&path](const std::vector<std::uint8_t>& data) {
+        for (int i = 0; i < 20; ++i) {
+            try {
+                writePipelineCacheFile(path, data);
+            } catch (const std::runtime_error&) {  // NOLINT(bugprone-empty-catch): the other writer won this round.
+            }
+        }
+    };
+    {
+        const std::jthread first{write, std::cref(small)};
+        const std::jthread second{write, std::cref(large)};
+    }
+    // Whichever wrote last, the file is one of the two caches, whole.
+    const std::vector<std::byte> read = readPipelineCacheFile(path);
+    EXPECT_TRUE(read.size() == small.size() || read.size() == large.size());
+    EXPECT_EQ(
+        std::distance(std::filesystem::directory_iterator{directory.getPath()}, std::filesystem::directory_iterator{}),
+        1);
 }

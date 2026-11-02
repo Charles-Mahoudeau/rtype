@@ -17,6 +17,7 @@
 #include <fstream>
 #include <ios>
 #include <iterator>
+#include <random>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -61,6 +62,17 @@ std::uint64_t checksumOf(std::span<const std::byte> data) noexcept {
         hash *= core::hash::kNameHashPrime;
     }
     return hash;
+}
+
+/// @return A path next to @p path that no other write uses, even by another renderer saving the same cache at the same
+/// time: its name, a random 64-bit suffix, then `.tmp`.
+/// @throws std::system_error If the system has no source of random numbers.
+std::filesystem::path makeTemporaryPath(const std::filesystem::path& path) {
+    std::random_device device;
+    const std::uint64_t suffix = (std::uint64_t{device()} << 32U) | std::uint64_t{device()};
+    std::filesystem::path temporary = path;
+    temporary += std::format(".{:016x}.tmp", suffix);
+    return temporary;
 }
 
 /// @return The uint32 at @p offset of @p data, as the device wrote it (its own byte order).
@@ -123,8 +135,7 @@ void writePipelineCacheFile(const std::filesystem::path& path, std::span<const s
                 std::format("Pipeline cache '{}': cannot create its directory: {}", path.string(), error.message())};
         }
     }
-    std::filesystem::path temporary = path;
-    temporary += ".tmp";
+    const std::filesystem::path temporary = makeTemporaryPath(path);
     {
         const FileHeader header{.size = data.size(), .checksum = checksumOf(std::as_bytes(data))};
         std::vector<char> content(sizeof(FileHeader) + data.size());
