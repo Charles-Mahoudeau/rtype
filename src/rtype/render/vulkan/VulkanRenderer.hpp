@@ -107,6 +107,11 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
         std::filesystem::path shaderDirectory = "shaders";  ///< Where the game's SPIR-V shaders are loaded from.
                                                             ///< Relative: to the executable's directory, never to
                                                             ///< the working directory. Built-in shaders are embedded.
+        std::filesystem::path pipelineCache = "pipeline_cache.bin";  ///< Where the compiled pipelines are kept between
+                                                                     ///< launches: read by init(), written when the
+                                                                     ///< renderer is destroyed. Relative: to the
+                                                                     ///< user's cache directory's rtype folder
+                                                                     ///< (getCacheDirectory()). Empty: not kept.
         glm::uvec2 virtualResolution{0};  ///< The resolution the game is designed for, e.g. 1920x1080: the camera shows
                                           ///< that many world units at zoom 1 whatever the window size, letterboxed.
                                           ///< 0x0: the window's framebuffer size, without bars.
@@ -283,9 +288,10 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     std::chrono::steady_clock::time_point _startTime;       ///< When init() ran: origin of FrameUniforms::time.
     std::chrono::steady_clock::time_point _lastFrameTime;   ///< When the previous frame ended: for deltaTime.
     std::optional<plugins::backend::graphics::View> _view;  ///< From setView(); reset by beginFrame().
-    plugins::backend::graphics::Color _clearColor{0.0F};    ///< From beginFrame(): what endFrame() clears with.
-    rendering::SpriteBatch _sprites;                        ///< The frame's sprites; cleared by beginFrame().
-    std::vector<rendering::ShapeInstance> _shapes;          ///< The frame's shapes; cleared by beginFrame().
+    std::filesystem::path _pipelineCachePath;  ///< Config::pipelineCache resolved by init(); empty: not kept.
+    plugins::backend::graphics::Color _clearColor{0.0F};  ///< From beginFrame(): what endFrame() clears with.
+    rendering::SpriteBatch _sprites;                      ///< The frame's sprites; cleared by beginFrame().
+    std::vector<rendering::ShapeInstance> _shapes;        ///< The frame's shapes; cleared by beginFrame().
     std::vector<plugins::backend::graphics::ParticleInstance> _particleInstances;  ///< The frame's CPU particles.
     std::vector<ParticleRange> _particleRanges;  ///< The frame's particle draws; cleared by beginFrame().
     rendering::DrawList _drawList;               ///< Where the particle draws sit among the sprite batches.

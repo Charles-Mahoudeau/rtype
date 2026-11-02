@@ -93,10 +93,10 @@ vk::PresentModeKHR toPresentMode(std::string_view name) {
 
 /// @return The Config described by the "vulkan" section; missing keys keep the Config defaults.
 VulkanRenderer::Config toConfig(const rtype::core::config::Settings& settings) {
-    settings.checkKeys(
-        {"engineName", "layers", "extraExtensions", "debugging", "minSeverity", "preferredDeviceType",
-         "synchronizationValidation", "bestPractices", "presentMode", "shaderDirectory", "virtualResolution"},
-        "vulkan");
+    settings.checkKeys({"engineName", "layers", "extraExtensions", "debugging", "minSeverity", "preferredDeviceType",
+                        "synchronizationValidation", "bestPractices", "presentMode", "shaderDirectory", "pipelineCache",
+                        "virtualResolution"},
+                       "vulkan");
     VulkanRenderer::Config config;
     config.engineName = settings.getString("engineName", config.engineName);
     config.layers = settings.getStringList("layers", config.layers);
@@ -112,6 +112,9 @@ VulkanRenderer::Config toConfig(const rtype::core::config::Settings& settings) {
     }
     if (settings.has("shaderDirectory")) {
         config.shaderDirectory = settings.getString("shaderDirectory", "");
+    }
+    if (settings.has("pipelineCache")) {
+        config.pipelineCache = settings.getString("pipelineCache", "");
     }
     if (settings.has("virtualResolution")) {
         const std::vector<double> size = settings.getNumberList("virtualResolution", {});
