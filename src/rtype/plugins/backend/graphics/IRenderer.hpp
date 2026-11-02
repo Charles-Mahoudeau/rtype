@@ -8,14 +8,18 @@
 #pragma once
 
 #include <cstddef>
+#include <format>
 #include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
 #include <span>
+#include <stdexcept>
 
 #include "plugins/Export.hpp"
+#include "plugins/backend/exceptions/PlatformExceptions.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/Particle.hpp"
 #include "plugins/backend/graphics/ParticleSystemDesc.hpp"
+#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Text.hpp"
@@ -137,6 +141,47 @@ class RTYPE_PLUGINS_API IRenderer {
     /// sprites. Between beginFrame() and endFrame().
     /// @throws std::invalid_argument If a GPU system or the texture was destroyed or never created.
     virtual void draw(const ParticleDraw& particles) = 0;
+    /// @}
+
+    /// @name Shaders and materials
+    /// @brief Effects written by the game (docs/Shaders.md), compiled by the shader plugin into a CompiledShader that
+    /// says nothing of any graphics API, and drawn through the materials Sprite, Text and ParticleDraw name. Optional:
+    /// a renderer without them draws every drawing with its default effect, ignoring its material.
+    /// @{
+
+    /// @return Whether createShader() and createMaterial() are implemented: false, the default, means every drawing
+    /// is drawn with its default effect.
+    [[nodiscard]] virtual bool supportsShaders() const noexcept { return false; }
+
+    /// @brief Creates a shader from @p shader's code for each target it serves (SPIR-V, to use or translate).
+    /// @throws exceptions::UnsupportedFeatureException If supportsShaders() is false.
+    /// @throws std::invalid_argument If @p shader is invalid (validate()) or its code is rejected.
+    [[nodiscard]] virtual ShaderId createShader(const CompiledShader& shader) {
+        throw exceptions::UnsupportedFeatureException{
+            std::format("This renderer does not run game shaders: '{}'", shader.name)};
+    }
+
+    /// @brief Destroys a shader. Safe while the backend may still be drawing with it; does nothing for one already
+    /// destroyed. Its materials must be destroyed first. Default: does nothing.
+    virtual void destroy(ShaderId /*shader*/) {}
+
+    /// @brief Creates a material: @p desc's shader with its values and extra textures.
+    /// @throws exceptions::UnsupportedFeatureException If supportsShaders() is false.
+    /// @throws std::invalid_argument If the shader or a texture was destroyed or never created, or the values are not
+    /// the size of the shader's material block.
+    [[nodiscard]] virtual MaterialId createMaterial(const MaterialDesc& /*desc*/) {
+        throw exceptions::UnsupportedFeatureException{"This renderer does not run game shaders: no material"};
+    }
+
+    /// @brief Changes @p material's values and textures, from the next frame drawn; its shader stays.
+    /// @throws std::invalid_argument As createMaterial(), or if @p material was destroyed or never created.
+    virtual void updateMaterial(MaterialId /*material*/, const MaterialDesc& /*desc*/) {
+        throw std::invalid_argument{"IRenderer::updateMaterial(): the material was destroyed or never created"};
+    }
+
+    /// @brief Destroys a material. Safe while the backend may still be drawing with it; does nothing for one already
+    /// destroyed. Drawings that still name it get the default effect. Default: does nothing.
+    virtual void destroy(MaterialId /*material*/) {}
     /// @}
 };
 }  // namespace rtype::plugins::backend::graphics
