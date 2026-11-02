@@ -24,6 +24,8 @@
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
+#include "core/hash/NameHash.hpp"
+
 namespace rtype::render::vulkan::pipeline {
 
 namespace {
@@ -39,6 +41,27 @@ struct Header {
 
 /// @brief Bytes of a VkPipelineCacheHeaderVersionOne: four uint32 fields, then the UUID.
 constexpr std::size_t kHeaderSize = (4 * sizeof(std::uint32_t)) + VK_UUID_SIZE;
+
+/// @brief What the engine writes before the Vulkan data in a pipeline cache file, so a damaged file is never handed to
+/// the driver: vkCreatePipelineCache must only get data vkGetPipelineCacheData gave
+/// (VUID-VkPipelineCacheCreateInfo-initialDataSize-00769), and some drivers crash on damaged data. 24 bytes.
+struct FileHeader {
+    std::array<char, 4> magic{'R', 'T', 'P', 'C'};  ///< Says the file is an engine pipeline cache.
+    std::uint32_t format = 1;                       ///< Version of this header.
+    std::uint64_t size = 0;                         ///< Bytes of the Vulkan data after it.
+    std::uint64_t checksum = 0;                     ///< FNV-1a 64-bit hash of the Vulkan data.
+};
+static_assert(sizeof(FileHeader) == 24, "FileHeader is written as is: no padding");
+
+/// @return The FNV-1a 64-bit hash of @p data.
+std::uint64_t checksumOf(std::span<const std::byte> data) noexcept {
+    std::uint64_t hash = core::hash::kNameHashOffsetBasis;
+    for (const std::byte byte : data) {
+        hash ^= std::to_integer<std::uint8_t>(byte);
+        hash *= core::hash::kNameHashPrime;
+    }
+    return hash;
+}
 
 /// @return The uint32 at @p offset of @p data, as the device wrote it (its own byte order).
 std::uint32_t readUint32(std::span<const std::byte> data, std::size_t offset) noexcept {
@@ -74,8 +97,20 @@ std::vector<std::byte> readPipelineCacheFile(const std::filesystem::path& path) 
     if (file.bad()) {
         return {};
     }
-    std::vector<std::byte> bytes(content.size());
-    std::memcpy(bytes.data(), content.data(), content.size());
+    FileHeader header;
+    if (content.size() < sizeof(FileHeader)) {
+        return {};
+    }
+    std::memcpy(&header, content.data(), sizeof(FileHeader));
+    if (header.magic != FileHeader{}.magic || header.format != FileHeader{}.format ||
+        header.size != content.size() - sizeof(FileHeader)) {
+        return {};
+    }
+    std::vector<std::byte> bytes(header.size);
+    std::memcpy(bytes.data(), std::span{content}.subspan(sizeof(FileHeader)).data(), bytes.size());
+    if (checksumOf(bytes) != header.checksum) {
+        return {};
+    }
     return bytes;
 }
 
@@ -91,8 +126,10 @@ void writePipelineCacheFile(const std::filesystem::path& path, std::span<const s
     std::filesystem::path temporary = path;
     temporary += ".tmp";
     {
-        std::vector<char> content(data.size());
-        std::memcpy(content.data(), data.data(), data.size());
+        const FileHeader header{.size = data.size(), .checksum = checksumOf(std::as_bytes(data))};
+        std::vector<char> content(sizeof(FileHeader) + data.size());
+        std::memcpy(content.data(), &header, sizeof(FileHeader));
+        std::memcpy(std::span{content}.subspan(sizeof(FileHeader)).data(), data.data(), data.size());
         std::ofstream file{temporary, std::ios::binary | std::ios::trunc};
         file.write(content.data(), static_cast<std::streamsize>(content.size()));
         if (!file) {

@@ -26,11 +26,13 @@ namespace rtype::render::vulkan::pipeline {
 [[nodiscard]] RTYPE_RENDER_VULKAN_API bool isCompatiblePipelineCache(
     std::span<const std::byte> data, const vk::PhysicalDeviceProperties& properties) noexcept;
 
-/// @return The content of the pipeline cache file at @p path, or nothing if it does not exist or cannot be read.
+/// @return The Vulkan data of the pipeline cache file at @p path, or nothing if it does not exist, cannot be read or is
+/// damaged: the file carries its size and a checksum of the data, both checked here.
 [[nodiscard]] RTYPE_RENDER_VULKAN_API std::vector<std::byte> readPipelineCacheFile(const std::filesystem::path& path);
 
-/// @brief Writes @p data to the pipeline cache file at @p path, creating its directory: into a temporary file next
-/// to it first, then renamed over it, so a crash while writing never leaves a truncated cache behind.
+/// @brief Writes @p data to the pipeline cache file at @p path, creating its directory, after a small header holding
+/// its size and checksum: into a temporary file next to it first, then renamed over it, so a crash while writing never
+/// leaves a truncated cache behind.
 /// @throws std::runtime_error If the file cannot be written.
 RTYPE_RENDER_VULKAN_API void writePipelineCacheFile(const std::filesystem::path& path,
                                                     std::span<const std::uint8_t> data);

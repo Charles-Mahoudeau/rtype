@@ -24,6 +24,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -104,6 +105,11 @@ std::vector<std::byte> readPipelineCache(const std::filesystem::path& path, cons
         return {};
     }
     std::vector<std::byte> data = pipeline::readPipelineCacheFile(path);
+    if (std::error_code error; data.empty() && std::filesystem::exists(path, error)) {
+        std::cerr << "[Vulkan] The pipeline cache '" << path.string()
+                  << "' is damaged: the pipelines are compiled again\n";
+        return {};
+    }
     if (!data.empty() && !pipeline::isCompatiblePipelineCache(data, device.getPhysicalDevice().getProperties())) {
         std::cerr << "[Vulkan] The pipeline cache '" << path.string()
                   << "' is invalid or comes from another GPU or driver: the pipelines are compiled again\n";

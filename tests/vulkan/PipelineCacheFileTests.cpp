@@ -127,3 +127,32 @@ TEST(PipelineCacheFile, WritingReplacesThePreviousFile) {
     writePipelineCacheFile(path, toData(smaller));
     EXPECT_EQ(readPipelineCacheFile(path), smaller);
 }
+
+TEST(PipelineCacheFile, ReadsNothingFromADamagedFile) {
+    const TemporaryDirectory directory;
+    const std::filesystem::path path = directory.getPath() / "pipeline_cache.bin";
+    writePipelineCacheFile(path, toData(makeCache(makeProperties())));
+    const auto size = std::filesystem::file_size(path);
+    {
+        std::fstream file{path, std::ios::binary | std::ios::in | std::ios::out};
+        file.seekp(static_cast<std::streamoff>(size - 1));
+        file.put('\x7F');  // one byte of the Vulkan data changed: the checksum no longer matches
+    }
+    EXPECT_TRUE(readPipelineCacheFile(path).empty());
+    std::filesystem::resize_file(path, size - 4);  // truncated: the size no longer matches
+    EXPECT_TRUE(readPipelineCacheFile(path).empty());
+}
+
+TEST(PipelineCacheFile, ReadsNothingFromAFileWithoutItsHeader) {
+    const TemporaryDirectory directory;
+    std::filesystem::create_directories(directory.getPath());
+    const std::filesystem::path path = directory.getPath() / "raw.bin";
+    const std::vector<std::byte> cache = makeCache(makeProperties());
+    {
+        std::ofstream file{path, std::ios::binary};
+        std::vector<char> content(cache.size());
+        std::memcpy(content.data(), cache.data(), cache.size());
+        file.write(content.data(), static_cast<std::streamsize>(content.size()));
+    }
+    EXPECT_TRUE(readPipelineCacheFile(path).empty());
+}
