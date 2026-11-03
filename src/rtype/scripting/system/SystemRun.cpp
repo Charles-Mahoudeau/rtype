@@ -16,6 +16,7 @@
 #include <tl/expected.hpp>
 #include <utility>
 
+#include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/query/QueryIteration.hpp"
 #include "rtype/ecs/query/QueryMatch.hpp"
@@ -31,6 +32,7 @@
 #include "rtype/luau/Usertype.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
+#include "rtype/scripting/commands/ScriptCommands.hpp"
 #include "rtype/scripting/view/ComponentView.hpp"
 
 namespace rtype::scripting::system {
@@ -117,13 +119,23 @@ class QueryStepper {
 
 /// @brief Builds `ctx` and calls `run` with it.
 [[nodiscard]] luau::Result<> call(ScriptSystem& system, const luau::Runtime& runtime,
-                                  const ecs::DynamicQueries& queries, const ecs::Time& time) {
+                                  const ecs::DynamicQueries& queries, const ecs::Time& time, ecs::Commands& commands) {
     // The iterator is a native function: it must stay alive while `run` can call it.
     QueryStepper stepper{system, runtime, queries.iter(0)};
     auto iterator = luau::Function::create(runtime, std::format("{}.query", system.name));
     iterator.setHandler([&stepper](const luau::CallContext& /*arguments*/) { return stepper.next(); });
 
-    auto ctx = luau::Table::create(runtime, 0, 3);
+    auto recorder = runtime.usertype<commands::ScriptCommands>().create(commands::ScriptCommands{
+        .commands = &commands,
+        .layouts = system.runtime->components,
+        .scope = &system.scope,
+        .generation = system.scope.generation,
+    });
+    if (!recorder) {
+        return tl::unexpected{std::move(recorder.error())};
+    }
+
+    auto ctx = luau::Table::create(runtime, 0, 4);
     if (!ctx) {
         return tl::unexpected{std::move(ctx.error())};
     }
@@ -131,6 +143,7 @@ class QueryStepper {
              std::pair<std::string_view, luau::Value>{"query", luau::Value{iterator.ref()}},
              {"delta", luau::Value{static_cast<double>(time.delta)}},
              {"fixedDelta", luau::Value{static_cast<double>(time.fixedDelta)}},
+             {"commands", luau::Value{std::move(*recorder)}},
          }) {
         if (auto set = ctx->set(name, value); !set) {
             return set;
@@ -146,12 +159,13 @@ class QueryStepper {
 }
 }  // namespace
 
-void runScriptSystem(ScriptSystem& system, const ecs::DynamicQueries& queries, const ecs::Time& time) {
+void runScriptSystem(ScriptSystem& system, const ecs::DynamicQueries& queries, const ecs::Time& time,
+                     ecs::Commands& commands) {
     const luau::Runtime* const runtime = system.runtime->runtime;
     if (runtime == nullptr) {
         return;  // the host is gone, and the script with it
     }
-    const auto result = call(system, *runtime, queries, time);
+    const auto result = call(system, *runtime, queries, time, commands);
     ++system.scope.generation;  // every view of this run dies, even when it failed
     if (!result) {
         std::cerr << std::format("[ScriptSystem] '{}' failed, skipped this tick: {}\n", system.name,

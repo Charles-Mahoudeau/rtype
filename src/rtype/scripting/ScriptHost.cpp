@@ -13,6 +13,7 @@
 #include <tl/expected.hpp>
 #include <utility>
 
+#include "commands/ScriptCommands.hpp"
 #include "component/ComponentLayout.hpp"
 #include "component/ComponentRegistration.hpp"
 #include "component/DeclarationReader.hpp"
@@ -56,6 +57,7 @@ luau::Result<std::unique_ptr<ScriptHost>> ScriptHost::create(ecs::App& app, cons
 ScriptHost::ScriptHost(ecs::App& app, luau::Runtime runtime) noexcept
     : _app{app}, _runtime{std::move(runtime)}, _handle{std::make_shared<system::RuntimeHandle>()} {
     _handle->runtime = &_runtime;
+    _handle->components = &_components;
 }
 
 ScriptHost::~ScriptHost() { _handle->runtime = nullptr; }
@@ -76,6 +78,9 @@ const component::ComponentLayout* ScriptHost::findComponent(const std::string_vi
 
 luau::Result<> ScriptHost::installEngine(const Options options) {
     if (auto registered = view::registerViewTypes(_runtime); !registered) {
+        return registered;
+    }
+    if (auto registered = commands::registerCommandsType(_runtime); !registered) {
         return registered;
     }
     luau::LibraryBuilder ecsBuilder{_runtime};

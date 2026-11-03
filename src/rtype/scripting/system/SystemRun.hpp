@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "RuntimeHandle.hpp"
+#include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/system/DynamicQueries.hpp"
 #include "rtype/ecs/time/Time.hpp"
@@ -39,12 +40,14 @@ struct ScriptSystem {
 ///
 /// @details `ctx.query` is an iterator: `for entity, shield in ctx.query do` yields the entity and, for each data term
 /// in the order of the query, a view of its component (read-only for a read term, `nil` for an optional component the
-/// entity lacks). `ctx.delta` and `ctx.fixedDelta` are the durations of Time. The views die when `run` returns. A Luau
+/// entity lacks). `ctx.delta` and `ctx.fixedDelta` are the durations of Time, and `ctx.commands` records structural
+/// changes (see registerCommandsType()). The views die when `run` returns. A Luau
 /// error in `run` is written to `std::cerr` with the name of the system and skips the rest of the run; nothing is
 /// thrown.
 /// @param system The system to run.
 /// @param queries The system's queries, of which the first is iterated.
 /// @param time The time of the frame.
+/// @param commands The buffer `ctx.commands` records into, flushed by the scheduler between phases.
 RTYPE_SCRIPTING_API void runScriptSystem(ScriptSystem& system, const ecs::DynamicQueries& queries,
-                                         const ecs::Time& time);
+                                         const ecs::Time& time, ecs::Commands& commands);
 }  // namespace rtype::scripting::system
