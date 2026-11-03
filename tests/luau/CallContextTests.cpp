@@ -19,6 +19,7 @@
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
 #include "rtype/luau/detail/RawState.hpp"
+#include "rtype/luau/detail/Stack.hpp"
 
 namespace {
 using CallContext = rtype::luau::CallContext;
@@ -70,9 +71,9 @@ TEST(CallContext, FromStackReadsWholeStackInOrder) {
     pushed.add({std::string{"first"}});
     pushed.add({2.0});
     pushed.add({true});
-    ASSERT_EQ(pushed.push(rtype::luau::detail::rawState(runtime)).value(), 3U);
+    ASSERT_EQ(rtype::luau::detail::pushValuePack(rtype::luau::detail::rawState(runtime), pushed).value(), 3U);
 
-    const auto context = CallContext::fromStack(rtype::luau::detail::rawState(runtime));
+    const auto context = rtype::luau::detail::readCallContext(rtype::luau::detail::rawState(runtime));
 
     ASSERT_TRUE(context);
     ASSERT_EQ(context->argCount(), 3U);
@@ -84,7 +85,7 @@ TEST(CallContext, FromStackReadsWholeStackInOrder) {
 TEST(CallContext, FromStackOfEmptyStackHasNoArguments) {
     const auto runtime = makeRuntime();
 
-    const auto context = CallContext::fromStack(rtype::luau::detail::rawState(runtime));
+    const auto context = rtype::luau::detail::readCallContext(rtype::luau::detail::rawState(runtime));
 
     ASSERT_TRUE(context);
     EXPECT_EQ(context->argCount(), 0U);

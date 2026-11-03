@@ -28,6 +28,7 @@
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
 #include "rtype/luau/detail/RawState.hpp"
+#include "rtype/luau/detail/Stack.hpp"
 
 namespace {
 using Function = rtype::luau::Function;
@@ -206,7 +207,7 @@ TEST(StoredFunction, PushingItAfterItsRuntimeIsDestroyedFails) {
 
     first.reset();
 
-    const auto pushed = ref->push(rtype::luau::detail::rawState(second));
+    const auto pushed = rtype::luau::detail::pushFunctionRef(rtype::luau::detail::rawState(second), *ref);
     ASSERT_FALSE(pushed);
     EXPECT_EQ(pushed.error().kind(), rtype::luau::ErrorKind::kRuntime);
 }

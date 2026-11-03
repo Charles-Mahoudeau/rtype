@@ -26,6 +26,7 @@
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
 #include "rtype/luau/detail/RawState.hpp"
+#include "rtype/luau/detail/Stack.hpp"
 
 namespace {
 using ErrorKind = rtype::luau::ErrorKind;
@@ -86,11 +87,11 @@ TEST(Table, CreateLeavesTheStackUntouched) {
     const auto runtime = makeRuntime();
     ValuePack probe{};
     probe.add({1.0});
-    ASSERT_EQ(probe.push(rtype::luau::detail::rawState(runtime)).value(), 1U);
+    ASSERT_EQ(rtype::luau::detail::pushValuePack(rtype::luau::detail::rawState(runtime), probe).value(), 1U);
 
     const Table table = Table::create(runtime, 4, 4).value();
 
-    EXPECT_TRUE(Value::pop(rtype::luau::detail::rawState(runtime)));
+    EXPECT_TRUE(rtype::luau::detail::popValue(rtype::luau::detail::rawState(runtime)));
     EXPECT_EQ(table.count().value(), 0U);
 }
 
@@ -363,21 +364,21 @@ TEST(Table, PushThenFromStackGivesTheSameTable) {
     const auto runtime = makeRuntime();
     const Table table = Table::create(runtime).value();
 
-    ASSERT_TRUE(table.push(rtype::luau::detail::rawState(runtime)));
-    const auto read = Table::fromStack(rtype::luau::detail::rawState(runtime));
+    ASSERT_TRUE(rtype::luau::detail::pushTable(rtype::luau::detail::rawState(runtime), table));
+    const auto read = rtype::luau::detail::readTable(rtype::luau::detail::rawState(runtime));
 
     ASSERT_TRUE(read);
     EXPECT_TRUE(read->refersToSame(table).value());
-    EXPECT_TRUE(Value::pop(rtype::luau::detail::rawState(runtime)));
+    EXPECT_TRUE(rtype::luau::detail::popValue(rtype::luau::detail::rawState(runtime)));
 }
 
 TEST(Table, FromStackFailsForOtherTypes) {
     const auto runtime = makeRuntime();
     ValuePack pack{};
     pack.add({1.0});
-    ASSERT_EQ(pack.push(rtype::luau::detail::rawState(runtime)).value(), 1U);
+    ASSERT_EQ(rtype::luau::detail::pushValuePack(rtype::luau::detail::rawState(runtime), pack).value(), 1U);
 
-    const auto read = Table::fromStack(rtype::luau::detail::rawState(runtime));
+    const auto read = rtype::luau::detail::readTable(rtype::luau::detail::rawState(runtime));
 
     ASSERT_FALSE(read);
     EXPECT_EQ(read.error().kind(), ErrorKind::kTypeMismatch);
@@ -388,7 +389,7 @@ TEST(Table, PushFailsForTableOfAnotherState) {
     const auto foreign = makeRuntime();
     const Table table = Table::create(foreign).value();
 
-    const auto pushed = table.push(rtype::luau::detail::rawState(runtime));
+    const auto pushed = rtype::luau::detail::pushTable(rtype::luau::detail::rawState(runtime), table);
 
     ASSERT_FALSE(pushed);
     EXPECT_EQ(pushed.error().kind(), rtype::luau::ErrorKind::kRuntime);

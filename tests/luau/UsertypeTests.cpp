@@ -31,6 +31,7 @@
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
 #include "rtype/luau/detail/RawState.hpp"
+#include "rtype/luau/detail/Stack.hpp"
 
 namespace {
 using Userdata = rtype::luau::Userdata;
@@ -458,7 +459,7 @@ TEST(Usertype, RefusesToPushAUserdataInAnotherRuntime) {
     const auto userdata = registerCounter(runtime).create(Counter{});
     ASSERT_TRUE(userdata);
 
-    const auto pushed = userdata->push(rtype::luau::detail::rawState(foreign));
+    const auto pushed = rtype::luau::detail::pushUserdata(rtype::luau::detail::rawState(foreign), *userdata);
 
     ASSERT_FALSE(pushed);
     EXPECT_EQ(pushed.error().kind(), rtype::luau::ErrorKind::kRuntime);
