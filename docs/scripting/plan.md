@@ -335,7 +335,7 @@ Tasks about the `scripting` target use the `SCR-xx` ids, from `SCR-01`. Work tha
 not numbered here: it is listed as a prerequisite under the task it blocks.
 Ids follow the order the tasks are best done in. Weights are set when the issues are created.
 
-#### SCR-01: `vec2/3/4` and `assetId` fields
+#### SCR-01: `vec2/3/4`, `assetId`, enum and string fields
 
 |            |                |
 |------------|----------------|
@@ -350,6 +350,26 @@ Ids follow the order the tasks are best done in. Weights are set when the issues
   table conversion.
 - A vector field reads as a Luau `vector` value (check the Luau build has it) and writes from one or from a table
   `{x=, y=}`; an `assetId` field accepts a path string and stores its `AssetId` hash.
+- **Enums and bitmasks.** The ECS reflects an enum field (`Collider::shape`, `TextRenderer::align`) as its underlying
+  integer (`FieldTypeOf`), so a script already sees a number; a bitmask (`Collider::layer`, `mask`) is a plain `u32`.
+  What is missing is names: let a plugin expose the enumerators of a reflected enum (ECS side: the field description
+  would carry them), and give scripts `engine.ecs.enum("rtype.ShapeType").kBox` or a string accepted on write
+  (`shape = "box"`). Bit operations are `bit32` (Luau has it).
+- **Strings.** The ECS can *store* a component that holds a `std::string` (the type hooks construct, move and destroy
+  it), but it cannot *reflect* one: there is no `FieldType` for it, and `RTYPE_ECS_COMPONENT(TextRenderer, ...)` stops
+  before `text`. Views, `spawn` tables, the layout hash and replication all work from reflected fields, so a script
+  cannot read or write `TextRenderer::text` (a spawned one stays empty).
+  **ECS prerequisite (not numbered):** an `ecs::String` and a `FieldType::kString`.
+    - `ecs::String` owns its bytes, has the same size and alignment on every compiler (`std::string` is 24 or 32
+      bytes depending on the standard library, and `hashLayout()` hashes the size of the type), and is built, copied,
+      moved and destroyed by the type hooks. A string field is then a field like any other: an offset and a size, so
+      views, the layout hash, replication and script-declared components need no second path (an accessor-based field
+      was considered and rejected for that reason).
+    - It converts implicitly from `std::string_view` and `const std::string&` and back to `std::string_view`, so
+      `TextRenderer{.text = std::format(...)}` still compiles; `layoutText()` already takes a `std::string_view`.
+      `TextRenderer::text` becomes an `ecs::String` and joins its reflected fields.
+    - A script-declared `string` field uses the same type.
+    - Replication of strings: see SCR-07 (open point for the team).
 
 **Done when**
 
@@ -357,6 +377,10 @@ Ids follow the order the tasks are best done in. Weights are set when the issues
 - [ ] `defaults` and `spawn` tables accept the new types.
 - [ ] A script reads `Transform.position` of a C++ component.
 - [ ] A wrong type or a missing component of a vector is an error naming the field.
+- [ ] A script reads and writes `Collider.shape` and `layer` / `mask` of a C++ component, by number and by name.
+- [ ] An unknown enumerator is an error naming the field and the accepted names.
+- [ ] A script declares a `string` field and round-trips it through a view (once the ECS prerequisite is done).
+- [ ] A script spawns a `TextRenderer` with its `text` and the client draws it, and reads `text` back by name.
 
 #### SCR-02: `added` and `changed` terms
 
@@ -483,11 +507,98 @@ predict.
   is listed and sent like a C++ one. If not, that is the first task.
 - Check on connection that both sides loaded the same scripts: a `layoutHash` mismatch refuses the client with the
   component name.
+- **Strings** (from SCR-01's `ecs::String`): replicated as a length and its bytes, with a size cap, in components
+  (a `PlayerName` on each ship, set by the server from the client's connection data). `kEveryChange` resends the whole
+  value, which suits a name set once and not a string rewritten every frame.
+- **`FieldSerializer` has no variable-length field yet.** Its switch handles fixed-width values only (numbers, vecs,
+  entity, asset id), so `kString` needs a case for a length-prefixed value, and the snapshot size budget
+  (`kMaxMessageSize` = 1000 bytes) must count it. The size cap is what keeps one string inside that budget.
+- **Events are not replicated; custom packets are the planned way across.** Checked in `replication/`: the only events
+  are `ClientConnected` / `ClientDisconnected`, registered `kServerOnly` and raised from the local network
+  notifications, and no code serializes an event. `EventInfo.hpp` and `ecs/features/11-events.md` say the same (the
+  registry refuses a replicated event). `docs/network/design.md` section 8 designs **custom packets** for this
+  (`net.packet`, `toServer` / `toClients`, with a `string` field: `u8` length, `maxLength` 64 by default, at most
+  255), received as events in the receiver's world (NET-34, NET-35). Only `MessageType::kCustomPacket = 0x32` exists
+  today: none of it is implemented, and NET-35 is itself blocked on this bridge. So an event can hold a string once
+  `kString` exists, but text that has to reach other machines is a replicated component (a `ChatLine` spawned by the
+  server) until custom packets land.
+- **A name cannot ride the handshake as it is.** Checked in `network/protocol/Packets.hpp`: `ConnectRequest` and
+  `ChallengeResponse` carry a version and tokens only, padded to `kHandshakePadding` (64 bytes) before the client is
+  authenticated, and `ClientConnected` carries the client id only. Client to server, the replication layer sends
+  inputs only (`InputMessage`), through `NetClient::send(Channel, payload)`.
+- **The server validates, replication does not.** A string that comes from a client (a name) is untrusted: the server
+  checks its length and its UTF-8, and filters characters if the game needs it, before putting it in a component.
+- **Decision: strings replicate in M2.**
+- Open point for the team: how a name gets from the client to the server. Options: (a) a name field in
+  `ConnectRequest`, which costs a protocol version bump, fits only the 64 padding bytes and is sent before the client
+  is authenticated; (b) a reliable custom packet sent after `Accepted` (the draft's default: a `toServer` packet with a `string` field,
+  NET-34, validated on the server; if NET-34 is not ready, a dedicated message kind next to `InputMessage`). With (b), `ClientConnected` fires before the
+  name is known: the game either waits for a `ClientProfile` event or `ClientConnected` is delayed until the profile
+  arrives.
+
+**Open point for the team: how a script sends something across the network.** Events are local to a world and the ECS
+refuses a replicated one (`validate(EventInfo)`; `ecs/features/11-events.md` still asks, line 226, whether some
+events should be replicated for cosmetic effects). Two ways to give scripts a network send, both on the same transport
+(custom packets, NET-34, received as events in the receiver's world):
+
+*A. Custom packet, an explicit network API (the current design, `docs/network/design.md` section 8).*
+
+```luau
+local Hello = net.packet("game.Hello", {
+    direction = "toServer", channel = "reliable",
+    fields = { { name = "name", type = "string", maxLength = 24 } },
+})
+
+-- client
+ctx.net:sendToServer("game.Hello", { name = myName })
+
+-- server
+for hello in ctx.events.read("game.Hello") do   -- hello.sender is the client id
+    if validName(hello.name) then
+        ctx.commands:add(shipOf(hello.sender), "game.PlayerName", { name = hello.name })
+    end
+end
+ctx.net:sendToRoom("game.ChatLine", { from = ship, text = text })
+```
+
+*B. Networked event, one concept (a sketch: no document describes this syntax).*
+
+```luau
+engine.ecs.event("game.Hello", {
+    net = { direction = "toServer", channel = "reliable" },
+    fields = { name = "string" },
+})
+
+-- client
+ctx.events.send("game.Hello", { name = myName })
+
+-- server: read as any event, plus the sender
+for hello in ctx.events.read("game.Hello") do ... end
+```
+
+| | A. Custom packet | B. Networked event |
+|---|---|---|
+| Concepts for a script author | `net.packet`, `ctx.net`, and `ctx.events` to receive | `engine.ecs.event` and `ctx.events` |
+| Sending | A separate call (`sendToServer`, `sendTo`, `sendToRoom`) | The same `ctx.events.send` as a local event |
+| Where it goes | Explicit at each call site | Implied by the declaration |
+| Reading the code | A network send is obvious | A local send and a network send look alike |
+| Side checks | A wrong direction is refused at the call | The declaration restricts who may send |
+| State | Designed (NET-34, NET-35), not implemented | Reverses the ECS rule: needs a team decision |
+
+B would also need: a way to validate an untrusted client event and to know its sender, no re-forwarding of a received
+event, a declared channel per event, and a bound on every field (the packet budget). A middle path keeps B's
+declaration and a distinct call for a network send (`ctx.events.sendNet`), so the cost stays visible. The default of
+this plan is A: it exists in the design, and it needs no change to the ECS rule.
 
 **Done when**
 
 - [ ] A server and a client load the same `game.Shield`, and a value changed on the server arrives on the client.
 - [ ] A client with a different layout is refused with a clear message.
+- [ ] A string component set on the server (a username) arrives on the client, and a string over the cap is refused or
+  cut as documented.
+- [ ] A client sends its name after connecting, and the server puts the validated name in a component every client
+  sees (option (b) above, or the option the team picks).
+- [ ] A script system rejects an invalid name before writing it.
 
 #### SCR-08: Prefabs
 
@@ -521,6 +632,52 @@ Not startable, for the same reason as SCR-08.
 - [ ] A system with `inState` runs only in that state.
 - [ ] An `OnEnter` system runs once on the change.
 
+#### SCR-10: Engine calls and declarative setup from scripts
+
+|            |                                                                                                                       |
+|------------|-----------------------------------------------------------------------------------------------------------------------|
+| Module     | `ecs` (a registry of named calls), `plugins`, `scripting`                                                             |
+| Blocked by | SCR-04 (resources), SCR-06 (a setup runs on a side); the design point below needs a team decision first               |
+
+**Goal.** A game's own setup is written in Luau: the executable only registers backends and adds the generic plugins,
+and everything specific to the game (assets, inputs, spawns, rules) lives in `game/scripts/`. Today `rtype_duel` still
+needs C++ for these (`GameAtlases`, `GameSounds`, `declareInputs`, `registerGame`).
+
+**Why M2 alone is not enough.** SCR-04 gives scripts the *bytes* of a plain-data resource. The setup of the duel is
+*calls*: `AtlasAssets::load()` / `grid()`, `TextureAssets::load()`, `FontAssets`, `AudioAssets`, `InputLayout::add()`,
+physics queries and `moveAndSlide`. These resources hold hash maps and queues, so SCR-04 refuses them, and a view over
+their bytes would be wrong anyway.
+
+**What to build**
+
+- **A registry of named engine calls, in `ecs`.** A plugin registers `("rtype.AtlasAssets.load", signature, function)`
+  on the `App`; the signature is made of `FieldType`s, so `ecs` stays free of Luau, and `plugins` never depends on
+  `luau` (dependency rules). `scripting` exposes each call under `engine`, converting arguments with the SCR-01
+  conversions (an `assetId` takes a path). A call runs where it is declared (`side`, SCR-06) and on the thread that
+  owns the resource.
+- **Declarative forms for the common setup**, written in `scripting` on top of the calls, so scripts do not juggle
+  handles: `engine.input.action("move", "vector2")`, `engine.assets.atlas{ path = ..., grid = {...}, animations =
+  {...} }`, `engine.assets.sound(path)`, `engine.assets.font(path)`. Each one registers on both sides when the same
+  files load on both, and does nothing on the side that does not need it.
+- **Plugin settings in `project.luau`.** `PhysicsSettings` (gravity) and the list of generic plugins to add are read
+  from the project settings, so two games differ by data, not by an executable.
+- **Physics.** Expose `Collider`, `RigidBody` and `Velocity` (SCR-01 covers their enums), the collision events
+  (SCR-04) and the scene queries as engine calls.
+- Replication components (`Owner`, `PlayerInput`) and `ClientConnected`: readable and writable like any component and
+  event; check their layouts are plain data.
+
+**Open point for the team (blocks the start).** Bound calls (above) or only declarative forms? The first is general and
+costs a registry in `ecs`; the second is smaller and cannot express a call nobody wrote a form for. The draft assumes
+both: the registry for the plugins, forms for the setup everybody writes.
+
+**Done when**
+
+- [ ] A script loads an atlas, a sound and a font, and sets inputs, without C++ code in the game.
+- [ ] A game's server and client scripts spawn ships and lasers with colliders, and a collision event reaches a script.
+- [ ] `plugins` and `ecs` still include nothing of `luau`.
+- [ ] `rtype_duel`'s `src/` holds the generic executable only; its rules are in `game/scripts/`.
+- [ ] An unknown engine call, or a wrong argument type, is an error naming the call and the script.
+
 #### Existing issue not in this list
 
 - #361, "Script systems without a query": a system with no `query` term. It touches `SystemDeclarationReader` and
@@ -528,13 +685,14 @@ Not startable, for the same reason as SCR-08.
 
 #### M2 order
 
-Nothing blocks SCR-01, SCR-02, SCR-03 and #361, so they can start in parallel. Then SCR-04 (the largest), SCR-05,
-SCR-06, SCR-07. SCR-06 waits for its ECS prerequisite (a team decision is needed
+Nothing blocks SCR-01, SCR-02, SCR-03 and #361, so they can start in parallel (the string part of SCR-01 waits for
+its ECS prerequisite). Then SCR-04 (the largest), SCR-05, SCR-06, SCR-07, and SCR-10 last, once its design point is
+decided. SCR-06 waits for its ECS prerequisite (a team decision is needed
 first), and SCR-08 and SCR-09 for theirs.
 
 ```mermaid
 flowchart LR
-    L08["LUA-08<br/>(M1 done)"] --> S09["SCR-01<br/>vec, assetId"]
+    L08["LUA-08<br/>(M1 done)"] --> S09["SCR-01<br/>vec, assetId,<br/>enum, string"]
     L08 --> S10["SCR-02<br/>added, changed"]
     L08 --> S11["SCR-03<br/>plugins"]
     L08 --> I361["#361<br/>no query"]
@@ -542,6 +700,8 @@ flowchart LR
     S12 --> S13["SCR-05<br/>ctx.time"]
     E19["ECS<br/>client writes check"] --> S14["SCR-06<br/>side, presence"]
     S14 --> S15["SCR-07<br/>replication"]
+    S12 --> S18["SCR-10<br/>engine calls, setup"]
+    S14 --> S18
     E18["ECS 18<br/>prefabs"] --> S16["SCR-08<br/>prefabs"]
     E13["ECS 13 v2<br/>states"] --> S17["SCR-09<br/>states"]
 ```
