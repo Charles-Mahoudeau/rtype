@@ -24,10 +24,12 @@
 #include "FunctionRef.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
+#include "Runtime.hpp"
 #include "ValuePack.hpp"
 
 namespace rtype::luau {
-Function Function::create(lua_State* state, std::string name) {
+Function Function::create(const Runtime& runtime, std::string name) {
+    lua_State* const state{detail::rawState(runtime)};
     Function func{state, BindingType::kNative, std::move(name)};
     lua_pushlightuserdata(state, &func);
     lua_pushcclosure(state, &Function::handle, func.cStrName(), 1);

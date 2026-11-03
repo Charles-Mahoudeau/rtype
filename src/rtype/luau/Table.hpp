@@ -28,6 +28,7 @@ struct lua_State;
 namespace rtype::luau {
 class Function;
 class Library;
+class Runtime;
 class Value;
 /// @brief Handle on a table that lives in a Luau state.
 ///
@@ -46,14 +47,13 @@ class RTYPE_LUAU_API Table {
     /// @brief String-keyed snapshot of a table, with transparent string hashing and comparison.
     using Map = std::unordered_map<std::string, Value, StringHash, std::equal_to<>>;
 
-    /// @brief Creates a new, empty table in a Lua state.
-    /// @param state The Lua state to create the table in; must not be null.
+    /// @brief Creates a new, empty table in the state of a runtime.
+    /// @param runtime The runtime to create the table in; it must outlive the call, not the table.
     /// @param arrayCapacity Number of array slots to preallocate.
     /// @param hashCapacity Number of hash entries to preallocate.
-    /// @return A handle on the new table, or a Failure of kind `kStackOverflow` if the stack of @p state cannot grow
+    /// @return A handle on the new table, or a Failure of kind `kStackOverflow` if the stack of the runtime cannot grow
     ///         by one slot, or of kind `kOutOfMemory` if the table cannot be allocated.
-    /// @throws exceptions::InvalidState If @p state is null.
-    [[nodiscard]] static Result<Table> create(lua_State* state, int arrayCapacity = 0, int hashCapacity = 0);
+    [[nodiscard]] static Result<Table> create(const Runtime& runtime, int arrayCapacity = 0, int hashCapacity = 0);
     /// @brief Makes a handle on the table at a stack index of a Lua state.
     ///
     /// Leaves the stack untouched. The reverse of `push()`.

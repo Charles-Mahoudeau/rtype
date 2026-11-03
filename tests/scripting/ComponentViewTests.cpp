@@ -304,7 +304,7 @@ TEST(Entity, ComparesByValueAndShowsItsIndexAndGeneration) {
 
 TEST(FillFromTable, WritesTheNamedFieldsAndKeepsTheOthers) {
     Fixture fixture{makeShield()};
-    auto table = rtype::luau::Table::create(fixture.runtime.state());
+    auto table = rtype::luau::Table::create(fixture.runtime);
     ASSERT_TRUE(table);
     ASSERT_TRUE(table->set("strength", rtype::luau::Value{10.0}));
     const float regen = 2.0F;
@@ -323,10 +323,10 @@ TEST(FillFromTable, WritesTheNamedFieldsAndKeepsTheOthers) {
 
 TEST(FillFromTable, RefusesAnUnknownFieldAndABadValue) {
     Fixture fixture{makeShield()};
-    auto unknown = rtype::luau::Table::create(fixture.runtime.state());
+    auto unknown = rtype::luau::Table::create(fixture.runtime);
     ASSERT_TRUE(unknown);
     ASSERT_TRUE(unknown->set("bogus", rtype::luau::Value{1.0}));
-    auto wrong = rtype::luau::Table::create(fixture.runtime.state());
+    auto wrong = rtype::luau::Table::create(fixture.runtime);
     ASSERT_TRUE(wrong);
     ASSERT_TRUE(wrong->set("strength", rtype::luau::Value{std::string{"high"}}));
 

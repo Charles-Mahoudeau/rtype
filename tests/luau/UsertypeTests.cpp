@@ -30,6 +30,7 @@
 #include "rtype/luau/Usertype.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
+#include "rtype/luau/detail/RawState.hpp"
 
 namespace {
 using Userdata = rtype::luau::Userdata;
@@ -332,7 +333,7 @@ TEST(Usertype, DestroysItsObjectsWhenTheyAreCollected) {
         Counter.new(2)
     )");
     // `collectgarbage` does not work in scripts of this runtime yet (it fails with or without usertypes).
-    lua_gc(runtime.state(), LUA_GCCOLLECT, 0);
+    lua_gc(rtype::luau::detail::rawState(runtime), LUA_GCCOLLECT, 0);
 
     EXPECT_EQ(tracker.use_count(), 2);  // the test and the constructor handler
 }
@@ -405,7 +406,7 @@ TEST(Usertype, LetsCppReadTheObjectOfAUserdataItReceived) {
     auto runtime = makeRuntime();
     registerCounter(runtime);
     Counter* seen = nullptr;
-    auto inspect = rtype::luau::Function::create(runtime.state(), "inspect");
+    auto inspect = rtype::luau::Function::create(runtime, "inspect");
     inspect.bind([&seen](const Userdata& userdata) {
         seen = userdata.tryAs<Counter>();
         if (seen != nullptr) {
@@ -457,7 +458,7 @@ TEST(Usertype, RefusesToPushAUserdataInAnotherRuntime) {
     const auto userdata = registerCounter(runtime).create(Counter{});
     ASSERT_TRUE(userdata);
 
-    const auto pushed = userdata->push(foreign.state());
+    const auto pushed = userdata->push(rtype::luau::detail::rawState(foreign));
 
     ASSERT_FALSE(pushed);
     EXPECT_EQ(pushed.error().kind(), rtype::luau::ErrorKind::kRuntime);

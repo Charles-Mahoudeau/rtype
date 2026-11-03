@@ -28,6 +28,7 @@
 #include "Library.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
+#include "Runtime.hpp"
 #include "Value.hpp"
 
 namespace {
@@ -57,10 +58,8 @@ class StackGuard {
 }  // namespace
 
 namespace rtype::luau {
-Result<Table> Table::create(lua_State* state, const int arrayCapacity, const int hashCapacity) {
-    if (state == nullptr) {
-        throw exceptions::InvalidState{};
-    }
+Result<Table> Table::create(const Runtime& runtime, const int arrayCapacity, const int hashCapacity) {
+    lua_State* const state{detail::rawState(runtime)};
     if (lua_checkstack(state, 1) == 0) {
         return stackOverflow();
     }

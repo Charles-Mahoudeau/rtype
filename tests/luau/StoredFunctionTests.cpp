@@ -27,6 +27,7 @@
 #include "rtype/luau/Usertype.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
+#include "rtype/luau/detail/RawState.hpp"
 
 namespace {
 using Function = rtype::luau::Function;
@@ -105,7 +106,7 @@ TEST(StoredFunction, KeepsWorkingAcrossFramesAndCollections) {
     ASSERT_TRUE(userdata);
 
     for (int frame = 1; frame <= 100; ++frame) {
-        lua_gc(runtime.state(), LUA_GCCOLLECT, 0);
+        lua_gc(rtype::luau::detail::rawState(runtime), LUA_GCCOLLECT, 0);
         ValuePack args{};
         args.add({*userdata});
         args.add({0.0});
@@ -152,7 +153,7 @@ TEST(StoredFunction, ReportsTheLineOfAnErrorRaisedByAMethod) {
 TEST(StoredFunction, IteratesOverANativeIterator) {
     auto runtime = makeRuntime();
     auto entities = std::make_shared<std::vector<double>>(std::vector<double>{10, 20, 30});
-    auto next = Function::create(runtime.state(), "query");
+    auto next = Function::create(runtime, "query");
     next.setHandler([entities, index = std::size_t{0}](const rtype::luau::CallContext&) mutable -> ValuePack {
         ValuePack results{};
         if (index < entities->size()) {
@@ -205,7 +206,7 @@ TEST(StoredFunction, PushingItAfterItsRuntimeIsDestroyedFails) {
 
     first.reset();
 
-    const auto pushed = ref->push(second.state());
+    const auto pushed = ref->push(rtype::luau::detail::rawState(second));
     ASSERT_FALSE(pushed);
     EXPECT_EQ(pushed.error().kind(), rtype::luau::ErrorKind::kRuntime);
 }

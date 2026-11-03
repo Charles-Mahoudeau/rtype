@@ -18,6 +18,7 @@
 #include "rtype/luau/RuntimeConfig.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
+#include "rtype/luau/detail/RawState.hpp"
 
 namespace {
 using CallContext = rtype::luau::CallContext;
@@ -69,9 +70,9 @@ TEST(CallContext, FromStackReadsWholeStackInOrder) {
     pushed.add({std::string{"first"}});
     pushed.add({2.0});
     pushed.add({true});
-    ASSERT_EQ(pushed.push(runtime.state()).value(), 3U);
+    ASSERT_EQ(pushed.push(rtype::luau::detail::rawState(runtime)).value(), 3U);
 
-    const auto context = CallContext::fromStack(runtime.state());
+    const auto context = CallContext::fromStack(rtype::luau::detail::rawState(runtime));
 
     ASSERT_TRUE(context);
     ASSERT_EQ(context->argCount(), 3U);
@@ -83,7 +84,7 @@ TEST(CallContext, FromStackReadsWholeStackInOrder) {
 TEST(CallContext, FromStackOfEmptyStackHasNoArguments) {
     const auto runtime = makeRuntime();
 
-    const auto context = CallContext::fromStack(runtime.state());
+    const auto context = CallContext::fromStack(rtype::luau::detail::rawState(runtime));
 
     ASSERT_TRUE(context);
     EXPECT_EQ(context->argCount(), 0U);
@@ -91,7 +92,7 @@ TEST(CallContext, FromStackOfEmptyStackHasNoArguments) {
 
 TEST(CallContext, FromStackFailsForUnreadableArgument) {
     const auto runtime = makeRuntime();
-    auto native = rtype::luau::Function::create(runtime.state(), "native");
+    auto native = rtype::luau::Function::create(runtime, "native");
     bool handlerRan{false};
     native.setHandler([&handlerRan](const CallContext&) -> ValuePack {
         handlerRan = true;
@@ -100,8 +101,9 @@ TEST(CallContext, FromStackFailsForUnreadableArgument) {
     // A thread cannot be read yet: the native closure builds its CallContext from the stack and fails.
     const auto script = runtime.load("chunk", "return native(coroutine.create(function() end))");
     ASSERT_TRUE(script);
-    script->closure().push(runtime.state());
-    const auto caller = rtype::luau::Function::fromRef(rtype::luau::Ref::pop(runtime.state()), "chunk");
+    script->closure().push(rtype::luau::detail::rawState(runtime));
+    const auto caller =
+        rtype::luau::Function::fromRef(rtype::luau::Ref::pop(rtype::luau::detail::rawState(runtime)), "chunk");
 
     const auto result = caller.call();
 

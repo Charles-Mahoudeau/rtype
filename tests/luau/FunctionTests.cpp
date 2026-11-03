@@ -26,6 +26,7 @@
 #include "rtype/luau/Table.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
+#include "rtype/luau/detail/RawState.hpp"
 
 namespace {
 using CallContext = rtype::luau::CallContext;
@@ -50,13 +51,13 @@ rtype::luau::Runtime makeRuntime() {
 Function makeFunction(const rtype::luau::Runtime& runtime, const std::string& source) {
     const auto script = runtime.load("function", source);
     EXPECT_TRUE(script);
-    script->closure().push(runtime.state());
-    return Function::fromRef(rtype::luau::Ref::pop(runtime.state()), "function");
+    script->closure().push(rtype::luau::detail::rawState(runtime));
+    return Function::fromRef(rtype::luau::Ref::pop(rtype::luau::detail::rawState(runtime)), "function");
 }
 
 /// @brief Creates a native Function and stores its closure in the global `native`.
 Function makeNative(const rtype::luau::Runtime& runtime) {
-    Function native = Function::create(runtime.state(), "native");
+    Function native = Function::create(runtime, "native");
     const auto result = runtime.globals().set("native", Value{native.ref()});
     EXPECT_TRUE(result);
     return native;
@@ -70,7 +71,7 @@ ValuePack makeUnpushableArgs(const rtype::luau::Runtime& foreign, const std::siz
     for (std::size_t i = 0; i < validArgs; ++i) {
         args.add({0.0});
     }
-    args.add({rtype::luau::Table::create(foreign.state()).value()});
+    args.add({rtype::luau::Table::create(foreign).value()});
     return args;
 }
 
@@ -370,7 +371,7 @@ TEST(Function, NativeRaisesErrorForUnpushableValue) {
     Function native = makeNative(runtime);
     native.setHandler([&foreign](const CallContext&) -> ValuePack {
         ValuePack result{};
-        result.add({rtype::luau::Table::create(foreign.state()).value()});
+        result.add({rtype::luau::Table::create(foreign).value()});
         return result;
     });
     const Function function = makeFunction(runtime, R"(

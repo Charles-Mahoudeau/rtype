@@ -21,6 +21,8 @@
 struct lua_State;
 
 namespace rtype::luau {
+class Runtime;
+
 /// @brief Handle on a Luau function, kept alive through a registry reference.
 ///
 /// A Function either wraps a native closure made by `create`, which forwards its calls from Lua to a C++
@@ -51,10 +53,10 @@ class RTYPE_LUAU_API Function {
     /// The closure is not stored anywhere: it is only reachable through `ref()`, so store it (in a table, or in the
     /// globals) for Lua to call it. It has no handler yet: calling it from Lua raises a Lua error until `setHandler`
     /// gives it one.
-    /// @param state The Lua state to create the closure in.
+    /// @param runtime The runtime to create the closure in.
     /// @param name Debug name of the closure, also used in error messages.
     /// @return The Function bound to the new closure.
-    [[nodiscard]] static Function create(lua_State* state, std::string name);
+    [[nodiscard]] static Function create(const Runtime& runtime, std::string name);
 
     /// @brief Wraps a function defined in Luau, so C++ can call it.
     /// @param ref Reference to the Luau function; the Function takes it over and lives in its Lua state.
