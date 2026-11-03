@@ -12,6 +12,7 @@
 
 #include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Color.hpp"
+#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/math/Rect.hpp"
 
@@ -43,6 +44,8 @@ struct Text {
     Color color{1.0F};                    ///< Fills the glyphs: colour and transparency.
     float distanceRange = 4.0F;           ///< The atlas' distance range, in atlas pixels (msdf-atlas-gen's -pxrange).
     BlendMode blend = BlendMode::kAlpha;  ///< kAlpha or kAdditive (kCutout is drawn as kAlpha).
+    MaterialId material;                  ///< Its effect; the default one (the MSDF coverage) if 0.
+    ShaderInstanceValues instanceValues{};  ///< Its own `instance uniform` values, shared by its glyphs.
 };
 
 }  // namespace rtype::plugins::backend::graphics

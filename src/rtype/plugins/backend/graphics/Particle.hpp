@@ -15,6 +15,7 @@
 
 #include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Color.hpp"
+#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/math/Rect.hpp"
 
@@ -104,6 +105,8 @@ struct ParticleDraw {
     ParticleAlignment alignment{ParticleAlignment::kFixed};  ///< How each particle's quad is turned.
     float stretch{0.0F};  ///< kVelocity: the quad's length grows by speed * stretch (seconds), so 0 only turns it.
     ParticleFlipbook flipbook;  ///< Animation over each particle's life; one frame (the whole source) by default.
+    MaterialId material;        ///< Its effect; the default one (the texture times each particle's colour) if 0.
+    ShaderInstanceValues instanceValues{};  ///< Its own `instance uniform` values, shared by its particles.
 };
 
 }  // namespace rtype::plugins::backend::graphics

@@ -24,6 +24,7 @@
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Particle.hpp"
 #include "plugins/backend/graphics/ParticleSystemDesc.hpp"
+#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Text.hpp"
@@ -56,9 +57,15 @@ struct FakeBackendState {
     bool gpuParticles{false};  ///< What supportsGpuParticles() returns.
     std::vector<rtype::plugins::backend::graphics::ParticleSystemDesc> createdParticleSystems;  ///< Every create call.
     std::vector<rtype::plugins::backend::graphics::ParticleSystemId>
-        destroyedParticleSystems;                                                  ///< Every destroy() call.
-    std::vector<rtype::plugins::backend::graphics::ParticleEmission> simulations;  ///< Every simulate() call.
-    std::vector<rtype::plugins::backend::graphics::ParticleDraw> particleDraws;    ///< Every draw(ParticleDraw) call.
+        destroyedParticleSystems;                                                   ///< Every destroy() call.
+    std::vector<rtype::plugins::backend::graphics::ParticleEmission> simulations;   ///< Every simulate() call.
+    std::vector<rtype::plugins::backend::graphics::ParticleDraw> particleDraws;     ///< Every draw(ParticleDraw) call.
+    bool shaders{false};                                                            ///< What supportsShaders() returns.
+    std::vector<rtype::plugins::backend::graphics::CompiledShader> createdShaders;  ///< Every createShader() call.
+    std::vector<rtype::plugins::backend::graphics::ShaderId> destroyedShaders;      ///< Every destroy(ShaderId) call.
+    std::vector<rtype::plugins::backend::graphics::MaterialDesc> createdMaterials;  ///< Every createMaterial() call.
+    std::vector<rtype::plugins::backend::graphics::MaterialDesc> updatedMaterials;  ///< Every updateMaterial() call.
+    std::vector<rtype::plugins::backend::graphics::MaterialId> destroyedMaterials;  ///< Every destroy(MaterialId).
     std::vector<char> drawOrder;  ///< 's' (sprite), 'h' (shape), 't' (text) or 'p' (particles) per draw() call.
 };
 
@@ -171,6 +178,34 @@ class FakeRenderer : public rtype::plugins::backend::graphics::IRenderer {
     void draw(const rtype::plugins::backend::graphics::ParticleDraw& particles) override {
         _state->particleDraws.push_back(particles);
         _state->drawOrder.push_back('p');
+    }
+    [[nodiscard]] bool supportsShaders() const noexcept override { return _state->shaders; }
+    [[nodiscard]] rtype::plugins::backend::graphics::ShaderId createShader(
+        const rtype::plugins::backend::graphics::CompiledShader& shader) override {
+        if (!_state->shaders) {
+            throw rtype::plugins::backend::exceptions::UnsupportedFeatureException("FakeRenderer: no shaders");
+        }
+        rtype::plugins::backend::graphics::validate(shader);
+        _state->createdShaders.push_back(shader);
+        return {.index = static_cast<std::uint32_t>(_state->createdShaders.size() - 1), .generation = 1};
+    }
+    void destroy(rtype::plugins::backend::graphics::ShaderId shader) override {
+        _state->destroyedShaders.push_back(shader);
+    }
+    [[nodiscard]] rtype::plugins::backend::graphics::MaterialId createMaterial(
+        const rtype::plugins::backend::graphics::MaterialDesc& desc) override {
+        if (!_state->shaders) {
+            throw rtype::plugins::backend::exceptions::UnsupportedFeatureException("FakeRenderer: no shaders");
+        }
+        _state->createdMaterials.push_back(desc);
+        return {.index = static_cast<std::uint32_t>(_state->createdMaterials.size() - 1), .generation = 1};
+    }
+    void updateMaterial(rtype::plugins::backend::graphics::MaterialId /*material*/,
+                        const rtype::plugins::backend::graphics::MaterialDesc& desc) override {
+        _state->updatedMaterials.push_back(desc);
+    }
+    void destroy(rtype::plugins::backend::graphics::MaterialId material) override {
+        _state->destroyedMaterials.push_back(material);
     }
 
   private:
