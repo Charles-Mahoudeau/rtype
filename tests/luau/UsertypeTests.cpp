@@ -583,7 +583,8 @@ TEST(Usertype, ReadsAUserdataFromADestructorWhileTheRuntimeCloses) {
         handle = *created;
         *callback = [&] {
             ran = true;
-            EXPECT_EQ(handle->tryAs<Probe>(), nullptr);
+            // The registry is gone: the handle of a closing runtime is invalid, and must not read it.
+            EXPECT_THROW(std::ignore = handle->tryAs<Probe>(), rtype::luau::exceptions::InvalidRef);
             handle.reset();
         };
         // The runtime goes out of scope here, and with it the registry before the state.

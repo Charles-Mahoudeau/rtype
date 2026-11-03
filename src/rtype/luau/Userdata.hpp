@@ -58,7 +58,7 @@ class RTYPE_LUAU_API Userdata {
     /// @tparam T The type of the object; it must have been registered with `Runtime::usertype()`.
     /// @return A pointer to the object, valid as long as a handle on the userdata is alive, or `nullptr` if the
     ///         userdata holds an object of another type (or of a type of another runtime).
-    /// @throws exceptions::InvalidRef If the handle is empty.
+    /// @throws exceptions::InvalidRef If the handle is empty, or if its runtime is closed (or closing).
     template <typename T>
     [[nodiscard]] T* tryAs() const;
 
