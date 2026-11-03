@@ -295,10 +295,10 @@ Each task is one issue and one pull request. Ids `LUA-xx`. Tests go in `tests/sc
   every machine). A `scripts` list in the project settings can replace it later.
 - The executable or `Engine` adds the plugin. The same files load on the server and on the clients; skipping systems
   by side comes later (LUA-12).
-- An example: `rtype_duel`, or a new small `examples/luau/LuauShield`.
+- An example: `examples/scripting/Shield`.
 
 **Done when**
-- [ ] The example runs a Luau component and a Luau system loaded from files, with `xmake run`.
+- [x] The example runs a Luau component and a Luau system loaded from files, with `xmake run`.
 
 ### M2: after the first version (draft, not reviewed)
 
