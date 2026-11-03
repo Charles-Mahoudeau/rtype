@@ -124,13 +124,6 @@ Result<Runtime> Runtime::create(const RuntimeConfig config) {
     }
 }
 
-lua_State* Runtime::state() const {
-    std::cerr << "warning: direct access to lua state is an unsafe operation, this probably means that you are doing "
-                 "something wrong or that an api is missing"
-              << std::endl;
-    return _state.get();
-}
-
 detail::UsertypeRegistry& Runtime::usertypes() const { return *_usertypes; }
 
 Result<Script> Runtime::load(std::string name, const std::string& source) const {
