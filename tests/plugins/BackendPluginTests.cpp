@@ -38,12 +38,16 @@
 #include "plugins/input/Input.hpp"
 #include "plugins/input/InputEvents.hpp"
 #include "plugins/input/InputPlugin.hpp"
+#include "plugins/shader/MaterialAssets.hpp"
+#include "plugins/shader/ShaderAssets.hpp"
+#include "plugins/shader/ShaderPlugin.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/event/EventCursor.hpp"
+#include "rtype/ecs/resource/Resources.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/type/Field.hpp"
 #include "rtype/ecs/world/World.hpp"
@@ -119,6 +123,13 @@ TEST(BackendPlugin, BringsTheTransformPlugin) {
     EXPECT_TRUE(app.app().hasPlugin(rtype::plugins::transform::TransformPlugin::kName));
 }
 
+TEST(BackendPlugin, BringsTheShaderPlugin) {
+    BackendApp app;
+    EXPECT_TRUE(app.app().hasPlugin(rtype::plugins::shader::ShaderPlugin::kName));
+    EXPECT_TRUE(app.app().getWorld().getResources().has<rtype::plugins::shader::ShaderAssets>());
+    EXPECT_TRUE(app.app().getWorld().getResources().has<rtype::plugins::shader::MaterialAssets>());
+}
+
 TEST(BackendPlugin, DrawsTheSpritesAtTheirGlobalTransform) {
     BackendApp app;
     spawnSprite(app, loadTexture(app, "ship.png"), {10.0F, 20.0F}, 0);
@@ -135,6 +146,33 @@ TEST(BackendPlugin, DrawsTheSpritesWithTheirBlendMode) {
     app.app().runFrame();
     ASSERT_EQ(app.state().sprites.size(), 1U);
     EXPECT_EQ(app.state().sprites[0].blend, rtype::plugins::backend::graphics::BlendMode::kAdditive);
+}
+
+TEST(BackendPlugin, DrawsTheSpritesWithTheirMaterial) {
+    BackendApp app;
+    app.state().shaders = true;
+    rtype::ecs::Resources& resources = app.app().getWorld().getResources();
+    const rtype::core::asset::AssetId shader = resources.getMut<rtype::plugins::shader::ShaderAssets>()->add(
+        "flash", "instance uniform float flash = 0.25;\nvoid fragment() { COLOR.rgb += flash; }\n");
+    const rtype::core::asset::AssetId material =
+        resources.getMut<rtype::plugins::shader::MaterialAssets>()->add("hit", {.shader = shader});
+    const rtype::ecs::Entity entity = spawnSprite(app, loadTexture(app, "enemy.png"), {0.0F, 0.0F}, 0);
+    app.app().getWorld().getComponents().getMut<rtype::plugins::backend::SpriteRenderer>(entity)->material = material;
+    app.app().runFrame();
+    ASSERT_EQ(app.state().sprites.size(), 1U);
+    ASSERT_EQ(app.state().createdMaterials.size(), 1U);
+    EXPECT_NE(app.state().sprites[0].material, rtype::plugins::backend::graphics::MaterialId{});
+    EXPECT_FLOAT_EQ(app.state().sprites[0].instanceValues[0].x, 0.25F);
+}
+
+TEST(BackendPlugin, DrawsTheSpritesWithTheDefaultMaterialUntilTheirsIsCreated) {
+    BackendApp app;
+    const rtype::ecs::Entity entity = spawnSprite(app, loadTexture(app, "enemy.png"), {0.0F, 0.0F}, 0);
+    app.app().getWorld().getComponents().getMut<rtype::plugins::backend::SpriteRenderer>(entity)->material =
+        rtype::core::asset::AssetId::fromPath("hit");
+    app.app().runFrame();
+    ASSERT_EQ(app.state().sprites.size(), 1U);
+    EXPECT_EQ(app.state().sprites[0].material, rtype::plugins::backend::graphics::MaterialId{});
 }
 
 TEST(BackendPlugin, DrawsTheSpritesByLayer) {
