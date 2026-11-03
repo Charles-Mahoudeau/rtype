@@ -154,7 +154,11 @@ are added.
   turns a script system into a `ScriptCallable` on the App. `ScriptHost` owns the Luau runtime and the `engine` global
   (constant flags `isClient`, `isServer`, `isDebug`, `engine.ecs.component`, read by `component/DeclarationReader.hpp`,
   and `engine.ecs.system`, read by `system/SystemDeclarationReader.hpp`); it knows no `Plugin`. The host and
-  the App may be destroyed in either order. It links `luau`. Design in `docs/luau/ecs-bridge-plan.md`.
+  the App may be destroyed in either order. `plugin/` holds `ScriptingPlugin`, the `ecs::Plugin` that owns a
+  `ScriptHost` and, from `build()`, runs every `.luau` file under its scripts directory (`game/scripts` by default) in
+  sorted path order; a missing directory loads nothing and warns on `std::cerr`. `exceptions/` holds
+  `ScriptLoadException`, thrown when a script cannot be loaded, since `build()` cannot return a `Result`. It links
+  `core`, `ecs` and `luau`. Design in `docs/luau/ecs-bridge-plan.md`.
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `examples/<category>/.../<Name>/` — standalone examples, each with its own `xmake.lua`, grouped in
   folders of any depth (e.g. `examples/graphic/render/vulkan/VulkanInstance/`). Every `xmake.lua` under
@@ -206,7 +210,7 @@ ecs      ←  replication
 - A platform module and a renderer module never depend on each other: what a renderer needs from a
   window that is specific to its graphics API goes through the matching `interop-*` target, which
   both sides depend on (see `docs/Backend.md`).
-- Only the examples (such as `rtype_duel`) link everything together; `engine` links `ecs` and `luau` only.
+- Only the examples (such as `rtype_duel`) link everything together; `engine` links `ecs`, `luau` and `scripting` only.
 
 ## Commands
 
