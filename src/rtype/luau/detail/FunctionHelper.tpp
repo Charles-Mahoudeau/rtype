@@ -31,6 +31,8 @@ constexpr std::string_view luaTypeName() noexcept {
         return "string";
     } else if constexpr (std::is_same_v<T, FunctionRef>) {
         return "function";
+    } else if constexpr (std::is_same_v<T, Userdata>) {
+        return "userdata";
     } else {
         static_assert(std::is_same_v<T, Table>, "luaTypeName: unknown Value alternative");
         return "table";

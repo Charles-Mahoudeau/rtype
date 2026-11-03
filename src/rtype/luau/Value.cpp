@@ -27,6 +27,7 @@
 #include "Ref.hpp"
 #include "Result.hpp"
 #include "Table.hpp"
+#include "Userdata.hpp"
 #include "VariantHelper.hpp"
 
 static_assert(LUA_VECTOR_SIZE == 3, "rtype::luau::Value::Vector assumes 3-component Luau vectors");
@@ -92,6 +93,13 @@ Result<Value> Value::fromStack(lua_State* state, const int stackIndex) {
             }
             return Value{std::move(*function)};
         }
+        case LUA_TUSERDATA: {
+            auto userdata = Userdata::fromStack(state, stackIndex);
+            if (!userdata) {
+                return forwardError<Value>(std::move(userdata));
+            }
+            return Value{std::move(*userdata)};
+        }
         default:
             return Failure{ErrorKind::kTypeMismatch,
                            std::format("cannot read a value of type '{}' yet", lua_typename(state, type))};
@@ -147,6 +155,7 @@ Result<void> Value::push(lua_State* state) const {
                           },
                           [state](const Table& v) -> Result<void> { return v.push(state); },
                           [state](const FunctionRef& v) -> Result<void> { return v.push(state); },
+                          [state](const Userdata& v) -> Result<void> { return v.push(state); },
                       },
                       _variant);
 }
