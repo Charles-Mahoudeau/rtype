@@ -37,7 +37,7 @@ throws.**
 ## Constructors
 
 A constructor cannot return a `Result`, so a type whose creation can fail has a **static factory** returning
-`Result<T>` (`Runtime::create`, `Table::create`, `Table::fromStack`). The real constructor is private and
+`Result<T>` (`Runtime::create`, `Table::create`, `detail::readTable`). The real constructor is private and
 `noexcept` when it can be: the factory does everything that can fail first, then hands the finished parts to it.
 No instance of the type is ever half built.
 
