@@ -30,9 +30,8 @@ namespace rtype::scripting {
 /// `engine.ecs.system(name, {phase, query, after, before, run})` adds a system to its schedule (see
 /// readSystemDeclaration()); the system's body does not run the script yet.
 ///
-/// The App must be destroyed before the host: the systems a script added keep references into the host's runtime
-/// until the App destroys them, so declare the host before the App in their owner. Between the two, the host must
-/// not be used once the App is gone.
+/// The host and the App may be destroyed in either order. The systems a script added stay in the App when the host
+/// is destroyed first, but their script is gone with the runtime: they can no longer run it.
 class RTYPE_SCRIPTING_API ScriptHost {
   public:
     /// @brief What the scripts can tell about the process they run in, as the constant flags of `engine`.
@@ -43,7 +42,7 @@ class RTYPE_SCRIPTING_API ScriptHost {
     };
 
     /// @brief Creates the runtime and the `engine` global.
-    /// @param app The App scripts declare their ECS data on; it must be destroyed before the host (see the class).
+    /// @param app The App scripts declare their ECS data on; it must outlive the host's use of it.
     /// @param options The flags of `engine`.
     /// @return The host, or the error of the runtime that could not be created.
     [[nodiscard]] static luau::Result<std::unique_ptr<ScriptHost>> create(ecs::App& app, Options options);
