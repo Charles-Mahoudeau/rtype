@@ -8,6 +8,8 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "rtype/ecs/component/ComponentInfo.hpp"
@@ -22,4 +24,7 @@ struct ComponentLayout {
     std::vector<ecs::FieldInfo> fields;             ///< Fields with their offsets, sorted by alignment then name.
     std::vector<std::byte> defaults;                ///< A default value: `size` bytes, fields set and padding zeroed.
 };
+
+/// @brief The components scripts declared, by name.
+using ComponentLayouts = std::unordered_map<std::string, ComponentLayout>;
 }  // namespace rtype::scripting::component
