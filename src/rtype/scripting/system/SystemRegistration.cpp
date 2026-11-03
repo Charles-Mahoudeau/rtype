@@ -112,7 +112,9 @@ Result<void> registerSystem(ecs::App& app, SystemDeclaration declaration, std::s
     // The body keeps what a run needs; the scope of the views is heap-allocated, so it keeps its address when moved.
     ecs::ScriptCallable callable{
         [system = std::move(system)](const ecs::DynamicQueries queries, const ecs::Res<ecs::Time> time,
-                                     ecs::Commands& commands) { runScriptSystem(*system, queries, time.get(), commands); },
+                                     ecs::Commands& commands) {
+            runScriptSystem(*system, queries, time.get(), commands);
+        },
     };
     try {
         auto config = app.addSystem(declaration.phase, declaration.name, std::move(callable),
