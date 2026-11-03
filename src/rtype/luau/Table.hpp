@@ -33,7 +33,7 @@ class Value;
 ///
 /// Mirrors the reference semantics of Luau: copying a `Table` copies the handle, not the contents, so every copy
 /// (and the scripts) see the same entries. The table stays alive as long as a handle or a script refers to it, and
-/// the handle must not outlive the `Runtime` of its state.
+/// the handle may outlive the `Runtime` of its state, but any use of it then throws `exceptions::InvalidRef`.
 ///
 /// Keys and values are `Value`s. Reads and writes are raw: metatables (`__index`, `__newindex`) are bypassed, so
 /// they never run script code and never raise a Luau error; a metatable only affects what scripts do with the table

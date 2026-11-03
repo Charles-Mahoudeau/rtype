@@ -328,6 +328,9 @@ lua_State* Table::state() const {
     if (!_ref) {
         throw exceptions::InvalidRef{};
     }
+    if (!_ref->isStateOpen()) {
+        throw exceptions::InvalidRef{};
+    }
     return _ref->state();
 }
 }  // namespace rtype::luau
