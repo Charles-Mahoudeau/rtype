@@ -150,9 +150,11 @@ are added.
   deterministic layout of a script component and registers it. `view/` (`rtype::scripting::view`) holds what scripts
   touch ECS data with: the `ComponentView` usertype (reads and writes a component's fields in place, checked against a
   `ViewScope` generation), the `Entity` usertype (`registerViewTypes()`) and the field conversions (`readField()`,
-  `writeField()`, `fillFromTable()`). `ScriptHost` owns the Luau runtime and the `engine` global (constant flags
-  `isClient`, `isServer`, `isDebug`, and `engine.ecs.component`, read by `component/DeclarationReader.hpp`); it knows no
-  `Plugin`. It links `luau`. Design in `docs/luau/ecs-bridge-plan.md`.
+  `writeField()`, `fillFromTable()`). `system/` holds `SystemDeclaration`, its reader and `registerSystem()`, which
+  turns a script system into a `ScriptCallable` on the App. `ScriptHost` owns the Luau runtime and the `engine` global
+  (constant flags `isClient`, `isServer`, `isDebug`, `engine.ecs.component`, read by `component/DeclarationReader.hpp`,
+  and `engine.ecs.system`, read by `system/SystemDeclarationReader.hpp`); it knows no `Plugin`. The App must be
+  destroyed before the host, as its script systems hold references into the host's runtime. It links `luau`. Design in `docs/luau/ecs-bridge-plan.md`.
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `examples/<category>/.../<Name>/` — standalone examples, each with its own `xmake.lua`, grouped in
   folders of any depth (e.g. `examples/graphic/render/vulkan/VulkanInstance/`). Every `xmake.lua` under
