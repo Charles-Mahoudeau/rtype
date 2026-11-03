@@ -13,7 +13,7 @@ recommendation, not an obligation.
 | # | Decision | Why |
 |---|---|---|
 | D1 | **No AST parsing.** A component is described by a plain Luau table of field types (`fields = { strength = "f32" }`), read at runtime. The `export type` and the generated `.d.luau` are not needed to run. | Decided by the team. Cheapest way to get a real layout. |
-| D2 | **The bridge is its own library**, the `scripting` target (`src/rtype/scripting/`, `rtype-scripting`, namespace `rtype::scripting`), depending on `core`, `ecs` and `luau`. It holds the bridge itself (`ScriptHost`: runtime, layout, usertypes, the `engine.ecs` Luau library, registration on an `App`) and, in `plugin/`, a thin `ScriptingPlugin` (an `ecs::Plugin`) that calls it from `build()`. The executable (or `engine`) adds the plugin. Not to be confused with the Luau plugins of LUA-10 (`engine.ecs.plugin`), which are Luau modules. `luau` stays free of the ECS, and `plugins` never depends on `luau`. `SettingsLoader` stays in `engine`. | `plugins/` cannot depend on `luau` (dependency rules), and `engine` should not grow the bridge. `CLAUDE.md` gets one line for the new target. |
+| D2 | **The bridge is its own library**, the `scripting` target (`src/rtype/scripting/`, `rtype-scripting`, namespace `rtype::scripting`), depending on `core`, `ecs` and `luau`. It holds the bridge itself (`ScriptHost`: runtime, layout, usertypes, the `engine.ecs` Luau library, registration on an `App`) and, in `plugin/`, a thin `ScriptingPlugin` (an `ecs::Plugin`) that calls it from `build()`. The executable (or `engine`) adds the plugin. Not to be confused with the Luau plugins of SCR-03 (`engine.ecs.plugin`), which are Luau modules. `luau` stays free of the ECS, and `plugins` never depends on `luau`. `SettingsLoader` stays in `engine`. | `plugins/` cannot depend on `luau` (dependency rules), and `engine` should not grow the bridge. `CLAUDE.md` gets one line for the new target. |
 | D3 | **Usertypes are implemented** in `rtype-luau` (LUA-00). A system receives each component as a **userdata view** that reads and writes the component bytes in place. | Removes the table copies and the write-back. A view is only valid during the `run` that received it (see D9): a late access raises a Luau error. |
 | D4 | **`Entity` is a userdata handle** (`__eq`, `__tostring`, usable as a table key through its bits). | No 53-bit limit; scripts hold handles, not pointers. |
 | D5 | **Systems are `ScriptCallable`s** holding a `luau::FunctionRef`, using `DynamicQueries` and `Commands&` as parameters. | That is exactly what `ScriptCallable` was made for. |
@@ -71,9 +71,9 @@ needs no class machinery. The method form can be sugar on top later.
 Supported in the first version:
 
 - **Field types**: `bool`, `i8`..`i64`, `u8`..`u64`, `f32`, `f64`, `entity` (every `ecs::FieldType` except the vectors
-  and `AssetId`). `vec2`/`vec3`/`vec4` and `assetId` are LUA-09.
+  and `AssetId`). `vec2`/`vec3`/`vec4` and `assetId` are SCR-01.
 - **Query terms**: `read`, `write`, `optionalRead`, `optionalWrite`, `with`, `without` (all exist in `QueryBuilder`).
-  `added`/`changed` are LUA-09.
+  `added`/`changed` are SCR-02.
 - **Phases**: all of `ecs::Phase`.
 - **`ctx`**: `query` (iteration), `commands` (`spawn`, `despawn`, `add`), `fixedDelta`, `delta`.
 - Scripts can read components declared in C++ (they are in the registry), as long as their fields use the types above.
@@ -294,21 +294,221 @@ Each task is one issue and one pull request. Ids `LUA-xx`. Tests go in `tests/sc
 - For now, scan `game/scripts/**.luau` and load every file found, in sorted path order (so the order is the same on
   every machine). A `scripts` list in the project settings can replace it later.
 - The executable or `Engine` adds the plugin. The same files load on the server and on the clients; skipping systems
-  by side comes later (LUA-12).
+  by side comes later (SCR-06).
 - An example: `examples/scripting/Shield`.
 
 **Done when**
 - [x] The example runs a Luau component and a Luau system loaded from files, with `xmake run`.
 
-### M2: after the first version (draft, not reviewed)
+### M2: after the first version
 
-| Id | Content |
+Checked against the code on 2026-11-03. What the ECS already offers, and what it does not:
+
+| Needed by | State in `ecs` |
 |---|---|
-| LUA-09 | `vec2/3/4` and `assetId` fields, `added` / `changed` terms, events (`ctx.events`), resources (`ctx.resources["rtype.Input"]`), `ctx.time` as a table. |
-| LUA-10 | `engine.ecs.plugin` with `build(app)` and nested plugins. |
-| LUA-11 | Prefabs and states (depend on ECS features 18 and 13 v2). |
-| LUA-12 | `side = "server" \| "client" \| "both"`, with the check that a client system only writes client-only components. |
-| LUA-13 | Replication of script components: the manifest already uses `layoutHash`, and the deterministic layout of LUA-02 makes both sides agree. |
+| `added` / `changed` terms | `QueryBuilder::added` / `changed` exist. |
+| Events and resources from scripts | By bytes and id: `Events::send(EventId, span)`, `RawEventRange`, `Resources::find/get/getMut(ResourceId)`. `ScriptCallable` receives `DynamicQueries` and `Commands` only, so it needs access to them. |
+| Systems by side | `Side`, `System::setSide`, `RunMode`. Done. |
+| Client systems write only `kClientOnly` components | **Not enforced.** `Presence` exists on types, but nothing reads it when a system is added. |
+| Prefabs (feature 18), states and run conditions (feature 13 v2) | **Not implemented.** Only described in the docs. |
+| Replication of script components | The manifest carries `layoutHash`; whether it accepts components registered at runtime is **not checked**. |
+
+Tasks about the `scripting` target use the `SCR-xx` ids, from `SCR-01`. Work that has to happen in the ECS first is
+not numbered here: it is listed as a prerequisite under the task it blocks.
+Ids follow the order the tasks are best done in. Weights are set when the issues are created.
+
+#### SCR-01: `vec2/3/4` and `assetId` fields
+
+| | |
+|---|---|
+| Module | `scripting` |
+| Blocked by | none (M1 done) |
+
+**Goal.** Scripts declare components with the field types that the C++ plugins already reflect (`Transform`, sprites).
+
+**What to build**
+- Add `vec2`, `vec3`, `vec4` and `assetId` to the field types of the layout (LUA-02), the views (LUA-03) and the
+  table conversion.
+- A vector field reads as a Luau `vector` value (check the Luau build has it) and writes from one or from a table
+  `{x=, y=}`; an `assetId` field accepts a path string and stores its `AssetId` hash.
+
+**Done when**
+- [ ] A component with one field of each new type round-trips through a view.
+- [ ] `defaults` and `spawn` tables accept the new types.
+- [ ] A script reads `Transform.position` of a C++ component.
+- [ ] A wrong type or a missing component of a vector is an error naming the field.
+
+#### SCR-02: `added` and `changed` terms
+
+| | |
+|---|---|
+| Module | `scripting` |
+| Blocked by | none |
+
+**Goal.** A system runs only on entities whose component was added or written since it last ran.
+
+**What to build**
+- Read `added` and `changed` in the query declaration and call `QueryBuilder::added` / `changed`.
+- Define which view each term gives (`added` and `changed` terms are read terms: a read-only view).
+
+**Done when**
+- [ ] A system with `added = { "game.Shield" }` runs once for an entity, not on the next tick.
+- [ ] A system with `changed` runs after a write and not otherwise.
+- [ ] An unknown component name is refused when the script loads.
+
+#### SCR-03: `engine.ecs.plugin`
+
+| | |
+|---|---|
+| Module | `scripting` |
+| Blocked by | none |
+
+**Goal.** A Luau module groups components and systems and is added like a C++ plugin.
+
+**What to build**
+- `engine.ecs.plugin(name, { build = function(app) ... end, plugins = { ... } })`.
+- An `app` usertype in Luau with `component`, `system` and `addPlugin`, so `build` does what top-level statements do now.
+- Nested plugins, added once each; a cycle or a duplicate name is an error.
+
+**Done when**
+- [ ] A plugin adds a component and a system through `build(app)`.
+- [ ] A plugin that lists another one adds it first, once.
+- [ ] A cycle is refused with the plugin names.
+
+#### SCR-04: `ctx.events` and `ctx.resources`
+
+| | |
+|---|---|
+| Module | `ecs` (small), `scripting` |
+| Blocked by | SCR-01 (a resource or event often holds vectors) |
+
+**Goal.** A script reads and writes resources and sends and reads events, with the same views as components.
+
+**What to build**
+- `ecs`: let a `ScriptCallable` receive the world's resources and events, and declare which ones the system reads or
+  writes, so the access set stays truthful for the scheduler. This is the open design point: it is not done yet.
+- `ctx.resources["rtype.Input"]`: a `ComponentView` over the resource bytes (read-only unless declared as written),
+  with the same generation check as component views.
+- `ctx.events.send("game.Explosion", {...})` and `for event in ctx.events.read("rtype.Collision")`.
+- Resources that are not plain data (main-thread, non-standard-layout) are refused with an error, not skipped.
+
+**Done when**
+- [ ] A script reads `rtype.Time` or `rtype.Input` in a test.
+- [ ] A script sends an event that a C++ system reads, and the reverse.
+- [ ] Writing a resource declared as read raises an error.
+- [ ] The scheduler sees the resource and event access of a script system.
+
+#### SCR-05: `ctx.time` as a table
+
+| | |
+|---|---|
+| Module | `scripting` |
+| Blocked by | SCR-04 |
+
+**Goal.** One place for the time values (`ctx.time.delta`, `fixedDelta`, `elapsed`, `tick`).
+
+Small: it can be folded into SCR-04 if the `rtype.Time` view is enough. Keep `ctx.delta` and `ctx.fixedDelta` working.
+
+**Done when**
+- [ ] `ctx.time` gives the values of `rtype.Time` and the old fields still work.
+
+#### SCR-06: `side` and `presence` in declarations
+
+| | |
+|---|---|
+| Module | `scripting` |
+| Blocked by | ECS prerequisite: refuse a client system that writes a component that is not `kClientOnly` (not numbered); the rest has no blocker |
+
+**Goal.** Scripts say where a system runs and where a component exists.
+
+**What to build**
+- `side = "server" | "client" | "both"` on `engine.ecs.system`, calling `System::setSide`; the default is the ECS one
+  (`server`).
+- `presence = "both" | "serverOnly" | "clientOnly"` on `engine.ecs.component` (`ComponentDeclaration` has no
+  `presence` yet).
+- The system loader reports the ECS refusal error with the script name.
+
+**Done when**
+- [ ] A `side = "client"` system does not run in a server `App`, and does in a client one.
+- [ ] A client script system writing a replicated component fails to load, with the script name.
+- [ ] The `Shield` example declares its sides.
+
+**ECS prerequisite (not numbered).** A `Side::kClient` system that writes a component other than `kClientOnly` must be
+refused when it is added, as an `Error` (rule of `docs/ecs/features/19-luau-bridge.md`; `Presence` exists but nothing
+reads it). Open point for the team: the case of `kBoth` systems and of `Presence::kBoth` components that clients predict.
+
+#### SCR-07: Replication of script components
+
+| | |
+|---|---|
+| Module | `replication`, `scripting` |
+| Blocked by | SCR-06, and a check of what the manifest does with runtime components |
+
+**Goal.** A component declared in Luau with `replication = "everyChange"` reaches the clients.
+
+**What to build**
+- First, verify in `replication/manifest/` that a component registered at runtime (by `registerType(ComponentInfo)`)
+  is listed and sent like a C++ one. If not, that is the first task.
+- Check on connection that both sides loaded the same scripts: a `layoutHash` mismatch refuses the client with the
+  component name.
+
+**Done when**
+- [ ] A server and a client load the same `game.Shield`, and a value changed on the server arrives on the client.
+- [ ] A client with a different layout is refused with a clear message.
+
+#### SCR-08: Prefabs
+
+| | |
+|---|---|
+| Module | `ecs`, then `scripting` |
+| Blocked by | ECS feature 18 (prefabs), **not implemented** |
+
+**Goal.** `ecs.prefab("game.Bydo", {...})` and `commands:spawnPrefab("game.Bydo")`.
+
+Not startable: the ECS part has to exist first. Create it as an `ecs` issue (feature 18, v2) and block this one on it.
+
+**Done when**
+- [ ] A prefab declared in Luau is spawned by a Luau system and by a C++ one.
+- [ ] An unknown prefab or component is refused when the script loads.
+
+#### SCR-09: States and run conditions
+
+| | |
+|---|---|
+| Module | `ecs`, then `scripting` |
+| Blocked by | ECS feature 13 v2 (run conditions, states), **not implemented** |
+
+**Goal.** `inState = "Playing"` on a system, and `OnEnter` / `OnExit` systems.
+
+Not startable, for the same reason as SCR-08.
+
+**Done when**
+- [ ] A system with `inState` runs only in that state.
+- [ ] An `OnEnter` system runs once on the change.
+
+#### Existing issue not in this list
+
+- #361, "Script systems without a query": a system with no `query` term. It touches `SystemDeclarationReader` and
+  `SystemRun`; no blocker, so it can be done at any time, and it is a good first task.
+
+#### M2 order
+
+Nothing blocks SCR-01, SCR-02, SCR-03 and #361, so they can start in parallel. Then SCR-04 (the largest), SCR-05, SCR-06, SCR-07. SCR-06 waits for its ECS prerequisite (a team decision is needed
+first), and SCR-08 and SCR-09 for theirs.
+
+```mermaid
+flowchart LR
+    L08["LUA-08<br/>(M1 done)"] --> S09["SCR-01<br/>vec, assetId"]
+    L08 --> S10["SCR-02<br/>added, changed"]
+    L08 --> S11["SCR-03<br/>plugins"]
+    L08 --> I361["#361<br/>no query"]
+    S09 --> S12["SCR-04<br/>events, resources"]
+    S12 --> S13["SCR-05<br/>ctx.time"]
+    E19["ECS<br/>client writes check"] --> S14["SCR-06<br/>side, presence"]
+    S14 --> S15["SCR-07<br/>replication"]
+    E18["ECS 18<br/>prefabs"] --> S16["SCR-08<br/>prefabs"]
+    E13["ECS 13 v2<br/>states"] --> S17["SCR-09<br/>states"]
+```
 
 ## 5. Later
 
