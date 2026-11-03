@@ -113,10 +113,10 @@ struct Source {
     if (name == nullptr) {
         return invalid(system, "'phase' must be a string");
     }
-    if (const auto* const found =
-            std::ranges::find(kPhases, *name, [](const ecs::Phase phase) { return ecs::toString(phase); });
-        found != kPhases.end()) {
-        return *found;
+    for (const ecs::Phase phase : kPhases) {
+        if (ecs::toString(phase) == *name) {
+            return phase;
+        }
     }
     return invalid(system, std::format("unknown phase '{}'", *name));
 }
