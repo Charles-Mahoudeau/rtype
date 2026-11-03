@@ -122,6 +122,12 @@ bool Schedule::contains(std::string_view name) const noexcept {
     return std::ranges::any_of(_entries, [&](const Entry& entry) { return entry.system.getName() == name; });
 }
 
+const System* Schedule::findSystem(std::string_view name) const noexcept {
+    const auto found =
+        std::ranges::find_if(_entries, [&](const Entry& entry) { return entry.system.getName() == name; });
+    return found == _entries.end() ? nullptr : &found->system;
+}
+
 Schedule::SystemConfig Schedule::addSystem(System system) {
     if (contains(system.getName())) {
         throw exceptions::ScheduleException{std::format("Two systems of phase {} are named '{}': names must be unique",
