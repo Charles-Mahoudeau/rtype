@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "Export.hpp"
-#include "Result.hpp"
 #include "Value.hpp"
 
 struct lua_State;

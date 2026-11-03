@@ -15,8 +15,6 @@
 
 #include "Export.hpp"
 #include "FunctionRef.hpp"
-#include "Ref.hpp"
-#include "Result.hpp"
 #include "Table.hpp"
 #include "Userdata.hpp"
 
