@@ -150,7 +150,9 @@ are added.
   deterministic layout of a script component and registers it. `view/` (`rtype::scripting::view`) holds what scripts
   touch ECS data with: the `ComponentView` usertype (reads and writes a component's fields in place, checked against a
   `ViewScope` generation), the `Entity` usertype (`registerViewTypes()`) and the field conversions (`readField()`,
-  `writeField()`, `fillFromTable()`). It links `luau`. Design in `docs/luau/ecs-bridge-plan.md`.
+  `writeField()`, `fillFromTable()`). `ScriptHost` owns the Luau runtime and the `engine` global (constant flags
+  `isClient`, `isServer`, `isDebug`, and `engine.ecs.component`, read by `component/DeclarationReader.hpp`); it knows no
+  `Plugin`. It links `luau`. Design in `docs/luau/ecs-bridge-plan.md`.
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `examples/<category>/.../<Name>/` — standalone examples, each with its own `xmake.lua`, grouped in
   folders of any depth (e.g. `examples/graphic/render/vulkan/VulkanInstance/`). Every `xmake.lua` under
