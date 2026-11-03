@@ -1,0 +1,6 @@
+---
+# Examples are not linted: the CI generates compile_commands.json without them, so clang-tidy would analyze them
+# without their include paths (SDL3, SFML...) and only report errors that do not exist. Disabling every check
+# makes clang-tidy skip this folder before compiling anything.
+Checks: '-*'
+...
