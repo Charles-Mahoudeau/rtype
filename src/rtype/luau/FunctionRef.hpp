@@ -17,6 +17,31 @@ struct lua_State;
 
 namespace rtype::luau {
 class Function;
+class FunctionRef;
+
+namespace detail {
+/// @brief Reads a function from the stack of a Lua state.
+///
+/// Copies the value without popping it, and leaves the stack untouched.
+/// @param state The Lua state to read from; must not be null.
+/// @param stackIndex Stack index of the function to read (defaults to the top). It must be a valid index of
+///        @p state's stack.
+/// @return A handle on the function, or a Failure of kind `kTypeMismatch` if the value is not a function.
+/// @throws exceptions::InvalidState If @p state is null.
+[[nodiscard]] RTYPE_LUAU_API Result<FunctionRef> readFunctionRef(lua_State* state, int stackIndex = Ref::kLuaStackTop);
+
+/// @brief Pushes a function onto the stack of a Lua state.
+///
+/// Pushes exactly one value on success and nothing on failure. Does not grow the stack: the caller makes sure there
+/// is room for one more slot (`lua_checkstack`).
+/// @param state The Lua state to push onto; must not be null.
+/// @param function The function to push.
+/// @return Nothing on success, or a Failure of kind `kRuntime` if @p state belongs to another Lua state than the
+///         function, or if the runtime of the function was destroyed.
+/// @throws exceptions::InvalidState If @p state is null.
+/// @throws exceptions::InvalidRef If the handle was moved from.
+[[nodiscard]] RTYPE_LUAU_API Result<void> pushFunctionRef(lua_State* state, const FunctionRef& function);
+}  // namespace detail
 
 /// @brief Copyable handle on a Luau function, kept alive through a registry reference.
 ///
@@ -31,16 +56,6 @@ class Function;
 ///       binding.
 class RTYPE_LUAU_API FunctionRef {
   public:
-    /// @brief Reads a function from the stack of a Lua state.
-    ///
-    /// Copies the value without popping it, and leaves the stack untouched.
-    /// @param state The Lua state to read from; must not be null.
-    /// @param stackIndex Stack index of the function to read (defaults to the top). It must be a valid index
-    ///        of @p state's stack.
-    /// @return A handle on the function, or a Failure of kind `kTypeMismatch` if the value is not a function.
-    /// @throws exceptions::InvalidState If @p state is null.
-    [[nodiscard]] static Result<FunctionRef> fromStack(lua_State* state, int stackIndex = Ref::kLuaStackTop);
-
     /// @brief Destroys the handle; the registry reference is released with the last copy.
     ~FunctionRef() noexcept = default;
     /// @brief Copy constructor: the copy shares the registry reference.
@@ -61,19 +76,10 @@ class RTYPE_LUAU_API FunctionRef {
     /// @throws exceptions::InvalidRef If the handle was moved from.
     [[nodiscard]] const Ref& ref() const;
 
-    /// @brief Pushes the function onto the stack of a Lua state.
-    ///
-    /// Pushes exactly one value on success and nothing on failure. Does not grow the stack: the caller makes sure
-    /// there is room for one more slot (`lua_checkstack`).
-    /// @param state The Lua state to push onto; must not be null.
-    /// @return Nothing on success, or a Failure of kind `kRuntime` if @p state belongs to another Lua state than the
-    ///         function.
-    /// @throws exceptions::InvalidState If @p state is null.
-    /// @throws exceptions::InvalidRef If the handle was moved from.
-    [[nodiscard]] Result<void> push(lua_State* state) const;
-
   private:
     friend class Function;
+    friend Result<FunctionRef> detail::readFunctionRef(lua_State* state, int stackIndex);
+    friend Result<void> detail::pushFunctionRef(lua_State* state, const FunctionRef& function);
 
     /// @brief Creates an empty handle, which references nothing until a valid one is assigned to it.
     FunctionRef() noexcept = default;

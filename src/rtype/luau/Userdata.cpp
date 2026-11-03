@@ -23,7 +23,7 @@
 #include "detail/UsertypeRegistry.hpp"
 
 namespace rtype::luau {
-Result<Userdata> Userdata::fromStack(lua_State* state, const int stackIndex) {
+Result<Userdata> detail::readUserdata(lua_State* state, const int stackIndex) {
     if (state == nullptr) {
         throw exceptions::InvalidState{};
     }
@@ -47,17 +47,17 @@ int Userdata::tag() const {
     return tag;
 }
 
-Result<void> Userdata::push(lua_State* state) const {
+Result<void> detail::pushUserdata(lua_State* state, const Userdata& userdata) {
     if (state == nullptr) {
         throw exceptions::InvalidState{};
     }
-    if (!_ref) {
+    if (!userdata._ref) {
         throw exceptions::InvalidRef{};
     }
-    if (lua_mainthread(state) != _ref->state()) {
+    if (lua_mainthread(state) != userdata._ref->state()) {
         return Failure{ErrorKind::kRuntime, "the userdata belongs to another Lua state"};
     }
-    _ref->push(state);
+    userdata._ref->push(state);
     return {};
 }
 

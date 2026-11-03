@@ -17,7 +17,6 @@
 #include <string>
 #include <utility>
 
-#include "CallContext.hpp"
 #include "ErrorKind.hpp"
 #include "Exceptions.hpp"
 #include "Failure.hpp"
@@ -26,6 +25,7 @@
 #include "Result.hpp"
 #include "Runtime.hpp"
 #include "ValuePack.hpp"
+#include "detail/Stack.hpp"
 
 namespace rtype::luau {
 Function Function::create(const Runtime& runtime, std::string name) {
@@ -89,7 +89,7 @@ Result<ValuePack> Function::call(const ValuePack& args) const {
     }
     const int top{lua_gettop(_state)};
     _ref.ref().push(_state);
-    auto argCount = args.push(_state);
+    auto argCount = detail::pushValuePack(_state, args);
     if (!argCount) {
         // Drop the function, to leave the stack as it was.
         lua_settop(_state, top);
@@ -106,7 +106,7 @@ Result<ValuePack> Function::call(const ValuePack& args) const {
     }
     // With LUA_MULTRET, every value above the saved top is a returned value.
     const auto resultCount{static_cast<std::size_t>(lua_gettop(_state) - top)};
-    auto results = ValuePack::pop(_state, resultCount);
+    auto results = detail::popValuePack(_state, resultCount);
     if (!results) {
         // Drop the returned values left by the failed read, to leave the stack as it was.
         lua_settop(_state, top);
@@ -166,13 +166,13 @@ int Function::handle(lua_State* state) {
     if (!self->_handler) {
         error = std::format("native function '{}' has no handler", self->_name);
     } else {
-        auto context = CallContext::fromStack(state);
+        auto context = detail::readCallContext(state);
         if (!context) {
             error = std::format("invalid argument to '{}' ({})", self->_name, context.error().message());
         } else {
             try {
                 const ValuePack results{self->_handler(*context)};
-                const auto pushed = results.push(state);
+                const auto pushed = detail::pushValuePack(state, results);
                 if (pushed) {
                     resultCount = *pushed;
                 } else {

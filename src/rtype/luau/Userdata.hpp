@@ -17,6 +17,30 @@
 struct lua_State;
 
 namespace rtype::luau {
+class Userdata;
+
+namespace detail {
+/// @brief Creates a handle on the userdata at a stack index of a Lua state.
+///
+/// Leaves the stack untouched.
+/// @param state The Lua state to read from; must not be null.
+/// @param stackIndex Stack index of the userdata (defaults to the top). It must be a valid index of @p state's
+///        stack.
+/// @return A handle on the userdata, or a Failure of kind `kTypeMismatch` if the value is not a userdata.
+/// @throws exceptions::InvalidState If @p state is null.
+[[nodiscard]] RTYPE_LUAU_API Result<Userdata> readUserdata(lua_State* state, int stackIndex = Ref::kLuaStackTop);
+
+/// @brief Pushes a userdata onto the stack of a Lua state.
+///
+/// Pushes exactly one value on success and nothing on failure.
+/// @param state The Lua state to push onto; must not be null.
+/// @param userdata The userdata to push.
+/// @return Nothing on success, or a Failure of kind `kRuntime` if the userdata belongs to another Lua state.
+/// @throws exceptions::InvalidState If @p state is null.
+/// @throws exceptions::InvalidRef If the handle is empty.
+[[nodiscard]] RTYPE_LUAU_API Result<void> pushUserdata(lua_State* state, const Userdata& userdata);
+}  // namespace detail
+
 /// @brief A handle on a userdata of a Lua state: a C++ object of a type registered with `Runtime::usertype()`.
 ///
 /// Like `Table` and `FunctionRef`, it is a registry reference, not a copy: every copy of the handle designates the
@@ -24,16 +48,6 @@ namespace rtype::luau {
 /// reached with `tryAs()`.
 class RTYPE_LUAU_API Userdata {
   public:
-    /// @brief Creates a handle on the userdata at a stack index of a Lua state.
-    ///
-    /// Leaves the stack untouched.
-    /// @param state The Lua state to read from; must not be null.
-    /// @param stackIndex Stack index of the userdata (defaults to the top). It must be a valid index of @p state's
-    ///        stack.
-    /// @return A handle on the userdata, or a Failure of kind `kTypeMismatch` if the value is not a userdata.
-    /// @throws exceptions::InvalidState If @p state is null.
-    [[nodiscard]] static Result<Userdata> fromStack(lua_State* state, int stackIndex = Ref::kLuaStackTop);
-
     /// @brief Destroys the handle, releasing its reference to the userdata.
     ~Userdata() noexcept = default;
     /// @brief Copy constructor: the copy designates the same userdata.
@@ -62,16 +76,10 @@ class RTYPE_LUAU_API Userdata {
     template <typename T>
     [[nodiscard]] T* tryAs() const;
 
-    /// @brief Pushes the userdata onto the stack of a Lua state.
-    ///
-    /// Pushes exactly one value on success and nothing on failure.
-    /// @param state The Lua state to push onto; must not be null.
-    /// @return Nothing on success, or a Failure of kind `kRuntime` if the userdata belongs to another Lua state.
-    /// @throws exceptions::InvalidState If @p state is null.
-    /// @throws exceptions::InvalidRef If the handle is empty.
-    [[nodiscard]] Result<void> push(lua_State* state) const;
-
   private:
+    friend Result<Userdata> detail::readUserdata(lua_State* state, int stackIndex);
+    friend Result<void> detail::pushUserdata(lua_State* state, const Userdata& userdata);
+
     /// @brief Creates a handle from a reference to a userdata.
     /// @param ref Registry reference to the userdata.
     explicit Userdata(Ref ref);

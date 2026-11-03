@@ -42,7 +42,7 @@ class RTYPE_LUAU_API Function {
     /// @brief C++ callable run each time Lua calls the native closure, returning the values of the call.
     ///
     /// The context holds the arguments the closure was called with, and the values of the returned pack are
-    /// returned to Lua, in order. If an argument cannot be read (see `CallContext::fromStack`), the handler does not
+    /// returned to Lua, in order. If an argument cannot be read (see `detail::readCallContext`), the handler does not
     /// run and the call raises a Lua error instead. A handler raises a Lua error by throwing an `exceptions::Base`,
     /// whose message is then prefixed with the name of the function; any other `std::exception` also becomes a Lua
     /// error, with its message unchanged, and so does anything else that is thrown, with a generic message.

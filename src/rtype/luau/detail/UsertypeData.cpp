@@ -17,6 +17,7 @@
 #include <string_view>
 #include <utility>
 
+#include "Stack.hpp"
 #include "rtype/luau/ErrorKind.hpp"
 #include "rtype/luau/Exceptions.hpp"
 #include "rtype/luau/Failure.hpp"
@@ -102,8 +103,8 @@ std::string_view readKey(lua_State* state, const int index) {
 
 /// @brief Reads the value at a stack index.
 /// @throws exceptions::RuntimeError If the value has a type that cannot be read.
-Value readValue(lua_State* state, const int index) {
-    auto value = Value::fromStack(state, index);
+Value readValueOrThrow(lua_State* state, const int index) {
+    auto value = rtype::luau::detail::readValue(state, index);
     if (!value) {
         throw rtype::luau::exceptions::RuntimeError{std::string{value.error().message()}};
     }
@@ -112,8 +113,8 @@ Value readValue(lua_State* state, const int index) {
 
 /// @brief Pushes a value.
 /// @throws exceptions::RuntimeError If the value cannot be pushed.
-void pushValue(lua_State* state, const Value& value) {
-    if (const auto pushed = value.push(state); !pushed) {
+void pushValueOrThrow(lua_State* state, const Value& value) {
+    if (const auto pushed = rtype::luau::detail::pushValue(state, value); !pushed) {
         throw rtype::luau::exceptions::RuntimeError{std::string{pushed.error().message()}};
     }
 }
@@ -122,7 +123,7 @@ void pushValue(lua_State* state, const Value& value) {
 /// @throws exceptions::RuntimeError If one of them has a type that cannot be read.
 rtype::luau::ValuePack readArgs(lua_State* state, const int first) {
     const int count{lua_gettop(state) - first + 1};
-    auto args = rtype::luau::ValuePack::fromStack(state, first, static_cast<std::size_t>(count < 0 ? 0 : count));
+    auto args = rtype::luau::detail::readValuePack(state, first, static_cast<std::size_t>(count < 0 ? 0 : count));
     if (!args) {
         throw rtype::luau::exceptions::RuntimeError{std::string{args.error().message()}};
     }
@@ -183,7 +184,7 @@ Result<Userdata> UsertypeData::create(const Initializer initialize, void* source
         lua_settop(_state, top);
         return Failure{ErrorKind::kRuntime, "unknown exception"};
     }
-    auto userdata = Userdata::fromStack(_state);
+    auto userdata = rtype::luau::detail::readUserdata(_state);
     lua_settop(_state, top);
     return userdata;
 }
@@ -283,7 +284,7 @@ int UsertypeData::index(lua_State* state) {
             void* object{requireObject(state, data, kSelfIndex)};
             member = readKey(state, kKeyIndex);
             if (const auto getter = data._getters.find(member); getter != data._getters.end()) {
-                pushValue(state, getter->second(object));
+                pushValueOrThrow(state, getter->second(object));
                 return 1;
             }
             lua_pushvalue(state, kKeyIndex);
@@ -293,7 +294,7 @@ int UsertypeData::index(lua_State* state) {
             }
             lua_pop(state, 1);
             if (data._indexFallback) {
-                pushValue(state, data._indexFallback(object, member));
+                pushValueOrThrow(state, data._indexFallback(object, member));
                 return 1;
             }
             throw exceptions::RuntimeError{std::format("unknown member '{}'", member)};
@@ -310,11 +311,11 @@ int UsertypeData::newIndex(lua_State* state) {
             void* object{requireObject(state, data, kSelfIndex)};
             member = readKey(state, kKeyIndex);
             if (const auto setter = data._setters.find(member); setter != data._setters.end()) {
-                setter->second(object, readValue(state, kValueIndex));
+                setter->second(object, readValueOrThrow(state, kValueIndex));
                 return 0;
             }
             if (data._newIndexFallback) {
-                data._newIndexFallback(object, member, readValue(state, kValueIndex));
+                data._newIndexFallback(object, member, readValueOrThrow(state, kValueIndex));
                 return 0;
             }
             lua_pushvalue(state, kKeyIndex);
@@ -338,7 +339,7 @@ int UsertypeData::callMethod(lua_State* state) {
             void* object{requireObject(state, data, kSelfIndex)};
             const ValuePack args{readArgs(state, kSelfIndex + 1)};
             const ValuePack results{entry.handler(object, args.values())};
-            const auto pushed = results.push(state);
+            const auto pushed = rtype::luau::detail::pushValuePack(state, results);
             if (!pushed) {
                 throw exceptions::RuntimeError{std::string{pushed.error().message()}};
             }
