@@ -17,6 +17,7 @@
 #include <typeindex>
 #include <utility>
 
+#include "StateLife.hpp"
 #include "UsertypeData.hpp"
 #include "luaconf.h"
 #include "rtype/luau/ErrorKind.hpp"
@@ -37,11 +38,14 @@ UsertypeRegistry::UsertypeRegistry(lua_State* state) : _state{state} {
 }
 
 UsertypeRegistry::~UsertypeRegistry() {
+    _life->markDead();
     // Destructors of userdata run when the state is closed, after the registry: they must not find it any more.
     if (lua_callbacks(_state)->userdata == this) {
         lua_callbacks(_state)->userdata = nullptr;
     }
 }
+
+std::shared_ptr<const StateLife> UsertypeRegistry::life() const noexcept { return _life; }
 
 UsertypeData* UsertypeRegistry::find(const std::type_index type) const noexcept {
     const auto it = _types.find(type);

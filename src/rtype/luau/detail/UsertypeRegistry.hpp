@@ -13,6 +13,7 @@
 #include <typeindex>
 #include <unordered_map>
 
+#include "StateLife.hpp"
 #include "UsertypeData.hpp"
 #include "rtype/luau/Export.hpp"
 #include "rtype/luau/Result.hpp"
@@ -39,11 +40,15 @@ class RTYPE_LUAU_API UsertypeRegistry {
     ///        registry is destroyed, because the destructor reads it.
     /// @throws exceptions::InvalidState If @p state is null.
     explicit UsertypeRegistry(lua_State* state);
+    /// @brief Marks the state as closed for the handles that outlive it (see StateLife).
     ~UsertypeRegistry();
     UsertypeRegistry(const UsertypeRegistry&) = delete;
     UsertypeRegistry& operator=(const UsertypeRegistry&) = delete;
     UsertypeRegistry(UsertypeRegistry&&) noexcept = delete;
     UsertypeRegistry& operator=(UsertypeRegistry&&) noexcept = delete;
+
+    /// @return Whether the state lives, shared with the handles on its values; they keep it after the registry.
+    [[nodiscard]] std::shared_ptr<const StateLife> life() const noexcept;
 
     /// @brief Finds the usertype of a C++ type.
     /// @param type The C++ type.
@@ -63,8 +68,9 @@ class RTYPE_LUAU_API UsertypeRegistry {
                                             UsertypeData::Destructor destructor);
 
   private:
-    lua_State* _state;  ///< Main thread of the Lua state.
-    int _nextTag{1};    ///< Next free userdata tag (0 is untagged).
+    lua_State* _state;                                                ///< Main thread of the Lua state.
+    std::shared_ptr<StateLife> _life{std::make_shared<StateLife>()};  ///< Whether the state lives.
+    int _nextTag{1};                                                  ///< Next free userdata tag (0 is untagged).
     std::unordered_map<std::type_index, std::unique_ptr<UsertypeData>> _types;  ///< Usertypes by C++ type.
 };
 }  // namespace rtype::luau::detail
