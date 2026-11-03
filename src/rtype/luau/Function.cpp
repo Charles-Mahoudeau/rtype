@@ -8,6 +8,7 @@
 #include "Function.hpp"
 
 #include <lua.h>
+#include <lualib.h>
 
 #include <cstddef>
 #include <exception>
@@ -184,7 +185,10 @@ int Function::handle(lua_State* state) {
         }
     }
     if (!error.empty()) {
+        // Prefix the position of the script that made the call (`Shield.luau:3:`), as `error` does.
+        luaL_where(state, 1);
         lua_pushlstring(state, error.data(), error.size());
+        lua_concat(state, 2);
         // The string is copied onto the Lua stack, so it can be released before the error unwinds.
         std::string{}.swap(error);
         lua_error(state);

@@ -92,6 +92,7 @@ Result<Bytecode> Runtime::compile(const std::string& source) const {
     std::size_t size = 0;
     lua_CompileOptions options = {
         .optimizationLevel = std::to_underlying(_config.optimizationLevel),
+        .debugLevel = 1,  // Keeps the line numbers, which error messages carry.
     };
 
     // NOLINTNEXTLINE(*-avoid-c-arrays)
@@ -145,8 +146,11 @@ Result<Script> Runtime::load(std::string name, const std::string& source) const 
     // TODO: enable later, when global state will be sandboxed
     // luaL_sandboxthread(threadState);
 
+    // The '=' prefix makes Luau use the name as it is in messages (`Shield.luau:3:`), not as `[string
+    // "Shield.luau"]:3:`.
+    const std::string chunkName{"=" + name};
     const std::int32_t result =
-        luau_load(threadState, name.c_str(), bytecode->data().get(), bytecode->size(), kLuauGlobalEnv);
+        luau_load(threadState, chunkName.c_str(), bytecode->data().get(), bytecode->size(), kLuauGlobalEnv);
 
     if (result != 0) {
         const std::string message{lua_tostring(threadState, -1)};
