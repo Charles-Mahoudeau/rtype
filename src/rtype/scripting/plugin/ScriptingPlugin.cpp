@@ -19,6 +19,8 @@
 
 #include "rtype/core/asset/AssetFiles.hpp"
 #include "rtype/core/asset/exceptions/AssetExceptions.hpp"
+#include "rtype/ecs/app/App.hpp"
+#include "rtype/scripting/ScriptHost.hpp"
 #include "rtype/scripting/exceptions/ScriptLoadException.hpp"
 
 namespace rtype::scripting {

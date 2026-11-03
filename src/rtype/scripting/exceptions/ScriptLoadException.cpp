@@ -7,6 +7,7 @@
 
 #include "rtype/scripting/exceptions/ScriptLoadException.hpp"
 
+#include <stdexcept>
 #include <string>
 
 namespace rtype::scripting::exceptions {
