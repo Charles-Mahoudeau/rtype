@@ -20,10 +20,8 @@
 namespace {
 /// @brief A bare App and a host on it, with the components the systems below use already declared.
 struct Fixture {
-    // Declared in this order on purpose: the App's systems hold references into the host's runtime, so the host is
-    // the last to be destroyed.
-    std::unique_ptr<rtype::scripting::ScriptHost> host;
     rtype::ecs::App app;
+    std::unique_ptr<rtype::scripting::ScriptHost> host;
 
     Fixture() {
         auto created = rtype::scripting::ScriptHost::create(app, {});
@@ -136,4 +134,18 @@ TEST(ScriptSystem, DuplicateNameIsRefused) {
     )";
     EXPECT_EQ(fixture.run(declaration), "");
     EXPECT_NE(fixture.run(declaration).find("game.Twice"), std::string::npos);
+}
+
+TEST(ScriptSystem, StaysInTheAppWhenTheHostIsDestroyedFirst) {
+    Fixture fixture;
+    EXPECT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Orphan", { phase = "Update", query = { read = { "game.Shield" } },
+                                           run = function(ctx) end })
+    )"),
+              "");
+
+    fixture.host.reset();
+
+    EXPECT_NE(fixture.find(rtype::ecs::Phase::kUpdate, "game.Orphan"), nullptr);
+    // The App is destroyed after the host, with the system's function still referenced.
 }
