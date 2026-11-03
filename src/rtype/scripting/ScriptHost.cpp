@@ -24,8 +24,10 @@
 #include "rtype/luau/Table.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
+#include "system/RuntimeHandle.hpp"
 #include "system/SystemDeclarationReader.hpp"
 #include "system/SystemRegistration.hpp"
+#include "view/ViewTypes.hpp"
 
 namespace rtype::scripting {
 namespace {
@@ -51,9 +53,12 @@ luau::Result<std::unique_ptr<ScriptHost>> ScriptHost::create(ecs::App& app, cons
     return host;
 }
 
-ScriptHost::ScriptHost(ecs::App& app, luau::Runtime runtime) noexcept : _app{app}, _runtime{std::move(runtime)} {}
+ScriptHost::ScriptHost(ecs::App& app, luau::Runtime runtime) noexcept
+    : _app{app}, _runtime{std::move(runtime)}, _handle{std::make_shared<system::RuntimeHandle>()} {
+    _handle->runtime = &_runtime;
+}
 
-ScriptHost::~ScriptHost() = default;
+ScriptHost::~ScriptHost() { _handle->runtime = nullptr; }
 
 luau::Result<> ScriptHost::run(std::string name, const std::string& source) const {
     auto script = _runtime.load(std::move(name), source);
@@ -70,6 +75,9 @@ const component::ComponentLayout* ScriptHost::findComponent(const std::string_vi
 }
 
 luau::Result<> ScriptHost::installEngine(const Options options) {
+    if (auto registered = view::registerViewTypes(_runtime); !registered) {
+        return registered;
+    }
     luau::LibraryBuilder ecsBuilder{_runtime};
     ecsBuilder.setName("ecs");
     ecsBuilder.function("component").bind([this](std::string name, const luau::Table& spec) {
@@ -116,7 +124,7 @@ void ScriptHost::declareSystem(std::string name, const luau::Table& spec) {
     if (!declaration) {
         throw luau::exceptions::RuntimeError{std::string{declaration.error().message()}};
     }
-    if (auto registered = system::registerSystem(_app, std::move(*declaration)); !registered) {
+    if (auto registered = system::registerSystem(_app, std::move(*declaration), _handle); !registered) {
         throw luau::exceptions::RuntimeError{std::string{registered.error().message()}};
     }
 }

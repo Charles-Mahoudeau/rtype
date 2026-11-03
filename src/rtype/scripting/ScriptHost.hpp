@@ -19,6 +19,7 @@
 #include "rtype/luau/Library.hpp"
 #include "rtype/luau/Result.hpp"
 #include "rtype/luau/Runtime.hpp"
+#include "system/RuntimeHandle.hpp"
 
 namespace rtype::scripting {
 /// @brief Runs the scripts of a game on an App: owns their Luau runtime and the `engine` global they declare ECS data
@@ -28,7 +29,7 @@ namespace rtype::scripting {
 /// `isClient`, `isServer` and `isDebug`, and the `ecs` library: `engine.ecs.component(name, {fields, defaults,
 /// replication})` registers a component in the App's world (see readComponentDeclaration() for the table), and
 /// `engine.ecs.system(name, {phase, query, after, before, run})` adds a system to its schedule (see
-/// readSystemDeclaration()); the system's body does not run the script yet.
+/// readSystemDeclaration()); its body calls `run` with a `ctx` (see runScriptSystem()).
 ///
 /// The host and the App may be destroyed in either order. The systems a script added stay in the App when the host
 /// is destroyed first, but their script is gone with the runtime: they can no longer run it.
@@ -82,7 +83,8 @@ class RTYPE_SCRIPTING_API ScriptHost {
 
     ecs::App& _app;          ///< The App scripts declare their ECS data on.
     luau::Runtime _runtime;  ///< The runtime of the scripts; declared before what holds references into it.
-    std::optional<luau::Library> _engine;  ///< The `engine` library, with the sub-library `ecs`.
+    std::shared_ptr<system::RuntimeHandle> _handle;  ///< Points to the runtime for the systems; cleared on destruction.
+    std::optional<luau::Library> _engine;            ///< The `engine` library, with the sub-library `ecs`.
     std::unordered_map<std::string, component::ComponentLayout> _components;  ///< Components scripts declared.
 };
 }  // namespace rtype::scripting

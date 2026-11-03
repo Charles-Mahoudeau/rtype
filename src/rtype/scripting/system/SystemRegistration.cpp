@@ -12,8 +12,11 @@
 #include <string>
 #include <tl/expected.hpp>
 #include <utility>
+#include <vector>
 
+#include "RuntimeHandle.hpp"
 #include "SystemDeclaration.hpp"
+#include "SystemRun.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
@@ -23,10 +26,11 @@
 #include "rtype/ecs/query/QueryTerm.hpp"
 #include "rtype/ecs/system/DynamicQueries.hpp"
 #include "rtype/ecs/system/QueryList.hpp"
+#include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/system/ScriptCallable.hpp"
+#include "rtype/ecs/time/Time.hpp"
 #include "rtype/scripting/ErrorKind.hpp"
 #include "rtype/scripting/Result.hpp"
-#include "rtype/scripting/view/ViewScope.hpp"
 
 namespace rtype::scripting::system {
 namespace {
@@ -77,20 +81,38 @@ void addTerm(ecs::QueryBuilder& builder, const ecs::TermKind kind, const ecs::Co
     }
     return builder;
 }
+
+/// @return The data terms of the system's query, in the order the query yields them (the order of the declaration).
+[[nodiscard]] std::vector<DataTerm> makeDataTerms(const ecs::Components& components,
+                                                  const SystemDeclaration& declaration) {
+    std::vector<DataTerm> terms;
+    for (const auto& [kind, component] : declaration.terms) {
+        if (ecs::isDataTerm(kind)) {
+            // makeQuery() found every component of the declaration.
+            terms.push_back(
+                {.info = components.getRegistry().findByName(component), .readOnly = !ecs::isWriteTerm(kind)});
+        }
+    }
+    return terms;
+}
 }  // namespace
 
-Result<void> registerSystem(ecs::App& app, SystemDeclaration declaration) {
-    auto query = makeQuery(app.getWorld().getComponents(), declaration);
+Result<void> registerSystem(ecs::App& app, SystemDeclaration declaration, std::shared_ptr<RuntimeHandle> runtime) {
+    auto& components = app.getWorld().getComponents();
+    auto query = makeQuery(components, declaration);
     if (!query) {
         return tl::unexpected{std::move(query.error())};
     }
-    // The body only holds what LUA-06 calls with: the function and the scope of the views it hands out.
+    auto system = std::make_unique<ScriptSystem>(ScriptSystem{
+        .name = declaration.name,
+        .run = std::move(declaration.run),
+        .terms = makeDataTerms(components, declaration),
+        .runtime = std::move(runtime),
+    });
+    // The body keeps what a run needs; the scope of the views is heap-allocated, so it keeps its address when moved.
     ecs::ScriptCallable callable{
-        [run = std::move(declaration.run), scope = std::make_unique<view::ViewScope>()](ecs::DynamicQueries /*queries*/,
-                                                                                        ecs::Commands& /*commands*/) {
-            static_cast<void>(run);
-            static_cast<void>(scope);
-        },
+        [system = std::move(system)](const ecs::DynamicQueries queries, const ecs::Res<ecs::Time> time,
+                                     ecs::Commands& /*commands*/) { runScriptSystem(*system, queries, time.get()); },
     };
     try {
         auto config = app.addSystem(declaration.phase, declaration.name, std::move(callable),
