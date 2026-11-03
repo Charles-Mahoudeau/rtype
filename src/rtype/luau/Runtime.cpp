@@ -34,6 +34,7 @@
 #include "RuntimeConfig.hpp"
 #include "Script.hpp"
 #include "Table.hpp"
+#include "detail/UsertypeRegistry.hpp"
 
 namespace {
 constexpr std::int32_t kLuauGlobalEnv = 0;
@@ -61,7 +62,8 @@ rtype::luau::Result<> runClosure(lua_State* state, const rtype::luau::Ref& closu
 namespace rtype::luau {
 void Runtime::StateDeleter::operator()(lua_State* state) const noexcept { lua_close(state); }
 
-Runtime::Runtime(lua_State* state, const RuntimeConfig config) : _config{config}, _state{state} {
+Runtime::Runtime(lua_State* state, const RuntimeConfig config)
+    : _config{config}, _state{state}, _usertypes{std::make_unique<detail::UsertypeRegistry>(state)} {
     if (has(_config.libs, RuntimeConfig::Libs::kStandard)) {
         luaL_openlibs(_state.get());
     } else if (_config.libs != RuntimeConfig::Libs::kNone) {
@@ -69,6 +71,21 @@ Runtime::Runtime(lua_State* state, const RuntimeConfig config) : _config{config}
     }
     // TODO: enable later, this breaks more things than it fixes
     // luaL_sandbox(_state.get());
+}
+
+Runtime::~Runtime() noexcept = default;
+
+Runtime::Runtime(Runtime&& other) noexcept = default;
+
+Runtime& Runtime::operator=(Runtime&& other) noexcept {
+    if (this != &other) {
+        // The handlers of the usertypes go before the state they belong to is closed.
+        _usertypes.reset();
+        _config = other._config;
+        _state = std::move(other._state);
+        _usertypes = std::move(other._usertypes);
+    }
+    return *this;
 }
 
 Result<Bytecode> Runtime::compile(const std::string& source) const {
@@ -112,6 +129,8 @@ lua_State* Runtime::state() const {
               << std::endl;
     return _state.get();
 }
+
+detail::UsertypeRegistry& Runtime::usertypes() const { return *_usertypes; }
 
 Result<Script> Runtime::load(std::string name, const std::string& source) const {
     Result<Bytecode> bytecode = compile(source);
