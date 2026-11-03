@@ -193,3 +193,7 @@ Table Runtime::globals() const {
     return *result;
 }
 }  // namespace rtype::luau
+
+namespace rtype::luau::detail {
+lua_State* rawState(const Runtime& runtime) noexcept { return runtime._state.get(); }
+}  // namespace rtype::luau::detail

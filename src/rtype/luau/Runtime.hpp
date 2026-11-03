@@ -18,6 +18,7 @@
 #include "RuntimeConfig.hpp"
 #include "Script.hpp"
 #include "Table.hpp"
+#include "detail/RawState.hpp"
 
 struct lua_State;
 
@@ -110,6 +111,8 @@ class RTYPE_LUAU_API Runtime {
     [[nodiscard]] Usertype<T> usertype() const;
 
   private:
+    friend lua_State* detail::rawState(const Runtime& runtime) noexcept;
+
     /// @brief Deleter closing a `lua_State`.
     struct StateDeleter {
         /// @brief Closes the given Lua state.
