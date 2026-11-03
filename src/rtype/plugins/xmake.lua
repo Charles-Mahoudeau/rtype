@@ -8,6 +8,10 @@
 -- see physics/detail/Layers). This option does reach Jolt's CMake, and the package adds the matching define for us.
 add_requires("joltphysics 5.6.x", {alias = "joltphysics", configs = {object_layer_bits = "32"}})
 add_requires("nlohmann_json 3.12.x", {alias = "nlohmann_json"})
+-- Compiles the game's effects to SPIR-V at runtime (shader/detail/). The library alone: neither its tools nor
+-- SPIRV-Tools, which need a Python that does not build on macOS; render-vulkan requires the glslangValidator tool
+-- separately for its built-in shaders.
+add_requires("glslang 1.4.x", {alias = "glslang-library", configs = {default_resource_limits = true}})
 
 target("plugins")
     set_kind("static")
@@ -27,6 +31,8 @@ target("plugins")
     add_packages("joltphysics")
     -- The prelude of the game's effects (shader/prelude/*.glsl), embedded as byte arrays that
     -- shader/detail/EffectAssembler.cpp includes as "<file>.glsl.h".
+    -- The effects' compiler. Private: only shader/detail/EffectCompiler.cpp includes glslang.
+    add_packages("glslang-library")
     add_rules("utils.bin2c", {extensions = {".glsl"}})
     add_files("shader/prelude/*.glsl")
     -- Plain x/y/z/w members instead of unions (cppcoreguidelines-pro-type-union-access).
