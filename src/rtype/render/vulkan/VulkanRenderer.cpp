@@ -12,6 +12,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <filesystem>
 #include <format>
 #include <glm/ext/vector_float2.hpp>
@@ -23,6 +24,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -39,6 +41,7 @@
 #include "particle/GpuParticleData.hpp"
 #include "particle/GpuParticleSystem.hpp"
 #include "particle/ParticleSimulationPass.hpp"
+#include "pipeline/PipelineCacheFile.hpp"
 #include "plugins/backend/exceptions/PlatformExceptions.hpp"
 #include "plugins/backend/graphics/CameraView.hpp"
 #include "plugins/backend/graphics/Color.hpp"
@@ -50,6 +53,7 @@
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/platform/IPlatform.hpp"
+#include "plugins/backend/system/CacheDirectory.hpp"
 #include "plugins/backend/system/ExecutablePath.hpp"
 #include "rendering/DrawConstants.hpp"
 #include "rendering/DynamicRendering.hpp"
@@ -84,6 +88,36 @@ constexpr std::uint32_t kParticleSetsPerPool = 32;
 
 /// @return @p color (x, y, z, w = red, green, blue, alpha) as a Vulkan clear value: linear, an sRGB swapchain encodes
 /// it.
+/// @return Where the pipeline cache is kept for the Config::pipelineCache @p configured: relative to the user's cache
+/// directory's rtype folder; empty if @p configured is empty or that directory is unknown.
+std::filesystem::path resolvePipelineCachePath(const std::filesystem::path& configured) {
+    if (configured.empty() || configured.is_absolute()) {
+        return configured;
+    }
+    const std::filesystem::path cacheDirectory = plugins::backend::system::getCacheDirectory();
+    return cacheDirectory.empty() ? std::filesystem::path{} : cacheDirectory / "rtype" / configured;
+}
+
+/// @return The pipeline cache saved at @p path by a previous launch on @p device, or nothing if there is none, or it is
+/// invalid or comes from another GPU or driver (it would be rebuilt anyway, and some drivers crash on it).
+std::vector<std::byte> readPipelineCache(const std::filesystem::path& path, const core::PhysicalDevice& device) {
+    if (path.empty()) {
+        return {};
+    }
+    std::vector<std::byte> data = pipeline::readPipelineCacheFile(path);
+    if (std::error_code error; data.empty() && std::filesystem::exists(path, error)) {
+        std::cerr << "[Vulkan] The pipeline cache '" << path.string()
+                  << "' is damaged: the pipelines are compiled again\n";
+        return {};
+    }
+    if (!data.empty() && !pipeline::isCompatiblePipelineCache(data, device.getPhysicalDevice().getProperties())) {
+        std::cerr << "[Vulkan] The pipeline cache '" << path.string()
+                  << "' is invalid or comes from another GPU or driver: the pipelines are compiled again\n";
+        return {};
+    }
+    return data;
+}
+
 vk::ClearColorValue toClearColor(const plugins::backend::graphics::Color& color) {
     return vk::ClearColorValue{std::array{color.x, color.y, color.z, color.w}};
 }
@@ -102,6 +136,13 @@ VulkanRenderer::~VulkanRenderer() {
         _device->getDevice().waitIdle();
     } catch (const vk::SystemError& error) {
         std::cerr << "[Vulkan] vkDeviceWaitIdle failed at shutdown: " << error.what() << '\n';
+    }
+    if (_pipelineCache && !_pipelineCachePath.empty()) {
+        try {
+            pipeline::writePipelineCacheFile(_pipelineCachePath, _pipelineCache->getData());
+        } catch (const std::exception& error) {
+            std::cerr << "[Vulkan] The pipeline cache was not saved: " << error.what() << '\n';
+        }
     }
 }
 
@@ -152,7 +193,9 @@ void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
     _shaders = std::make_unique<pipeline::ShaderCache>(
         *_device, shaderDirectory.is_absolute() ? shaderDirectory
                                                 : plugins::backend::system::getExecutableDirectory() / shaderDirectory);
-    _pipelineCache = std::make_unique<pipeline::PipelineCache>(*_device);
+    _pipelineCachePath = resolvePipelineCachePath(_config.pipelineCache);
+    _pipelineCache =
+        std::make_unique<pipeline::PipelineCache>(*_device, readPipelineCache(_pipelineCachePath, *_physicalDevice));
     _globals = std::make_unique<frame::FrameGlobals>(*_device, *_allocator, kFramesInFlight);
     _samplers = std::make_unique<texture::SamplerCache>(*_device, *_physicalDevice);
     _textureSetLayout = std::make_unique<descriptor::DescriptorSetLayout>(
