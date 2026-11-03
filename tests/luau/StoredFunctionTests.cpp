@@ -11,12 +11,14 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
 #include "rtype/luau/ErrorKind.hpp"
+#include "rtype/luau/Exceptions.hpp"
 #include "rtype/luau/Function.hpp"
 #include "rtype/luau/Runtime.hpp"
 #include "rtype/luau/RuntimeConfig.hpp"
@@ -170,4 +172,52 @@ TEST(StoredFunction, IteratesOverANativeIterator) {
     const auto sum = runtime.globals().get("sum");
     ASSERT_TRUE(sum);
     EXPECT_EQ(sum->as<double>(), 60);
+}
+
+TEST(StoredFunction, OutlivesItsRuntimeWithoutTouchingTheClosedState) {
+    std::optional<rtype::luau::Runtime> runtime{makeRuntime()};
+    run(*runtime, "systems.luau", "system = { run = function() end }");
+    const Function stored = storedRun(*runtime);
+    const auto table = runtime->globals().get("system");
+    ASSERT_TRUE(table);
+    const auto ref = table->as<rtype::luau::Table>().functionRef("run");
+    ASSERT_TRUE(ref);
+    EXPECT_TRUE(stored.ref().isValid());
+
+    runtime.reset();
+
+    // The handles are destroyed after the state is closed: they must not unref into it.
+    EXPECT_FALSE(stored.ref().isValid());
+    EXPECT_FALSE(ref->isValid());
+    const auto result = stored.call({});
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kRuntime);
+    EXPECT_NE(result.error().message().find("runtime was destroyed"), std::string_view::npos);
+}
+
+TEST(StoredFunction, PushingItAfterItsRuntimeIsDestroyedFails) {
+    auto first = std::optional<rtype::luau::Runtime>{makeRuntime()};
+    run(*first, "systems.luau", "system = { run = function() end }");
+    const auto system = first->globals().get("system");
+    const auto ref = system->as<rtype::luau::Table>().functionRef("run");
+    ASSERT_TRUE(ref);
+    auto second = makeRuntime();
+
+    first.reset();
+
+    const auto pushed = ref->push(second.state());
+    ASSERT_FALSE(pushed);
+    EXPECT_EQ(pushed.error().kind(), rtype::luau::ErrorKind::kRuntime);
+}
+
+TEST(StoredFunction, ATableOfAClosedRuntimeIsRefused) {
+    std::optional<rtype::luau::Runtime> runtime{makeRuntime()};
+    run(*runtime, "systems.luau", "system = { run = function() end }");
+    const auto system = runtime->globals().get("system");
+    ASSERT_TRUE(system);
+    const auto table = system->as<rtype::luau::Table>();
+
+    runtime.reset();
+
+    EXPECT_THROW(static_cast<void>(table.get("run")), rtype::luau::exceptions::InvalidRef);
 }
