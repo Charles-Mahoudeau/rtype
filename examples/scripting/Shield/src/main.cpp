@@ -30,7 +30,12 @@ int main() {
         }});
 
         auto& components = app.getWorld().getComponents();
-        components.add(app.getWorld().spawn(), *components.find("game.Spawner"), {});
+        const auto spawner = components.find("game.Spawner");
+        if (!spawner) {
+            std::cerr << "error: component 'game.Spawner' is not declared\n";
+            return 1;
+        }
+        components.add(app.getWorld().spawn(), *spawner, {});
 
         for (int frame = 0; frame < 4; ++frame) {
             std::cout << "frame " << frame << '\n';
