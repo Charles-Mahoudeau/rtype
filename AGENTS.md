@@ -144,6 +144,10 @@ are added.
 - `src/rtype/luau/` — `luau` target, shared library (`rtype-luau`) for Luau scripting. Failures a correct program can
   hit return
   `Result<T>`; exceptions are only for API misuse (`docs/luau/error-handling.md`).
+- `src/rtype/scripting/` — `scripting` target, shared library (`rtype-scripting`): the Luau bridge, turning what scripts
+  declare into ECS data (`rtype::scripting`, exported symbols marked `RTYPE_SCRIPTING_API`). It has its own `Error` /
+  `Result`, like `luau`. `component/` holds `ComponentDeclaration` and `registerComponent()`, which computes the
+  deterministic layout of a script component and registers it. Design in `docs/luau/ecs-bridge-plan.md`.
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `examples/<category>/.../<Name>/` — standalone examples, each with its own `xmake.lua`, grouped in
   folders of any depth (e.g. `examples/graphic/render/vulkan/VulkanInstance/`). Every `xmake.lua` under
