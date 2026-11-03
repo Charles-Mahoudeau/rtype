@@ -88,8 +88,9 @@ struct Source {
     if (name == nullptr) {
         return invalid(component, std::format("the type of field '{}' must be a string", field));
     }
-    if (const auto* const found = std::ranges::find(kFieldTypes, *name, &FieldTypeName::name);
-        found != kFieldTypes.end()) {
+    // An array iterator is a pointer on libstdc++ and libc++ but a class on MSVC, so it cannot be spelled `auto*`.
+    // NOLINTNEXTLINE(readability-qualified-auto)
+    if (const auto found = std::ranges::find(kFieldTypes, *name, &FieldTypeName::name); found != kFieldTypes.end()) {
         return found->type;
     }
     if (std::ranges::find(kUnsupportedTypes, *name) != kUnsupportedTypes.end()) {
