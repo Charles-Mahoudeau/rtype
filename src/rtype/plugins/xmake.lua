@@ -25,6 +25,10 @@ target("plugins")
     add_packages("nlohmann_json")
     -- The physics engine (physics/). Private: only physics .cpp files and physics/detail/ include Jolt.
     add_packages("joltphysics")
+    -- The prelude of the game's effects (shader/prelude/*.glsl), embedded as byte arrays that
+    -- shader/detail/EffectAssembler.cpp includes as "<file>.glsl.h".
+    add_rules("utils.bin2c", {extensions = {".glsl"}})
+    add_files("shader/prelude/*.glsl")
     -- Plain x/y/z/w members instead of unions (cppcoreguidelines-pro-type-union-access).
     add_defines("GLM_FORCE_XYZW_ONLY", {public = true})
     -- Linked into the shared modules (render-vulkan).
