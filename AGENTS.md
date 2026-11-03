@@ -147,7 +147,10 @@ are added.
 - `src/rtype/scripting/` — `scripting` target, shared library (`rtype-scripting`): the Luau bridge, turning what scripts
   declare into ECS data (`rtype::scripting`, exported symbols marked `RTYPE_SCRIPTING_API`). It has its own `Error` /
   `Result`, like `luau`. `component/` holds `ComponentDeclaration` and `registerComponent()`, which computes the
-  deterministic layout of a script component and registers it. Design in `docs/luau/ecs-bridge-plan.md`.
+  deterministic layout of a script component and registers it. `view/` (`rtype::scripting::view`) holds what scripts
+  touch ECS data with: the `ComponentView` usertype (reads and writes a component's fields in place, checked against a
+  `ViewScope` generation), the `Entity` usertype (`registerViewTypes()`) and the field conversions (`readField()`,
+  `writeField()`, `fillFromTable()`). It links `luau`. Design in `docs/luau/ecs-bridge-plan.md`.
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `examples/<category>/.../<Name>/` — standalone examples, each with its own `xmake.lua`, grouped in
   folders of any depth (e.g. `examples/graphic/render/vulkan/VulkanInstance/`). Every `xmake.lua` under
