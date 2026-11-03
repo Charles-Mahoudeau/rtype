@@ -58,6 +58,35 @@ typename ParamTraits<T>::ReadType readArg(const std::span<const Value> args, con
         std::format("argument {}: expected {}, got {}", i + 1, luaTypeName<U>(), luaTypeNameOf(args[i]))};
 }
 
+/// @brief Checks the arguments of a call against the parameters of a handler, then runs the handler on them.
+///
+/// Raises an `exceptions::RuntimeError` if the argument count is outside the range the parameters allow, or if an
+/// argument does not hold the type of its parameter, without running @p callable.
+/// @tparam T Types of the parameters of the handler.
+/// @tparam Callable Callable that takes one argument per type of @p T, as read by `readArg`.
+/// @param args The arguments of the call.
+/// @param callable The handler to run.
+/// @return What @p callable returns.
+template <typename... T, typename Callable>
+// NOLINTNEXTLINE(*-use-internal-linkage)
+decltype(auto) applyArgs(const std::span<const Value> args, Callable&& callable) {
+    using Traits = FunctionTraits<std::function<void(T...)>>;
+    if (args.size() < Traits::kRequiredCount || args.size() > Traits::kArgCount) {
+        if constexpr (Traits::kRequiredCount == Traits::kArgCount) {
+            throw exceptions::RuntimeError{
+                std::format("expected {} arguments, got {}", Traits::kArgCount, args.size())};
+        } else {
+            throw exceptions::RuntimeError{std::format("expected {} to {} arguments, got {}", Traits::kRequiredCount,
+                                                       Traits::kArgCount, args.size())};
+        }
+    }
+    return [&]<std::size_t... I>(std::index_sequence<I...>) -> decltype(auto) {
+        // A braced initializer list evaluates left to right, so the first bad argument is the one reported.
+        std::tuple<typename ParamTraits<T>::ReadType...> values{readArg<T>(args, I)...};
+        return std::apply(std::forward<Callable>(callable), std::move(values));
+    }(std::index_sequence_for<T...>{});
+}
+
 /// @brief Wraps a typed handler in a `Function::Handler` that checks and reads the arguments of a call.
 ///
 /// The handler built raises an `exceptions::RuntimeError` if the argument count is outside the range the parameters
@@ -68,23 +97,8 @@ typename ParamTraits<T>::ReadType readArg(const std::span<const Value> args, con
 template <typename... T>
 // NOLINTNEXTLINE(*-use-internal-linkage)
 Function::Handler makeBoundHandler(std::function<ValuePack(T...)> handler) {
-    using Traits = FunctionTraits<std::function<ValuePack(T...)>>;
     return [handler = std::move(handler)](const CallContext& context) -> ValuePack {
-        const auto args = context.args();
-        if (args.size() < Traits::kRequiredCount || args.size() > Traits::kArgCount) {
-            if constexpr (Traits::kRequiredCount == Traits::kArgCount) {
-                throw exceptions::RuntimeError{
-                    std::format("expected {} arguments, got {}", Traits::kArgCount, args.size())};
-            } else {
-                throw exceptions::RuntimeError{std::format("expected {} to {} arguments, got {}",
-                                                           Traits::kRequiredCount, Traits::kArgCount, args.size())};
-            }
-        }
-        return [&]<std::size_t... I>(std::index_sequence<I...>) -> ValuePack {
-            // A braced initializer list evaluates left to right, so the first bad argument is the one reported.
-            std::tuple<typename ParamTraits<T>::ReadType...> values{readArg<T>(args, I)...};
-            return std::apply(handler, std::move(values));
-        }(std::index_sequence_for<T...>{});
+        return applyArgs<T...>(context.args(), handler);
     };
 }
 }  // namespace detail
