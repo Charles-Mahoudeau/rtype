@@ -32,6 +32,7 @@
 #include "plugins/backend/event/PlatformEvent.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/CameraView.hpp"
+#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/SpriteQueue.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
@@ -42,6 +43,8 @@
 #include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputPlugin.hpp"
 #include "plugins/particle/ParticlePlugin.hpp"
+#include "plugins/shader/ShaderHandles.hpp"
+#include "plugins/shader/ShaderPlugin.hpp"
 #include "plugins/sprite/SpritePlugin.hpp"
 #include "plugins/text/TextPlugin.hpp"
 #include "plugins/tilemap/TilemapPlugin.hpp"
@@ -182,9 +185,9 @@ void applyCamera(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::ResMut
 }
 
 /// @brief Render: draws the sprites whose texture is loaded and the queued sprites and texts (SpriteQueue), by layer
-/// then by texture.
+/// then by texture. A sprite whose material is created is drawn with it and its shader's instance defaults.
 void drawSprites(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<TextureAssets> textures,
-                 ecs::ResMut<graphics::SpriteQueue> queue,
+                 ecs::Res<shader::ShaderHandles> handles, ecs::ResMut<graphics::SpriteQueue> queue,
                  ecs::Query<const transform::GlobalTransform, const SpriteRenderer> sprites) {
     plugins::backend::Backend& started = *backend;
     std::vector<graphics::SpriteQueue::Item> queued = queue->take();
@@ -197,15 +200,19 @@ void drawSprites(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<Te
         if (!texture) {
             continue;
         }
-        items.push_back(graphics::SpriteQueue::Item{.layer = sprite.layer,
-                                                    .drawing = graphics::Sprite{.texture = *texture,
-                                                                                .source = sprite.source,
-                                                                                .position = global.position,
-                                                                                .scale = global.scale,
-                                                                                .origin = sprite.origin,
-                                                                                .rotation = global.rotation,
-                                                                                .color = sprite.color,
-                                                                                .blend = sprite.blend}});
+        graphics::Sprite drawn{.texture = *texture,
+                               .source = sprite.source,
+                               .position = global.position,
+                               .scale = global.scale,
+                               .origin = sprite.origin,
+                               .rotation = global.rotation,
+                               .color = sprite.color,
+                               .blend = sprite.blend};
+        if (const shader::ShaderHandles::Material* material = handles->getMaterial(sprite.material)) {
+            drawn.material = material->material;
+            drawn.instanceValues = material->instanceDefaults;
+        }
+        items.push_back(graphics::SpriteQueue::Item{.layer = sprite.layer, .drawing = drawn});
     }
     items.insert(items.end(), std::make_move_iterator(queued.begin()), std::make_move_iterator(queued.end()));
     std::ranges::stable_sort(items,
@@ -248,6 +255,7 @@ void BackendPlugin::build(ecs::App& app) {
     app.addPlugin(plugins::tilemap::TilemapPlugin{});
     app.addPlugin(plugins::text::TextPlugin{});
     app.addPlugin(plugins::particle::ParticlePlugin{});
+    app.addPlugin(plugins::shader::ShaderPlugin{});
     ecs::Events& events = app.getWorld().getEvents();
     registerEvent<plugins::backend::event::PlatformEvent>(events);
     registerEvent<plugins::backend::event::Closed>(events);
