@@ -24,6 +24,8 @@
 #include "rtype/luau/Table.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
+#include "system/SystemDeclarationReader.hpp"
+#include "system/SystemRegistration.hpp"
 
 namespace rtype::scripting {
 namespace {
@@ -74,6 +76,10 @@ luau::Result<> ScriptHost::installEngine(const Options options) {
         declareComponent(std::move(name), spec);
         return luau::ValuePack{};
     });
+    ecsBuilder.function("system").bind([this](std::string name, const luau::Table& spec) {
+        declareSystem(std::move(name), spec);
+        return luau::ValuePack{};
+    });
 
     luau::LibraryBuilder engineBuilder{_runtime};
     engineBuilder.setName("engine");
@@ -103,5 +109,15 @@ void ScriptHost::declareComponent(std::string name, const luau::Table& spec) {
         throw luau::exceptions::RuntimeError{std::string{layout.error().message()}};
     }
     _components.insert_or_assign(declaration->name, std::move(*layout));
+}
+
+void ScriptHost::declareSystem(std::string name, const luau::Table& spec) {
+    auto declaration = system::readSystemDeclaration(std::move(name), spec);
+    if (!declaration) {
+        throw luau::exceptions::RuntimeError{std::string{declaration.error().message()}};
+    }
+    if (auto registered = system::registerSystem(_app, std::move(*declaration)); !registered) {
+        throw luau::exceptions::RuntimeError{std::string{registered.error().message()}};
+    }
 }
 }  // namespace rtype::scripting

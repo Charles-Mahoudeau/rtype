@@ -26,8 +26,13 @@ namespace rtype::scripting {
 ///
 /// @details It knows no Plugin, so it can be used and tested with a bare App. `engine` holds the constant flags
 /// `isClient`, `isServer` and `isDebug`, and the `ecs` library: `engine.ecs.component(name, {fields, defaults,
-/// replication})` registers a component in the App's world (see readComponentDeclaration() for the table). The App
-/// must outlive the host.
+/// replication})` registers a component in the App's world (see readComponentDeclaration() for the table), and
+/// `engine.ecs.system(name, {phase, query, after, before, run})` adds a system to its schedule (see
+/// readSystemDeclaration()); the system's body does not run the script yet.
+///
+/// The App must be destroyed before the host: the systems a script added keep references into the host's runtime
+/// until the App destroys them, so declare the host before the App in their owner. Between the two, the host must
+/// not be used once the App is gone.
 class RTYPE_SCRIPTING_API ScriptHost {
   public:
     /// @brief What the scripts can tell about the process they run in, as the constant flags of `engine`.
@@ -38,7 +43,7 @@ class RTYPE_SCRIPTING_API ScriptHost {
     };
 
     /// @brief Creates the runtime and the `engine` global.
-    /// @param app The App scripts declare their ECS data on; it must outlive the host.
+    /// @param app The App scripts declare their ECS data on; it must be destroyed before the host (see the class).
     /// @param options The flags of `engine`.
     /// @return The host, or the error of the runtime that could not be created.
     [[nodiscard]] static luau::Result<std::unique_ptr<ScriptHost>> create(ecs::App& app, Options options);
@@ -71,6 +76,10 @@ class RTYPE_SCRIPTING_API ScriptHost {
     /// @brief The body of `engine.ecs.component`.
     /// @throws luau::exceptions::RuntimeError When the declaration is wrong or the component cannot be registered.
     void declareComponent(std::string name, const luau::Table& spec);
+
+    /// @brief The body of `engine.ecs.system`.
+    /// @throws luau::exceptions::RuntimeError When the declaration is wrong or the system cannot be added.
+    void declareSystem(std::string name, const luau::Table& spec);
 
     ecs::App& _app;          ///< The App scripts declare their ECS data on.
     luau::Runtime _runtime;  ///< The runtime of the scripts; declared before what holds references into it.
