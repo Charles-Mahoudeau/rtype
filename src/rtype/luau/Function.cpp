@@ -82,6 +82,9 @@ Result<ValuePack> Function::call(const ValuePack& args) const {
     if (_type == BindingType::kNative) {
         std::cerr << "warning: you are calling a native function from a script binding" << std::endl;
     }
+    if (!_ref.isValid()) {
+        return Failure{ErrorKind::kRuntime, std::format("unable to call '{}': its runtime was destroyed", _name)};
+    }
     const int top{lua_gettop(_state)};
     _ref.ref().push(_state);
     auto argCount = args.push(_state);

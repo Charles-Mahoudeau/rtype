@@ -27,8 +27,8 @@ namespace rtype::luau {
 /// handler, or a function defined in Luau, which C++ calls with `call`. Both directions exchange their arguments and
 /// return values as `ValuePack`s. The native closure stores the address of its Function in its first
 /// upvalue: moving the Function rebinds that upvalue to the new address, and destroying it unbinds the closure,
-/// so a call from Lua then raises a Lua error instead of reaching a dangling Function. The referenced
-/// `lua_State` must outlive the Function.
+/// so a call from Lua then raises a Lua error instead of reaching a dangling Function. A Function may outlive the
+/// `Runtime` of its state: `call` then returns a Failure instead of touching the closed state.
 class RTYPE_LUAU_API Function {
   public:
     /// @brief Where the body of the wrapped function lives.

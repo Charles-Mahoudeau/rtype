@@ -22,7 +22,8 @@ class Function;
 ///
 /// A pure handle: it can be held, copied and pushed back to Lua, but not called. Turn it into a callable
 /// `Function` with `Function::fromRef`. Every copy shares the same registry reference, which is released with the
-/// last copy. The referenced `lua_State` must outlive the handle.
+/// last copy. The handle may outlive the `Runtime` of the
+/// state: it is then no longer valid, and `push` returns a Failure.
 ///
 /// @note Naming convention: a `*Ref` type is a bare handle, while a type without the suffix adds operations to it.
 ///       `Table` is a handle with its operations built in. A function cannot be, because calling it needs

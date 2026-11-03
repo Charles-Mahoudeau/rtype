@@ -47,6 +47,9 @@ Result<void> FunctionRef::push(lua_State* state) const {
     if (!_ref) {
         throw exceptions::InvalidRef{};
     }
+    if (!_ref->isStateOpen()) {
+        return Failure{ErrorKind::kRuntime, "the runtime of the function was destroyed"};
+    }
     if (lua_mainthread(state) != _ref->state()) {
         return Failure{ErrorKind::kRuntime, "the function belongs to another Lua state"};
     }
