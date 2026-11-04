@@ -218,6 +218,25 @@ TEST(ComponentView, RefusesA64BitIntegerBeyondWhatANumberHoldsExactly) {
     EXPECT_NE(fixture.run("v.u64 = -1").find("out of range"), std::string::npos);
 }
 
+TEST(ComponentView, RefusesToReadA64BitIntegerBeyondWhatANumberHoldsExactly) {
+    Fixture fixture{makeEverything()};
+    fixture.expose("v");
+    const std::int64_t big = 9007199254740993;
+    const std::uint64_t bigUnsigned = 18446744073709551615ULL;
+    for (const auto& field : fixture.info.type.fields) {
+        if (field.name == "i64") {
+            std::memcpy(fixture.bytes.data() + field.offset, &big, sizeof(big));
+        } else if (field.name == "u64") {
+            std::memcpy(fixture.bytes.data() + field.offset, &bigUnsigned, sizeof(bigUnsigned));
+        }
+    }
+
+    const auto signedError = fixture.run("value = v.i64");
+    EXPECT_NE(signedError.find("i64"), std::string::npos) << signedError;
+    EXPECT_NE(signedError.find("out of range"), std::string::npos) << signedError;
+    EXPECT_NE(fixture.run("value = v.u64").find("out of range"), std::string::npos);
+}
+
 TEST(ComponentView, RefusesNilAWrongTypeAndAnUnknownField) {
     Fixture fixture{makeEverything()};
     fixture.expose("v");
