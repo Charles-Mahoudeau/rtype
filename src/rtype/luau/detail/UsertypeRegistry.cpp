@@ -35,6 +35,13 @@ UsertypeRegistry::UsertypeRegistry(lua_State* state) : _state{state} {
     lua_callbacks(state)->userdata = this;
 }
 
+UsertypeRegistry::~UsertypeRegistry() {
+    // Destructors of userdata run when the state is closed, after the registry: they must not find it any more.
+    if (lua_callbacks(_state)->userdata == this) {
+        lua_callbacks(_state)->userdata = nullptr;
+    }
+}
+
 UsertypeData* UsertypeRegistry::find(const std::type_index type) const noexcept {
     const auto it = _types.find(type);
     return it == _types.end() ? nullptr : it->second.get();

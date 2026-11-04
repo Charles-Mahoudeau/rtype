@@ -37,7 +37,7 @@ class RTYPE_LUAU_API UsertypeRegistry {
     ///        afterwards, so it may be closed before the registry is destroyed.
     /// @throws exceptions::InvalidState If @p state is null.
     explicit UsertypeRegistry(lua_State* state);
-    ~UsertypeRegistry() = default;
+    ~UsertypeRegistry();
     UsertypeRegistry(const UsertypeRegistry&) = delete;
     UsertypeRegistry& operator=(const UsertypeRegistry&) = delete;
     UsertypeRegistry(UsertypeRegistry&&) noexcept = delete;
