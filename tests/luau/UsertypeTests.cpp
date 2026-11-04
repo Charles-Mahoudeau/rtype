@@ -548,3 +548,46 @@ TEST(Usertype, ReturnsAnErrorWhenTheRuntimeHasNoTagLeft) {
     EXPECT_EQ(last.error().kind(), rtype::luau::ErrorKind::kUnknown);
     EXPECT_NE(last.error().message().find("Last"), std::string_view::npos);
 }
+
+namespace {
+/// @brief A C++ type whose destructor runs a callback, to act while the runtime is closed.
+struct Probe {
+    std::shared_ptr<std::function<void()>> onDestroy;
+
+    Probe() = default;
+    explicit Probe(std::shared_ptr<std::function<void()>> callback) : onDestroy{std::move(callback)} {}
+    ~Probe() {
+        if (onDestroy && *onDestroy) {
+            (*onDestroy)();
+        }
+    }
+    Probe(const Probe&) = default;
+    Probe& operator=(const Probe&) = default;
+    Probe(Probe&& other) noexcept : onDestroy{std::exchange(other.onDestroy, nullptr)} {}
+    Probe& operator=(Probe&& other) noexcept {
+        onDestroy = std::exchange(other.onDestroy, nullptr);
+        return *this;
+    }
+};
+}  // namespace
+
+TEST(Usertype, ReadsAUserdataFromADestructorWhileTheRuntimeCloses) {
+    auto callback = std::make_shared<std::function<void()>>();
+    bool ran{false};
+    std::optional<rtype::luau::Userdata> handle;
+    {
+        auto runtime = makeRuntime();
+        const auto probe = rtype::luau::expect(runtime.usertype<Probe>("Probe"));
+        const auto created = probe.create(Probe{callback});
+        ASSERT_TRUE(created);
+        handle = *created;
+        *callback = [&] {
+            ran = true;
+            EXPECT_EQ(handle->tryAs<Probe>(), nullptr);
+            handle.reset();
+        };
+        // The runtime goes out of scope here, and with it the registry before the state.
+    }
+
+    EXPECT_TRUE(ran);
+}
