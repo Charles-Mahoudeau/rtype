@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -19,19 +20,23 @@
 #include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/shader/Material.hpp"
 #include "plugins/shader/MaterialAssets.hpp"
+#include "plugins/shader/MaterialInstance.hpp"
 #include "plugins/shader/detail/EffectCompiler.hpp"
 #include "plugins/shader/exceptions/ShaderExceptions.hpp"
+#include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
 using rtype::core::asset::AssetId;
 using rtype::plugins::backend::graphics::CompiledShader;
 using rtype::plugins::shader::Material;
 using rtype::plugins::shader::MaterialAssets;
+using rtype::plugins::shader::MaterialInstance;
 using rtype::plugins::shader::packMaterialValues;
 using rtype::plugins::shader::resolveMaterialTextures;
 using rtype::plugins::shader::exceptions::ShaderException;
 
 static_assert(rtype::ecs::Resource<MaterialAssets>);
+static_assert(rtype::ecs::Component<MaterialInstance>);
 
 namespace {
 /// @return A shader with a float speed (offset 0, default 2), a vec4 tint (offset 16), an int frames (offset 32), an
@@ -125,4 +130,32 @@ TEST(MaterialAssets, UnloadForgetsAMaterialAndReportsIt) {
     EXPECT_TRUE(materials.takeChanged().empty());  // never created, nothing to update
     EXPECT_EQ(materials.takeUnloaded(), (std::vector<AssetId>{id}));
     EXPECT_FALSE(materials.unload(id));
+}
+
+TEST(MaterialInstance, StartsFromTheShadersDefaults) {
+    const CompiledShader shader = rtype::plugins::shader::detail::compileEffect(
+        "instance uniform float flash = 0.5;\nvoid fragment() { COLOR *= flash; }", "fx",
+        std::array{rtype::plugins::backend::graphics::ShaderTarget::kSprite});
+    EXPECT_FLOAT_EQ(MaterialInstance::of(shader).values[0].x, 0.5F);
+}
+
+TEST(MaterialInstance, SetsAnInstanceValueByName) {
+    const CompiledShader shader = rtype::plugins::shader::detail::compileEffect(
+        "instance uniform float flash;\ninstance uniform vec2 offset;\nvoid fragment() { COLOR *= flash + offset.x; }",
+        "fx", std::array{rtype::plugins::backend::graphics::ShaderTarget::kSprite});
+    const MaterialInstance instance =
+        MaterialInstance::of(shader).set(shader, "flash", 1.0F).set(shader, "offset", glm::vec2{2.0F, 3.0F});
+    const auto offset =
+        std::ranges::find(shader.instanceValues, "offset", &rtype::plugins::backend::graphics::ShaderValue::name)
+            ->offset;
+    EXPECT_FLOAT_EQ(instance.values[0].x, 1.0F);
+    EXPECT_FLOAT_EQ(instance.values.at(offset / 16)[static_cast<int>((offset % 16) / 4)], 2.0F);
+}
+
+TEST(MaterialInstance, RejectsAMaterialValueAnUnknownNameOrTheWrongType) {
+    const CompiledShader shader = makeShader();
+    MaterialInstance instance = MaterialInstance::of(shader);
+    EXPECT_THROW(instance.set(shader, "speed", 1.0F), ShaderException);
+    EXPECT_THROW(instance.set(shader, "missing", 1.0F), ShaderException);
+    EXPECT_THROW(instance.set(shader, "flash", glm::vec4{1.0F}), ShaderException);
 }

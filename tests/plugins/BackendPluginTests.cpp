@@ -26,6 +26,7 @@
 #include "plugins/backend/event/PlatformEvent.hpp"
 #include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
+#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/SpriteQueue.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
@@ -39,12 +40,14 @@
 #include "plugins/input/InputEvents.hpp"
 #include "plugins/input/InputPlugin.hpp"
 #include "plugins/shader/MaterialAssets.hpp"
+#include "plugins/shader/MaterialInstance.hpp"
 #include "plugins/shader/ShaderAssets.hpp"
 #include "plugins/shader/ShaderPlugin.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
+#include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/event/EventCursor.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
@@ -163,6 +166,25 @@ TEST(BackendPlugin, DrawsTheSpritesWithTheirMaterial) {
     ASSERT_EQ(app.state().createdMaterials.size(), 1U);
     EXPECT_NE(app.state().sprites[0].material, rtype::plugins::backend::graphics::MaterialId{});
     EXPECT_FLOAT_EQ(app.state().sprites[0].instanceValues[0].x, 0.25F);
+}
+
+TEST(BackendPlugin, DrawsTheSpritesWithTheirMaterialInstanceValues) {
+    BackendApp app;
+    app.state().shaders = true;
+    rtype::ecs::Resources& resources = app.app().getWorld().getResources();
+    auto& shaders = *resources.getMut<rtype::plugins::shader::ShaderAssets>();
+    const rtype::core::asset::AssetId shader =
+        shaders.add("flash", "instance uniform float flash = 0.25;\nvoid fragment() { COLOR.rgb += flash; }\n");
+    const rtype::core::asset::AssetId material =
+        resources.getMut<rtype::plugins::shader::MaterialAssets>()->add("hit", {.shader = shader});
+    const rtype::ecs::Entity entity = spawnSprite(app, loadTexture(app, "enemy.png"), {0.0F, 0.0F}, 0);
+    rtype::ecs::Components& components = app.app().getWorld().getComponents();
+    components.getMut<rtype::plugins::backend::SpriteRenderer>(entity)->material = material;
+    const rtype::plugins::backend::graphics::CompiledShader& compiled = *shaders.get(shader);
+    components.add(entity, rtype::plugins::shader::MaterialInstance::of(compiled).set(compiled, "flash", 0.75F));
+    app.app().runFrame();
+    ASSERT_EQ(app.state().sprites.size(), 1U);
+    EXPECT_FLOAT_EQ(app.state().sprites[0].instanceValues[0].x, 0.75F);
 }
 
 TEST(BackendPlugin, DrawsTheSpritesWithTheDefaultMaterialUntilTheirsIsCreated) {
