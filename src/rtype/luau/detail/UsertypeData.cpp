@@ -161,11 +161,18 @@ int UsertypeData::tag() const noexcept { return _tag; }
 
 Result<Userdata> UsertypeData::create(const Initializer initialize, void* source) const {
     const int top{lua_gettop(_state)};
+    void* storage{nullptr};
     try {
-        initialize(allocate(_state), source);
+        storage = allocate(_state);
+    } catch (const std::exception&) {
+        // Luau raises its allocation failures as C++ exceptions.
+        lua_settop(_state, top);
+        return Failure{ErrorKind::kOutOfMemory, "Lua out of memory"};
+    }
+    try {
+        initialize(storage, source);
         seal(_state);
     } catch (const std::exception& e) {
-        // Luau raises its allocation failures as C++ exceptions.
         lua_settop(_state, top);
         return Failure{ErrorKind::kRuntime, e.what()};
     }
