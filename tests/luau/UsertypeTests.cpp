@@ -497,3 +497,20 @@ TEST(Usertype, RejectsAMethodNameWithAnEmbeddedNul) {
     EXPECT_THROW(std::ignore = type.method(std::string{"a\0b", 3}, [](Counter&) {}),
                  rtype::luau::exceptions::InvalidOperation);
 }
+
+TEST(Usertype, RejectsAConstructorWhoseNameIsAlreadyAGlobal) {
+    auto runtime = makeRuntime();
+    auto type = runtime.usertype<Counter>("math");
+
+    EXPECT_THROW(std::ignore = type.constructor([] { return Counter{}; }), rtype::luau::exceptions::InvalidOperation);
+    run(runtime, "result = math.max(1, 2)");
+    EXPECT_EQ(globalNumber(runtime, "result"), 2);
+}
+
+TEST(Usertype, AllowsSettingTheConstructorOfATypeTwice) {
+    auto runtime = makeRuntime();
+    auto type = runtime.usertype<Counter>("Counter");
+
+    type.constructor([] { return Counter{.value = 1}; });
+    EXPECT_NO_THROW(std::ignore = type.constructor([] { return Counter{.value = 2}; }));
+}
