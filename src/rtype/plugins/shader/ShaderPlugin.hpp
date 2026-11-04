@@ -17,8 +17,8 @@ class App;
 
 namespace rtype::plugins::shader {
 
-/// @brief Game shaders and materials: inserts the ShaderAssets, MaterialAssets and ShaderHandles resources, and keeps
-/// the renderer up to date with them.
+/// @brief Game shaders and materials: inserts the ShaderAssets, MaterialAssets and ShaderHandles resources, registers
+/// MaterialInstance, and keeps the renderer up to date with them.
 ///
 /// @details One system: Render "rtype.Shader.Update", on the client, after the BackendPlugin loads the textures and
 /// before it begins the frame: ShaderHandles::update() creates the shaders and materials added during this frame's

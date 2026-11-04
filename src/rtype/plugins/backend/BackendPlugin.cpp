@@ -43,6 +43,7 @@
 #include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputPlugin.hpp"
 #include "plugins/particle/ParticlePlugin.hpp"
+#include "plugins/shader/MaterialInstance.hpp"
 #include "plugins/shader/ShaderHandles.hpp"
 #include "plugins/shader/ShaderPlugin.hpp"
 #include "plugins/sprite/SpritePlugin.hpp"
@@ -54,6 +55,7 @@
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/query/Query.hpp"
+#include "rtype/ecs/query/QueryTerms.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/Schedule.hpp"
@@ -185,17 +187,20 @@ void applyCamera(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::ResMut
 }
 
 /// @brief Render: draws the sprites whose texture is loaded and the queued sprites and texts (SpriteQueue), by layer
-/// then by texture. A sprite whose material is created is drawn with it and its shader's instance defaults.
-void drawSprites(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<TextureAssets> textures,
-                 ecs::Res<shader::ShaderHandles> handles, ecs::ResMut<graphics::SpriteQueue> queue,
-                 ecs::Query<const transform::GlobalTransform, const SpriteRenderer> sprites) {
+/// then by texture. A sprite whose material is created is drawn with it, and with its MaterialInstance's values or else
+/// its shader's defaults.
+void drawSprites(
+    ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<TextureAssets> textures,
+    ecs::Res<shader::ShaderHandles> handles, ecs::ResMut<graphics::SpriteQueue> queue,
+    ecs::Query<const transform::GlobalTransform, const SpriteRenderer, ecs::Optional<const shader::MaterialInstance>>
+        sprites) {
     plugins::backend::Backend& started = *backend;
     std::vector<graphics::SpriteQueue::Item> queued = queue->take();
     if (!isStarted(started) || isMinimized(started)) {
         return;
     }
     std::vector<graphics::SpriteQueue::Item> items;
-    for (auto [entity, global, sprite] : sprites) {
+    for (auto [entity, global, sprite, instance] : sprites) {
         const std::optional<graphics::TextureId> texture = textures->getTexture(sprite.texture);
         if (!texture) {
             continue;
@@ -210,7 +215,7 @@ void drawSprites(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<Te
                                .blend = sprite.blend};
         if (const shader::ShaderHandles::Material* material = handles->getMaterial(sprite.material)) {
             drawn.material = material->material;
-            drawn.instanceValues = material->instanceDefaults;
+            drawn.instanceValues = instance != nullptr ? instance->values : material->instanceDefaults;
         }
         items.push_back(graphics::SpriteQueue::Item{.layer = sprite.layer, .drawing = drawn});
     }

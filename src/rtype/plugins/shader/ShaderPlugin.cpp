@@ -15,6 +15,7 @@
 #include "plugins/backend/BackendResources.hpp"  // IWYU pragma: keep
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/shader/MaterialAssets.hpp"
+#include "plugins/shader/MaterialInstance.hpp"
 #include "plugins/shader/ShaderAssets.hpp"
 #include "plugins/shader/ShaderHandles.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -52,6 +53,7 @@ void ShaderPlugin::build(ecs::App& app) {
     if (!resources.has<backend::TextureAssets>()) {
         resources.insert(backend::TextureAssets{});
     }
+    static_cast<void>(app.getWorld().getComponents().registerType<MaterialInstance>());
     app.addSystem(ecs::Phase::kRender, std::string{kUpdateSystem}, &updateShaders)
         .after(std::string{backend::BackendPlugin::kTexturesSystem})
         .before(std::string{backend::BackendPlugin::kBeginFrameSystem})
