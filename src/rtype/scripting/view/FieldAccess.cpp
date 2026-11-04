@@ -84,6 +84,18 @@ Result<void> writeInteger(const std::string_view component, const ecs::FieldInfo
     store<T>(bytes, field, static_cast<T>(number));
     return {};
 }
+
+template <typename T>
+Result<luau::Value> readInteger(const std::string_view component, const ecs::FieldInfo& field,
+                                const std::span<const std::byte> bytes) {
+    constexpr auto kLimit = static_cast<std::int64_t>(kMaxExactInteger);
+    const auto value = load<T>(bytes, field);
+    if (std::cmp_less(value, -kLimit) || std::cmp_greater(value, kLimit)) {
+        const auto message = std::format("{} is out of range [{}, {}]", value, -kLimit, kLimit);
+        return tl::unexpected{fieldError(component, field, message)};
+    }
+    return luau::Value{static_cast<double>(value)};
+}
 }  // namespace
 
 Result<luau::Value> readField(const std::string_view component, const ecs::FieldInfo& field,
@@ -101,7 +113,7 @@ Result<luau::Value> readField(const std::string_view component, const ecs::Field
         case ecs::FieldType::kI32:
             return luau::Value{static_cast<double>(load<std::int32_t>(bytes, field))};
         case ecs::FieldType::kI64:
-            return luau::Value{static_cast<double>(load<std::int64_t>(bytes, field))};
+            return readInteger<std::int64_t>(component, field, bytes);
         case ecs::FieldType::kU8:
             return luau::Value{static_cast<double>(load<std::uint8_t>(bytes, field))};
         case ecs::FieldType::kU16:
@@ -109,7 +121,7 @@ Result<luau::Value> readField(const std::string_view component, const ecs::Field
         case ecs::FieldType::kU32:
             return luau::Value{static_cast<double>(load<std::uint32_t>(bytes, field))};
         case ecs::FieldType::kU64:
-            return luau::Value{static_cast<double>(load<std::uint64_t>(bytes, field))};
+            return readInteger<std::uint64_t>(component, field, bytes);
         case ecs::FieldType::kF32:
             return luau::Value{static_cast<double>(load<float>(bytes, field))};
         case ecs::FieldType::kF64:
