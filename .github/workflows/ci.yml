@@ -207,7 +207,7 @@ jobs:
           restore-keys: xmake-package-cache-ubuntu-latest-tests-
 
       - name: Configure xmake
-        run: xmake f -y --Tests=y
+        run: xmake f -y --Tests=y --AllExamples=y
 
       - name: Generate compile_commands.json
         run: xmake project -k compile_commands
