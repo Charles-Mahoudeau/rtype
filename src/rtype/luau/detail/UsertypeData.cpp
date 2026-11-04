@@ -202,7 +202,7 @@ void UsertypeData::addSetter(std::string name, Setter setter) {
 }
 
 void UsertypeData::addMethod(std::string name, Method method) {
-    if (name.find('\0') != std::string::npos) {
+    if (name.contains('\0')) {
         throw exceptions::InvalidOperation{"a method name cannot contain a NUL character"};
     }
     MethodEntry& entry = _methods.emplace_back(MethodEntry{.name = std::move(name), .handler = std::move(method)});
