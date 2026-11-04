@@ -27,7 +27,10 @@ namespace rtype::scripting::view {
 namespace {
 /// @brief Raises a Luau error unless the view can still be used.
 void checkAlive(const ComponentView& view) {
-    if (view.scope == nullptr || view.scope->generation != view.generation) {
+    if (view.info == nullptr || view.scope == nullptr) {
+        throw luau::exceptions::RuntimeError{"the view is not bound to a component"};
+    }
+    if (view.scope->generation != view.generation) {
         throw luau::exceptions::RuntimeError{
             std::format("the view of '{}' is no longer valid: a view only lives during the run that received it",
                         view.info->type.name)};
@@ -83,7 +86,10 @@ luau::Result<> registerViewTypes(luau::Runtime& runtime) {
                 throw luau::exceptions::RuntimeError{std::string{written.error().message()}};
             }
         })
-        .tostring([](const ComponentView& view) { return std::format("View({})", view.info->type.name); });
+        .tostring([](const ComponentView& view) {
+            checkAlive(view);
+            return std::format("View({})", view.info->type.name);
+        });
     return {};
 }
 }  // namespace rtype::scripting::view
