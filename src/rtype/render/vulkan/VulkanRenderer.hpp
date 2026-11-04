@@ -18,6 +18,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
@@ -34,6 +35,8 @@
 #include "frame/FrameGlobals.hpp"
 #include "frame/FrameResources.hpp"
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
+#include "material/GameMaterial.hpp"
+#include "material/GameShader.hpp"
 #include "memory/Allocator.hpp"
 #include "memory/Uploader.hpp"
 #include "particle/GpuParticleSystem.hpp"
@@ -46,6 +49,7 @@
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Particle.hpp"
 #include "plugins/backend/graphics/ParticleSystemDesc.hpp"
+#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Text.hpp"
@@ -76,7 +80,9 @@ namespace rtype::render::vulkan {
 /// through the view given to setView(). draw(Shape) collects the frame's shapes, and endFrame() draws them all after
 /// the sprites, in one instanced draw, from their signed distance (rendering/ShapePass.hpp). Sprites and shapes are
 /// blended with premultiplied alpha: every graphics::BlendMode is drawn by the same pipeline, read per instance
-/// (shaders/include/Blend.glsl), so the mode never splits a batch.
+/// (shaders/include/Blend.glsl), so the mode never splits a batch. A sprite with a game material
+/// (createShader(), createMaterial()) is drawn by its shader's pipeline, built the first time it is drawn, with the
+/// material's set 2 (material/GameMaterial.hpp); a run of sprites sharing a texture and a material stays one batch.
 ///
 /// Needs a platform that implements interop::vulkan::IVulkanSurfaceSource (GlfwPlatform does).
 class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::graphics::IRenderer {
@@ -218,6 +224,33 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// @throws std::invalid_argument If the texture or the GPU system was destroyed or never created.
     void draw(const plugins::backend::graphics::ParticleDraw& particles) override;
 
+    /// @return true: sprites are drawn with game shaders. Texts and particles are drawn with their default effect for
+    /// now.
+    [[nodiscard]] bool supportsShaders() const noexcept override;
+
+    /// @brief Creates the modules of @p shader's variants (material::GameShader); its pipelines are built the first
+    /// time it is drawn.
+    /// @throws std::logic_error If init() was not called.
+    /// @throws std::invalid_argument If @p shader is invalid or a stage is not SPIR-V.
+    [[nodiscard]] plugins::backend::graphics::ShaderId createShader(
+        const plugins::backend::graphics::CompiledShader& shader) override;
+    /// @brief Destroys a shader once the GPU is done with it; does nothing for one already destroyed. Its materials
+    /// are then drawn as the default material.
+    void destroy(plugins::backend::graphics::ShaderId shader) override;
+    /// @brief Creates a material: per frame in flight, a uniform buffer for its values and its set 2. Unset textures
+    /// are a white pixel.
+    /// @throws std::logic_error If init() was not called.
+    /// @throws std::invalid_argument If its shader or a texture was destroyed or never created, or the values are not
+    /// the size of the shader's material block.
+    [[nodiscard]] plugins::backend::graphics::MaterialId createMaterial(
+        const plugins::backend::graphics::MaterialDesc& desc) override;
+    /// @brief Changes a material's values and textures; each frame in flight takes them when it is next recorded.
+    /// @throws std::invalid_argument As createMaterial(), or if @p material was destroyed or never created.
+    void updateMaterial(plugins::backend::graphics::MaterialId material,
+                        const plugins::backend::graphics::MaterialDesc& desc) override;
+    /// @brief Destroys a material once the GPU is done with it; does nothing for one already destroyed.
+    void destroy(plugins::backend::graphics::MaterialId material) override;
+
   private:
     /// @brief A particle draw of the frame, recorded at endFrame().
     struct ParticleRange {
@@ -256,6 +289,16 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
 
     /// @return The descriptor set of @p texture, or a null handle if it no longer exists.
     [[nodiscard]] vk::DescriptorSet findTextureSet(plugins::backend::graphics::TextureId texture) const;
+
+    /// @return What sprites with @p material are drawn with in frame @p frameIndex: its shader's pipeline, built if
+    /// needed, and its set, brought up to date; a null pipeline if it or its shader no longer exists.
+    [[nodiscard]] rendering::SpritePass::MaterialBinding findMaterial(plugins::backend::graphics::MaterialId material,
+                                                                      std::size_t frameIndex);
+
+    /// @brief Checks that @p desc fits @p shader: values of its block's size, and textures that exist.
+    /// @throws std::invalid_argument Naming @p function if not.
+    void checkMaterial(const plugins::backend::graphics::MaterialDesc& desc, const material::GameShader& shader,
+                       std::string_view function) const;
 
     /// @return The frame in flight whose fence covers every use recorded so far: the current one while a frame is
     /// recorded, the previous one between frames. What the GPU may still use is deferred to it.
@@ -297,6 +340,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     rendering::DrawList _drawList;               ///< Where the particle draws sit among the sprite batches.
     std::vector<std::pair<plugins::backend::graphics::ParticleSystemId, plugins::backend::graphics::ParticleEmission>>
         _simulations;  ///< The GPU systems to simulate this frame, by id; cleared by beginFrame().
+    plugins::backend::graphics::TextureId _fallbackTexture;  ///< A white pixel: a material's unset textures.
 
     // 2. Context: created by init(), in this order.
     std::optional<core::Instance> _instance;                ///< The VkInstance.
@@ -323,15 +367,20 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     std::unique_ptr<descriptor::DescriptorAllocator> _textureDescriptors;   ///< Allocates the textures' sets.
     std::unique_ptr<descriptor::DescriptorSetLayout> _particleSetLayout;    ///< Set 0 of the particle compute shaders.
     std::unique_ptr<descriptor::DescriptorAllocator> _particleDescriptors;  ///< Allocates the GPU systems' sets.
-    std::unique_ptr<pipeline::PipelineLayout> _layout;   ///< The shared layout (rendering/ShaderLayout.hpp) of every
-                                                         ///< pipeline: sets 0 and 1, and the DrawConstants.
-    std::unique_ptr<rendering::SpritePass> _spritePass;  ///< Draws _sprites at endFrame().
-    std::unique_ptr<rendering::ShapePass> _shapePass;    ///< Draws _shapes at endFrame(), after the sprites.
+    std::unique_ptr<descriptor::DescriptorSetLayout> _materialSetLayout;    ///< Set 2: a block and three textures.
+    std::unique_ptr<descriptor::DescriptorAllocator> _materialDescriptors;  ///< Allocates the materials' sets.
+    std::unique_ptr<pipeline::PipelineLayout> _layout;  ///< The shared layout (rendering/ShaderLayout.hpp) of every
+                                                        ///< pipeline: sets 0 and 1, and the DrawConstants.
+    std::unique_ptr<pipeline::PipelineLayout> _materialLayout;  ///< The game shaders' layout: the shared one and set 2.
+    std::unique_ptr<rendering::SpritePass> _spritePass;         ///< Draws _sprites at endFrame().
+    std::unique_ptr<rendering::ShapePass> _shapePass;           ///< Draws _shapes at endFrame(), after the sprites.
     std::unique_ptr<rendering::ParticlePass> _particlePass;  ///< Draws _particleRanges at endFrame(), among _sprites.
     std::unique_ptr<particle::ParticleSimulationPass> _particleSimulation;  ///< Runs _simulations at endFrame().
     core::SlotMap<plugins::backend::graphics::TextureId, texture::Texture> _textures;  ///< By TextureId.
     core::SlotMap<plugins::backend::graphics::ParticleSystemId, particle::GpuParticleSystem>
-        _particleSystems;  ///< By ParticleSystemId.
+        _particleSystems;                                                                      ///< By ParticleSystemId.
+    core::SlotMap<plugins::backend::graphics::ShaderId, material::GameShader> _gameShaders;    ///< By ShaderId.
+    core::SlotMap<plugins::backend::graphics::MaterialId, material::GameMaterial> _materials;  ///< By MaterialId.
 
     // 7. Deferred deletion.
     core::DeletionQueue _deletionQueue{kFramesInFlight};  ///< Resources the GPU may still use, one bucket per frame.
