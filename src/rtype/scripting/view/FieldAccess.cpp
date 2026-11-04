@@ -51,7 +51,7 @@ Result<void> checkSupported(const std::string_view component, const ecs::FieldIn
         return tl::unexpected{fieldError(component, field, "this field type is not supported yet")};
     }
     const auto size = ecs::getFieldLayout(field.type).size;
-    if (field.offset + size > bytes.size()) {
+    if (size > bytes.size() || field.offset > bytes.size() - size) {
         return tl::unexpected{fieldError(component, field, "the field is out of the component's bytes")};
     }
     return {};
