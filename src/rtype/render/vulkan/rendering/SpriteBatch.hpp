@@ -17,6 +17,7 @@
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
+#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
@@ -56,18 +57,22 @@ static_assert(sizeof(SpriteInstance) == 64 && offsetof(SpriteInstance, blend) ==
                   offsetof(SpriteInstance, uvRect) == 32 && offsetof(SpriteInstance, color) == 48,
               "SpriteInstance must stay 64 tightly packed bytes: its attribute offsets assume it");
 
-/// @brief The sprites of a frame, in draw order, grouped in batches: consecutive sprites of the same texture are drawn
-/// by one instanced draw call.
+/// @brief The sprites of a frame, in draw order, grouped in batches: consecutive sprites of the same texture and
+/// material are drawn by one instanced draw call.
 ///
 /// @details Only consecutive sprites are merged, so the draw order (the last drawn on top) is kept: sort the sprites
-/// by layer, then by texture within a layer, to get fewer batches.
+/// by layer, then by texture within a layer, to get fewer batches. The sprites of a game material also have their
+/// instance values, kept apart (getInstanceValues()), so the default ones pay nothing for them.
 class RTYPE_RENDER_VULKAN_API SpriteBatch {
   public:
-    /// @brief Consecutive instances sharing a texture.
+    /// @brief Consecutive instances sharing a texture and a material.
     struct Batch {
-        plugins::backend::graphics::TextureId texture;  ///< Bound for the whole batch.
-        std::uint32_t firstInstance = 0;                ///< Index of its first instance in getInstances().
-        std::uint32_t instanceCount = 0;                ///< Number of instances.
+        plugins::backend::graphics::TextureId texture;    ///< Bound for the whole batch.
+        plugins::backend::graphics::MaterialId material;  ///< Its game material; the default one if 0.
+        std::uint32_t firstInstance = 0;                  ///< Index of its first instance in getInstances().
+        std::uint32_t instanceCount = 0;                  ///< Number of instances.
+        std::uint32_t firstValues =
+            0;  ///< Index of its first instance's values in getInstanceValues(), with a material.
     };
 
     SpriteBatch() = default;
@@ -79,12 +84,20 @@ class RTYPE_RENDER_VULKAN_API SpriteBatch {
 
     /// @return The instances added since clear(), in draw order.
     [[nodiscard]] std::span<const SpriteInstance> getInstances() const noexcept { return _instances; }
+    /// @return The instance values of the sprites drawn with a game material, in draw order.
+    [[nodiscard]] std::span<const plugins::backend::graphics::ShaderInstanceValues> getInstanceValues() const noexcept {
+        return _values;
+    }
     /// @return The batches, in draw order.
     [[nodiscard]] std::span<const Batch> getBatches() const noexcept { return _batches; }
 
-    /// @brief Adds @p instance, drawn with @p texture, after the others: it extends the last batch if it shares its
-    /// texture, or starts a new one.
+    /// @brief Adds @p instance, drawn with @p texture and the default material, after the others: it extends the last
+    /// batch if it shares its texture and material, or starts a new one.
     void add(plugins::backend::graphics::TextureId texture, const SpriteInstance& instance);
+
+    /// @brief Adds @p instance, drawn with @p texture and the game material @p material with its @p values, as add().
+    void add(plugins::backend::graphics::TextureId texture, plugins::backend::graphics::MaterialId material,
+             const SpriteInstance& instance, const plugins::backend::graphics::ShaderInstanceValues& values);
 
     /// @brief Makes the next add() start a new batch, even with the texture of the last one: something else (a
     /// particle draw) is drawn between the two.
@@ -94,9 +107,13 @@ class RTYPE_RENDER_VULKAN_API SpriteBatch {
     void clear() noexcept;
 
   private:
-    std::vector<SpriteInstance> _instances;  ///< In draw order.
-    std::vector<Batch> _batches;             ///< In draw order.
-    bool _split = false;                     ///< The next add() starts a new batch.
+    /// @brief Starts a new batch unless the last one shares @p texture and @p material and nothing split it.
+    void extend(plugins::backend::graphics::TextureId texture, plugins::backend::graphics::MaterialId material);
+
+    std::vector<SpriteInstance> _instances;                                 ///< In draw order.
+    std::vector<plugins::backend::graphics::ShaderInstanceValues> _values;  ///< Of the material sprites, in order.
+    std::vector<Batch> _batches;                                            ///< In draw order.
+    bool _split = false;                                                    ///< The next add() starts a new batch.
 };
 
 }  // namespace rtype::render::vulkan::rendering
