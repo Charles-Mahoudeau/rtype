@@ -14,6 +14,7 @@
 #include <vulkan/vulkan_raii.hpp>
 
 #include "plugins/backend/graphics/BlendMode.hpp"
+#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
@@ -183,4 +184,51 @@ TEST(SpriteInstance, ReadsASpriteAsAColourTexture) {
     const SpriteInstance instance =
         SpriteInstance::fromSprite(rtype::plugins::backend::graphics::Sprite{.texture = kShips}, {1, 1});
     EXPECT_EQ(instance.blend & rtype::render::vulkan::rendering::kShaderMsdf, 0U);
+}
+
+namespace {
+using MaterialId = rtype::plugins::backend::graphics::MaterialId;
+using ShaderInstanceValues = rtype::plugins::backend::graphics::ShaderInstanceValues;
+
+constexpr MaterialId kGlow{.index = 0, .generation = 1};
+constexpr MaterialId kFlash{.index = 1, .generation = 1};
+}  // namespace
+
+TEST(SpriteBatch, SplitsTheBatchesOfATextureByMaterial) {
+    SpriteBatch batch;
+    batch.add(kShips, {});
+    batch.add(kShips, kGlow, {}, {});
+    batch.add(kShips, kGlow, {}, {});
+    batch.add(kShips, kFlash, {}, {});
+    ASSERT_EQ(batch.getBatches().size(), 3U);
+    EXPECT_EQ(batch.getBatches()[0].material, MaterialId{});
+    EXPECT_EQ(batch.getBatches()[1].material, kGlow);
+    EXPECT_EQ(batch.getBatches()[1].firstInstance, 1U);
+    EXPECT_EQ(batch.getBatches()[1].instanceCount, 2U);
+    EXPECT_EQ(batch.getBatches()[2].material, kFlash);
+}
+
+TEST(SpriteBatch, KeepsTheInstanceValuesOfTheMaterialSpritesOnly) {
+    SpriteBatch batch;
+    ShaderInstanceValues values{};
+    values[0].x = 0.5F;
+    batch.add(kShips, {});
+    batch.add(kShips, kGlow, {}, values);
+    batch.add(kEnemies, {});
+    batch.add(kEnemies, kFlash, {}, {});
+    ASSERT_EQ(batch.getInstanceValues().size(), 2U);
+    EXPECT_FLOAT_EQ(batch.getInstanceValues()[0][0].x, 0.5F);
+    ASSERT_EQ(batch.getBatches().size(), 4U);
+    EXPECT_EQ(batch.getBatches()[1].firstValues, 0U);
+    EXPECT_EQ(batch.getBatches()[3].firstValues, 1U);
+    batch.clear();
+    EXPECT_TRUE(batch.getInstanceValues().empty());
+}
+
+TEST(SpriteBatch, TakesTheDefaultMaterialWithoutValues) {
+    SpriteBatch batch;
+    batch.add(kShips, MaterialId{}, {}, {});
+    batch.add(kShips, {});
+    EXPECT_EQ(batch.getBatches().size(), 1U);
+    EXPECT_TRUE(batch.getInstanceValues().empty());
 }
