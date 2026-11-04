@@ -216,6 +216,15 @@ void UsertypeData::addMethod(std::string name, Method method) {
 }
 
 void UsertypeData::setConstructor(Constructor constructor) {
+    if (!_constructor) {
+        lua_getglobal(_state, _name.c_str());
+        const bool taken = !lua_isnil(_state, -1);
+        lua_pop(_state, 1);
+        if (taken) {
+            throw exceptions::InvalidOperation{
+                std::format("cannot publish the constructor of '{}': a script global already has this name", _name)};
+        }
+    }
     _constructor = std::move(constructor);
     lua_createtable(_state, 0, 1);
     lua_pushlightuserdata(_state, this);

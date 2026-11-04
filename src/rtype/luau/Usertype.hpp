@@ -48,6 +48,7 @@ class Usertype {
     /// @tparam F Callable `T(Args...)`.
     /// @param function Builds the object from the arguments of the script.
     /// @return This type.
+    /// @throws exceptions::InvalidOperation If a global of the name of the type already exists.
     template <typename F>
     Usertype& constructor(F&& function);
 

@@ -102,6 +102,7 @@ class RTYPE_LUAU_API UsertypeData {
     /// @brief Adds a method: scripts call `object:name(...)`. A getter of the same name takes precedence.
     void addMethod(std::string name, Method method);
     /// @brief Sets the constructor, and exposes it to scripts as `<type name>.new(...)`, a function of a global table.
+    /// @throws exceptions::InvalidOperation If a global of that name already exists (and is not this type's table).
     void setConstructor(Constructor constructor);
     /// @brief Sets the handler of the members that have no getter nor method; without it, they raise an error.
     void setIndexFallback(IndexFallback fallback);
