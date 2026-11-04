@@ -95,10 +95,11 @@ class RTYPE_LUAU_API Runtime {
     /// the returned `Usertype`) until it is closed.
     /// @tparam T The C++ type.
     /// @param name Name of the type for scripts, which `typeof` gives for its userdata.
-    /// @return A handle to describe the members of the type.
-    /// @throws exceptions::InvalidOperation If `T` is already registered, or if the runtime has no userdata tag left.
+    /// @return A handle to describe the members of the type, or an `ErrorKind::kUnknown` error if the runtime has no
+    ///         userdata tag left (each type takes one and tags are never reused).
+    /// @throws exceptions::InvalidOperation If `T` is already registered.
     template <typename T>
-    [[nodiscard]] Usertype<T> usertype(std::string name);
+    [[nodiscard]] Result<Usertype<T>> usertype(std::string name);
 
     /// @brief Gets the registration of a type registered earlier.
     /// @tparam T The C++ type.

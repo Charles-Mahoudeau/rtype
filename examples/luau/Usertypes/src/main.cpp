@@ -51,7 +51,13 @@ int main() {
     // registration and the handlers until it is closed. Every handler takes the same kind of parameters as
     // `Function::bind` (`double` for numbers, `std::string` for strings...), and the object first when it works on one.
     // A call that does not fit raises a Lua error before the handler runs.
-    auto player = runtime->usertype<Player>("Player");
+    // It fails when the runtime has no userdata tag left, which takes about a hundred types.
+    auto playerType = runtime->usertype<Player>("Player");
+    if (!playerType) {
+        std::cerr << "failed to register Player: " << playerType.error().message() << std::endl;
+        return 1;
+    }
+    auto& player = *playerType;
     player
         // `Player.new(name, health)` in Luau. It returns the object, which Luau then owns.
         .constructor(
@@ -73,8 +79,12 @@ int main() {
 
     // `index` and `newIndex` handle the members that have no getter nor method, for the fields only known at runtime
     // (this is what a component made of scripts will need). A handler reports an unknown name by throwing.
-    runtime->usertype<Settings>("Settings")
-        .constructor([] { return Settings{}; })
+    auto settingsType = runtime->usertype<Settings>("Settings");
+    if (!settingsType) {
+        std::cerr << "failed to register Settings: " << settingsType.error().message() << std::endl;
+        return 1;
+    }
+    settingsType->constructor([] { return Settings{}; })
         .index([](Settings& self, const std::string_view key) -> Value {
             const auto setting = self.values.find(key);
             if (setting == self.values.end()) {

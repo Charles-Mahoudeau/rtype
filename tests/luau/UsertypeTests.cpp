@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 #include <lua.h>
 
+#include <cstddef>
 #include <format>
 #include <functional>
 #include <map>
@@ -21,6 +22,7 @@
 #include "rtype/luau/ErrorKind.hpp"
 #include "rtype/luau/Exceptions.hpp"
 #include "rtype/luau/Function.hpp"
+#include "rtype/luau/Result.hpp"
 #include "rtype/luau/Runtime.hpp"
 #include "rtype/luau/RuntimeConfig.hpp"
 #include "rtype/luau/Table.hpp"
@@ -69,7 +71,7 @@ rtype::luau::Runtime makeRuntime() {
 ///        `__tostring`.
 rtype::luau::Usertype<Counter> registerCounter(rtype::luau::Runtime& runtime,
                                                const std::shared_ptr<int>& tracker = {}) {
-    return runtime.usertype<Counter>("Counter")
+    return rtype::luau::expect(runtime.usertype<Counter>("Counter"))
         .constructor([tracker](const double start) { return Counter{.value = start, .tracker = tracker}; })
         .getter("value", [](const Counter& counter) { return counter.value; })
         .setter("value", [](Counter& counter, const double value) { counter.value = value; })
@@ -199,7 +201,9 @@ TEST(Usertype, RaisesAnErrorWhenAMethodGetsNilAsObject) {
 TEST(Usertype, RaisesAnErrorWhenAMethodGetsAnotherUserdataAsObject) {
     auto runtime = makeRuntime();
     registerCounter(runtime);
-    runtime.usertype<Other>("Other").constructor([](const double value) { return Other{.value = value}; });
+    rtype::luau::expect(runtime.usertype<Other>("Other")).constructor([](const double value) {
+        return Other{.value = value};
+    });
 
     const auto message = runForError(runtime, R"(
         local counter = Counter.new(1)
@@ -288,7 +292,9 @@ TEST(Usertype, ComparesWithTheEqualityOfTheType) {
 
 TEST(Usertype, ComparesByIdentityWithoutEquality) {
     auto runtime = makeRuntime();
-    runtime.usertype<Plain>("Plain").constructor([](const double value) { return Plain{.value = value}; });
+    rtype::luau::expect(runtime.usertype<Plain>("Plain")).constructor([](const double value) {
+        return Plain{.value = value};
+    });
 
     run(runtime, R"(
         local first = Plain.new(1)
@@ -333,7 +339,7 @@ TEST(Usertype, DestroysItsObjectsWhenTheyAreCollected) {
 
 TEST(Usertype, ReadsMembersKnownAtRuntimeThroughTheFallbacks) {
     auto runtime = makeRuntime();
-    runtime.usertype<Bag>("Bag")
+    rtype::luau::expect(runtime.usertype<Bag>("Bag"))
         .constructor([] { return Bag{}; })
         .index([](Bag& bag, const std::string_view key) -> Value {
             const auto field = bag.fields.find(key);
@@ -365,7 +371,7 @@ TEST(Usertype, ReadsMembersKnownAtRuntimeThroughTheFallbacks) {
 
 TEST(Usertype, PrefersGettersAndMethodsToTheFallback) {
     auto runtime = makeRuntime();
-    runtime.usertype<Bag>("Bag")
+    rtype::luau::expect(runtime.usertype<Bag>("Bag"))
         .constructor([] { return Bag{}; })
         .getter("size", [](const Bag& bag) { return static_cast<double>(bag.fields.size()); })
         .index([](Bag&, const std::string_view) -> Value { return Value{-1.0}; });
@@ -422,7 +428,7 @@ TEST(Usertype, LetsCppReadTheObjectOfAUserdataItReceived) {
 TEST(Usertype, RefusesToReadTheObjectAsAnotherType) {
     auto runtime = makeRuntime();
     const auto counter = registerCounter(runtime);
-    std::ignore = runtime.usertype<Other>("Other");
+    std::ignore = rtype::luau::expect(runtime.usertype<Other>("Other"));
 
     const auto userdata = counter.create(Counter{.value = 1});
 
@@ -435,7 +441,7 @@ TEST(Usertype, RefusesToReadTheObjectAsAnotherType) {
 TEST(Usertype, GivesEachTypeItsOwnTag) {
     auto runtime = makeRuntime();
     const auto counter = registerCounter(runtime);
-    const auto other = runtime.usertype<Other>("Other");
+    const auto other = rtype::luau::expect(runtime.usertype<Other>("Other"));
 
     const auto first = counter.create(Counter{});
     const auto second = other.create(Other{});
@@ -461,7 +467,8 @@ TEST(Usertype, IsRegisteredOncePerRuntime) {
     auto runtime = makeRuntime();
     registerCounter(runtime);
 
-    EXPECT_THROW(std::ignore = runtime.usertype<Counter>("Again"), rtype::luau::exceptions::InvalidOperation);
+    EXPECT_THROW(std::ignore = rtype::luau::expect(runtime.usertype<Counter>("Again")),
+                 rtype::luau::exceptions::InvalidOperation);
     EXPECT_EQ(std::as_const(runtime).usertype<Counter>().name(), "Counter");
     EXPECT_THROW(std::ignore = std::as_const(runtime).usertype<Other>(), rtype::luau::exceptions::InvalidOperation);
 }
@@ -472,7 +479,7 @@ TEST(Usertype, KeepsATypeSeparateInEachRuntime) {
 
     registerCounter(first);
 
-    EXPECT_NO_THROW(std::ignore = second.usertype<Counter>("Counter"));
+    EXPECT_TRUE(second.usertype<Counter>("Counter"));
 }
 
 TEST(Usertype, SurvivesMovingTheRuntime) {
@@ -492,7 +499,7 @@ TEST(Usertype, SurvivesMovingTheRuntime) {
 
 TEST(Usertype, RejectsAMethodNameWithAnEmbeddedNul) {
     auto runtime = makeRuntime();
-    auto type = runtime.usertype<Counter>("Counter");
+    auto type = rtype::luau::expect(runtime.usertype<Counter>("Counter"));
 
     EXPECT_THROW(std::ignore = type.method(std::string{"a\0b", 3}, [](Counter&) {}),
                  rtype::luau::exceptions::InvalidOperation);
@@ -500,7 +507,7 @@ TEST(Usertype, RejectsAMethodNameWithAnEmbeddedNul) {
 
 TEST(Usertype, RejectsAConstructorWhoseNameIsAlreadyAGlobal) {
     auto runtime = makeRuntime();
-    auto type = runtime.usertype<Counter>("math");
+    auto type = rtype::luau::expect(runtime.usertype<Counter>("math"));
 
     EXPECT_THROW(std::ignore = type.constructor([] { return Counter{}; }), rtype::luau::exceptions::InvalidOperation);
     run(runtime, "result = math.max(1, 2)");
@@ -509,8 +516,35 @@ TEST(Usertype, RejectsAConstructorWhoseNameIsAlreadyAGlobal) {
 
 TEST(Usertype, AllowsSettingTheConstructorOfATypeTwice) {
     auto runtime = makeRuntime();
-    auto type = runtime.usertype<Counter>("Counter");
+    auto type = rtype::luau::expect(runtime.usertype<Counter>("Counter"));
 
     type.constructor([] { return Counter{.value = 1}; });
     EXPECT_NO_THROW(std::ignore = type.constructor([] { return Counter{.value = 2}; }));
+}
+
+namespace {
+/// @brief A distinct C++ type per index, to register more types than a Lua state has userdata tags.
+template <std::size_t N>
+struct Numbered {
+    double value{};
+};
+
+template <std::size_t... Indices>
+std::size_t registerNumbered(rtype::luau::Runtime& runtime, std::index_sequence<Indices...> /*unused*/) {
+    std::size_t registered{0};
+    ((registered += runtime.usertype<Numbered<Indices>>(std::format("Numbered{}", Indices)).has_value() ? 1 : 0), ...);
+    return registered;
+}
+}  // namespace
+
+TEST(Usertype, ReturnsAnErrorWhenTheRuntimeHasNoTagLeft) {
+    auto runtime = makeRuntime();
+
+    // A Lua state has 127 userdata tags, and each type takes one for good.
+    EXPECT_EQ(registerNumbered(runtime, std::make_index_sequence<127>{}), 127);
+    const auto last = runtime.usertype<Numbered<127>>("Last");
+
+    ASSERT_FALSE(last);
+    EXPECT_EQ(last.error().kind(), rtype::luau::ErrorKind::kUnknown);
+    EXPECT_NE(last.error().message().find("Last"), std::string_view::npos);
 }

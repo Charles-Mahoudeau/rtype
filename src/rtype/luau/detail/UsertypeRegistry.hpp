@@ -15,6 +15,7 @@
 
 #include "UsertypeData.hpp"
 #include "rtype/luau/Export.hpp"
+#include "rtype/luau/Result.hpp"
 
 struct lua_State;
 
@@ -52,10 +53,11 @@ class RTYPE_LUAU_API UsertypeRegistry {
     /// @param name Name of the type for scripts.
     /// @param size Size in bytes of an object of the type.
     /// @param destructor Destroys an object of the type.
-    /// @return The usertype, valid as long as the registry.
-    /// @throws exceptions::InvalidOperation If the type is already registered, or if the Lua state has no tag left.
-    [[nodiscard]] UsertypeData& add(std::type_index type, std::string name, std::size_t size,
-                                    UsertypeData::Destructor destructor);
+    /// @return The usertype, valid as long as the registry, or an `ErrorKind::kUnknown` error if the Lua state has no
+    ///         userdata tag left.
+    /// @throws exceptions::InvalidOperation If the type is already registered.
+    [[nodiscard]] Result<UsertypeData*> add(std::type_index type, std::string name, std::size_t size,
+                                            UsertypeData::Destructor destructor);
 
   private:
     lua_State* _state;  ///< Main thread of the Lua state.

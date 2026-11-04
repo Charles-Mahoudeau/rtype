@@ -16,13 +16,18 @@
 #include <utility>
 
 #include "Exceptions.hpp"
+#include "Result.hpp"
 #include "Usertype.hpp"
 #include "detail/UsertypeRegistry.hpp"
 
 namespace rtype::luau {
 template <typename T>
-Usertype<T> Runtime::usertype(std::string name) {
-    return Usertype<T>{usertypes().add(typeid(T), std::move(name), sizeof(T), &detail::destroyUserdata<T>)};
+Result<Usertype<T>> Runtime::usertype(std::string name) {
+    auto data = usertypes().add(typeid(T), std::move(name), sizeof(T), &detail::destroyUserdata<T>);
+    if (!data) {
+        return forwardError<Usertype<T>>(std::move(data));
+    }
+    return Usertype<T>{**data};
 }
 
 template <typename T>

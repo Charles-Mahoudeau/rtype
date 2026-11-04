@@ -18,7 +18,10 @@
 
 #include "UsertypeData.hpp"
 #include "luaconf.h"
+#include "rtype/luau/ErrorKind.hpp"
 #include "rtype/luau/Exceptions.hpp"
+#include "rtype/luau/Failure.hpp"
+#include "rtype/luau/Result.hpp"
 
 namespace rtype::luau::detail {
 UsertypeRegistry* UsertypeRegistry::of(lua_State* state) noexcept {
@@ -37,17 +40,18 @@ UsertypeData* UsertypeRegistry::find(const std::type_index type) const noexcept 
     return it == _types.end() ? nullptr : it->second.get();
 }
 
-UsertypeData& UsertypeRegistry::add(const std::type_index type, std::string name, const std::size_t size,
-                                    const UsertypeData::Destructor destructor) {
+Result<UsertypeData*> UsertypeRegistry::add(const std::type_index type, std::string name, const std::size_t size,
+                                            const UsertypeData::Destructor destructor) {
     if (_types.contains(type)) {
         throw exceptions::InvalidOperation{std::format("usertype '{}' is already registered", name)};
     }
     if (_nextTag >= LUA_UTAG_LIMIT) {
-        throw exceptions::InvalidOperation{std::format(
-            "unable to register usertype '{}': a Lua state has {} usertypes at most", name, LUA_UTAG_LIMIT - 1)};
+        return Failure{ErrorKind::kUnknown,
+                       std::format("unable to register usertype '{}': a Lua state has {} usertypes at most", name,
+                                   LUA_UTAG_LIMIT - 1)};
     }
     auto data = std::make_unique<UsertypeData>(_state, std::move(name), _nextTag, size, destructor);
     ++_nextTag;
-    return *_types.emplace(type, std::move(data)).first->second;
+    return _types.emplace(type, std::move(data)).first->second.get();
 }
 }  // namespace rtype::luau::detail
