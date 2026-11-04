@@ -1,0 +1,3 @@
+# GLSL stays LF on every platform: the shader prelude (src/rtype/plugins/shader/prelude/) is embedded as chars, and a
+# CRLF checkout (Windows) would put carriage returns in the assembled GLSL.
+*.glsl text eol=lf
