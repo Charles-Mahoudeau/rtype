@@ -489,3 +489,11 @@ TEST(Usertype, SurvivesMovingTheRuntime) {
     EXPECT_EQ(globalNumber(other, "result"), 6);
     EXPECT_EQ(std::as_const(other).usertype<Counter>().name(), "Counter");
 }
+
+TEST(Usertype, RejectsAMethodNameWithAnEmbeddedNul) {
+    auto runtime = makeRuntime();
+    auto type = runtime.usertype<Counter>("Counter");
+
+    EXPECT_THROW(std::ignore = type.method(std::string{"a\0b", 3}, [](Counter&) {}),
+                 rtype::luau::exceptions::InvalidOperation);
+}
