@@ -73,6 +73,7 @@ class Usertype {
     /// @param name Name of the method.
     /// @param function What the method does.
     /// @return This type.
+    /// @throws exceptions::InvalidOperation If `name` contains a NUL character.
     template <typename F>
     Usertype& method(std::string name, F&& function);
 
