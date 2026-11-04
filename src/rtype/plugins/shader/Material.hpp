@@ -64,6 +64,13 @@ struct Material {
 [[nodiscard]] std::vector<std::byte> packMaterialValues(const backend::graphics::CompiledShader& shader,
                                                         const Material& material);
 
+/// @brief Writes @p value at the place of @p shader's `instance uniform` @p name in @p values.
+/// @throws exceptions::ShaderException If @p shader has no `instance uniform` of this name (a `uniform` is set in a
+/// material) or @p value is not of its type.
+void writeInstanceValue(const backend::graphics::CompiledShader& shader,
+                        backend::graphics::ShaderInstanceValues& values, const std::string& name,
+                        const MaterialValue& value);
+
 /// @return The textures of @p material for @p shader, by slot; an unset slot keeps a default AssetId.
 /// @throws exceptions::ShaderException If a texture has no `uniform sampler2D` of this name in the shader.
 [[nodiscard]] std::array<core::asset::AssetId, backend::graphics::kShaderMaxTextures> resolveMaterialTextures(

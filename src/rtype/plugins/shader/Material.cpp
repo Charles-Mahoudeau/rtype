@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <format>
 #include <span>
@@ -53,6 +54,13 @@ std::string_view nameOf(ShaderValueType type) noexcept {
     return "float";
 }
 
+/// @brief Copies @p value into @p bytes at @p offset.
+void writeValue(std::span<std::byte> bytes, std::uint32_t offset, const MaterialValue& value) {
+    std::visit([bytes, offset](
+                   const auto& held) { std::memcpy(bytes.subspan(offset, sizeof(held)).data(), &held, sizeof(held)); },
+               value);
+}
+
 }  // namespace
 
 Material& Material::set(const std::string& name, MaterialValue value) {
@@ -87,13 +95,24 @@ std::vector<std::byte> packMaterialValues(const backend::graphics::CompiledShade
             throw exceptions::ShaderException{std::format("Material of '{}': '{}' is a {}, not a {}", shader.name,
                                                           set.name, nameOf(declared->type), nameOf(typeOf(set.value)))};
         }
-        std::visit(
-            [&block, offset = declared->offset](const auto& value) {
-                std::memcpy(std::span{block}.subspan(offset, sizeof(value)).data(), &value, sizeof(value));
-            },
-            set.value);
+        writeValue(block, declared->offset, set.value);
     }
     return block;
+}
+
+void writeInstanceValue(const backend::graphics::CompiledShader& shader,
+                        backend::graphics::ShaderInstanceValues& values, const std::string& name,
+                        const MaterialValue& value) {
+    const auto declared = std::ranges::find(shader.instanceValues, name, &backend::graphics::ShaderValue::name);
+    if (declared == shader.instanceValues.end()) {
+        throw exceptions::ShaderException{
+            std::format("Instance of '{}': the shader has no instance uniform '{}'", shader.name, name)};
+    }
+    if (typeOf(value) != declared->type) {
+        throw exceptions::ShaderException{std::format("Instance of '{}': '{}' is a {}, not a {}", shader.name, name,
+                                                      nameOf(declared->type), nameOf(typeOf(value)))};
+    }
+    writeValue(std::as_writable_bytes(std::span{values}), declared->offset, value);
 }
 
 std::array<core::asset::AssetId, backend::graphics::kShaderMaxTextures> resolveMaterialTextures(
