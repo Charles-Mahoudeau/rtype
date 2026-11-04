@@ -545,7 +545,7 @@ TEST(Usertype, ReturnsAnErrorWhenTheRuntimeHasNoTagLeft) {
     const auto last = runtime.usertype<Numbered<127>>("Last");
 
     ASSERT_FALSE(last);
-    EXPECT_EQ(last.error().kind(), rtype::luau::ErrorKind::kUnknown);
+    EXPECT_EQ(last.error().kind(), rtype::luau::ErrorKind::kLimitExceeded);
     EXPECT_NE(last.error().message().find("Last"), std::string_view::npos);
 }
 

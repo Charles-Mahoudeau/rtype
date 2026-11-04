@@ -53,7 +53,8 @@ class RTYPE_LUAU_API UsertypeRegistry {
     /// @param name Name of the type for scripts.
     /// @param size Size in bytes of an object of the type.
     /// @param destructor Destroys an object of the type.
-    /// @return The usertype, valid as long as the registry, or an `ErrorKind::kUnknown` error if the Lua state has no
+    /// @return The usertype, valid as long as the registry, or an `ErrorKind::kLimitExceeded` error if the Lua state
+    /// has no
     ///         userdata tag left.
     /// @throws exceptions::InvalidOperation If the type is already registered.
     [[nodiscard]] Result<UsertypeData*> add(std::type_index type, std::string name, std::size_t size,

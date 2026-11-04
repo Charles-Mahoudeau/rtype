@@ -53,7 +53,7 @@ Result<UsertypeData*> UsertypeRegistry::add(const std::type_index type, std::str
         throw exceptions::InvalidOperation{std::format("usertype '{}' is already registered", name)};
     }
     if (_nextTag >= LUA_UTAG_LIMIT) {
-        return Failure{ErrorKind::kUnknown,
+        return Failure{ErrorKind::kLimitExceeded,
                        std::format("unable to register usertype '{}': a Lua state has {} usertypes at most", name,
                                    LUA_UTAG_LIMIT - 1)};
     }
