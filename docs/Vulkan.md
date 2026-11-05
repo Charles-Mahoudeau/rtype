@@ -7,6 +7,8 @@ The `render-vulkan` target (`src/rtype/render/vulkan/`, namespace `rtype::render
   `"vulkan"` by `registerRenderer()`.
 - **`core::Instance`**: the `VkInstance`, with its extensions and layers.
 - **`core::DebugMessenger`**: prints the validation layer messages to stderr.
+- **`core::Device::setName()`** and **`command::CommandLabel`**: name objects and label passes, for validation
+  messages and GPU captures. See [GPU debugging](gpu-debugging.md).
 
 A runnable example lives in [`examples/graphic/render/vulkan/VulkanInstance`](../examples/graphic/render/vulkan/VulkanInstance/src/main.cpp).
 [`examples/graphic/platform/sdl/SdlVulkanWindow`](../examples/graphic/platform/sdl/SdlVulkanWindow/src/SdlPlatform.hpp)
