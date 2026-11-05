@@ -12,9 +12,12 @@
 #include <format>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #include "rtype/core/config/Settings.hpp"
+#include "rtype/engine/CommandLine.hpp"
 #include "rtype/engine/Exceptions.hpp"
 #include "rtype/luau/Function.hpp"
 #include "rtype/luau/Result.hpp"
@@ -139,6 +142,7 @@ SettingsLoader::SettingsLoader()
     luau::expect(_groupMetatable.set("__index", luau::Value{_createGroup.ref()}));
     luau::expect(_settingsTable.setMetatable(_groupMetatable));
     luau::expect(_engineTable.set("settings", {_settingsTable}));
+    luau::expect(_engineTable.set("args", {createTable(_runtime)}));
     luau::expect(_runtime.globals().set("engine", luau::Value{_engineTable}));
 }
 
@@ -152,6 +156,18 @@ core::config::Settings SettingsLoader::build() {
 
 void SettingsLoader::setFlag(const std::string_view name, bool enabled) {
     luau::expect(_engineTable.set(name, {enabled}));
+}
+
+void SettingsLoader::setArgs(const CommandLine& commandLine) {
+    luau::Table args = createTable(_runtime);
+
+    for (const auto& [name, text] : commandLine.flags()) {
+        const luau::Value value =
+            std::visit([](auto item) { return luau::Value{std::move(item)}; }, CommandLine::toValue(text));
+
+        luau::expect(args.set(name, value));
+    }
+    luau::expect(_engineTable.set("args", {args}));
 }
 
 // ReSharper disable once CppMemberFunctionMayBeConst

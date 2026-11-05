@@ -47,43 +47,9 @@
 using namespace rtype;
 
 namespace rtype_duel {
-namespace {
 
-/// @return The configuration of the window, the renderer and the sound.
-core::config::Settings makeSettings() {
-    engine::scripting::SettingsLoader settingsLoader;
-    settingsLoader.setFlag("isClient", true);
-    settingsLoader.setFlag("isServer", false);
-#ifdef NDEBUG
-    settingsLoader.setFlag("isDebug", false);
-#else
-    settingsLoader.setFlag("isDebug", true);
-#endif
-    settingsLoader.load("examples/games/rtype_duel/game/project.luau");
-    return settingsLoader.build();
-}
-
-}  // namespace
-
-int runClient(const std::string& host, const std::uint16_t port) {
-    const std::optional<network::io::Address> server = network::io::Address::resolve(host, port);
-    if (!server) {
-        std::cerr << "Error: cannot resolve " << host << '\n';
-        return 1;
-    }
-    // The only place that knows GLFW, Vulkan and miniaudio: the plugins pick them by name from the settings.
-    auto registry = std::make_unique<plugins::backend::BackendRegistry>();
-    platform::glfw::registerPlatform(*registry);
-    render::vulkan::registerRenderer(*registry);
-    auto audio = std::make_unique<plugins::audio::AudioRegistry>();
-    audio::miniaudio::registerAudio(*audio);
-
-    core::config::Settings settings{makeSettings()};
-
-    ecs::App app{ecs::RunMode::kClient};
-    app.addPlugins(ecs::MinimalPlugins{})
-        .addPlugin(plugins::backend::BackendPlugin{std::move(registry), settings})
-        .addPlugin(plugins::audio::AudioPlugin{std::move(audio), settings});
+void setupClient(engine::Engine& engine) {
+    ecs::App& app = engine.app();
     registerGame(app);
     app.insertResource(Randomness{});
     app.insertResource(GameSounds{});
@@ -95,7 +61,6 @@ int runClient(const std::string& host, const std::uint16_t port) {
     app.insertResource(GameFonts{});
     static_cast<void>(app.getWorld().getComponents().registerType<BackgroundPlanet>());
     app.insertResource(BackgroundPlanets{});
-    app.addPlugin(replication::client::ClientPlugin{*server, network::NetworkSettings{}});
     declareInputs(app);
 
     app.addSystem(ecs::Phase::kStartup, "game.bindControls", &bindControls).setSide(ecs::Side::kClient);
@@ -129,9 +94,10 @@ int runClient(const std::string& host, const std::uint16_t port) {
     app.addSystem(ecs::Phase::kUpdate, "game.removeExplosions", &removeExplosions).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kUpdate, "game.announceWinner", &announceWinner).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kUpdate, "game.quitOnEscape", &quitOnEscape).setSide(ecs::Side::kClient);
-    std::cout << "Connecting to " << host << ':' << port
+    const core::config::Settings& settings = engine.settings();
+    std::cout << "Connecting to " << settings.getString("network.host", engine::Engine::kDefaultHost) << ':'
+              << settings.getNumber("network.port", network::NetworkSettings{}.port)
               << "... WASD or the arrows to move, click to fire, F3 for the colliders.\n";
-    return app.run();
 }
 
 }  // namespace rtype_duel

@@ -16,7 +16,6 @@
 
 namespace rtype_duel {
 
-constexpr std::uint16_t kDefaultPort = 4242;
 constexpr float kViewWidth = 800.0F;
 constexpr float kViewHeight = 600.0F;
 constexpr float kShipX = 80.0F;        ///< Distance of each ship from its edge.

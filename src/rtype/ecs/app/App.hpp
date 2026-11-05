@@ -109,10 +109,11 @@ class RTYPE_ECS_API App {
     /// @throws exceptions::ScheduleException When a schedule cannot be built.
     int run();
 
-  private:
+    /// @brief Reads the AppExit events sent since the last call, for a loop that calls runFrame() itself.
     /// @return The code of the first AppExit sent since the last call, or nothing.
     [[nodiscard]] std::optional<int> takeExit() noexcept;
 
+  private:
     /// @brief Adds the dependencies of a plugin that are not added yet, from the registry, before it is built.
     /// @throws exceptions::PluginException As addPlugin().
     void addDependencies(const Plugin& plugin);

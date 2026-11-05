@@ -11,6 +11,7 @@
 #include <string_view>
 
 #include "rtype/core/config/Settings.hpp"
+#include "rtype/engine/CommandLine.hpp"
 #include "rtype/engine/Export.hpp"
 #include "rtype/luau/Function.hpp"
 #include "rtype/luau/Runtime.hpp"
@@ -22,6 +23,8 @@ namespace rtype::engine::scripting {
 ///
 /// @details The script runs in a sandboxed runtime (no standard library) and sees one global, `engine`:
 /// - `engine.<flag>`: the booleans given to setFlag() (`engine.isClient`, `engine.isDebug`...);
+/// - `engine.args`: the command line given to setArgs() (`--port 4242` gives `engine.args.port == 4242`), empty until
+///   then, so `engine.args.port or 4242` reads a flag with a default;
 /// - `engine.settings`: the table the script fills, which build() flattens into dotted keys.
 /// @code{.lua}
 /// if engine.isClient then
@@ -36,7 +39,7 @@ namespace rtype::engine::scripting {
 /// unset setting gives an empty table, not `nil`; empty groups store nothing.
 class RTYPE_ENGINE_API SettingsLoader {
   public:
-    /// @brief Creates the sandboxed runtime and exposes the empty `engine` and `engine.settings` tables.
+    /// @brief Creates the sandboxed runtime and exposes the empty `engine`, `engine.settings` and `engine.args` tables.
     /// @throws luau::exceptions::RuntimeError If the runtime cannot be created.
     SettingsLoader();
     ~SettingsLoader() = default;
@@ -58,6 +61,14 @@ class RTYPE_ENGINE_API SettingsLoader {
     /// @param enabled Its value.
     /// @throws luau::exceptions::RuntimeError If the flag cannot be set.
     void setFlag(std::string_view name, bool enabled);
+
+    /// @brief Exposes a command line to scripts as `engine.args`, replacing the previous one.
+    ///
+    /// Each flag is a field named after it, holding its value as CommandLine::toValue() reads it: a boolean, a number
+    /// or a string.
+    /// @param commandLine The flags.
+    /// @throws luau::exceptions::RuntimeError If the table cannot be created or set.
+    void setArgs(const CommandLine& commandLine);
 
     /// @brief Loads and runs a script, which fills `engine.settings`.
     /// @param path The Luau file to run.

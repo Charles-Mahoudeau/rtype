@@ -29,6 +29,23 @@ else
                  {alias = "glslang", configs = {tools = true, spirv_tools = true, default_resource_limits = true}})
 end
 
+-- Copies a binary to the repository root after it is built, where the Epitech subject expects r-type_client and
+-- r-type_server. The copy finds the project's shared libraries where they were built: through a relative rpath on
+-- Linux and macOS, and, on Windows (no rpath), through copies of the DLLs of the build folder next to it.
+rule("rtype.copy_to_root")
+    on_load(function (target)
+        if not target:is_plat("windows") then
+            target:add("rpathdirs", path.join("@loader_path", path.relative(target:targetdir(), os.projectdir())))
+        end
+    end)
+    after_build(function (target)
+        os.cp(target:targetfile(), os.projectdir())
+        if target:is_plat("windows") then
+            os.cp(path.join(target:targetdir(), "*.dll"), os.projectdir())
+        end
+    end)
+rule_end()
+
 includes("src/rtype/core")
 includes("src/rtype/ecs")
 includes("src/rtype/scripting")
@@ -41,11 +58,14 @@ includes("src/rtype/platform/glfw")
 includes("src/rtype/luau")
 includes("src/rtype/render/vulkan")
 includes("src/rtype/audio/miniaudio")
+includes("src/rtype/client")
+includes("src/rtype/server")
 
 target("rtype")
     set_kind("phony")
     set_default(true)
-    add_deps("core", "ecs", "network", "replication", "engine", "plugins", "platform-glfw", "luau", "render-vulkan", "audio-miniaudio")
+    add_deps("core", "ecs", "network", "replication", "engine", "plugins", "platform-glfw", "luau", "render-vulkan", "audio-miniaudio",
+             "r-type_client", "r-type_server")
 
 
 local ALL_EXAMPLES_FLAG = "AllExamples"

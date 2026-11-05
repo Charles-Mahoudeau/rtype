@@ -50,10 +50,17 @@ are added.
   Exported symbols are marked `RTYPE_REPLICATION_API`. Feature folders and sub-namespaces as in `network`:
   `component/`, `event/`, `serialization/`, `manifest/`, `input/`, `snapshot/`, `server/`, `client/`,
   `packet/`, `exceptions/`.
-- `src/rtype/engine/` — `engine` target, shared library (`rtype-engine`): `Engine` and the project settings read from
-  `examples/games/rtype_duel/game/project.luau` through Luau (`ProjectSettings`). Exported symbols are marked
-  `RTYPE_ENGINE_API`. There is no executable in `src/` for now: the runnable game is the example
-  `examples/games/rtype_duel`.
+- `src/rtype/engine/` — `engine` target, shared library (`rtype-engine`): `Engine` runs a game directory (`game/` by
+  default, `--game <dir>`): it reads its `project.luau` through Luau (`scripting/SettingsLoader`, which also exposes
+  the command line as `engine.args`), builds the `App` with the engine's plugins (backend, audio, replication,
+  scripting, server or client) in a fixed order, calls the game's native `EngineConfig::setup`, runs it, and builds it
+  again on `requestReload()`. `EngineConfig` holds the mode, the command line and the functions that fill the backend
+  and audio registries; `CommandLine` parses the `--name value` flags. Exported symbols are marked `RTYPE_ENGINE_API`.
+  Design in `docs/engine/design.md`.
+- `src/rtype/client/`, `src/rtype/server/` — the generic executables `r-type_client` and `r-type_server`: a `main` that
+  registers the backends (client only) and runs an `Engine` on `game/`. The build copies them to the repository root
+  (rule `rtype.copy_to_root`). Games whose gameplay is still C++ (`rtype_duel`, `ethan_game(bestoftheworld)`) keep
+  their own `main` and give it to the `Engine` as `EngineConfig::setup`.
 - `src/rtype/plugins/` — `plugins` target, static library (`rtype-plugins`): the engine, as ECS plugins, one folder
   per plugin, included as `plugins/<name>/<File>.hpp`, namespace `rtype::plugins::<name>`. Each plugin keeps its own
   code and declares its own components, resources and events (`RTYPE_ECS_*`). `Export.hpp` holds
@@ -166,13 +173,14 @@ are added.
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `docs/` — design documentation (e.g. `docs/Input.md` for the event and input pipeline, `docs/physics/design.md`
   for the physics, `docs/audio/design.md` for the audio, `docs/Sprites.md` for atlases and animations,
-  `docs/Tilemap.md` for tilemaps and parallax, `docs/Text.md` for MSDF text, `docs/Shaders.md` for game shaders).
+  `docs/Tilemap.md` for tilemaps and parallax, `docs/Text.md` for MSDF text, `docs/Shaders.md` for game shaders,
+  `docs/engine/design.md` for the `Engine`, its build order and reloads).
 - `.github/` — CI workflow and issue templates.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
 
 Each module has its own `xmake.lua`, included from the root `xmake.lua`. Add new sources under the
-matching module: `plugins`, `core`, `ecs`, `network`, `replication`, `platform-glfw`, `render-vulkan`, `audio-miniaudio`
-and `luau` glob
+matching module: `plugins`, `core`, `ecs`, `network`, `replication`, `engine`, `platform-glfw`, `render-vulkan`,
+`audio-miniaudio`, `luau`, `r-type_client` and `r-type_server` glob
 `**.cpp` in their own folder.
 
 ### Dependency rules
@@ -181,11 +189,12 @@ Dependencies always point towards `ecs` and `plugins`, never away from them:
 
 ```
 core ←  ecs, plugins, platform-*, render-*, audio-*, examples (rtype_duel)
-ecs  ←  plugins, interop-*  ←  platform-*, render-*  ←  examples (rtype_duel)
-        plugins             ←  audio-*             ←  examples (rtype_duel)
-luau                                                 ←  examples (rtype_duel)
-network  ←  replication  ←  examples (rtype_duel)
-ecs      ←  replication
+ecs  ←  plugins, interop-*  ←  platform-*, render-*  ←  executables, examples (rtype_duel)
+        plugins             ←  audio-*             ←  executables, examples (rtype_duel)
+luau ←  scripting
+network  ←  replication
+ecs      ←  replication, scripting
+plugins, scripting, replication  ←  engine  ←  executables (r-type_client, r-type_server), examples (rtype_duel)
 ```
 
 - `core` depends on no other project target; `ecs` depends on `core` only. `core` never depends on `ecs`.
@@ -210,7 +219,10 @@ ecs      ←  replication
 - A platform module and a renderer module never depend on each other: what a renderer needs from a
   window that is specific to its graphics API goes through the matching `interop-*` target, which
   both sides depend on (see `docs/Backend.md`).
-- Only the examples (such as `rtype_duel`) link everything together; `engine` links `ecs`, `luau` and `scripting` only.
+- `engine` links `core`, `ecs`, `plugins`, `luau`, `scripting` and `replication`, and nothing depends on it but the
+  executables, the examples and its tests. It never depends on a `platform-*`, `render-*` or `audio-*` target: the
+  executables register the backends through `EngineConfig`. Only the executables (`r-type_client`, `r-type_server`)
+  and the examples (such as `rtype_duel`) link everything together.
 
 ## Commands
 
@@ -219,8 +231,10 @@ The project uses `xmake` with the `clang` toolchain and C++23.
 - Configure: `xmake f -y` (add `-m release` for a release build)
 - Build everything: `xmake build -y`
 - Build one target: `xmake build engine`
-- Run the duel game (example): `xmake f -y --rtype_duel=y`, then `xmake run rtype_duel server` and
-  `xmake run rtype_duel client`
+- Run the generic executables (copied to the repository root by the build): `./r-type_server` and `./r-type_client`,
+  on `game/` or `--game <dir>`; other flags go to `project.luau` as `engine.args`
+- Run the duel game (example): `xmake f -y --rtype_duel=y`, then `xmake run rtype_duel server [--port <port>]` and
+  `xmake run rtype_duel client [--host <host>] [--port <port>]`
 - Enable examples, then rebuild: `xmake f --AllExamples=y` enables every discovered example. For
   now `--AllVulkanExamples=y`, `--AllLuauExamples=y` and `--AllEcsExamples=y` behave the same way (the
   root `xmake.lua` does not filter by category yet), so each also enables every discovered example. To

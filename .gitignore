@@ -9,3 +9,10 @@ compile_commands.json
 # Editors
 .vscode/
 .idea/
+
+# Binaries copied to the repository root by the rtype.copy_to_root rule
+/r-type_client
+/r-type_server
+/r-type_client.exe
+/r-type_server.exe
+/*.dll

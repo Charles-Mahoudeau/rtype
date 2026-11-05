@@ -1,7 +1,7 @@
 target("ethan_game(bestoftheworld)")
     set_kind("binary")
     set_default(false)
-    add_deps("engine", "core", "plugins", "scripting", "platform-glfw", "render-vulkan", "audio-miniaudio")
+    add_deps("engine", "core", "plugins", "platform-glfw", "render-vulkan", "audio-miniaudio")
 
     add_files("src/**.cpp")
     add_includedirs("src")

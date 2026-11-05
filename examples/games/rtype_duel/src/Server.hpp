@@ -7,13 +7,12 @@
 
 #pragma once
 
-#include <cstdint>
+#include "rtype/engine/Engine.hpp"
 
 namespace rtype_duel {
 
-/// @brief Runs the headless server until it is stopped.
-/// @param port The UDP port the server listens on.
-/// @return The exit code of the App.
-int runServer(std::uint16_t port);
+/// @brief EngineConfig::setup of the headless server: the game's components, resources and server systems, on the App
+/// the engine built with the network.
+void setupServer(rtype::engine::Engine& engine);
 
 }  // namespace rtype_duel

@@ -234,6 +234,15 @@ TEST(App, ReturnsTheCodeOfTheFirstExit) {
     EXPECT_EQ(app.run(), 3);
 }
 
+TEST(App, TakesTheExitOfAFrameRunByHand) {
+    App app;
+    app.addSystem(Phase::kPostUpdate, "test.sendTwoExits", &sendTwoExits).setSide(Side::kBoth);
+    EXPECT_FALSE(app.takeExit());  // no frame ran yet
+    app.runFrame();
+    EXPECT_EQ(app.takeExit(), 3);  // the first one
+    EXPECT_FALSE(app.takeExit());  // both were read
+}
+
 TEST(App, RunsOnlyTheSystemsOfItsMode) {
     App app{RunMode::kClient};
     app.addPlugin(FramesPlugin{1, 0});
