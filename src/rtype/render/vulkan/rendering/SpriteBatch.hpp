@@ -70,7 +70,7 @@ class RTYPE_RENDER_VULKAN_API SpriteBatch {
     struct Batch {
         plugins::backend::graphics::TextureId texture;    ///< Bound for the whole batch.
         plugins::backend::graphics::MaterialId material;  ///< Its game material; the default one if 0.
-        /// What its instances are: kSprite, or kGlyph (the glyphs of a text, always of the default material).
+        /// What its instances are: kSprite, or kGlyph (the glyphs of a text).
         plugins::backend::graphics::ShaderTarget target{plugins::backend::graphics::ShaderTarget::kSprite};
         std::uint32_t firstInstance = 0;  ///< Index of its first instance in getInstances().
         std::uint32_t instanceCount = 0;  ///< Number of instances.
@@ -101,9 +101,10 @@ class RTYPE_RENDER_VULKAN_API SpriteBatch {
     /// @brief Adds @p instance, drawn with @p texture and the game material @p material with its @p values, as add().
     void add(plugins::backend::graphics::TextureId texture, plugins::backend::graphics::MaterialId material,
              const SpriteInstance& instance, const plugins::backend::graphics::ShaderInstanceValues& values);
-    /// @brief Adds @p glyph (SpriteInstance::fromGlyph()), drawn from the font atlas @p texture with the default
-    /// material's glyph variant, as add(): glyphs and sprites never share a batch.
-    void addGlyph(plugins::backend::graphics::TextureId texture, const SpriteInstance& glyph);
+    /// @brief Adds @p glyph (SpriteInstance::fromGlyph()), drawn from the font atlas @p texture with the glyph variant
+    /// of @p material (the default one if 0) and its @p values, as add(): glyphs and sprites never share a batch.
+    void addGlyph(plugins::backend::graphics::TextureId texture, plugins::backend::graphics::MaterialId material,
+                  const SpriteInstance& glyph, const plugins::backend::graphics::ShaderInstanceValues& values);
 
     /// @brief Makes the next add() start a new batch, even with the texture of the last one: something else (a
     /// particle draw) is drawn between the two.

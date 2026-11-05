@@ -235,8 +235,8 @@ TEST(SpriteBatch, NeverMergesGlyphsWithSpritesOfTheirTexture) {
     using rtype::plugins::backend::graphics::ShaderTarget;
     SpriteBatch batch;
     batch.add(kShips, {});
-    batch.addGlyph(kShips, {});
-    batch.addGlyph(kShips, {});
+    batch.addGlyph(kShips, MaterialId{}, {}, {});
+    batch.addGlyph(kShips, MaterialId{}, {}, {});
     batch.add(kShips, {});
     ASSERT_EQ(batch.getBatches().size(), 3U);
     EXPECT_EQ(batch.getBatches()[0].target, ShaderTarget::kSprite);

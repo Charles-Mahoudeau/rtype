@@ -76,9 +76,9 @@ class RTYPE_RENDER_VULKAN_API SpritePass {
 
     /// @brief Records the draws of @p batches, some of the uploaded batch's, inside dynamic rendering, into
     /// @p viewport: binds the pipeline (so call it again after another pass recorded), then draws each batch, a batch
-    /// with a game material through @p findMaterial (the default material if it gives no pipeline), a batch of glyphs
-    /// with the glyph pipeline. The frame's set 0
-    /// must already be bound. A batch whose texture no longer exists is skipped. Does nothing before upload().
+    /// with a game material through @p findMaterial for its target (the default material if it gives no pipeline),
+    /// a batch of glyphs of the default material with the glyph pipeline. The frame's set 0 must already be bound. A
+    /// batch whose texture no longer exists is skipped. Does nothing before upload().
     void record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
                 std::span<const SpriteBatch::Batch> batches, const plugins::backend::graphics::Viewport& viewport,
                 const TextureSetFinder& findTextureSet, const MaterialFinder& findMaterial);

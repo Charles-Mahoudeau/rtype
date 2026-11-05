@@ -136,7 +136,7 @@ void SpritePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_
             continue;
         }
         MaterialBinding material = range.material != plugins::backend::graphics::MaterialId{}
-                                       ? findMaterial(range.material)
+                                       ? findMaterial(range.material, range.target)
                                        : MaterialBinding{};
         if (material.instanceValues && !values) {
             material = MaterialBinding{};

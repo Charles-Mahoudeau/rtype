@@ -261,6 +261,8 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
         std::uint32_t firstInstance = 0;                ///< First instance, in _particleInstances.
         std::uint32_t instanceCount = 0;                ///< Number of instances.
         std::optional<plugins::backend::graphics::ParticleSystemId> system;  ///< A GPU system, drawn indirectly.
+        plugins::backend::graphics::MaterialId material;                     ///< Its material; the default one if 0.
+        plugins::backend::graphics::ShaderInstanceValues instanceValues{};   ///< Of its material.
     };
 
     /// @return The platform's IVulkanSurfaceSource.
@@ -292,7 +294,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// @return The descriptor set of @p texture, or a null handle if it no longer exists.
     [[nodiscard]] vk::DescriptorSet findTextureSet(plugins::backend::graphics::TextureId texture) const;
 
-    /// @return What @p target (kSprite or kShape) is drawn with for @p material in frame @p frameIndex: its shader's
+    /// @return What @p target is drawn with for @p material in frame @p frameIndex: its shader's
     /// pipeline, built if needed, and its set, brought up to date; a null pipeline if it or its shader no longer
     /// exists, or if its shader does not serve @p target.
     [[nodiscard]] rendering::MaterialBinding findMaterial(plugins::backend::graphics::MaterialId material,
@@ -374,7 +376,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     std::unique_ptr<descriptor::DescriptorSetLayout> _materialSetLayout;    ///< Set 2: a block and three textures.
     std::unique_ptr<descriptor::DescriptorAllocator> _materialDescriptors;  ///< Allocates the materials' sets.
     std::unique_ptr<pipeline::PipelineLayout> _layout;  ///< The shared layout (rendering/ShaderLayout.hpp) of every
-                                                        ///< pipeline: sets 0 and 1, and the DrawConstants.
+                                                        ///< pipeline: sets 0 and 1, and the push constants.
     std::unique_ptr<pipeline::PipelineLayout> _materialLayout;  ///< The game shaders' layout: the shared one and set 2.
     std::unique_ptr<rendering::SpritePass> _spritePass;         ///< Draws _sprites at endFrame().
     std::unique_ptr<rendering::ShapePass> _shapePass;           ///< Draws _shapes at endFrame(), after the sprites.

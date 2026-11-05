@@ -22,7 +22,8 @@ struct MaterialBinding {
     bool instanceValues = false;                           ///< Its pipeline reads the instance values binding.
 };
 
-/// @brief Finds what a game material is drawn with this frame, or a null pipeline if it cannot be drawn.
-using MaterialFinder = std::function<MaterialBinding(plugins::backend::graphics::MaterialId)>;
+/// @brief Finds what a game material is drawn with this frame for a target, or a null pipeline if it cannot be drawn.
+using MaterialFinder =
+    std::function<MaterialBinding(plugins::backend::graphics::MaterialId, plugins::backend::graphics::ShaderTarget)>;
 
 }  // namespace rtype::render::vulkan::rendering

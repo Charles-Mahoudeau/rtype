@@ -122,7 +122,7 @@ void ShapePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_t
     bool instancesFromStart = false;
     for (const ShapeBatch::Batch& range : shapes.getBatches()) {
         MaterialBinding material = range.material != plugins::backend::graphics::MaterialId{} && textureSet
-                                       ? findMaterial(range.material)
+                                       ? findMaterial(range.material, plugins::backend::graphics::ShaderTarget::kShape)
                                        : MaterialBinding{};
         if (material.instanceValues && !values) {
             material = MaterialBinding{};
