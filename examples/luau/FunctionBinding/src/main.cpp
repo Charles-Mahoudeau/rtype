@@ -41,7 +41,7 @@ int main() {
     // `bind` takes a typed handler: it checks that Luau passes two arguments and that both are numbers (`double`)
     // before running the lambda, and raises a Lua error otherwise. To read the arguments yourself, use `setHandler`
     // with a `CallContext` instead.
-    Function cppDivide = Function::create(runtime->state(), "cpp_divide");
+    Function cppDivide = Function::create(*runtime, "cpp_divide");
     cppDivide.bind([](const double dividend, const double divisor) {
         // The values added to the returned pack are returned to Luau, in order.
         ValuePack results{};
@@ -57,7 +57,7 @@ int main() {
     // A trailing `std::optional` parameter is optional for Luau: it may omit the argument or pass `nil`, and the
     // handler then receives an empty optional. `cpp_greet("Ada")` and `cpp_greet("Ada", "Dr.")` are both valid, while
     // `cpp_greet()` or `cpp_greet("Ada", "Dr.", 1)` raise a Lua error (expected 1 to 2 arguments).
-    Function cppGreet = Function::create(runtime->state(), "cpp_greet");
+    Function cppGreet = Function::create(*runtime, "cpp_greet");
     cppGreet.bind([](const std::string& name, const std::optional<std::string>& title) {
         ValuePack results{};
         results.add({title ? std::format("Hello, {} {}!", *title, name) : std::format("Hello, {}!", name)});

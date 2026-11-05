@@ -37,7 +37,7 @@ rtype::luau::Runtime createRuntime() {
 
 /// @return A new empty table of the runtime's state.
 rtype::luau::Table createTable(const rtype::luau::Runtime& runtime) {
-    return rtype::luau::expect(rtype::luau::Table::create(runtime.state()));
+    return rtype::luau::expect(rtype::luau::Table::create(runtime));
 }
 
 /// @throws rtype::engine::exceptions::RuntimeError Always, naming the offending setting.
@@ -122,13 +122,13 @@ SettingsLoader::SettingsLoader()
       _engineTable{createTable(_runtime)},
       _settingsTable{createTable(_runtime)},
       _groupMetatable{createTable(_runtime)},
-      _createGroup{luau::Function::create(_runtime.state(), "settings.__index")} {
+      _createGroup{luau::Function::create(_runtime, "settings.__index")} {
     // `__index(group, key)` runs when a script reads a key a group does not have: it stores an empty group under it
     // and returns it, with the same metatable, so that `a.b.c = 1` works at any depth.
     _createGroup.bind(
-        [state = _runtime.state(), metatable = _groupMetatable](const luau::Table& group, const std::string& key) {
+        [&runtime = _runtime, metatable = _groupMetatable](const luau::Table& group, const std::string& key) {
             luau::Table parent = group;
-            luau::Table child = luau::expect(luau::Table::create(state));
+            luau::Table child = luau::expect(luau::Table::create(runtime));
             luau::ValuePack result;
 
             luau::expect(child.setMetatable(metatable));

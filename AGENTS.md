@@ -144,6 +144,21 @@ are added.
 - `src/rtype/luau/` — `luau` target, shared library (`rtype-luau`) for Luau scripting. Failures a correct program can
   hit return
   `Result<T>`; exceptions are only for API misuse (`docs/luau/error-handling.md`).
+- `src/rtype/scripting/` — `scripting` target, shared library (`rtype-scripting`): the Luau bridge, turning what scripts
+  declare into ECS data (`rtype::scripting`, exported symbols marked `RTYPE_SCRIPTING_API`). It has its own `Error` /
+  `Result`, like `luau`. `component/` holds `ComponentDeclaration` and `registerComponent()`, which computes the
+  deterministic layout of a script component and registers it. `view/` (`rtype::scripting::view`) holds what scripts
+  touch ECS data with: the `ComponentView` usertype (reads and writes a component's fields in place, checked against a
+  `ViewScope` generation), the `Entity` usertype (`registerViewTypes()`) and the field conversions (`readField()`,
+  `writeField()`, `fillFromTable()`). `system/` holds `SystemDeclaration`, its reader and `registerSystem()`, which
+  turns a script system into a `ScriptCallable` on the App. `ScriptHost` owns the Luau runtime and the `engine` global
+  (constant flags `isClient`, `isServer`, `isDebug`, `engine.ecs.component`, read by `component/DeclarationReader.hpp`,
+  and `engine.ecs.system`, read by `system/SystemDeclarationReader.hpp`); it knows no `Plugin`. The host and
+  the App may be destroyed in either order. `plugin/` holds `ScriptingPlugin`, the `ecs::Plugin` that owns a
+  `ScriptHost` and, from `build()`, runs every `.luau` file under its scripts directory (`game/scripts` by default) in
+  sorted path order; a missing directory loads nothing and warns on `std::cerr`. `exceptions/` holds
+  `ScriptLoadException`, thrown when a script cannot be loaded, since `build()` cannot return a `Result`. It links
+  `core`, `ecs` and `luau`. Design in `docs/luau/ecs-bridge-plan.md`.
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `examples/<category>/.../<Name>/` — standalone examples, each with its own `xmake.lua`, grouped in
   folders of any depth (e.g. `examples/graphic/render/vulkan/VulkanInstance/`). Every `xmake.lua` under
@@ -195,7 +210,7 @@ ecs      ←  replication
 - A platform module and a renderer module never depend on each other: what a renderer needs from a
   window that is specific to its graphics API goes through the matching `interop-*` target, which
   both sides depend on (see `docs/Backend.md`).
-- Only the examples (such as `rtype_duel`) link everything together; `engine` links `ecs` and `luau` only.
+- Only the examples (such as `rtype_duel`) link everything together; `engine` links `ecs`, `luau` and `scripting` only.
 
 ## Commands
 

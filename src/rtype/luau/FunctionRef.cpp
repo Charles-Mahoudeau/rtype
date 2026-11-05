@@ -20,7 +20,7 @@
 #include "Result.hpp"
 
 namespace rtype::luau {
-Result<FunctionRef> FunctionRef::fromStack(lua_State* state, const int stackIndex) {
+Result<FunctionRef> detail::readFunctionRef(lua_State* state, const int stackIndex) {
     if (state == nullptr) {
         throw exceptions::InvalidState{};
     }
@@ -40,17 +40,20 @@ const Ref& FunctionRef::ref() const {
     return *_ref;
 }
 
-Result<void> FunctionRef::push(lua_State* state) const {
+Result<void> detail::pushFunctionRef(lua_State* state, const FunctionRef& function) {
     if (state == nullptr) {
         throw exceptions::InvalidState{};
     }
-    if (!_ref) {
+    if (!function._ref) {
         throw exceptions::InvalidRef{};
     }
-    if (lua_mainthread(state) != _ref->state()) {
+    if (!function._ref->isStateOpen()) {
+        return Failure{ErrorKind::kRuntime, "the runtime of the function was destroyed"};
+    }
+    if (lua_mainthread(state) != function._ref->state()) {
         return Failure{ErrorKind::kRuntime, "the function belongs to another Lua state"};
     }
-    _ref->push(state);
+    function._ref->push(state);
     return {};
 }
 

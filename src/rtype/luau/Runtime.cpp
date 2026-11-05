@@ -34,6 +34,7 @@
 #include "RuntimeConfig.hpp"
 #include "Script.hpp"
 #include "Table.hpp"
+#include "detail/UsertypeRegistry.hpp"
 
 namespace {
 constexpr std::int32_t kLuauGlobalEnv = 0;
@@ -61,7 +62,8 @@ rtype::luau::Result<> runClosure(lua_State* state, const rtype::luau::Ref& closu
 namespace rtype::luau {
 void Runtime::StateDeleter::operator()(lua_State* state) const noexcept { lua_close(state); }
 
-Runtime::Runtime(lua_State* state, const RuntimeConfig config) : _config{config}, _state{state} {
+Runtime::Runtime(lua_State* state, const RuntimeConfig config)
+    : _config{config}, _state{state}, _usertypes{std::make_unique<detail::UsertypeRegistry>(state)} {
     if (has(_config.libs, RuntimeConfig::Libs::kStandard)) {
         luaL_openlibs(_state.get());
     } else if (_config.libs != RuntimeConfig::Libs::kNone) {
@@ -71,10 +73,26 @@ Runtime::Runtime(lua_State* state, const RuntimeConfig config) : _config{config}
     // luaL_sandbox(_state.get());
 }
 
+Runtime::~Runtime() noexcept = default;
+
+Runtime::Runtime(Runtime&& other) noexcept = default;
+
+Runtime& Runtime::operator=(Runtime&& other) noexcept {
+    if (this != &other) {
+        // The handlers of the usertypes go before the state they belong to is closed.
+        _usertypes.reset();
+        _config = other._config;
+        _state = std::move(other._state);
+        _usertypes = std::move(other._usertypes);
+    }
+    return *this;
+}
+
 Result<Bytecode> Runtime::compile(const std::string& source) const {
     std::size_t size = 0;
     lua_CompileOptions options = {
         .optimizationLevel = std::to_underlying(_config.optimizationLevel),
+        .debugLevel = 1,  // Keeps the line numbers, which error messages carry.
     };
 
     // NOLINTNEXTLINE(*-avoid-c-arrays)
@@ -106,12 +124,7 @@ Result<Runtime> Runtime::create(const RuntimeConfig config) {
     }
 }
 
-lua_State* Runtime::state() const {
-    std::cerr << "warning: direct access to lua state is an unsafe operation, this probably means that you are doing "
-                 "something wrong or that an api is missing"
-              << std::endl;
-    return _state.get();
-}
+detail::UsertypeRegistry& Runtime::usertypes() const { return *_usertypes; }
 
 Result<Script> Runtime::load(std::string name, const std::string& source) const {
     Result<Bytecode> bytecode = compile(source);
@@ -126,8 +139,11 @@ Result<Script> Runtime::load(std::string name, const std::string& source) const 
     // TODO: enable later, when global state will be sandboxed
     // luaL_sandboxthread(threadState);
 
+    // The '=' prefix makes Luau use the name as it is in messages (`Shield.luau:3:`), not as `[string
+    // "Shield.luau"]:3:`.
+    const std::string chunkName{"=" + name};
     const std::int32_t result =
-        luau_load(threadState, name.c_str(), bytecode->data().get(), bytecode->size(), kLuauGlobalEnv);
+        luau_load(threadState, chunkName.c_str(), bytecode->data().get(), bytecode->size(), kLuauGlobalEnv);
 
     if (result != 0) {
         const std::string message{lua_tostring(threadState, -1)};
@@ -161,7 +177,7 @@ Result<> Runtime::run(const Script& script) const { return runClosure(script.sta
 
 Table Runtime::globals() const {
     lua_pushvalue(_state.get(), LUA_GLOBALSINDEX);
-    auto result = Table::fromStack(_state.get());
+    auto result = detail::readTable(_state.get());
     lua_pop(_state.get(), 1);
     if (!result) {
         // if globals' table is nil, there is a big problem
@@ -170,3 +186,7 @@ Table Runtime::globals() const {
     return *result;
 }
 }  // namespace rtype::luau
+
+namespace rtype::luau::detail {
+lua_State* rawState(const Runtime& runtime) noexcept { return runtime._state.get(); }
+}  // namespace rtype::luau::detail

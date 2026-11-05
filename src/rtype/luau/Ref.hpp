@@ -7,18 +7,25 @@
 
 #pragma once
 
+#include <memory>
+
 #include "Export.hpp"
 
 struct lua_State;
 
 namespace rtype::luau {
+namespace detail {
+class StateLife;
+}  // namespace detail
+
 /// @brief RAII handle on a Luau value stored in the registry.
 ///
 /// Creates a registry reference (`lua_ref`) to a value of the Lua stack, keeping it alive
-/// from the garbage collector, and releases it (`lua_unref`) on destruction. The referenced
-/// `lua_State` must outlive the `Ref`. A default-constructed or moved-from `Ref` is empty: it
-/// references nothing and `isValid()` returns false. A `Ref` to nil is valid: it takes no registry slot
-/// (Luau's `LUA_REFNIL`), `push()` pushes nil and `isNil()` returns true.
+/// from the garbage collector, and releases it (`lua_unref`) on destruction. A `Ref` may outlive the `Runtime` that
+/// owns its state: once the runtime is destroyed the `Ref` is no longer valid and never touches the closed state (a
+/// state made without a `Runtime` is not watched, and must outlive its `Ref`s). A default-constructed or moved-from
+/// `Ref`, or one whose runtime is gone, is empty: it references nothing and `isValid()` returns false. A `Ref` to nil
+/// is valid: it takes no registry slot (Luau's `LUA_REFNIL`), `push()` pushes nil and `isNil()` returns true.
 class RTYPE_LUAU_API Ref {
   public:
     /// @brief Registry reference id meaning "no reference" (Luau's `LUA_NOREF`).
@@ -78,16 +85,25 @@ class RTYPE_LUAU_API Ref {
     /// @throws exceptions::InvalidState If @p state is null.
     void push(lua_State* state) const;
 
-    /// @brief Tells whether the Ref holds a registry reference.
-    /// @return False if the Ref is default-constructed or moved-from, true otherwise.
+    /// @brief Tells whether the Ref holds a registry reference of a state that is still open.
+    /// @return False if the Ref is default-constructed or moved-from, or if its runtime was destroyed, true otherwise.
     [[nodiscard]] bool isValid() const noexcept;
 
     /// @brief Tells whether the Ref references nil.
     /// @return True if the referenced value is nil, false if it is another value or the Ref is empty.
     [[nodiscard]] bool isNil() const noexcept;
 
+    /// @brief Tells whether the state of the Ref is still open.
+    /// @return False once the `Runtime` that owns the state was destroyed; true for a `Ref` of a state no runtime
+    ///         owns, and for an empty one.
+    [[nodiscard]] bool isStateOpen() const noexcept;
+
   private:
-    lua_State* _state{nullptr};  ///< Main thread of the Lua state holding the reference.
-    int _ref{kLuaNoRef};         ///< Registry reference id.
+    /// @brief Releases the registry reference, if the Ref holds one and its state is open.
+    void release() noexcept;
+
+    lua_State* _state{nullptr};                      ///< Main thread of the Lua state holding the reference.
+    int _ref{kLuaNoRef};                             ///< Registry reference id.
+    std::shared_ptr<const detail::StateLife> _life;  ///< Whether the state is open; null for a state of no runtime.
 };
 }  // namespace rtype::luau

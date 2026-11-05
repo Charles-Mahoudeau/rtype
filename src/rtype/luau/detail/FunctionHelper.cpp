@@ -12,6 +12,7 @@
 
 #include "rtype/luau/FunctionRef.hpp"
 #include "rtype/luau/Table.hpp"
+#include "rtype/luau/Userdata.hpp"
 #include "rtype/luau/Value.hpp"
 
 namespace rtype::luau::detail {
@@ -34,6 +35,9 @@ std::string_view luaTypeNameOf(const Value& value) noexcept {
     }
     if (value.is<FunctionRef>()) {
         return luaTypeName<FunctionRef>();
+    }
+    if (value.is<Userdata>()) {
+        return luaTypeName<Userdata>();
     }
     return luaTypeName<Value::Nil>();
 }

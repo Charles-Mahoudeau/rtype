@@ -27,7 +27,9 @@
 #include "Ref.hpp"
 #include "Result.hpp"
 #include "Table.hpp"
+#include "Userdata.hpp"
 #include "VariantHelper.hpp"
+#include "detail/Stack.hpp"
 
 static_assert(LUA_VECTOR_SIZE == 3, "rtype::luau::Value::Vector assumes 3-component Luau vectors");
 
@@ -59,11 +61,11 @@ template <typename T>
 }
 }  // namespace
 
-namespace rtype::luau {
-Result<Value> Value::fromStack(lua_State* state, const int stackIndex) {
+namespace rtype::luau::detail {
+Result<Value> readValue(lua_State* state, const int stackIndex) {
     switch (const int type = lua_type(state, stackIndex)) {
         case LUA_TNIL:
-            return Value{Nil{}};
+            return Value{Value::Nil{}};
         case LUA_TBOOLEAN:
             return Value{lua_toboolean(state, stackIndex) != 0};
         case LUA_TNUMBER:
@@ -71,7 +73,7 @@ Result<Value> Value::fromStack(lua_State* state, const int stackIndex) {
         case LUA_TVECTOR: {
             const float* v{lua_tovector(state, stackIndex)};
             // NOLINTNEXTLINE(*-pro-bounds-pointer-arithmetic)
-            return Value{Vector{v[0], v[1], v[2]}};
+            return Value{Value::Vector{v[0], v[1], v[2]}};
         }
         case LUA_TSTRING: {
             std::size_t length{};
@@ -79,18 +81,25 @@ Result<Value> Value::fromStack(lua_State* state, const int stackIndex) {
             return Value{std::string{str, length}};
         }
         case LUA_TTABLE: {
-            auto table = Table::fromStack(state, stackIndex);
+            auto table = readTable(state, stackIndex);
             if (!table) {
                 return forwardError<Value>(std::move(table));
             }
             return Value{std::move(*table)};
         }
         case LUA_TFUNCTION: {
-            auto function = FunctionRef::fromStack(state, stackIndex);
+            auto function = readFunctionRef(state, stackIndex);
             if (!function) {
                 return forwardError<Value>(std::move(function));
             }
             return Value{std::move(*function)};
+        }
+        case LUA_TUSERDATA: {
+            auto userdata = readUserdata(state, stackIndex);
+            if (!userdata) {
+                return forwardError<Value>(std::move(userdata));
+            }
+            return Value{std::move(*userdata)};
         }
         default:
             return Failure{ErrorKind::kTypeMismatch,
@@ -98,8 +107,8 @@ Result<Value> Value::fromStack(lua_State* state, const int stackIndex) {
     }
 }
 
-Result<Value> Value::pop(lua_State* state) {
-    auto value = fromStack(state, Ref::kLuaStackTop);
+Result<Value> popValue(lua_State* state) {
+    auto value = readValue(state, Ref::kLuaStackTop);
 
     if (!value) {
         return forwardError<Value>(std::move(value));
@@ -107,7 +116,9 @@ Result<Value> Value::pop(lua_State* state) {
     lua_pop(state, 1);
     return value;
 }
+}  // namespace rtype::luau::detail
 
+namespace rtype::luau {
 Value::Value(Variant v) noexcept : _variant{std::move(v)} {}
 Value::~Value() noexcept = default;
 Value::Value(const Value&) noexcept = default;
@@ -115,12 +126,14 @@ Value& Value::operator=(const Value&) noexcept = default;
 Value::Value(Value&&) noexcept = default;
 Value& Value::operator=(Value&&) noexcept = default;
 
-Result<void> Value::push(lua_State* state) const {
+const Value::Variant& Value::variant() const noexcept { return _variant; }
+
+Result<void> detail::pushValue(lua_State* state, const Value& value) {
     if (state == nullptr) {
         throw exceptions::InvalidState{};
     }
     return std::visit(Overload{
-                          [state](const Nil) -> Result<void> {
+                          [state](const Value::Nil) -> Result<void> {
                               lua_pushnil(state);
                               return {};
                           },
@@ -132,7 +145,7 @@ Result<void> Value::push(lua_State* state) const {
                               lua_pushnumber(state, v);
                               return {};
                           },
-                          [state](const Vector v) -> Result<void> {
+                          [state](const Value::Vector v) -> Result<void> {
                               lua_pushvector(state, v.x, v.y, v.z);
                               return {};
                           },
@@ -145,10 +158,11 @@ Result<void> Value::push(lua_State* state) const {
                               }
                               return {};
                           },
-                          [state](const Table& v) -> Result<void> { return v.push(state); },
-                          [state](const FunctionRef& v) -> Result<void> { return v.push(state); },
+                          [state](const Table& v) -> Result<void> { return pushTable(state, v); },
+                          [state](const FunctionRef& v) -> Result<void> { return pushFunctionRef(state, v); },
+                          [state](const Userdata& v) -> Result<void> { return pushUserdata(state, v); },
                       },
-                      _variant);
+                      value.variant());
 }
 
 bool Value::isNumeric() const noexcept {

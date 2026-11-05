@@ -20,13 +20,14 @@
 #include "Failure.hpp"
 #include "Result.hpp"
 #include "Value.hpp"
+#include "detail/Stack.hpp"
 
 namespace rtype::luau {
-Result<ValuePack> ValuePack::fromStack(lua_State* state, const int first, const std::size_t count) {
+Result<ValuePack> detail::readValuePack(lua_State* state, const int first, const std::size_t count) {
     ValuePack pack{};
 
     for (std::size_t position = 0; position < count; ++position) {
-        auto value = Value::fromStack(state, first + static_cast<int>(position));
+        auto value = readValue(state, first + static_cast<int>(position));
         if (!value) {
             return Failure{ErrorKind::kTypeMismatch,
                            std::format("value #{}: {}", position + 1, value.error().message())};
@@ -36,9 +37,9 @@ Result<ValuePack> ValuePack::fromStack(lua_State* state, const int first, const 
     return pack;
 }
 
-Result<ValuePack> ValuePack::pop(lua_State* state, const std::size_t count) {
+Result<ValuePack> detail::popValuePack(lua_State* state, const std::size_t count) {
     const int intCount{static_cast<int>(count)};
-    auto pack = fromStack(state, lua_gettop(state) - intCount + 1, count);
+    auto pack = readValuePack(state, lua_gettop(state) - intCount + 1, count);
 
     if (!pack) {
         return forwardError<ValuePack>(std::move(pack));
@@ -53,21 +54,21 @@ std::size_t ValuePack::size() const noexcept { return _values.size(); }
 
 void ValuePack::add(Value value) { _values.push_back(std::move(value)); }
 
-Result<std::size_t> ValuePack::push(lua_State* state) const {
+Result<std::size_t> detail::pushValuePack(lua_State* state, const ValuePack& pack) {
     if (state == nullptr) {
         throw exceptions::InvalidState{};
     }
-    if (_values.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()) ||
-        lua_checkstack(state, static_cast<int>(_values.size())) == 0) {
+    if (pack.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()) ||
+        lua_checkstack(state, static_cast<int>(pack.size())) == 0) {
         return Failure{ErrorKind::kStackOverflow, "Lua stack overflow"};
     }
     const int top{lua_gettop(state)};
-    for (const auto& value : _values) {
-        if (auto pushed = value.push(state); !pushed) {
+    for (const auto& value : pack.values()) {
+        if (auto pushed = pushValue(state, value); !pushed) {
             lua_settop(state, top);
             return forwardError<std::size_t>(std::move(pushed));
         }
     }
-    return _values.size();
+    return pack.size();
 }
 }  // namespace rtype::luau

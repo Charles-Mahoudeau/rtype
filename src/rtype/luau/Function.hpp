@@ -21,14 +21,16 @@
 struct lua_State;
 
 namespace rtype::luau {
+class Runtime;
+
 /// @brief Handle on a Luau function, kept alive through a registry reference.
 ///
 /// A Function either wraps a native closure made by `create`, which forwards its calls from Lua to a C++
 /// handler, or a function defined in Luau, which C++ calls with `call`. Both directions exchange their arguments and
 /// return values as `ValuePack`s. The native closure stores the address of its Function in its first
 /// upvalue: moving the Function rebinds that upvalue to the new address, and destroying it unbinds the closure,
-/// so a call from Lua then raises a Lua error instead of reaching a dangling Function. The referenced
-/// `lua_State` must outlive the Function.
+/// so a call from Lua then raises a Lua error instead of reaching a dangling Function. A Function may outlive the
+/// `Runtime` of its state: `call` then returns a Failure instead of touching the closed state.
 class RTYPE_LUAU_API Function {
   public:
     /// @brief Where the body of the wrapped function lives.
@@ -40,7 +42,7 @@ class RTYPE_LUAU_API Function {
     /// @brief C++ callable run each time Lua calls the native closure, returning the values of the call.
     ///
     /// The context holds the arguments the closure was called with, and the values of the returned pack are
-    /// returned to Lua, in order. If an argument cannot be read (see `CallContext::fromStack`), the handler does not
+    /// returned to Lua, in order. If an argument cannot be read (see `detail::readCallContext`), the handler does not
     /// run and the call raises a Lua error instead. A handler raises a Lua error by throwing an `exceptions::Base`,
     /// whose message is then prefixed with the name of the function; any other `std::exception` also becomes a Lua
     /// error, with its message unchanged, and so does anything else that is thrown, with a generic message.
@@ -51,10 +53,10 @@ class RTYPE_LUAU_API Function {
     /// The closure is not stored anywhere: it is only reachable through `ref()`, so store it (in a table, or in the
     /// globals) for Lua to call it. It has no handler yet: calling it from Lua raises a Lua error until `setHandler`
     /// gives it one.
-    /// @param state The Lua state to create the closure in.
+    /// @param runtime The runtime to create the closure in.
     /// @param name Debug name of the closure, also used in error messages.
     /// @return The Function bound to the new closure.
-    [[nodiscard]] static Function create(lua_State* state, std::string name);
+    [[nodiscard]] static Function create(const Runtime& runtime, std::string name);
 
     /// @brief Wraps a function defined in Luau, so C++ can call it.
     /// @param ref Reference to the Luau function; the Function takes it over and lives in its Lua state.
