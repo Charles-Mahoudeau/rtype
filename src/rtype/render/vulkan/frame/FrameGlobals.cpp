@@ -10,6 +10,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <format>
 #include <span>
 #include <vulkan/vulkan_raii.hpp>
 
@@ -46,6 +47,8 @@ descriptor::DescriptorPool createPool(const core::Device& device, std::size_t fr
 
 FrameGlobals::FrameGlobals(const core::Device& device, const memory::Allocator& allocator, std::size_t framesInFlight)
     : _setLayout{createSetLayout(device)}, _pool{createPool(device, framesInFlight)} {
+    device.setName(*_setLayout.getLayout(), "Frame set layout");
+    device.setName(*_pool.getPool(), "Frame descriptor pool");
     _buffers.reserve(framesInFlight);
     _sets.reserve(framesInFlight);
     for (std::size_t frame = 0; frame < framesInFlight; ++frame) {
@@ -53,6 +56,8 @@ FrameGlobals::FrameGlobals(const core::Device& device, const memory::Allocator& 
             _buffers.emplace_back(allocator, sizeof(rendering::FrameUniforms), vk::BufferUsageFlagBits::eUniformBuffer,
                                   memory::Allocator::MemoryAccess::kStaging);
         const vk::raii::DescriptorSet& set = _sets.emplace_back(_pool.allocate(_setLayout));
+        device.setName(*buffer.getBuffer(), std::format("Frame {} uniforms", frame));
+        device.setName(*set, std::format("Frame {} set", frame));
         descriptor::DescriptorWriter{}
             .writeBuffer(rendering::kFrameUniformsBinding, *buffer.getBuffer(), 0, sizeof(rendering::FrameUniforms))
             .update(device, *set);

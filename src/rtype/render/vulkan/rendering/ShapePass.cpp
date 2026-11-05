@@ -13,6 +13,7 @@
 #include <glm/ext/vector_float4.hpp>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
@@ -69,7 +70,9 @@ ShapePass::ShapePass(const core::Device& device, const memory::Allocator& alloca
     : _allocator{&allocator},
       _pipeline{createPipeline(device, shaders, layout, colorFormat, cache)},
       _buffers(framesInFlight),
-      _values(framesInFlight) {}
+      _values(framesInFlight) {
+    device.setName(*_pipeline.getPipeline(), "Shape pipeline");
+}
 
 pipeline::GraphicsPipeline ShapePass::createMaterialPipeline(
     const core::Device& device, const vk::raii::ShaderModule& vertex, const vk::raii::ShaderModule& fragment,
@@ -103,11 +106,13 @@ void ShapePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_t
     if (instances.empty() || viewport.size.x <= 0.0F || viewport.size.y <= 0.0F) {
         return;
     }
-    memory::Buffer& buffer = reserve(_buffers.at(frameIndex), instances.size(), sizeof(ShapeInstance));
+    memory::Buffer& buffer =
+        reserve(_buffers.at(frameIndex), instances.size(), sizeof(ShapeInstance), "Shape instances");
     buffer.write(std::as_bytes(instances));
     const std::span<const plugins::backend::graphics::ShaderInstanceValues> instanceValues = shapes.getInstanceValues();
     if (!instanceValues.empty()) {
-        reserve(_values.at(frameIndex), instanceValues.size(), kValuesSize).write(std::as_bytes(instanceValues));
+        reserve(_values.at(frameIndex), instanceValues.size(), kValuesSize, "Shape instance values")
+            .write(std::as_bytes(instanceValues));
     }
 
     _pipeline.bind(commandBuffer);
@@ -154,7 +159,8 @@ void ShapePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_t
     }
 }
 
-memory::Buffer& ShapePass::reserve(std::optional<memory::Buffer>& buffer, std::size_t count, std::size_t elementSize) {
+memory::Buffer& ShapePass::reserve(std::optional<memory::Buffer>& buffer, std::size_t count, std::size_t elementSize,
+                                   std::string_view name) {
     const vk::DeviceSize needed = count * elementSize;
     if (!buffer || buffer->getSize() < needed) {
         std::size_t capacity = kInitialCapacity;
@@ -163,6 +169,7 @@ memory::Buffer& ShapePass::reserve(std::optional<memory::Buffer>& buffer, std::s
         }
         buffer.emplace(*_allocator, capacity * elementSize, vk::BufferUsageFlagBits::eVertexBuffer,
                        memory::Allocator::MemoryAccess::kStaging);
+        _allocator->getDevice().setName(*buffer->getBuffer(), name);
     }
     return *buffer;
 }

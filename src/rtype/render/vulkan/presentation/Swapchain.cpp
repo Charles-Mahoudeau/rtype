@@ -9,7 +9,9 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <format>
 #include <glm/ext/vector_uint2.hpp>
 #include <limits>
 #include <stdexcept>
@@ -120,6 +122,11 @@ Swapchain::Swapchain(const core::PhysicalDevice& physicalDevice, const vk::raii:
     _swapchain = vk::raii::SwapchainKHR{device.getDevice(), createInfo};
     _images = _swapchain.getImages();
     createImageViews(device);
+    device.setName(*_swapchain, "Swapchain");
+    for (std::size_t index = 0; index < _images.size(); ++index) {
+        device.setName(_images.at(index), std::format("Swapchain image {}", index));
+        device.setName(*_imageViews.at(index), std::format("Swapchain image view {}", index));
+    }
 }
 
 void Swapchain::createImageViews(const core::Device& device) {

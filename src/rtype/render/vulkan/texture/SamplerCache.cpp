@@ -8,7 +8,9 @@
 #include "SamplerCache.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
+#include <string_view>
 #include <vulkan/vulkan_raii.hpp>
 
 #include "plugins/backend/graphics/Texture.hpp"
@@ -61,7 +63,13 @@ SamplerCache::SamplerCache(const core::Device& device, const core::PhysicalDevic
                 createSampler(device, plugins::backend::graphics::TextureFilter::kLinear, false,
                               anisotropyOf(physicalDevice)),
                 createSampler(device, plugins::backend::graphics::TextureFilter::kLinear, true,
-                              anisotropyOf(physicalDevice))} {}
+                              anisotropyOf(physicalDevice))} {
+    constexpr std::array<std::string_view, kSamplerCount> kNames{"Nearest clamped sampler", "Nearest repeating sampler",
+                                                                 "Linear clamped sampler", "Linear repeating sampler"};
+    for (std::size_t index = 0; index < kSamplerCount; ++index) {
+        device.setName(*_samplers.at(index), kNames.at(index));
+    }
+}
 
 const vk::raii::Sampler& SamplerCache::get(plugins::backend::graphics::TextureFilter filter, bool repeat) const {
     return _samplers.at(indexOf(filter, repeat));

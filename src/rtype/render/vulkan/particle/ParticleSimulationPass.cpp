@@ -64,7 +64,12 @@ ParticleSimulationPass::ParticleSimulationPass(const core::Device& device, pipel
       _emit{device, shaders.get("particle_emit.comp", rtype_shader_particle_emit_comp), _layout, nullptr, cache},
       _simulate{device, shaders.get("particle_simulate.comp", rtype_shader_particle_simulate_comp), _layout, nullptr,
                 cache},
-      _sort{device, shaders.get("particle_sort.comp", rtype_shader_particle_sort_comp), _layout, nullptr, cache} {}
+      _sort{device, shaders.get("particle_sort.comp", rtype_shader_particle_sort_comp), _layout, nullptr, cache} {
+    device.setName(*_layout.getLayout(), "Particle simulation layout");
+    device.setName(*_emit.getPipeline(), "Particle emit pipeline");
+    device.setName(*_simulate.getPipeline(), "Particle simulate pipeline");
+    device.setName(*_sort.getPipeline(), "Particle sort pipeline");
+}
 
 void ParticleSimulationPass::record(const vk::raii::CommandBuffer& commandBuffer, std::span<const Job> jobs) {
     if (jobs.empty()) {

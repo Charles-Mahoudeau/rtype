@@ -7,6 +7,7 @@
 
 #include "GameShader.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <format>
@@ -24,11 +25,17 @@ namespace rtype::render::vulkan::material {
 
 namespace {
 
-/// @return A module for @p spirv, checked first.
+/// @brief What a target is called in the name of its pipeline, in ShaderTarget order.
+constexpr std::array<std::string_view, plugins::backend::graphics::kShaderTargetCount> kTargetNames{
+    "sprite", "glyph", "particle", "shape"};
+
+/// @return A module named @p name for @p spirv, checked first.
 vk::raii::ShaderModule createModule(const core::Device& device, std::span<const std::uint32_t> spirv,
                                     std::string_view name) {
     pipeline::validateSpirv(spirv, name);
-    return vk::raii::ShaderModule{device.getDevice(), vk::ShaderModuleCreateInfo{{}, spirv}};
+    vk::raii::ShaderModule created{device.getDevice(), vk::ShaderModuleCreateInfo{{}, spirv}};
+    device.setName(*created, name);
+    return created;
 }
 
 }  // namespace
@@ -61,6 +68,8 @@ const pipeline::GraphicsPipeline* GameShader::getPipeline(plugins::backend::grap
         variant.built.emplace(
             build(device, variant.vertex, variant.fragment, _instanceValues, layout, colorFormat, cache));
         variant.format = colorFormat;
+        device.setName(*variant.built->getPipeline(),
+                       std::format("{} {} pipeline", _name, kTargetNames.at(static_cast<std::size_t>(target))));
     }
     return &*variant.built;
 }

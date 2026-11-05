@@ -8,12 +8,17 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 #include <vulkan/vulkan_raii.hpp>
 
 #include "PhysicalDevice.hpp"
 #include "render/vulkan/Export.hpp"
 
 namespace rtype::render::vulkan::core {
+
+/// @return The 64-bit value Vulkan identifies @p handle by, as VK_EXT_debug_utils takes it.
+template <typename Handle>
+[[nodiscard]] std::uint64_t objectHandleOf(Handle handle) noexcept;
 
 /// @brief The logical device created from the chosen PhysicalDevice, and its graphics, present, compute and transfer
 /// queues.
@@ -32,9 +37,11 @@ class RTYPE_RENDER_VULKAN_API Device {
 
     /// @brief Creates the logical device and retrieves its queues.
     /// @param physicalDevice The chosen physical device, with its queue families, extensions and optional features.
+    /// @param debugUtils Whether the instance enabled VK_EXT_debug_utils: setName() and CommandLabel do nothing without
+    /// it.
     /// @throws std::runtime_error If no physical device was selected.
     /// @throws vk::SystemError If the device cannot be created.
-    explicit Device(const PhysicalDevice& physicalDevice);
+    explicit Device(const PhysicalDevice& physicalDevice, bool debugUtils = false);
     ~Device() = default;
     Device(const Device&) = delete;
     Device& operator=(const Device&) = delete;
@@ -51,12 +58,29 @@ class RTYPE_RENDER_VULKAN_API Device {
     [[nodiscard]] const Queue& getComputeQueue() const noexcept { return _computeQueue; }
     /// @return The queue for buffer and image copies.
     [[nodiscard]] const Queue& getTransferQueue() const noexcept { return _transferQueue; }
+    /// @return Whether objects can be named and commands labelled: the instance enabled VK_EXT_debug_utils.
+    [[nodiscard]] bool hasDebugUtils() const noexcept { return _debugUtils; }
+
+    /// @brief Names @p handle, so that validation messages and GPU captures show @p name instead of a hexadecimal
+    /// handle. Does nothing without VK_EXT_debug_utils.
+    /// @param handle A Vulkan handle of this device, e.g. *buffer.getBuffer().
+    /// @throws vk::SystemError If it fails.
+    template <typename Handle>
+    void setName(Handle handle, std::string_view name) const;
 
   private:
+    /// @brief Calls vkSetDebugUtilsObjectNameEXT.
+    void setObjectName(vk::ObjectType type, std::uint64_t handle, std::string_view name) const;
+
     vk::raii::Device _device = nullptr;  ///< The logical device, destroyed on destruction.
     Queue _graphicsQueue;                ///< Graphics queue.
     Queue _presentQueue;                 ///< Present queue; may be the graphics queue.
     Queue _computeQueue;                 ///< Compute queue; may be the graphics queue.
     Queue _transferQueue;                ///< Transfer queue; may be the graphics queue.
+    bool _debugUtils = false;            ///< Whether the instance enabled VK_EXT_debug_utils.
 };
 }  // namespace rtype::render::vulkan::core
+
+#define RTYPE_DEVICE_INCLUDING_TPP
+#include "Device.tpp"  // IWYU pragma: export
+#undef RTYPE_DEVICE_INCLUDING_TPP

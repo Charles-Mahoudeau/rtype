@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <format>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -27,7 +28,11 @@ FrameResources::FrameResources(const core::Device& device, std::size_t framesInF
     }
     _frames.reserve(framesInFlight);
     for (std::size_t frame = 0; frame < framesInFlight; ++frame) {
-        _frames.emplace_back(device);
+        const FrameData& data = _frames.emplace_back(device);
+        device.setName(*data.getCommandPool().getPool(), std::format("Frame {} command pool", frame));
+        device.setName(*data.getCommandBuffer().getCommandBuffer(), std::format("Frame {} command buffer", frame));
+        device.setName(*data.getImageAvailable().getSemaphore(), std::format("Frame {} image available", frame));
+        device.setName(*data.getInFlight().getFence(), std::format("Frame {} in flight", frame));
     }
     _renderFinished = createSemaphores(device, swapchainImageCount);
 }
@@ -41,7 +46,8 @@ std::vector<sync::Semaphore> FrameResources::createSemaphores(const core::Device
     std::vector<sync::Semaphore> semaphores;
     semaphores.reserve(count);
     for (std::size_t index = 0; index < count; ++index) {
-        semaphores.emplace_back(device);
+        const sync::Semaphore& semaphore = semaphores.emplace_back(device);
+        device.setName(*semaphore.getSemaphore(), std::format("Image {} render finished", index));
     }
     return semaphores;
 }

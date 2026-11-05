@@ -8,7 +8,10 @@
 #include "DebugMessenger.hpp"
 
 #include <array>
+#include <format>
 #include <iostream>
+#include <span>
+#include <string>
 #include <vulkan/vulkan_raii.hpp>
 
 #include "Instance.hpp"
@@ -43,12 +46,27 @@ vk::DebugUtilsMessageSeverityFlagsEXT DebugMessenger::severitiesFrom(
     return severities;
 }
 
+std::string DebugMessenger::describeContext(const vk::DebugUtilsMessengerCallbackDataEXT& data) {
+    std::string context;
+    for (const vk::DebugUtilsLabelEXT& label : std::span{data.pCmdBufLabels, data.cmdBufLabelCount}) {
+        context += std::format("\n  In: {}", label.pLabelName);
+    }
+    for (const vk::DebugUtilsObjectNameInfoEXT& object : std::span{data.pObjects, data.objectCount}) {
+        if (object.pObjectName != nullptr) {
+            context += std::format("\n  {}: {}", vk::to_string(object.objectType), object.pObjectName);
+        } else {
+            context += std::format("\n  {}: {:#x}", vk::to_string(object.objectType), object.objectHandle);
+        }
+    }
+    return context;
+}
+
 VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugMessenger::onMessage(vk::DebugUtilsMessageSeverityFlagBitsEXT severity,
                                                            vk::DebugUtilsMessageTypeFlagsEXT types,
                                                            const vk::DebugUtilsMessengerCallbackDataEXT* data,
                                                            void* /*userData*/) {
     std::cerr << "[Vulkan67 " << vk::to_string(severity) << "] " << vk::to_string(types) << " " << data->pMessage
-              << "\n";
+              << describeContext(*data) << "\n";
     return vk::False;
 }
 

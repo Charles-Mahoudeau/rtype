@@ -12,6 +12,7 @@
 #include <bit>
 #include <cstdint>
 #include <span>
+#include <string_view>
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
@@ -85,12 +86,17 @@ GpuParticleSystem::GpuParticleSystem(const core::Device& device, const memory::A
 
     const std::array<const memory::Buffer*, kBindingCount> buffers{&_params,   &_particles, &_dead,    &_alive,
                                                                    &_counters, &_instances, &_indirect};
+    constexpr std::array<std::string_view, kBindingCount> kNames{
+        "Particle params",   "Particle data",      "Particle dead list",   "Particle alive lists",
+        "Particle counters", "Particle instances", "Particle draw command"};
     descriptor::DescriptorWriter writer;
     for (std::uint32_t binding = 0; binding < kBindingCount; ++binding) {
         const memory::Buffer& buffer = *buffers.at(binding);
+        device.setName(*buffer.getBuffer(), kNames.at(binding));
         writer.writeBuffer(binding, *buffer.getBuffer(), 0, buffer.getSize(), vk::DescriptorType::eStorageBuffer);
     }
     writer.update(device, *_set);
+    device.setName(*_set, "Particle system set");
 }
 
 }  // namespace rtype::render::vulkan::particle

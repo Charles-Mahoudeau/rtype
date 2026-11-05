@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <string>
 #include <vulkan/vulkan_raii.hpp>
 
 #include "Instance.hpp"
@@ -14,7 +15,8 @@
 
 namespace rtype::render::vulkan::core {
 
-/// @brief Prints the messages of the validation layers (and of the loader) to the standard error output.
+/// @brief Prints the messages of the validation layers (and of the loader) to the standard error output, with the
+/// objects they are about and the labels being recorded (Device::setName(), command::CommandLabel).
 ///
 /// @details Without a messenger, the validation layers only write their errors to stdout, with no control over
 /// the severity. Typical use: enable VK_LAYER_KHRONOS_validation and kExtensionName in debug builds, create the
@@ -45,6 +47,10 @@ class RTYPE_RENDER_VULKAN_API DebugMessenger {
     /// creates, and what Instance chains into vkCreateInstance.
     [[nodiscard]] static vk::DebugUtilsMessengerCreateInfoEXT makeCreateInfo(
         vk::DebugUtilsMessageSeverityFlagBitsEXT minSeverity);
+
+    /// @return One line per label and per object of @p data, each starting with a new line: the layers give them apart
+    /// from the message's text. An object without a name is shown by its handle.
+    [[nodiscard]] static std::string describeContext(const vk::DebugUtilsMessengerCallbackDataEXT& data);
 
   private:
     /// @return minSeverity and every severity above it.

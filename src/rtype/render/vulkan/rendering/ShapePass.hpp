@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <string_view>
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
@@ -77,7 +78,8 @@ class RTYPE_RENDER_VULKAN_API ShapePass {
     static constexpr std::size_t kInitialCapacity = 256;
 
     /// @return @p buffer, replaced by a bigger one if it holds fewer than @p count elements of @p elementSize bytes.
-    memory::Buffer& reserve(std::optional<memory::Buffer>& buffer, std::size_t count, std::size_t elementSize);
+    memory::Buffer& reserve(std::optional<memory::Buffer>& buffer, std::size_t count, std::size_t elementSize,
+                            std::string_view name);
 
     const memory::Allocator* _allocator;                  ///< Allocates the instance buffers; not owned.
     pipeline::GraphicsPipeline _pipeline;                 ///< Shape shaders, instanced input, premultiplied alpha.

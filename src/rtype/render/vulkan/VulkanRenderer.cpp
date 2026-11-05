@@ -31,6 +31,7 @@
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
+#include "command/CommandLabel.hpp"
 #include "core/DebugMessenger.hpp"
 #include "core/Instance.hpp"
 #include "descriptor/DescriptorAllocator.hpp"
@@ -204,7 +205,7 @@ void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
     _surface = vk::raii::SurfaceKHR(_instance->getInstance(), surfaceSource.createSurface(instance));
     _framebufferSize = platform.getFramebufferSize();
     _physicalDevice = std::make_unique<core::PhysicalDevice>(*_instance, _surface, _config.preferredDeviceType);
-    _device = std::make_unique<core::Device>(*_physicalDevice);
+    _device = std::make_unique<core::Device>(*_physicalDevice, _config.debugging);
     _swapchain = std::make_unique<presentation::Swapchain>(*_physicalDevice, _surface, *_device, _framebufferSize,
                                                            _config.presentMode);
     _frames = std::make_unique<frame::FrameResources>(*_device, kFramesInFlight, _swapchain->getImages().size());
@@ -219,6 +220,7 @@ void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
     _pipelineCache =
         std::make_unique<pipeline::PipelineCache>(*_device, readPipelineCache(_pipelineCachePath, *_physicalDevice));
     _globals = std::make_unique<frame::FrameGlobals>(*_device, *_allocator, kFramesInFlight);
+    _device->setName(*_pipelineCache->getCache(), "Pipeline cache");
     _samplers = std::make_unique<texture::SamplerCache>(*_device, *_physicalDevice);
     _textureSetLayout = std::make_unique<descriptor::DescriptorSetLayout>(
         descriptor::DescriptorSetLayout::Builder{}
@@ -228,7 +230,8 @@ void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
     const std::array textureSizes{
         vk::DescriptorPoolSize{vk::DescriptorType::eCombinedImageSampler, kTextureSetsPerPool}};
     _textureDescriptors =
-        std::make_unique<descriptor::DescriptorAllocator>(*_device, kTextureSetsPerPool, textureSizes);
+        std::make_unique<descriptor::DescriptorAllocator>(*_device, kTextureSetsPerPool, textureSizes, "Texture sets");
+    _device->setName(*_textureSetLayout->getLayout(), "Texture set layout");
     descriptor::DescriptorSetLayout::Builder particleSet;
     for (std::uint32_t binding = 0; binding < particle::kBindingCount; ++binding) {
         particleSet.addBinding(binding, vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eCompute);
@@ -236,8 +239,9 @@ void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
     _particleSetLayout = std::make_unique<descriptor::DescriptorSetLayout>(particleSet.build(*_device));
     const std::array particleSizes{
         vk::DescriptorPoolSize{vk::DescriptorType::eStorageBuffer, kParticleSetsPerPool * particle::kBindingCount}};
-    _particleDescriptors =
-        std::make_unique<descriptor::DescriptorAllocator>(*_device, kParticleSetsPerPool, particleSizes);
+    _particleDescriptors = std::make_unique<descriptor::DescriptorAllocator>(*_device, kParticleSetsPerPool,
+                                                                             particleSizes, "Particle sets");
+    _device->setName(*_particleSetLayout->getLayout(), "Particle set layout");
     _particleSimulation = std::make_unique<particle::ParticleSimulationPass>(*_device, *_shaders, *_particleSetLayout,
                                                                              &_pipelineCache->getCache());
     const std::array setLayouts{*_globals->getSetLayout().getLayout(), *_textureSetLayout->getLayout()};
@@ -256,12 +260,15 @@ void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
         vk::DescriptorPoolSize{vk::DescriptorType::eUniformBuffer, kMaterialSetsPerPool},
         vk::DescriptorPoolSize{vk::DescriptorType::eCombinedImageSampler,
                                kMaterialSetsPerPool * plugins::backend::graphics::kShaderMaxTextures}};
-    _materialDescriptors =
-        std::make_unique<descriptor::DescriptorAllocator>(*_device, kMaterialSetsPerPool, materialSizes);
+    _materialDescriptors = std::make_unique<descriptor::DescriptorAllocator>(*_device, kMaterialSetsPerPool,
+                                                                             materialSizes, "Material sets");
+    _device->setName(*_materialSetLayout->getLayout(), "Material set layout");
 
     const std::array materialSetLayouts{*_globals->getSetLayout().getLayout(), *_textureSetLayout->getLayout(),
                                         *_materialSetLayout->getLayout()};
     _materialLayout = std::make_unique<pipeline::PipelineLayout>(*_device, materialSetLayouts, pushConstants);
+    _device->setName(*_layout->getLayout(), "Shared pipeline layout");
+    _device->setName(*_materialLayout->getLayout(), "Game shaders pipeline layout");
     createPasses();
     constexpr std::array<std::byte, 4> kWhite{std::byte{0xFF}, std::byte{0xFF}, std::byte{0xFF}, std::byte{0xFF}};
     _fallbackTexture = createTexture(plugins::backend::graphics::TextureDesc{.size = {1, 1}}, kWhite);
@@ -373,7 +380,13 @@ plugins::backend::graphics::TextureId VulkanRenderer::createTexture(const plugin
         .writeImage(rendering::kTextureBinding, *image.getImageView(), *_samplers->get(desc.filter, desc.repeat),
                     vk::ImageLayout::eShaderReadOnlyOptimal)
         .update(*_device, *set);
-    return _textures.insert(texture::Texture{.image = std::move(image), .desc = desc, .set = std::move(set)});
+    const plugins::backend::graphics::TextureId id =
+        _textures.insert(texture::Texture{.image = std::move(image), .desc = desc, .set = std::move(set)});
+    const texture::Texture& created = *_textures.find(id);
+    _device->setName(*created.image.getImage(), std::format("Texture {}", id.index));
+    _device->setName(*created.image.getImageView(), std::format("Texture {} view", id.index));
+    _device->setName(*created.set, std::format("Texture {} set", id.index));
+    return id;
 }
 
 void VulkanRenderer::destroy(plugins::backend::graphics::TextureId texture) {
@@ -442,7 +455,10 @@ void VulkanRenderer::endFrame() {
         _view.value_or(plugins::backend::graphics::CameraView::makeDefaultView(viewSize, framebufferSize)), viewSize,
         framebufferSize};
     updateFrameUniforms(view);
-    recordParticleSimulations(commandBuffer);
+    {
+        const command::CommandLabel label{*_device, commandBuffer, "Particle simulation"};
+        recordParticleSimulations(commandBuffer);
+    }
 
     // Rendering starts here, not in beginFrame(): work that cannot be recorded inside a rendering scope (compute
     // dispatches) is recorded above, before it.
@@ -456,8 +472,11 @@ void VulkanRenderer::endFrame() {
                                                       plugins::backend::graphics::ShaderTarget target) {
         return findMaterial(material, target, frameIndex);
     };
-    _shapePass->record(commandBuffer, frameIndex, _shapes, view.getViewport(), findTextureSet(_fallbackTexture),
-                       findShapeMaterial);
+    {
+        const command::CommandLabel label{*_device, commandBuffer, "Shapes"};
+        _shapePass->record(commandBuffer, frameIndex, _shapes, view.getViewport(), findTextureSet(_fallbackTexture),
+                           findShapeMaterial);
+    }
     _shapes.clear();
 
     commandBuffer.endRendering();
@@ -633,10 +652,12 @@ void VulkanRenderer::recordSpritesAndParticles(const vk::raii::CommandBuffer& co
     };
     for (const rendering::DrawList::Step& step : _drawList.getSteps(static_cast<std::uint32_t>(batches.size()))) {
         if (const auto* run = std::get_if<rendering::DrawList::SpriteRun>(&step)) {
+            const command::CommandLabel label{*_device, commandBuffer, "Sprites"};
             _spritePass->record(commandBuffer, frameIndex, batches.subspan(run->firstBatch, run->batchCount),
                                 view.getViewport(), findSet, findSpriteMaterial);
             continue;
         }
+        const command::CommandLabel label{*_device, commandBuffer, "Particles"};
         const ParticleRange& range = _particleRanges.at(std::get<rendering::DrawList::ParticleStep>(step).draw);
         const rendering::MaterialBinding material =
             range.material != plugins::backend::graphics::MaterialId{}
