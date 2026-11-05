@@ -14,23 +14,17 @@
 #include <exception>
 #include <glm/ext/vector_float2.hpp>
 #include <iostream>
-#include <memory>
 #include <random>
 #include <string>
 #include <string_view>
-#include <utility>
 
 #include "audio/miniaudio/Registration.hpp"
 #include "core/asset/AssetId.hpp"
-#include "core/config/Settings.hpp"
-#include "engine/scripting/SettingsLoader.hpp"
 #include "platform/glfw/Registration.hpp"
 #include "plugins/audio/AudioAssets.hpp"
-#include "plugins/audio/AudioPlugin.hpp"
 #include "plugins/audio/AudioRegistry.hpp"
 #include "plugins/audio/AudioResources.hpp"
 #include "plugins/audio/AudioTypes.hpp"
-#include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
 #include "plugins/backend/graphics/Color.hpp"
@@ -40,7 +34,6 @@
 #include "render/vulkan/Registration.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
-#include "rtype/ecs/app/MinimalPlugins.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/query/Query.hpp"
@@ -49,7 +42,7 @@
 #include "rtype/ecs/system/EventWriter.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/system/Side.hpp"
-#include "rtype/scripting/plugin/ScriptingPlugin.hpp"
+#include "rtype/engine/Engine.hpp"
 
 using namespace rtype;
 
@@ -146,45 +139,34 @@ void playJingle(ecs::NonSendMut<plugins::audio::Audio> audio, ecs::Res<plugins::
     }
 }
 
-// The window, the renderer and the sound.
-core::config::Settings makeSettings() {
-    engine::scripting::SettingsLoader settingsLoader;
-    settingsLoader.setFlag("isClient", true);
-    settingsLoader.setFlag("isServer", false);
-#ifdef NDEBUG
-    settingsLoader.setFlag("isDebug", false);
-#else
-    settingsLoader.setFlag("isDebug", true);
-#endif
-    settingsLoader.load(std::string{kGame} + "/project.luau");
-    return settingsLoader.build();
+// The Engine's setup: the splash screen's data and systems; the Engine adds the window, the sound and all.luau.
+void setup(engine::Engine& engine) {
+    ecs::App& app = engine.app();
+    app.insertResource(plugins::backend::ClearColor{.value = kBackground});
+    app.insertResource(Jingle{});
+    static_cast<void>(app.getWorld().getComponents().registerType<Splash>());
+    app.addSystem(ecs::Phase::kStartup, "game.spawnSplash", &spawnSplash).setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kUpdate, "game.applyZoom", &applyZoom).after("game.zoom").setSide(ecs::Side::kClient);
+    app.addSystem(ecs::Phase::kUpdate, "game.playJingle", &playJingle)
+        .after("game.applyZoom")
+        .setSide(ecs::Side::kClient);
 }
 }  // namespace
 
 int main() {
     try {
-        auto registry = std::make_unique<plugins::backend::BackendRegistry>();
-        platform::glfw::registerPlatform(*registry);
-        render::vulkan::registerRenderer(*registry);
-        auto audioRegistry = std::make_unique<plugins::audio::AudioRegistry>();
-        audio::miniaudio::registerAudio(*audioRegistry);
-        const core::config::Settings settings{makeSettings()};
-
-        ecs::App app;
-        app.addPlugins(ecs::MinimalPlugins{})
-            .addPlugin(plugins::backend::BackendPlugin{std::move(registry), settings})
-            .addPlugin(plugins::audio::AudioPlugin{std::move(audioRegistry), settings});
-        app.insertResource(plugins::backend::ClearColor{.value = kBackground});
-        app.insertResource(Jingle{});
-        static_cast<void>(app.getWorld().getComponents().registerType<Splash>());
-        app.addPlugin(scripting::ScriptingPlugin{
-            {.directory = std::string{kGame} + "/scripts", .options = {.isClient = true, .isServer = true}}});
-        app.addSystem(ecs::Phase::kStartup, "game.spawnSplash", &spawnSplash).setSide(ecs::Side::kClient);
-        app.addSystem(ecs::Phase::kUpdate, "game.applyZoom", &applyZoom).after("game.zoom").setSide(ecs::Side::kClient);
-        app.addSystem(ecs::Phase::kUpdate, "game.playJingle", &playJingle)
-            .after("game.applyZoom")
-            .setSide(ecs::Side::kClient);
-        app.run();
+        // Standalone: one process, both sides, no network.
+        engine::Engine engine{{
+            .game = kGame,
+            .registerBackends =
+                [](plugins::backend::BackendRegistry& registry) {
+                    platform::glfw::registerPlatform(registry);
+                    render::vulkan::registerRenderer(registry);
+                },
+            .registerAudio = [](plugins::audio::AudioRegistry& registry) { audio::miniaudio::registerAudio(registry); },
+            .setup = &setup,
+        }};
+        engine.run();
         handleSuccess();
     } catch (const std::exception& error) {
         std::cerr << "Error: " << error.what() << '\n';

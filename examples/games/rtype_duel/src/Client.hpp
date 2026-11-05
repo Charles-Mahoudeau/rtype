@@ -7,17 +7,12 @@
 
 #pragma once
 
-#include <cstdint>
-#include <string>
-
-#include "rtype/core/config/Settings.hpp"
+#include "rtype/engine/Engine.hpp"
 
 namespace rtype_duel {
 
-/// @brief Runs a player's window until it is closed or Escape is pressed.
-/// @param host The server's host name or address.
-/// @param port The server's UDP port.
-/// @return The exit code of the App.
-int runClient(const std::string& host, std::uint16_t port);
+/// @brief EngineConfig::setup of a player: the game's components, resources and client systems, on the App the engine
+/// built with the window, the sound and the network.
+void setupClient(rtype::engine::Engine& engine);
 
 }  // namespace rtype_duel

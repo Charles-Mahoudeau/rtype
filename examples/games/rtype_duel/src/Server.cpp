@@ -226,13 +226,9 @@ void detectHits(ecs::Commands& commands, ecs::EventReader<plugins::physics::Coll
 
 }  // namespace
 
-int runServer(std::uint16_t port) {
-    ecs::App app{ecs::RunMode::kServer};
-    app.addPlugins(ecs::MinimalPlugins{});
+void setupServer(engine::Engine& engine) {
+    ecs::App& app = engine.app();
     registerGame(app);
-    network::NetworkSettings network;
-    network.port = port;
-    app.addPlugin(replication::server::ServerPlugin{network, replication::ReplicationSettings{}});
     declareInputs(app);
     app.insertResource(Randomness{});
     static_cast<void>(app.getWorld().getComponents().registerType<MisfireTimer>());
@@ -252,8 +248,9 @@ int runServer(std::uint16_t port) {
     app.addSystem(ecs::Phase::kFixedUpdate, "game.detectHits", &detectHits)
         .after(std::string{plugins::physics::PhysicsPlugin::kEventsSystem})
         .after("game.followLaserBodies");
-    std::cout << "[server] listening on port " << port << ", waiting for " << kPlayerCount << " players\n";
-    return app.run();
+    std::cout << "[server] listening on port "
+              << engine.settings().getNumber("network.port", network::NetworkSettings{}.port) << ", waiting for "
+              << kPlayerCount << " players\n";
 }
 
 }  // namespace rtype_duel

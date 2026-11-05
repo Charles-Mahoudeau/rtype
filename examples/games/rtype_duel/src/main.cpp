@@ -5,23 +5,24 @@
 ** main
 */
 
-#include <charconv>
 #include <cstddef>
-#include <cstdint>
 #include <exception>
 #include <iostream>
-#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
-#include <system_error>
+#include <vector>
 
 #include "Client.hpp"
-#include "Constants.hpp"
 #include "Server.hpp"
-#include "rtype/core/config/Settings.hpp"
+#include "audio/miniaudio/Registration.hpp"
+#include "platform/glfw/Registration.hpp"
+#include "plugins/audio/AudioRegistry.hpp"
+#include "plugins/backend/BackendRegistry.hpp"
+#include "render/vulkan/Registration.hpp"
+#include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/engine/Engine.hpp"
-#include "rtype/engine/scripting/SettingsLoader.hpp"
+#include "rtype/engine/EngineConfig.hpp"
 
 // A two-player duel, the most basic game the engine can run: each player moves a ship in their half of the arena and
 // fires lasers; the first laser that touches the other ship wins. Obstacles in the middle stop the lasers, and the
@@ -36,18 +37,38 @@
 // The code is split by role: Game (shared rules), Server, Client (wiring) and the client systems by topic (Controls,
 // Sounds, Sprites, Background, Hud).
 //
-//   rtype_duel server [port]           headless server, waits for two clients
-//   rtype_duel client [host] [port]    a player (default 127.0.0.1:4242)
+// One binary runs both sides: the first argument picks the Engine's mode and the setup it adds (setupServer or
+// setupClient); the other flags go to game/project.luau, which reads --host and --port from `engine.args`.
+//
+//   rtype_duel server [--port <port>]                  headless server, waits for two clients
+//   rtype_duel client [--host <host>] [--port <port>]  a player (default 127.0.0.1:4242)
 
 namespace {
 
-/// @return @p text as a port, or the default one if it is empty or not a number in range.
-std::uint16_t toPort(std::string_view text) {
-    std::uint16_t port = 0;
-    const std::string digits{text};
-    const char* const last = std::to_address(digits.end());
-    const auto [end, error] = std::from_chars(digits.c_str(), last, port);
-    return error == std::errc{} && end == last && port != 0 ? port : rtype_duel::kDefaultPort;
+constexpr std::string_view kGame = "examples/games/rtype_duel/game";  ///< From the repository root, xmake's rundir.
+
+/// @return What the Engine runs for @p mode ("server" or "client"), given the flags that follow it.
+rtype::engine::EngineConfig makeConfig(const std::string_view mode, std::vector<std::string> args) {
+    if (mode == "server") {
+        return {.mode = rtype::ecs::RunMode::kServer,
+                .game = kGame,
+                .args = std::move(args),
+                .setup = &rtype_duel::setupServer};
+    }
+    // The only place that knows GLFW, Vulkan and miniaudio: the plugins pick them by name from the settings.
+    return {
+        .mode = rtype::ecs::RunMode::kClient,
+        .game = kGame,
+        .args = std::move(args),
+        .registerBackends =
+            [](rtype::plugins::backend::BackendRegistry& registry) {
+                rtype::platform::glfw::registerPlatform(registry);
+                rtype::render::vulkan::registerRenderer(registry);
+            },
+        .registerAudio =
+            [](rtype::plugins::audio::AudioRegistry& registry) { rtype::audio::miniaudio::registerAudio(registry); },
+        .setup = &rtype_duel::setupClient,
+    };
 }
 
 }  // namespace
@@ -55,19 +76,15 @@ std::uint16_t toPort(std::string_view text) {
 int main(const int argc, char** argv) {
     try {
         const std::span args{argv, static_cast<std::size_t>(argc)};
-
-        const auto arg = [&args](const std::size_t index, const std::string_view fallback) {
-            return index < args.size() ? std::string_view{args.subspan(index).front()} : fallback;
-        };
-        const std::string_view mode = arg(1, "client");
-        if (mode == "server") {
-            return rtype_duel::runServer(toPort(arg(2, "")));
+        const std::string_view mode = args.size() > 1 ? std::string_view{args[1]} : "client";
+        if (mode != "server" && mode != "client") {
+            std::cerr
+                << "Usage: rtype_duel server [--port <port>] | rtype_duel client [--host <host>] [--port <port>]\n";
+            return 1;
         }
-        if (mode == "client") {
-            return rtype_duel::runClient(std::string{arg(2, "127.0.0.1")}, toPort(arg(3, "")));
-        }
-        std::cerr << "Usage: rtype_duel server [port] | rtype_duel client [host] [port]\n";
-        return 1;
+        const std::size_t first = args.size() > 1 ? 2 : 1;
+        rtype::engine::Engine engine{makeConfig(mode, std::vector<std::string>{args.begin() + first, args.end()})};
+        return engine.run();
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";
         return 1;

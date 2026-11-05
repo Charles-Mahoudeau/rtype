@@ -10,9 +10,11 @@
 #include <stdexcept>
 #include <string>
 
+#include "core/Export.hpp"
+
 namespace rtype::core::asset::exceptions {
 /// @brief Exception thrown when an asset cannot be loaded: its file cannot be read, or its content cannot be decoded.
-class AssetLoadException : public std::runtime_error {
+class RTYPE_CORE_API AssetLoadException : public std::runtime_error {
   public:
     explicit AssetLoadException(const std::string& message) : std::runtime_error{message} {}
     ~AssetLoadException() override = default;

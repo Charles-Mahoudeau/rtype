@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "rtype/core/config/Settings.hpp"
+#include "rtype/engine/CommandLine.hpp"
 #include "rtype/engine/Exceptions.hpp"
 #include "rtype/engine/scripting/SettingsLoader.hpp"
 #include "rtype/luau/Exceptions.hpp"
@@ -133,6 +134,50 @@ TEST(SettingsLoader, SetFlagReplacesThePreviousValue) {
     loader.load(script.path());
 
     EXPECT_FALSE(loader.build().getBool("debug", true));
+}
+
+TEST(SettingsLoader, ArgsAreEmptyByDefault) {
+    const rtype::core::config::Settings settings = run(R"(engine.settings.port = engine.args.port or 4242)");
+
+    EXPECT_EQ(settings.getNumber("port", 0.0), 4242.0);
+}
+
+TEST(SettingsLoader, ArgsAreVisibleToScriptsWithTheirTypes) {
+    SettingsLoader loader;
+    const TempScript script{R"(
+        engine.settings.port = engine.args.port
+        engine.settings.host = engine.args.host
+        engine.settings.verbose = engine.args.verbose
+        engine.settings.fullscreen = engine.args.fullscreen
+    )"};
+    const std::vector<std::string> args{"--port", "4243", "--host", "10.0.0.2", "--verbose", "--fullscreen=false"};
+
+    loader.setArgs(rtype::engine::CommandLine::parse(args));
+    loader.load(script.path());
+
+    const rtype::core::config::Settings settings = loader.build();
+    EXPECT_EQ(settings.getNumber("port", 0.0), 4243.0);
+    EXPECT_EQ(settings.getString("host", ""), "10.0.0.2");
+    EXPECT_TRUE(settings.getBool("verbose", false));
+    EXPECT_FALSE(settings.getBool("fullscreen", true));
+}
+
+TEST(SettingsLoader, SetArgsReplacesThePreviousArgs) {
+    SettingsLoader loader;
+    const TempScript script{R"(
+        engine.settings.port = engine.args.port or 0
+        engine.settings.host = engine.args.host or "none"
+    )"};
+    const std::vector<std::string> first{"--port", "1"};
+    const std::vector<std::string> second{"--host", "localhost"};
+
+    loader.setArgs(rtype::engine::CommandLine::parse(first));
+    loader.setArgs(rtype::engine::CommandLine::parse(second));
+    loader.load(script.path());
+
+    const rtype::core::config::Settings settings = loader.build();
+    EXPECT_EQ(settings.getNumber("port", -1.0), 0.0);
+    EXPECT_EQ(settings.getString("host", ""), "localhost");
 }
 
 TEST(SettingsLoader, AccumulatesSettingsOverSeveralScripts) {
