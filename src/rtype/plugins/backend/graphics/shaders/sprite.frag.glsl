@@ -5,7 +5,8 @@
 ** sprite.frag
 */
 
-// The fragment stage of sprites and particles: the texture times the colour, both premultiplied, as sprite.frag does.
+// The fragment stage of sprites and particles: the texture times the colour, both premultiplied. Without an effect, the
+// default effect of sprites and particles.
 #pragma rtype_effect
 
 void main() {

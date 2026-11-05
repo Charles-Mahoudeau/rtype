@@ -62,13 +62,19 @@ constexpr std::string_view text(const std::array<char, N>& file) noexcept {
     return {file.data(), N - 1};
 }
 
-/// @return @p glsl with its line @p marker replaced by @p replacement.
+/// @return @p glsl with its line @p marker replaced by @p replacement, or kept if @p replacement is empty.
 std::string replaceMarker(std::string glsl, std::string_view marker, std::string_view replacement) {
     const std::size_t at = glsl.find(marker);
-    if (at != std::string::npos) {
+    if (at != std::string::npos && !replacement.empty()) {
         glsl.replace(at, marker.size(), replacement);
     }
     return glsl;
+}
+
+/// @return Whether @p effect adds nothing to the prelude: the default effect.
+bool isEmpty(const ParsedEffect& effect) noexcept {
+    return effect.materialValues.empty() && effect.instanceValues.empty() && effect.textures.empty() &&
+           !effect.hasVertex && !effect.hasFragment && effect.body.empty();
 }
 
 /// @return The GLSL type of @p type.
@@ -180,7 +186,11 @@ std::string blankFunction(std::string_view body, std::string_view name) {
 std::string assembleEffect(const ParsedEffect& effect, ShaderTarget target, ShaderStage stage) {
     const bool particle = target == ShaderTarget::kParticle;
     const bool vertex = stage == ShaderStage::kVertex;
-    std::string glsl{text(kCommon)};
+    std::string glsl{"#version 450\n"};
+    if (!effect.instanceValues.empty()) {
+        glsl += "#define RTYPE_INSTANCE_VALUES\n";
+    }
+    glsl += text(kCommon);
     if (particle) {
         glsl += text(kParticleConstants);
     }
@@ -194,8 +204,10 @@ std::string assembleEffect(const ParsedEffect& effect, ShaderTarget target, Shad
         }
         stageTemplate = target == ShaderTarget::kGlyph ? text(kGlyphFragment) : text(kSpriteFragment);
     }
-    const std::string effectCode = std::format("{}\n#line 1\n{}\n", declareValues(effect),
-                                               blankFunction(effect.body, vertex ? "fragment" : "vertex"));
+    const std::string effectCode = isEmpty(effect)
+                                       ? std::string{}
+                                       : std::format("{}\n#line 1\n{}\n", declareValues(effect),
+                                                     blankFunction(effect.body, vertex ? "fragment" : "vertex"));
     const bool calls = vertex ? effect.hasVertex : effect.hasFragment;
     const std::string_view call = vertex ? "    vertex();" : "    fragment();";
     const std::string mainCode =

@@ -6,7 +6,7 @@
 */
 
 // The fragment stage of glyphs: the texture read as the three distances of an MSDF font atlas, the colour covering
-// the pixel where their median is past the middle, as sprite.frag does for kShaderMsdf.
+// the pixel where their median is past the middle. Without an effect, the default effect of glyphs.
 float rtypeMedian(vec3 distances) {
     return max(min(distances.r, distances.g), min(max(distances.r, distances.g), distances.b));
 }
