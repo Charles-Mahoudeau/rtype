@@ -121,6 +121,7 @@ TEST(ScriptCommands, AFieldTheComponentDoesNotHaveIsAnError) {
     const std::string log = testing::internal::GetCapturedStderr();
 
     EXPECT_NE(log.find("has no field 'mana'"), std::string::npos) << log;
+    EXPECT_EQ(fixture.app.getWorld().getEntityCount(), 1U);
 }
 
 TEST(ScriptCommands, DespawningAStaleEntityDoesNothing) {
