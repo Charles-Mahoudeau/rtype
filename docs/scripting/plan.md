@@ -445,18 +445,23 @@ Ids follow the order the tasks are best done in. Weights are set when the issues
 **What to build**
 
 - `ecs`: let a `ScriptCallable` receive the world's resources and events, and declare which ones the system reads or
-  writes, so the access set stays truthful for the scheduler. This is the open design point: it is not done yet.
+  writes, so the access set stays truthful for the scheduler. Done as the `DynamicResources` and `DynamicEvents`
+  parameters (`docs/ecs/features/12-systems.md`), configured with a `ResourceList` and an `EventList`; the script
+  declares them with `resources = { read, write }` and `events = { read, send }`.
 - `ctx.resources["rtype.Input"]`: a `ComponentView` over the resource bytes (read-only unless declared as written),
   with the same generation check as component views.
+- A system that only uses resources and events may declare an empty `query`: it has no query, and `ctx.query` ends
+  at once.
 - `ctx.events.send("game.Explosion", {...})` and `for event in ctx.events.read("rtype.Collision")`.
 - Resources that are not plain data (main-thread, non-standard-layout) are refused with an error, not skipped.
 
 **Done when**
 
-- [ ] A script reads `rtype.Time` or `rtype.Input` in a test.
-- [ ] A script sends an event that a C++ system reads, and the reverse.
-- [ ] Writing a resource declared as read raises an error.
-- [ ] The scheduler sees the resource and event access of a script system.
+- [x] A script reads `rtype.Time` in a test. (`rtype.Input` holds maps, so it is refused as not plain data: it
+  needs a dedicated engine call, see SCR-10.)
+- [x] A script sends an event that a C++ system reads, and the reverse.
+- [x] Writing a resource declared as read raises an error.
+- [x] The scheduler sees the resource and event access of a script system.
 
 #### SCR-05: `ctx.time` as a table
 

@@ -67,6 +67,8 @@ system.getAccess();       // what it reads and writes, for the scheduler
 | `EventReader<T>` | its `EventCursor` | the events it has not read yet | reads event `T` |
 | `EventWriter<T>` | the event's id | a writer to the queue | writes event `T` |
 | `DynamicQueries` (configured with a `QueryList`) | the built queries | a view with the system's `lastRun` | every component of every query, read or write |
+| `DynamicResources` (configured with a `ResourceList`) | the checked list | the bytes of each listed resource | each resource, read or write as listed |
+| `DynamicEvents` (configured with an `EventList`) | the checked list, one `EventCursor` per event | `read(i)` and `send(i, bytes)` per listed event | each event, read or (when sent) written |
 
 Deduction is done once by templates over the function's parameter types (`SystemParam<P>`): each parameter
 type knows what the system keeps for it, how to build it from the world, and what access it adds. Taking
@@ -108,8 +110,30 @@ app.addSystem(rtype::ecs::Phase::kPostUpdate, "net.snapshot", &snapshot,
 - Mistakes are compile errors with a message: a configured parameter without its configuration, a
   configuration matching no parameter, or two parameters wanting the same configuration type.
 
-`DynamicResources` and `DynamicEvents` (by id) will follow the same pattern when the Luau bridge needs
-them.
+`DynamicResources` and `DynamicEvents` follow the same pattern for resources and events known only by id,
+configured with a `ResourceList` (`{id, write}` per resource) and an `EventList` (`{id, read, send}` per event):
+
+```c++
+void run(rtype::ecs::DynamicResources resources, rtype::ecs::DynamicEvents events) {
+    std::span<const std::byte> time = resources.get(0);          // empty while the resource has no value
+    std::span<std::byte> score = resources.getMut(1);            // empty unless declared write
+    for (std::span<const std::byte> bytes : events.read(0)) {}   // each event once, like an EventReader
+    events.send(1, bytes);                                       // false unless declared send, or a wrong size
+}
+
+app.addSystem(rtype::ecs::Phase::kUpdate, "game.run", &run,
+              rtype::ecs::ResourceList{{{timeId, false}, {scoreId, true}}},
+              rtype::ecs::EventList{{{collisionId, true, false}, {explosionId, false, true}}});
+```
+
+- The ids must be registered before the system is added, or an exception names the problem
+  (`TypeRegistrationException`); `DynamicResources` also refuses a main-thread resource, since a dynamic
+  system may run on any thread.
+- The access set gets each resource as read or written, and each event as read, or written when it is sent
+  (an event listed as both read and sent is written), so the scheduler orders the system as for `Res`,
+  `ResMut`, `EventReader` and `EventWriter`.
+- A resource declared read refuses `getMut()`, and an event declared only read or only sent refuses the
+  other operation: the system does nothing it did not declare.
 
 ### Script callables
 
