@@ -41,7 +41,7 @@ FieldType getFieldType(std::string_view name) {
 
 TEST(ParticleTypesTests, EmitterReflectsEveryField) {
     EXPECT_EQ(rtype::ecs::TypeTraits<ParticleEmitter>::kName, "rtype.ParticleEmitter");
-    EXPECT_EQ(rtype::ecs::TypeTraits<ParticleEmitter>::kFields.size(), 7U);
+    EXPECT_EQ(rtype::ecs::TypeTraits<ParticleEmitter>::kFields.size(), 8U);
     EXPECT_EQ(getFieldType<ParticleEmitter>("effect"), FieldType::kAssetId);
     EXPECT_EQ(getFieldType<ParticleEmitter>("simulation"), FieldType::kU8);
     EXPECT_EQ(getFieldType<ParticleEmitter>("seed"), FieldType::kU32);
