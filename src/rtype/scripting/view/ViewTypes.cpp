@@ -30,23 +30,21 @@ namespace rtype::scripting::view {
 namespace {
 /// @brief Raises a Luau error unless the view can still be used.
 void checkAlive(const ComponentView& view) {
-    if (view.info == nullptr || view.scope == nullptr) {
+    if (view.type == nullptr || view.scope == nullptr) {
         throw luau::exceptions::RuntimeError{"the view is not bound to a component"};
     }
     if (view.scope->generation != view.generation) {
-        throw luau::exceptions::RuntimeError{
-            std::format("the view of '{}' is no longer valid: a view only lives during the run that received it",
-                        view.info->type.name)};
+        throw luau::exceptions::RuntimeError{std::format(
+            "the view of '{}' is no longer valid: a view only lives during the run that received it", view.type->name)};
     }
 }
 
 /// @brief Finds a field of the view's component, raising a Luau error when there is none.
 const ecs::FieldInfo& findField(const ComponentView& view, const std::string_view name) {
-    const auto& fields = view.info->type.fields;
+    const auto& fields = view.type->fields;
     const auto field = std::ranges::find(fields, name, &ecs::FieldInfo::name);
     if (field == fields.end()) {
-        throw luau::exceptions::RuntimeError{
-            std::format("component '{}' has no field '{}'", view.info->type.name, name)};
+        throw luau::exceptions::RuntimeError{std::format("component '{}' has no field '{}'", view.type->name, name)};
     }
     return *field;
 }
@@ -89,7 +87,7 @@ luau::Result<> registerComponentViewType(luau::Runtime& runtime, const FieldRead
         ->index([context](const ComponentView& view, const std::string_view name) {
             checkAlive(view);
             const auto& field = findField(view, name);
-            auto value = readField(view.info->type.name, field, view.bytes, context);
+            auto value = readField(view.type->name, field, view.bytes, context);
             if (!value) {
                 throw luau::exceptions::RuntimeError{std::string{value.error().message()}};
             }
@@ -99,16 +97,16 @@ luau::Result<> registerComponentViewType(luau::Runtime& runtime, const FieldRead
             checkAlive(view);
             if (view.readOnly) {
                 throw luau::exceptions::RuntimeError{
-                    std::format("cannot write '{}': the view of '{}' is read-only", name, view.info->type.name)};
+                    std::format("cannot write '{}': the view of '{}' is read-only", name, view.type->name)};
             }
             const auto& field = findField(view, name);
-            if (auto written = writeField(view.info->type.name, field, view.bytes, value); !written) {
+            if (auto written = writeField(view.type->name, field, view.bytes, value); !written) {
                 throw luau::exceptions::RuntimeError{std::string{written.error().message()}};
             }
         })
         .tostring([](const ComponentView& view) {
             checkAlive(view);
-            return std::format("View({})", view.info->type.name);
+            return std::format("View({})", view.type->name);
         });
     return {};
 }

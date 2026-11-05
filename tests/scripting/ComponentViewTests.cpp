@@ -68,8 +68,11 @@ struct Fixture {
 
     /// @brief Makes the view of the component's bytes a global of the runtime.
     void expose(const std::string& name, const bool readOnly = false) {
-        const auto userdata = runtime.usertype<sv::ComponentView>().create(
-            {.info = &info, .bytes = bytes, .scope = &scope, .generation = scope.generation, .readOnly = readOnly});
+        const auto userdata = runtime.usertype<sv::ComponentView>().create({.type = &info.type,
+                                                                            .bytes = bytes,
+                                                                            .scope = &scope,
+                                                                            .generation = scope.generation,
+                                                                            .readOnly = readOnly});
         ASSERT_TRUE(userdata);
         ASSERT_TRUE(runtime.globals().set(name, rtype::luau::Value{*userdata}));
     }

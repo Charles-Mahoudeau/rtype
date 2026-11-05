@@ -100,7 +100,7 @@ class QueryStepper {
             return luau::Value{luau::Value::Nil{}};
         }
         return handOver(_views.create(view::ComponentView{
-            .info = info,
+            .type = &info->type,
             .bytes = bytes,
             .scope = _system->scope.get(),
             .generation = _system->scope->generation,
