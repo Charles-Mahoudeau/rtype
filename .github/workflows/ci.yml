@@ -230,7 +230,7 @@ jobs:
         run: |
           base="$BASE"
           if [[ -n "$base" ]] && ! git cat-file -e "${base}^{commit}" 2> /dev/null; then
-            git fetch --no-tags origin "$base" || base=""
+            git fetch --no-tags origin "$base" || { echo "::error::Cannot fetch the base ${base}"; exit 1; }
           fi
           if [[ -z "$base" ]]; then
             base="$(git merge-base "origin/${DEFAULT_BRANCH}" HEAD)"
