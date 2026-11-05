@@ -453,3 +453,65 @@ TEST(ScriptContext, TheSchedulerSeesTheResourceAndEventAccessOfAScriptSystem) {
     EXPECT_EQ(events.front().id, fixture.app.getWorld().getEvents().getRegistry().findByName("test.ctx.Boom")->type.id);
     EXPECT_TRUE(events.front().write);  // read and sent: it writes
 }
+
+TEST(ScriptContext, CtxTimeGivesTheValuesOfTheTimeResource) {
+    Fixture fixture;
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.ReadCtxTime", {
+            phase = "Update",
+            query = {},
+            resources = { write = { "test.ctx.Score" } },
+            run = function(ctx)
+                local score = ctx.resources["test.ctx.Score"]
+                score.value = ctx.time.elapsed
+                score.count = ctx.time.tick * 100 + ctx.time.delta * 10 + ctx.time.fixedDelta
+            end,
+        })
+    )"),
+              "");
+
+    fixture.app.runFrame();
+    fixture.app.runFrame();
+
+    EXPECT_FLOAT_EQ(fixture.score().value, 2.F);  // two frames of one second
+    EXPECT_EQ(fixture.score().count, 2 * 100 + 10 + 1);
+}
+
+TEST(ScriptContext, CtxDeltaAndFixedDeltaStillWorkBesideCtxTime) {
+    Fixture fixture;
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.CompareTime", {
+            phase = "Update",
+            query = {},
+            resources = { write = { "test.ctx.Score" } },
+            run = function(ctx)
+                local same = ctx.delta == ctx.time.delta and ctx.fixedDelta == ctx.time.fixedDelta
+                ctx.resources["test.ctx.Score"].count = same and 1 or 0
+            end,
+        })
+    )"),
+              "");
+
+    fixture.app.runFrame();
+
+    EXPECT_EQ(fixture.score().count, 1);
+}
+
+TEST(ScriptContext, AnUnknownCtxTimeFieldIsNil) {
+    Fixture fixture;
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.UnknownTime", {
+            phase = "Update",
+            query = {},
+            resources = { write = { "test.ctx.Score" } },
+            run = function(ctx)
+                ctx.resources["test.ctx.Score"].count = ctx.time.missing == nil and 1 or 0
+            end,
+        })
+    )"),
+              "");
+
+    fixture.app.runFrame();
+
+    EXPECT_EQ(fixture.score().count, 1);
+}
