@@ -28,6 +28,7 @@ struct Time {
     float fixedDelta{0.F};  ///< The duration of one fixed tick, in seconds (1/60 by default).
     std::uint32_t tick{0};  ///< Fixed ticks completed since the start; while FixedUpdate runs, the current tick.
     float alpha{0.F};       ///< How far the frame is into the next fixed tick, in [0, 1): to interpolate what is drawn.
+    double elapsed{0.};     ///< The sum of the frames' durations since the start, in seconds (a double: it grows).
 };
-RTYPE_ECS_RESOURCE(Time, "rtype.Time", delta, fixedDelta, tick, alpha);
+RTYPE_ECS_RESOURCE(Time, "rtype.Time", delta, fixedDelta, tick, alpha, elapsed);
 }  // namespace rtype::ecs
