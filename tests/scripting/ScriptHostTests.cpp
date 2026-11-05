@@ -7,11 +7,14 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <string>
 
+#include "core/asset/AssetId.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/scripting/ScriptHost.hpp"
@@ -86,6 +89,45 @@ TEST(ScriptHost, DefaultsAreAppliedOverZeroedBytes) {
     }
 }
 
+TEST(ScriptHost, VectorAndAssetIdDefaultsAreWrittenAtTheFieldOffsets) {
+    const Fixture fixture;
+    EXPECT_EQ(fixture.run(R"(
+        engine.ecs.component("game.Sprite", {
+            fields = { position = "vec2", color = "vec4", tint = "vec3", texture = "assetId" },
+            defaults = {
+                position = { x = 1, y = 2 },
+                color = { x = 0.5, y = 0.25, z = 0, w = 1 },
+                tint = vector.create(3, 4, 5),
+                texture = "assets/ship.png",
+            },
+        })
+    )"),
+              "");
+
+    const auto* layout = fixture.host->findComponent("game.Sprite");
+    ASSERT_NE(layout, nullptr);
+    for (const auto& field : layout->fields) {
+        const std::byte* at = layout->defaults.data() + field.offset;
+        if (field.name == "position") {
+            std::array<float, 2> value{};
+            std::memcpy(value.data(), at, sizeof value);
+            EXPECT_EQ(value, (std::array<float, 2>{1.0F, 2.0F}));
+        } else if (field.name == "color") {
+            std::array<float, 4> value{};
+            std::memcpy(value.data(), at, sizeof value);
+            EXPECT_EQ(value, (std::array<float, 4>{0.5F, 0.25F, 0.0F, 1.0F}));
+        } else if (field.name == "tint") {
+            std::array<float, 3> value{};
+            std::memcpy(value.data(), at, sizeof value);
+            EXPECT_EQ(value, (std::array<float, 3>{3.0F, 4.0F, 5.0F}));
+        } else {
+            std::uint64_t value = 0;
+            std::memcpy(&value, at, sizeof value);
+            EXPECT_EQ(value, rtype::core::asset::AssetId::fromPath("assets/ship.png").value);
+        }
+    }
+}
+
 TEST(ScriptHost, ReplicationModeIsRead) {
     const Fixture fixture;
     EXPECT_EQ(fixture.run(R"(
@@ -129,7 +171,11 @@ TEST(ScriptHost, BadDeclarationsRaiseAnErrorNamingTheComponent) {
     };
 
     EXPECT_NE(message(R"({ fields = { a = "f33" } })").find("unknown type 'f33'"), std::string::npos);
-    EXPECT_NE(message(R"({ fields = { a = "vec2" } })").find("not supported"), std::string::npos);
+    EXPECT_NE(message(R"({ fields = { a = "vec5" } })").find("unknown type 'vec5'"), std::string::npos);
+    EXPECT_NE(message(R"({ fields = { a = "vec2" }, defaults = { a = 1 } })").find("a"), std::string::npos);
+    EXPECT_NE(message(R"({ fields = { a = "vec4" }, defaults = { a = { x = 1, y = 2 } } })").find("missing 'z'"),
+              std::string::npos);
+    EXPECT_NE(message(R"({ fields = { a = "assetId" }, defaults = { a = 3 } })").find("asset path"), std::string::npos);
     EXPECT_NE(message(R"({ fields = { a = 3 } })").find("must be a string"), std::string::npos);
     EXPECT_NE(message(R"({ })").find("needs a 'fields' table"), std::string::npos);
     EXPECT_NE(message(R"({ fields = {}, field = {} })").find("unknown option 'field'"), std::string::npos);
