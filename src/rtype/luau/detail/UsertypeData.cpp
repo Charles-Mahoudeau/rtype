@@ -157,6 +157,8 @@ UsertypeData::UsertypeData(lua_State* state, std::string name, const int tag, co
     lua_pushstring(state, "locked");
     lua_setfield(state, -3, "__metatable");
     lua_pop(state, 1);
+    // Luau does not mark the metatable of a tag: only the live userdata keep it, so it needs its own reference.
+    _metatable = Ref{state};
     lua_setuserdatametatable(state, tag);
 }
 
