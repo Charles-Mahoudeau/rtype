@@ -5,14 +5,15 @@
 ** main
 */
 
-// Game shaders on sprites and shapes, three ships from one sheet:
+// Game shaders on sprites, shapes, texts and particles, three ships from one sheet:
 // - on the left, the default material;
 // - in the middle, a "wave" shader (assets/shaders/wave.glsl): its vertex stage sways the ship with TIME, its
 //   fragment stage tints it with a material value and blends in a second texture;
 // - on the right, a "flash" shader (assets/shaders/flash.glsl) with an `instance uniform`: each of the two ships sets
 //   its own amount (MaterialInstance), so they share one material and one batch;
 // - at the bottom, shapes: a bar with the default material, one with "wave", and a circle with "flash" and its own
-//   amount. A shape is drawn by a call to the renderer, with the material ShaderHandles created.
+//   amount. A shape is drawn by a call to the renderer, with the material ShaderHandles created;
+// - at the top, a text swaying with "wave", and below the middle ship, particles whitened by "flash".
 // The shaders are files in the engine's GLSL dialect, loaded and compiled at startup by ShaderAssets::load().
 //   xmake f --shader=y && xmake run shader
 
@@ -36,11 +37,16 @@
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/graphics/SpriteRenderer.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
+#include "plugins/particle/ParticleEffect.hpp"
+#include "plugins/particle/ParticleEffectAssets.hpp"
+#include "plugins/particle/ParticleEmitter.hpp"
 #include "plugins/shader/Material.hpp"
 #include "plugins/shader/MaterialAssets.hpp"
 #include "plugins/shader/MaterialInstance.hpp"
 #include "plugins/shader/ShaderAssets.hpp"
 #include "plugins/shader/ShaderHandles.hpp"
+#include "plugins/text/FontAssets.hpp"
+#include "plugins/text/TextRenderer.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "render/vulkan/Registration.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -52,7 +58,9 @@
 
 using namespace rtype;
 using namespace rtype::plugins::backend;
+using namespace rtype::plugins::particle;
 using namespace rtype::plugins::shader;
+using namespace rtype::plugins::text;
 using rtype::core::asset::AssetId;
 using rtype::plugins::transform::Transform;
 
@@ -62,9 +70,10 @@ constexpr float kHeight = 540.0F;
 constexpr graphics::Color kClear{0.05F, 0.05F, 0.08F, 1.0F};
 constexpr glm::vec2 kScale{4.0F};
 
-// Startup: loads and compiles the shaders, builds the materials and spawns the ships.
+// Startup: loads and compiles the shaders, builds the materials and spawns the ships, the text and the particles.
 void spawnShips(ecs::ResMut<TextureAssets> textures, ecs::ResMut<ShaderAssets> shaders,
-                ecs::ResMut<MaterialAssets> materials, ecs::Commands& commands) {
+                ecs::ResMut<MaterialAssets> materials, ecs::ResMut<FontAssets> fonts,
+                ecs::ResMut<ParticleEffectAssets> effects, ecs::Commands& commands) {
     const AssetId sheet = textures->load("assets/r-typesheet24.gif");
     const AssetId overlay = textures->load("assets/r-fx-explosions.gif");
     const AssetId wave = shaders->load("assets/shaders/wave.glsl");
@@ -92,6 +101,26 @@ void spawnShips(ecs::ResMut<TextureAssets> textures, ecs::ResMut<ShaderAssets> s
         .add(Transform{.position = {kWidth * 0.8F, kHeight * 0.7F}, .scale = kScale})
         .add(flashed)
         .add(MaterialInstance::of(*compiled).set(*compiled, "amount", 0.9F));
+
+    commands.spawn()
+        .add(Transform{.position = {kWidth * 0.5F, kHeight * 0.12F}})
+        .add(TextRenderer{.text = "Game shaders",
+                          .font = fonts->load("assets/fonts/orbitron.json"),
+                          .size = 48.0F,
+                          .anchor = {0.5F, 0.5F},
+                          .material = waving});
+
+    ParticleEffect sparks;
+    sparks.texture = sheet;
+    sparks.source = {{9.0F, 9.0F}, {48.0F, 48.0F}};
+    sparks.material = flashing;
+    sparks.desc.rate = 30.0F;
+    sparks.desc.speed = {.min = 40.0F, .max = 90.0F};
+    sparks.desc.size = {.min = 12.0F, .max = 24.0F};
+    commands.spawn()
+        .add(Transform{.position = {kWidth * 0.5F, kHeight * 0.72F}})
+        .add(ParticleEmitter{.effect = effects->add("example.sparks", std::move(sparks))})
+        .add(MaterialInstance::of(*compiled).set(*compiled, "amount", 0.7F));
 }
 
 // Render, after the sprites: the shapes, each with the material ShaderHandles created, once it is created.
