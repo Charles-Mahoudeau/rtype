@@ -3,12 +3,15 @@ name: CI
 on:
   push:
     branches: [main]
+  # No base filter: in a stack, the pull requests above the first target the branch below, not main.
   pull_request:
-    branches: [main]
+    # edited: a pull request retargeted to main (the one below it merged) becomes the top of its stack.
+    types: [opened, synchronize, reopened, edited]
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # An edit that is not a base change (title, description) skips the gate: its own group keeps it from cancelling a run.
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ github.event.action == 'edited' && !github.event.changes.base && 'edit' || 'run' }}
   cancel-in-progress: true
 
 permissions:
@@ -19,91 +22,57 @@ env:
   XMAKE_ACTION_BUILD_CACHE: "true"
 
 jobs:
-  build:
-    name: Build and verify binaries
-    strategy:
-      matrix:
-        include:
-          - os: windows-latest
-          - os: ubuntu-latest
-          - os: macos-latest
-    runs-on: ${{ matrix.os }}
+  # In a stack of pull requests (gh stack), the top one contains the whole stack: only it runs the checks, the others
+  # skip them. The stack is read from the API, not from the event, which is a snapshot: a re-run replays it, and a pull
+  # request stacked on top since then would not be seen.
+  gate:
+    name: Decide whether to run the checks
+    if: github.event.action != 'edited' || github.event.changes.base
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.stack.outputs.run }}
+      lint-base: ${{ steps.stack.outputs.lint-base }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Setup Linux dependencies
-        if: contains(runner.os, 'linux')
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y vulkan-tools libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
-
-      - name: Setup macOS dependencies
-        if: contains(runner.os, 'macos')
-        run: brew install molten-vk vulkan-loader glslang
-
-      - name: Install xmake
-        uses: xmake-io/github-action-setup-xmake@v1
-        with:
-          xmake-version: latest
-          actions-cache-folder: ".xmake-cache"
-          actions-cache-key: "${{ matrix.os }}-compilation"
-
-      - name: Locate xmake packages
-        id: packages
-        shell: bash
+      - name: Read the stack of the pull request
+        id: stack
         env:
-          XMAKE_ROOT: y
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          BEFORE: ${{ github.event.before }}
         run: |
-          xmake repo --update
-          echo "hash=$(xmake l utils.ci.packageskey | tr -d '\r')" >> "$GITHUB_OUTPUT"
-          echo "dir=$(xmake l -c 'import("core.package.package"); print(package.installdir())' | tr -d '\r')" >> "$GITHUB_OUTPUT"
+          if [[ "$EVENT" != "pull_request" ]]; then
+            # A push lints what it pushed; a manual run lints its branch since main (resolved by the lint job).
+            [[ "$EVENT" == "push" && ! "$BEFORE" =~ ^0+$ ]] && base="$BEFORE" || base=""
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "lint-base=$base" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          pr="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR}")"
+          if [[ "$(jq '.stack' <<< "$pr")" == "null" ]]; then
+            echo "Not in a stack: running the checks."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "lint-base=$(jq -r '.base.sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          position="$(jq -r '.stack.position' <<< "$pr")"
+          size="$(jq -r '.stack.size' <<< "$pr")"
+          if [[ "$position" == "$size" ]]; then
+            echo "Top of its stack (${position}/${size}): running the checks on the whole stack."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Pull request ${position}/${size} of its stack: the checks run on the top one only."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+          # Lint against the base of the whole stack, not the pull request below, to cover every pull request of it.
+          echo "lint-base=$(jq -r '.stack.base.sha' <<< "$pr")" >> "$GITHUB_OUTPUT"
 
-      - name: Restore package cache
-        id: package-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ steps.packages.outputs.dir }}
-          key: xmake-package-cache-${{ matrix.os }}-compilation-${{ steps.packages.outputs.hash }}
-          restore-keys: xmake-package-cache-${{ matrix.os }}-compilation-
-
-      - name: Restore build cache
-        id: build-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: build/.build_cache
-          key: xmake-build-cache-${{ matrix.os }}-compilation-${{ hashFiles('**/xmake.lua', 'src/**', 'tests/**') }}
-          restore-keys: xmake-build-cache-${{ matrix.os }}-compilation-
-
-      - name: Build project
-        run: |
-          xmake f -y
-          xmake build -y
-        timeout-minutes: 30
-
-      - name: Remove unused packages
-        if: github.ref == 'refs/heads/main' && steps.package-cache.outputs.cache-hit != 'true'
-        run: xmake require --clean --clean_modes=package -y
-
-      - name: Save package cache
-        if: github.ref == 'refs/heads/main' && steps.package-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ steps.packages.outputs.dir }}
-          key: ${{ steps.package-cache.outputs.cache-primary-key }}
-
-      - name: Save build cache
-        if: github.ref == 'refs/heads/main' && steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: build/.build_cache
-          key: ${{ steps.build-cache.outputs.cache-primary-key }}
-
-  test:
-    name: Run tests
-    needs: build
+  # One job builds and tests: --Tests=y only adds the test targets, so this build covers the project's. The tests do
+  # not run when it fails.
+  build:
+    name: Build and test
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     strategy:
       matrix:
         include:
@@ -160,7 +129,7 @@ jobs:
           key: xmake-build-cache-${{ matrix.os }}-tests-${{ hashFiles('**/xmake.lua', 'src/**', 'tests/**') }}
           restore-keys: xmake-build-cache-${{ matrix.os }}-tests-
 
-      - name: Build tests
+      - name: Build project and tests
         run: |
           xmake f -y --Tests=y
           xmake build -y
@@ -187,19 +156,29 @@ jobs:
       - name: Run tests
         run: xmake test -v -y
 
+  # Lint uses no build output: it runs next to the build instead of after it.
   lint:
     name: Check code style with clang-format and clang-tidy
-    needs: build
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
+    env:
+      LLVM_VERSION: "22"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Setup Linux dependencies
         run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          codename="$(lsb_release -cs)"
+          echo "deb http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-${LLVM_VERSION} main" \
+            | sudo tee /etc/apt/sources.list.d/llvm.list
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            clang-format-20 clang-tidy-20 \
+            "clang-format-${LLVM_VERSION}" "clang-tidy-${LLVM_VERSION}" \
             vulkan-tools libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
 
       - name: Install xmake
@@ -240,19 +219,30 @@ jobs:
           xmake build -y --files="src/rtype/render/vulkan/shaders/*" render-vulkan
           xmake build -y --files="tests/vulkan/shaders/*" vulkan-tests
 
-      - name: Run cpp-linter
-        uses: cpp-linter/cpp-linter-action@v2
-        id: linter
+      # The base comes from the gate job: the base of the whole stack for a pull request, the previous head of main for
+      # a push. A manual run (or a push without a previous head) lints its branch since main, or its last commit on
+      # main.
+      - name: Find the base of the changes
+        id: base
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          version: "22"
-          style: "file"
-          tidy-checks: ""
-          database: "."
-          ignore: ".github"
-          step-summary: true
+          BASE: ${{ needs.gate.outputs.lint-base }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          base="$BASE"
+          if [[ -n "$base" ]] && ! git cat-file -e "${base}^{commit}" 2> /dev/null; then
+            git fetch --no-tags origin "$base" || { echo "::error::Cannot fetch the base ${base}"; exit 1; }
+          fi
+          if [[ -z "$base" ]]; then
+            base="$(git merge-base "origin/${DEFAULT_BRANCH}" HEAD)"
+            if [[ "$base" == "$(git rev-parse HEAD)" ]]; then
+              base="$(git rev-parse HEAD~1)"
+            fi
+          fi
+          echo "Linting the changes since ${base}"
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
 
-      - name: Fail fast if checks failed
-        if: steps.linter.outputs.checks-failed > 0
-        run: exit 1
+      - name: Check the changed files with clang-format and clang-tidy
+        env:
+          CLANG_FORMAT: clang-format-${{ env.LLVM_VERSION }}
+          CLANG_TIDY: clang-tidy-${{ env.LLVM_VERSION }}
+        run: bash .github/scripts/lint.sh "${{ steps.base.outputs.sha }}"
