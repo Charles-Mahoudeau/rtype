@@ -50,10 +50,12 @@ are added.
   Exported symbols are marked `RTYPE_REPLICATION_API`. Feature folders and sub-namespaces as in `network`:
   `component/`, `event/`, `serialization/`, `manifest/`, `input/`, `snapshot/`, `server/`, `client/`,
   `packet/`, `exceptions/`.
-- `src/rtype/engine/` — `engine` target, shared library (`rtype-engine`): `Engine` and the project settings read from
-  `examples/games/rtype_duel/game/project.luau` through Luau (`ProjectSettings`). Exported symbols are marked
-  `RTYPE_ENGINE_API`. There is no executable in `src/` for now: the runnable game is the example
-  `examples/games/rtype_duel`.
+- `src/rtype/engine/` — `engine` target, shared library (`rtype-engine`): `EnginePlugin`, the plugin a game adds first
+  to its App: it loads the project settings script through Luau (`scripting/SettingsLoader`, the `ProjectSettings`
+  resource), fills the backend and audio registries with GLFW, Vulkan and miniaudio, and adds the plugins of the
+  App's run mode: those the project lists (`plugins.<mode>`, names from `PluginRegistry`) or `DefaultPlugins`.
+  Exported symbols are marked `RTYPE_ENGINE_API`. There is no executable in `src/` for now: the runnable game is the
+  example `examples/games/rtype_duel`, which starts from `EnginePlugin`.
 - `src/rtype/plugins/` — `plugins` target, static library (`rtype-plugins`): the engine, as ECS plugins, one folder
   per plugin, included as `plugins/<name>/<File>.hpp`, namespace `rtype::plugins::<name>`. Each plugin keeps its own
   code and declares its own components, resources and events (`RTYPE_ECS_*`). `Export.hpp` holds
@@ -162,6 +164,7 @@ core ←  ecs, plugins, platform-*, render-*, audio-*, examples (rtype_duel)
 ecs  ←  plugins, interop-*  ←  platform-*, render-*  ←  examples (rtype_duel)
         plugins             ←  audio-*             ←  examples (rtype_duel)
 luau                                                 ←  examples (rtype_duel)
+plugins, platform-*, render-*, audio-*, luau  ←  engine  ←  examples (rtype_duel)
 network  ←  replication  ←  examples (rtype_duel)
 ecs      ←  replication
 ```
@@ -174,8 +177,8 @@ ecs      ←  replication
   fonts)
   and stb (images) as private packages (no public header includes them). Never add a dependency on a `platform-*`,
   `render-*`, `audio-*` or `luau` target to it: the platforms, renderers and audio backends implement its contracts
-  (`plugins/backend/`, `plugins/audio/`), so it would create a cycle. The executable fills the backend and audio
-  registries instead.
+  (`plugins/backend/`, `plugins/audio/`), so it would create a cycle. The engine (`EnginePlugin`) fills the backend and
+  audio registries instead.
 - The platforms and renderers link `plugins` (and so the ECS) for the contracts, but never include ECS headers or
   plugin code beyond `plugins/backend/`'s interfaces and types. Likewise, the audio backends include nothing of
   `plugins` but the contract of `plugins/audio/` (`IAudioDevice`, `AudioTypes`, `AudioConfig`, `AudioRegistry`) and
@@ -188,7 +191,9 @@ ecs      ←  replication
 - A platform module and a renderer module never depend on each other: what a renderer needs from a
   window that is specific to its graphics API goes through the matching `interop-*` target, which
   both sides depend on (see `docs/Backend.md`).
-- Only the examples (such as `rtype_duel`) link everything together; `engine` links `ecs` and `luau` only.
+- `engine` and the examples (such as `rtype_duel`) link everything together: `engine` depends on `ecs`, `core` and
+  `plugins` (public: its headers use them), `luau`, and the backends (private: only its `.cpp` files register them by
+  name). Nothing in `src/` but the examples depends on `engine`.
 
 ## Commands
 
