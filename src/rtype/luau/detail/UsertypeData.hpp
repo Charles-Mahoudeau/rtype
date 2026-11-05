@@ -85,8 +85,8 @@ class RTYPE_LUAU_API UsertypeData {
     /// Leaves the stack untouched. If @p initialize throws, nothing is left behind and the destructor does not run.
     /// @param initialize Constructs the object in the storage of the userdata.
     /// @param source Given as is to @p initialize.
-    /// @return A handle on the userdata, or a Failure of kind `kRuntime` if @p initialize threw or Luau could not
-    ///         allocate the userdata.
+    /// @return A handle on the userdata, or a Failure of kind `kOutOfMemory` if Luau could not allocate the
+    ///         userdata, or of kind `kRuntime` if @p initialize threw.
     [[nodiscard]] Result<Userdata> create(Initializer initialize, void* source) const;
 
     /// @brief Gets the object of the userdata at a stack index.

@@ -29,6 +29,8 @@ class RTYPE_LUAU_API UsertypeRegistry {
   public:
     /// @brief Gets the registry of a Lua state.
     /// @param state Any thread of the state.
+    /// @note The callbacks' `userdata` slot of a state belongs to its `Runtime`: host code must leave it alone, as a
+    ///       foreign pointer there cannot be told from a registry.
     /// @return The registry, or `nullptr` if the state was not created by a `Runtime`.
     [[nodiscard]] static UsertypeRegistry* of(lua_State* state) noexcept;
 

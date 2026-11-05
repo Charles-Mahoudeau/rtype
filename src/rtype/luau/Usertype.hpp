@@ -113,7 +113,8 @@ class Usertype {
 
     /// @brief Creates a userdata holding an object, to hand to scripts.
     /// @param value The object, moved into the userdata.
-    /// @return A handle on the userdata, or a Failure of kind `kRuntime` if it could not be created.
+    /// @return A handle on the userdata, or a Failure of kind `kOutOfMemory` if Luau could not allocate it, or of kind
+    ///         `kRuntime` if the object could not be constructed.
     [[nodiscard]] Result<Userdata> create(T value) const;
 
   private:
