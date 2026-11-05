@@ -866,6 +866,9 @@ int main() {
 }
 ```
 
+A plugin declares the plugins it requires by name (`getDependencies()`); the App builds them first, taking
+those not added from its `PluginRegistry` (with a warning) and refusing unknown names and cycles.
+
 `LuauPlugin` is a C++ `Plugin` that loads a Luau plugin file and forwards its registrations to the
 `App` (see [Plugins: a Luau module](#plugins-a-luau-module)). A C++ game plugin is added the same way
 (`.addPlugin(rtype::game::CollisionPlugin{})`) when a part of the game needs native speed.
