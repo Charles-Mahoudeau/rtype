@@ -21,6 +21,9 @@
 #include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/backend/math/Rect.hpp"
+#include "plugins/shader/MaterialAssets.hpp"
+#include "plugins/shader/MaterialInstance.hpp"
+#include "plugins/shader/ShaderAssets.hpp"
 #include "plugins/text/Font.hpp"
 #include "plugins/text/FontAssets.hpp"
 #include "plugins/text/TextLayout.hpp"
@@ -113,6 +116,36 @@ TEST(TextPlugin, DrawsATextAtItsEntity) {
     EXPECT_FLOAT_EQ(text.distanceRange, 3.0F);
     EXPECT_EQ(text.color, (glm::vec4{1.0F, 0.0F, 0.0F, 1.0F}));
     EXPECT_EQ(text.origin, (glm::vec2{0.0F}));
+}
+
+TEST(TextPlugin, DrawsATextWithItsMaterialAndInstanceValues) {
+    TextApp app;
+    app.state().shaders = true;
+    rtype::ecs::World& world = app.app().getWorld();
+    auto& shaders = *world.getResources().getMut<rtype::plugins::shader::ShaderAssets>();
+    const rtype::core::asset::AssetId shader =
+        shaders.add("flash", "instance uniform float flash = 0.25;\nvoid fragment() { COLOR.rgb += flash; }\n");
+    const rtype::core::asset::AssetId material =
+        world.getResources().getMut<rtype::plugins::shader::MaterialAssets>()->add("hit", {.shader = shader});
+    const rtype::ecs::Entity entity =
+        app.spawnText({0.0F, 0.0F}, TextRenderer{.text = "A", .font = app.font(), .material = material});
+    const rtype::plugins::backend::graphics::CompiledShader& compiled = *shaders.get(shader);
+    world.getComponents().add(entity,
+                              rtype::plugins::shader::MaterialInstance::of(compiled).set(compiled, "flash", 0.75F));
+    const auto texts = app.drawFrame();
+    ASSERT_EQ(texts.size(), 1U);
+    EXPECT_NE(texts.at(0).material, rtype::plugins::backend::graphics::MaterialId{});
+    EXPECT_FLOAT_EQ(texts.at(0).instanceValues[0].x, 0.75F);
+}
+
+TEST(TextPlugin, DrawsATextWithTheDefaultMaterialUntilItsIsCreated) {
+    TextApp app;
+    static_cast<void>(app.spawnText(
+        {0.0F, 0.0F},
+        TextRenderer{.text = "A", .font = app.font(), .material = rtype::core::asset::AssetId::fromPath("hit")}));
+    const auto texts = app.drawFrame();
+    ASSERT_EQ(texts.size(), 1U);
+    EXPECT_EQ(texts.at(0).material, rtype::plugins::backend::graphics::MaterialId{});
 }
 
 TEST(TextPlugin, PivotsATextOnItsAnchor) {
