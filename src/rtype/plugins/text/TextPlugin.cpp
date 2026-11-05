@@ -19,6 +19,8 @@
 #include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
+#include "plugins/shader/MaterialInstance.hpp"
+#include "plugins/shader/ShaderHandles.hpp"
 #include "plugins/text/Font.hpp"
 #include "plugins/text/FontAssets.hpp"
 #include "plugins/text/TextLayout.hpp"
@@ -28,6 +30,7 @@
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/query/Query.hpp"
+#include "rtype/ecs/query/QueryTerms.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
@@ -47,11 +50,14 @@ void queueFontTextures(ecs::ResMut<FontAssets> fonts, ecs::ResMut<backend::Textu
     }
 }
 
-/// @brief Render, client: lays out the texts and pushes them to the SpriteQueue.
-void drawTexts(ecs::Res<FontAssets> fonts, ecs::Res<backend::TextureAssets> textures,
-               ecs::ResMut<backend::graphics::SpriteQueue> queue,
-               ecs::Query<const transform::GlobalTransform, const TextRenderer> texts) {
-    for (auto [entity, global, drawn] : texts) {
+/// @brief Render, client: lays out the texts and pushes them to the SpriteQueue. A text whose material is created is
+/// drawn with it, and with its MaterialInstance's values or else its shader's defaults.
+void drawTexts(
+    ecs::Res<FontAssets> fonts, ecs::Res<backend::TextureAssets> textures, ecs::Res<shader::ShaderHandles> handles,
+    ecs::ResMut<backend::graphics::SpriteQueue> queue,
+    ecs::Query<const transform::GlobalTransform, const TextRenderer, ecs::Optional<const shader::MaterialInstance>>
+        texts) {
+    for (auto [entity, global, drawn, instance] : texts) {
         const Font* font = fonts->get(drawn.font);
         if (font == nullptr || drawn.text.empty()) {
             continue;
@@ -64,15 +70,20 @@ void drawTexts(ecs::Res<FontAssets> fonts, ecs::Res<backend::TextureAssets> text
         if (layout.glyphs.empty()) {
             continue;
         }
-        queue->push(drawn.layer, backend::graphics::Text{.texture = *texture,
-                                                         .glyphs = std::move(layout.glyphs),
-                                                         .position = global.position,
-                                                         .scale = global.scale,
-                                                         .origin = layout.size * drawn.anchor,
-                                                         .rotation = global.rotation,
-                                                         .color = drawn.color,
-                                                         .distanceRange = font->getDistanceRange(),
-                                                         .blend = drawn.blend});
+        backend::graphics::Text text{.texture = *texture,
+                                     .glyphs = std::move(layout.glyphs),
+                                     .position = global.position,
+                                     .scale = global.scale,
+                                     .origin = layout.size * drawn.anchor,
+                                     .rotation = global.rotation,
+                                     .color = drawn.color,
+                                     .distanceRange = font->getDistanceRange(),
+                                     .blend = drawn.blend};
+        if (const shader::ShaderHandles::Material* material = handles->getMaterial(drawn.material)) {
+            text.material = material->material;
+            text.instanceValues = instance != nullptr ? instance->values : material->instanceDefaults;
+        }
+        queue->push(drawn.layer, std::move(text));
     }
 }
 }  // namespace
