@@ -3,12 +3,15 @@ name: CI
 on:
   push:
     branches: [main]
+  # No base filter: in a stack, the pull requests above the first target the branch below, not main.
   pull_request:
-    branches: [main]
+    # edited: a pull request retargeted to main (the one below it merged) becomes the top of its stack.
+    types: [opened, synchronize, reopened, edited]
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # An edit that is not a base change (title, description) skips the gate: its own group keeps it from cancelling a run.
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ github.event.action == 'edited' && !github.event.changes.base && 'edit' || 'run' }}
   cancel-in-progress: true
 
 permissions:
@@ -24,6 +27,7 @@ jobs:
   # request stacked on top since then would not be seen.
   gate:
     name: Decide whether to run the checks
+    if: github.event.action != 'edited' || github.event.changes.base
     runs-on: ubuntu-latest
     outputs:
       run: ${{ steps.stack.outputs.run }}
