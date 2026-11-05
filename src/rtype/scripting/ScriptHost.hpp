@@ -93,7 +93,7 @@ class RTYPE_SCRIPTING_API ScriptHost {
 
     /// @brief The body of `engine.ecs.plugin`.
     /// @throws luau::exceptions::RuntimeError When the declaration is wrong or the name is already declared.
-    void declarePlugin(std::string name, const luau::Table& spec);
+    void declarePlugin(const std::string& name, const luau::Table& spec);
 
     /// @brief The body of `engine.ecs.addPlugin` and `app:addPlugin`: adds the plugins a plugin lists, then builds it.
     /// @throws luau::exceptions::RuntimeError When no plugin has this name, plugins depend on each other in a cycle, or

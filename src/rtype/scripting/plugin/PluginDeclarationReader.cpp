@@ -56,7 +56,7 @@ namespace {
 }
 }  // namespace
 
-Result<PluginDeclaration> readPluginDeclaration(std::string name, const luau::Table& spec) {
+Result<PluginDeclaration> readPluginDeclaration(const std::string& name, const luau::Table& spec) {
     if (name.empty()) {
         return fail(ErrorKind::kInvalidDeclaration, "Plugin: the name must not be empty");
     }

@@ -23,6 +23,6 @@ namespace rtype::scripting::plugin {
 /// @param name Name of the plugin, "game.Weapons"; it must not be empty.
 /// @param spec The declaration table.
 /// @return The declaration, or an ErrorKind::kInvalidDeclaration error naming the plugin and what is wrong.
-[[nodiscard]] RTYPE_SCRIPTING_API Result<PluginDeclaration> readPluginDeclaration(std::string name,
+[[nodiscard]] RTYPE_SCRIPTING_API Result<PluginDeclaration> readPluginDeclaration(const std::string& name,
                                                                                   const luau::Table& spec);
 }  // namespace rtype::scripting::plugin

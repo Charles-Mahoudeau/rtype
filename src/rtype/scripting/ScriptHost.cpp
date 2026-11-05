@@ -27,7 +27,6 @@
 #include "rtype/luau/Result.hpp"
 #include "rtype/luau/RuntimeConfig.hpp"
 #include "rtype/luau/Table.hpp"
-#include "rtype/luau/Userdata.hpp"
 #include "rtype/luau/Usertype.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
@@ -115,8 +114,8 @@ luau::Result<> ScriptHost::installEngine(const Options options) {
         declareSystem(std::move(name), spec);
         return luau::ValuePack{};
     });
-    ecsBuilder.function("plugin").bind([this](std::string name, const luau::Table& spec) {
-        declarePlugin(std::move(name), spec);
+    ecsBuilder.function("plugin").bind([this](const std::string& name, const luau::Table& spec) {
+        declarePlugin(name, spec);
         return luau::ValuePack{};
     });
     ecsBuilder.function("addPlugin").bind([this](const std::string& name) {
@@ -164,8 +163,8 @@ void ScriptHost::declareSystem(std::string name, const luau::Table& spec) {
     }
 }
 
-void ScriptHost::declarePlugin(std::string name, const luau::Table& spec) {
-    auto declaration = plugin::readPluginDeclaration(std::move(name), spec);
+void ScriptHost::declarePlugin(const std::string& name, const luau::Table& spec) {
+    auto declaration = plugin::readPluginDeclaration(name, spec);
     if (!declaration) {
         throw luau::exceptions::RuntimeError{std::string{declaration.error().message()}};
     }
@@ -176,6 +175,7 @@ void ScriptHost::declarePlugin(std::string name, const luau::Table& spec) {
     _plugins.emplace(key, PluginEntry{.declaration = std::move(*declaration)});
 }
 
+// NOLINTNEXTLINE(misc-no-recursion): the depth is the depth of the plugin dependencies, and cycles are detected.
 void ScriptHost::addPlugin(const std::string& name) {
     const auto found = _plugins.find(name);
     if (found == _plugins.end()) {
@@ -205,7 +205,7 @@ void ScriptHost::addPlugin(const std::string& name) {
             addPlugin(dependency);
         }
         if (entry.declaration.build) {
-            auto handle = std::make_shared<bool>(true);
+            const auto handle = std::make_shared<bool>(true);
             auto app = _runtime.usertype<AppHandle>().create(AppHandle{.host = this, .alive = handle});
             if (!app) {
                 throw luau::exceptions::RuntimeError{std::string{app.error().message()}};
