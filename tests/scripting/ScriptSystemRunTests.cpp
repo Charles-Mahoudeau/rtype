@@ -243,3 +243,88 @@ TEST(ScriptSystemRun, ASystemOfADestroyedHostDoesNothing) {
     std::memcpy(&strength, bytes.data() + sizeof(float), sizeof(float));  // regen sorts before strength
     EXPECT_FLOAT_EQ(strength, 10.F);
 }
+
+TEST(ScriptSystemRun, AnAddedTermRunsOnceForANewComponent) {
+    Fixture fixture;
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Welcome", {
+            phase = "Update",
+            query = { added = { "game.Shield" }, write = { "game.Position" } },
+            run = function(ctx)
+                for entity, position in ctx.query do
+                    position.x = position.x + 1
+                end
+            end,
+        })
+    )"),
+              "");
+    const auto entity = fixture.spawn(fixture.app.getWorld().spawn(), "game.Shield", {});
+    fixture.spawn(entity, "game.Position", {});
+
+    fixture.app.runFrame();
+    EXPECT_FLOAT_EQ(fixture.read(entity, "game.Position", "x"), 1.F);
+    fixture.app.runFrame();
+    EXPECT_FLOAT_EQ(fixture.read(entity, "game.Position", "x"), 1.F);
+}
+
+TEST(ScriptSystemRun, AChangedTermRunsAfterAWriteAndNotOtherwise) {
+    Fixture fixture;
+    ASSERT_EQ(fixture.run(R"(
+        local frame = 0
+        engine.ecs.system("game.Poke", {
+            phase = "Update",
+            query = { write = { "game.Shield" } },
+            before = { "game.Watch" },
+            run = function(ctx)
+                frame = frame + 1
+                if frame ~= 2 then
+                    return
+                end
+                for entity, shield in ctx.query do
+                    shield.strength = shield.strength + 1
+                end
+            end,
+        })
+        engine.ecs.system("game.Watch", {
+            phase = "Update",
+            query = { changed = { "game.Shield" }, write = { "game.Position" } },
+            run = function(ctx)
+                for entity, position in ctx.query do
+                    position.x = position.x + 1
+                end
+            end,
+        })
+    )"),
+              "");
+    const auto entity = fixture.spawn(fixture.app.getWorld().spawn(), "game.Shield", {});
+    fixture.spawn(entity, "game.Position", {});
+
+    fixture.app.runFrame();  // the component was just added: it counts as changed, Poke wrote nothing
+    EXPECT_FLOAT_EQ(fixture.read(entity, "game.Position", "x"), 1.F);
+    fixture.app.runFrame();  // Poke writes the shield
+    EXPECT_FLOAT_EQ(fixture.read(entity, "game.Position", "x"), 2.F);
+    fixture.app.runFrame();  // nothing wrote it
+    EXPECT_FLOAT_EQ(fixture.read(entity, "game.Position", "x"), 2.F);
+}
+
+TEST(ScriptSystemRun, ChangedAndAddedGiveNoViewOfTheirOwn) {
+    Fixture fixture;
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Both", {
+            phase = "Update",
+            query = { read = { "game.Shield" }, changed = { "game.Shield" } },
+            run = function(ctx)
+                for entity, shield, extra in ctx.query do
+                    assert(extra == nil)
+                    assert(shield.strength == 3)
+                end
+            end,
+        })
+    )"),
+              "");
+    fixture.spawn(fixture.app.getWorld().spawn(), "game.Shield", {{"strength", 3.F}});
+
+    testing::internal::CaptureStderr();
+    fixture.app.runFrame();
+    EXPECT_EQ(testing::internal::GetCapturedStderr(), "");
+}
