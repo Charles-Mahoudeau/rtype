@@ -22,7 +22,7 @@ constexpr float kMaxDistanceRange = 65535.0F;
 
 std::uint32_t toShaderMsdf(plugins::backend::graphics::BlendMode mode, float distanceRange) noexcept {
     const float units = std::clamp(distanceRange * kDistanceRangeUnit, 0.0F, kMaxDistanceRange);
-    return toShaderBlend(mode) | kShaderMsdf | (static_cast<std::uint32_t>(std::lround(units)) << kDistanceRangeShift);
+    return toShaderBlend(mode) | (static_cast<std::uint32_t>(std::lround(units)) << kDistanceRangeShift);
 }
 
 }  // namespace rtype::render::vulkan::rendering

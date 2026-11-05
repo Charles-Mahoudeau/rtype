@@ -43,9 +43,11 @@ Render "rtype.Text.Draw", on the client, between the backend's camera and its sp
 whose font and atlas are loaded and pushes a `graphics::Text` to the `SpriteQueue`: the `BackendPlugin` sorts it with
 the sprites by layer and calls `IRenderer::draw(Text)`.
 
-In Vulkan, each glyph is one instance of the sprite batch, so a text is drawn by the same instanced draws as the
-sprites of its atlas, in their order. Its instance carries a flag and the atlas' distance range in its blend word
-(`rendering/Blend.hpp`), and `sprite.frag` reads its texture as three distances: their median, minus one half, is the
+In Vulkan, each glyph is one instance of the sprite batch, in the sprites' draw order, and consecutive glyphs of an
+atlas are one instanced draw. Glyphs never share a batch with sprites: they are drawn by the default effect's glyph
+variant (`shaders/glyph.frag`, the prelude's `glyph.frag.glsl`). Its instance carries the atlas' distance range in its
+blend word (`rendering/Blend.hpp`), and the glyph shader reads its texture as three distances: their median, minus one
+half, is the
 signed distance to the edge, scaled from atlas pixels to screen pixels (`fwidth`) so the edge is about one screen pixel
 wide at any size. The atlas is created `R8G8B8A8_UNORM`: an sRGB image would bend the distances.
 

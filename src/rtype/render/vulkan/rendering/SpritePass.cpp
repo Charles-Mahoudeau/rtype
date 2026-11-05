@@ -18,6 +18,7 @@
 
 #include "ShaderLayout.hpp"
 #include "SpriteBatch.hpp"
+#include "glyph.frag.h"
 #include "plugins/backend/graphics/CameraView.hpp"
 #include "plugins/backend/graphics/Shader.hpp"
 #include "render/vulkan/core/Device.hpp"
@@ -43,15 +44,14 @@ constexpr std::uint32_t kValuesLocation = 7;
 /// @brief Bytes of one instance's values: four vec4.
 constexpr std::size_t kValuesSize = sizeof(plugins::backend::graphics::ShaderInstanceValues);
 
-/// @return The sprite pipeline.
-pipeline::GraphicsPipeline createPipeline(const core::Device& device, pipeline::ShaderCache& shaders,
-                                          const pipeline::PipelineLayout& layout, vk::Format colorFormat,
-                                          const vk::raii::PipelineCache* cache) {
+/// @return A pipeline of the default effect: sprite.vert and @p fragment (sprite.frag or glyph.frag).
+pipeline::GraphicsPipeline createPipeline(const core::Device& device, const vk::raii::ShaderModule& fragment,
+                                          pipeline::ShaderCache& shaders, const pipeline::PipelineLayout& layout,
+                                          vk::Format colorFormat, const vk::raii::PipelineCache* cache) {
     const auto bindings = SpriteInstance::getBindings();
     const auto attributes = SpriteInstance::getAttributes();
     return pipeline::GraphicsPipeline::Builder{}
-        .setShaders(shaders.get("sprite.vert", rtype_shader_sprite_vert),
-                    shaders.get("sprite.frag", rtype_shader_sprite_frag))
+        .setShaders(shaders.get("sprite.vert", rtype_shader_sprite_vert), fragment)
         .setVertexInput(bindings, attributes)
         .setBlend(pipeline::GraphicsPipeline::BlendMode::kPremultipliedAlpha)
         .setColorFormat(colorFormat)
@@ -66,7 +66,10 @@ SpritePass::SpritePass(const core::Device& device, const memory::Allocator& allo
                        const vk::raii::PipelineCache* cache, std::size_t framesInFlight)
     : _allocator{&allocator},
       _layout{&layout},
-      _pipeline{createPipeline(device, shaders, layout, colorFormat, cache)},
+      _pipeline{createPipeline(device, shaders.get("sprite.frag", rtype_shader_sprite_frag), shaders, layout,
+                               colorFormat, cache)},
+      _glyphPipeline{createPipeline(device, shaders.get("glyph.frag", rtype_shader_glyph_frag), shaders, layout,
+                                    colorFormat, cache)},
       _buffers(framesInFlight),
       _values(framesInFlight) {}
 
@@ -137,7 +140,9 @@ void SpritePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_
         if (material.instanceValues && !values) {
             material = MaterialBinding{};
         }
-        const pipeline::GraphicsPipeline& drawn = material.pipeline != nullptr ? *material.pipeline : _pipeline;
+        const pipeline::GraphicsPipeline& fallback =
+            range.target == plugins::backend::graphics::ShaderTarget::kGlyph ? _glyphPipeline : _pipeline;
+        const pipeline::GraphicsPipeline& drawn = material.pipeline != nullptr ? *material.pipeline : fallback;
         if (bound != &drawn) {
             drawn.bind(commandBuffer);
             bound = &drawn;

@@ -32,11 +32,10 @@ static_assert(static_cast<std::uint32_t>(plugins::backend::graphics::BlendMode::
     return static_cast<std::uint32_t>(mode);
 }
 
-/// @brief A sprite instance's blend word also says how its texture is read: bits 0 to 7 hold the blend mode, bit 8
-/// kShaderMsdf, and bits 16 to 31 the distance range of an MSDF font atlas, in 1/256 of an atlas pixel.
+/// @brief A glyph instance's blend word also holds the distance range of its MSDF font atlas: bits 0 to 7 hold the
+/// blend mode, and bits 16 to 31 the distance range, in 1/256 of an atlas pixel, which the glyph shader reads.
 /// @{
 inline constexpr std::uint32_t kBlendMask = 0xFFU;
-inline constexpr std::uint32_t kShaderMsdf = 1U << 8U;
 inline constexpr std::uint32_t kDistanceRangeShift = 16;
 inline constexpr float kDistanceRangeUnit = 256.0F;
 /// @}

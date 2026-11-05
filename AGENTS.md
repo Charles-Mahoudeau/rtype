@@ -108,7 +108,7 @@ are added.
       `layoutText()` /
       `measureText()` (`TextLayout.hpp`) and the `TextRenderer` component. A client Render system lays out each text and
       pushes it to the backend's `SpriteQueue` as a `graphics::Text`, drawn by `IRenderer::draw(Text)` (Vulkan batches
-      its glyphs with the sprites, read by the MSDF branch of `sprite.frag`). The backend plugin adds it, after the
+      its glyphs in the sprites' order, read by the default effect's glyph variant, `glyph.frag`). The backend plugin adds it, after the
       tilemap plugin. See `docs/Text.md`.
     - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
     - `plugins/AssetIdReflection.hpp` — lets components reflect `core::asset::AssetId` fields (`kAssetId`).

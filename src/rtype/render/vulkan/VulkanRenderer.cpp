@@ -505,7 +505,7 @@ void VulkanRenderer::draw(const plugins::backend::graphics::Text& text) {
         throw std::invalid_argument("VulkanRenderer::draw(): the text's texture was destroyed or never created");
     }
     for (const plugins::backend::graphics::GlyphQuad& glyph : text.glyphs) {
-        _sprites.add(text.texture, rendering::SpriteInstance::fromGlyph(text, glyph, texture->desc.size));
+        _sprites.addGlyph(text.texture, rendering::SpriteInstance::fromGlyph(text, glyph, texture->desc.size));
     }
 }
 
