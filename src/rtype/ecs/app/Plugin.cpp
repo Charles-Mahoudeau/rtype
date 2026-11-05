@@ -7,6 +7,11 @@
 
 #include "Plugin.hpp"
 
+#include <span>
+#include <string_view>
+
 namespace rtype::ecs {
 Plugin::~Plugin() = default;  // defined here: the class's vtable and type information live in the library
+
+std::span<const std::string_view> Plugin::getDependencies() const noexcept { return {}; }
 }  // namespace rtype::ecs
