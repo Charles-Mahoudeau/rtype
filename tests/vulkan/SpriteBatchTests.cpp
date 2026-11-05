@@ -231,12 +231,26 @@ TEST(SpriteBatch, TakesTheDefaultMaterialWithoutValues) {
     EXPECT_TRUE(batch.getInstanceValues().empty());
 }
 
+TEST(SpriteBatch, KeepsTheValuesOfEachGlyphOfAMaterial) {
+    using rtype::plugins::backend::graphics::ShaderTarget;
+    constexpr MaterialId kMaterial{1};
+    SpriteBatch batch;
+    batch.addGlyph(kShips, MaterialId{}, {}, {});
+    batch.addGlyph(kShips, kMaterial, {}, {});
+    batch.addGlyph(kShips, kMaterial, {}, {});
+    ASSERT_EQ(batch.getBatches().size(), 2U);
+    EXPECT_EQ(batch.getBatches()[1].material, kMaterial);
+    EXPECT_EQ(batch.getBatches()[1].target, ShaderTarget::kGlyph);
+    EXPECT_EQ(batch.getBatches()[1].instanceCount, 2U);
+    EXPECT_EQ(batch.getInstanceValues().size(), 2U);
+}
+
 TEST(SpriteBatch, NeverMergesGlyphsWithSpritesOfTheirTexture) {
     using rtype::plugins::backend::graphics::ShaderTarget;
     SpriteBatch batch;
     batch.add(kShips, {});
-    batch.addGlyph(kShips, {});
-    batch.addGlyph(kShips, {});
+    batch.addGlyph(kShips, MaterialId{}, {}, {});
+    batch.addGlyph(kShips, MaterialId{}, {}, {});
     batch.add(kShips, {});
     ASSERT_EQ(batch.getBatches().size(), 3U);
     EXPECT_EQ(batch.getBatches()[0].target, ShaderTarget::kSprite);

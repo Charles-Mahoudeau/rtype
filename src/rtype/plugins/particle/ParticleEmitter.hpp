@@ -31,11 +31,13 @@ struct ParticleEmitter {
     float rateScale{1.0F};           ///< Multiplies the effect's rate: more smoke as a ship gets damaged.
     bool overrideSimulation{false};  ///< true: simulation replaces the effect's choice.
     backend::graphics::ParticleSimulation simulation{backend::graphics::ParticleSimulation::kAuto};  ///< If overridden.
-    std::uint32_t seed{0};  ///< 0: picked when it starts.
+    std::uint32_t seed{0};          ///< 0: picked when it starts.
+    core::asset::AssetId material;  ///< Replaces the effect's material if set. Its `instance uniform` values come
+                                    ///< from the entity's MaterialInstance, shared by the emitter's particles.
 };
 
 RTYPE_ECS_COMPONENT(ParticleEmitter, "rtype.ParticleEmitter", effect, playing, layer, rateScale, overrideSimulation,
-                    simulation, seed);
+                    simulation, seed, material);
 
 /// @brief Despawns its entity once its ParticleEmitter has finished (ParticlesFinished), as the component
 /// "rtype.ParticleOneShot": for fire-and-forget effects, such as the ones SpawnParticles plays. Its effect must not

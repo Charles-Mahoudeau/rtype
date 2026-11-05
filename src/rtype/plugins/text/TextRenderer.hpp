@@ -51,6 +51,8 @@ struct TextRenderer {
                              ///< its centre, (1, 1) its bottom-right corner. It is also the pivot of the rotation.
     std::int32_t layer{0};   ///< Draw order among the sprites: higher layers are drawn on top.
     backend::graphics::BlendMode blend = backend::graphics::BlendMode::kAlpha;  ///< kAlpha or kAdditive.
+    core::asset::AssetId material;  ///< From MaterialAssets; the default material if empty or not created yet. Its
+                                    ///< `instance uniform` values come from the entity's MaterialInstance.
 };
-RTYPE_ECS_COMPONENT(TextRenderer, "rtype.TextRenderer", font, size, color, align, anchor, layer);
+RTYPE_ECS_COMPONENT(TextRenderer, "rtype.TextRenderer", font, size, color, align, anchor, layer, material);
 }  // namespace rtype::plugins::text

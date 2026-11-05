@@ -35,6 +35,8 @@
 #include "plugins/particle/ParticleEvents.hpp"
 #include "plugins/particle/ParticleSpawn.hpp"
 #include "plugins/particle/ParticleSystems.hpp"
+#include "plugins/shader/MaterialInstance.hpp"
+#include "plugins/shader/ShaderHandles.hpp"
 #include "plugins/text/TextPlugin.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
@@ -229,14 +231,17 @@ void updateEmitters(
     }
 }
 
-/// @brief Render, client: simulates the GPU systems and pushes every emitter to the SpriteQueue.
+/// @brief Render, client: simulates the GPU systems and pushes every emitter to the SpriteQueue. An emitter whose
+/// material (its own, or else its effect's) is created is drawn with it, and with its MaterialInstance's values or
+/// else its shader's defaults.
 void drawEmitters(ecs::NonSendMut<backend::Backend> backend, ecs::Res<ParticleEffectAssets> effects,
-                  ecs::Res<backend::TextureAssets> textures, ecs::ResMut<ParticleSystems> systems,
-                  ecs::ResMut<backend::graphics::SpriteQueue> queue, ecs::Query<const ParticleEmitter> emitters) {
+                  ecs::Res<backend::TextureAssets> textures, ecs::Res<shader::ShaderHandles> handles,
+                  ecs::ResMut<ParticleSystems> systems, ecs::ResMut<backend::graphics::SpriteQueue> queue,
+                  ecs::Query<const ParticleEmitter, ecs::Optional<const shader::MaterialInstance>> emitters) {
     backend::graphics::IRenderer* renderer = getRenderer(*backend);
     const bool framed = renderer != nullptr && backend->platform->getFramebufferSize().x != 0 &&
                         backend->platform->getFramebufferSize().y != 0;
-    for (auto [entity, emitter] : emitters) {
+    for (auto [entity, emitter, instance] : emitters) {
         EmitterState* state = systems->find(entity);
         const ParticleEffect* effect = effects->get(emitter.effect);
         if (state == nullptr || effect == nullptr || !framed) {
@@ -263,6 +268,12 @@ void drawEmitters(ecs::NonSendMut<backend::Backend> backend, ecs::Res<ParticleEf
         draw.alignment = effect->alignment;
         draw.stretch = effect->stretch;
         draw.flipbook = effect->flipbook;
+        const core::asset::AssetId named =
+            emitter.material != core::asset::AssetId{} ? emitter.material : effect->material;
+        if (const shader::ShaderHandles::Material* material = handles->getMaterial(named)) {
+            draw.material = material->material;
+            draw.instanceValues = instance != nullptr ? instance->values : material->instanceDefaults;
+        }
         queue->push(emitter.layer, draw);
     }
 }

@@ -14,6 +14,7 @@
 
 #include "ShaderLayout.hpp"
 #include "plugins/backend/graphics/Particle.hpp"
+#include "plugins/backend/graphics/Shader.hpp"
 #include "render/vulkan/Export.hpp"
 
 namespace rtype::render::vulkan::rendering {
@@ -24,7 +25,7 @@ namespace rtype::render::vulkan::rendering {
 ///
 /// @details What every particle of one draw shares: the part of the texture they show, how they are blended, turned
 /// and stretched, and the flipbook they play. The rest is per particle, in the instances (graphics::ParticleInstance).
-/// It sits at offset 0 of the shared push constant range, which DrawConstants sizes.
+/// It sits at offset 0 of the shared push constant range; a game shader's instance values follow it.
 struct ParticleConstants {
     glm::vec4 uvRect{0.0F, 0.0F, 1.0F, 1.0F};  ///< Part of the texture: (u0, v0, u1, v1), 0 to 1. Offset 0.
     std::uint32_t blend = 0;                   ///< graphics::BlendMode, as rendering/Blend.hpp packs it. Offset 16.
@@ -50,7 +51,12 @@ static_assert(offsetof(ParticleConstants, columns) == 28 && offsetof(ParticleCon
 static_assert(static_cast<std::uint32_t>(plugins::backend::graphics::ParticleAlignment::kFixed) == 0 &&
                   static_cast<std::uint32_t>(plugins::backend::graphics::ParticleAlignment::kVelocity) == 1,
               "graphics::ParticleAlignment must keep the values of the shaders ABI's particle.vert.glsl");
-static_assert(sizeof(ParticleConstants) <= kMaxPushConstantsSize,
-              "ParticleConstants must fit in the push constant bytes every device supports");
+/// @brief Offset of a draw's instance values in the push constants: `instance` in particle_constants.glsl.
+inline constexpr std::uint32_t kParticleInstanceValuesOffset = 48;
+static_assert(kParticleInstanceValuesOffset == (sizeof(ParticleConstants) + 15) / 16 * 16,
+              "The instance values follow ParticleConstants, aligned on 16 bytes (std430, particle_constants.glsl)");
+static_assert(kParticleInstanceValuesOffset + sizeof(plugins::backend::graphics::ShaderInstanceValues) <=
+                  kMaxPushConstantsSize,
+              "ParticleConstants and the instance values must fit in the push constant bytes every device supports");
 
 }  // namespace rtype::render::vulkan::rendering

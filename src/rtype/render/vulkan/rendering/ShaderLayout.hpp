@@ -34,7 +34,8 @@ inline constexpr std::uint32_t kTextureSet = 1;
 inline constexpr std::uint32_t kTextureBinding = 0;
 /// @brief Set of a game material (material/GameMaterial.hpp), in the game shaders' layout only.
 inline constexpr std::uint32_t kMaterialSet = 2;
-/// @brief Push constant bytes every device supports: DrawConstants must fit in them.
+/// @brief Push constant bytes every device supports, the size of the range every layout shares: DrawConstants, and
+/// ParticleConstants with a game shader's instance values, must fit in them.
 inline constexpr std::uint32_t kMaxPushConstantsSize = 128;
 
 }  // namespace rtype::render::vulkan::rendering

@@ -60,7 +60,6 @@
 #include "plugins/backend/platform/IPlatform.hpp"
 #include "plugins/backend/system/CacheDirectory.hpp"
 #include "plugins/backend/system/ExecutablePath.hpp"
-#include "rendering/DrawConstants.hpp"
 #include "rendering/DynamicRendering.hpp"
 #include "rendering/FrameUniforms.hpp"
 #include "rendering/MaterialBinding.hpp"
@@ -92,6 +91,20 @@ constexpr vk::Format kDataTextureFormat = vk::Format::eR8G8B8A8Unorm;
 constexpr std::uint32_t kTextureSetsPerPool = 64;
 /// @brief Most GPU particle systems' sets in one descriptor pool; a new pool is added when it is full.
 constexpr std::uint32_t kParticleSetsPerPool = 32;
+/// @return What builds the pipeline of a game shader's @p target.
+material::GameShader::PipelineBuilder pipelineBuilderOf(plugins::backend::graphics::ShaderTarget target) noexcept {
+    switch (target) {
+        case plugins::backend::graphics::ShaderTarget::kShape:
+            return &rendering::ShapePass::createMaterialPipeline;
+        case plugins::backend::graphics::ShaderTarget::kParticle:
+            return &rendering::ParticlePass::createMaterialPipeline;
+        case plugins::backend::graphics::ShaderTarget::kSprite:
+        case plugins::backend::graphics::ShaderTarget::kGlyph:
+            break;
+    }
+    return &rendering::SpritePass::createMaterialPipeline;
+}
+
 /// @brief Material sets (one per material and frame in flight) in one descriptor pool.
 constexpr std::uint32_t kMaterialSetsPerPool = 64;
 
@@ -229,7 +242,7 @@ void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
                                                                              &_pipelineCache->getCache());
     const std::array setLayouts{*_globals->getSetLayout().getLayout(), *_textureSetLayout->getLayout()};
     const std::array pushConstants{vk::PushConstantRange{
-        vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0, sizeof(rendering::DrawConstants)}};
+        vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0, rendering::kMaxPushConstantsSize}};
     _layout = std::make_unique<pipeline::PipelineLayout>(*_device, setLayouts, pushConstants);
     descriptor::DescriptorSetLayout::Builder materialSet;
     const vk::ShaderStageFlags materialStages = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment;
@@ -439,8 +452,9 @@ void VulkanRenderer::endFrame() {
     commandBuffer.beginRendering(rendering::renderingInfo(_swapchain->getExtent(), {&color, 1}));
     _globals->bind(commandBuffer, *_layout, frameIndex);
     recordSpritesAndParticles(commandBuffer, frameIndex, view);
-    const auto findShapeMaterial = [this, frameIndex](plugins::backend::graphics::MaterialId material) {
-        return findMaterial(material, plugins::backend::graphics::ShaderTarget::kShape, frameIndex);
+    const auto findShapeMaterial = [this, frameIndex](plugins::backend::graphics::MaterialId material,
+                                                      plugins::backend::graphics::ShaderTarget target) {
+        return findMaterial(material, target, frameIndex);
     };
     _shapePass->record(commandBuffer, frameIndex, _shapes, view.getViewport(), findTextureSet(_fallbackTexture),
                        findShapeMaterial);
@@ -515,8 +529,11 @@ void VulkanRenderer::draw(const plugins::backend::graphics::Text& text) {
     if (texture == nullptr) {
         throw std::invalid_argument("VulkanRenderer::draw(): the text's texture was destroyed or never created");
     }
+    const plugins::backend::graphics::MaterialId material =
+        _materials.find(text.material) != nullptr ? text.material : plugins::backend::graphics::MaterialId{};
     for (const plugins::backend::graphics::GlyphQuad& glyph : text.glyphs) {
-        _sprites.addGlyph(text.texture, rendering::SpriteInstance::fromGlyph(text, glyph, texture->desc.size));
+        _sprites.addGlyph(text.texture, material, rendering::SpriteInstance::fromGlyph(text, glyph, texture->desc.size),
+                          text.instanceValues);
     }
 }
 
@@ -590,6 +607,10 @@ void VulkanRenderer::draw(const plugins::backend::graphics::ParticleDraw& partic
     _sprites.split();
     ParticleRange range{.texture = particles.texture,
                         .constants = rendering::ParticleConstants::fromDraw(particles, texture->desc.size)};
+    if (_materials.find(particles.material) != nullptr) {
+        range.material = particles.material;
+        range.instanceValues = particles.instanceValues;
+    }
     if (system != nullptr) {
         range.system = *system;
     } else {
@@ -606,8 +627,9 @@ void VulkanRenderer::recordSpritesAndParticles(const vk::raii::CommandBuffer& co
     _particlePass->upload(frameIndex, _particleInstances);
     const std::span<const rendering::SpriteBatch::Batch> batches = _sprites.getBatches();
     const auto findSet = [this](plugins::backend::graphics::TextureId texture) { return findTextureSet(texture); };
-    const auto findSpriteMaterial = [this, frameIndex](plugins::backend::graphics::MaterialId material) {
-        return findMaterial(material, plugins::backend::graphics::ShaderTarget::kSprite, frameIndex);
+    const auto findSpriteMaterial = [this, frameIndex](plugins::backend::graphics::MaterialId material,
+                                                       plugins::backend::graphics::ShaderTarget target) {
+        return findMaterial(material, target, frameIndex);
     };
     for (const rendering::DrawList::Step& step : _drawList.getSteps(static_cast<std::uint32_t>(batches.size()))) {
         if (const auto* run = std::get_if<rendering::DrawList::SpriteRun>(&step)) {
@@ -616,10 +638,16 @@ void VulkanRenderer::recordSpritesAndParticles(const vk::raii::CommandBuffer& co
             continue;
         }
         const ParticleRange& range = _particleRanges.at(std::get<rendering::DrawList::ParticleStep>(step).draw);
+        const rendering::MaterialBinding material =
+            range.material != plugins::backend::graphics::MaterialId{}
+                ? findMaterial(range.material, plugins::backend::graphics::ShaderTarget::kParticle, frameIndex)
+                : rendering::MaterialBinding{};
         const rendering::ParticlePass::Draw draw{.constants = range.constants,
                                                  .textureSet = findTextureSet(range.texture),
                                                  .firstInstance = range.firstInstance,
-                                                 .instanceCount = range.instanceCount};
+                                                 .instanceCount = range.instanceCount,
+                                                 .material = material,
+                                                 .instanceValues = range.instanceValues};
         if (!range.system) {
             _particlePass->record(commandBuffer, frameIndex, draw, view.getViewport());
         } else if (const particle::GpuParticleSystem* system = _particleSystems.find(*range.system)) {
@@ -717,10 +745,9 @@ rendering::MaterialBinding VulkanRenderer::findMaterial(plugins::backend::graphi
     if (shader == nullptr) {
         return {};
     }
-    const pipeline::GraphicsPipeline* pipeline = shader->getPipeline(
-        target, *_device, *_materialLayout, _swapchain->getFormat(), &_pipelineCache->getCache(),
-        target == plugins::backend::graphics::ShaderTarget::kShape ? &rendering::ShapePass::createMaterialPipeline
-                                                                   : &rendering::SpritePass::createMaterialPipeline);
+    const pipeline::GraphicsPipeline* pipeline =
+        shader->getPipeline(target, *_device, *_materialLayout, _swapchain->getFormat(), &_pipelineCache->getCache(),
+                            pipelineBuilderOf(target));
     if (pipeline == nullptr) {
         return {};
     }

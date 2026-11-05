@@ -14,9 +14,11 @@
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
+#include "MaterialBinding.hpp"
 #include "ParticleConstants.hpp"
 #include "plugins/backend/graphics/CameraView.hpp"
 #include "plugins/backend/graphics/Particle.hpp"
+#include "plugins/backend/graphics/Shader.hpp"
 #include "render/vulkan/Export.hpp"
 #include "render/vulkan/core/Device.hpp"
 #include "render/vulkan/memory/Allocator.hpp"
@@ -28,7 +30,9 @@
 namespace rtype::render::vulkan::rendering {
 
 /// @brief Draws particles: one instanced draw of a unit quad per ParticleDraw, with premultiplied alpha, shaded as the
-/// sprites are (shaders/particle.vert and sprite.frag, on the shared layout).
+/// sprites are (shaders/particle.vert and sprite.frag, on the shared layout). A draw with a game material is drawn by
+/// its shader's pipeline (createMaterialPipeline(), on the game shaders' layout), its instance values in the push
+/// constants, after ParticleConstants: they are shared by the whole draw.
 ///
 /// @details Owns the particle pipeline and one instance buffer per frame in flight, into which upload() copies every
 /// CPU particle of a frame at once; each draw then reads its range of it. A frame's buffer is only used by that frame,
@@ -43,6 +47,8 @@ class RTYPE_RENDER_VULKAN_API ParticlePass {
         vk::DescriptorSet textureSet;     ///< The texture's set; not owned.
         std::uint32_t firstInstance = 0;  ///< First instance of the range, in the uploaded instances.
         std::uint32_t instanceCount = 0;  ///< Number of instances.
+        MaterialBinding material;         ///< Its game material; a null pipeline draws the default one.
+        plugins::backend::graphics::ShaderInstanceValues instanceValues{};  ///< Of its game material.
     };
 
     /// @param shaders Gives the built-in particle and sprite shaders.
@@ -58,6 +64,15 @@ class RTYPE_RENDER_VULKAN_API ParticlePass {
     ParticlePass& operator=(const ParticlePass&) = delete;
     ParticlePass(ParticlePass&&) = delete;
     ParticlePass& operator=(ParticlePass&&) = delete;
+
+    /// @return The pipeline of a game shader's particle variant: @p vertex and @p fragment, the particle binding,
+    /// premultiplied alpha, on @p layout (the game shaders' layout). Instance values need no binding: they are push
+    /// constants, so `instanceValues` is ignored.
+    /// @throws vk::SystemError If the pipeline cannot be created.
+    [[nodiscard]] static pipeline::GraphicsPipeline createMaterialPipeline(
+        const core::Device& device, const vk::raii::ShaderModule& vertex, const vk::raii::ShaderModule& fragment,
+        bool instanceValues, const pipeline::PipelineLayout& layout, vk::Format colorFormat,
+        const vk::raii::PipelineCache* cache);
 
     /// @brief Copies @p instances, every CPU particle of the frame, into frame @p frameIndex's buffer, for record().
     /// @throws vk::SystemError If a bigger instance buffer cannot be created.
@@ -77,7 +92,7 @@ class RTYPE_RENDER_VULKAN_API ParticlePass {
                         vk::Buffer indirect, const plugins::backend::graphics::Viewport& viewport);
 
   private:
-    /// @brief Binds the pipeline, @p viewport, @p draw's push constants and texture set, and @p instances.
+    /// @brief Binds @p draw's pipeline, @p viewport, its push constants and sets, and @p instances.
     void bind(const vk::raii::CommandBuffer& commandBuffer, const Draw& draw, vk::Buffer instances,
               const plugins::backend::graphics::Viewport& viewport);
 
@@ -88,7 +103,6 @@ class RTYPE_RENDER_VULKAN_API ParticlePass {
     memory::Buffer& reserve(std::size_t frameIndex, std::size_t count);
 
     const memory::Allocator* _allocator;                  ///< Allocates the instance buffers; not owned.
-    const pipeline::PipelineLayout* _layout;              ///< The shared layout; not owned.
     pipeline::GraphicsPipeline _pipeline;                 ///< Particle and sprite shaders, premultiplied alpha.
     std::vector<std::optional<memory::Buffer>> _buffers;  ///< One instance buffer per frame in flight.
 };

@@ -19,6 +19,7 @@
 #include "particle.vert.h"
 #include "plugins/backend/graphics/CameraView.hpp"
 #include "plugins/backend/graphics/Particle.hpp"
+#include "plugins/backend/graphics/Shader.hpp"
 #include "render/vulkan/core/Device.hpp"
 #include "render/vulkan/memory/Allocator.hpp"
 #include "render/vulkan/memory/Buffer.hpp"
@@ -56,7 +57,6 @@ ParticlePass::ParticlePass(const core::Device& device, const memory::Allocator& 
                            pipeline::ShaderCache& shaders, const pipeline::PipelineLayout& layout,
                            vk::Format colorFormat, const vk::raii::PipelineCache* cache, std::size_t framesInFlight)
     : _allocator{&allocator},
-      _layout{&layout},
       _pipeline{createPipeline(device, shaders, layout, colorFormat, cache)},
       _buffers(framesInFlight) {}
 
@@ -66,6 +66,21 @@ void ParticlePass::upload(std::size_t frameIndex,
         return;
     }
     reserve(frameIndex, instances.size()).write(std::as_bytes(instances));
+}
+
+pipeline::GraphicsPipeline ParticlePass::createMaterialPipeline(
+    const core::Device& device, const vk::raii::ShaderModule& vertex, const vk::raii::ShaderModule& fragment,
+    bool /*instanceValues*/, const pipeline::PipelineLayout& layout, vk::Format colorFormat,
+    const vk::raii::PipelineCache* cache) {
+    const auto bindings = getParticleBindings();
+    const auto attributes = getParticleAttributes();
+    return pipeline::GraphicsPipeline::Builder{}
+        .setShaders(vertex, fragment)
+        .setVertexInput(bindings, attributes)
+        .setBlend(pipeline::GraphicsPipeline::BlendMode::kPremultipliedAlpha)
+        .setColorFormat(colorFormat)
+        .setLayout(layout)
+        .build(device, cache);
 }
 
 void ParticlePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex, const Draw& draw,
@@ -89,7 +104,10 @@ void ParticlePass::recordIndirect(const vk::raii::CommandBuffer& commandBuffer, 
 
 void ParticlePass::bind(const vk::raii::CommandBuffer& commandBuffer, const Draw& draw, vk::Buffer instances,
                         const plugins::backend::graphics::Viewport& viewport) {
-    _pipeline.bind(commandBuffer);
+    const pipeline::GraphicsPipeline& drawn = draw.material.pipeline != nullptr ? *draw.material.pipeline : _pipeline;
+    const vk::PipelineLayout layout = *drawn.getLayout().getLayout();
+    constexpr vk::ShaderStageFlags kStages = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment;
+    drawn.bind(commandBuffer);
     commandBuffer.setViewport(
         0, vk::Viewport{viewport.position.x, viewport.position.y, viewport.size.x, viewport.size.y, 0.0F, 1.0F});
     commandBuffer.setScissor(0, vk::Rect2D{vk::Offset2D{static_cast<std::int32_t>(viewport.position.x),
@@ -97,11 +115,16 @@ void ParticlePass::bind(const vk::raii::CommandBuffer& commandBuffer, const Draw
                                            vk::Extent2D{static_cast<std::uint32_t>(viewport.size.x),
                                                         static_cast<std::uint32_t>(viewport.size.y)}});
     commandBuffer.bindVertexBuffers(0, instances, vk::DeviceSize{0});
-    commandBuffer.pushConstants<ParticleConstants>(
-        *_layout->getLayout(), vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0,
-        draw.constants);
-    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, *_layout->getLayout(), kTextureSet,
-                                     draw.textureSet, {});
+    commandBuffer.pushConstants<ParticleConstants>(layout, kStages, 0, draw.constants);
+    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, kTextureSet, draw.textureSet, {});
+    if (draw.material.pipeline == nullptr) {
+        return;
+    }
+    commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, kMaterialSet, draw.material.set, {});
+    if (draw.material.instanceValues) {
+        commandBuffer.pushConstants<plugins::backend::graphics::ShaderInstanceValues>(
+            layout, kStages, kParticleInstanceValuesOffset, draw.instanceValues);
+    }
 }
 
 memory::Buffer& ParticlePass::reserve(std::size_t frameIndex, std::size_t count) {

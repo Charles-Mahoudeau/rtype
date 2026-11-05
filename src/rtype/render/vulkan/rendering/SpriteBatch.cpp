@@ -95,9 +95,14 @@ void SpriteBatch::add(plugins::backend::graphics::TextureId texture, plugins::ba
     ++_batches.back().instanceCount;
 }
 
-void SpriteBatch::addGlyph(plugins::backend::graphics::TextureId texture, const SpriteInstance& glyph) {
-    extend(texture, {}, plugins::backend::graphics::ShaderTarget::kGlyph);
+void SpriteBatch::addGlyph(plugins::backend::graphics::TextureId texture,
+                           plugins::backend::graphics::MaterialId material, const SpriteInstance& glyph,
+                           const plugins::backend::graphics::ShaderInstanceValues& values) {
+    extend(texture, material, plugins::backend::graphics::ShaderTarget::kGlyph);
     _instances.push_back(glyph);
+    if (material != plugins::backend::graphics::MaterialId{}) {
+        _values.push_back(values);
+    }
     ++_batches.back().instanceCount;
 }
 

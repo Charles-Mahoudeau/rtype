@@ -29,6 +29,9 @@
 #include "plugins/particle/ParticleEvents.hpp"
 #include "plugins/particle/ParticlePlugin.hpp"
 #include "plugins/particle/ParticleSystems.hpp"
+#include "plugins/shader/MaterialAssets.hpp"
+#include "plugins/shader/MaterialInstance.hpp"
+#include "plugins/shader/ShaderAssets.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
@@ -123,6 +126,52 @@ std::size_t countInstances(const ParticleDraw& draw) {
     return instances != nullptr ? instances->size() : 0;
 }
 }  // namespace
+
+/// @return The material "hit", of a shader with the instance value `flash`, 0.25 by default.
+AssetId addMaterial(ParticleApp& app) {
+    app.state().shaders = true;
+    rtype::ecs::Resources& resources = app.world().getResources();
+    const AssetId shader = resources.getMut<rtype::plugins::shader::ShaderAssets>()->add(
+        "flash", "instance uniform float flash = 0.25;\nvoid fragment() { COLOR.rgb += flash; }\n");
+    return resources.getMut<rtype::plugins::shader::MaterialAssets>()->add("hit", {.shader = shader});
+}
+
+TEST(ParticlePlugin, DrawsAnEmitterWithItsMaterialAndInstanceValues) {
+    ParticleApp app;
+    const AssetId material = addMaterial(app);
+    const rtype::ecs::Entity entity = app.spawnEmitter(ParticleEmitter{.effect = app.stream(), .material = material});
+    rtype::plugins::shader::MaterialInstance instance;
+    instance.values[0].x = 0.75F;
+    app.world().getComponents().add(entity, instance);
+    static_cast<void>(app.drawFrame());
+    const std::vector<ParticleDraw> draws = app.drawFrame();
+    ASSERT_EQ(draws.size(), 1U);
+    EXPECT_NE(draws.at(0).material, rtype::plugins::backend::graphics::MaterialId{});
+    EXPECT_FLOAT_EQ(draws.at(0).instanceValues[0].x, 0.75F);
+}
+
+TEST(ParticlePlugin, DrawsAnEmitterWithItsEffectsMaterialAndTheShadersDefaults) {
+    ParticleApp app;
+    ParticleEffect effect;
+    effect.texture = app.effects().get(app.stream())->texture;
+    effect.desc.rate = 10.0F;
+    effect.material = addMaterial(app);
+    static_cast<void>(app.spawnEmitter(ParticleEmitter{.effect = app.effects().add("hit", std::move(effect))}));
+    static_cast<void>(app.drawFrame());
+    const std::vector<ParticleDraw> draws = app.drawFrame();
+    ASSERT_EQ(draws.size(), 1U);
+    EXPECT_NE(draws.at(0).material, rtype::plugins::backend::graphics::MaterialId{});
+    EXPECT_FLOAT_EQ(draws.at(0).instanceValues[0].x, 0.25F);
+}
+
+TEST(ParticlePlugin, DrawsAnEmitterWithTheDefaultMaterialUntilItsIsCreated) {
+    ParticleApp app;
+    static_cast<void>(app.spawnEmitter(ParticleEmitter{.effect = app.stream(), .material = AssetId::fromPath("hit")}));
+    static_cast<void>(app.drawFrame());
+    const std::vector<ParticleDraw> draws = app.drawFrame();
+    ASSERT_EQ(draws.size(), 1U);
+    EXPECT_EQ(draws.at(0).material, rtype::plugins::backend::graphics::MaterialId{});
+}
 
 TEST(ParticlePlugin, ComesWithTheBackendPlugin) {
     ParticleApp app;

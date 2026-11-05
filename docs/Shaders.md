@@ -64,8 +64,10 @@ A shader is compiled for every target, so it must compile for all of them: a fai
 `UV` goes a little past 0 and 1 on a shape, in the margin of its antialiased edge. A shape has no texture: `TEXTURE`
 reads a white pixel there.
 
-Sprites and shapes are drawn with game shaders today. The `material` of texts and particles is not read yet (#373):
-they keep the default material.
+Sprites, shapes, texts and particles are all drawn with game shaders. A `TextRenderer` names its material as a
+`SpriteRenderer` does. A `ParticleEffect` names one for all its emitters, and a `ParticleEmitter` can replace it. The
+`instance uniform` values of a text or an emitter come from its entity's `MaterialInstance`, and are shared by all
+its glyphs or particles.
 
 ## Using a shader
 
