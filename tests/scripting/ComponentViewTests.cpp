@@ -7,13 +7,16 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <format>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "core/asset/AssetId.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/world/World.hpp"
@@ -116,6 +119,15 @@ sc::ComponentDeclaration makeEverything() {
                        {.name = "target", .type = FieldType::kEntity}}};
 }
 
+/// @brief What the C++ plugins reflect: the fields of `rtype.Transform` and a texture.
+sc::ComponentDeclaration makeSpatial() {
+    return {.name = "test.Spatial",
+            .fields = {{.name = "position", .type = FieldType::kVec2},
+                       {.name = "tint", .type = FieldType::kVec3},
+                       {.name = "color", .type = FieldType::kVec4},
+                       {.name = "texture", .type = FieldType::kAssetId}}};
+}
+
 sc::ComponentDeclaration makeShield() {
     return {.name = "game.Shield",
             .fields = {{.name = "strength", .type = FieldType::kF32}, {.name = "regen", .type = FieldType::kF32}}};
@@ -174,6 +186,104 @@ TEST(ComponentView, RoundTripsEverySupportedFieldType) {
     const auto same = fixture.runtime.globals().get("sameTarget");
     ASSERT_TRUE(same);
     EXPECT_TRUE(*same->tryAs<bool>());
+}
+
+TEST(ComponentView, RoundTripsVectorAndAssetIdFields) {
+    Fixture fixture{makeSpatial()};
+    fixture.expose("v");
+
+    EXPECT_EQ(fixture.run(R"(
+        v.position = { x = 1.5, y = -2 }
+        v.tint = vector.create(1, 2, 3)
+        v.color = { x = 0.25, y = 0.5, z = 0.75, w = 1 }
+        v.texture = "assets/./sprites/../ship.png"
+
+        position = v.position
+        tint = v.tint
+        color = v.color
+        texture = v.texture
+        sameTexture = v.texture == v.texture
+        text = tostring(v.texture)
+    )"),
+              "");
+
+    EXPECT_EQ((fixture.read<std::array<float, 2>>("position")), (std::array<float, 2>{1.5F, -2.0F}));
+    EXPECT_EQ((fixture.read<std::array<float, 3>>("tint")), (std::array<float, 3>{1.0F, 2.0F, 3.0F}));
+    EXPECT_EQ((fixture.read<std::array<float, 4>>("color")), (std::array<float, 4>{0.25F, 0.5F, 0.75F, 1.0F}));
+    const auto expected = rtype::core::asset::AssetId::fromPath("assets/ship.png").value;
+    EXPECT_EQ(fixture.read<std::uint64_t>("texture"), expected);
+
+    const auto position = fixture.runtime.globals().get("position");
+    ASSERT_TRUE(position);
+    const auto* positionTable = position->tryAs<rtype::luau::Table>();
+    ASSERT_NE(positionTable, nullptr);
+    EXPECT_EQ(*positionTable->get("x")->tryAs<double>(), 1.5);
+    EXPECT_EQ(*positionTable->get("y")->tryAs<double>(), -2.0);
+    const auto tint = fixture.runtime.globals().get("tint");
+    ASSERT_TRUE(tint);
+    ASSERT_NE(tint->tryAs<rtype::luau::Value::Vector>(), nullptr);
+    EXPECT_EQ(*tint->tryAs<rtype::luau::Value::Vector>(), (rtype::luau::Value::Vector{1.0F, 2.0F, 3.0F}));
+    const auto color = fixture.runtime.globals().get("color");
+    ASSERT_TRUE(color);
+    ASSERT_NE(color->tryAs<rtype::luau::Table>(), nullptr);
+    EXPECT_EQ(*color->tryAs<rtype::luau::Table>()->get("w")->tryAs<double>(), 1.0);
+    EXPECT_TRUE(*fixture.runtime.globals().get("sameTexture")->tryAs<bool>());
+    EXPECT_EQ(*fixture.runtime.globals().get("text")->tryAs<std::string>(), std::format("AssetId({:016x})", expected));
+}
+
+TEST(ComponentView, CopiesAnAssetIdFromOneFieldToAnother) {
+    Fixture fixture{
+        {.name = "test.Textures",
+         .fields = {{.name = "a", .type = FieldType::kAssetId}, {.name = "b", .type = FieldType::kAssetId}}}};
+    fixture.expose("v");
+
+    EXPECT_EQ(fixture.run(R"(v.a = "ship.png"; v.b = v.a)"), "");
+
+    EXPECT_EQ(fixture.read<std::uint64_t>("b"), rtype::core::asset::AssetId::fromPath("ship.png").value);
+}
+
+TEST(ComponentView, ReadsAVectorOfACppStyleLayoutInPlace) {
+    Fixture fixture{makeSpatial()};
+    fixture.expose("v");
+    const std::array<float, 2> position{400.0F, 300.0F};
+    for (const auto& field : fixture.info.type.fields) {
+        if (field.name == "position") {
+            std::memcpy(fixture.bytes.data() + field.offset, position.data(), sizeof(position));
+        }
+    }
+
+    EXPECT_EQ(fixture.run("x = v.position.x; y = v.position.y"), "");
+
+    EXPECT_EQ(fixture.number("x"), 400);
+    EXPECT_EQ(fixture.number("y"), 300);
+}
+
+TEST(ComponentView, RefusesABadVectorAndNamesTheField) {
+    Fixture fixture{makeSpatial()};
+    fixture.expose("v");
+
+    const auto missing = fixture.run("v.position = { x = 1 }");
+    EXPECT_NE(missing.find("position"), std::string::npos) << missing;
+    EXPECT_NE(missing.find("missing 'y'"), std::string::npos) << missing;
+    EXPECT_NE(fixture.run("v.color = { x = 1, y = 2, z = 3 }").find("missing 'w'"), std::string::npos);
+    EXPECT_NE(fixture.run("v.position = { x = 1, y = 2, z = 3 }").find("unexpected key 'z'"), std::string::npos);
+    EXPECT_NE(fixture.run("v.position = { x = 1, y = 'a' }").find("'y' must be a number"), std::string::npos);
+    EXPECT_NE(fixture.run("v.position = 3").find("expected a table"), std::string::npos);
+    EXPECT_NE(fixture.run("v.position = vector.create(1, 2, 3)").find("expected a table"), std::string::npos);
+    EXPECT_NE(fixture.run("v.tint = 'red'").find("expected a vector or a table"), std::string::npos);
+    EXPECT_NE(fixture.run("v.tint = { x = 1, y = 2 }").find("missing 'z'"), std::string::npos);
+    EXPECT_EQ((fixture.read<std::array<float, 2>>("position")), (std::array<float, 2>{0.0F, 0.0F}));
+}
+
+TEST(ComponentView, RefusesABadAssetIdAndNamesTheField) {
+    Fixture fixture{makeSpatial()};
+    fixture.expose("v");
+
+    const auto number = fixture.run("v.texture = 3");
+    EXPECT_NE(number.find("texture"), std::string::npos) << number;
+    EXPECT_NE(number.find("asset path"), std::string::npos) << number;
+    EXPECT_NE(fixture.run("v.texture = ''").find("cannot be empty"), std::string::npos);
+    EXPECT_NE(fixture.run("v.texture = nil").find("asset path"), std::string::npos);
 }
 
 TEST(ComponentView, ReadsTheBytesInPlace) {
