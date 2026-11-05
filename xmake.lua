@@ -7,6 +7,12 @@ else
     set_toolchains("clang")
 end
 
+-- xmake turns its build cache off for MSVC (cl.exe's preprocessor is slow), so the CI rebuilt everything on Windows
+-- every time. The CI sets XMAKE_ACTION_BUILD_CACHE: there, the cache is on for every compiler, MSVC included.
+if os.getenv("XMAKE_ACTION_BUILD_CACHE") == "true" then
+    set_policy("build.ccache", true)
+end
+
 -- Shared by several modules, so declared once here.
 add_requires("glm 1.0.x", {alias = "glm"})
 add_requires("glfw 3.4", {alias = "glfw"})
