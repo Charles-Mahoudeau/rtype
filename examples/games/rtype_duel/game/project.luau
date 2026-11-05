@@ -1,6 +1,12 @@
 local GAME_WIDTH = 800
 local GAME_HEIGHT = 600
 
+-- The network, from the command line: `rtype_duel server --port 4243`, `rtype_duel client --host 10.0.0.2`.
+engine.settings.network.port = engine.args.port or 4242
+if engine.isClient then
+	engine.settings.network.host = engine.args.host or "127.0.0.1"
+end
+
 if engine.isClient then
 	engine.settings.platform = "glfw"
 	engine.settings.renderer = "vulkan"
