@@ -306,10 +306,14 @@ TEST(ComponentView, RefusesAFloatBeyondTheFloatRangeAndNamesTheField) {
 }
 
 TEST(FieldAccess, RefusesToReadATableVectorWithoutARuntime) {
-    Fixture fixture{makeSpatial()};
-    const sv::FieldReadContext context{.runtime = nullptr,
-                                       .entities = fixture.runtime.usertype<rtype::ecs::Entity>(),
-                                       .assetIds = fixture.runtime.usertype<rtype::core::asset::AssetId>()};
+    // A runtime of its own, where the types are registered by the test: AssetId lives in a static library, so on
+    // macOS each binary has its own type_info for it and the one registered by the scripting library is not found.
+    auto runtime = Fixture::makeRuntime();
+    auto entities = runtime.usertype<rtype::ecs::Entity>("Entity");
+    auto assetIds = runtime.usertype<rtype::core::asset::AssetId>("AssetId");
+    ASSERT_TRUE(entities);
+    ASSERT_TRUE(assetIds);
+    const sv::FieldReadContext context{.runtime = nullptr, .entities = *entities, .assetIds = *assetIds};
     const rtype::ecs::FieldInfo field{.name = "position", .type = FieldType::kVec2, .offset = 0};
     const std::array<std::byte, 8> bytes{};
 
