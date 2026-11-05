@@ -59,7 +59,7 @@ constexpr float kWidth = 800.0F;   // As in project.luau.
 constexpr float kHeight = 600.0F;  // As in project.luau.
 constexpr glm::vec2 kImageSize{1024.0F, 765.0F};
 constexpr float kFullSize = 0.7F;  // The image's scale once zoomed in: all.luau gives a share of it.
-constexpr float kMinSoundSpeed = 0.5F;
+constexpr float kMinSoundSpeed = 0.1F;
 constexpr float kMaxSoundSpeed = 3.0F;
 // The image's background, 28/255 in sRGB: the clear colour is written as it is, in linear values.
 constexpr plugins::backend::graphics::Color kBackground{0.0116F, 0.0116F, 0.0116F, 1.0F};
