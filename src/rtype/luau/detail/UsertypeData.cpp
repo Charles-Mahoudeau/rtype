@@ -230,9 +230,9 @@ void UsertypeData::setConstructor(Constructor constructor) {
         if (taken && _constructor && lua_istable(_state, -1)) {
             // The global may be the table this type published earlier: only then can it be replaced.
             lua_getfield(_state, -1, "new");
-            if (lua_iscfunction(_state, -1) && lua_tocfunction(_state, -1) == &UsertypeData::construct) {
+            if (lua_iscfunction(_state, -1) != 0 && lua_tocfunction(_state, -1) == &UsertypeData::construct) {
                 const char* upvalueName = lua_getupvalue(_state, -1, 1);
-                taken = !(upvalueName != nullptr && lua_touserdata(_state, -1) == this);
+                taken = upvalueName == nullptr || lua_touserdata(_state, -1) != this;
                 lua_pop(_state, upvalueName != nullptr ? 1 : 0);
             }
             lua_pop(_state, 1);
