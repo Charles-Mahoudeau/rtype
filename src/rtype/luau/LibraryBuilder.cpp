@@ -24,7 +24,7 @@ namespace {
 /// Creates the table of a library.
 /// @throws exceptions::RuntimeError If the table cannot be created.
 Table createLibraryTable(const Runtime& runtime) {
-    auto result = Table::create(runtime.state());
+    auto result = Table::create(runtime);
     if (!result) {
         throw exceptions::RuntimeError{std::format("cannot create the library table: {}", result.error().message())};
     }
@@ -49,7 +49,7 @@ void LibraryBuilder::adoptLibrary(Library library) {
 }
 
 Function& LibraryBuilder::function(std::string name) {
-    auto& function = _ownedMembers.functions.emplace_back(Function::create(_runtime.state(), name));
+    auto& function = _ownedMembers.functions.emplace_back(Function::create(_runtime, name));
     const auto result = table().set(Value{std::move(name)}, Value{function.ref()});
     assert(result);
     return function;

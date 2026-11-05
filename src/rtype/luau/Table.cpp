@@ -28,7 +28,9 @@
 #include "Library.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
+#include "Runtime.hpp"
 #include "Value.hpp"
+#include "detail/Stack.hpp"
 
 namespace {
 /// @brief Stack slots reserved by an operation: the table, a key, a value, and one spare.
@@ -57,10 +59,8 @@ class StackGuard {
 }  // namespace
 
 namespace rtype::luau {
-Result<Table> Table::create(lua_State* state, const int arrayCapacity, const int hashCapacity) {
-    if (state == nullptr) {
-        throw exceptions::InvalidState{};
-    }
+Result<Table> Table::create(const Runtime& runtime, const int arrayCapacity, const int hashCapacity) {
+    lua_State* const state{detail::rawState(runtime)};
     if (lua_checkstack(state, 1) == 0) {
         return stackOverflow();
     }
@@ -73,7 +73,7 @@ Result<Table> Table::create(lua_State* state, const int arrayCapacity, const int
     return Table{Ref::pop(state)};
 }
 
-Result<Table> Table::fromStack(lua_State* state, const int stackIndex) {
+Result<Table> detail::readTable(lua_State* state, const int stackIndex) {
     if (state == nullptr) {
         throw exceptions::InvalidState{};
     }
@@ -96,11 +96,11 @@ Result<Value> Table::get(const Value& key) const {
     }
     const StackGuard guard{target};
     _ref->push(target);
-    if (auto pushed = key.push(target); !pushed) {
+    if (auto pushed = detail::pushValue(target, key); !pushed) {
         return forwardError<Value>(std::move(pushed));
     }
     lua_rawget(target, -2);
-    return Value::fromStack(target, Ref::kLuaStackTop);
+    return detail::readValue(target, Ref::kLuaStackTop);
 }
 
 Result<Value> Table::get(const std::string_view key) const { return get(Value{std::string{key}}); }
@@ -146,10 +146,10 @@ Result<void> Table::set(const Value& key, const Value& value) {
     if (lua_getreadonly(target, -1) != 0) {
         return Failure{ErrorKind::kRuntime, "attempt to modify a readonly table"};
     }
-    if (auto pushed = key.push(target); !pushed) {
+    if (auto pushed = detail::pushValue(target, key); !pushed) {
         return pushed;
     }
-    if (auto pushed = value.push(target); !pushed) {
+    if (auto pushed = detail::pushValue(target, value); !pushed) {
         return pushed;
     }
     lua_rawset(target, -3);
@@ -217,7 +217,7 @@ Result<bool> Table::has(const Value& key) const {
     }
     const StackGuard guard{target};
     _ref->push(target);
-    if (auto pushed = key.push(target); !pushed) {
+    if (auto pushed = detail::pushValue(target, key); !pushed) {
         return forwardError<bool>(std::move(pushed));
     }
     lua_rawget(target, -2);
@@ -264,11 +264,11 @@ Result<std::vector<Table::Entry>> Table::entries() const {
     // Each step has the table, the key and the value on the stack. The key stays on it for the next lua_next, and
     // it is only read, never converted in place.
     while (lua_next(target, -2) != 0) {
-        auto key = Value::fromStack(target, -2);
+        auto key = detail::readValue(target, -2);
         if (!key) {
             return forwardError<std::vector<Entry>>(std::move(key));
         }
-        auto value = Value::fromStack(target, -1);
+        auto value = detail::readValue(target, -1);
         if (!value) {
             return forwardError<std::vector<Entry>>(std::move(value));
         }
@@ -294,17 +294,17 @@ Result<Table::Map> Table::toMap() const {
     return result;
 }
 
-Result<void> Table::push(lua_State* state) const {
+Result<void> detail::pushTable(lua_State* state, const Table& table) {
     if (state == nullptr) {
         throw exceptions::InvalidState{};
     }
-    if (!_ref) {
+    if (!table._ref) {
         throw exceptions::InvalidRef{};
     }
-    if (lua_mainthread(state) != _ref->state()) {
+    if (lua_mainthread(state) != table._ref->state()) {
         return Failure{ErrorKind::kRuntime, "the table belongs to another Lua state"};
     }
-    _ref->push(state);
+    table._ref->push(state);
     return {};
 }
 
@@ -326,6 +326,9 @@ Table::Table(Ref ref) : _ref{std::make_shared<Ref>(std::move(ref))} {}
 
 lua_State* Table::state() const {
     if (!_ref) {
+        throw exceptions::InvalidRef{};
+    }
+    if (!_ref->isStateOpen()) {
         throw exceptions::InvalidRef{};
     }
     return _ref->state();

@@ -98,6 +98,9 @@ class RTYPE_ECS_API Schedule {
     /// @return Whether a system of the schedule has this name.
     [[nodiscard]] bool contains(std::string_view name) const noexcept;
 
+    /// @return The system of the schedule with this name, or null if there is none; valid until a system is added.
+    [[nodiscard]] const System* findSystem(std::string_view name) const noexcept;
+
     /// @brief Makes a system of a function (or a lambda without captures) and adds it (System).
     /// @param configs The configurations of its configured parameters (see SystemParam), if any.
     /// @throws exceptions::ScheduleException When a system of the schedule already has this name.

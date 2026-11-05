@@ -16,10 +16,11 @@
 #include "Result.hpp"
 #include "Value.hpp"
 #include "ValuePack.hpp"
+#include "detail/Stack.hpp"
 
 namespace rtype::luau {
-Result<CallContext> CallContext::fromStack(lua_State* state) {
-    auto args = ValuePack::fromStack(state, 1, static_cast<std::size_t>(lua_gettop(state)));
+Result<CallContext> detail::readCallContext(lua_State* state) {
+    auto args = readValuePack(state, 1, static_cast<std::size_t>(lua_gettop(state)));
 
     if (!args) {
         return forwardError<CallContext>(std::move(args));

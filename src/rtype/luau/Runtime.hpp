@@ -18,10 +18,18 @@
 #include "RuntimeConfig.hpp"
 #include "Script.hpp"
 #include "Table.hpp"
+#include "detail/RawState.hpp"
 
 struct lua_State;
 
 namespace rtype::luau {
+template <typename T>
+class Usertype;
+
+namespace detail {
+class UsertypeRegistry;
+}  // namespace detail
+
 /// @brief Luau virtual machine: compiles, loads and runs scripts.
 ///
 /// Owns a `lua_State` configured by a `RuntimeConfig`. Move-only: the state has a single owner.
@@ -33,7 +41,7 @@ class RTYPE_LUAU_API Runtime {
     [[nodiscard]] static Result<Runtime> create(RuntimeConfig config);
 
     /// @brief Closes the Lua state.
-    ~Runtime() noexcept = default;
+    ~Runtime() noexcept;
 
     /// @brief Copying is disabled: the Lua state has a single owner.
     Runtime(const Runtime& other) noexcept = delete;
@@ -42,17 +50,10 @@ class RTYPE_LUAU_API Runtime {
     Runtime& operator=(const Runtime& other) noexcept = delete;
 
     /// @brief Transfers ownership of the Lua state from another runtime.
-    Runtime(Runtime&& other) noexcept = default;
+    Runtime(Runtime&& other) noexcept;
 
     /// @brief Transfers ownership of the Lua state from another runtime, closing the current one.
-    Runtime& operator=(Runtime&& other) noexcept = default;
-
-    /// @brief Gives direct access to the runtime's main Lua state.
-    ///
-    /// Unsafe escape hatch for what the API does not cover yet: it prints a warning on `std::cerr` on
-    /// every call. The state stays owned by the runtime and must not be closed.
-    /// @return The main Lua state, valid as long as the runtime is alive.
-    [[nodiscard]] lua_State* state() const;
+    Runtime& operator=(Runtime&& other) noexcept;
 
     /// @brief Compiles and loads a script from its source code, without running it.
     ///
@@ -82,7 +83,29 @@ class RTYPE_LUAU_API Runtime {
 
     [[nodiscard]] Table globals() const;
 
+    /// @brief Registers a C++ type so that scripts can use its objects as userdata.
+    ///
+    /// Each type is registered once per runtime, and the runtime keeps the registration (and the handlers given to
+    /// the returned `Usertype`) until it is closed.
+    /// @tparam T The C++ type.
+    /// @param name Name of the type for scripts, which `typeof` gives for its userdata.
+    /// @return A handle to describe the members of the type, or an `ErrorKind::kLimitExceeded` error if the runtime has
+    /// no
+    ///         userdata tag left (each type takes one and tags are never reused).
+    /// @throws exceptions::InvalidOperation If `T` is already registered.
+    template <typename T>
+    [[nodiscard]] Result<Usertype<T>> usertype(std::string name);
+
+    /// @brief Gets the registration of a type registered earlier.
+    /// @tparam T The C++ type.
+    /// @return A handle on the registration.
+    /// @throws exceptions::InvalidOperation If `T` is not registered.
+    template <typename T>
+    [[nodiscard]] Usertype<T> usertype() const;
+
   private:
+    friend lua_State* detail::rawState(const Runtime& runtime) noexcept;
+
     /// @brief Deleter closing a `lua_State`.
     struct StateDeleter {
         /// @brief Closes the given Lua state.
@@ -101,7 +124,19 @@ class RTYPE_LUAU_API Runtime {
     /// @return The bytecode, or an `ErrorKind::kCompilation` error.
     [[nodiscard]] Result<Bytecode> compile(const std::string& source) const;
 
+    /// @brief Gets the usertypes registered in the Lua state.
+    /// @return The registry.
+    [[nodiscard]] detail::UsertypeRegistry& usertypes() const;
+
     RuntimeConfig _config;                            ///< Configuration the runtime was created with.
     std::unique_ptr<lua_State, StateDeleter> _state;  ///< Owned Lua state.
+
+    /// Usertypes of the Lua state. Declared after the state, so it is destroyed first: the handlers (which may hold
+    /// references of the state) go before the state is closed.
+    std::unique_ptr<detail::UsertypeRegistry> _usertypes;
 };
 }  // namespace rtype::luau
+
+#define RTYPE_RUNTIME_INCLUDING_TPP
+#include "Runtime.tpp"  // IWYU pragma: export
+#undef RTYPE_RUNTIME_INCLUDING_TPP

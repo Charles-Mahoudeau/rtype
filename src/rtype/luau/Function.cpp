@@ -8,6 +8,7 @@
 #include "Function.hpp"
 
 #include <lua.h>
+#include <lualib.h>
 
 #include <cstddef>
 #include <exception>
@@ -16,17 +17,19 @@
 #include <string>
 #include <utility>
 
-#include "CallContext.hpp"
 #include "ErrorKind.hpp"
 #include "Exceptions.hpp"
 #include "Failure.hpp"
 #include "FunctionRef.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
+#include "Runtime.hpp"
 #include "ValuePack.hpp"
+#include "detail/Stack.hpp"
 
 namespace rtype::luau {
-Function Function::create(lua_State* state, std::string name) {
+Function Function::create(const Runtime& runtime, std::string name) {
+    lua_State* const state{detail::rawState(runtime)};
     Function func{state, BindingType::kNative, std::move(name)};
     lua_pushlightuserdata(state, &func);
     lua_pushcclosure(state, &Function::handle, func.cStrName(), 1);
@@ -81,9 +84,12 @@ Result<ValuePack> Function::call(const ValuePack& args) const {
     if (_type == BindingType::kNative) {
         std::cerr << "warning: you are calling a native function from a script binding" << std::endl;
     }
+    if (!_ref.isValid()) {
+        return Failure{ErrorKind::kRuntime, std::format("unable to call '{}': its runtime was destroyed", _name)};
+    }
     const int top{lua_gettop(_state)};
     _ref.ref().push(_state);
-    auto argCount = args.push(_state);
+    auto argCount = detail::pushValuePack(_state, args);
     if (!argCount) {
         // Drop the function, to leave the stack as it was.
         lua_settop(_state, top);
@@ -100,7 +106,7 @@ Result<ValuePack> Function::call(const ValuePack& args) const {
     }
     // With LUA_MULTRET, every value above the saved top is a returned value.
     const auto resultCount{static_cast<std::size_t>(lua_gettop(_state) - top)};
-    auto results = ValuePack::pop(_state, resultCount);
+    auto results = detail::popValuePack(_state, resultCount);
     if (!results) {
         // Drop the returned values left by the failed read, to leave the stack as it was.
         lua_settop(_state, top);
@@ -160,13 +166,13 @@ int Function::handle(lua_State* state) {
     if (!self->_handler) {
         error = std::format("native function '{}' has no handler", self->_name);
     } else {
-        auto context = CallContext::fromStack(state);
+        auto context = detail::readCallContext(state);
         if (!context) {
             error = std::format("invalid argument to '{}' ({})", self->_name, context.error().message());
         } else {
             try {
                 const ValuePack results{self->_handler(*context)};
-                const auto pushed = results.push(state);
+                const auto pushed = detail::pushValuePack(state, results);
                 if (pushed) {
                     resultCount = *pushed;
                 } else {
@@ -184,7 +190,10 @@ int Function::handle(lua_State* state) {
         }
     }
     if (!error.empty()) {
+        // Prefix the position of the script that made the call (`Shield.luau:3:`), as `error` does.
+        luaL_where(state, 1);
         lua_pushlstring(state, error.data(), error.size());
+        lua_concat(state, 2);
         // The string is copied onto the Lua stack, so it can be released before the error unwinds.
         std::string{}.swap(error);
         lua_error(state);

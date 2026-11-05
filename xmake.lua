@@ -31,6 +31,7 @@ end
 
 includes("src/rtype/core")
 includes("src/rtype/ecs")
+includes("src/rtype/scripting")
 includes("src/rtype/network")
 includes("src/rtype/replication")
 includes("src/rtype/engine")

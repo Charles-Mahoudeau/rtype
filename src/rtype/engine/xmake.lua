@@ -2,7 +2,7 @@
 target("engine")
     set_kind("shared")
     set_basename("rtype-engine")
-    add_deps("ecs", "luau")
+    add_deps("ecs", "luau", "scripting")
     add_files("**.cpp")
     add_headerfiles("**.hpp")
     add_defines("RTYPE_ENGINE_BUILD", {public = false})

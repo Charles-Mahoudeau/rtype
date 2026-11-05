@@ -25,6 +25,8 @@
 #include "rtype/luau/Table.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
+#include "rtype/luau/detail/RawState.hpp"
+#include "rtype/luau/detail/Stack.hpp"
 
 namespace {
 using ErrorKind = rtype::luau::ErrorKind;
@@ -47,8 +49,8 @@ rtype::luau::Runtime makeRuntime() {
 ValuePack run(const rtype::luau::Runtime& runtime, const std::string& source, const ValuePack& args = {}) {
     const auto script = runtime.load("table", source);
     EXPECT_TRUE(script);
-    script->closure().push(runtime.state());
-    const Function function = Function::fromRef(rtype::luau::Ref::pop(runtime.state()), "table");
+    script->closure().push(rtype::luau::detail::rawState(runtime));
+    const Function function = Function::fromRef(rtype::luau::Ref::pop(rtype::luau::detail::rawState(runtime)), "table");
     auto results = function.call(args);
     EXPECT_TRUE(results) << results.error().message();
     return std::move(*results);
@@ -75,7 +77,7 @@ double number(const Table& table, const std::string& key) {
 TEST(Table, IsEmptyWhenCreated) {
     const auto runtime = makeRuntime();
 
-    const Table table = Table::create(runtime.state()).value();
+    const Table table = Table::create(runtime).value();
 
     EXPECT_EQ(table.size().value(), 0U);
     EXPECT_EQ(table.count().value(), 0U);
@@ -85,21 +87,17 @@ TEST(Table, CreateLeavesTheStackUntouched) {
     const auto runtime = makeRuntime();
     ValuePack probe{};
     probe.add({1.0});
-    ASSERT_EQ(probe.push(runtime.state()).value(), 1U);
+    ASSERT_EQ(rtype::luau::detail::pushValuePack(rtype::luau::detail::rawState(runtime), probe).value(), 1U);
 
-    const Table table = Table::create(runtime.state(), 4, 4).value();
+    const Table table = Table::create(runtime, 4, 4).value();
 
-    EXPECT_TRUE(Value::pop(runtime.state()));
+    EXPECT_TRUE(rtype::luau::detail::popValue(rtype::luau::detail::rawState(runtime)));
     EXPECT_EQ(table.count().value(), 0U);
-}
-
-TEST(Table, CreateThrowsForNullState) {
-    EXPECT_THROW(static_cast<void>(Table::create(nullptr)), rtype::luau::exceptions::InvalidState);
 }
 
 TEST(Table, SetStoresStringKey) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
+    Table table = Table::create(runtime).value();
 
     ASSERT_TRUE(table.set("answer", Value{42.0}));
 
@@ -111,7 +109,7 @@ TEST(Table, SetStoresStringKey) {
 
 TEST(Table, SetOverwritesExistingKey) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
+    Table table = Table::create(runtime).value();
     ASSERT_TRUE(table.set("key", Value{1.0}));
 
     ASSERT_TRUE(table.set("key", Value{std::string{"replaced"}}));
@@ -122,7 +120,7 @@ TEST(Table, SetOverwritesExistingKey) {
 
 TEST(Table, GetReturnsNilForMissingKey) {
     const auto runtime = makeRuntime();
-    const Table table = Table::create(runtime.state()).value();
+    const Table table = Table::create(runtime).value();
 
     const auto value = table.get("absent");
 
@@ -132,7 +130,7 @@ TEST(Table, GetReturnsNilForMissingKey) {
 
 TEST(Table, KeysAreCaseSensitiveAndMayBeEmpty) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
+    Table table = Table::create(runtime).value();
     ASSERT_TRUE(table.set("Key", Value{1.0}));
     ASSERT_TRUE(table.set("", Value{2.0}));
 
@@ -143,7 +141,7 @@ TEST(Table, KeysAreCaseSensitiveAndMayBeEmpty) {
 
 TEST(Table, SettingNilRemovesTheEntry) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
+    Table table = Table::create(runtime).value();
     ASSERT_TRUE(table.set("key", Value{true}));
 
     ASSERT_TRUE(table.set("key", Value{Value::Nil{}}));
@@ -154,7 +152,7 @@ TEST(Table, SettingNilRemovesTheEntry) {
 
 TEST(Table, HasTellsPresentFromAbsentKeys) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
+    Table table = Table::create(runtime).value();
     ASSERT_TRUE(table.set("present", Value{false}));
 
     EXPECT_TRUE(*table.has("present"));
@@ -164,7 +162,7 @@ TEST(Table, HasTellsPresentFromAbsentKeys) {
 
 TEST(Table, ArrayIndicesAreOneBased) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
+    Table table = Table::create(runtime).value();
 
     for (std::size_t i = 1; i <= 3; ++i) {
         ASSERT_TRUE(table.setAt(i, Value{static_cast<double>(i) * 10.0}));
@@ -180,9 +178,9 @@ TEST(Table, ArrayIndicesAreOneBased) {
 
 TEST(Table, AcceptsKeysOfAnySupportedType) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
+    Table table = Table::create(runtime).value();
     const Value vectorKey{Value::Vector{1.0F, 2.0F, 3.0F}};
-    const Value tableKey{Table::create(runtime.state()).value()};
+    const Value tableKey{Table::create(runtime).value()};
 
     ASSERT_TRUE(table.set(Value{true}, Value{1.0}));
     ASSERT_TRUE(table.set(Value{2.5}, Value{2.0}));
@@ -198,7 +196,7 @@ TEST(Table, AcceptsKeysOfAnySupportedType) {
 
 TEST(Table, SetRejectsNilKey) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
+    Table table = Table::create(runtime).value();
 
     const auto result = table.set(Value{Value::Nil{}}, Value{1.0});
 
@@ -209,7 +207,7 @@ TEST(Table, SetRejectsNilKey) {
 
 TEST(Table, SetRejectsNaNKey) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
+    Table table = Table::create(runtime).value();
 
     const auto result = table.set(Value{std::numeric_limits<double>::quiet_NaN()}, Value{1.0});
 
@@ -231,9 +229,9 @@ TEST(Table, SetFailsOnReadOnlyTable) {
 TEST(Table, SetFailsForTableOfAnotherState) {
     const auto runtime = makeRuntime();
     const auto foreign = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
+    Table table = Table::create(runtime).value();
 
-    const auto result = table.set("other", Value{Table::create(foreign.state()).value()});
+    const auto result = table.set("other", Value{Table::create(foreign).value()});
 
     ASSERT_FALSE(result);
     EXPECT_EQ(result.error().kind(), ErrorKind::kRuntime);
@@ -243,8 +241,8 @@ TEST(Table, SetFailsForTableOfAnotherState) {
 TEST(Table, FailedOperationsLeaveTheStackAsTheyFoundIt) {
     const auto runtime = makeRuntime();
     const auto foreign = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
-    const Value foreignTable{Table::create(foreign.state()).value()};
+    Table table = Table::create(runtime).value();
+    const Value foreignTable{Table::create(foreign).value()};
     constexpr int kCalls = 10000;
 
     // The stack of Luau is capped at 8000 slots: leaking one slot per call would overflow it.
@@ -261,7 +259,7 @@ TEST(Table, FailedOperationsLeaveTheStackAsTheyFoundIt) {
 
 TEST(Table, CopyRefersToTheSameTable) {
     const auto runtime = makeRuntime();
-    Table original = Table::create(runtime.state()).value();
+    Table original = Table::create(runtime).value();
     Table copy{original};
 
     ASSERT_TRUE(copy.set("shared", Value{1.0}));
@@ -274,8 +272,8 @@ TEST(Table, CopyRefersToTheSameTable) {
 
 TEST(Table, CopyAssignmentRefersToTheOtherTable) {
     const auto runtime = makeRuntime();
-    const Table source = Table::create(runtime.state()).value();
-    Table target = Table::create(runtime.state()).value();
+    const Table source = Table::create(runtime).value();
+    Table target = Table::create(runtime).value();
 
     target = source;
 
@@ -284,10 +282,10 @@ TEST(Table, CopyAssignmentRefersToTheOtherTable) {
 
 TEST(Table, DistinctTablesDoNotReferToTheSame) {
     const auto runtime = makeRuntime();
-    const Table first = Table::create(runtime.state()).value();
-    const Table second = Table::create(runtime.state()).value();
+    const Table first = Table::create(runtime).value();
+    const Table second = Table::create(runtime).value();
     const auto foreign = makeRuntime();
-    const Table other = Table::create(foreign.state()).value();
+    const Table other = Table::create(foreign).value();
 
     EXPECT_FALSE(first.refersToSame(second).value());
     EXPECT_FALSE(first.refersToSame(other).value());
@@ -295,7 +293,7 @@ TEST(Table, DistinctTablesDoNotReferToTheSame) {
 
 TEST(Table, MovedFromHandleThrowsInvalidRef) {
     const auto runtime = makeRuntime();
-    Table source = Table::create(runtime.state()).value();
+    Table source = Table::create(runtime).value();
 
     const Table moved{std::move(source)};
 
@@ -314,7 +312,7 @@ TEST(Table, IsCheapToCopyAndMove) {
 
 TEST(Table, ScriptSeesChangesMadeFromCpp) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
+    Table table = Table::create(runtime).value();
     ASSERT_TRUE(table.set("hp", Value{10.0}));
     ValuePack args{};
     args.add({table});
@@ -327,7 +325,7 @@ TEST(Table, ScriptSeesChangesMadeFromCpp) {
 
 TEST(Table, CppSeesChangesMadeByScript) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
+    Table table = Table::create(runtime).value();
     ValuePack args{};
     args.add({table});
 
@@ -364,23 +362,23 @@ TEST(Table, NestedTablesAreLiveHandles) {
 
 TEST(Table, PushThenFromStackGivesTheSameTable) {
     const auto runtime = makeRuntime();
-    const Table table = Table::create(runtime.state()).value();
+    const Table table = Table::create(runtime).value();
 
-    ASSERT_TRUE(table.push(runtime.state()));
-    const auto read = Table::fromStack(runtime.state());
+    ASSERT_TRUE(rtype::luau::detail::pushTable(rtype::luau::detail::rawState(runtime), table));
+    const auto read = rtype::luau::detail::readTable(rtype::luau::detail::rawState(runtime));
 
     ASSERT_TRUE(read);
     EXPECT_TRUE(read->refersToSame(table).value());
-    EXPECT_TRUE(Value::pop(runtime.state()));
+    EXPECT_TRUE(rtype::luau::detail::popValue(rtype::luau::detail::rawState(runtime)));
 }
 
 TEST(Table, FromStackFailsForOtherTypes) {
     const auto runtime = makeRuntime();
     ValuePack pack{};
     pack.add({1.0});
-    ASSERT_EQ(pack.push(runtime.state()).value(), 1U);
+    ASSERT_EQ(rtype::luau::detail::pushValuePack(rtype::luau::detail::rawState(runtime), pack).value(), 1U);
 
-    const auto read = Table::fromStack(runtime.state());
+    const auto read = rtype::luau::detail::readTable(rtype::luau::detail::rawState(runtime));
 
     ASSERT_FALSE(read);
     EXPECT_EQ(read.error().kind(), ErrorKind::kTypeMismatch);
@@ -389,9 +387,9 @@ TEST(Table, FromStackFailsForOtherTypes) {
 TEST(Table, PushFailsForTableOfAnotherState) {
     const auto runtime = makeRuntime();
     const auto foreign = makeRuntime();
-    const Table table = Table::create(foreign.state()).value();
+    const Table table = Table::create(foreign).value();
 
-    const auto pushed = table.push(runtime.state());
+    const auto pushed = rtype::luau::detail::pushTable(rtype::luau::detail::rawState(runtime), table);
 
     ASSERT_FALSE(pushed);
     EXPECT_EQ(pushed.error().kind(), rtype::luau::ErrorKind::kRuntime);
@@ -457,7 +455,7 @@ TEST(Table, ToMapCopiesStringKeyedEntries) {
 
 TEST(Table, ToMapIsASnapshot) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
+    Table table = Table::create(runtime).value();
     ASSERT_TRUE(table.set("key", Value{1.0}));
 
     const auto map = table.toMap();
@@ -471,7 +469,7 @@ TEST(Table, ToMapIsASnapshot) {
 
 TEST(Table, ToMapFailsForNonStringKey) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
+    Table table = Table::create(runtime).value();
     ASSERT_TRUE(table.set("name", Value{1.0}));
     ASSERT_TRUE(table.setAt(1, Value{2.0}));
 
@@ -483,7 +481,7 @@ TEST(Table, ToMapFailsForNonStringKey) {
 
 TEST(Table, ToMapOfEmptyTableIsEmpty) {
     const auto runtime = makeRuntime();
-    const Table table = Table::create(runtime.state()).value();
+    const Table table = Table::create(runtime).value();
 
     const auto map = table.toMap();
 
@@ -515,7 +513,7 @@ TEST(Table, FunctionRefReadsAFunctionDefinedByAScript) {
 
 TEST(Table, FunctionFailsForMissingKey) {
     const auto runtime = makeRuntime();
-    const Table table = Table::create(runtime.state()).value();
+    const Table table = Table::create(runtime).value();
 
     const auto function = table.function("missing");
 
@@ -539,15 +537,15 @@ TEST(Table, FunctionFailsForAnotherType) {
 
 TEST(Table, HasNoMetatableByDefault) {
     const auto runtime = makeRuntime();
-    const Table table = Table::create(runtime.state()).value();
+    const Table table = Table::create(runtime).value();
 
     EXPECT_FALSE(table.metatable().value());
 }
 
 TEST(Table, MetatableReturnsTheTableThatWasSet) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
-    const Table metatable = Table::create(runtime.state()).value();
+    Table table = Table::create(runtime).value();
+    const Table metatable = Table::create(runtime).value();
 
     ASSERT_TRUE(table.setMetatable(metatable));
 
@@ -558,9 +556,9 @@ TEST(Table, MetatableReturnsTheTableThatWasSet) {
 
 TEST(Table, ClearMetatableRemovesIt) {
     const auto runtime = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
+    Table table = Table::create(runtime).value();
 
-    ASSERT_TRUE(table.setMetatable(Table::create(runtime.state()).value()));
+    ASSERT_TRUE(table.setMetatable(Table::create(runtime).value()));
     ASSERT_TRUE(table.clearMetatable());
 
     EXPECT_FALSE(table.metatable().value());
@@ -569,8 +567,8 @@ TEST(Table, ClearMetatableRemovesIt) {
 TEST(Table, SetMetatableRejectsATableOfAnotherState) {
     const auto runtime = makeRuntime();
     const auto foreign = makeRuntime();
-    Table table = Table::create(runtime.state()).value();
-    const Table metatable = Table::create(foreign.state()).value();
+    Table table = Table::create(runtime).value();
+    const Table metatable = Table::create(foreign).value();
 
     const auto result = table.setMetatable(metatable);
 
@@ -581,10 +579,9 @@ TEST(Table, SetMetatableRejectsATableOfAnotherState) {
 
 TEST(Table, ScriptsRunTheIndexMetamethodButRawReadsDoNot) {
     const auto runtime = makeRuntime();
-    lua_State* const state = runtime.state();
-    Table table = Table::create(state).value();
-    Table metatable = Table::create(state).value();
-    Function index = Function::create(state, "index");
+    Table table = Table::create(runtime).value();
+    Table metatable = Table::create(runtime).value();
+    Function index = Function::create(runtime, "index");
 
     index.setHandler([](const rtype::luau::CallContext&) {
         ValuePack answer;
@@ -609,7 +606,7 @@ TEST(Table, ScriptsRunTheIndexMetamethodButRawReadsDoNot) {
 
 TEST(Table, MovedFromHandleThrowsInvalidRefOnMetatableAccess) {
     const auto runtime = makeRuntime();
-    Table source = Table::create(runtime.state()).value();
+    Table source = Table::create(runtime).value();
     const Table moved{std::move(source)};
 
     // NOLINTBEGIN(bugprone-use-after-move,clang-analyzer-cplusplus.Move)

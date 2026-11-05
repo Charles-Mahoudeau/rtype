@@ -65,7 +65,7 @@ int main() {
     // Luau function. The script calls it at its top level, so the handler is set before the script runs: until
     // then, calling it raises a Lua error. `cppReverse` must outlive every call from Luau: once it is destroyed,
     // calling the closure raises a Lua error instead of reaching a dangling object.
-    Function cppReverse = Function::create(runtime->state(), "cpp_reverse");
+    Function cppReverse = Function::create(*runtime, "cpp_reverse");
     cppReverse.setHandler([](const CallContext& context) -> ValuePack {
         // `args()` gives the arguments of the call, in order, as Values. An argument of a type that cannot be read
         // yet (e.g. a table) raises a Lua error before the handler runs, so every argument here is readable.

@@ -28,12 +28,37 @@ struct lua_State;
 namespace rtype::luau {
 class Function;
 class Library;
+class Runtime;
+class Table;
 class Value;
+
+namespace detail {
+/// @brief Makes a handle on the table at a stack index of a Lua state.
+///
+/// Leaves the stack untouched. The reverse of `pushTable()`.
+/// @param state The Lua state to read from; must not be null.
+/// @param stackIndex Stack index of the table (defaults to the top). It must be a valid index of @p state's stack.
+/// @return A handle on the table, or a Failure of kind `kTypeMismatch` if the value is not a table.
+/// @throws exceptions::InvalidState If @p state is null.
+[[nodiscard]] RTYPE_LUAU_API Result<Table> readTable(lua_State* state, int stackIndex = Ref::kLuaStackTop);
+
+/// @brief Pushes a table onto the stack of a Lua state.
+///
+/// Pushes exactly one value on success and nothing on failure. Does not grow the stack: the caller makes sure there
+/// is room for one more slot (`lua_checkstack`).
+/// @param state The Lua state to push onto; must not be null.
+/// @param table The table to push.
+/// @return Nothing on success, or a Failure of kind `kRuntime` if @p state belongs to another Lua state than the
+///         table.
+/// @throws exceptions::InvalidState If @p state is null.
+/// @throws exceptions::InvalidRef If the handle was moved from.
+[[nodiscard]] RTYPE_LUAU_API Result<void> pushTable(lua_State* state, const Table& table);
+}  // namespace detail
 /// @brief Handle on a table that lives in a Luau state.
 ///
 /// Mirrors the reference semantics of Luau: copying a `Table` copies the handle, not the contents, so every copy
 /// (and the scripts) see the same entries. The table stays alive as long as a handle or a script refers to it, and
-/// the handle must not outlive the `Runtime` of its state.
+/// the handle may outlive the `Runtime` of its state, but any use of it then throws `exceptions::InvalidRef`.
 ///
 /// Keys and values are `Value`s. Reads and writes are raw: metatables (`__index`, `__newindex`) are bypassed, so
 /// they never run script code and never raise a Luau error; a metatable only affects what scripts do with the table
@@ -46,23 +71,13 @@ class RTYPE_LUAU_API Table {
     /// @brief String-keyed snapshot of a table, with transparent string hashing and comparison.
     using Map = std::unordered_map<std::string, Value, StringHash, std::equal_to<>>;
 
-    /// @brief Creates a new, empty table in a Lua state.
-    /// @param state The Lua state to create the table in; must not be null.
+    /// @brief Creates a new, empty table in the state of a runtime.
+    /// @param runtime The runtime to create the table in; it must outlive the call, not the table.
     /// @param arrayCapacity Number of array slots to preallocate.
     /// @param hashCapacity Number of hash entries to preallocate.
-    /// @return A handle on the new table, or a Failure of kind `kStackOverflow` if the stack of @p state cannot grow
+    /// @return A handle on the new table, or a Failure of kind `kStackOverflow` if the stack of the runtime cannot grow
     ///         by one slot, or of kind `kOutOfMemory` if the table cannot be allocated.
-    /// @throws exceptions::InvalidState If @p state is null.
-    [[nodiscard]] static Result<Table> create(lua_State* state, int arrayCapacity = 0, int hashCapacity = 0);
-    /// @brief Makes a handle on the table at a stack index of a Lua state.
-    ///
-    /// Leaves the stack untouched. The reverse of `push()`.
-    /// @param state The Lua state to read from; must not be null.
-    /// @param stackIndex Stack index of the table (defaults to the top). It must be a valid index of @p state's
-    ///        stack.
-    /// @return A handle on the table, or a Failure of kind `kTypeMismatch` if the value is not a table.
-    [[nodiscard]] static Result<Table> fromStack(lua_State* state, int stackIndex = Ref::kLuaStackTop);
-
+    [[nodiscard]] static Result<Table> create(const Runtime& runtime, int arrayCapacity = 0, int hashCapacity = 0);
     /// @brief Destroys the handle. The table itself lives on while another handle or a script refers to it.
     ~Table() noexcept;
     /// @brief Copy constructor: the new handle refers to the same table.
@@ -77,7 +92,7 @@ class RTYPE_LUAU_API Table {
     /// @brief Reads the value stored under a key.
     /// @param key Key to look up.
     /// @return The value (`nil` if the key is absent), or a Failure if the stack cannot grow, or of kind
-    ///         `kTypeMismatch` if the value has a type that cannot be read yet (see `Value::fromStack`).
+    ///         `kTypeMismatch` if the value has a type that cannot be read yet (see `detail::readValue`).
     [[nodiscard]] Result<Value> get(const Value& key) const;
     /// @brief Reads the value stored under a string key.
     /// @param key Key to look up.
@@ -165,23 +180,12 @@ class RTYPE_LUAU_API Table {
     /// The snapshot is taken before returning, so the table can be modified while going through it. Nested
     /// tables are handles on the live tables, not copies.
     /// @return The entries, or a Failure if the stack cannot grow, or of kind `kTypeMismatch` if a key or a value
-    ///         has a type that cannot be read yet (see `Value::fromStack`).
+    ///         has a type that cannot be read yet (see `detail::readValue`).
     [[nodiscard]] Result<std::vector<Entry>> entries() const;
     /// @brief Copies the entries of the table into a string-keyed map (a shallow snapshot, like `entries()`).
     /// @return The map, or a Failure of kind `kTypeMismatch` if a key is not a string, or the failure of
     ///         `entries()`.
     [[nodiscard]] Result<Map> toMap() const;
-
-    /// @brief Pushes the table onto the stack of a Lua state.
-    ///
-    /// Pushes exactly one value on success and nothing on failure. Does not grow the stack: the caller makes sure
-    /// there is room for one more slot (`lua_checkstack`).
-    /// @param state The Lua state to push onto; must not be null.
-    /// @return Nothing on success, or a Failure of kind `kRuntime` if @p state belongs to another Lua state than the
-    ///         table.
-    /// @throws exceptions::InvalidState If @p state is null.
-    /// @throws exceptions::InvalidRef If the handle was moved from.
-    [[nodiscard]] Result<void> push(lua_State* state) const;
 
     /// @brief Checks whether two handles refer to the same table (raw identity, not equal contents).
     /// @param other The handle to compare with.
@@ -191,6 +195,9 @@ class RTYPE_LUAU_API Table {
     [[nodiscard]] Result<bool> refersToSame(const Table& other) const;
 
   private:
+    friend Result<Table> detail::readTable(lua_State* state, int stackIndex);
+    friend Result<void> detail::pushTable(lua_State* state, const Table& table);
+
     /// @brief Wraps a reference to a table.
     /// @param ref Registry reference to the table.
     explicit Table(Ref ref);

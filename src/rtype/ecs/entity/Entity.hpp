@@ -12,6 +12,8 @@
 #include <functional>
 #include <type_traits>
 
+#include "rtype/ecs/Export.hpp"
+
 namespace rtype::ecs {
 /// @brief Generational handle to an entity: an index into the world's slots and the generation of that slot.
 ///
@@ -22,7 +24,7 @@ namespace rtype::ecs {
 /// least 1, so a zero-filled component field of type Entity reads as null.
 ///
 /// Entities are local to one world: never send them over the network.
-class Entity {
+class RTYPE_ECS_API Entity {
   public:
     /// @brief An entity with the given slot index and generation.
     constexpr Entity(std::uint32_t index, std::uint32_t generation) noexcept

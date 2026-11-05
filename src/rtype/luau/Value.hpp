@@ -15,9 +15,8 @@
 
 #include "Export.hpp"
 #include "FunctionRef.hpp"
-#include "Ref.hpp"
-#include "Result.hpp"
 #include "Table.hpp"
+#include "Userdata.hpp"
 
 struct lua_State;
 
@@ -25,8 +24,8 @@ namespace rtype::luau {
 /// @brief A dynamically typed Luau value, held by value on the C++ side.
 ///
 /// Wraps a `std::variant` of the Luau types that are currently supported. Use `is<T>()` to inspect
-/// the held type, `as<T>()` or `tryAs<T>()` to access it, `push()` to hand it over to a Lua state, and
-/// `fromStack()` or `pop()` to read one back from it.
+/// the held type, `as<T>()` or `tryAs<T>()` to access it, `detail::pushValue()` to hand it over to a Lua state,
+/// and `detail::readValue()` or `detail::popValue()` to read one back from it.
 class RTYPE_LUAU_API Value {
   public:
     /// @brief Luau `nil`.
@@ -36,27 +35,9 @@ class RTYPE_LUAU_API Value {
     /// @brief The set of Luau types a Value can hold.
     ///
     /// See https://luau.org/api/#type-inspection. Numbers are all `double` for now: 64-bit integers
-    /// come with a later Luau version. A `Table` and a `FunctionRef` are handles on a table and a function of the Lua
-    /// state, not copies of them. Not implemented types (yet): Userdata, Thread, Buffer, Class.
-    using Variant = std::variant<Nil, bool, double, Vector, std::string, Table, FunctionRef>;
-
-    /// @brief Reads a value from the stack of a Lua state, as the matching Value alternative.
-    ///
-    /// Copies the value without popping it, and leaves the stack untouched. The reverse of `push()`.
-    /// @param state The Lua state to read from; must not be null.
-    /// @param stackIndex Stack index of the value to read (defaults to the top). It must be a valid index
-    ///        of @p state's stack.
-    /// @return A Value holding a copy of the Luau value, or a Failure of kind `kTypeMismatch` if the
-    ///         value has a type that cannot be read yet (userdata, thread, buffer).
-    [[nodiscard]] static Result<Value> fromStack(lua_State* state, int stackIndex = Ref::kLuaStackTop);
-    /// @brief Reads the value on top of the stack of a Lua state and pops it.
-    ///
-    /// Same as `fromStack()` on the top of the stack, followed by a pop on success. On failure, the
-    /// stack is left untouched: the value stays on top.
-    /// @param state The Lua state to read from; must not be null, and its stack must not be empty.
-    /// @return A Value holding a copy of the Luau value, or a Failure of kind `kTypeMismatch` if the
-    ///         value has a type that cannot be read yet (userdata, thread, buffer).
-    [[nodiscard]] static Result<Value> pop(lua_State* state);
+    /// come with a later Luau version. A `Table`, a `FunctionRef` and a `Userdata` are handles on a table, a function
+    /// and a userdata of the Lua state, not copies of them. Not implemented types (yet): Thread, Buffer, Class.
+    using Variant = std::variant<Nil, bool, double, Vector, std::string, Table, FunctionRef, Userdata>;
 
     /// @brief Constructs a Value from any of the supported types.
     /// @param v The variant to hold.
@@ -74,15 +55,9 @@ class RTYPE_LUAU_API Value {
     /// @brief Move assignment.
     Value& operator=(Value&&) noexcept;
 
-    /// @brief Pushes the held value onto the stack of a Lua state, as the matching Luau type.
-    ///
-    /// Pushes exactly one value on success and nothing on failure. Does not grow the stack: the
-    /// caller makes sure there is room for one more slot (`lua_checkstack`).
-    /// @param state The Lua state to push onto; must not be null.
-    /// @return Nothing on success, or a Failure of kind `kRuntime` if the Value holds a `Table` of another Lua state
-    ///         than @p state, or of kind `kOutOfMemory` if a string cannot be allocated.
-    /// @throws exceptions::InvalidState If @p state is null.
-    [[nodiscard]] Result<void> push(lua_State* state) const;
+    /// @brief Gets the held alternative, to visit it.
+    /// @return The variant holding the value.
+    [[nodiscard]] const Variant& variant() const noexcept;
 
     /// @brief Checks whether the Value currently holds a `T`.
     /// @tparam T One of the alternatives of `Variant`.

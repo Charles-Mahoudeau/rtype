@@ -1,0 +1,6 @@
+target("Shield")
+    set_kind("binary")
+    set_default(false)
+    add_deps("ecs", "scripting")
+    add_files("src/**.cpp")
+    set_rundir("$(projectdir)")

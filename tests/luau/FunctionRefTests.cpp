@@ -19,6 +19,8 @@
 #include "rtype/luau/RuntimeConfig.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
+#include "rtype/luau/detail/RawState.hpp"
+#include "rtype/luau/detail/Stack.hpp"
 
 namespace {
 using ErrorKind = rtype::luau::ErrorKind;
@@ -41,8 +43,8 @@ rtype::luau::Runtime makeRuntime() {
 FunctionRef makeFunctionRef(const rtype::luau::Runtime& runtime, const std::string& source) {
     const auto script = runtime.load("function-ref", source);
     EXPECT_TRUE(script);
-    script->closure().push(runtime.state());
-    const Function loader = Function::fromRef(rtype::luau::Ref::pop(runtime.state()), "loader");
+    script->closure().push(rtype::luau::detail::rawState(runtime));
+    const Function loader = Function::fromRef(rtype::luau::Ref::pop(rtype::luau::detail::rawState(runtime)), "loader");
     auto results = loader.call();
     EXPECT_TRUE(results);
     EXPECT_EQ(results->values().size(), 1U);
@@ -56,8 +58,8 @@ TEST(FunctionRef, FromStackReadsFunction) {
     const auto runtime = makeRuntime();
     const auto function = makeFunctionRef(runtime, "return function(a) return a * 2 end");
 
-    ASSERT_TRUE(function.push(runtime.state()));
-    const auto read = FunctionRef::fromStack(runtime.state());
+    ASSERT_TRUE(rtype::luau::detail::pushFunctionRef(rtype::luau::detail::rawState(runtime), function));
+    const auto read = rtype::luau::detail::readFunctionRef(rtype::luau::detail::rawState(runtime));
 
     EXPECT_TRUE(read);
 }
@@ -66,16 +68,16 @@ TEST(FunctionRef, FromStackFailsForOtherTypes) {
     const auto runtime = makeRuntime();
     ValuePack pushed{};
     pushed.add({1.0});
-    ASSERT_EQ(pushed.push(runtime.state()).value(), 1U);
+    ASSERT_EQ(rtype::luau::detail::pushValuePack(rtype::luau::detail::rawState(runtime), pushed).value(), 1U);
 
-    const auto read = FunctionRef::fromStack(runtime.state());
+    const auto read = rtype::luau::detail::readFunctionRef(rtype::luau::detail::rawState(runtime));
 
     ASSERT_FALSE(read);
     EXPECT_EQ(read.error().kind(), ErrorKind::kTypeMismatch);
 }
 
 TEST(FunctionRef, FromStackThrowsForNullState) {
-    EXPECT_THROW(std::ignore = FunctionRef::fromStack(nullptr), rtype::luau::exceptions::InvalidState);
+    EXPECT_THROW(std::ignore = rtype::luau::detail::readFunctionRef(nullptr), rtype::luau::exceptions::InvalidState);
 }
 
 TEST(FunctionRef, CopiesShareTheFunction) {
@@ -98,7 +100,7 @@ TEST(FunctionRef, PushFailsForOtherState) {
     const auto other = makeRuntime();
     const auto function = makeFunctionRef(runtime, "return function() end");
 
-    const auto pushed = function.push(other.state());
+    const auto pushed = rtype::luau::detail::pushFunctionRef(rtype::luau::detail::rawState(other), function);
 
     ASSERT_FALSE(pushed);
     EXPECT_EQ(pushed.error().kind(), ErrorKind::kRuntime);
@@ -110,7 +112,8 @@ TEST(FunctionRef, MovedFromHandleThrows) {
     const FunctionRef moved{std::move(function)};
 
     EXPECT_THROW(std::ignore = function.ref(), rtype::luau::exceptions::InvalidRef);
-    EXPECT_THROW(std::ignore = function.push(runtime.state()), rtype::luau::exceptions::InvalidRef);
+    EXPECT_THROW(std::ignore = rtype::luau::detail::pushFunctionRef(rtype::luau::detail::rawState(runtime), function),
+                 rtype::luau::exceptions::InvalidRef);
 }
 
 TEST(FunctionRef, ValueHoldsFunctionRef) {
@@ -128,7 +131,7 @@ TEST(FunctionRef, ValuePushesFunctionBack) {
     const auto runtime = makeRuntime();
     const Value value{makeFunctionRef(runtime, "return function() return 1 end")};
 
-    ASSERT_TRUE(value.push(runtime.state()));
+    ASSERT_TRUE(rtype::luau::detail::pushValue(rtype::luau::detail::rawState(runtime), value));
 
-    EXPECT_TRUE(FunctionRef::fromStack(runtime.state()));
+    EXPECT_TRUE(rtype::luau::detail::readFunctionRef(rtype::luau::detail::rawState(runtime)));
 }

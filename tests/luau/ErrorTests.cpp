@@ -27,9 +27,10 @@ TEST(Error, StoresKindAndMessage) {
 
 TEST(Error, StoresEveryKind) {
     constexpr std::array kinds{
-        rtype::luau::ErrorKind::kRuntime, rtype::luau::ErrorKind::kSyntax,      rtype::luau::ErrorKind::kTypeMismatch,
-        rtype::luau::ErrorKind::kTimeout, rtype::luau::ErrorKind::kOutOfMemory, rtype::luau::ErrorKind::kStackOverflow,
-        rtype::luau::ErrorKind::kUnknown,
+        rtype::luau::ErrorKind::kRuntime,       rtype::luau::ErrorKind::kSyntax,
+        rtype::luau::ErrorKind::kTypeMismatch,  rtype::luau::ErrorKind::kTimeout,
+        rtype::luau::ErrorKind::kOutOfMemory,   rtype::luau::ErrorKind::kStackOverflow,
+        rtype::luau::ErrorKind::kLimitExceeded, rtype::luau::ErrorKind::kUnknown,
     };
 
     for (const auto kind : kinds) {
