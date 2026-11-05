@@ -35,8 +35,11 @@ summary="${GITHUB_STEP_SUMMARY:-/dev/null}"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-mapfile -t files < <(git diff --name-only --diff-filter=d "${base}...HEAD" -- \
-    '*.c' '*.h' '*.cpp' '*.hpp' '*.cc' '*.hh' '*.cxx' '*.hxx' ':!.github')
+# Written to a file first so that `set -e` stops the script when git diff fails, and NUL-delimited so that Git does not
+# quote the paths with unusual characters.
+git diff -z --name-only --diff-filter=d "${base}...HEAD" -- \
+    '*.c' '*.h' '*.cpp' '*.hpp' '*.cc' '*.hh' '*.cxx' '*.hxx' ':!.github' >"$work/files.txt"
+mapfile -d '' -t files <"$work/files.txt"
 
 echo "Changed files since ${base}: ${#files[@]}"
 if [[ ${#files[@]} -eq 0 ]]; then
