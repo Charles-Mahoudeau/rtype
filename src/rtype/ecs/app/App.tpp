@@ -32,4 +32,10 @@ App& App::insertResource(T value) {
     _world.getResources().insert(std::move(value));
     return *this;
 }
+
+template <Resource T>
+App& App::insertResourceIfAbsent(T value) {
+    _world.getResources().insertIfAbsent(std::move(value));
+    return *this;
+}
 }  // namespace rtype::ecs

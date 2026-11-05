@@ -41,18 +41,10 @@ std::string_view ShaderPlugin::getName() const noexcept { return kName; }
 
 void ShaderPlugin::build(ecs::App& app) {
     ecs::Resources& resources = app.getWorld().getResources();
-    if (!resources.has<ShaderAssets>()) {
-        resources.insert(ShaderAssets{});
-    }
-    if (!resources.has<MaterialAssets>()) {
-        resources.insert(MaterialAssets{});
-    }
-    if (!resources.has<ShaderHandles>()) {
-        resources.insert(ShaderHandles{});
-    }
-    if (!resources.has<backend::TextureAssets>()) {
-        resources.insert(backend::TextureAssets{});
-    }
+    resources.insertIfAbsent<ShaderAssets>();
+    resources.insertIfAbsent<MaterialAssets>();
+    resources.insertIfAbsent<ShaderHandles>();
+    resources.insertIfAbsent<backend::TextureAssets>();
     static_cast<void>(app.getWorld().getComponents().registerType<MaterialInstance>());
     app.addSystem(ecs::Phase::kRender, std::string{kUpdateSystem}, &updateShaders)
         .after(std::string{backend::BackendPlugin::kTexturesSystem})

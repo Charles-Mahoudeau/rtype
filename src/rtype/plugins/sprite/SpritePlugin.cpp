@@ -96,12 +96,8 @@ std::string_view SpritePlugin::getName() const noexcept { return kName; }
 
 void SpritePlugin::build(ecs::App& app) {
     ecs::Resources& resources = app.getWorld().getResources();
-    if (!resources.has<AtlasAssets>()) {
-        resources.insert(AtlasAssets{});
-    }
-    if (!resources.has<backend::TextureAssets>()) {
-        resources.insert(backend::TextureAssets{});
-    }
+    resources.insertIfAbsent<AtlasAssets>();
+    resources.insertIfAbsent<backend::TextureAssets>();
     static_cast<void>(app.getWorld().getComponents().registerType<SpriteAnimator>());
     static_cast<void>(app.getWorld().getEvents().registerType<AnimationFinished>());
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kAnimateSystem}, &animateSprites).setSide(ecs::Side::kBoth);

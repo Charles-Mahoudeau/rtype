@@ -165,18 +165,10 @@ std::string_view TilemapPlugin::getName() const noexcept { return kName; }
 void TilemapPlugin::build(ecs::App& app) {
     app.addPlugin(transform::TransformPlugin{});
     ecs::Resources& resources = app.getWorld().getResources();
-    if (!resources.has<TilemapAssets>()) {
-        resources.insert(TilemapAssets{});
-    }
-    if (!resources.has<backend::TextureAssets>()) {
-        resources.insert(backend::TextureAssets{});
-    }
-    if (!resources.has<backend::graphics::SpriteQueue>()) {
-        resources.insert(backend::graphics::SpriteQueue{});
-    }
-    if (!resources.has<backend::graphics::VisibleArea>()) {
-        resources.insert(backend::graphics::VisibleArea{});
-    }
+    resources.insertIfAbsent<TilemapAssets>();
+    resources.insertIfAbsent<backend::TextureAssets>();
+    resources.insertIfAbsent<backend::graphics::SpriteQueue>();
+    resources.insertIfAbsent<backend::graphics::VisibleArea>();
     static_cast<void>(app.getWorld().getComponents().registerType<TilemapLayer>());
     static_cast<void>(app.getWorld().getComponents().registerType<Parallax>());
     app.addSystem(ecs::Phase::kRender, std::string{kParallaxSystem}, &applyParallax)

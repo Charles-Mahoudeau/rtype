@@ -38,6 +38,15 @@ void Resources::insertNonSend(T value) {
 }
 
 template <Resource T>
+bool Resources::insertIfAbsent(T value) {
+    if (has<T>()) {
+        return false;
+    }
+    insert(std::move(value));
+    return true;
+}
+
+template <Resource T>
 bool Resources::has() const noexcept {
     const ResourceInfo* info = _registry.find<T>();
     return info != nullptr && has(info->type.id);

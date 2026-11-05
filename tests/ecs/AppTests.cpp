@@ -210,6 +210,14 @@ TEST(App, AddsPluginGroups) {
     EXPECT_TRUE(app.hasPlugin("test.b"));
 }
 
+TEST(App, InsertsAResourceOnlyIfAbsent) {
+    App app;
+    app.insertResourceIfAbsent(FixedRuns{.count = 1}).insertResourceIfAbsent(FixedRuns{.count = 2});
+    EXPECT_EQ(app.getWorld().getResources().get<FixedRuns>()->count, 1);  // the second call kept the first value
+    app.insertResourceIfAbsent<Started>();
+    EXPECT_EQ(app.getWorld().getResources().get<Started>()->count, 0);
+}
+
 TEST(App, RunsFramesUntilAppExit) {
     App app;
     app.addPlugin(FramesPlugin{5, 7});

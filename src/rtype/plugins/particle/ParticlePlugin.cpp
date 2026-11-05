@@ -284,18 +284,10 @@ std::string_view ParticlePlugin::getName() const noexcept { return kName; }
 void ParticlePlugin::build(ecs::App& app) {
     app.addPlugin(transform::TransformPlugin{});
     ecs::Resources& resources = app.getWorld().getResources();
-    if (!resources.has<ParticleEffectAssets>()) {
-        resources.insert(ParticleEffectAssets{});
-    }
-    if (!resources.has<ParticleSystems>()) {
-        resources.insert(ParticleSystems{});
-    }
-    if (!resources.has<backend::TextureAssets>()) {
-        resources.insert(backend::TextureAssets{});
-    }
-    if (!resources.has<backend::graphics::SpriteQueue>()) {
-        resources.insert(backend::graphics::SpriteQueue{});
-    }
+    resources.insertIfAbsent<ParticleEffectAssets>();
+    resources.insertIfAbsent<ParticleSystems>();
+    resources.insertIfAbsent<backend::TextureAssets>();
+    resources.insertIfAbsent<backend::graphics::SpriteQueue>();
     static_cast<void>(app.getWorld().getComponents().registerType<ParticleEmitter>());
     static_cast<void>(app.getWorld().getComponents().registerType<ParticleOneShot>());
     static_cast<void>(app.getWorld().getEvents().registerType<SpawnParticles>());

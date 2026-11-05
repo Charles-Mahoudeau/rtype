@@ -52,9 +52,8 @@ std::chrono::nanoseconds TimeClock::measureFrame() noexcept {
 
 Mut<Time> TimeClock::getTime(World& world) const {
     Resources& resources = world.getResources();
-    if (!resources.has<Time>()) {  // got each time: a system may have removed or replaced it
-        resources.insert(Time{.delta = 0.F, .fixedDelta = _timestep.getTickSeconds(), .tick = 0, .alpha = 0.F});
-    }
+    // checked each time: a system may have removed or replaced it
+    resources.insertIfAbsent(Time{.delta = 0.F, .fixedDelta = _timestep.getTickSeconds(), .tick = 0, .alpha = 0.F});
     return resources.getMut<Time>();
 }
 }  // namespace rtype::ecs

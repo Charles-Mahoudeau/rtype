@@ -93,15 +93,9 @@ std::string_view TextPlugin::getName() const noexcept { return kName; }
 void TextPlugin::build(ecs::App& app) {
     app.addPlugin(transform::TransformPlugin{});
     ecs::Resources& resources = app.getWorld().getResources();
-    if (!resources.has<FontAssets>()) {
-        resources.insert(FontAssets{});
-    }
-    if (!resources.has<backend::TextureAssets>()) {
-        resources.insert(backend::TextureAssets{});
-    }
-    if (!resources.has<backend::graphics::SpriteQueue>()) {
-        resources.insert(backend::graphics::SpriteQueue{});
-    }
+    resources.insertIfAbsent<FontAssets>();
+    resources.insertIfAbsent<backend::TextureAssets>();
+    resources.insertIfAbsent<backend::graphics::SpriteQueue>();
     static_cast<void>(app.getWorld().getComponents().registerType<TextRenderer>());
     app.addSystem(ecs::Phase::kRender, std::string{kTexturesSystem}, &queueFontTextures)
         .after(std::string{tilemap::TilemapPlugin::kTexturesSystem})
