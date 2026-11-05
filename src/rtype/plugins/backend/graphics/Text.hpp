@@ -44,7 +44,7 @@ struct Text {
     Color color{1.0F};                    ///< Fills the glyphs: colour and transparency.
     float distanceRange = 4.0F;           ///< The atlas' distance range, in atlas pixels (msdf-atlas-gen's -pxrange).
     BlendMode blend = BlendMode::kAlpha;  ///< kAlpha or kAdditive (kCutout is drawn as kAlpha).
-    MaterialId material;                  ///< Its effect; the default one (the MSDF coverage) if 0.
+    MaterialId material;                  ///< Its shader; the default one (the MSDF coverage) if 0.
     ShaderInstanceValues instanceValues{};  ///< Its own `instance uniform` values, shared by its glyphs.
 };
 

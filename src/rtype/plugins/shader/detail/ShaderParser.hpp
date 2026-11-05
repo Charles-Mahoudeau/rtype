@@ -2,7 +2,7 @@
 ** EPITECH PROJECT, 2026
 ** rtype
 ** File description:
-** EffectParser
+** ShaderParser
 */
 
 #pragma once
@@ -17,15 +17,15 @@
 
 namespace rtype::plugins::shader::detail {
 
-/// @brief One value an effect declares, laid out in its block, with its default value.
+/// @brief One value a shader declares, laid out in its block, with its default value.
 struct DeclaredValue {
     backend::graphics::ShaderValue value;  ///< Name, type and offset in its block.
-    std::uint32_t line{0};                 ///< Line of the declaration in the effect, from 1.
+    std::uint32_t line{0};                 ///< Line of the declaration in the shader, from 1.
 };
 
-/// @brief An effect's source once its declarations are read: what the engine generates around it, and the GLSL the
+/// @brief A shader's source once its declarations are read: what the engine generates around it, and the GLSL the
 /// game wrote, the declarations blanked out.
-struct ParsedEffect {
+struct ParsedShader {
     std::string name;                                            ///< For messages: its file, or its name.
     std::vector<DeclaredValue> materialValues;                   ///< `uniform` values, in declaration order.
     std::uint32_t materialSize{0};                               ///< Bytes of the material block, a multiple of 16.
@@ -38,7 +38,7 @@ struct ParsedEffect {
     std::string body;  ///< The source, every declaration line left empty, so line numbers stay the game's.
 };
 
-/// @brief Reads the declarations of an effect, written in the engine's GLSL dialect (docs/Shaders.md), one per line:
+/// @brief Reads the declarations of a shader, written in the engine's GLSL dialect (docs/Shaders.md), one per line:
 /// @code{.glsl}
 /// uniform vec4 tint = vec4(1.0, 0.5, 0.5, 1.0);  // in the material, shared by the drawings that use it
 /// instance uniform float flash = 0.0;            // in each drawing, kShaderInstanceBytes for all of them
@@ -47,10 +47,10 @@ struct ParsedEffect {
 /// @endcode
 /// Values are float, vec2, vec3, vec4 or int, laid out as std140 and std430 lay them out (the same for these types),
 /// their default a number or a `vecN(...)` of numbers (one number fills every component), 0 when omitted.
-/// @param name Names the effect in messages.
-/// @throws exceptions::ShaderException Naming the effect and the line: an unknown type, a declaration it cannot read
+/// @param name Names the shader in messages.
+/// @throws exceptions::ShaderException Naming the shader and the line: an unknown type, a declaration it cannot read
 /// (an array, a block, several on a line), a name declared twice or reserved by the engine, a default it cannot read,
 /// instance values past kShaderInstanceBytes, too many textures, or neither vertex() nor fragment().
-[[nodiscard]] ParsedEffect parseEffect(std::string_view source, std::string_view name);
+[[nodiscard]] ParsedShader parseShader(std::string_view source, std::string_view name);
 
 }  // namespace rtype::plugins::shader::detail

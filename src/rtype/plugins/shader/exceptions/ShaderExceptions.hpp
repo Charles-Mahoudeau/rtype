@@ -11,8 +11,8 @@
 #include <string>
 
 namespace rtype::plugins::shader::exceptions {
-/// @brief Exception thrown when an effect cannot be compiled: a declaration the engine does not understand, a value
-/// past its budget, or GLSL the compiler rejects. Its message names the effect and the line.
+/// @brief Exception thrown when a shader cannot be compiled: a declaration the engine does not understand, a value
+/// past its budget, or GLSL the compiler rejects. Its message names the shader and the line.
 class ShaderException : public std::runtime_error {
   public:
     explicit ShaderException(const std::string& message) : std::runtime_error{message} {}

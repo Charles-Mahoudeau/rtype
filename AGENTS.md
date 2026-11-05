@@ -60,7 +60,9 @@ are added.
   `RTYPE_PLUGINS_API`, which keeps the RTTI of the backend interfaces visible across binaries.
     - `plugins/backend/` (`rtype::plugins::backend`) — the contracts the backends implement and the vocabulary they
       speak, in sub-folders whose namespaces follow them: `platform/` (`IPlatform`, `WindowConfig`), `graphics/`
-      (`IRenderer`, `Sprite`, `Text` (a laid-out text: MSDF glyphs), `Texture`, `View`..., the `Camera` (projection and
+      (`IRenderer`, `Sprite`, `Text` (a laid-out text: MSDF glyphs), `Texture`, `View`, `Shader` (`CompiledShader`,
+      the plain data of a game shader) and `shaders/` (the shaders ABI: the GLSL every shader is assembled in and the
+      backends' built-in shaders include)..., the `Camera` (projection and
       priority, placed by its entity's `Transform`) and `SpriteRenderer` components, `CameraView` (what a `View`
       shows: letterboxed viewport, view-projection, screen and world conversions), and the `TextureAssets` resource:
       the textures by `AssetId`, queued by `load()` and decoded with stb by the backend plugin, the `SpriteQueue`
@@ -106,8 +108,13 @@ are added.
       `layoutText()` /
       `measureText()` (`TextLayout.hpp`) and the `TextRenderer` component. A client Render system lays out each text and
       pushes it to the backend's `SpriteQueue` as a `graphics::Text`, drawn by `IRenderer::draw(Text)` (Vulkan batches
-      its glyphs with the sprites, read by the MSDF branch of `sprite.frag`). The backend plugin adds it, after the
+      its glyphs in the sprites' order, read by the default shader's glyph variant, `glyph.frag`). The backend plugin adds it, after the
       tilemap plugin. See `docs/Text.md`.
+    - `plugins/shader/` (`rtype::plugins::shader`) — `ShaderPlugin`: game shaders and materials. `ShaderAssets` (shaders
+      by `AssetId`, written in the engine's GLSL dialect), `MaterialAssets` (`Material`: a shader and its values),
+      the `MaterialInstance` component (an entity's own `instance uniform` values) and `ShaderHandles`, which keeps the
+      renderer up to date. `detail/` holds the parser, the assembler and the compiler. glslang is a private package of
+      `plugins`: only `shader/detail/ShaderCompiler.cpp` includes it. The backend plugin adds it. See `docs/Shaders.md`.
     - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
     - `plugins/AssetIdReflection.hpp` — lets components reflect `core::asset::AssetId` fields (`kAssetId`).
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
@@ -144,7 +151,7 @@ are added.
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
 - `docs/` — design documentation (e.g. `docs/Input.md` for the event and input pipeline, `docs/physics/design.md`
   for the physics, `docs/audio/design.md` for the audio, `docs/Sprites.md` for atlases and animations,
-  `docs/Tilemap.md` for tilemaps and parallax, `docs/Text.md` for MSDF text).
+  `docs/Tilemap.md` for tilemaps and parallax, `docs/Text.md` for MSDF text, `docs/Shaders.md` for game shaders).
 - `.github/` — CI workflow and issue templates.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
 
@@ -171,13 +178,13 @@ ecs      ←  replication
   `replication` depends on `ecs` and `network` and is the only module that knows both; the renderer, the
   platforms and `luau` never include its headers.
 - `plugins` depends on nothing but `core`, `ecs` and glm, plus Jolt (physics), nlohmann_json (sprite atlases, tilemaps,
-  fonts)
+  fonts), glslang (shaders)
   and stb (images) as private packages (no public header includes them). Never add a dependency on a `platform-*`,
   `render-*`, `audio-*` or `luau` target to it: the platforms, renderers and audio backends implement its contracts
   (`plugins/backend/`, `plugins/audio/`), so it would create a cycle. The executable fills the backend and audio
   registries instead.
 - The platforms and renderers link `plugins` (and so the ECS) for the contracts, but never include ECS headers or
-  plugin code beyond `plugins/backend/`'s interfaces and types. Likewise, the audio backends include nothing of
+  plugin code beyond `plugins/backend/`'s interfaces, types and shaders ABI (`plugins/backend/graphics/shaders/`). Likewise, the audio backends include nothing of
   `plugins` but the contract of `plugins/audio/` (`IAudioDevice`, `AudioTypes`, `AudioConfig`, `AudioRegistry`) and
   `core/config/`'s `Settings` (through `core`).
 - An audio backend never depends on a platform or a renderer, nor they on it. miniaudio never leaves

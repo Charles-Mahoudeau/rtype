@@ -31,12 +31,13 @@ TEST(SpriteRenderer, HasNeutralDefaults) {
     EXPECT_EQ(sprite.origin, glm::vec2{0.0F});
     EXPECT_EQ(sprite.layer, 0);
     EXPECT_EQ(sprite.blend, rtype::plugins::backend::graphics::BlendMode::kAlpha);
+    EXPECT_EQ(sprite.material, rtype::core::asset::AssetId{});
 }
 
 TEST(SpriteRenderer, ReflectsEveryFieldButTheSource) {
     using Traits = rtype::ecs::ComponentTraits<rtype::plugins::backend::SpriteRenderer>;
     EXPECT_EQ(Traits::kName, "rtype.SpriteRenderer");
-    ASSERT_EQ(Traits::kFields.size(), 5U);
+    ASSERT_EQ(Traits::kFields.size(), 6U);
     EXPECT_EQ(Traits::kFields[0].name, "texture");
     EXPECT_EQ(Traits::kFields[0].type, rtype::ecs::FieldType::kAssetId);
     EXPECT_EQ(Traits::kFields[1].name, "color");
@@ -47,6 +48,8 @@ TEST(SpriteRenderer, ReflectsEveryFieldButTheSource) {
     EXPECT_EQ(Traits::kFields[3].type, rtype::ecs::FieldType::kI32);
     EXPECT_EQ(Traits::kFields[4].name, "blend");
     EXPECT_EQ(Traits::kFields[4].type, rtype::ecs::FieldType::kU8);
+    EXPECT_EQ(Traits::kFields[5].name, "material");
+    EXPECT_EQ(Traits::kFields[5].type, rtype::ecs::FieldType::kAssetId);
 }
 
 TEST(SpriteRenderer, IsStoredOnAnEntity) {

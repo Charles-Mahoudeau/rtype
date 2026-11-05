@@ -2,10 +2,10 @@
 ** EPITECH PROJECT, 2026
 ** rtype
 ** File description:
-** EffectParser
+** ShaderParser
 */
 
-#include "plugins/shader/detail/EffectParser.hpp"
+#include "plugins/shader/detail/ShaderParser.hpp"
 
 #include <algorithm>
 #include <array>
@@ -32,7 +32,7 @@ namespace {
 
 using backend::graphics::ShaderValueType;
 
-/// @brief Names an effect cannot declare: the engine's built-ins (docs/Shaders.md).
+/// @brief Names a shader cannot declare: the engine's built-ins (docs/Shaders.md).
 constexpr std::array<std::string_view, 5> kBuiltins{"VERTEX", "UV", "COLOR", "TEXTURE", "TIME"};
 
 /// @brief What the parser knows of a value type: its GLSL name, its components, its std430 size and alignment.
@@ -43,7 +43,7 @@ struct TypeInfo {
     std::uint32_t alignment{4};                     ///< std140 and std430 alignment, in bytes.
 };
 
-/// @brief The value types an effect may declare.
+/// @brief The value types a shader may declare.
 constexpr std::array<TypeInfo, 5> kTypes{{
     {.name = "float", .type = ShaderValueType::kFloat, .components = 1, .alignment = 4},
     {.name = "vec2", .type = ShaderValueType::kVec2, .components = 2, .alignment = 8},
@@ -60,9 +60,9 @@ struct Declaration {
     std::optional<std::string> defaultValue;  ///< The text after `=`, trimmed.
 };
 
-/// @brief Throws a ShaderException naming the effect and the line.
-[[noreturn]] void fail(std::string_view effect, std::uint32_t line, std::string_view problem) {
-    throw exceptions::ShaderException{std::format("Effect '{}', line {}: {}", effect, line, problem)};
+/// @brief Throws a ShaderException naming the shader and the line.
+[[noreturn]] void fail(std::string_view shader, std::uint32_t line, std::string_view problem) {
+    throw exceptions::ShaderException{std::format("Shader '{}', line {}: {}", shader, line, problem)};
 }
 
 /// @return @p text without its leading and trailing spaces.
@@ -106,10 +106,10 @@ std::string removeComments(std::string_view line, bool& inComment) {
 }
 
 /// @return The declaration on @p code, already stripped of comments and starting with `uniform` or `instance`.
-Declaration readDeclaration(std::string_view code, std::string_view effect, std::uint32_t line) {
+Declaration readDeclaration(std::string_view code, std::string_view shader, std::uint32_t line) {
     const auto semicolon = code.find(';');
     if (semicolon == std::string_view::npos || !trim(code.substr(semicolon + 1)).empty()) {
-        fail(effect, line, "a declaration ends with ';' and is alone on its line");
+        fail(shader, line, "a declaration ends with ';' and is alone on its line");
     }
     std::string_view head = code.substr(0, semicolon);
     Declaration declaration;
@@ -127,12 +127,12 @@ Declaration readDeclaration(std::string_view code, std::string_view effect, std:
         words.erase(words.begin());
     }
     if (words.size() != 3 || words.at(0) != "uniform") {
-        fail(effect, line, "expected '[instance] uniform <type> <name> [= <default>];'");
+        fail(shader, line, "expected '[instance] uniform <type> <name> [= <default>];'");
     }
     declaration.type = words.at(1);
     declaration.name = words.at(2);
     if (!isIdentifier(declaration.name)) {
-        fail(effect, line, std::format("'{}' is not a name (arrays are not supported)", declaration.name));
+        fail(shader, line, std::format("'{}' is not a name (arrays are not supported)", declaration.name));
     }
     return declaration;
 }
@@ -150,7 +150,7 @@ std::optional<float> readNumber(std::string_view text) {
 
 /// @return The @p components numbers of the default @p text of a @p type: a number, or `type(...)` of one number
 /// (every component) or of one number per component.
-std::vector<float> readDefault(std::string_view text, const TypeInfo& type, std::string_view effect,
+std::vector<float> readDefault(std::string_view text, const TypeInfo& type, std::string_view shader,
                                std::uint32_t line) {
     std::vector<std::string_view> parts;
     if (text.starts_with(type.name) && trim(text.substr(type.name.size())).starts_with('(') && text.ends_with(')')) {
@@ -171,7 +171,7 @@ std::vector<float> readDefault(std::string_view text, const TypeInfo& type, std:
     for (const std::string_view part : parts) {
         const std::optional<float> number = readNumber(part);
         if (!number) {
-            fail(effect, line, std::format("cannot read '{}' as a default of type {}", text, type.name));
+            fail(shader, line, std::format("cannot read '{}' as a default of type {}", text, type.name));
         }
         numbers.push_back(*number);
     }
@@ -179,7 +179,7 @@ std::vector<float> readDefault(std::string_view text, const TypeInfo& type, std:
         numbers.resize(type.components, numbers.front());
     }
     if (numbers.size() != type.components) {
-        fail(effect, line, std::format("a {} default has {} numbers", type.name, type.components));
+        fail(shader, line, std::format("a {} default has {} numbers", type.name, type.components));
     }
     return numbers;
 }
@@ -236,9 +236,9 @@ std::string collapseSpaces(std::string_view code) {
 
 namespace {
 
-/// @brief What parseEffect() builds while it reads an effect.
+/// @brief What parseShader() builds while it reads a shader.
 struct Parser {
-    ParsedEffect effect;                   ///< The result.
+    ParsedShader shader;                   ///< The result.
     std::vector<std::byte> instanceBlock;  ///< The instance values' defaults, kShaderInstanceBytes.
     std::uint32_t materialCursor{0};       ///< End of the material block so far.
     std::uint32_t instanceCursor{0};       ///< End of the instance block so far.
@@ -247,24 +247,24 @@ struct Parser {
     /// @brief Adds the texture @p declaration, read on @p line.
     void addTexture(const Declaration& declaration, std::uint32_t line) {
         if (declaration.instance || declaration.defaultValue) {
-            fail(effect.name, line, "a texture is a plain 'uniform sampler2D <name>;'");
+            fail(shader.name, line, "a texture is a plain 'uniform sampler2D <name>;'");
         }
-        if (effect.textures.size() == backend::graphics::kShaderMaxTextures) {
-            fail(effect.name, line, std::format("more than {} textures", backend::graphics::kShaderMaxTextures));
+        if (shader.textures.size() == backend::graphics::kShaderMaxTextures) {
+            fail(shader.name, line, std::format("more than {} textures", backend::graphics::kShaderMaxTextures));
         }
-        effect.textures.push_back(
-            {.name = declaration.name, .slot = static_cast<std::uint32_t>(effect.textures.size())});
+        shader.textures.push_back(
+            {.name = declaration.name, .slot = static_cast<std::uint32_t>(shader.textures.size())});
     }
 
     /// @brief Lays out the value @p declaration, read on @p line, in its block, with its default.
     void addValue(const Declaration& declaration, std::uint32_t line) {
         const TypeInfo* type = findType(declaration.type);
         if (type == nullptr) {
-            fail(effect.name, line,
+            fail(shader.name, line,
                  std::format("type '{}' is not float, vec2, vec3, vec4, int or sampler2D", declaration.type));
         }
         const std::vector<float> numbers = declaration.defaultValue
-                                               ? readDefault(*declaration.defaultValue, *type, effect.name, line)
+                                               ? readDefault(*declaration.defaultValue, *type, shader.name, line)
                                                : std::vector<float>(type->components, 0.0F);
         std::uint32_t& cursor = declaration.instance ? instanceCursor : materialCursor;
         const std::uint32_t offset = alignUp(cursor, type->alignment);
@@ -273,28 +273,28 @@ struct Parser {
                                   .line = line};
         if (declaration.instance) {
             if (cursor > backend::graphics::kShaderInstanceBytes) {
-                fail(effect.name, line,
+                fail(shader.name, line,
                      std::format("the instance values take more than {} bytes",
                                  backend::graphics::kShaderInstanceBytes));
             }
             writeDefault(instanceBlock, offset, *type, numbers);
-            effect.instanceValues.push_back(value);
+            shader.instanceValues.push_back(value);
         } else {
-            effect.materialDefaults.resize(alignUp(cursor, 16));
-            writeDefault(effect.materialDefaults, offset, *type, numbers);
-            effect.materialValues.push_back(value);
+            shader.materialDefaults.resize(alignUp(cursor, 16));
+            writeDefault(shader.materialDefaults, offset, *type, numbers);
+            shader.materialValues.push_back(value);
         }
     }
 
     /// @brief Reads the declaration on @p code, line @p line.
     void addDeclaration(std::string_view code, std::uint32_t line) {
-        const Declaration declaration = readDeclaration(code, effect.name, line);
+        const Declaration declaration = readDeclaration(code, shader.name, line);
         if (std::ranges::find(kBuiltins, declaration.name) != kBuiltins.end() ||
             declaration.name.starts_with("rtype") || declaration.name.starts_with("gl_")) {
-            fail(effect.name, line, std::format("'{}' is reserved by the engine", declaration.name));
+            fail(shader.name, line, std::format("'{}' is reserved by the engine", declaration.name));
         }
         if (std::ranges::find(names, declaration.name) != names.end()) {
-            fail(effect.name, line, std::format("'{}' is declared twice", declaration.name));
+            fail(shader.name, line, std::format("'{}' is declared twice", declaration.name));
         }
         names.push_back(declaration.name);
         if (declaration.type == "sampler2D") {
@@ -307,10 +307,10 @@ struct Parser {
 
 }  // namespace
 
-ParsedEffect parseEffect(std::string_view source, std::string_view name) {
-    Parser parser{.effect = {.name = std::string{name}},
+ParsedShader parseShader(std::string_view source, std::string_view name) {
+    Parser parser{.shader = {.name = std::string{name}},
                   .instanceBlock = std::vector<std::byte>(backend::graphics::kShaderInstanceBytes)};
-    ParsedEffect& effect = parser.effect;
+    ParsedShader& shader = parser.shader;
     std::string code;
     bool inComment = false;
     std::uint32_t lineNumber = 0;
@@ -322,26 +322,26 @@ ParsedEffect parseEffect(std::string_view source, std::string_view name) {
         const std::string lineCode = removeComments(line, inComment);
         const std::string_view trimmed = trim(lineCode);
         if (trimmed.starts_with("uniform ") || trimmed.starts_with("instance ")) {
-            effect.body += '\n';
+            shader.body += '\n';
             parser.addDeclaration(trimmed, lineNumber);
             continue;
         }
-        effect.body += line;
-        effect.body += '\n';
+        shader.body += line;
+        shader.body += '\n';
         code += lineCode;
         code += '\n';
     }
-    effect.body.pop_back();  // the loop added a '\n' the source did not end with
-    effect.materialSize = alignUp(parser.materialCursor, 16);
-    effect.materialDefaults.resize(effect.materialSize);
-    std::memcpy(effect.instanceDefaults.data(), parser.instanceBlock.data(), parser.instanceBlock.size());
+    shader.body.pop_back();  // the loop added a '\n' the source did not end with
+    shader.materialSize = alignUp(parser.materialCursor, 16);
+    shader.materialDefaults.resize(shader.materialSize);
+    std::memcpy(shader.instanceDefaults.data(), parser.instanceBlock.data(), parser.instanceBlock.size());
     const std::string collapsed = collapseSpaces(code);
-    effect.hasVertex = definesFunction(collapsed, "vertex");
-    effect.hasFragment = definesFunction(collapsed, "fragment");
-    if (!effect.hasVertex && !effect.hasFragment) {
-        fail(name, lineNumber, "the effect defines neither 'void vertex()' nor 'void fragment()'");
+    shader.hasVertex = definesFunction(collapsed, "vertex");
+    shader.hasFragment = definesFunction(collapsed, "fragment");
+    if (!shader.hasVertex && !shader.hasFragment) {
+        fail(name, lineNumber, "the shader defines neither 'void vertex()' nor 'void fragment()'");
     }
-    return std::move(parser.effect);
+    return std::move(parser.shader);
 }
 
 }  // namespace rtype::plugins::shader::detail

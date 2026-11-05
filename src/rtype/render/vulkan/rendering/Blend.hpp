@@ -14,8 +14,8 @@
 
 namespace rtype::render::vulkan::rendering {
 
-/// @brief The blend modes as shaders read them: the CPU side of shaders/include/Blend.glsl, which must match it value
-/// by value. Change both files together.
+/// @brief The blend modes as shaders read them: the CPU side of the shaders ABI's fragment_common.glsl
+/// (plugins/backend/graphics/shaders/), which must match it value by value. Change both files together.
 /// @{
 inline constexpr std::uint32_t kBlendAlpha = 0;
 inline constexpr std::uint32_t kBlendAdditive = 1;
@@ -25,18 +25,17 @@ inline constexpr std::uint32_t kBlendCutout = 2;
 static_assert(static_cast<std::uint32_t>(plugins::backend::graphics::BlendMode::kAlpha) == kBlendAlpha &&
                   static_cast<std::uint32_t>(plugins::backend::graphics::BlendMode::kAdditive) == kBlendAdditive &&
                   static_cast<std::uint32_t>(plugins::backend::graphics::BlendMode::kCutout) == kBlendCutout,
-              "graphics::BlendMode must keep the values of shaders/include/Blend.glsl");
+              "graphics::BlendMode must keep the values of the shaders ABI's fragment_common.glsl");
 
-/// @return @p mode as shaders/include/Blend.glsl reads it.
+/// @return @p mode as the shaders ABI's fragment_common.glsl reads it.
 [[nodiscard]] constexpr std::uint32_t toShaderBlend(plugins::backend::graphics::BlendMode mode) noexcept {
     return static_cast<std::uint32_t>(mode);
 }
 
-/// @brief A sprite instance's blend word also says how its texture is read: bits 0 to 7 hold the blend mode, bit 8
-/// kShaderMsdf, and bits 16 to 31 the distance range of an MSDF font atlas, in 1/256 of an atlas pixel.
+/// @brief A glyph instance's blend word also holds the distance range of its MSDF font atlas: bits 0 to 7 hold the
+/// blend mode, and bits 16 to 31 the distance range, in 1/256 of an atlas pixel, which the glyph shader reads.
 /// @{
 inline constexpr std::uint32_t kBlendMask = 0xFFU;
-inline constexpr std::uint32_t kShaderMsdf = 1U << 8U;
 inline constexpr std::uint32_t kDistanceRangeShift = 16;
 inline constexpr float kDistanceRangeUnit = 256.0F;
 /// @}

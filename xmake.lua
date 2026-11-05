@@ -18,6 +18,16 @@ add_requires("glm 1.0.x", {alias = "glm"})
 add_requires("glfw 3.4", {alias = "glfw"})
 add_requires("vulkan-headers 1.4.x", {alias = "vulkan-headers"})
 add_requires("stb", {alias = "stb"})
+-- glslang: the library compiles the game's shaders at runtime (plugins), glslangValidator the renderer's built-in ones
+-- (render-vulkan, vulkan-tests). One requirement for both, as xmake installs one configuration of a package: two
+-- would leave one side without what it needs. On macOS, the library alone: the tool and SPIRV-Tools need xmake's own
+-- Python, which no longer builds there (its _ssl module fails to link), so glslangValidator comes from Homebrew.
+if is_plat("macosx") then
+    add_requires("glslang 1.4.x", {alias = "glslang", configs = {default_resource_limits = true}})
+else
+    add_requires("glslang 1.4.x",
+                 {alias = "glslang", configs = {tools = true, spirv_tools = true, default_resource_limits = true}})
+end
 
 includes("src/rtype/core")
 includes("src/rtype/ecs")

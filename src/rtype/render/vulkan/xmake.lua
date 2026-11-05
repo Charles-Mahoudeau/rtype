@@ -7,11 +7,8 @@ add_requires("vulkan-memory-allocator 3.3.x", {alias = "vulkan-memory-allocator"
 add_requires("vulkan-memory-allocator-hpp v3.3.0+3",
              {alias = "vulkan-memory-allocator-hpp", configs = {use_vulkanheaders = true}})
 add_requires("imgui 1.92.x", {alias = "imgui", configs = {vulkan = true}})
--- glslangValidator compiles the shaders. On macOS it comes from Homebrew (brew install glslang): building glslang's
--- tools needs xmake's own python, which no longer builds on macOS (its _ssl module fails to link).
-if not is_plat("macosx") then
-    add_requires("glslang 1.4.x", {alias = "glslang", configs = {binaryonly = true, spirv_tools = true}})
-end
+-- glslangValidator compiles the shaders: from the glslang package required by the root xmake.lua, or from Homebrew on
+-- macOS (brew install glslang).
 
 -- Embeds each shader (shaders/<name>.<stage>) as SPIR-V: generates <name>.<stage>.h, which defines
 -- const uint32_t rtype_shader_<name>_<stage>[] (other characters than letters and digits become '_').
@@ -102,6 +99,9 @@ target("render-vulkan")
     add_includedirs("../..", {public = true})
 
     add_rules("glsl.spirv")
+    -- The built-in draw shaders are the default shader: they include the shaders ABI of the backend
+    -- contract, which game shaders are assembled in too.
+    set_values("glsl.includedirs", path.join(os.scriptdir(), "..", "..", "plugins", "backend", "graphics", "shaders"))
     if not is_plat("macosx") then
         add_packages("glslang")
     end

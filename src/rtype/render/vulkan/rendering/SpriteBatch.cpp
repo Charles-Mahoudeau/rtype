@@ -15,6 +15,7 @@
 #include <vulkan/vulkan_raii.hpp>
 
 #include "Blend.hpp"
+#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
@@ -79,18 +80,45 @@ std::array<vk::VertexInputAttributeDescription, 7> SpriteInstance::getAttributes
 }
 
 void SpriteBatch::add(plugins::backend::graphics::TextureId texture, const SpriteInstance& instance) {
-    if (_batches.empty() || _split || _batches.back().texture != texture) {
-        _split = false;
-        _batches.push_back(Batch{.texture = texture, .firstInstance = static_cast<std::uint32_t>(_instances.size())});
-    }
+    extend(texture, {}, plugins::backend::graphics::ShaderTarget::kSprite);
     _instances.push_back(instance);
     ++_batches.back().instanceCount;
+}
+
+void SpriteBatch::add(plugins::backend::graphics::TextureId texture, plugins::backend::graphics::MaterialId material,
+                      const SpriteInstance& instance, const plugins::backend::graphics::ShaderInstanceValues& values) {
+    extend(texture, material, plugins::backend::graphics::ShaderTarget::kSprite);
+    _instances.push_back(instance);
+    if (material != plugins::backend::graphics::MaterialId{}) {
+        _values.push_back(values);
+    }
+    ++_batches.back().instanceCount;
+}
+
+void SpriteBatch::addGlyph(plugins::backend::graphics::TextureId texture, const SpriteInstance& glyph) {
+    extend(texture, {}, plugins::backend::graphics::ShaderTarget::kGlyph);
+    _instances.push_back(glyph);
+    ++_batches.back().instanceCount;
+}
+
+void SpriteBatch::extend(plugins::backend::graphics::TextureId texture, plugins::backend::graphics::MaterialId material,
+                         plugins::backend::graphics::ShaderTarget target) {
+    if (_batches.empty() || _split || _batches.back().texture != texture || _batches.back().material != material ||
+        _batches.back().target != target) {
+        _split = false;
+        _batches.push_back(Batch{.texture = texture,
+                                 .material = material,
+                                 .target = target,
+                                 .firstInstance = static_cast<std::uint32_t>(_instances.size()),
+                                 .firstValues = static_cast<std::uint32_t>(_values.size())});
+    }
 }
 
 void SpriteBatch::split() noexcept { _split = true; }
 
 void SpriteBatch::clear() noexcept {
     _instances.clear();
+    _values.clear();
     _batches.clear();
     _split = false;
 }

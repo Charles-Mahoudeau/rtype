@@ -50,6 +50,8 @@ struct SpriteRenderer {
     glm::vec2 origin{0.0F};        ///< Pivot of the position and the rotation, in pixels from the top-left of source.
     std::int32_t layer{0};         ///< Draw order: higher layers are drawn on top.
     graphics::BlendMode blend{graphics::BlendMode::kAlpha};  ///< How it is combined with what is under it.
+    core::asset::AssetId
+        material;  ///< Its material, from MaterialAssets::add(); the default one if unset or not ready.
 };
-RTYPE_ECS_COMPONENT(SpriteRenderer, "rtype.SpriteRenderer", texture, color, origin, layer, blend);
+RTYPE_ECS_COMPONENT(SpriteRenderer, "rtype.SpriteRenderer", texture, color, origin, layer, blend, material);
 }  // namespace rtype::plugins::backend

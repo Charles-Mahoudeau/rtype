@@ -40,12 +40,14 @@ namespace rtype::plugins::backend {
 ///   records what the frame shows in the VisibleArea resource, for systems that skip what is off screen.
 /// - Render "rtype.backend.sprites", after the camera: draws every entity with a GlobalTransform and a SpriteRenderer
 ///   whose texture is loaded, and the sprites and texts other systems pushed to the SpriteQueue resource before it,
-///   sorted by layer (higher on top), then by texture within a layer (fewer batches).
+///   sorted by layer (higher on top), then by texture within a layer (fewer batches). A SpriteRenderer's material is
+///   drawn once the ShaderPlugin created it (ShaderHandles), the default material until then, with the entity's
+///   MaterialInstance values if it has some.
 /// It also inserts the TextureAssets (the textures by AssetId), SpriteQueue and VisibleArea resources, and registers
-/// the SpriteRenderer component. A window always comes with input, positions, animated sprites, tilemaps and text: it
-/// adds the InputPlugin, the TransformPlugin, the SpritePlugin, the TilemapPlugin and the TextPlugin (nothing happens
-/// if the game added them first). Only the TilemapPlugin and the TextPlugin know this plugin, to draw between its
-/// camera and its sprites.
+/// the SpriteRenderer component. A window always comes with input, positions, animated sprites, tilemaps, text,
+/// particles and shaders: it adds the InputPlugin, the TransformPlugin, the SpritePlugin, the TilemapPlugin, the
+/// TextPlugin, the ParticlePlugin and the ShaderPlugin (nothing happens if the game added them first). Only the
+/// TilemapPlugin, the TextPlugin, the ParticlePlugin and the ShaderPlugin know this plugin, to run between its systems.
 /// @code
 /// auto registry = std::make_unique<rtype::plugins::backend::BackendRegistry>();
 /// rtype::platform::glfw::registerPlatform(*registry);

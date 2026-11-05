@@ -120,7 +120,7 @@ how often it changes, so binding from the least to the most frequent keeps the l
 | What | Where | Changes | GLSL | C++ |
 |---|---|---|---|---|
 | `FrameUniforms`: time, delta time, framebuffer size, the camera's `viewProjection` | set 0, binding 0 | once per frame | `frame` | `rendering::FrameUniforms` |
-| The texture and its sampler | set 1, binding 0 | per texture (batch) | `uTexture` (fragment) | the texture's set |
+| The texture and its sampler | set 1, binding 0 | per texture (batch) | `uTexture` | the texture's set |
 | `DrawConstants`: `model` (unit quad to world), `color`, `uvRect` | push constants, 96 bytes | per draw | `draw` | `rendering::DrawConstants` |
 
 Per-object data fits in the push constants (at most 128 bytes, the minimum every device supports), so there is no
@@ -154,6 +154,9 @@ size and origin scaled, rotation, UV rect from the source and the texture size, 
 batch to `rendering::SpritePass`, which copies the instances into the frame's instance buffer (one per frame in
 flight, doubled when too small) and records, for each batch, the texture's set and one instanced draw of a 6-vertex
 quad (`shaders/sprite.vert` builds it from `gl_VertexIndex`; `sprite.frag` multiplies the texture by the colour).
+Both are the default shader: they include the shaders ABI of the backend contract
+(`src/rtype/plugins/backend/graphics/shaders/`) without a shader, so built-in and game sprites are drawn by the same
+code, and the renderer depends on no plugin for it.
 Only consecutive sprites merge, so the draw order is kept: sort by layer, then by texture within a layer, for fewer
 draw calls. A debug build with the validation layer draws 10,000 sprites in about 8 ms a frame on an Apple M-series
 GPU.
@@ -165,10 +168,10 @@ GPU.
   linear space since the textures are sRGB, through a 64 KiB table computed once. The `IRenderer` contract still takes
   straight alpha. Filtering then mixes a sprite's edge with its transparent surroundings without a dark fringe.
 - The `graphics::BlendMode` of a `Sprite` or a `Shape` travels **per instance** (`SpriteInstance::blend`, the second
-  byte of `ShapeInstance::kind`), and `shaders/include/Blend.glsl` (mirrored by `rendering/Blend.hpp`) finishes the
+  byte of `ShapeInstance::kind`), and the shaders ABI's `fragment_common.glsl` (mirrored by `rendering/Blend.hpp`) finishes the
   premultiplied colour for it: `kAlpha` as is, `kAdditive` with an alpha of 0 (nothing is taken from what is under it),
   `kCutout` opaque or fully transparent around half opacity (no `discard`: without a depth buffer a transparent
-  fragment changes nothing, and `discard` would need `shaderDemoteToHelperInvocation`). One pipeline draws every mode,
+  fragment changes nothing). One pipeline draws every mode,
   so a mode never splits a batch, and no sort by pipeline is needed. Shapes have no cutout (it would lose their
   antialiased edge): `kCutout` is drawn as `kAlpha`.
 - The passes are rebuilt when a recreated swapchain changes its image format, since a pipeline is built for one.
