@@ -73,6 +73,11 @@ done
 
 # clang-tidy, in parallel: each file writes its own log, kept only when it reports something.
 
+if ! command -v "$clang_tidy" >/dev/null; then
+    echo "clang-tidy not found: ${clang_tidy}" >&2
+    exit 2
+fi
+
 tidy_files=()
 for file in "${files[@]}"; do
     if "$clang_tidy" --list-checks "$file" >/dev/null 2>&1; then
