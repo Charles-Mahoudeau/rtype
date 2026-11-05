@@ -7,13 +7,17 @@
 
 #pragma once
 
+#include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "Export.hpp"
 #include "component/ComponentLayout.hpp"
+#include "plugin/PluginDeclaration.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/luau/Library.hpp"
 #include "rtype/luau/Result.hpp"
@@ -30,6 +34,12 @@ namespace rtype::scripting {
 /// `engine.ecs.system(name, {phase, query, after, before, run})` adds a system to its schedule (see
 /// readSystemDeclaration()); its body calls `run` with a `ctx` (see runScriptSystem()), among which `ctx.commands` (see
 /// registerCommandsType()).
+///
+/// Scripts can group their components and systems in Luau plugins: `engine.ecs.plugin(name, {build, plugins})` declares
+/// one (see readPluginDeclaration()) and `engine.ecs.addPlugin(name)` adds it. Adding a plugin first adds the plugins
+/// it lists, then calls `build(app)`, where `app` has `component`, `system` and `addPlugin`, the same as `engine.ecs`.
+/// A plugin is built once however many times it is added; a cycle, an unknown name or a name declared twice is a Luau
+/// error naming the plugins.
 ///
 /// The host and the App may be destroyed in either order. The systems a script added stay in the App when the host
 /// is destroyed first, but their script is gone with the runtime: they can no longer run it.
@@ -81,10 +91,36 @@ class RTYPE_SCRIPTING_API ScriptHost {
     /// @throws luau::exceptions::RuntimeError When the declaration is wrong or the system cannot be added.
     void declareSystem(std::string name, const luau::Table& spec);
 
+    /// @brief The body of `engine.ecs.plugin`.
+    /// @throws luau::exceptions::RuntimeError When the declaration is wrong or the name is already declared.
+    void declarePlugin(std::string name, const luau::Table& spec);
+
+    /// @brief The body of `engine.ecs.addPlugin` and `app:addPlugin`: adds the plugins a plugin lists, then builds it.
+    /// @throws luau::exceptions::RuntimeError When no plugin has this name, plugins depend on each other in a cycle, or
+    /// a `build` raised an error.
+    void addPlugin(const std::string& name);
+
+    /// @brief Registers the `App` usertype that `build` receives.
+    [[nodiscard]] luau::Result<> registerAppType();
+
+    /// @brief A Luau plugin and how far its addition went.
+    struct PluginEntry {
+        /// @brief How far adding the plugin went.
+        enum class State : std::uint8_t {
+            kDeclared,  ///< Not added yet.
+            kBuilding,  ///< Its plugins are being added or its `build` is running.
+            kAdded,     ///< Done: adding it again does nothing.
+        };
+        plugin::PluginDeclaration declaration;  ///< What the script declared.
+        State state{State::kDeclared};          ///< Where the addition is.
+    };
+
     ecs::App& _app;          ///< The App scripts declare their ECS data on.
     luau::Runtime _runtime;  ///< The runtime of the scripts; declared before what holds references into it.
     std::shared_ptr<system::RuntimeHandle> _handle;  ///< Points to the runtime for the systems; cleared on destruction.
     std::optional<luau::Library> _engine;            ///< The `engine` library, with the sub-library `ecs`.
     component::ComponentLayouts _components;         ///< Components scripts declared.
+    std::map<std::string, PluginEntry> _plugins;     ///< Luau plugins scripts declared, by name.
+    std::vector<std::string> _pluginStack;           ///< Plugins being added, outermost first, to name a cycle.
 };
 }  // namespace rtype::scripting
