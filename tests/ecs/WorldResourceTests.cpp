@@ -188,6 +188,73 @@ TEST(WorldResource, StoresEmptyResources) {
     EXPECT_FALSE(world.getResources().has<wres::Paused>());
 }
 
+TEST(WorldResource, InsertIfAbsentInsertsAMissingResource) {
+    rtype::ecs::World world;
+    EXPECT_TRUE(world.getResources().insertIfAbsent(wres::Time{.delta = 0.5F, .fixedDelta = 0.25F}));
+    const wres::Time* time = world.getResources().get<wres::Time>();
+    ASSERT_NE(time, nullptr);
+    EXPECT_FLOAT_EQ(time->delta, 0.5F);
+    EXPECT_FLOAT_EQ(time->fixedDelta, 0.25F);
+    EXPECT_FALSE(world.getResources().getRegistry().find<wres::Time>()->nonSend);
+}
+
+TEST(WorldResource, InsertIfAbsentKeepsAnExistingValueAndItsTicks) {
+    rtype::ecs::World world;
+    world.advanceChangeTick(3);
+    world.getResources().insert(wres::Time{.delta = 1.F, .fixedDelta = 0.F});
+    world.advanceChangeTick(2);
+    EXPECT_FALSE(world.getResources().insertIfAbsent(wres::Time{.delta = 2.F, .fixedDelta = 0.F}));
+    EXPECT_FLOAT_EQ(world.getResources().get<wres::Time>()->delta, 1.F);
+    const std::optional<rtype::ecs::ComponentTicks> ticks = world.getResources().getTicks<wres::Time>();
+    ASSERT_TRUE(ticks);
+    EXPECT_EQ(ticks->added, 3U);
+    EXPECT_EQ(ticks->changed, 3U);  // not marked changed
+}
+
+TEST(WorldResource, InsertIfAbsentDefaultsToAValueInitializedResource) {
+    rtype::ecs::World world;
+    EXPECT_TRUE(world.getResources().insertIfAbsent<wres::Assets>());
+    const wres::Assets* assets = world.getResources().get<wres::Assets>();
+    ASSERT_NE(assets, nullptr);
+    EXPECT_TRUE(assets->textures.empty());
+}
+
+TEST(WorldResource, InsertIfAbsentDestroysTheValueItDoesNotInsert) {
+    liveCounters = 0;
+    {
+        rtype::ecs::World world;
+        world.getResources().insert(wres::Assets{.textures = {1}, .counter = {}});
+        EXPECT_FALSE(world.getResources().insertIfAbsent(wres::Assets{.textures = {2, 3}, .counter = {}}));
+        EXPECT_EQ(liveCounters, 1);
+        EXPECT_EQ(world.getResources().get<wres::Assets>()->textures.size(), 1U);
+    }
+    EXPECT_EQ(liveCounters, 0);
+}
+
+TEST(WorldResource, InsertIfAbsentHandlesEmptyResources) {
+    rtype::ecs::World world;
+    EXPECT_TRUE(world.getResources().insertIfAbsent<wres::Paused>());
+    EXPECT_TRUE(world.getResources().has<wres::Paused>());
+    EXPECT_FALSE(world.getResources().insertIfAbsent<wres::Paused>());
+}
+
+TEST(WorldResource, InsertIfAbsentInsertsAgainAfterARemoval) {
+    rtype::ecs::World world;
+    world.getResources().insert(wres::Time{.delta = 1.F, .fixedDelta = 0.F});
+    world.getResources().remove<wres::Time>();
+    EXPECT_TRUE(world.getResources().insertIfAbsent(wres::Time{.delta = 2.F, .fixedDelta = 0.F}));
+    EXPECT_FLOAT_EQ(world.getResources().get<wres::Time>()->delta, 2.F);
+}
+
+TEST(WorldResource, InsertIfAbsentRefusesAMainThreadResourceOnlyWhenItInserts) {
+    rtype::ecs::World world;
+    world.getResources().insertNonSend(wres::Backend{});
+    EXPECT_FALSE(world.getResources().insertIfAbsent<wres::Backend>());  // has a value: nothing to refuse
+    world.getResources().remove<wres::Backend>();
+    EXPECT_THROW(world.getResources().insertIfAbsent<wres::Backend>(),
+                 rtype::ecs::exceptions::ResourceRegistrationException);
+}
+
 TEST(WorldResource, ANameUsedByAComponentCannotBeAResource) {
     rtype::ecs::World world;
     world.getComponents().registerType<wres::TimeComponent>();
