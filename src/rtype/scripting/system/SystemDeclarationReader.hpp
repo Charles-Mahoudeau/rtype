@@ -19,8 +19,9 @@ namespace rtype::scripting::system {
 ///
 /// @details The table has a `phase` (the name of an ecs::Phase, "FixedUpdate"), a `query` table, a `run` function, and
 /// optionally `after` and `before`, lists of system names. `query` holds lists of component names under `read`,
-/// `write`, `optionalRead`, `optionalWrite`, `with` and `without`; a Luau table has no key order, so the terms come out
-/// in that order, each list in the order the script wrote it. `added` and `changed` are not supported by scripts yet.
+/// `write`, `optionalRead`, `optionalWrite`, `with`, `without`, `added` and `changed`; a Luau table has no key order,
+/// so the terms come out in that order, each list in the order the script wrote it. `added` and `changed` only filter
+/// the entities, like `with`: they give no view, so a script that needs the value lists the component under `read` too.
 /// Nothing is guessed: another key, a missing `phase`, `query` or `run`, an unknown phase or a list with anything but
 /// strings is an error.
 /// @param name Name of the system, "game.ShieldRegen".

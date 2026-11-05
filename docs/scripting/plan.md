@@ -75,8 +75,9 @@ Supported in the first version:
   Luau build has three-wide vectors only, so `vec2` and `vec4` read and write as tables `{x=, y=}` / `{x=, y=, z=, w=}`
   with every key present. An `assetId` writes from a path string (hashed to its `AssetId`) or an `AssetId`, and reads as
   an opaque `AssetId` userdata (`==`, `tostring`).
-- **Query terms**: `read`, `write`, `optionalRead`, `optionalWrite`, `with`, `without` (all exist in `QueryBuilder`).
-  `added`/`changed` are SCR-02.
+- **Query terms**: `read`, `write`, `optionalRead`, `optionalWrite`, `with`, `without` (all exist in `QueryBuilder`)
+  and, since SCR-02, `added` and `changed`. Those two only filter, like `with`: they give no view, so a script that
+  needs the value lists the component under `read` as well.
 - **Phases**: all of `ecs::Phase`.
 - **`ctx`**: `query` (iteration), `commands` (`spawn`, `despawn`, `add`), `fixedDelta`, `delta`.
 - Scripts can read components declared in C++ (they are in the registry), as long as their fields use the types above.
@@ -251,7 +252,7 @@ Each task is one issue and one pull request. Ids `LUA-xx`. Tests go in `tests/sc
 **Done when**
 
 - [ ] A script system is listed in the scheduler under its name, with the access set of its terms.
-- [ ] An unknown component name is refused when the script loads.
+- [x] An unknown component name is refused when the script loads.
 
 #### LUA-06: Running a system
 
@@ -397,12 +398,13 @@ Ids follow the order the tasks are best done in. Weights are set when the issues
 **What to build**
 
 - Read `added` and `changed` in the query declaration and call `QueryBuilder::added` / `changed`.
-- Define which view each term gives (`added` and `changed` terms are read terms: a read-only view).
+- Define which view each term gives: none, `added` and `changed` are filters like `with`; the value comes from a
+  `read` or `write` term on the same component.
 
 **Done when**
 
-- [ ] A system with `added = { "game.Shield" }` runs once for an entity, not on the next tick.
-- [ ] A system with `changed` runs after a write and not otherwise.
+- [x] A system with `added = { "game.Shield" }` runs once for an entity, not on the next tick.
+- [x] A system with `changed` runs after a write and not otherwise.
 - [ ] An unknown component name is refused when the script loads.
 
 #### SCR-03: `engine.ecs.plugin`

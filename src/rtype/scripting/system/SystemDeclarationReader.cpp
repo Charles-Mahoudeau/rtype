@@ -43,10 +43,9 @@ constexpr std::array kTerms{
     TermName{.name = "optionalWrite", .kind = ecs::TermKind::kOptionalWrite},
     TermName{.name = "with", .kind = ecs::TermKind::kWith},
     TermName{.name = "without", .kind = ecs::TermKind::kWithout},
+    TermName{.name = "added", .kind = ecs::TermKind::kAdded},
+    TermName{.name = "changed", .kind = ecs::TermKind::kChanged},
 };
-
-/// @brief Terms of the ECS that scripts cannot declare yet.
-constexpr std::array<std::string_view, 2> kUnsupportedTerms{"added", "changed"};
 
 constexpr std::array kPhases{
     ecs::Phase::kStartup, ecs::Phase::kPreUpdate,  ecs::Phase::kFixedUpdate,
@@ -135,11 +134,8 @@ struct Source {
         if (std::ranges::find(kTerms, option, &TermName::name) != kTerms.end()) {
             continue;
         }
-        if (std::ranges::find(kUnsupportedTerms, option) != kUnsupportedTerms.end()) {
-            return invalid(source.system, std::format("query term '{}' is not supported by scripts yet", option));
-        }
         return invalid(source.system, std::format("unknown query term '{}' (expected 'read', 'write', 'optionalRead', "
-                                                  "'optionalWrite', 'with' or 'without')",
+                                                  "'optionalWrite', 'with', 'without', 'added' or 'changed')",
                                                   option));
     }
     std::vector<TermDeclaration> terms;
