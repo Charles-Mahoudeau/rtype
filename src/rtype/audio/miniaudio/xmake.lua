@@ -19,3 +19,5 @@ target("audio-miniaudio")
     add_headerfiles("**.hpp")
     -- Headers are included as "audio/miniaudio/...".
     add_includedirs("../..", {public = true})
+    -- Linked into the shared modules (the engine).
+    add_cxflags("-fPIC", {tools = {"clang", "gcc"}})
