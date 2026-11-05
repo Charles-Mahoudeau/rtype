@@ -19,6 +19,7 @@
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/luau/Exceptions.hpp"
+#include "rtype/luau/Result.hpp"
 #include "rtype/luau/Table.hpp"
 #include "rtype/luau/Userdata.hpp"
 #include "rtype/luau/Value.hpp"

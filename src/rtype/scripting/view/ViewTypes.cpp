@@ -20,6 +20,7 @@
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/type/Field.hpp"
 #include "rtype/luau/Exceptions.hpp"
+#include "rtype/luau/Result.hpp"
 #include "rtype/luau/Runtime.hpp"
 #include "rtype/luau/Value.hpp"
 
