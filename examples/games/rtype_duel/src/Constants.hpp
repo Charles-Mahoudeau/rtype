@@ -17,6 +17,8 @@
 namespace rtype_duel {
 
 constexpr std::uint16_t kDefaultPort = 4242;
+/// @brief The project's settings (window, renderer, sound), loaded by the engine; relative to the run directory.
+constexpr std::string_view kProjectFile = "examples/games/rtype_duel/game/project.luau";
 constexpr float kViewWidth = 800.0F;
 constexpr float kViewHeight = 600.0F;
 constexpr float kShipX = 80.0F;        ///< Distance of each ship from its edge.
