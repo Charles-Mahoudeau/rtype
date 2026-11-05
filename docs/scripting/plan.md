@@ -70,8 +70,11 @@ needs no class machinery. The method form can be sugar on top later.
 
 Supported in the first version:
 
-- **Field types**: `bool`, `i8`..`i64`, `u8`..`u64`, `f32`, `f64`, `entity` (every `ecs::FieldType` except the vectors
-  and `AssetId`). `vec2`/`vec3`/`vec4` and `assetId` are SCR-01.
+- **Field types**: `bool`, `i8`..`i64`, `u8`..`u64`, `f32`, `f64`, `entity`, and, since SCR-01, `vec2`, `vec3`, `vec4`
+  and `assetId` (every `ecs::FieldType`). A `vec3` reads as a Luau `vector` and writes from one or from a table; the
+  Luau build has three-wide vectors only, so `vec2` and `vec4` read and write as tables `{x=, y=}` / `{x=, y=, z=, w=}`
+  with every key present. An `assetId` writes from a path string (hashed to its `AssetId`) or an `AssetId`, and reads as
+  an opaque `AssetId` userdata (`==`, `tostring`).
 - **Query terms**: `read`, `write`, `optionalRead`, `optionalWrite`, `with`, `without` (all exist in `QueryBuilder`).
   `added`/`changed` are SCR-02.
 - **Phases**: all of `ecs::Phase`.
