@@ -89,8 +89,8 @@ echo "Files checked by clang-tidy: ${#tidy_files[@]} (the others are in folders 
 # Only the diagnostics located in the checked file count (and their notes): the ones clang-tidy reports in the headers
 # it includes (HeaderFilterRegex is '.*') belong to those headers, which are checked on their own when they change.
 run_tidy() {
-    local file="$1" log
-    log="$LINT_WORK/tidy/$(printf '%s' "$file" | tr '/' '_').log"
+    local index="$1" file="$2" log
+    log="$LINT_WORK/tidy/$index.log"
     "$LINT_CLANG_TIDY" -p . --quiet "$file" 2>&1 | awk -v file="$file" -v root="$PWD/" '
         /^[^ ].*:[0-9]+:[0-9]+: (warning|error|note): / {
             if ($0 !~ /:[0-9]+:[0-9]+: note: /) {
@@ -112,7 +112,10 @@ export -f run_tidy
 export LINT_WORK="$work" LINT_CLANG_TIDY="$clang_tidy"
 mkdir "$work/tidy"
 if [[ ${#tidy_files[@]} -gt 0 ]]; then
-    printf '%s\0' "${tidy_files[@]}" | xargs -0 -n 1 -P "$jobs" bash -c 'run_tidy "$0"'
+    # Each file gets its own log name, its index: a name made from the path could be the same for two paths.
+    for i in "${!tidy_files[@]}"; do
+        printf '%05d\0%s\0' "$i" "${tidy_files[$i]}"
+    done | xargs -0 -n 2 -P "$jobs" bash -c 'run_tidy "$0" "$1"'
 fi
 
 tidy_failed=()
