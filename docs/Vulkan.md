@@ -155,7 +155,7 @@ batch to `rendering::SpritePass`, which copies the instances into the frame's in
 flight, doubled when too small) and records, for each batch, the texture's set and one instanced draw of a 6-vertex
 quad (`shaders/sprite.vert` builds it from `gl_VertexIndex`; `sprite.frag` multiplies the texture by the colour).
 Both are the default shader: they include the shaders ABI of the backend contract
-(`src/rtype/plugins/backend/graphics/shaders/`) without a shader, so built-in and game sprites are drawn by the same
+(`src/rtype/plugins/backend/graphics/shaders/`) with no game code, so built-in and game sprites are drawn by the same
 code, and the renderer depends on no plugin for it.
 Only consecutive sprites merge, so the draw order is kept: sort by layer, then by texture within a layer, for fewer
 draw calls. A debug build with the validation layer draws 10,000 sprites in about 8 ms a frame on an Apple M-series

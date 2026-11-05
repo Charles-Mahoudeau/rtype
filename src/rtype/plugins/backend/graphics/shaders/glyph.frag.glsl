@@ -6,7 +6,8 @@
 */
 
 // The fragment stage of glyphs: the texture read as the three distances of an MSDF font atlas, the colour covering
-// the pixel where their median is past the middle. Without a shader, the default shader of glyphs.
+// the pixel where their median is past the middle. With no game code, it is the default shader of
+// glyphs.
 float rtypeMedian(vec3 distances) {
     return max(min(distances.r, distances.g), min(max(distances.r, distances.g), distances.b));
 }

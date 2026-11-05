@@ -65,9 +65,13 @@ A shader is compiled for every target, so it must compile for all of them: a fai
 reads a white pixel there.
 
 Sprites and shapes are drawn with game shaders today. The `material` of texts and particles is not read yet (#373):
-they keep their default shader.
+they keep the default material.
 
 ## Using a shader
+
+A drawing does not name a shader but a **material**: a shader and the values of its `uniform`s and textures. Several
+materials can share a shader. A drawing that names no material gets the **default material**, whose shader is the
+built-in one of its target.
 
 ```cpp
 void spawnEnemy(ecs::ResMut<ShaderAssets> shaders, ecs::ResMut<MaterialAssets> materials,
@@ -94,7 +98,7 @@ void spawnEnemy(ecs::ResMut<ShaderAssets> shaders, ecs::ResMut<MaterialAssets> m
   Without it, the entity gets the declared defaults. Sprites that share a material and a texture stay in one batch,
   whatever their values, so one enemy flashes without a material of its own.
 - **`ShaderHandles`** creates the shaders and materials in the renderer, in the Render phase, before the frame begins.
-  A material waits for its shader and its textures: until then, the drawing keeps its default shader.
+  A material waits for its shader and its textures: until then, the drawing keeps the default material.
 
 A `Shape` has no component: it is drawn by calling `IRenderer::draw()`, so it takes its material from `ShaderHandles`.
 
@@ -138,7 +142,7 @@ both in `plugins/backend/graphics/`:
   target's other files and the shader's code, placed where the `#pragma rtype_shader` and `#pragma rtype_main` markers
   are. Those markers are ignored by GLSL.
 
-The **default shader** of a target is the ABI without any shader: the same files, compiled as they are. A backend gets
+The **default shader** of a target is the ABI with no game code: the same files, compiled as they are. A backend gets
 its built-in shaders by writing `#version 450` and including them, so built-in and game drawings run the same code, and
 it never depends on the shader plugin, which can be replaced.
 

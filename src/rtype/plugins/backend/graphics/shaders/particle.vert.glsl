@@ -6,8 +6,8 @@
 */
 
 // The vertex stage of particles: a ParticleInstance per instance, a unit quad centred on it, turned (along its
-// velocity for the velocity alignment, stretched by its speed), showing its flipbook frame. Without a shader, the
-// default shader of particles.
+// velocity for the velocity alignment, stretched by its speed), showing its flipbook frame. With no game code, it is
+// the default shader of particles.
 layout(location = 0) in vec4 rtypeColor;      // Multiplies the texture.
 layout(location = 1) in vec2 rtypePosition;   // Centre of the particle, in world units.
 layout(location = 2) in vec2 rtypeSize;       // In world units.

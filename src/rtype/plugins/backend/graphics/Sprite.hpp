@@ -28,7 +28,7 @@ struct Sprite {
     float rotation = 0.0F;     ///< In radians, clockwise on screen.
     Color color{1.0F};         ///< Multiplies the texture: tint and transparency.
     BlendMode blend = BlendMode::kAlpha;    ///< How it is combined with what is under it.
-    MaterialId material;                    ///< Its shader; the default one (the texture times the colour) if 0.
+    MaterialId material;                    ///< Its material; the default one (the texture times the colour) if 0.
     ShaderInstanceValues instanceValues{};  ///< Its own `instance uniform` values, for its material's shader.
 };
 }  // namespace rtype::plugins::backend::graphics

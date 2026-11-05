@@ -145,12 +145,12 @@ class RTYPE_PLUGINS_API IRenderer {
 
     /// @name Shaders and materials
     /// @brief Shaders written by the game (docs/Shaders.md), compiled by the shader plugin into a CompiledShader that
-    /// says nothing of any graphics API, and drawn through the materials Sprite, Text and ParticleDraw name. Optional:
-    /// a renderer without them draws every drawing with its default shader, ignoring its material.
+    /// says nothing of any graphics API, and drawn through the materials Sprite, Shape, Text and ParticleDraw name.
+    /// Optional: a renderer without them draws every drawing with the default material, ignoring the one it names.
     /// @{
 
     /// @return Whether createShader() and createMaterial() are implemented: false, the default, means every drawing
-    /// is drawn with its default shader.
+    /// is drawn with the default material.
     [[nodiscard]] virtual bool supportsShaders() const noexcept { return false; }
 
     /// @brief Creates a shader from @p shader's code for each target it serves (SPIR-V, to use or translate).
@@ -180,7 +180,7 @@ class RTYPE_PLUGINS_API IRenderer {
     }
 
     /// @brief Destroys a material. Safe while the backend may still be drawing with it; does nothing for one already
-    /// destroyed. Drawings that still name it get the default shader. Default: does nothing.
+    /// destroyed. Drawings that still name it get the default material. Default: does nothing.
     virtual void destroy(MaterialId /*material*/) {}
     /// @}
 };
