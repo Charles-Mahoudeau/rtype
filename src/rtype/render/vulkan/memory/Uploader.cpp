@@ -48,13 +48,14 @@ constexpr rendering::ImageTransition kToTransferDst{
     .dstAccess = vk::AccessFlagBits2::eTransferWrite,
 };
 
-/// @brief After an image's copy: the fragment and compute shaders of every later submission sample it.
+/// @brief After an image's copy: the vertex, fragment and compute shaders of every later submission sample it.
 constexpr rendering::ImageTransition kTransferDstToShaderRead{
     .oldLayout = vk::ImageLayout::eTransferDstOptimal,
     .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
     .srcStage = vk::PipelineStageFlagBits2::eCopy,
     .srcAccess = vk::AccessFlagBits2::eTransferWrite,
-    .dstStage = vk::PipelineStageFlagBits2::eFragmentShader | vk::PipelineStageFlagBits2::eComputeShader,
+    .dstStage = vk::PipelineStageFlagBits2::eVertexShader | vk::PipelineStageFlagBits2::eFragmentShader |
+                vk::PipelineStageFlagBits2::eComputeShader,
     .dstAccess = vk::AccessFlagBits2::eShaderSampledRead,
 };
 
