@@ -19,8 +19,8 @@
 namespace rtype::render::vulkan::rendering {
 
 /// @brief What changes with every particle draw, sent as push constants: the CPU side of the push constant block of
-/// shaders/include/ParticleConstants.glsl, which must match it field by field (std430 layout). Change both files
-/// together.
+/// the shaders ABI's particle_constants.glsl (plugins/backend/graphics/shaders/), which must match it field by field
+/// (std430 layout). Change both files together.
 ///
 /// @details What every particle of one draw shares: the part of the texture they show, how they are blended, turned
 /// and stretched, and the flipbook they play. The rest is per particle, in the instances (graphics::ParticleInstance).
@@ -49,7 +49,7 @@ static_assert(offsetof(ParticleConstants, columns) == 28 && offsetof(ParticleCon
               "ParticleConstants' flipbook must be at offsets 28 to 40 (std430)");
 static_assert(static_cast<std::uint32_t>(plugins::backend::graphics::ParticleAlignment::kFixed) == 0 &&
                   static_cast<std::uint32_t>(plugins::backend::graphics::ParticleAlignment::kVelocity) == 1,
-              "graphics::ParticleAlignment must keep the values of shaders/include/ParticleConstants.glsl");
+              "graphics::ParticleAlignment must keep the values of the shaders ABI's particle.vert.glsl");
 static_assert(sizeof(ParticleConstants) <= kMaxPushConstantsSize,
               "ParticleConstants must fit in the push constant bytes every device supports");
 
