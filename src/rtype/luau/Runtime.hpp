@@ -132,7 +132,8 @@ class RTYPE_LUAU_API Runtime {
     std::unique_ptr<lua_State, StateDeleter> _state;  ///< Owned Lua state.
 
     /// Usertypes of the Lua state. Declared after the state, so it is destroyed first: the handlers (which may hold
-    /// references of the state) go before the state is closed.
+    /// references of the state) go before the state is closed. Do not reorder: the closures of the metatables hold a
+    /// raw pointer to their `UsertypeData`, which the registry owns, so a script must never run once it is destroyed.
     std::unique_ptr<detail::UsertypeRegistry> _usertypes;
 };
 }  // namespace rtype::luau
