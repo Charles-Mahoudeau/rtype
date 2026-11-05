@@ -168,7 +168,7 @@ GPU.
   linear space since the textures are sRGB, through a 64 KiB table computed once. The `IRenderer` contract still takes
   straight alpha. Filtering then mixes a sprite's edge with its transparent surroundings without a dark fringe.
 - The `graphics::BlendMode` of a `Sprite` or a `Shape` travels **per instance** (`SpriteInstance::blend`, the second
-  byte of `ShapeInstance::kind`), and `shaders/include/Blend.glsl` (mirrored by `rendering/Blend.hpp`) finishes the
+  byte of `ShapeInstance::kind`), and the shaders ABI's `fragment_common.glsl` (mirrored by `rendering/Blend.hpp`) finishes the
   premultiplied colour for it: `kAlpha` as is, `kAdditive` with an alpha of 0 (nothing is taken from what is under it),
   `kCutout` opaque or fully transparent around half opacity (no `discard`: without a depth buffer a transparent
   fragment changes nothing, and `discard` would need `shaderDemoteToHelperInvocation`). One pipeline draws every mode,
