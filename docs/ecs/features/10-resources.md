@@ -67,10 +67,19 @@ resources.insert(Time{.fixedDelta = 1.F / 60.F});
 const Time& time = resources.require<Time>();
 ```
 
+A plugin that provides a default resource uses `insertIfAbsent()`: it inserts only when the resource has no value,
+so what the game or another plugin inserted first is kept (value and ticks untouched). Without an argument it inserts
+`T{}`; it returns whether it inserted:
+
+```c++
+resources.insertIfAbsent<TextureAssets>();                 // TextureAssets{} unless one is already there
+resources.insertIfAbsent(Time{.fixedDelta = 1.F / 60.F});  // or a given value
+```
+
 | Typed (C++) | Type-erased (Luau, network) |
 |---|---|
 | `registerType<T>(options)`: registers (like `getComponents().registerType<T>()`) | `registerType(ResourceInfo)`, `find(name)` |
-| `insert(value)`, `insertNonSend(value)` | `insert(id, bytes)` |
+| `insert(value)`, `insertNonSend(value)`, `insertIfAbsent(value = T{})` | `insert(id, bytes)` |
 | `has<T>()`, `get<T>()` (`nullptr` if missing) | `has(id)`, `get(id)` |
 | `require<T>()`: throws `MissingResourceException` naming it | |
 | `getMut<T>()`, `requireMut<T>()`: `Mut<T>`, marks changed on write | `getMut(id)`: marks changed on access |

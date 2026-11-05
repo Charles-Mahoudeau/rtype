@@ -84,6 +84,7 @@ return app.run();   // Startup once, then frames until a system sends AppExit; r
 | `addPlugin(plugin)` / `addPlugins(group)` / `hasPlugin(name)` | Plugins, built at once, skipped by name when already added |
 | `addSystem(phase, name, function)` | `Schedules::addSystem()`, returning the system's configuration (`after`, `before`, `setSide`) |
 | `insertResource(value)` | A resource of the world |
+| `insertResourceIfAbsent(value = T{})` | A resource of the world, only if it has no value yet (a plugin's default) |
 | `getWorld()`, `getSchedules()` | The world and its schedules |
 | `runFrame()` | One frame ([scheduler](13-scheduler.md#the-frame-and-its-clock)), adding the default time plugin first if none was added |
 | `run()` | Frames until an `AppExit` is read; returns its code |
