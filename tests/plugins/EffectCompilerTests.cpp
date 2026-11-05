@@ -16,12 +16,15 @@
 #include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/shader/detail/EffectAssembler.hpp"
 #include "plugins/shader/detail/EffectCompiler.hpp"
+#include "plugins/shader/detail/EffectParser.hpp"
 #include "plugins/shader/exceptions/ShaderExceptions.hpp"
 
 using rtype::plugins::backend::graphics::CompiledShader;
 using rtype::plugins::backend::graphics::ShaderTarget;
+using rtype::plugins::shader::detail::assembleEffect;
 using rtype::plugins::shader::detail::compileEffect;
 using rtype::plugins::shader::detail::compileStage;
+using rtype::plugins::shader::detail::ParsedEffect;
 using rtype::plugins::shader::detail::ShaderStage;
 using rtype::plugins::shader::exceptions::ShaderException;
 
@@ -97,4 +100,15 @@ TEST(EffectCompiler, PassesTheParsersErrorsOn) {
 TEST(EffectCompiler, RejectsInvalidGlslForAStage) {
     EXPECT_THROW(static_cast<void>(compileStage("#version 450\nvoid main() { oops }\n", ShaderStage::kFragment, "x")),
                  ShaderException);
+}
+
+TEST(EffectCompiler, CompilesTheDefaultEffectOfEveryTarget) {
+    for (const ShaderTarget target : {ShaderTarget::kSprite, ShaderTarget::kGlyph, ShaderTarget::kParticle}) {
+        for (const ShaderStage stage : {ShaderStage::kVertex, ShaderStage::kFragment}) {
+            const std::vector<std::uint32_t> spirv =
+                compileStage(assembleEffect(ParsedEffect{}, target, stage), stage, "default");
+            ASSERT_FALSE(spirv.empty());
+            EXPECT_EQ(spirv.front(), kSpirvMagic);
+        }
+    }
 }

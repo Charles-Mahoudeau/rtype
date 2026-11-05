@@ -19,6 +19,7 @@
 using rtype::plugins::backend::graphics::ShaderTarget;
 using rtype::plugins::shader::detail::assembleEffect;
 using rtype::plugins::shader::detail::blankFunction;
+using rtype::plugins::shader::detail::ParsedEffect;
 using rtype::plugins::shader::detail::parseEffect;
 using rtype::plugins::shader::detail::ShaderStage;
 
@@ -114,4 +115,28 @@ TEST(EffectAssembler, ReadsEachTargetsOwnVertexInputs) {
     const std::string particle = assemble(ShaderTarget::kParticle, ShaderStage::kVertex);
     EXPECT_TRUE(has(particle, "layout(location = 5) in float rtypeLife;"));
     EXPECT_FALSE(has(particle, "rtypeInstance"));
+}
+
+TEST(EffectAssembler, CarriesTheInstanceValuesOnlyWhenTheEffectHasSome) {
+    EXPECT_TRUE(assemble(ShaderTarget::kSprite, ShaderStage::kVertex)
+                    .starts_with("#version 450\n#define RTYPE_INSTANCE_VALUES\n"));
+    const std::string vertex = assemble(ShaderTarget::kSprite, ShaderStage::kVertex, "void fragment() {}\n");
+    EXPECT_TRUE(vertex.starts_with("#version 450\n"));
+    EXPECT_FALSE(has(vertex, "#define RTYPE_INSTANCE_VALUES"));
+}
+
+TEST(EffectAssembler, LeavesThePreludeAsItIsForTheDefaultEffect) {
+    for (const ShaderTarget target : {ShaderTarget::kSprite, ShaderTarget::kGlyph, ShaderTarget::kParticle}) {
+        for (const ShaderStage stage : {ShaderStage::kVertex, ShaderStage::kFragment}) {
+            const std::string glsl = assembleEffect(ParsedEffect{}, target, stage);
+            EXPECT_TRUE(glsl.starts_with("#version 450\n"));
+            // The markers stay, as in the built-in shaders that #include the prelude: GLSL ignores them.
+            EXPECT_TRUE(has(glsl, "#pragma rtype_effect"));
+            EXPECT_TRUE(has(glsl, "#pragma rtype_main"));
+            EXPECT_FALSE(has(glsl, "#line"));
+            EXPECT_FALSE(has(glsl, "#define RTYPE_INSTANCE_VALUES"));
+            EXPECT_FALSE(has(glsl, "vertex();"));
+            EXPECT_FALSE(has(glsl, "fragment();"));
+        }
+    }
 }
