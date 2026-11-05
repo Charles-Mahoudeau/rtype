@@ -130,12 +130,19 @@ TEST(Engine, FindsTheGameGivenByTheGameFlag) {
 
 TEST(Engine, MakesTheGameDirectoryAbsolute) {
     const GameDirectory game{"rtype-engine-absolute"};
-    const std::filesystem::path relative = std::filesystem::relative(game.path());
+    // Work from the game's parent so the path is relative on every platform (on Windows the temporary directory can
+    // be on another drive than the working directory, and no relative path exists between them).
+    const std::filesystem::path previous = std::filesystem::current_path();
+    std::filesystem::current_path(game.path().parent_path());
 
-    const Engine engine{{.mode = rtype::ecs::RunMode::kServer, .game = relative}};
+    {
+        const Engine engine{{.mode = rtype::ecs::RunMode::kServer, .game = game.path().filename()}};
 
-    EXPECT_TRUE(engine.gameDirectory().is_absolute());
-    EXPECT_TRUE(std::filesystem::equivalent(engine.gameDirectory(), game.path()));
+        EXPECT_TRUE(engine.gameDirectory().is_absolute());
+        EXPECT_TRUE(std::filesystem::equivalent(engine.gameDirectory(), game.path()));
+    }
+
+    std::filesystem::current_path(previous);
 }
 
 TEST(Engine, RejectsAnInvalidCommandLine) {
