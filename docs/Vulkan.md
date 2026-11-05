@@ -120,7 +120,7 @@ how often it changes, so binding from the least to the most frequent keeps the l
 | What | Where | Changes | GLSL | C++ |
 |---|---|---|---|---|
 | `FrameUniforms`: time, delta time, framebuffer size, the camera's `viewProjection` | set 0, binding 0 | once per frame | `frame` | `rendering::FrameUniforms` |
-| The texture and its sampler | set 1, binding 0 | per texture (batch) | `uTexture` (fragment) | the texture's set |
+| The texture and its sampler | set 1, binding 0 | per texture (batch) | `uTexture` | the texture's set |
 | `DrawConstants`: `model` (unit quad to world), `color`, `uvRect` | push constants, 96 bytes | per draw | `draw` | `rendering::DrawConstants` |
 
 Per-object data fits in the push constants (at most 128 bytes, the minimum every device supports), so there is no

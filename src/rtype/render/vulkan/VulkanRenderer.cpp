@@ -210,7 +210,7 @@ void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
     _textureSetLayout = std::make_unique<descriptor::DescriptorSetLayout>(
         descriptor::DescriptorSetLayout::Builder{}
             .addBinding(rendering::kTextureBinding, vk::DescriptorType::eCombinedImageSampler,
-                        vk::ShaderStageFlagBits::eFragment)
+                        vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment)
             .build(*_device));
     const std::array textureSizes{
         vk::DescriptorPoolSize{vk::DescriptorType::eCombinedImageSampler, kTextureSetsPerPool}};
