@@ -215,11 +215,11 @@ Tests live in `tests/<module>/` (e.g. `tests/ecs/`, target `ecs-tests`, `tests/n
 `network-tests`, or `tests/luau/`, target `luau-tests`), one folder per module with its own `xmake.lua` included from
 `tests/xmake.lua`. They
 are opt-in (`--Tests=y`) and use GoogleTest; the shared `tests/main.cpp` provides `main`. The CI
-`test` job builds with `--Tests=y` and runs `xmake test -v`.
+`build` job builds with `--Tests=y` (so the project and its tests) and runs `xmake test -v`.
 
-CI (`.github/workflows/ci.yml`) builds on Linux, macOS and Windows, then runs `.github/scripts/lint.sh`, which checks
-the changed files with `clang-format` and `clang-tidy`. A change must build on all three platforms and pass both
-linters. In a stack of pull requests (`gh stack`), only the top pull request runs the checks, on the content of the
+CI (`.github/workflows/ci.yml`) builds on Linux, macOS and Windows and, in parallel, runs `.github/scripts/lint.sh`,
+which checks the changed files with `clang-format` and `clang-tidy`. A change must build on all three platforms and pass
+both linters. In a stack of pull requests (`gh stack`), only the top pull request runs the checks, on the content of the
 whole stack (linted against the stack's base); the others skip them.
 
 ## Code style
