@@ -282,18 +282,10 @@ void BackendPlugin::build(ecs::App& app) {
     ecs::Resources& resources = app.getWorld().getResources();
     resources.insertNonSend(BackendSetup{.registry = std::move(_registry), .settings = std::move(_settings)});
     resources.insertNonSend(plugins::backend::Backend{});
-    if (!resources.has<ClearColor>()) {
-        resources.insert(ClearColor{});
-    }
-    if (!resources.has<TextureAssets>()) {
-        resources.insert(TextureAssets{});
-    }
-    if (!resources.has<graphics::SpriteQueue>()) {
-        resources.insert(graphics::SpriteQueue{});
-    }
-    if (!resources.has<graphics::VisibleArea>()) {
-        resources.insert(graphics::VisibleArea{});
-    }
+    resources.insertIfAbsent<ClearColor>();
+    resources.insertIfAbsent<TextureAssets>();
+    resources.insertIfAbsent<graphics::SpriteQueue>();
+    resources.insertIfAbsent<graphics::VisibleArea>();
     static_cast<void>(app.getWorld().getComponents().registerType<SpriteRenderer>());
     static_cast<void>(app.getWorld().getComponents().registerType<graphics::Camera>());
 
