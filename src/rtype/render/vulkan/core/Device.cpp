@@ -10,6 +10,8 @@
 #include <cstdint>
 #include <set>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
@@ -64,7 +66,7 @@ FeatureChain makeFeatureChain(const PhysicalDevice::OptionalFeatures& optional) 
 
 }  // namespace
 
-Device::Device(const PhysicalDevice& physicalDevice) {
+Device::Device(const PhysicalDevice& physicalDevice, bool debugUtils) : _debugUtils{debugUtils} {
     if (physicalDevice.getPhysicalDevice() == nullptr) {
         throw std::runtime_error("Physical device not selected");
     }
@@ -82,6 +84,13 @@ Device::Device(const PhysicalDevice& physicalDevice) {
     _presentQueue = Queue{.handle = _device.getQueue(families.present, 0), .family = families.present};
     _computeQueue = Queue{.handle = _device.getQueue(families.compute, 0), .family = families.compute};
     _transferQueue = Queue{.handle = _device.getQueue(families.transfer, 0), .family = families.transfer};
+}
+
+void Device::setObjectName(vk::ObjectType type, std::uint64_t handle, std::string_view name) const {
+    const std::string terminated{name};
+    _device.setDebugUtilsObjectNameEXT(
+        vk::DebugUtilsObjectNameInfoEXT{}.setObjectType(type).setObjectHandle(handle).setPObjectName(
+            terminated.c_str()));
 }
 
 }  // namespace rtype::render::vulkan::core
