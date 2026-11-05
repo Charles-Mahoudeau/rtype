@@ -175,6 +175,9 @@ Result<Userdata> UsertypeData::create(const Initializer initialize, void* source
     } catch (const std::exception& e) {
         lua_settop(_state, top);
         return Failure{ErrorKind::kRuntime, e.what()};
+    } catch (...) {
+        lua_settop(_state, top);
+        return Failure{ErrorKind::kRuntime, "unknown exception"};
     }
     auto userdata = Userdata::fromStack(_state);
     lua_settop(_state, top);
