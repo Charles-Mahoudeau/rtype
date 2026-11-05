@@ -46,6 +46,8 @@ enum class ShaderTarget : std::uint8_t {
 
 /// @brief Number of ShaderTarget values.
 inline constexpr std::size_t kShaderTargetCount = 4;
+static_assert(static_cast<std::size_t>(ShaderTarget::kShape) + 1 == kShaderTargetCount,
+              "kShaderTargetCount must count every ShaderTarget: kShape is the last one");
 
 /// @brief The type of a value an effect declares (`uniform float flash;`), as the shader reads it (std140 in a
 /// material, std430 in an instance).

@@ -8,6 +8,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string_view>
@@ -22,6 +23,19 @@ namespace rtype::plugins::shader::detail {
 inline constexpr std::array<backend::graphics::ShaderTarget, backend::graphics::kShaderTargetCount> kAllTargets{
     backend::graphics::ShaderTarget::kSprite, backend::graphics::ShaderTarget::kGlyph,
     backend::graphics::ShaderTarget::kParticle, backend::graphics::ShaderTarget::kShape};
+static_assert(
+    [] {
+        std::array<bool, backend::graphics::kShaderTargetCount> seen{};
+        for (const backend::graphics::ShaderTarget target : kAllTargets) {
+            bool& found = seen.at(static_cast<std::size_t>(target));
+            if (found) {
+                return false;
+            }
+            found = true;
+        }
+        return true;
+    }(),
+    "kAllTargets must list every ShaderTarget once");
 
 /// @return The SPIR-V 1.6 (Vulkan semantics: the engine's intermediate format, which every backend uses or translates)
 /// of @p glsl, a complete GLSL 450 @p stage (assembleEffect()).
