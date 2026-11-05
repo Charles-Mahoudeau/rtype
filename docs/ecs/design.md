@@ -103,7 +103,7 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    engine["engine executable<br/>(client / server)"] --> plugins["engine plugins<br/>src/rtype/plugins"]
+    engine["rtype-engine<br/>EnginePlugin"] --> plugins["engine plugins<br/>src/rtype/plugins"]
     plugins --> ecs["rtype-ecs"]
     plugins --> glfw["platform-glfw"]
     plugins --> vulkan["render-vulkan"]
@@ -858,11 +858,10 @@ class RTYPE_ECS_API Plugin {
 }  // namespace rtype::ecs
 
 int main() {
-    rtype::ecs::App app;
-    app.addPlugins(rtype::plugins::DefaultPlugins{})  // window, input, render, audio, assets, script
-        .addPlugin(rtype::plugins::ClientPlugin{})   // network client
-        .addPlugin(rtype::plugins::LuauPlugin{"scripts/rtype/plugin.luau"})  // the game, in Luau
-        .run();
+    rtype::ecs::App app{rtype::ecs::RunMode::kClient};
+    app.addPlugin(rtype::engine::EnginePlugin{"game/project.luau"})  // settings, backends, default plugins
+        .addPlugin(rtype::plugins::LuauPlugin{"scripts/rtype/plugin.luau"});  // the game, in Luau
+    return app.run();
 }
 ```
 
@@ -1303,12 +1302,12 @@ move to C++ if profiling shows the event volume is too high.
 ## The App on Top of the Engine Layer
 
 Going Bevy-style now means the ECS owns the loop. Ethan's **interfaces stay**; what changes is the
-**wiring** in `main.cpp` and how the pieces are reached.
+**wiring**, now done by `EnginePlugin`, and how the pieces are reached.
 
 | Existing code | Becomes |
 |---|---|
-| `main.cpp` loop | `App` + `DefaultPlugins` + game plugin; `app.run()` owns the loop |
-| `BackendRegistry` + `Settings` | **Kept.** A `Startup` system of `WindowPlugin` / `RenderPlugin` calls `createBackend(settings)`, so the config still picks `glfw` / `vulkan`. The `prepare → init → init` order is unchanged. |
+| `main.cpp` loop | `App` + `EnginePlugin` (settings, registries, `DefaultPlugins` or the project's plugins) + game plugin; `app.run()` owns the loop |
+| `BackendRegistry` + `Settings` | **Kept.** `EnginePlugin` fills the registry; a `Startup` system of `BackendPlugin` calls `createBackend(settings)`, so the config still picks `glfw` / `vulkan`. The `prepare → init → init` order is unchanged. |
 | `Backend` (platform + renderer) | Main-thread (`NonSend`) resource |
 | `IPlatform::pollEvents()` | `PreUpdate` system that forwards each `Event` alternative to `Events<…>` |
 | `Input` / `InputAction` | Resource updated by a `PreUpdate` system from window events; feeds `PlayerInput` |
@@ -1354,7 +1353,7 @@ void drawSprites(rtype::ecs::Query<const GlobalTransform, const SpriteRenderer> 
 
 Mitigation for the critical path: `IPlatform`, `IRenderer` and `BackendRegistry` keep working without
 the ECS (Ethan's examples, renderer development), so the renderer and the ECS can progress in parallel
-and meet in `RenderPlugin`.
+and meet in `BackendPlugin`.
 
 ## Error Handling
 
@@ -1412,7 +1411,7 @@ The public include path is `src/`: `#include <rtype/ecs/world/World.hpp>`.
 
 | Version | Content | Unlocks |
 |---|---|---|
-| **v1: core + App** | `Entity`, registry + `RTYPE_ECS_COMPONENT`, sparse sets, typed + type-erased API, queries, `Mut<T>` + ticks, commands, resources (incl. `NonSend`), events, phases + fixed timestep, `App` / `Plugin`, `WindowPlugin` + `InputPlugin` + `RenderPlugin` over Ethan's backends, `StandalonePlugin` (single player without a server), tests | A window showing sprites driven by systems |
+| **v1: core + App** | `Entity`, registry + `RTYPE_ECS_COMPONENT`, sparse sets, typed + type-erased API, queries, `Mut<T>` + ticks, commands, resources (incl. `NonSend`), events, phases + fixed timestep, `App` / `Plugin`, `BackendPlugin` (window, render) + `InputPlugin` over Ethan's backends, `EnginePlugin` (project settings, backends, default plugins), tests; `StandalonePlugin` (single player without a server) deferred | A window showing sprites driven by systems |
 | **v2: game features** | Luau components, systems and plugins, input actions declared from Luau, generated `.d.luau` for script components, prefabs, hierarchy, run conditions, States, `AssetPlugin`, `CollisionPlugin` (AABB, collision events), replication + `ClientPlugin` / `ServerPlugin`, `PlayerInput` | Multiplayer R-Type with scripted gameplay |
 | **v3: generic engine** | Archetype tables, mixed-storage queries, parallel scheduler, observers, shared components, scenes | Reuse in other games |
 | **Later** | Copy-on-write snapshots (replays, lag compensation), benchmarks-driven optimizations | |

@@ -52,7 +52,7 @@ class RTYPE_ECS_API Plugin {
 
 `build` registers things; it does not run gameplay. A plugin is **built as soon as it is added**, and
 adding a plugin whose name was already added does nothing, so plugins can safely depend on each other
-(`RenderPlugin` adds `WindowPlugin` if missing). A plugin is recorded before it is built, so two plugins
+(`BackendPlugin` adds `InputPlugin`). A plugin is recorded before it is built, so two plugins
 adding each other are each built once. A `PluginGroup` (`app/PluginGroup.hpp`) adds several plugins through
 the App with its own `build`.
 
@@ -111,35 +111,59 @@ and replays are deterministic. A clock installed directly with `getSchedules().s
 default plugin's on the first frame: a custom clock comes from a plugin named `"rtype.time"` added in place
 of `TimePlugin`.
 
-### Three ways to start
+### Starting a game: the engine plugin
+
+A game starts from an App and the **engine plugin** (`engine/EnginePlugin.hpp`, `rtype::engine`), which does the
+wiring every game needs, then adds its own plugins and systems:
 
 ```c++
-// Client: rtype::ecs::App app{rtype::ecs::RunMode::kClient};
-app.addPlugins(rtype::plugins::DefaultPlugins{})   // window, input, render, audio, assets, script
-    .addPlugin(rtype::plugins::ClientPlugin{"127.0.0.1", 4242})
-    .addPlugin(rtype::plugins::LuauPlugin{"scripts/rtype/plugin.luau"})
-    .run();
-
-// Dedicated server (headless): rtype::ecs::App app{rtype::ecs::RunMode::kServer};
-app.addPlugins(rtype::ecs::MinimalPlugins{})               // time (later assets metadata, script)
-    .addPlugin(rtype::plugins::ServerPlugin{4242})
-    .addPlugin(rtype::plugins::LuauPlugin{"scripts/rtype/plugin.luau"})
-    .run();
-
-// Standalone (single player, tests): rtype::ecs::App app{rtype::ecs::RunMode::kStandalone};
-app.addPlugins(rtype::plugins::DefaultPlugins{})
-    .addPlugin(rtype::plugins::StandalonePlugin{})
-    .addPlugin(rtype::plugins::LuauPlugin{"scripts/rtype/plugin.luau"})
-    .run();
+// Client: rtype::ecs::RunMode::kClient; dedicated server: kServer; both sides in one process: kStandalone
+rtype::ecs::App app{rtype::ecs::RunMode::kClient};
+app.addPlugin(rtype::engine::EnginePlugin{"game/project.luau"});  // first: the game can order against it
+app.addPlugin(GamePlugin{});                                       // the same game plugin in every mode
+return app.run();
 ```
 
-The game plugin is **the same file in all three**.
+When it is added, `EnginePlugin`:
+
+1. loads the project's settings script with `SettingsLoader`; the script sees `engine.isClient`, `engine.isServer`
+   (from the App's run mode) and `engine.isDebug` (from the build type), and the result is inserted as the
+   `ProjectSettings` resource, so the game's systems read their own keys;
+2. fills the backend and audio registries (GLFW, Vulkan, miniaudio): the only place, with the examples, that knows
+   the backends, which the plugins then pick by name from the settings;
+3. adds the plugins of the run mode: the ones the project lists (`plugins.client`, `plugins.server` or
+   `plugins.standalone`), or else `DefaultPlugins` for a client or standalone and `MinimalPlugins` for a server (no
+   window, no sound).
+
+```luau
+-- game/project.luau
+if engine.isClient then
+    engine.settings.window.title = "R-Type"
+end
+-- Optional: without it, the defaults. Changing the plugins needs no recompilation.
+engine.settings.plugins.client = { "backend", "audio", "physics" }
+engine.settings.plugins.server = { "physics" }
+engine.settings.physics.gravity = { 0, 0 }
+```
+
+| Name in `plugins.<mode>` | Plugin | Built with |
+|---|---|---|
+| `"backend"` | `BackendPlugin` (brings input, transform, sprite, tilemap, text, particle) | the backend registry, the settings |
+| `"audio"` | `AudioPlugin` | the audio registry, the settings |
+| `"physics"` | `PhysicsPlugin` | `physics.gravity` (`{x, y}`), `physics.unitsPerMeter` |
+| `"physics.debug"` | `PhysicsDebugPlugin` | |
+| `"particle"`, `"text"`, `"tilemap"` | `ParticlePlugin`, `TextPlugin`, `TilemapPlugin` | |
+
+An unknown name stops the start with an error naming it and the known ones (`PluginRegistry`). The network plugins
+(`replication::client::ClientPlugin`, `replication::server::ServerPlugin`) need an address or a port, so the game
+adds them in code. Unlike most plugins, `EnginePlugin::build()` loads a file: the plugins to add depend on the
+settings, and the run mode they depend on is only known from the App.
 
 ### Standalone mode
 
 Single player should not require running a server. An App made with `RunMode::kStandalone` runs **both
-sides**: server systems (gameplay) and client systems (presentation) in the same world. `StandalonePlugin`
-fills `PlayerInput` directly from local input instead of from the network. Because gameplay reads
+sides**: server systems (gameplay) and client systems (presentation) in the same world. A `StandalonePlugin`
+would fill `PlayerInput` directly from local input instead of from the network; it is not planned for V1 (#128). Because gameplay reads
 `PlayerInput` and never the keyboard, nothing in the game changes.
 
 | Mode | Server systems | Client systems | `PlayerInput` comes from |
@@ -152,23 +176,22 @@ fills `PlayerInput` directly from local input instead of from the network. Becau
 
 | Group | Plugins |
 |---|---|
-| `MinimalPlugins` (`rtype::ecs`) | `TimePlugin`; later `AssetPlugin` (metadata only), `ScriptPlugin` |
-| `DefaultPlugins` | `MinimalPlugins` + `WindowPlugin`, `InputPlugin`, `RenderPlugin`, `AudioPlugin`, `TransformPlugin`, `HierarchyPlugin` |
-| Opt-in | `ClientPlugin`, `ServerPlugin`, `StandalonePlugin`, `CollisionPlugin` |
+| `MinimalPlugins` (`rtype::ecs`) | `TimePlugin`: what a dedicated server or a test needs |
+| `DefaultPlugins` (`rtype::engine`) | `MinimalPlugins` + `BackendPlugin` (window and renderer; it adds input, transform, sprite, tilemap, text and particle) + `AudioPlugin`. Built by `EnginePlugin` with the registries it filled |
+| Opt-in | `PhysicsPlugin`, `PhysicsDebugPlugin`, the replication `ClientPlugin` / `ServerPlugin` |
 
 ### Wiring Ethan's backends
 
-`BackendPlugin` (`plugins/backend/`, `rtype::plugins::backend`) reuses `BackendRegistry` unchanged. The executable,
-the only place that knows GLFW and Vulkan, fills a registry and hands it to the plugin with the `Settings`, so the
-plugins depend on no backend:
+`BackendPlugin` (`plugins/backend/`, `rtype::plugins::backend`) reuses `BackendRegistry` unchanged. `EnginePlugin`,
+the only place (with the examples) that knows GLFW and Vulkan, fills a registry and hands it to the plugin with the
+`Settings`, so the plugins depend on no backend:
 
 ```c++
+// what EnginePlugin does for a client
 auto registry = std::make_unique<rtype::plugins::backend::BackendRegistry>();
 rtype::platform::glfw::registerPlatform(*registry);
 rtype::render::vulkan::registerRenderer(*registry);
-app.addPlugins(rtype::ecs::MinimalPlugins{})
-    .addPlugin(rtype::plugins::backend::BackendPlugin{std::move(registry), settings});  // brings InputPlugin
-return app.run();
+app.addPlugin(rtype::plugins::backend::BackendPlugin{std::move(registry), settings});  // brings InputPlugin
 ```
 
 `build()` only registers: the window opens in the `Startup` system, which calls `registry.createBackend(settings)`
