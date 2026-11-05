@@ -89,9 +89,10 @@ echo "Files checked by clang-tidy: ${#tidy_files[@]} (the others are in folders 
 # Only the diagnostics located in the checked file count (and their notes): the ones clang-tidy reports in the headers
 # it includes (HeaderFilterRegex is '.*') belong to those headers, which are checked on their own when they change.
 run_tidy() {
-    local index="$1" file="$2" log
+    local index="$1" file="$2" log status=0
     log="$LINT_WORK/tidy/$index.log"
-    "$LINT_CLANG_TIDY" -p . --quiet "$file" 2>&1 | awk -v file="$file" -v root="$PWD/" '
+    "$LINT_CLANG_TIDY" -p . --quiet "$file" >"$log.raw" 2>&1 || status=$?
+    awk -v file="$file" -v root="$PWD/" '
         /^[^ ].*:[0-9]+:[0-9]+: (warning|error|note): / {
             if ($0 !~ /:[0-9]+:[0-9]+: note: /) {
                 path = $0
@@ -102,11 +103,14 @@ run_tidy() {
         }
         /^[0-9]+ (warning|error)s? generated/ { next }
         keep { print }
-    ' >"$log.out" || true
+    ' "$log.raw" >"$log.out"
     if grep -qE ':[0-9]+:[0-9]+: (warning|error):' "$log.out"; then
         { echo "$file"; cat "$log.out"; } >"$log"
+    elif [[ $status -ne 0 ]]; then
+        # A crash or an error without a diagnostic of the checked file (e.g. a missing include) must not pass.
+        { echo "$file"; echo "clang-tidy exited with status ${status}:"; cat "$log.raw"; } >"$log"
     fi
-    rm "$log.out"
+    rm "$log.out" "$log.raw"
 }
 export -f run_tidy
 export LINT_WORK="$work" LINT_CLANG_TIDY="$clang_tidy"
