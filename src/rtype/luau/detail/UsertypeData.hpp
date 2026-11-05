@@ -17,6 +17,7 @@
 
 #include "rtype/luau/Export.hpp"
 #include "rtype/luau/MapHelper.hpp"
+#include "rtype/luau/Ref.hpp"
 #include "rtype/luau/Result.hpp"
 #include "rtype/luau/Userdata.hpp"
 #include "rtype/luau/Value.hpp"
@@ -30,8 +31,9 @@ namespace rtype::luau::detail {
 ///
 /// The typed side (`Usertype<T>`) wraps the handlers of `T` into the erased `std::function`s below and gives them to
 /// this class, which owns them and builds the metatable of the userdata: `__index` and `__newindex` look the member
-/// up in the handlers when a script uses it, so members can be added at any time. It holds no reference to the Lua
-/// state (no `Ref`), only the handlers.
+/// up in the handlers when a script uses it, so members can be added at any time. It keeps a `Ref` on the metatable,
+/// because Luau does not protect the metatable of a tag from the collector: without it, the metatable is collected
+/// with the last object of the type.
 ///
 /// Handlers throw `exceptions::Base` to report a misuse: the metamethods turn it into a Luau error.
 class RTYPE_LUAU_API UsertypeData {
@@ -161,5 +163,6 @@ class RTYPE_LUAU_API UsertypeData {
     NewIndexFallback _newIndexFallback;  ///< Writes the members that have no setter.
     Equality _equality;                  ///< `__eq`.
     Stringifier _stringifier;            ///< `__tostring`.
+    Ref _metatable;                      ///< Keeps the metatable alive while no object of the type exists.
 };
 }  // namespace rtype::luau::detail
