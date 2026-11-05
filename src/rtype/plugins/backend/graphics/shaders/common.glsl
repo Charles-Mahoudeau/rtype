@@ -5,7 +5,8 @@
 ** common
 */
 
-// The start of every stage of every effect (detail/EffectAssembler.hpp): the frame (set 0, binding 0), the drawing's
+// The shaders ABI of the backend contract: game effects are assembled in it (plugins/shader), and backends write their
+// built-in shaders against it. The start of every stage of every effect: the frame (set 0, binding 0), the drawing's
 // texture (set 1, binding 0) and the built-ins an effect reads and writes. Every name of the engine starts with rtype,
 // a prefix effects cannot use. Kept ASCII: it is embedded as chars.
 #version 450

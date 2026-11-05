@@ -60,7 +60,9 @@ are added.
   `RTYPE_PLUGINS_API`, which keeps the RTTI of the backend interfaces visible across binaries.
     - `plugins/backend/` (`rtype::plugins::backend`) — the contracts the backends implement and the vocabulary they
       speak, in sub-folders whose namespaces follow them: `platform/` (`IPlatform`, `WindowConfig`), `graphics/`
-      (`IRenderer`, `Sprite`, `Text` (a laid-out text: MSDF glyphs), `Texture`, `View`..., the `Camera` (projection and
+      (`IRenderer`, `Sprite`, `Text` (a laid-out text: MSDF glyphs), `Texture`, `View`, `Shader` (`CompiledShader`,
+      the plain data of a game shader) and `shaders/` (the shaders ABI: the GLSL every effect is assembled in and the
+      backends' built-in shaders include)..., the `Camera` (projection and
       priority, placed by its entity's `Transform`) and `SpriteRenderer` components, `CameraView` (what a `View`
       shows: letterboxed viewport, view-projection, screen and world conversions), and the `TextureAssets` resource:
       the textures by `AssetId`, queued by `load()` and decoded with stb by the backend plugin, the `SpriteQueue`
@@ -177,7 +179,7 @@ ecs      ←  replication
   (`plugins/backend/`, `plugins/audio/`), so it would create a cycle. The executable fills the backend and audio
   registries instead.
 - The platforms and renderers link `plugins` (and so the ECS) for the contracts, but never include ECS headers or
-  plugin code beyond `plugins/backend/`'s interfaces and types. Likewise, the audio backends include nothing of
+  plugin code beyond `plugins/backend/`'s interfaces, types and shaders ABI (`plugins/backend/graphics/shaders/`). Likewise, the audio backends include nothing of
   `plugins` but the contract of `plugins/audio/` (`IAudioDevice`, `AudioTypes`, `AudioConfig`, `AudioRegistry`) and
   `core/config/`'s `Settings` (through `core`).
 - An audio backend never depends on a platform or a renderer, nor they on it. miniaudio never leaves

@@ -24,8 +24,8 @@ namespace {
 using backend::graphics::ShaderTarget;
 using backend::graphics::ShaderValueType;
 
-// The prelude, in prelude/*.glsl, embedded by xmake's utils.bin2c rule: null-terminated, ASCII (the files are kept
-// so, as they become chars).
+// The prelude, the shaders ABI of the backend contract (plugins/backend/graphics/shaders/*.glsl), embedded by xmake's
+// utils.bin2c rule: null-terminated, ASCII (the files are kept so, as they become chars).
 constexpr auto kCommon = std::to_array<char>({
 #include "common.glsl.h"
 });

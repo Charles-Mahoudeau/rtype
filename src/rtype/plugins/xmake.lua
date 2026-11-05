@@ -28,10 +28,10 @@ target("plugins")
     -- The effects' compiler (glslang, required by the root xmake.lua). Private: only shader/detail/EffectCompiler.cpp
     -- includes it.
     add_packages("glslang")
-    -- The prelude of the game's effects (shader/prelude/*.glsl), embedded as byte arrays that
-    -- shader/detail/EffectAssembler.cpp includes as "<file>.glsl.h".
+    -- The shaders ABI of the backend contract (backend/graphics/shaders/*.glsl), the prelude of the game's effects,
+    -- embedded as byte arrays that shader/detail/EffectAssembler.cpp includes as "<file>.glsl.h".
     add_rules("utils.bin2c", {extensions = {".glsl"}})
-    add_files("shader/prelude/*.glsl")
+    add_files("backend/graphics/shaders/*.glsl")
     -- Plain x/y/z/w members instead of unions (cppcoreguidelines-pro-type-union-access).
     add_defines("GLM_FORCE_XYZW_ONLY", {public = true})
     -- Linked into the shared modules (render-vulkan).
