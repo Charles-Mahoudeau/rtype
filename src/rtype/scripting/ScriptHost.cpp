@@ -30,6 +30,7 @@
 #include "rtype/luau/Usertype.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
+#include "system/ContextTypes.hpp"
 #include "system/RuntimeHandle.hpp"
 #include "system/SystemDeclarationReader.hpp"
 #include "system/SystemRegistration.hpp"
@@ -99,6 +100,9 @@ luau::Result<> ScriptHost::installEngine(const Options options) {
         return registered;
     }
     if (auto registered = commands::registerCommandsType(_runtime); !registered) {
+        return registered;
+    }
+    if (auto registered = system::registerContextTypes(_runtime); !registered) {
         return registered;
     }
     if (auto registered = registerAppType(); !registered) {

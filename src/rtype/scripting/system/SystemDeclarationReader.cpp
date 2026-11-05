@@ -11,7 +11,9 @@
 #include <array>
 #include <cstddef>
 #include <format>
+#include <iterator>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <tl/expected.hpp>
@@ -157,11 +159,84 @@ struct Source {
     return terms;
 }
 
+/// @brief Reads a table of named lists of names: `{ read = {...}, write = {...} }`.
+/// @param keys The keys the table accepts, each marking the names of its list.
+/// @param use Called with each name and the key it was listed under.
+template <typename Use>
+[[nodiscard]] Result<void> readUses(const Source& source, const luau::Value& value, const std::string_view what,
+                                    const std::span<const std::string_view> keys, Use use) {
+    const auto* table = value.tryAs<luau::Table>();
+    if (table == nullptr) {
+        return invalid(source.system, std::format("'{}' must be a table", what));
+    }
+    const auto entries = namedEntries(source.system, *table, std::format("'{}'", what));
+    if (!entries) {
+        return tl::unexpected{entries.error()};
+    }
+    for (const auto& [key, list] : *entries) {
+        const auto& option = key.as<std::string>();
+        if (std::ranges::find(keys, option) == keys.end()) {
+            std::string accepted;
+            for (const std::string_view accepts : keys) {
+                accepted += std::format("{}'{}'", accepted.empty() ? "" : " or ", accepts);
+            }
+            return invalid(source.system,
+                           std::format("unknown key '{}' in '{}' (expected {})", option, what, accepted));
+        }
+        auto names = readNames(source.system, list, std::format("{}.{}", what, option));
+        if (!names) {
+            return tl::unexpected{std::move(names.error())};
+        }
+        for (auto& name : *names) {
+            use(option, std::move(name));
+        }
+    }
+    return {};
+}
+
+/// @brief The resources of `resources = { read = {...}, write = {...} }`; a name in both lists is written.
+[[nodiscard]] Result<std::vector<ResourceDeclaration>> readResources(const Source& source, const luau::Value& value) {
+    constexpr std::array<std::string_view, 2> kKeys{"read", "write"};
+    std::vector<ResourceDeclaration> resources;
+    auto read = readUses(source, value, "resources", kKeys, [&resources](const std::string_view key, std::string name) {
+        const auto found = std::ranges::find(resources, name, &ResourceDeclaration::name);
+        if (found == resources.end()) {
+            resources.push_back({.name = std::move(name), .write = key == "write"});
+        } else {
+            found->write = found->write || key == "write";
+        }
+    });
+    if (!read) {
+        return tl::unexpected{std::move(read.error())};
+    }
+    return resources;
+}
+
+/// @brief The events of `events = { read = {...}, send = {...} }`; a name in both lists is read and sent.
+[[nodiscard]] Result<std::vector<EventDeclaration>> readEvents(const Source& source, const luau::Value& value) {
+    constexpr std::array<std::string_view, 2> kKeys{"read", "send"};
+    std::vector<EventDeclaration> events;
+    auto read = readUses(source, value, "events", kKeys, [&events](const std::string_view key, std::string name) {
+        auto found = std::ranges::find(events, name, &EventDeclaration::name);
+        if (found == events.end()) {
+            events.push_back({.name = std::move(name)});
+            found = std::prev(events.end());
+        }
+        (key == "read" ? found->read : found->send) = true;
+    });
+    if (!read) {
+        return tl::unexpected{std::move(read.error())};
+    }
+    return events;
+}
+
 /// @brief What the options of a declaration give, before the required ones are checked.
 struct Options {
     std::optional<ecs::Phase> phase;
     std::optional<std::vector<TermDeclaration>> terms;
     std::optional<luau::FunctionRef> run;
+    std::vector<ResourceDeclaration> resources;
+    std::vector<EventDeclaration> events;
     std::vector<std::string> after;
     std::vector<std::string> before;
 };
@@ -181,6 +256,18 @@ struct Options {
             return tl::unexpected{std::move(terms.error())};
         }
         options.terms = std::move(*terms);
+    } else if (option == "resources") {
+        auto resources = readResources({.system = system}, value);
+        if (!resources) {
+            return tl::unexpected{std::move(resources.error())};
+        }
+        options.resources = std::move(*resources);
+    } else if (option == "events") {
+        auto events = readEvents({.system = system}, value);
+        if (!events) {
+            return tl::unexpected{std::move(events.error())};
+        }
+        options.events = std::move(*events);
     } else if (option == "after" || option == "before") {
         auto names = readNames(system, value, option);
         if (!names) {
@@ -194,8 +281,8 @@ struct Options {
         }
         options.run = *function;
     } else {
-        return invalid(system, std::format("unknown option '{}' (expected 'phase', 'query', 'after', 'before' or "
-                                           "'run')",
+        return invalid(system, std::format("unknown option '{}' (expected 'phase', 'query', 'resources', 'events', "
+                                           "'after', 'before' or 'run')",
                                            option));
     }
     return {};
@@ -227,6 +314,8 @@ Result<SystemDeclaration> readSystemDeclaration(std::string name, const luau::Ta
         .name = std::move(name),
         .phase = *options.phase,
         .terms = std::move(*options.terms),
+        .resources = std::move(options.resources),
+        .events = std::move(options.events),
         .after = std::move(options.after),
         .before = std::move(options.before),
         .run = std::move(*options.run),
