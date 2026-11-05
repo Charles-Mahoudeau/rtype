@@ -113,6 +113,11 @@ Result<luau::Value> readInteger(const std::string_view component, const ecs::Fie
     return luau::Value{static_cast<double>(value)};
 }
 
+/// @return Whether narrowing the number to a float is defined: infinities and NaN pass, finite overflows do not.
+bool fitsFloat(const double number) {
+    return !std::isfinite(number) || std::fabs(number) <= static_cast<double>(std::numeric_limits<float>::max());
+}
+
 /// @return The names of the components of a vector field type.
 std::span<const std::string_view> vectorKeys(const ecs::FieldType type) {
     return std::span{kVectorKeys}.first(vectorWidth(type));
@@ -139,6 +144,9 @@ Result<luau::Value> readVector(const std::string_view component, const ecs::Fiel
                 keys.size() * sizeof(float));
     if (field.type == ecs::FieldType::kVec3) {
         return luau::Value{glm::vec3{components.at(0), components.at(1), components.at(2)}};
+    }
+    if (context.runtime == nullptr) {
+        return tl::unexpected{fieldError(component, field, "no runtime to build a table with")};
     }
     auto table = luau::Table::create(*context.runtime, 0, static_cast<int>(keys.size()));
     if (!table) {
@@ -176,6 +184,9 @@ Result<void> writeVectorTable(const std::string_view component, const ecs::Field
         const auto* number = value.tryAs<double>();
         if (number == nullptr) {
             return tl::unexpected{fieldError(component, field, std::format("'{}' must be a number", *found))};
+        }
+        if (!fitsFloat(*number)) {
+            return tl::unexpected{fieldError(component, field, std::format("'{}' is out of range", *found))};
         }
         const auto index = static_cast<std::size_t>(std::ranges::distance(keys.begin(), found));
         components.at(index) = static_cast<float>(*number);
@@ -333,6 +344,9 @@ Result<void> writeField(const std::string_view component, const ecs::FieldInfo& 
         case ecs::FieldType::kU64:
             return writeInteger<std::uint64_t>(component, field, bytes, *number);
         case ecs::FieldType::kF32:
+            if (!fitsFloat(*number)) {
+                return tl::unexpected{fieldError(component, field, std::format("{} is out of range", *number))};
+            }
             store<float>(bytes, field, static_cast<float>(*number));
             return {};
         case ecs::FieldType::kF64:
