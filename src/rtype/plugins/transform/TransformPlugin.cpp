@@ -148,8 +148,6 @@ void TransformPlugin::build(ecs::App& app) {
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kPropagateSystem}, &propagateTransforms)
         .after(std::string{kInsertSystem})
         .setSide(ecs::Side::kBoth);
-    app.addSystem(ecs::Phase::kFixedUpdate, std::string{kFixedPropagateSystem}, &propagateTransforms)
-        .setSide(ecs::Side::kBoth);
 }
 
 }  // namespace rtype::plugins::transform

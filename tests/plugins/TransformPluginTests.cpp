@@ -7,9 +7,7 @@
 
 #include <gtest/gtest.h>
 
-#include <chrono>
 #include <glm/ext/vector_float2.hpp>
-#include <string>
 
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
@@ -17,13 +15,7 @@
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
-#include "rtype/ecs/query/Query.hpp"
-#include "rtype/ecs/query/QueryTerms.hpp"
-#include "rtype/ecs/resource/ResourceTraits.hpp"
-#include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
-#include "rtype/ecs/system/ResourceParam.hpp"
-#include "rtype/ecs/time/TimePlugin.hpp"
 #include "rtype/ecs/type/Field.hpp"
 
 namespace {
@@ -230,35 +222,4 @@ TEST(TransformHierarchy, DoesNotMarkAnEntityThatDidNotMoveAsChanged) {
     fixture.app.runFrame();
     EXPECT_EQ(components.getTicks<GlobalTransform>(plain)->changed, plainTicks->changed);
     EXPECT_EQ(components.getTicks<GlobalTransform>(child)->changed, childTicks->changed);
-}
-
-namespace {
-/// @brief Where the child is, as a system of FixedUpdate sees it.
-struct SeenChild {
-    glm::vec2 position{0.0F};  ///< Its GlobalTransform's.
-};
-RTYPE_ECS_RESOURCE(SeenChild, "test.SeenChild", position);
-
-/// @brief FixedUpdate: records where the child is.
-void readChild(rtype::ecs::ResMut<SeenChild> seen,
-               rtype::ecs::Query<const GlobalTransform, rtype::ecs::With<rtype::ecs::Parent>> children) {
-    for (auto [entity, global] : children) {
-        seen->position = global.position;
-    }
-}
-}  // namespace
-
-TEST(TransformHierarchy, IsUpToDateForTheSystemsOfFixedUpdate) {
-    TransformApp fixture;
-    fixture.app.addPlugin(rtype::ecs::TimePlugin::manual(std::chrono::seconds{1}));
-    const rtype::ecs::Entity parent = fixture.spawn(Transform{.position = {100.0F, 0.0F}});
-    const rtype::ecs::Entity child = fixture.spawnChild(parent, Transform{.position = {10.0F, 0.0F}});
-    fixture.app.insertResource(SeenChild{});
-    fixture.app.addSystem(rtype::ecs::Phase::kFixedUpdate, "test.ReadChild", &readChild)
-        .after(std::string{rtype::plugins::transform::TransformPlugin::kFixedPropagateSystem});
-    fixture.app.runFrame();
-    fixture.app.runFrame();
-    fixture.move(parent, {200.0F, 0.0F});
-    fixture.app.runFrame();
-    EXPECT_EQ(fixture.app.getWorld().getResources().get<SeenChild>()->position, (glm::vec2{210.0F, 0.0F}));
 }
