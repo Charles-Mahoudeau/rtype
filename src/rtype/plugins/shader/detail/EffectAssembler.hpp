@@ -28,8 +28,8 @@ enum class ShaderStage : std::uint8_t {
 /// and the effect's body, then a main() that fills the built-ins as the default effect does and the instance values,
 /// calls the effect's function and finishes the colour with the drawing's blend mode. Only TIME is a macro: a macro
 /// would also replace a value's name after a '.'. Every stage keeps only its own function of the body, so code only one
-/// stage allows (discard, derivatives) never reaches the other. The instance values of sprites and glyphs are only
-/// carried when the effect declares some: the GLSL then starts by defining RTYPE_INSTANCE_VALUES.
+/// stage allows (discard, derivatives) never reaches the other. The instance values are only carried when the effect
+/// declares some: the GLSL then starts by defining RTYPE_INSTANCE_VALUES.
 ///
 /// An empty effect (a default ParsedEffect) leaves the prelude as it is, its `#pragma rtype_*` markers included,
 /// which GLSL ignores: it is the default effect, which a backend's built-in shaders get by writing `#version 450` and
@@ -38,6 +38,7 @@ enum class ShaderStage : std::uint8_t {
 /// The prelude is the contract every backend feeds (docs/Shaders.md): set 0 binding 0 the frame uniforms, set 1
 /// binding 0 the drawing's texture, set 2 binding 0 the material block and bindings 1 to 3 its textures; sprites and
 /// glyphs read SpriteInstance-like attributes (locations 0 to 6) and their instance values at locations 7 to 10;
+/// shapes read ShapeInstance-like attributes (locations 0 to 7) and their instance values at locations 8 to 11;
 /// particles read ParticleInstance attributes (locations 0 to 5) and a push constant block of their draw's
 /// constants with the instance values at offset 48.
 [[nodiscard]] std::string assembleEffect(const ParsedEffect& effect, backend::graphics::ShaderTarget target,

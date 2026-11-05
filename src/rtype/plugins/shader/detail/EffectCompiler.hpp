@@ -21,7 +21,7 @@ namespace rtype::plugins::shader::detail {
 /// @brief Every target an effect is drawn on.
 inline constexpr std::array<backend::graphics::ShaderTarget, backend::graphics::kShaderTargetCount> kAllTargets{
     backend::graphics::ShaderTarget::kSprite, backend::graphics::ShaderTarget::kGlyph,
-    backend::graphics::ShaderTarget::kParticle};
+    backend::graphics::ShaderTarget::kParticle, backend::graphics::ShaderTarget::kShape};
 
 /// @return The SPIR-V 1.6 (Vulkan semantics: the engine's intermediate format, which every backend uses or translates)
 /// of @p glsl, a complete GLSL 450 @p stage (assembleEffect()).

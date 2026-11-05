@@ -50,6 +50,12 @@ constexpr auto kSpriteFragment = std::to_array<char>({
 constexpr auto kGlyphFragment = std::to_array<char>({
 #include "glyph.frag.glsl.h"
 });
+constexpr auto kShapeVertex = std::to_array<char>({
+#include "shape.vert.glsl.h"
+});
+constexpr auto kShapeFragment = std::to_array<char>({
+#include "shape.frag.glsl.h"
+});
 
 /// @brief Where a template takes the effect's declarations and body, and where its main() takes the instance values
 /// and the effect's call.
@@ -140,6 +146,34 @@ std::string declareValues(const ParsedEffect& effect) {
     return glsl;
 }
 
+/// @return The template of @p target's vertex stage.
+std::string_view vertexTemplate(ShaderTarget target) noexcept {
+    switch (target) {
+        case ShaderTarget::kParticle:
+            return text(kParticleVertex);
+        case ShaderTarget::kShape:
+            return text(kShapeVertex);
+        case ShaderTarget::kSprite:
+        case ShaderTarget::kGlyph:
+            break;
+    }
+    return text(kSpriteVertex);
+}
+
+/// @return The template of @p target's fragment stage.
+std::string_view fragmentTemplate(ShaderTarget target) noexcept {
+    switch (target) {
+        case ShaderTarget::kGlyph:
+            return text(kGlyphFragment);
+        case ShaderTarget::kShape:
+            return text(kShapeFragment);
+        case ShaderTarget::kSprite:
+        case ShaderTarget::kParticle:
+            break;
+    }
+    return text(kSpriteFragment);
+}
+
 /// @return The statements that fill the instance values from @p source (4 vec4), for main().
 std::string loadInstanceValues(const ParsedEffect& effect, std::string_view source) {
     std::string glsl;
@@ -194,16 +228,13 @@ std::string assembleEffect(const ParsedEffect& effect, ShaderTarget target, Shad
     if (particle) {
         glsl += text(kParticleConstants);
     }
-    std::string_view stageTemplate;
-    if (vertex) {
-        stageTemplate = particle ? text(kParticleVertex) : text(kSpriteVertex);
-    } else {
+    if (!vertex) {
         glsl += text(kFragmentCommon);
         if (!particle) {
             glsl += text(kInstanceInput);
         }
-        stageTemplate = target == ShaderTarget::kGlyph ? text(kGlyphFragment) : text(kSpriteFragment);
     }
+    const std::string_view stageTemplate = vertex ? vertexTemplate(target) : fragmentTemplate(target);
     const std::string effectCode = isEmpty(effect)
                                        ? std::string{}
                                        : std::format("{}\n#line 1\n{}\n", declareValues(effect),

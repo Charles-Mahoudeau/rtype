@@ -41,10 +41,11 @@ enum class ShaderTarget : std::uint8_t {
     kSprite,    ///< Sprites and the tiles of a tilemap: a textured quad.
     kGlyph,     ///< The glyphs of a Text: an MSDF atlas, read as distances.
     kParticle,  ///< Particles, of a CPU or a GPU simulation.
+    kShape,     ///< Shapes: a quad over the shape's box, coloured from its signed distance.
 };
 
 /// @brief Number of ShaderTarget values.
-inline constexpr std::size_t kShaderTargetCount = 3;
+inline constexpr std::size_t kShaderTargetCount = 4;
 
 /// @brief The type of a value an effect declares (`uniform float flash;`), as the shader reads it (std140 in a
 /// material, std430 in an instance).
@@ -57,7 +58,7 @@ enum class ShaderValueType : std::uint8_t {
 };
 
 /// @brief Bytes of the values a drawing gives its own copy of (`instance uniform`): 4 vec4, carried with each sprite,
-/// glyph or particle draw so that one enemy can flash without its own material.
+/// glyph, shape or particle draw so that one enemy can flash without its own material.
 inline constexpr std::size_t kShaderInstanceBytes = 64;
 
 /// @brief Textures an effect may read besides the drawing's own (`uniform sampler2D noise;`), given by its material.

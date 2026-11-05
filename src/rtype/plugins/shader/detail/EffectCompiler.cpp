@@ -77,6 +77,8 @@ std::string_view nameOf(backend::graphics::ShaderTarget target) noexcept {
             return "glyph";
         case backend::graphics::ShaderTarget::kParticle:
             return "particle";
+        case backend::graphics::ShaderTarget::kShape:
+            return "shape";
         case backend::graphics::ShaderTarget::kSprite:
             break;
     }
