@@ -35,8 +35,8 @@ class RTYPE_LUAU_API UsertypeRegistry {
     [[nodiscard]] static UsertypeRegistry* of(lua_State* state) noexcept;
 
     /// @brief Creates the registry of a Lua state, and makes `of()` find it.
-    /// @param state The main thread of the Lua state; must not be null. The registry does not touch it
-    ///        afterwards, so it may be closed before the registry is destroyed.
+    /// @param state The main thread of the Lua state; must not be null. The state must stay open until the
+    ///        registry is destroyed, because the destructor reads it.
     /// @throws exceptions::InvalidState If @p state is null.
     explicit UsertypeRegistry(lua_State* state);
     ~UsertypeRegistry();
