@@ -43,8 +43,9 @@ std::vector<vk::DeviceQueueCreateInfo> makeQueueCreateInfos(const PhysicalDevice
     return queueCreateInfos;
 }
 
-/// @return The features to enable: the required ones (dynamicRendering, synchronization2) always, the optional ones
-/// only when @p optional says the physical device supports them.
+/// @return The features to enable: the required ones (dynamicRendering, synchronization2,
+/// shaderDemoteToHelperInvocation) always, the optional ones only when @p optional says the physical device supports
+/// them.
 FeatureChain makeFeatureChain(const PhysicalDevice::OptionalFeatures& optional) {
     return FeatureChain{
         vk::PhysicalDeviceFeatures2{}.setFeatures(
@@ -54,7 +55,10 @@ FeatureChain makeFeatureChain(const PhysicalDevice::OptionalFeatures& optional) 
             .setTimelineSemaphore(toBool32(optional.timelineSemaphore))
             .setBufferDeviceAddress(toBool32(optional.bufferDeviceAddress))
             .setDescriptorIndexing(toBool32(optional.descriptorIndexing)),
-        vk::PhysicalDeviceVulkan13Features{}.setDynamicRendering(VK_TRUE).setSynchronization2(VK_TRUE),
+        vk::PhysicalDeviceVulkan13Features{}
+            .setDynamicRendering(VK_TRUE)
+            .setSynchronization2(VK_TRUE)
+            .setShaderDemoteToHelperInvocation(VK_TRUE),
     };
 }
 

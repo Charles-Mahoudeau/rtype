@@ -19,8 +19,8 @@ namespace rtype::render::vulkan::core {
 /// queues.
 /// @details The logical device is the handle used to create resources and submit commands to the GPU. It enables the
 /// extensions the physical device lists (PhysicalDevice::getDeviceExtensions()), the required features
-/// (dynamicRendering, synchronization2) and every optional feature the physical device supports. It must be destroyed
-/// before the instance.
+/// (dynamicRendering, synchronization2, shaderDemoteToHelperInvocation) and every optional feature the physical device
+/// supports. It must be destroyed before the instance.
 class RTYPE_RENDER_VULKAN_API Device {
   public:
     /// @brief A queue of the device, with the family it comes from (needed for ownership transfers and pools).

@@ -46,8 +46,7 @@ void main() {
     const float rtypeFill = rtypeBoundsIn.w > 0.0
                                 ? clamp(0.5 - ((rtypeDistance + rtypeBoundsIn.w) / rtypePixel), 0.0, 1.0)
                                 : rtypeShape;
-    // No discard outside the shape: a transparent pixel blends to nothing, and discard would need the
-    // shaderDemoteToHelperInvocation feature under Vulkan 1.3's SPIR-V.
+    // No discard outside the shape: a transparent pixel blends to nothing.
     COLOR = (rtypeColorIn * rtypeFill) + (rtypeOutlineColorIn * (rtypeShape - rtypeFill));
 #pragma rtype_main
     rtypeFragColor = rtypeFinishBlend(COLOR, rtypeBlendIn & rtypeBlendMask);

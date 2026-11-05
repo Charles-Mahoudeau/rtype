@@ -171,7 +171,7 @@ GPU.
   byte of `ShapeInstance::kind`), and the shaders ABI's `fragment_common.glsl` (mirrored by `rendering/Blend.hpp`) finishes the
   premultiplied colour for it: `kAlpha` as is, `kAdditive` with an alpha of 0 (nothing is taken from what is under it),
   `kCutout` opaque or fully transparent around half opacity (no `discard`: without a depth buffer a transparent
-  fragment changes nothing, and `discard` would need `shaderDemoteToHelperInvocation`). One pipeline draws every mode,
+  fragment changes nothing). One pipeline draws every mode,
   so a mode never splits a batch, and no sort by pipeline is needed. Shapes have no cutout (it would lose their
   antialiased edge): `kCutout` is drawn as `kAlpha`.
 - The passes are rebuilt when a recreated swapchain changes its image format, since a pipeline is built for one.

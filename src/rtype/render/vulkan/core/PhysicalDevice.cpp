@@ -34,13 +34,14 @@ bool checkDeviceExtensionSupport(const vk::raii::PhysicalDevice& physicalDevice)
     });
 }
 
-/// @return Whether @p physicalDevice supports every feature the renderer needs: dynamicRendering and
-/// synchronization2. Only valid on a Vulkan 1.3 device.
+/// @return Whether @p physicalDevice supports every feature the renderer needs: dynamicRendering, synchronization2 and
+/// shaderDemoteToHelperInvocation (what `discard` compiles to in a game shader). Only valid on a Vulkan 1.3 device.
 bool checkRequiredFeatures(const vk::raii::PhysicalDevice& physicalDevice) {
     const auto features =
         physicalDevice.getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan13Features>();
     const auto& vulkan13 = features.get<vk::PhysicalDeviceVulkan13Features>();
-    return vulkan13.dynamicRendering == VK_TRUE && vulkan13.synchronization2 == VK_TRUE;
+    return vulkan13.dynamicRendering == VK_TRUE && vulkan13.synchronization2 == VK_TRUE &&
+           vulkan13.shaderDemoteToHelperInvocation == VK_TRUE;
 }
 
 /// @return The optional features @p physicalDevice supports. Only valid on a Vulkan 1.2 device or newer.
