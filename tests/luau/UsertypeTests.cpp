@@ -141,6 +141,24 @@ TEST(Usertype, ReadsAndWritesAMemberFromAScript) {
     EXPECT_EQ(globalNumber(runtime, "computed"), 20);
 }
 
+TEST(Usertype, KeepsItsMetatableWhenItsLastObjectIsCollected) {
+    auto runtime = makeRuntime();
+    registerCounter(runtime);
+
+    run(runtime, "Counter.new(1)");
+    lua_gc(rtype::luau::detail::rawState(runtime), LUA_GCCOLLECT, 0);
+    // New tables take the memory of what was collected: a collected metatable would be overwritten.
+    run(runtime, R"(
+        kept = {}
+        for index = 1, 1000 do
+            kept[index] = {}
+        end
+        value = Counter.new(5).value
+    )");
+
+    EXPECT_EQ(globalNumber(runtime, "value"), 5);
+}
+
 TEST(Usertype, CallsAMethod) {
     auto runtime = makeRuntime();
     registerCounter(runtime);
