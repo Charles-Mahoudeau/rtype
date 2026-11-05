@@ -35,6 +35,11 @@ namespace rtype::luau::detail {
 /// because Luau does not protect the metatable of a tag from the collector: without it, the metatable is collected
 /// with the last object of the type.
 ///
+/// The closures of the metatable hold a raw pointer to this object (a light userdata, which the collector does not
+/// track), and to the entries of its methods. They stay valid because the `UsertypeRegistry` owns it at a stable
+/// address and the `Runtime` destroys the registry only when no script can run any more: after it, the state is only
+/// closed, which runs the userdata destructors, plain functions that do not use it.
+///
 /// Handlers throw `exceptions::Base` to report a misuse: the metamethods turn it into a Luau error.
 class RTYPE_LUAU_API UsertypeData {
   public:
