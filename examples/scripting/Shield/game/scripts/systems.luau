@@ -1,10 +1,11 @@
 -- Files load in sorted path order: shield.luau declared "game.Shield" before this one uses it.
 
-engine.ecs.component("game.Spawner", { fields = {} })
+engine.ecs.component("game.Spawner", { fields = {}, presence = "serverOnly" })
 
 -- Startup runs once: the spawner entity the program created makes one shielded ship.
 engine.ecs.system("game.SpawnShip", {
     phase = "Startup",
+    side = "server", -- gameplay: only the server spawns
     query = { with = { "game.Spawner" } },
     run = function(ctx)
         ctx.commands:spawn({ ["game.Shield"] = { strength = 10, regen = 5 } })
@@ -14,6 +15,7 @@ engine.ecs.system("game.SpawnShip", {
 
 engine.ecs.system("game.ShieldRegen", {
     phase = "FixedUpdate",
+    side = "server", -- authoritative: clients get the strength by replication
     query = { write = { "game.Shield" } },
     run = function(ctx)
         for entity, shield in ctx.query do
