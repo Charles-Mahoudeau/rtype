@@ -11,6 +11,7 @@
 #include <functional>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
@@ -88,7 +89,8 @@ class RTYPE_RENDER_VULKAN_API SpritePass {
     static constexpr std::size_t kInitialCapacity = 1024;
 
     /// @return @p buffer, replaced by a bigger one if it holds fewer than @p count elements of @p elementSize bytes.
-    memory::Buffer& reserve(std::optional<memory::Buffer>& buffer, std::size_t count, std::size_t elementSize);
+    memory::Buffer& reserve(std::optional<memory::Buffer>& buffer, std::size_t count, std::size_t elementSize,
+                            std::string_view name);
 
     const memory::Allocator* _allocator;                  ///< Allocates the instance buffers; not owned.
     const pipeline::PipelineLayout* _layout;              ///< The shared layout; not owned.

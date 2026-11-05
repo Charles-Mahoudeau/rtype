@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <span>
+#include <string_view>
 #include <vulkan/vulkan_raii.hpp>
 
 #include "DescriptorPool.hpp"
@@ -18,8 +19,8 @@
 namespace rtype::render::vulkan::descriptor {
 
 DescriptorAllocator::DescriptorAllocator(const core::Device& device, std::uint32_t setsPerPool,
-                                         std::span<const vk::DescriptorPoolSize> sizesPerPool)
-    : _device{&device}, _setsPerPool{setsPerPool}, _sizes{sizesPerPool.begin(), sizesPerPool.end()} {
+                                         std::span<const vk::DescriptorPoolSize> sizesPerPool, std::string_view name)
+    : _device{&device}, _setsPerPool{setsPerPool}, _sizes{sizesPerPool.begin(), sizesPerPool.end()}, _name{name} {
     addPool();
 }
 
@@ -34,6 +35,9 @@ vk::raii::DescriptorSet DescriptorAllocator::allocate(const DescriptorSetLayout&
     return _pools.back().allocate(layout);
 }
 
-void DescriptorAllocator::addPool() { _pools.emplace_back(*_device, _setsPerPool, _sizes); }
+void DescriptorAllocator::addPool() {
+    const DescriptorPool& pool = _pools.emplace_back(*_device, _setsPerPool, _sizes);
+    _device->setName(*pool.getPool(), _name);
+}
 
 }  // namespace rtype::render::vulkan::descriptor

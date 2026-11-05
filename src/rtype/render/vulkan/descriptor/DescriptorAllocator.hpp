@@ -10,6 +10,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string>
+#include <string_view>
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
@@ -35,9 +37,10 @@ class RTYPE_RENDER_VULKAN_API DescriptorAllocator {
     /// @param device Creates the pools and the sets; must outlive the allocator.
     /// @param setsPerPool Most sets of one pool.
     /// @param sizesPerPool Most descriptors of one pool, by type: enough for setsPerPool sets of the layouts used.
+    /// @param name What its pools are called in validation messages and GPU captures.
     /// @throws vk::SystemError If the first pool cannot be created.
     DescriptorAllocator(const core::Device& device, std::uint32_t setsPerPool,
-                        std::span<const vk::DescriptorPoolSize> sizesPerPool);
+                        std::span<const vk::DescriptorPoolSize> sizesPerPool, std::string_view name = {});
     ~DescriptorAllocator() = default;
     DescriptorAllocator(const DescriptorAllocator&) = delete;
     DescriptorAllocator& operator=(const DescriptorAllocator&) = delete;
@@ -59,6 +62,7 @@ class RTYPE_RENDER_VULKAN_API DescriptorAllocator {
     const core::Device* _device;                 ///< Creates the pools; not owned.
     std::uint32_t _setsPerPool;                  ///< Capacity of each pool, in sets.
     std::vector<vk::DescriptorPoolSize> _sizes;  ///< Capacity of each pool, in descriptors by type.
+    std::string _name;                           ///< What its pools are called.
     std::vector<DescriptorPool> _pools;          ///< Every pool created, the newest last.
 };
 

@@ -66,7 +66,11 @@ Uploader::Uploader(const core::Device& device, const Allocator& allocator)
       _allocator{&allocator},
       _commandPool{device, device.getGraphicsQueue().family},
       _commandBuffer{_commandPool.allocate()},
-      _fence{device} {}
+      _fence{device} {
+    device.setName(*_commandPool.getPool(), "Upload command pool");
+    device.setName(*_commandBuffer.getCommandBuffer(), "Upload command buffer");
+    device.setName(*_fence.getFence(), "Upload fence");
+}
 
 Uploader::~Uploader() {
     try {
@@ -91,6 +95,7 @@ void Uploader::upload(std::span<const std::byte> data, Buffer& destination, vk::
 
     Buffer& staging = _stagingBuffers.emplace_back(*_allocator, data.size(), vk::BufferUsageFlagBits::eTransferSrc,
                                                    Allocator::MemoryAccess::kStaging);
+    _device->setName(*staging.getBuffer(), "Staging buffer");
     staging.write(data);
 
     beginRecording();
@@ -121,6 +126,7 @@ void Uploader::upload(std::span<const std::byte> texels, Image& destination) {
 
     Buffer& staging = _stagingBuffers.emplace_back(*_allocator, size, vk::BufferUsageFlagBits::eTransferSrc,
                                                    Allocator::MemoryAccess::kStaging);
+    _device->setName(*staging.getBuffer(), "Staging buffer");
     staging.write(texels);
 
     beginRecording();

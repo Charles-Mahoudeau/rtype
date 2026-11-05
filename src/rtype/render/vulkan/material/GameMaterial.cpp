@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <format>
 #include <optional>
 #include <vulkan/vulkan_raii.hpp>
 
@@ -30,9 +31,12 @@ GameMaterial::GameMaterial(const memory::Allocator& allocator, descriptor::Descr
     _frames.reserve(framesInFlight);
     for (std::size_t frame = 0; frame < framesInFlight; ++frame) {
         Frame& created = _frames.emplace_back(Frame{.set = descriptors.allocate(layout)});
+        allocator.getDevice().setName(*created.set, std::format("Material set, frame {}", frame));
         if (materialSize > 0) {
             created.values.emplace(allocator, materialSize, vk::BufferUsageFlagBits::eUniformBuffer,
                                    memory::Allocator::MemoryAccess::kStaging);
+            allocator.getDevice().setName(*created.values->getBuffer(),
+                                          std::format("Material values, frame {}", frame));
         }
     }
 }

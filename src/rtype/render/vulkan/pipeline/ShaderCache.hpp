@@ -62,8 +62,9 @@ class RTYPE_RENDER_VULKAN_API ShaderCache {
     [[nodiscard]] const vk::raii::ShaderModule& load(const std::filesystem::path& path);
 
   private:
-    /// @return A new module for @p spirv, which must already be validated.
-    [[nodiscard]] vk::raii::ShaderModule createModule(std::span<const std::uint32_t> spirv) const;
+    /// @return A new module named @p name for @p spirv, which must already be validated.
+    [[nodiscard]] vk::raii::ShaderModule createModule(std::span<const std::uint32_t> spirv,
+                                                      std::string_view name) const;
 
     const core::Device* _device;                                        ///< Creates the modules; not owned.
     std::filesystem::path _shaderDirectory;                             ///< Base of relative load() paths.

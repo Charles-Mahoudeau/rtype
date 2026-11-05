@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <format>
 #include <optional>
 #include <span>
 #include <vulkan/vulkan_raii.hpp>
@@ -58,7 +59,9 @@ ParticlePass::ParticlePass(const core::Device& device, const memory::Allocator& 
     : _allocator{&allocator},
       _layout{&layout},
       _pipeline{createPipeline(device, shaders, layout, colorFormat, cache)},
-      _buffers(framesInFlight) {}
+      _buffers(framesInFlight) {
+    device.setName(*_pipeline.getPipeline(), "Particle pipeline");
+}
 
 void ParticlePass::upload(std::size_t frameIndex,
                           std::span<const plugins::backend::graphics::ParticleInstance> instances) {
@@ -114,6 +117,7 @@ memory::Buffer& ParticlePass::reserve(std::size_t frameIndex, std::size_t count)
         }
         buffer.emplace(*_allocator, capacity * sizeof(plugins::backend::graphics::ParticleInstance),
                        vk::BufferUsageFlagBits::eVertexBuffer, memory::Allocator::MemoryAccess::kStaging);
+        _allocator->getDevice().setName(*buffer->getBuffer(), std::format("Particle instances, frame {}", frameIndex));
     }
     return *buffer;
 }

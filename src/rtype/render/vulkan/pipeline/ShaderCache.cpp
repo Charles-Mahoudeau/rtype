@@ -30,7 +30,7 @@ const vk::raii::ShaderModule& ShaderCache::get(std::string_view name, std::span<
         return found->second;
     }
     validateSpirv(spirv, name);
-    return _builtins.emplace(std::move(key), createModule(spirv)).first->second;
+    return _builtins.emplace(std::move(key), createModule(spirv, name)).first->second;
 }
 
 const vk::raii::ShaderModule& ShaderCache::load(const std::filesystem::path& path) {
@@ -39,11 +39,14 @@ const vk::raii::ShaderModule& ShaderCache::load(const std::filesystem::path& pat
         return found->second;
     }
     const std::vector<std::uint32_t> spirv = readSpirv(key);
-    return _files.emplace(std::move(key), createModule(spirv)).first->second;
+    vk::raii::ShaderModule created = createModule(spirv, key);
+    return _files.emplace(std::move(key), std::move(created)).first->second;
 }
 
-vk::raii::ShaderModule ShaderCache::createModule(std::span<const std::uint32_t> spirv) const {
-    return vk::raii::ShaderModule{_device->getDevice(), vk::ShaderModuleCreateInfo{}.setCode(spirv)};
+vk::raii::ShaderModule ShaderCache::createModule(std::span<const std::uint32_t> spirv, std::string_view name) const {
+    vk::raii::ShaderModule created{_device->getDevice(), vk::ShaderModuleCreateInfo{}.setCode(spirv)};
+    _device->setName(*created, name);
+    return created;
 }
 
 }  // namespace rtype::render::vulkan::pipeline
