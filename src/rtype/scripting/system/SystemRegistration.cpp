@@ -31,6 +31,7 @@
 #include "rtype/ecs/time/Time.hpp"
 #include "rtype/scripting/ErrorKind.hpp"
 #include "rtype/scripting/Result.hpp"
+#include "rtype/scripting/view/ViewScope.hpp"
 
 namespace rtype::scripting::system {
 namespace {
@@ -108,8 +109,10 @@ Result<void> registerSystem(ecs::App& app, SystemDeclaration declaration, std::s
         .run = std::move(declaration.run),
         .terms = makeDataTerms(components, declaration),
         .runtime = std::move(runtime),
+        .scope = std::make_shared<view::ViewScope>(),
     });
-    // The body keeps what a run needs; the scope of the views is heap-allocated, so it keeps its address when moved.
+    // The body keeps what a run needs; the scope of the views is shared, so commands a script kept can tell the system
+    // is gone.
     ecs::ScriptCallable callable{
         [system = std::move(system)](const ecs::DynamicQueries queries, const ecs::Res<ecs::Time> time,
                                      ecs::Commands& commands) {

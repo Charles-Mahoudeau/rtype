@@ -33,7 +33,7 @@ struct ScriptSystem {
     luau::FunctionRef run;                   ///< The `run` function of the declaration.
     std::vector<DataTerm> terms;             ///< The data terms of its query, in the order the query yields them.
     std::shared_ptr<RuntimeHandle> runtime;  ///< The runtime of the host, null inside once it is destroyed.
-    view::ViewScope scope;                   ///< Invalidates the views of a run when it returns.
+    std::shared_ptr<view::ViewScope> scope;  ///< Invalidates the views of a run when it returns.
 };
 
 /// @brief Runs a script system once: calls its `run` with a `ctx`.

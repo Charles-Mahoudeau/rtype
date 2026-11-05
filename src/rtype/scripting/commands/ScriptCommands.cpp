@@ -34,7 +34,8 @@ struct Built {
 
 /// @brief Raises a Luau error unless the handle can still be used.
 void checkAlive(const ScriptCommands& handle) {
-    if (handle.scope == nullptr || handle.scope->generation != handle.generation) {
+    const auto scope = handle.scope.lock();
+    if (scope == nullptr || scope->generation != handle.generation) {
         throw luau::exceptions::RuntimeError{
             "the commands are no longer valid: they only live during the run that received them"};
     }
@@ -102,6 +103,7 @@ luau::Result<> registerCommandsType(luau::Runtime& runtime) {
                      }
                      auto created = entities.create(commands.getEntity());
                      if (!created) {
+                         handle.commands->despawn(commands.getEntity());  // do not leave the reserved entity behind
                          throw luau::exceptions::RuntimeError{std::string{created.error().message()}};
                      }
                      return luau::Value{std::move(*created)};

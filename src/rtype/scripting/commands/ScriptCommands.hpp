@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/luau/Result.hpp"
@@ -24,8 +25,8 @@ namespace rtype::scripting::commands {
 struct RTYPE_SCRIPTING_API ScriptCommands {
     ecs::Commands* commands{nullptr};                     ///< The buffer of the run.
     const component::ComponentLayouts* layouts{nullptr};  ///< The components scripts declared, with their defaults.
-    view::ViewScope* scope{nullptr};                      ///< The scope that invalidates the handle.
-    std::uint64_t generation{0};                          ///< The scope's generation when the handle was created.
+    std::weak_ptr<view::ViewScope> scope;  ///< The scope that invalidates the handle; expires with the system.
+    std::uint64_t generation{0};           ///< The scope's generation when the handle was created.
 };
 
 /// @brief Registers the `Commands` usertype of `ctx.commands` in a runtime.

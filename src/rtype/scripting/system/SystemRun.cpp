@@ -102,8 +102,8 @@ class QueryStepper {
         return handOver(_views.create(view::ComponentView{
             .info = info,
             .bytes = bytes,
-            .scope = &_system->scope,
-            .generation = _system->scope.generation,
+            .scope = _system->scope.get(),
+            .generation = _system->scope->generation,
             .readOnly = readOnly,
         }));
     }
@@ -128,8 +128,8 @@ class QueryStepper {
     auto recorder = runtime.usertype<commands::ScriptCommands>().create(commands::ScriptCommands{
         .commands = &commands,
         .layouts = system.runtime->components,
-        .scope = &system.scope,
-        .generation = system.scope.generation,
+        .scope = system.scope,
+        .generation = system.scope->generation,
     });
     if (!recorder) {
         return tl::unexpected{std::move(recorder.error())};
@@ -166,7 +166,7 @@ void runScriptSystem(ScriptSystem& system, const ecs::DynamicQueries& queries, c
         return;  // the host is gone, and the script with it
     }
     const auto result = call(system, *runtime, queries, time, commands);
-    ++system.scope.generation;  // every view of this run dies, even when it failed
+    ++system.scope->generation;  // every view of this run dies, even when it failed
     if (!result) {
         std::cerr << std::format("[ScriptSystem] '{}' failed, skipped this tick: {}\n", system.name,
                                  result.error().message());
