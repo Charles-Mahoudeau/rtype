@@ -38,8 +38,6 @@ void ReplicationPlugin::build(ecs::App& app) {
     static_cast<void>(events.registerType<event::ClientConnected>({.presence = ecs::Presence::kServerOnly}));
     static_cast<void>(events.registerType<event::ClientDisconnected>({.presence = ecs::Presence::kServerOnly}));
 
-    if (!app.getWorld().getResources().has<input::InputLayout>()) {
-        app.insertResource(input::InputLayout{});
-    }
+    app.insertResourceIfAbsent<input::InputLayout>();
 }
 }  // namespace rtype::replication
