@@ -113,6 +113,17 @@ class RTYPE_ECS_API Resources {
     template <Resource T>
     void insertNonSend(T value);
 
+    /// @brief Sets a C++ resource only if it has no value yet: an existing value is kept, untouched (its ticks do
+    /// not move), so a plugin can provide a default without overwriting what the game or another plugin inserted.
+    /// @details Without an argument, inserts `T{}`. When it inserts, behaves as insert().
+    /// @code
+    /// resources.insertIfAbsent<TextureAssets>();
+    /// @endcode
+    /// @return Whether `value` was inserted.
+    /// @throws exceptions::ResourceRegistrationException As insert(), when it has to insert.
+    template <Resource T>
+    bool insertIfAbsent(T value = T{});
+
     /// @return Whether the C++ resource holds a value; false if `T` is not registered in this world.
     template <Resource T>
     [[nodiscard]] bool has() const noexcept;
