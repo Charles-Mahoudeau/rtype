@@ -72,7 +72,8 @@ vma::AllocatorCreateInfo makeAllocatorInfo(const core::PhysicalDevice& physicalD
 Allocator::Allocator(const core::Instance& instance, const core::PhysicalDevice& physicalDevice,
                      const core::Device& device)
     : _allocator{
-          vma::raii::createAllocator(instance.getInstance(), device.getDevice(), makeAllocatorInfo(physicalDevice))} {}
+          vma::raii::createAllocator(instance.getInstance(), device.getDevice(), makeAllocatorInfo(physicalDevice))},
+      _device{&device} {}
 
 Allocator::~Allocator() {
 #ifndef NDEBUG

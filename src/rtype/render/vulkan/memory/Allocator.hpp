@@ -49,6 +49,8 @@ class RTYPE_RENDER_VULKAN_API Allocator {
 
     /// @return The VMA allocator, for what the helpers below do not cover.
     [[nodiscard]] const vma::raii::Allocator& getAllocator() const noexcept { return _allocator; }
+    /// @return The device it allocates for.
+    [[nodiscard]] const core::Device& getDevice() const noexcept { return *_device; }
 
     /// @brief Creates a buffer and its memory.
     /// @param bufferInfo The buffer to create (size, usage...).
@@ -72,5 +74,6 @@ class RTYPE_RENDER_VULKAN_API Allocator {
 
   private:
     vma::raii::Allocator _allocator = nullptr;  ///< The VMA allocator, destroyed on destruction.
+    const core::Device* _device;                ///< The device it allocates for; not owned.
 };
 }  // namespace rtype::render::vulkan::memory
