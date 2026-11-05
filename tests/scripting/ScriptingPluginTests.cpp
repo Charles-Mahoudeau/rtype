@@ -161,3 +161,22 @@ TEST(ScriptingPlugin, AFailingScriptIsAnErrorNamingTheFile) {
         EXPECT_NE(std::string{e.what()}.find("boom"), std::string::npos) << e.what();
     }
 }
+
+TEST(ScriptingPlugin, AClientSystemWritingAReplicatedComponentIsAnErrorNamingTheFile) {
+    const ScriptsDirectory scripts{"rtype-scripting-plugin-client-write"};
+    scripts.write("hud.luau", R"(
+        engine.ecs.component("game.Score", { fields = { points = "i32" }, replication = "everyChange" })
+        engine.ecs.system("game.Hud", { phase = "Update", side = "client", query = { write = { "game.Score" } },
+                                        run = function(ctx) end })
+    )");
+
+    rtype::ecs::App app;
+    try {
+        addPlugin(app, scripts.path());
+        FAIL() << "the plugin should have thrown";
+    } catch (const rtype::scripting::exceptions::ScriptLoadException& e) {
+        EXPECT_NE(std::string{e.what()}.find("hud.luau"), std::string::npos) << e.what();
+        EXPECT_NE(std::string{e.what()}.find("game.Hud"), std::string::npos) << e.what();
+        EXPECT_NE(std::string{e.what()}.find("game.Score"), std::string::npos) << e.what();
+    }
+}

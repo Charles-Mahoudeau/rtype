@@ -27,5 +27,6 @@ struct ComponentDeclaration {
     std::string name;                                               ///< Stable, unique key: "game.Bullet".
     std::vector<FieldDeclaration> fields;                           ///< Fields, in the order the script wrote them.
     ecs::ReplicationMode replication{ecs::ReplicationMode::kNone};  ///< How the server sends the component.
+    ecs::Presence presence{ecs::Presence::kBoth};                   ///< On which side of the network it exists.
 };
 }  // namespace rtype::scripting::component

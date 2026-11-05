@@ -16,6 +16,7 @@
 
 #include "core/asset/AssetId.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/scripting/ScriptHost.hpp"
 
@@ -144,6 +145,40 @@ TEST(ScriptHost, ReplicationModeIsRead) {
     ASSERT_NE(layout, nullptr);
     EXPECT_EQ(layout->size, 16U);
     EXPECT_EQ(layout->fields[0].name, "owner");
+}
+
+TEST(ScriptHost, PresenceIsReadAndDefaultsToBoth) {
+    const Fixture fixture;
+    EXPECT_EQ(fixture.run(R"(
+        engine.ecs.component("game.Plain", { fields = { a = "f32" } })
+        engine.ecs.component("game.Both", { fields = { a = "f32" }, presence = "both" })
+        engine.ecs.component("game.Server", { fields = { a = "f32" }, presence = "serverOnly" })
+        engine.ecs.component("game.Client", { fields = { a = "f32" }, presence = "clientOnly" })
+    )"),
+              "");
+
+    const auto& registry = fixture.app.getWorld().getComponents().getRegistry();
+    EXPECT_EQ(registry.findByName("game.Plain")->type.presence, rtype::ecs::Presence::kBoth);
+    EXPECT_EQ(registry.findByName("game.Both")->type.presence, rtype::ecs::Presence::kBoth);
+    EXPECT_EQ(registry.findByName("game.Server")->type.presence, rtype::ecs::Presence::kServerOnly);
+    EXPECT_EQ(registry.findByName("game.Client")->type.presence, rtype::ecs::Presence::kClientOnly);
+}
+
+TEST(ScriptHost, UnknownPresenceIsRefused) {
+    const Fixture fixture;
+    const auto message = fixture.run(R"(engine.ecs.component("game.Bad", { fields = {}, presence = "nowhere" }))");
+    EXPECT_NE(message.find("game.Bad"), std::string::npos) << message;
+    EXPECT_NE(message.find("'presence'"), std::string::npos) << message;
+    EXPECT_FALSE(fixture.app.getWorld().getComponents().find("game.Bad"));
+}
+
+TEST(ScriptHost, AClientOnlyComponentCannotBeReplicated) {
+    const Fixture fixture;
+    const auto message = fixture.run(R"(
+        engine.ecs.component("game.Bad", { fields = { a = "f32" }, presence = "clientOnly", replication = "everyChange" })
+    )");
+    EXPECT_NE(message.find("game.Bad"), std::string::npos) << message;
+    EXPECT_FALSE(fixture.app.getWorld().getComponents().find("game.Bad"));
 }
 
 TEST(ScriptHost, DeclaringTheSameComponentTwiceIsAccepted) {

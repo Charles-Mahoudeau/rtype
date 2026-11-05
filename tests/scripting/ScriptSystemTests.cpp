@@ -7,6 +7,8 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
+#include <cstring>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -14,6 +16,8 @@
 
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
+#include "rtype/ecs/schedule/RunMode.hpp"
+#include "rtype/ecs/system/Side.hpp"
 #include "rtype/ecs/system/System.hpp"
 #include "rtype/scripting/ScriptHost.hpp"
 
@@ -23,7 +27,7 @@ struct Fixture {
     rtype::ecs::App app;
     std::unique_ptr<rtype::scripting::ScriptHost> host;
 
-    Fixture() {
+    explicit Fixture(const rtype::ecs::RunMode mode = rtype::ecs::RunMode::kStandalone) : app{mode} {
         auto created = rtype::scripting::ScriptHost::create(app, {});
         EXPECT_TRUE(created) << (created ? "" : std::string{created.error().message()});
         host = std::move(*created);
@@ -31,6 +35,9 @@ struct Fixture {
             engine.ecs.component("game.Shield", { fields = { strength = "f32", regen = "f32" } })
             engine.ecs.component("game.Position", { fields = { x = "f32", y = "f32" } })
             engine.ecs.component("game.Dead", { fields = { } })
+            engine.ecs.component("game.Synced", { fields = { value = "f32" }, replication = "everyChange" })
+            engine.ecs.component("game.Glow", { fields = { intensity = "f32" }, presence = "clientOnly" })
+            engine.ecs.component("game.Secret", { fields = { code = "f32" }, presence = "serverOnly" })
         )"),
                   "");
     }
@@ -150,4 +157,115 @@ TEST(ScriptSystem, StaysInTheAppWhenTheHostIsDestroyedFirst) {
 
     EXPECT_NE(fixture.find(rtype::ecs::Phase::kUpdate, "game.Orphan"), nullptr);
     // The App is destroyed after the host, with the system's function still referenced.
+}
+
+namespace {
+/// @brief Declares a system of the Update phase, with the given side option, that writes a component.
+[[nodiscard]] std::string writer(const std::string& side, const std::string& component) {
+    return R"(engine.ecs.system("game.Writer", { phase = "Update", )" + side + R"( query = { write = { ")" + component +
+           R"(" } }, run = function(ctx) end }))";
+}
+
+/// @brief Runs one frame of an App that has a "game.Glow" on an entity, and returns the intensity afterwards.
+[[nodiscard]] float intensityAfterAFrame(const rtype::ecs::RunMode mode, const std::string& side) {
+    Fixture fixture{mode};
+    EXPECT_EQ(fixture.run(R"(engine.ecs.system("game.Writer", {
+        phase = "Update", )" +
+                          side + R"(
+        query = { write = { "game.Glow" } },
+        run = function(ctx)
+            for entity, glow in ctx.query do
+                glow.intensity = 1
+            end
+        end,
+    }))"),
+              "");
+    auto& components = fixture.app.getWorld().getComponents();
+    const auto* layout = fixture.host->findComponent("game.Glow");
+    const auto entity = fixture.app.getWorld().spawn();
+    EXPECT_TRUE(components.add(entity, layout->id, layout->defaults));
+
+    fixture.app.runFrame();
+
+    float intensity = 0.F;
+    std::memcpy(&intensity, components.get(entity, layout->id).data(), sizeof(float));
+    return intensity;
+}
+}  // namespace
+
+TEST(ScriptSystem, RunsOnTheServerWhenItDeclaresNoSide) {
+    Fixture fixture;
+    EXPECT_EQ(fixture.run(writer("", "game.Shield")), "");
+    EXPECT_EQ(fixture.find(rtype::ecs::Phase::kUpdate, "game.Writer")->getSide(), rtype::ecs::Side::kServer);
+}
+
+TEST(ScriptSystem, SideIsSetOnTheSystem) {
+    for (const auto& [name, side] :
+         std::vector<std::pair<std::string, rtype::ecs::Side>>{{"server", rtype::ecs::Side::kServer},
+                                                               {"client", rtype::ecs::Side::kClient},
+                                                               {"both", rtype::ecs::Side::kBoth}}) {
+        Fixture fixture;
+        EXPECT_EQ(fixture.run(writer("side = \"" + name + "\",", "game.Glow")), "") << name;
+        EXPECT_EQ(fixture.find(rtype::ecs::Phase::kUpdate, "game.Writer")->getSide(), side) << name;
+    }
+}
+
+TEST(ScriptSystem, UnknownSideIsRefused) {
+    Fixture fixture;
+    const auto error = fixture.run(writer("side = \"everywhere\",", "game.Glow"));
+    EXPECT_NE(error.find("System 'game.Writer'"), std::string::npos) << error;
+    EXPECT_NE(error.find("'side'"), std::string::npos) << error;
+    EXPECT_NE(fixture.run(writer("side = 3,", "game.Glow")).find("'side'"), std::string::npos);
+}
+
+TEST(ScriptSystem, AClientSystemDoesNotRunInAServerApp) {
+    EXPECT_FLOAT_EQ(intensityAfterAFrame(rtype::ecs::RunMode::kServer, "side = \"client\","), 0.F);
+}
+
+TEST(ScriptSystem, AClientSystemRunsInAClientApp) {
+    EXPECT_FLOAT_EQ(intensityAfterAFrame(rtype::ecs::RunMode::kClient, "side = \"client\","), 1.F);
+}
+
+TEST(ScriptSystem, AServerSystemDoesNotRunInAClientApp) {
+    EXPECT_FLOAT_EQ(intensityAfterAFrame(rtype::ecs::RunMode::kClient, ""), 0.F);
+    EXPECT_FLOAT_EQ(intensityAfterAFrame(rtype::ecs::RunMode::kServer, ""), 1.F);
+}
+
+TEST(ScriptSystem, AClientSystemWritingAReplicatedComponentFailsToLoad) {
+    Fixture fixture;
+    const auto error = fixture.run(writer("side = \"client\",", "game.Synced"));
+    EXPECT_NE(error.find("game.Writer"), std::string::npos) << error;
+    EXPECT_NE(error.find("game.Synced"), std::string::npos) << error;
+}
+
+TEST(ScriptSystem, AClientSystemMayReadAReplicatedComponent) {
+    Fixture fixture;
+    EXPECT_EQ(fixture.run(R"(engine.ecs.system("game.Reader", {
+        phase = "Update", side = "client",
+        query = { read = { "game.Synced" }, write = { "game.Glow" } },
+        run = function(ctx) end,
+    }))"),
+              "");
+}
+
+TEST(ScriptSystem, AClientSystemMayWriteAComponentNothingReplicates) {
+    Fixture fixture;
+    EXPECT_EQ(fixture.run(writer("side = \"client\",", "game.Shield")), "");
+}
+
+TEST(ScriptSystem, ASystemOfBothSidesMayWriteAReplicatedComponent) {
+    Fixture fixture;
+    testing::internal::CaptureStderr();
+    EXPECT_EQ(fixture.run(writer("side = \"both\",", "game.Synced")), "");
+    EXPECT_EQ(testing::internal::GetCapturedStderr(), "");
+}
+
+TEST(ScriptSystem, ASystemOfBothSidesWritingAServerOnlyComponentWarns) {
+    Fixture fixture;
+    testing::internal::CaptureStderr();
+    EXPECT_EQ(fixture.run(writer("side = \"both\",", "game.Secret")), "");
+    const std::string warning = testing::internal::GetCapturedStderr();
+    EXPECT_NE(warning.find("game.Writer"), std::string::npos) << warning;
+    EXPECT_NE(warning.find("game.Secret"), std::string::npos) << warning;
+    EXPECT_NE(fixture.find(rtype::ecs::Phase::kUpdate, "game.Writer"), nullptr);
 }

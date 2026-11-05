@@ -96,6 +96,7 @@ Result<ComponentLayout> registerComponent(ecs::Components& components, const Com
     info.type.size = layout.size;
     info.type.alignment = layout.alignment;
     info.type.replication = declaration.replication;
+    info.type.presence = declaration.presence;
     info.type.fields = layout.fields;
 
     const ecs::Result<ecs::ComponentId> registered = components.registerType(std::move(info));
