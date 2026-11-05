@@ -286,6 +286,36 @@ TEST(ComponentView, RefusesABadAssetIdAndNamesTheField) {
     EXPECT_NE(fixture.run("v.texture = nil").find("asset path"), std::string::npos);
 }
 
+TEST(ComponentView, RefusesAFloatBeyondTheFloatRangeAndNamesTheField) {
+    Fixture fixture{makeSpatial()};
+    fixture.expose("v");
+    Fixture shield{makeShield()};
+    shield.expose("shield");
+
+    const auto vector = fixture.run("v.position = { x = 1e100, y = 0 }");
+    EXPECT_NE(vector.find("position"), std::string::npos) << vector;
+    EXPECT_NE(vector.find("'x' is out of range"), std::string::npos) << vector;
+    const auto scalar = shield.run("shield.strength = -1e300");
+    EXPECT_NE(scalar.find("strength"), std::string::npos) << scalar;
+    EXPECT_NE(scalar.find("out of range"), std::string::npos) << scalar;
+    EXPECT_EQ((fixture.read<std::array<float, 2>>("position")), (std::array<float, 2>{0.0F, 0.0F}));
+    EXPECT_EQ(shield.read<float>("strength"), 0.0F);
+}
+
+TEST(FieldAccess, RefusesToReadATableVectorWithoutARuntime) {
+    Fixture fixture{makeSpatial()};
+    const sv::FieldReadContext context{.runtime = nullptr,
+                                       .entities = fixture.runtime.usertype<rtype::ecs::Entity>(),
+                                       .assetIds = fixture.runtime.usertype<rtype::core::asset::AssetId>()};
+    const rtype::ecs::FieldInfo field{.name = "position", .type = FieldType::kVec2, .offset = 0};
+    const std::array<std::byte, 8> bytes{};
+
+    const auto result = sv::readField("test.Spatial", field, bytes, context);
+
+    ASSERT_FALSE(result);
+    EXPECT_NE(std::string{result.error().message()}.find("no runtime"), std::string::npos);
+}
+
 TEST(ComponentView, ReadsTheBytesInPlace) {
     Fixture fixture{makeShield()};
     fixture.expose("shield");
