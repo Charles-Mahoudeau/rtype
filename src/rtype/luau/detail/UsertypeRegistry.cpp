@@ -10,6 +10,7 @@
 #include <lua.h>
 
 #include <cstddef>
+#include <exception>
 #include <format>
 #include <memory>
 #include <string>
@@ -49,6 +50,9 @@ UsertypeData* UsertypeRegistry::find(const std::type_index type) const noexcept 
 
 Result<UsertypeData*> UsertypeRegistry::add(const std::type_index type, std::string name, const std::size_t size,
                                             const UsertypeData::Destructor destructor) {
+    if (name.contains('\0')) {
+        throw exceptions::InvalidOperation{"a usertype name cannot contain a NUL character"};
+    }
     if (_types.contains(type)) {
         throw exceptions::InvalidOperation{std::format("usertype '{}' is already registered", name)};
     }
@@ -57,7 +61,15 @@ Result<UsertypeData*> UsertypeRegistry::add(const std::type_index type, std::str
                        std::format("unable to register usertype '{}': a Lua state has {} usertypes at most", name,
                                    LUA_UTAG_LIMIT - 1)};
     }
-    auto data = std::make_unique<UsertypeData>(_state, std::move(name), _nextTag, size, destructor);
+    const int top{lua_gettop(_state)};
+    std::unique_ptr<UsertypeData> data;
+    try {
+        data = std::make_unique<UsertypeData>(_state, std::move(name), _nextTag, size, destructor);
+    } catch (const std::exception&) {
+        // Luau raises its allocation failures as C++ exceptions.
+        lua_settop(_state, top);
+        return Failure{ErrorKind::kOutOfMemory, "Lua out of memory"};
+    }
     ++_nextTag;
     return _types.emplace(type, std::move(data)).first->second.get();
 }
