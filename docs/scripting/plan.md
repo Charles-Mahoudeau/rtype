@@ -79,6 +79,10 @@ Supported in the first version:
   and, since SCR-02, `added` and `changed`. Those two only filter, like `with`: they give no view, so a script that
   needs the value lists the component under `read` as well.
 - **Phases**: all of `ecs::Phase`.
+- **Plugins**: since SCR-03, `engine.ecs.plugin(name, {build, plugins})` declares a Luau plugin and
+  `engine.ecs.addPlugin(name)` adds it. Adding one first adds the plugins it lists, then calls `build(app)`, where
+  `app` has `component`, `system` and `addPlugin` (it only lives during the build). A plugin is built once; an unknown
+  name, a cycle (`a -> b -> a`) or a name declared twice is an error.
 - **`ctx`**: `query` (iteration), `commands` (`spawn`, `despawn`, `add`), `fixedDelta`, `delta`.
 - Scripts can read components declared in C++ (they are in the registry), as long as their fields use the types above.
 
@@ -425,9 +429,9 @@ Ids follow the order the tasks are best done in. Weights are set when the issues
 
 **Done when**
 
-- [ ] A plugin adds a component and a system through `build(app)`.
-- [ ] A plugin that lists another one adds it first, once.
-- [ ] A cycle is refused with the plugin names.
+- [x] A plugin adds a component and a system through `build(app)`.
+- [x] A plugin that lists another one adds it first, once.
+- [x] A cycle is refused with the plugin names.
 
 #### SCR-04: `ctx.events` and `ctx.resources`
 
