@@ -41,6 +41,7 @@ class RTYPE_ECS_API Plugin {
   public:
     virtual ~Plugin();
     [[nodiscard]] virtual std::string_view getName() const noexcept = 0;
+    [[nodiscard]] virtual std::span<const std::string_view> getDependencies() const noexcept;  // none by default
     virtual void build(App& app) = 0;
 
   protected:  // plugins are values moved into the App; protected copy/move prevents slicing
@@ -51,10 +52,46 @@ class RTYPE_ECS_API Plugin {
 ```
 
 `build` registers things; it does not run gameplay. A plugin is **built as soon as it is added**, and
-adding a plugin whose name was already added does nothing, so plugins can safely depend on each other
-(`RenderPlugin` adds `WindowPlugin` if missing). A plugin is recorded before it is built, so two plugins
-adding each other are each built once. A `PluginGroup` (`app/PluginGroup.hpp`) adds several plugins through
-the App with its own `build`.
+adding a plugin whose name was already added does nothing. A plugin is recorded before it is built, so two
+plugins adding each other from `build` are each built once. A `PluginGroup` (`app/PluginGroup.hpp`) adds
+several plugins through the App with its own `build`.
+
+### Plugin dependencies
+
+A plugin names the plugins it requires in `getDependencies()`, by their `getName()`, instead of adding them
+itself. Names, not types: a plugin loaded from a library can require another one without including its header.
+It returns a static array, so the names outlive the call:
+
+```c++
+class TextPlugin : public rtype::ecs::Plugin {
+  public:
+    static constexpr std::array<std::string_view, 2> kDependencies{TransformPlugin::kName, TilemapPlugin::kName};
+    std::span<const std::string_view> getDependencies() const noexcept override { return kDependencies; }
+    // getName(), build()...
+};
+```
+
+`App::addPlugin` builds the **dependencies first**, whatever order the plugins are added in, so a plugin's
+`build` always finds what its dependencies registered. For each dependency, depth first:
+
+| The dependency is | The App |
+|---|---|
+| already added | moves on |
+| registered in the App's `PluginRegistry` | builds it from its factory (default settings) and warns on `std::cerr`: `[App] Plugin 'rtype.Transform' added because 'rtype.Text' requires it` |
+| neither | throws `exceptions::PluginException`: `Plugin 'rtype.Text' requires 'rtype.Tilemap', which was not added and is not registered; registered: ...` |
+| already being resolved | throws `PluginException` with the cycle: `Plugin dependency cycle: 'a' -> 'b' -> 'a'` |
+
+A factory building a plugin with another name than the one it is registered under is refused the same way.
+After an error the plugin is not added (the dependencies built before it stay) and the App stays usable.
+
+The `PluginRegistry` (`app/PluginRegistry.hpp`, `app.getPluginRegistry()`) holds a factory per plugin name,
+taking no argument: the engine fills it with the plugins it knows, so a project lists only the plugins it wants
+and gets their dependencies with a warning.
+
+```c++
+app.getPluginRegistry().add(std::string{TransformPlugin::kName}, [] { return std::make_unique<TransformPlugin>(); });
+app.addPlugin(TextPlugin{});  // builds TransformPlugin first (warning), throws if TilemapPlugin is not registered
+```
 
 ### The App
 
@@ -81,7 +118,8 @@ return app.run();   // Startup once, then frames until a system sends AppExit; r
 | Member | Does |
 |---|---|
 | `App(RunMode = kStandalone)` | The run mode decides which systems run, from their side. Neither copyable nor movable: its schedules point to its world. |
-| `addPlugin(plugin)` / `addPlugins(group)` / `hasPlugin(name)` | Plugins, built at once, skipped by name when already added |
+| `addPlugin(plugin)` / `addPlugins(group)` / `hasPlugin(name)` | Plugins, built at once after their dependencies, skipped by name when already added |
+| `getPluginRegistry()` | The factories by name the App uses for dependencies not added ([above](#plugin-dependencies)) |
 | `addSystem(phase, name, function)` | `Schedules::addSystem()`, returning the system's configuration (`after`, `before`, `setSide`) |
 | `insertResource(value)` | A resource of the world |
 | `getWorld()`, `getSchedules()` | The world and its schedules |
@@ -238,6 +276,9 @@ tests and for engines that drive the loop themselves.
   `Startup` systems, so registration stays fast and order-independent.
 - **Plugins reaching into each other.** Plugins communicate through components, resources and events,
   never by calling each other's functions.
+- **Undeclared dependencies.** A plugin ordering its systems against another plugin's (`.after("rtype.Text.Draw")`)
+  requires that plugin: declare it in `getDependencies()`, or the schedule fails to build when the other plugin is
+  left out.
 - **Mode-specific game code.** If game code checks "am I the server?", it is in the wrong place; use
   system sides.
 
