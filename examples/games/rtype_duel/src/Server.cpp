@@ -31,7 +31,6 @@
 #include "plugins/physics/Velocity.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "rtype/ecs/app/App.hpp"
-#include "rtype/ecs/app/MinimalPlugins.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/query/Query.hpp"
@@ -42,6 +41,7 @@
 #include "rtype/ecs/system/EventReader.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/time/Time.hpp"
+#include "rtype/engine/EnginePlugin.hpp"
 #include "rtype/network/NetworkSettings.hpp"
 #include "rtype/replication/ReplicationSettings.hpp"
 #include "rtype/replication/component/Owner.hpp"
@@ -228,7 +228,7 @@ void detectHits(ecs::Commands& commands, ecs::EventReader<plugins::physics::Coll
 
 int runServer(std::uint16_t port) {
     ecs::App app{ecs::RunMode::kServer};
-    app.addPlugins(ecs::MinimalPlugins{});
+    app.addPlugin(engine::EnginePlugin{kProjectFile});
     registerGame(app);
     network::NetworkSettings network;
     network.port = port;
