@@ -20,7 +20,6 @@
 #include "Constants.hpp"
 #include "Server.hpp"
 #include "rtype/core/config/Settings.hpp"
-#include "rtype/engine/Engine.hpp"
 #include "rtype/engine/scripting/SettingsLoader.hpp"
 
 // A two-player duel, the most basic game the engine can run: each player moves a ship in their half of the arena and
