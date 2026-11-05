@@ -89,7 +89,7 @@ src/rtype/audio/fmod/               later, same shape, behind an xmake option (s
 - **Dependency rules** gain one line, with the same direction as the platforms and renderers:
 
   ```
-  ecs  ←  plugins  ←  audio-*  ←  engine (executable)
+  ecs  ←  plugins  ←  audio-*  ←  engine
   ```
 
   `plugins` never depends on an `audio-*` target, and an `audio-*` target never includes a platform, a renderer or
