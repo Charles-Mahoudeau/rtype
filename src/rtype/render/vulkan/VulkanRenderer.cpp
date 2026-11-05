@@ -60,7 +60,6 @@
 #include "plugins/backend/platform/IPlatform.hpp"
 #include "plugins/backend/system/CacheDirectory.hpp"
 #include "plugins/backend/system/ExecutablePath.hpp"
-#include "rendering/DrawConstants.hpp"
 #include "rendering/DynamicRendering.hpp"
 #include "rendering/FrameUniforms.hpp"
 #include "rendering/MaterialBinding.hpp"
@@ -229,7 +228,7 @@ void VulkanRenderer::init(plugins::backend::platform::IPlatform& platform) {
                                                                              &_pipelineCache->getCache());
     const std::array setLayouts{*_globals->getSetLayout().getLayout(), *_textureSetLayout->getLayout()};
     const std::array pushConstants{vk::PushConstantRange{
-        vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0, sizeof(rendering::DrawConstants)}};
+        vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0, rendering::kMaxPushConstantsSize}};
     _layout = std::make_unique<pipeline::PipelineLayout>(*_device, setLayouts, pushConstants);
     descriptor::DescriptorSetLayout::Builder materialSet;
     const vk::ShaderStageFlags materialStages = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment;
