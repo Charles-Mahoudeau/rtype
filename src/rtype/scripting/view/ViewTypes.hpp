@@ -12,13 +12,16 @@
 #include "rtype/scripting/Export.hpp"
 
 namespace rtype::scripting::view {
-/// @brief Registers what scripts use to reach ECS data in a runtime: the `Entity` usertype and the `ComponentView` one.
+/// @brief Registers what scripts use to reach ECS data in a runtime: the `Entity`, `AssetId` and `ComponentView`
+/// usertypes.
 ///
 /// @details `Entity` is an opaque handle: `==` compares two of them, `tostring` shows `Entity(index:generation)`, and
-/// `bits` gives a number to use as a table key (exact while the slot's generation stays under 2^21). A
+/// `bits` gives a number to use as a table key (exact while the slot's generation stays under 2^21). `AssetId` is the
+/// hash of an asset's path: `==` compares two of them and `tostring` shows it in hex. A
 /// `ComponentView` reads and writes a field with `view.name` and `view.name = value`; an unknown field, a value that
 /// does not fit, a write through a read-only view or any access once the view's scope moved on raises a Luau error.
-/// @param runtime The runtime to register the usertypes in; it must not have them yet.
+/// @param runtime The runtime to register the usertypes in; it must not have them yet, and must not be moved after
+/// (the views build tables in it).
 /// @return Nothing, or the `luau::ErrorKind::kLimitExceeded` error if @p runtime has no userdata tag left.
 /// @throws luau::exceptions::InvalidOperation If one of the types is already registered in @p runtime.
 [[nodiscard]] RTYPE_SCRIPTING_API luau::Result<> registerViewTypes(luau::Runtime& runtime);
