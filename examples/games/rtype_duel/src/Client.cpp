@@ -24,22 +24,14 @@
 #include "Resources.hpp"
 #include "Sounds.hpp"
 #include "Sprites.hpp"
-#include "audio/miniaudio/Registration.hpp"
-#include "core/config/Settings.hpp"
-#include "engine/scripting/SettingsLoader.hpp"
-#include "platform/glfw/Registration.hpp"
-#include "plugins/audio/AudioPlugin.hpp"
-#include "plugins/audio/AudioRegistry.hpp"
 #include "plugins/backend/BackendPlugin.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/physics/debug/PhysicsDebugPlugin.hpp"
 #include "plugins/physics/debug/PhysicsDebugSettings.hpp"
-#include "render/vulkan/Registration.hpp"
 #include "rtype/ecs/app/App.hpp"
-#include "rtype/ecs/app/MinimalPlugins.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/system/Side.hpp"
+#include "rtype/engine/EnginePlugin.hpp"
 #include "rtype/network/NetworkSettings.hpp"
 #include "rtype/network/io/Address.hpp"
 #include "rtype/replication/client/ClientPlugin.hpp"
@@ -47,23 +39,6 @@
 using namespace rtype;
 
 namespace rtype_duel {
-namespace {
-
-/// @return The configuration of the window, the renderer and the sound.
-core::config::Settings makeSettings() {
-    engine::scripting::SettingsLoader settingsLoader;
-    settingsLoader.setFlag("isClient", true);
-    settingsLoader.setFlag("isServer", false);
-#ifdef NDEBUG
-    settingsLoader.setFlag("isDebug", false);
-#else
-    settingsLoader.setFlag("isDebug", true);
-#endif
-    settingsLoader.load("examples/games/rtype_duel/game/project.luau");
-    return settingsLoader.build();
-}
-
-}  // namespace
 
 int runClient(const std::string& host, const std::uint16_t port) {
     const std::optional<network::io::Address> server = network::io::Address::resolve(host, port);
@@ -71,19 +46,8 @@ int runClient(const std::string& host, const std::uint16_t port) {
         std::cerr << "Error: cannot resolve " << host << '\n';
         return 1;
     }
-    // The only place that knows GLFW, Vulkan and miniaudio: the plugins pick them by name from the settings.
-    auto registry = std::make_unique<plugins::backend::BackendRegistry>();
-    platform::glfw::registerPlatform(*registry);
-    render::vulkan::registerRenderer(*registry);
-    auto audio = std::make_unique<plugins::audio::AudioRegistry>();
-    audio::miniaudio::registerAudio(*audio);
-
-    core::config::Settings settings{makeSettings()};
-
     ecs::App app{ecs::RunMode::kClient};
-    app.addPlugins(ecs::MinimalPlugins{})
-        .addPlugin(plugins::backend::BackendPlugin{std::move(registry), settings})
-        .addPlugin(plugins::audio::AudioPlugin{std::move(audio), settings});
+    app.addPlugin(engine::EnginePlugin{kProjectFile});
     registerGame(app);
     app.insertResource(Randomness{});
     app.insertResource(GameSounds{});
