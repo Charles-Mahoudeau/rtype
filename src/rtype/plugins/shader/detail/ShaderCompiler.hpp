@@ -39,7 +39,7 @@ static_assert(
 
 /// @return The SPIR-V 1.6 (Vulkan semantics: the engine's intermediate format, which every backend uses or translates)
 /// of @p glsl, a complete GLSL 450 @p stage (assembleShader()).
-/// @param what Names the shader in messages: the shader, its target and stage.
+/// @param what Names the stage in messages: the shader, its target and stage.
 /// @throws exceptions::ShaderException If glslang rejects it: its errors, each with its line in the shader.
 [[nodiscard]] std::vector<std::uint32_t> compileStage(std::string_view glsl, ShaderStage stage, std::string_view what);
 

@@ -105,7 +105,7 @@ struct ParticleDraw {
     ParticleAlignment alignment{ParticleAlignment::kFixed};  ///< How each particle's quad is turned.
     float stretch{0.0F};  ///< kVelocity: the quad's length grows by speed * stretch (seconds), so 0 only turns it.
     ParticleFlipbook flipbook;  ///< Animation over each particle's life; one frame (the whole source) by default.
-    MaterialId material;        ///< Its shader; the default one (the texture times each particle's colour) if 0.
+    MaterialId material;        ///< Its material; the default one (the texture times each particle's colour) if 0.
     ShaderInstanceValues instanceValues{};  ///< Its own `instance uniform` values, shared by its particles.
 };
 

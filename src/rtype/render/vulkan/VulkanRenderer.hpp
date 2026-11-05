@@ -226,8 +226,8 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// @throws std::invalid_argument If the texture or the GPU system was destroyed or never created.
     void draw(const plugins::backend::graphics::ParticleDraw& particles) override;
 
-    /// @return true: sprites and shapes are drawn with game shaders. Texts and particles are drawn with their default
-    /// shader for now.
+    /// @return true: sprites and shapes are drawn with game shaders. Texts and particles are drawn with the default
+    /// material for now.
     [[nodiscard]] bool supportsShaders() const noexcept override;
 
     /// @brief Creates the modules of @p shader's variants (material::GameShader); its pipelines are built the first

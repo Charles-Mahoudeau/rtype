@@ -6,8 +6,8 @@
 */
 
 // The vertex stage of sprites and glyphs: a SpriteInstance per instance, a unit quad of 6 vertices built from
-// gl_VertexIndex, scaled, turned around its origin and seen through the frame's camera. Without a shader, the default
-// shader of sprites and glyphs.
+// gl_VertexIndex, scaled, turned around its origin and seen through the frame's camera. With no game code, it is the
+// default shader of sprites and glyphs.
 layout(location = 0) in vec2 rtypePosition;   // World point the origin sits on.
 layout(location = 1) in vec2 rtypeSize;       // In world units.
 layout(location = 2) in vec2 rtypeOrigin;     // Pivot from the top-left corner, in world units.

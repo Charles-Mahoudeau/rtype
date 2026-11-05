@@ -5,8 +5,8 @@
 ** sprite.frag
 */
 
-// The fragment stage of sprites and particles: the texture times the colour, both premultiplied. Without a shader, the
-// default shader of sprites and particles.
+// The fragment stage of sprites and particles: the texture times the colour, both premultiplied. With no game code, it
+// is the default shader of sprites and particles.
 #pragma rtype_shader
 
 void main() {
