@@ -219,9 +219,19 @@ void UsertypeData::addMethod(std::string name, Method method) {
 }
 
 void UsertypeData::setConstructor(Constructor constructor) {
-    if (!_constructor) {
+    {
         lua_getglobal(_state, _name.c_str());
-        const bool taken = !lua_isnil(_state, -1);
+        bool taken = !lua_isnil(_state, -1);
+        if (taken && _constructor && lua_istable(_state, -1)) {
+            // The global may be the table this type published earlier: only then can it be replaced.
+            lua_getfield(_state, -1, "new");
+            if (lua_iscfunction(_state, -1) && lua_tocfunction(_state, -1) == &UsertypeData::construct) {
+                const char* upvalueName = lua_getupvalue(_state, -1, 1);
+                taken = !(upvalueName != nullptr && lua_touserdata(_state, -1) == this);
+                lua_pop(_state, upvalueName != nullptr ? 1 : 0);
+            }
+            lua_pop(_state, 1);
+        }
         lua_pop(_state, 1);
         if (taken) {
             throw exceptions::InvalidOperation{
