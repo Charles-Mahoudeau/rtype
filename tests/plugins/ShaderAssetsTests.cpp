@@ -65,7 +65,7 @@ TEST(ShaderAssets, LoadsAndCompilesAnEffectFile) {
     const AssetId id = shaders.load(file.getPath());
     EXPECT_EQ(id, AssetId::fromPath(file.getPath()));
     ASSERT_NE(shaders.get(id), nullptr);
-    EXPECT_EQ(shaders.get(id)->variants.size(), 3U);
+    EXPECT_EQ(shaders.get(id)->variants.size(), 4U);
     EXPECT_EQ(shaders.takeAdded(), (std::vector<AssetId>{id}));
     EXPECT_TRUE(shaders.takeAdded().empty());
 }

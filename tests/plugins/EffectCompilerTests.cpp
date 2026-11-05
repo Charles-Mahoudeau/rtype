@@ -56,8 +56,8 @@ std::string errorOf(std::string_view source) {
 
 TEST(EffectCompiler, CompilesAnEffectForEveryTarget) {
     const CompiledShader shader = compileEffect(kFlash, "flash");
-    ASSERT_EQ(shader.variants.size(), 3U);
-    for (const ShaderTarget target : {ShaderTarget::kSprite, ShaderTarget::kGlyph, ShaderTarget::kParticle}) {
+    ASSERT_EQ(shader.variants.size(), 4U);
+    for (const ShaderTarget target : rtype::plugins::shader::detail::kAllTargets) {
         const auto* variant = shader.findVariant(target);
         ASSERT_NE(variant, nullptr);
         ASSERT_FALSE(variant->vertex.empty());
@@ -103,7 +103,7 @@ TEST(EffectCompiler, RejectsInvalidGlslForAStage) {
 }
 
 TEST(EffectCompiler, CompilesTheDefaultEffectOfEveryTarget) {
-    for (const ShaderTarget target : {ShaderTarget::kSprite, ShaderTarget::kGlyph, ShaderTarget::kParticle}) {
+    for (const ShaderTarget target : rtype::plugins::shader::detail::kAllTargets) {
         for (const ShaderStage stage : {ShaderStage::kVertex, ShaderStage::kFragment}) {
             const std::vector<std::uint32_t> spirv =
                 compileStage(assembleEffect(ParsedEffect{}, target, stage), stage, "default");

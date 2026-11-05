@@ -83,6 +83,7 @@ TEST(EffectAssembler, FillsTheInstanceValuesFromTheirSourceBeforeTheEffect) {
     const std::string particle = assemble(ShaderTarget::kParticle, ShaderStage::kVertex);
     EXPECT_TRUE(has(particle, "    flash = rtypeParticles.instance[0].x;\n"));
     EXPECT_TRUE(has(particle, "vec4 instance[4];"));
+    EXPECT_TRUE(has(assemble(ShaderTarget::kShape, ShaderStage::kFragment), "    flash = rtypeInstance[0].x;\n"));
 }
 
 TEST(EffectAssembler, EachStageKeepsOnlyItsOwnFunction) {
@@ -107,6 +108,8 @@ TEST(EffectAssembler, StartsEachTargetFromItsDefaultColour) {
                     "COLOR = rtypeColorIn * rtypeCoverage(rtypeUvWidth);"));
     EXPECT_TRUE(
         has(assemble(ShaderTarget::kParticle, ShaderStage::kFragment), "COLOR = texture(TEXTURE, UV) * rtypeColorIn;"));
+    EXPECT_TRUE(has(assemble(ShaderTarget::kShape, ShaderStage::kFragment),
+                    "COLOR = (rtypeColorIn * rtypeFill) + (rtypeOutlineColorIn * (rtypeShape - rtypeFill));"));
 }
 
 TEST(EffectAssembler, ReadsEachTargetsOwnVertexInputs) {
@@ -115,6 +118,9 @@ TEST(EffectAssembler, ReadsEachTargetsOwnVertexInputs) {
     const std::string particle = assemble(ShaderTarget::kParticle, ShaderStage::kVertex);
     EXPECT_TRUE(has(particle, "layout(location = 5) in float rtypeLife;"));
     EXPECT_FALSE(has(particle, "rtypeInstance"));
+    const std::string shape = assemble(ShaderTarget::kShape, ShaderStage::kVertex);
+    EXPECT_TRUE(has(shape, "layout(location = 7) in vec4 rtypeOutlineColor;"));
+    EXPECT_TRUE(has(shape, "layout(location = 8) in vec4 rtypeInstance[4];"));
 }
 
 TEST(EffectAssembler, CarriesTheInstanceValuesOnlyWhenTheEffectHasSome) {
@@ -126,7 +132,8 @@ TEST(EffectAssembler, CarriesTheInstanceValuesOnlyWhenTheEffectHasSome) {
 }
 
 TEST(EffectAssembler, LeavesThePreludeAsItIsForTheDefaultEffect) {
-    for (const ShaderTarget target : {ShaderTarget::kSprite, ShaderTarget::kGlyph, ShaderTarget::kParticle}) {
+    for (const ShaderTarget target :
+         {ShaderTarget::kSprite, ShaderTarget::kGlyph, ShaderTarget::kParticle, ShaderTarget::kShape}) {
         for (const ShaderStage stage : {ShaderStage::kVertex, ShaderStage::kFragment}) {
             const std::string glsl = assembleEffect(ParsedEffect{}, target, stage);
             EXPECT_TRUE(glsl.starts_with("#version 450\n"));
