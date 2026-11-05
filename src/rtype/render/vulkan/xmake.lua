@@ -99,6 +99,9 @@ target("render-vulkan")
     add_includedirs("../..", {public = true})
 
     add_rules("glsl.spirv")
+    -- The built-in sprite and glyph shaders are the default effect: they include the shaders ABI of the backend
+    -- contract, which game effects are assembled in too.
+    set_values("glsl.includedirs", path.join(os.scriptdir(), "..", "..", "plugins", "backend", "graphics", "shaders"))
     if not is_plat("macosx") then
         add_packages("glslang")
     end
