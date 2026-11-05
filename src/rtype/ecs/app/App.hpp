@@ -17,6 +17,7 @@
 #include "rtype/ecs/Export.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 #include "rtype/ecs/app/PluginGroup.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/event/EventCursor.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
@@ -56,14 +57,24 @@ class RTYPE_ECS_API App {
     [[nodiscard]] Schedules& getSchedules() noexcept;
     [[nodiscard]] const Schedules& getSchedules() const noexcept;
 
+    /// @return The plugins the App builds by name when a plugin requires one that was not added.
+    [[nodiscard]] PluginRegistry& getPluginRegistry() noexcept;
+    [[nodiscard]] const PluginRegistry& getPluginRegistry() const noexcept;
+
     /// @brief Adds a plugin and builds it at once; does nothing if a plugin with the same name was added.
     template <std::derived_from<Plugin> P>
     App& addPlugin(P plugin);
 
     /// @brief Adds a plugin and builds it at once; does nothing if a plugin with the same name was added.
-    /// @details The plugin is recorded before it is built, so a plugin that adds itself again, directly or through
-    /// another plugin, is not built twice. It is kept by the App until the App is destroyed.
+    /// @details Its dependencies (Plugin::getDependencies()) are built first, whatever order the plugins are added in:
+    /// one not added yet is built from the plugin registry, with a warning on `std::cerr` naming it and the plugin
+    /// that requires it. Then the plugin is recorded and built: recorded first, so a plugin that adds itself again
+    /// from build(), directly or through another plugin, is not built twice. It is kept by the App until the App is
+    /// destroyed.
     /// @param plugin The plugin; must not be null.
+    /// @throws exceptions::PluginException When a dependency is neither added nor registered, when the registry
+    /// builds a plugin with another name than the one required, or when plugins require each other in a cycle. The
+    /// plugin is then not added (dependencies built before the error stay).
     App& addPlugin(std::unique_ptr<Plugin> plugin);
 
     /// @brief Adds a group of plugins (PluginGroup::build()).
@@ -97,10 +108,16 @@ class RTYPE_ECS_API App {
     /// @return The code of the first AppExit sent since the last call, or nothing.
     [[nodiscard]] std::optional<int> takeExit() noexcept;
 
+    /// @brief Adds the dependencies of a plugin that are not added yet, from the registry, before it is built.
+    /// @throws exceptions::PluginException As addPlugin().
+    void addDependencies(const Plugin& plugin);
+
     World _world;                                   ///< The world the systems run on.
     Schedules _schedules;                           ///< The world's schedules; points to _world.
+    PluginRegistry _pluginRegistry;                 ///< The plugins that can be built by name.
     std::vector<std::unique_ptr<Plugin>> _plugins;  ///< Every plugin added, in the order added.
     EventCursor _exitCursor;                        ///< The AppExit events read so far.
+    std::vector<std::string> _resolving;  ///< The plugins whose dependencies are being added, outermost first.
 };
 }  // namespace rtype::ecs
 
