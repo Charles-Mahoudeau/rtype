@@ -62,7 +62,10 @@ class RTYPE_ECS_API Schedule {
         SystemConfig& before(std::string name);
 
         /// @brief Sets where the system runs (System::setSide()).
-        SystemConfig& setSide(Side side) noexcept;
+        /// @throws exceptions::ScheduleException When the side is Side::kClient and the system writes a component
+        /// that replication overwrites (any ReplicationMode but kNone) or that is Presence::kServerOnly. The side is
+        /// left as it was.
+        SystemConfig& setSide(Side side);
 
       private:
         Schedule* _schedule;  ///< The schedule the system was added to.
@@ -132,6 +135,10 @@ class RTYPE_ECS_API Schedule {
         std::vector<std::string> after;   ///< Names of the systems it runs after.
         std::vector<std::string> before;  ///< Names of the systems it runs before.
     };
+
+    /// @brief Checks that a system that would run on clients writes no replicated or server-only component.
+    /// @throws exceptions::ScheduleException Naming the system and the first component it may not write.
+    void checkClientWrites(const System& system) const;
 
     /// @return The systems' names, by position.
     [[nodiscard]] std::vector<std::string_view> getNames() const;
