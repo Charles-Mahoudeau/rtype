@@ -6,7 +6,7 @@
 */
 
 // The fragment stage of glyphs: the texture read as the three distances of an MSDF font atlas, the colour covering
-// the pixel where their median is past the middle. Without an effect, the default effect of glyphs.
+// the pixel where their median is past the middle. Without a shader, the default shader of glyphs.
 float rtypeMedian(vec3 distances) {
     return max(min(distances.r, distances.g), min(max(distances.r, distances.g), distances.b));
 }
@@ -22,7 +22,7 @@ float rtypeCoverage(vec2 uvWidth) {
     return clamp((distance * screenRange) + 0.5, 0.0, 1.0);
 }
 
-#pragma rtype_effect
+#pragma rtype_shader
 
 void main() {
     UV = rtypeUvIn;

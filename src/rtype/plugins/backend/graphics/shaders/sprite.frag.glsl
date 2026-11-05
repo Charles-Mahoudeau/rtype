@@ -5,9 +5,9 @@
 ** sprite.frag
 */
 
-// The fragment stage of sprites and particles: the texture times the colour, both premultiplied. Without an effect, the
-// default effect of sprites and particles.
-#pragma rtype_effect
+// The fragment stage of sprites and particles: the texture times the colour, both premultiplied. Without a shader, the
+// default shader of sprites and particles.
+#pragma rtype_shader
 
 void main() {
     UV = rtypeUvIn;

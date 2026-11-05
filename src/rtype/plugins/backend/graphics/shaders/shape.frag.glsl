@@ -7,7 +7,7 @@
 
 // The fragment stage of shapes: the colour from the shape's signed distance (negative inside), the fill inside the
 // outline band, the outline in the band [-thickness, 0], both antialiased over a pixel and premultiplied. The shape's
-// kinds: 0 rounded box, 1 circle, 2 capsule along Y. Without an effect, the default effect of shapes.
+// kinds: 0 rounded box, 1 circle, 2 capsule along Y. Without a shader, the default shader of shapes.
 layout(location = 7) in vec2 rtypeLocalIn;
 layout(location = 8) flat in vec4 rtypeBoundsIn;  // Half size, radius, outline thickness.
 layout(location = 9) flat in uint rtypeKindIn;
@@ -35,7 +35,7 @@ float rtypeSignedDistance() {
     return rtypeRoundedBox(rtypeLocalIn, rtypeBoundsIn.xy, rtypeBoundsIn.z);
 }
 
-#pragma rtype_effect
+#pragma rtype_shader
 
 void main() {
     UV = rtypeUvIn;

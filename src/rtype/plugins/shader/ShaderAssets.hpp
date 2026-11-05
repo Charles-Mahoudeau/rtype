@@ -23,7 +23,7 @@ namespace rtype::plugins::shader {
 /// @brief The game's shaders, compiled, as the ECS resource "rtype.ShaderAssets" the ShaderPlugin inserts: systems ask
 /// for a shader and get its AssetId at once, materials keep that id.
 ///
-/// @details A shader is read and compiled when it is asked for (detail::compileEffect()), on every side; the
+/// @details A shader is read and compiled when it is asked for (detail::compileShader()), on every side; the
 /// ShaderPlugin hands the compiled ones to the renderer on the client. A shader that cannot be read or compiled is
 /// recorded as failed, with the reason, which is also printed: one broken shader does not stop the game.
 /// @code

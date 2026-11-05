@@ -2,10 +2,10 @@
 ** EPITECH PROJECT, 2026
 ** rtype
 ** File description:
-** EffectAssembler
+** ShaderAssembler
 */
 
-#include "plugins/shader/detail/EffectAssembler.hpp"
+#include "plugins/shader/detail/ShaderAssembler.hpp"
 
 #include <array>
 #include <cstddef>
@@ -15,7 +15,7 @@
 #include <string_view>
 
 #include "plugins/backend/graphics/Shader.hpp"
-#include "plugins/shader/detail/EffectParser.hpp"
+#include "plugins/shader/detail/ShaderParser.hpp"
 
 namespace rtype::plugins::shader::detail {
 
@@ -57,9 +57,9 @@ constexpr auto kShapeFragment = std::to_array<char>({
 #include "shape.frag.glsl.h"
 });
 
-/// @brief Where a template takes the effect's declarations and body, and where its main() takes the instance values
-/// and the effect's call.
-constexpr std::string_view kEffectMarker = "#pragma rtype_effect";
+/// @brief Where a template takes the shader's declarations and body, and where its main() takes the instance values
+/// and the shader's call.
+constexpr std::string_view kShaderMarker = "#pragma rtype_shader";
 constexpr std::string_view kMainMarker = "#pragma rtype_main";
 
 /// @return The text of an embedded file, without its null terminator.
@@ -77,10 +77,10 @@ std::string replaceMarker(std::string glsl, std::string_view marker, std::string
     return glsl;
 }
 
-/// @return Whether @p effect adds nothing to the prelude: the default effect.
-bool isEmpty(const ParsedEffect& effect) noexcept {
-    return effect.materialValues.empty() && effect.instanceValues.empty() && effect.textures.empty() &&
-           !effect.hasVertex && !effect.hasFragment && effect.body.empty();
+/// @return Whether @p shader adds nothing to the prelude: the default shader.
+bool isEmpty(const ParsedShader& shader) noexcept {
+    return shader.materialValues.empty() && shader.instanceValues.empty() && shader.textures.empty() &&
+           !shader.hasVertex && !shader.hasFragment && shader.body.empty();
 }
 
 /// @return The GLSL type of @p type.
@@ -127,20 +127,20 @@ std::string instanceAccess(const backend::graphics::ShaderValue& value, std::str
 /// @return The material block, its textures and the instance values, each under its own name. The material block is
 /// anonymous, so its members are names of their own, and the instance values are plain globals main() fills: no macro,
 /// which would also replace the name after a '.' (a member, a swizzle).
-std::string declareValues(const ParsedEffect& effect) {
-    std::string glsl = "\n// The effect's values.\n";
-    if (!effect.materialValues.empty()) {
+std::string declareValues(const ParsedShader& shader) {
+    std::string glsl = "\n// The shader's values.\n";
+    if (!shader.materialValues.empty()) {
         glsl += "layout(set = 2, binding = 0, std140) uniform RtypeMaterial {\n";
-        for (const DeclaredValue& declared : effect.materialValues) {
+        for (const DeclaredValue& declared : shader.materialValues) {
             glsl += std::format("    layout(offset = {}) {} {};\n", declared.value.offset,
                                 glslType(declared.value.type), declared.value.name);
         }
         glsl += "};\n";
     }
-    for (const backend::graphics::ShaderTexture& texture : effect.textures) {
+    for (const backend::graphics::ShaderTexture& texture : shader.textures) {
         glsl += std::format("layout(set = 2, binding = {}) uniform sampler2D {};\n", texture.slot + 1, texture.name);
     }
-    for (const DeclaredValue& declared : effect.instanceValues) {
+    for (const DeclaredValue& declared : shader.instanceValues) {
         glsl += std::format("{} {};\n", glslType(declared.value.type), declared.value.name);
     }
     return glsl;
@@ -175,9 +175,9 @@ std::string_view fragmentTemplate(ShaderTarget target) noexcept {
 }
 
 /// @return The statements that fill the instance values from @p source (4 vec4), for main().
-std::string loadInstanceValues(const ParsedEffect& effect, std::string_view source) {
+std::string loadInstanceValues(const ParsedShader& shader, std::string_view source) {
     std::string glsl;
-    for (const DeclaredValue& declared : effect.instanceValues) {
+    for (const DeclaredValue& declared : shader.instanceValues) {
         glsl += std::format("    {} = {};\n", declared.value.name, instanceAccess(declared.value, source));
     }
     return glsl;
@@ -217,11 +217,11 @@ std::string blankFunction(std::string_view body, std::string_view name) {
     return blanked;
 }
 
-std::string assembleEffect(const ParsedEffect& effect, ShaderTarget target, ShaderStage stage) {
+std::string assembleShader(const ParsedShader& shader, ShaderTarget target, ShaderStage stage) {
     const bool particle = target == ShaderTarget::kParticle;
     const bool vertex = stage == ShaderStage::kVertex;
     std::string glsl{"#version 450\n"};
-    if (!effect.instanceValues.empty()) {
+    if (!shader.instanceValues.empty()) {
         glsl += "#define RTYPE_INSTANCE_VALUES\n";
     }
     glsl += text(kCommon);
@@ -235,16 +235,16 @@ std::string assembleEffect(const ParsedEffect& effect, ShaderTarget target, Shad
         }
     }
     const std::string_view stageTemplate = vertex ? vertexTemplate(target) : fragmentTemplate(target);
-    const std::string effectCode = isEmpty(effect)
+    const std::string shaderCode = isEmpty(shader)
                                        ? std::string{}
-                                       : std::format("{}\n#line 1\n{}\n", declareValues(effect),
-                                                     blankFunction(effect.body, vertex ? "fragment" : "vertex"));
-    const bool calls = vertex ? effect.hasVertex : effect.hasFragment;
+                                       : std::format("{}\n#line 1\n{}\n", declareValues(shader),
+                                                     blankFunction(shader.body, vertex ? "fragment" : "vertex"));
+    const bool calls = vertex ? shader.hasVertex : shader.hasFragment;
     const std::string_view call = vertex ? "    vertex();" : "    fragment();";
     const std::string mainCode =
-        std::format("{}{}", loadInstanceValues(effect, particle ? "rtypeParticles.instance" : "rtypeInstance"),
+        std::format("{}{}", loadInstanceValues(shader, particle ? "rtypeParticles.instance" : "rtypeInstance"),
                     calls ? call : std::string_view{});
-    glsl += replaceMarker(replaceMarker(std::string{stageTemplate}, kEffectMarker, effectCode), kMainMarker, mainCode);
+    glsl += replaceMarker(replaceMarker(std::string{stageTemplate}, kShaderMarker, shaderCode), kMainMarker, mainCode);
     return glsl;
 }
 

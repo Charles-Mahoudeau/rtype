@@ -21,7 +21,7 @@
 #include "plugins/shader/Material.hpp"
 #include "plugins/shader/MaterialAssets.hpp"
 #include "plugins/shader/MaterialInstance.hpp"
-#include "plugins/shader/detail/EffectCompiler.hpp"
+#include "plugins/shader/detail/ShaderCompiler.hpp"
 #include "plugins/shader/exceptions/ShaderExceptions.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
@@ -43,7 +43,7 @@ namespace {
 /// instance value and two textures.
 CompiledShader makeShader() {
     const std::array targets{rtype::plugins::backend::graphics::ShaderTarget::kSprite};
-    return rtype::plugins::shader::detail::compileEffect(
+    return rtype::plugins::shader::detail::compileShader(
         "uniform float speed = 2.0;\nuniform vec4 tint;\nuniform int frames = 4;\ninstance uniform float flash;\n"
         "uniform sampler2D noise;\nuniform sampler2D palette;\n"
         "void fragment() { COLOR *= tint * speed * float(frames) * flash * texture(noise, UV) * texture(palette, UV); "
@@ -133,14 +133,14 @@ TEST(MaterialAssets, UnloadForgetsAMaterialAndReportsIt) {
 }
 
 TEST(MaterialInstance, StartsFromTheShadersDefaults) {
-    const CompiledShader shader = rtype::plugins::shader::detail::compileEffect(
+    const CompiledShader shader = rtype::plugins::shader::detail::compileShader(
         "instance uniform float flash = 0.5;\nvoid fragment() { COLOR *= flash; }", "fx",
         std::array{rtype::plugins::backend::graphics::ShaderTarget::kSprite});
     EXPECT_FLOAT_EQ(MaterialInstance::of(shader).values[0].x, 0.5F);
 }
 
 TEST(MaterialInstance, SetsAnInstanceValueByName) {
-    const CompiledShader shader = rtype::plugins::shader::detail::compileEffect(
+    const CompiledShader shader = rtype::plugins::shader::detail::compileShader(
         "instance uniform float flash;\ninstance uniform vec2 offset;\nvoid fragment() { COLOR *= flash + offset.x; }",
         "fx", std::array{rtype::plugins::backend::graphics::ShaderTarget::kSprite});
     const MaterialInstance instance =

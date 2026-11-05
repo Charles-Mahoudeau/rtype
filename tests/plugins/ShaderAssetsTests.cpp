@@ -59,7 +59,7 @@ class TemporaryFile {
 };
 }  // namespace
 
-TEST(ShaderAssets, LoadsAndCompilesAnEffectFile) {
+TEST(ShaderAssets, LoadsAndCompilesAShaderFile) {
     const TemporaryFile file{"tint.glsl", kTint};
     ShaderAssets shaders;
     const AssetId id = shaders.load(file.getPath());
@@ -79,7 +79,7 @@ TEST(ShaderAssets, LoadingTwiceCompilesOnce) {
     EXPECT_EQ(shaders.takeAdded().size(), 1U);
 }
 
-TEST(ShaderAssets, AddsAnEffectWrittenInCode) {
+TEST(ShaderAssets, AddsAShaderWrittenInCode) {
     ShaderAssets shaders;
     const AssetId id = shaders.add("tint", kTint);
     EXPECT_EQ(id, AssetId::fromPath("tint"));
@@ -87,7 +87,7 @@ TEST(ShaderAssets, AddsAnEffectWrittenInCode) {
     EXPECT_EQ(shaders.get(id)->materialValues.front().name, "tint");
 }
 
-TEST(ShaderAssets, RecordsAnEffectThatDoesNotCompile) {
+TEST(ShaderAssets, RecordsAShaderThatDoesNotCompile) {
     ShaderAssets shaders;
     const AssetId id = shaders.add("broken", kBroken);
     EXPECT_EQ(shaders.get(id), nullptr);
@@ -98,13 +98,13 @@ TEST(ShaderAssets, RecordsAnEffectThatDoesNotCompile) {
 
 TEST(ShaderAssets, RecordsAMissingFile) {
     ShaderAssets shaders;
-    const AssetId id = shaders.load(std::filesystem::temp_directory_path() / "rtype_missing_effect.glsl");
+    const AssetId id = shaders.load(std::filesystem::temp_directory_path() / "rtype_missing_shader.glsl");
     EXPECT_EQ(shaders.get(id), nullptr);
     ASSERT_NE(shaders.getEntry(id), nullptr);
     EXPECT_FALSE(shaders.getEntry(id)->error.empty());
 }
 
-TEST(ShaderAssets, UnloadForgetsAnEffectAndReportsIt) {
+TEST(ShaderAssets, UnloadForgetsAShaderAndReportsIt) {
     ShaderAssets shaders;
     const AssetId id = shaders.add("tint", kTint);
     EXPECT_TRUE(shaders.unload(id));

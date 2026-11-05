@@ -6,8 +6,8 @@
 */
 
 // The vertex stage of sprites and glyphs: a SpriteInstance per instance, a unit quad of 6 vertices built from
-// gl_VertexIndex, scaled, turned around its origin and seen through the frame's camera. Without an effect, the default
-// effect of sprites and glyphs.
+// gl_VertexIndex, scaled, turned around its origin and seen through the frame's camera. Without a shader, the default
+// shader of sprites and glyphs.
 layout(location = 0) in vec2 rtypePosition;   // World point the origin sits on.
 layout(location = 1) in vec2 rtypeSize;       // In world units.
 layout(location = 2) in vec2 rtypeOrigin;     // Pivot from the top-left corner, in world units.
@@ -28,7 +28,7 @@ layout(location = 3) flat out vec4 rtypeInstanceOut[4];
 const vec2 rtypeCorners[6] = vec2[](vec2(0.0, 0.0), vec2(1.0, 0.0), vec2(1.0, 1.0),
                                     vec2(0.0, 0.0), vec2(1.0, 1.0), vec2(0.0, 1.0));
 
-#pragma rtype_effect
+#pragma rtype_shader
 
 void main() {
     const vec2 rtypeCorner = rtypeCorners[gl_VertexIndex];

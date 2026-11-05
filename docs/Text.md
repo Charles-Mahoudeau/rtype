@@ -44,7 +44,7 @@ whose font and atlas are loaded and pushes a `graphics::Text` to the `SpriteQueu
 the sprites by layer and calls `IRenderer::draw(Text)`.
 
 In Vulkan, each glyph is one instance of the sprite batch, in the sprites' draw order, and consecutive glyphs of an
-atlas are one instanced draw. Glyphs never share a batch with sprites: they are drawn by the default effect's glyph
+atlas are one instanced draw. Glyphs never share a batch with sprites: they are drawn by the default shader's glyph
 variant (`shaders/glyph.frag`, the prelude's `glyph.frag.glsl`). Its instance carries the atlas' distance range in its
 blend word (`rendering/Blend.hpp`), and the glyph shader reads its texture as three distances: their median, minus one
 half, is the

@@ -2,7 +2,7 @@
 ** EPITECH PROJECT, 2026
 ** rtype
 ** File description:
-** EffectAssemblerTests
+** ShaderAssemblerTests
 */
 
 #include <gtest/gtest.h>
@@ -13,19 +13,19 @@
 #include <string_view>
 
 #include "plugins/backend/graphics/Shader.hpp"
-#include "plugins/shader/detail/EffectAssembler.hpp"
-#include "plugins/shader/detail/EffectParser.hpp"
+#include "plugins/shader/detail/ShaderAssembler.hpp"
+#include "plugins/shader/detail/ShaderParser.hpp"
 
 using rtype::plugins::backend::graphics::ShaderTarget;
-using rtype::plugins::shader::detail::assembleEffect;
+using rtype::plugins::shader::detail::assembleShader;
 using rtype::plugins::shader::detail::blankFunction;
-using rtype::plugins::shader::detail::ParsedEffect;
-using rtype::plugins::shader::detail::parseEffect;
+using rtype::plugins::shader::detail::ParsedShader;
+using rtype::plugins::shader::detail::parseShader;
 using rtype::plugins::shader::detail::ShaderStage;
 
 namespace {
-/// @brief An effect with material values, instance values, a texture, a helper and both functions.
-constexpr std::string_view kEffect =
+/// @brief A shader with material values, instance values, a texture, a helper and both functions.
+constexpr std::string_view kShader =
     "uniform vec4 tint = vec4(1.0);\n"
     "instance uniform float flash;\n"
     "instance uniform int seed;\n"
@@ -34,16 +34,16 @@ constexpr std::string_view kEffect =
     "void vertex() { VERTEX.y += wave(VERTEX.x); }\n"
     "void fragment() { if (texture(noise, UV).r < 0.1) { discard; } COLOR.rgb = mix(COLOR.rgb, tint.rgb, flash); }\n";
 
-/// @return The GLSL of @p stage of kEffect for @p target.
-std::string assemble(ShaderTarget target, ShaderStage stage, std::string_view source = kEffect) {
-    return assembleEffect(parseEffect(source, "test"), target, stage);
+/// @return The GLSL of @p stage of kShader for @p target.
+std::string assemble(ShaderTarget target, ShaderStage stage, std::string_view source = kShader) {
+    return assembleShader(parseShader(source, "test"), target, stage);
 }
 
 /// @return Whether @p text contains @p part.
 bool has(std::string_view text, std::string_view part) { return text.contains(part); }
 }  // namespace
 
-TEST(EffectAssembler, BlanksOnlyTheNamedFunctionAndKeepsItsLines) {
+TEST(ShaderAssembler, BlanksOnlyTheNamedFunctionAndKeepsItsLines) {
     const std::string body = "void fragmentHelper() {}\nvoid fragment() {\n    discard;\n}\nvoid vertex() {}\n";
     const std::string blanked = blankFunction(body, "fragment");
     EXPECT_TRUE(has(blanked, "void fragmentHelper() {}"));
@@ -53,7 +53,7 @@ TEST(EffectAssembler, BlanksOnlyTheNamedFunctionAndKeepsItsLines) {
     EXPECT_EQ(blankFunction(body, "missing"), body);
 }
 
-TEST(EffectAssembler, StartsWithThePreludeThenTheGameLinesFromOne) {
+TEST(ShaderAssembler, StartsWithThePreludeThenTheGameLinesFromOne) {
     const std::string glsl = assemble(ShaderTarget::kSprite, ShaderStage::kFragment);
     // #version comes before any code (only comments may precede it).
     ASSERT_NE(glsl.find("#version 450\n"), std::string::npos);
@@ -65,7 +65,7 @@ TEST(EffectAssembler, StartsWithThePreludeThenTheGameLinesFromOne) {
     EXPECT_GT(glsl.find("float wave(float x)"), line);
 }
 
-TEST(EffectAssembler, DeclaresTheMaterialAsAnAnonymousBlockAndItsTextures) {
+TEST(ShaderAssembler, DeclaresTheMaterialAsAnAnonymousBlockAndItsTextures) {
     const std::string glsl = assemble(ShaderTarget::kSprite, ShaderStage::kFragment);
     EXPECT_TRUE(has(glsl,
                     "layout(set = 2, binding = 0, std140) uniform RtypeMaterial {\n"
@@ -74,7 +74,7 @@ TEST(EffectAssembler, DeclaresTheMaterialAsAnAnonymousBlockAndItsTextures) {
     EXPECT_FALSE(has(glsl, "#define tint"));  // no macro: it would replace `.tint` members and swizzles too
 }
 
-TEST(EffectAssembler, FillsTheInstanceValuesFromTheirSourceBeforeTheEffect) {
+TEST(ShaderAssembler, FillsTheInstanceValuesFromTheirSourceBeforeTheShader) {
     const std::string sprite = assemble(ShaderTarget::kSprite, ShaderStage::kFragment);
     EXPECT_TRUE(has(sprite, "float flash;\n"));
     EXPECT_TRUE(has(sprite,
@@ -86,7 +86,7 @@ TEST(EffectAssembler, FillsTheInstanceValuesFromTheirSourceBeforeTheEffect) {
     EXPECT_TRUE(has(assemble(ShaderTarget::kShape, ShaderStage::kFragment), "    flash = rtypeInstance[0].x;\n"));
 }
 
-TEST(EffectAssembler, EachStageKeepsOnlyItsOwnFunction) {
+TEST(ShaderAssembler, EachStageKeepsOnlyItsOwnFunction) {
     const std::string vertex = assemble(ShaderTarget::kSprite, ShaderStage::kVertex);
     EXPECT_FALSE(has(vertex, "discard"));
     EXPECT_TRUE(has(vertex, "    vertex();\n"));
@@ -96,12 +96,12 @@ TEST(EffectAssembler, EachStageKeepsOnlyItsOwnFunction) {
     EXPECT_TRUE(has(fragment, "    fragment();\n"));
 }
 
-TEST(EffectAssembler, CallsOnlyTheFunctionsTheEffectDefines) {
+TEST(ShaderAssembler, CallsOnlyTheFunctionsTheShaderDefines) {
     const std::string vertex = assemble(ShaderTarget::kSprite, ShaderStage::kVertex, "void fragment() {}\n");
     EXPECT_FALSE(has(vertex, "    vertex();\n"));
 }
 
-TEST(EffectAssembler, StartsEachTargetFromItsDefaultColour) {
+TEST(ShaderAssembler, StartsEachTargetFromItsDefaultColour) {
     EXPECT_TRUE(
         has(assemble(ShaderTarget::kSprite, ShaderStage::kFragment), "COLOR = texture(TEXTURE, UV) * rtypeColorIn;"));
     EXPECT_TRUE(has(assemble(ShaderTarget::kGlyph, ShaderStage::kFragment),
@@ -112,7 +112,7 @@ TEST(EffectAssembler, StartsEachTargetFromItsDefaultColour) {
                     "COLOR = (rtypeColorIn * rtypeFill) + (rtypeOutlineColorIn * (rtypeShape - rtypeFill));"));
 }
 
-TEST(EffectAssembler, ReadsEachTargetsOwnVertexInputs) {
+TEST(ShaderAssembler, ReadsEachTargetsOwnVertexInputs) {
     EXPECT_TRUE(
         has(assemble(ShaderTarget::kSprite, ShaderStage::kVertex), "layout(location = 7) in vec4 rtypeInstance[4];"));
     const std::string particle = assemble(ShaderTarget::kParticle, ShaderStage::kVertex);
@@ -123,7 +123,7 @@ TEST(EffectAssembler, ReadsEachTargetsOwnVertexInputs) {
     EXPECT_TRUE(has(shape, "layout(location = 8) in vec4 rtypeInstance[4];"));
 }
 
-TEST(EffectAssembler, CarriesTheInstanceValuesOnlyWhenTheEffectHasSome) {
+TEST(ShaderAssembler, CarriesTheInstanceValuesOnlyWhenTheShaderHasSome) {
     EXPECT_TRUE(assemble(ShaderTarget::kSprite, ShaderStage::kVertex)
                     .starts_with("#version 450\n#define RTYPE_INSTANCE_VALUES\n"));
     const std::string vertex = assemble(ShaderTarget::kSprite, ShaderStage::kVertex, "void fragment() {}\n");
@@ -131,14 +131,14 @@ TEST(EffectAssembler, CarriesTheInstanceValuesOnlyWhenTheEffectHasSome) {
     EXPECT_FALSE(has(vertex, "#define RTYPE_INSTANCE_VALUES"));
 }
 
-TEST(EffectAssembler, LeavesThePreludeAsItIsForTheDefaultEffect) {
+TEST(ShaderAssembler, LeavesThePreludeAsItIsForTheDefaultShader) {
     for (const ShaderTarget target :
          {ShaderTarget::kSprite, ShaderTarget::kGlyph, ShaderTarget::kParticle, ShaderTarget::kShape}) {
         for (const ShaderStage stage : {ShaderStage::kVertex, ShaderStage::kFragment}) {
-            const std::string glsl = assembleEffect(ParsedEffect{}, target, stage);
+            const std::string glsl = assembleShader(ParsedShader{}, target, stage);
             EXPECT_TRUE(glsl.starts_with("#version 450\n"));
             // The markers stay, as in the built-in shaders that #include the prelude: GLSL ignores them.
-            EXPECT_TRUE(has(glsl, "#pragma rtype_effect"));
+            EXPECT_TRUE(has(glsl, "#pragma rtype_shader"));
             EXPECT_TRUE(has(glsl, "#pragma rtype_main"));
             EXPECT_FALSE(has(glsl, "#line"));
             EXPECT_FALSE(has(glsl, "#define RTYPE_INSTANCE_VALUES"));

@@ -2,10 +2,10 @@
 ** EPITECH PROJECT, 2026
 ** rtype
 ** File description:
-** EffectCompiler
+** ShaderCompiler
 */
 
-#include "plugins/shader/detail/EffectCompiler.hpp"
+#include "plugins/shader/detail/ShaderCompiler.hpp"
 
 #include <glslang/Public/ResourceLimits.h>
 #include <glslang/Public/ShaderLang.h>
@@ -21,15 +21,15 @@
 #include <vector>
 
 #include "plugins/backend/graphics/Shader.hpp"
-#include "plugins/shader/detail/EffectAssembler.hpp"
-#include "plugins/shader/detail/EffectParser.hpp"
+#include "plugins/shader/detail/ShaderAssembler.hpp"
+#include "plugins/shader/detail/ShaderParser.hpp"
 #include "plugins/shader/exceptions/ShaderExceptions.hpp"
 
 namespace rtype::plugins::shader::detail {
 
 namespace {
 
-/// @brief glslang's process-wide state: InitializeProcess() when the first effect is compiled, FinalizeProcess() at
+/// @brief glslang's process-wide state: InitializeProcess() when the first shader is compiled, FinalizeProcess() at
 /// exit. A function-local static, so it is set up once, even from several threads.
 class GlslangProcess {
   public:
@@ -44,7 +44,7 @@ class GlslangProcess {
     static void ensure() { static const GlslangProcess process; }
 };
 
-/// @return @p log, glslang's messages, as the lines of the effect: "ERROR: 0:4: x" becomes "line 4: x", and its
+/// @return @p log, glslang's messages, as the lines of the shader: "ERROR: 0:4: x" becomes "line 4: x", and its
 /// summary lines ("2 compilation errors.") are dropped.
 std::string formatLog(std::string_view log) {
     std::string formatted;
@@ -116,25 +116,25 @@ std::vector<std::uint32_t> compileStage(std::string_view glsl, ShaderStage stage
     return {spirv.begin(), spirv.end()};
 }
 
-backend::graphics::CompiledShader compileEffect(std::string_view source, std::string_view name,
+backend::graphics::CompiledShader compileShader(std::string_view source, std::string_view name,
                                                 std::span<const backend::graphics::ShaderTarget> targets) {
-    const ParsedEffect effect = parseEffect(source, name);
+    const ParsedShader parsed = parseShader(source, name);
     backend::graphics::CompiledShader shader{.name = std::string{name},
-                                             .materialSize = effect.materialSize,
-                                             .materialDefaults = effect.materialDefaults,
-                                             .instanceDefaults = effect.instanceDefaults,
-                                             .textures = effect.textures};
-    for (const DeclaredValue& declared : effect.materialValues) {
+                                             .materialSize = parsed.materialSize,
+                                             .materialDefaults = parsed.materialDefaults,
+                                             .instanceDefaults = parsed.instanceDefaults,
+                                             .textures = parsed.textures};
+    for (const DeclaredValue& declared : parsed.materialValues) {
         shader.materialValues.push_back(declared.value);
     }
-    for (const DeclaredValue& declared : effect.instanceValues) {
+    for (const DeclaredValue& declared : parsed.instanceValues) {
         shader.instanceValues.push_back(declared.value);
     }
     for (const backend::graphics::ShaderTarget target : targets) {
         const auto compile = [&](ShaderStage stage) {
-            const std::string what = std::format("Effect '{}' ({} {})", name, nameOf(target),
+            const std::string what = std::format("Shader '{}' ({} {})", name, nameOf(target),
                                                  stage == ShaderStage::kVertex ? "vertex" : "fragment");
-            return compileStage(assembleEffect(effect, target, stage), stage, what);
+            return compileStage(assembleShader(parsed, target, stage), stage, what);
         };
         shader.variants.push_back(backend::graphics::ShaderVariant{
             .target = target, .vertex = compile(ShaderStage::kVertex), .fragment = compile(ShaderStage::kFragment)});

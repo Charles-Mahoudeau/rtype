@@ -5,8 +5,8 @@
 ** sprite
 */
 
-// The default effect of sprites and particles, fragment stage: the shaders ABI (plugins/backend/graphics/shaders/)
-// without an effect, the stage game effects are assembled in for kSprite and kParticle.
+// The default shader of sprites and particles, fragment stage: the shaders ABI (plugins/backend/graphics/shaders/)
+// without a shader, the stage game shaders are assembled in for kSprite and kParticle.
 #version 450
 #extension GL_GOOGLE_include_directive : require
 

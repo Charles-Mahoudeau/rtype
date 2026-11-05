@@ -28,7 +28,7 @@ namespace rtype::render::vulkan::rendering {
 /// @brief Draws a frame's ShapeBatch: one instanced draw of a quad per batch, with premultiplied alpha (each shape's
 /// graphics::BlendMode is read per instance by the shaders).
 ///
-/// @details Owns the pipeline of the default effect (shaders/shape.vert and shape.frag, on the shared layout) and, per
+/// @details Owns the pipeline of the default shader (shaders/shape.vert and shape.frag, on the shared layout) and, per
 /// frame in flight, an instance buffer and a buffer of the game materials' instance values, CPU-written and read by the
 /// GPU as per-instance vertex attributes, like SpritePass. The kind of each shape travels in its instance, so
 /// rectangles, circles and capsules of any number draw in one call. A frame's buffers are only used by that frame,
@@ -66,7 +66,7 @@ class RTYPE_RENDER_VULKAN_API ShapePass {
     /// @brief Copies @p shapes into frame @p frameIndex's buffers and records their draws, inside dynamic rendering,
     /// into @p viewport: a batch with a game material through @p findMaterial (the default material if it gives no
     /// pipeline). The frame's set 0 must already be bound. Nothing is recorded without shapes.
-    /// @param textureSet The set 1 of the batches with a game material: what TEXTURE reads in their effect.
+    /// @param textureSet The set 1 of the batches with a game material: what TEXTURE reads in their shader.
     /// @throws vk::SystemError If a bigger buffer cannot be created.
     void record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex, const ShapeBatch& shapes,
                 const plugins::backend::graphics::Viewport& viewport, vk::DescriptorSet textureSet,

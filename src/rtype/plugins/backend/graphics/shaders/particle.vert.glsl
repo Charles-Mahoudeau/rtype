@@ -6,8 +6,8 @@
 */
 
 // The vertex stage of particles: a ParticleInstance per instance, a unit quad centred on it, turned (along its
-// velocity for the velocity alignment, stretched by its speed), showing its flipbook frame. Without an effect, the
-// default effect of particles.
+// velocity for the velocity alignment, stretched by its speed), showing its flipbook frame. Without a shader, the
+// default shader of particles.
 layout(location = 0) in vec4 rtypeColor;      // Multiplies the texture.
 layout(location = 1) in vec2 rtypePosition;   // Centre of the particle, in world units.
 layout(location = 2) in vec2 rtypeSize;       // In world units.
@@ -21,7 +21,7 @@ layout(location = 2) flat out uint rtypeBlendOut;
 const vec2 rtypeCorners[6] = vec2[](vec2(0.0, 0.0), vec2(1.0, 0.0), vec2(1.0, 1.0),
                                     vec2(0.0, 0.0), vec2(1.0, 1.0), vec2(0.0, 1.0));
 
-#pragma rtype_effect
+#pragma rtype_shader
 
 void main() {
     const vec2 rtypeCorner = rtypeCorners[gl_VertexIndex];

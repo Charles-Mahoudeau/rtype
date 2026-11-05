@@ -8,7 +8,7 @@
 // The vertex stage of shapes: a ShapeInstance per instance, a quad of 6 vertices built from gl_VertexIndex covering the
 // shape's bounding box plus a margin of a pixel and a half for the antialiased edge, turned around its center and seen
 // through the frame's camera. UV is the position in the box, 0 to 1 (a little past them in the margin). COLOR is the
-// fill colour. Without an effect, the default effect of shapes.
+// fill colour. Without a shader, the default shader of shapes.
 layout(location = 0) in vec2 rtypeCenter;            // World point the shape is centred on.
 layout(location = 1) in vec2 rtypeHalfSize;          // Half its bounding box, before rotation.
 layout(location = 2) in float rtypeRotation;         // Radians, clockwise on screen.
@@ -34,7 +34,7 @@ layout(location = 10) flat out vec4 rtypeOutlineColorOut;  // Premultiplied.
 const vec2 rtypeCorners[6] = vec2[](vec2(-1.0, -1.0), vec2(1.0, -1.0), vec2(1.0, 1.0),
                                     vec2(-1.0, -1.0), vec2(1.0, 1.0), vec2(-1.0, 1.0));
 
-#pragma rtype_effect
+#pragma rtype_shader
 
 void main() {
     // The size of a pixel in world units, from the camera's scale: the margin keeps the antialiased edge inside the

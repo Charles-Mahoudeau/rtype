@@ -19,7 +19,7 @@
 #include "core/asset/AssetFiles.hpp"
 #include "core/asset/AssetId.hpp"
 #include "plugins/backend/graphics/Shader.hpp"
-#include "plugins/shader/detail/EffectCompiler.hpp"
+#include "plugins/shader/detail/ShaderCompiler.hpp"
 
 namespace rtype::plugins::shader {
 
@@ -27,7 +27,7 @@ std::size_t ShaderAssets::getCount() const noexcept { return _shaders.getCount()
 
 core::asset::AssetId ShaderAssets::load(const std::filesystem::path& path) {
     const auto stored = _shaders.load(path, [](std::string_view text, const std::filesystem::path& file) {
-        return detail::compileEffect(text, core::asset::normalizePath(file));
+        return detail::compileShader(text, core::asset::normalizePath(file));
     });
     if (stored.added != nullptr) {
         _added.push_back(stored.id);
@@ -42,7 +42,7 @@ core::asset::AssetId ShaderAssets::add(const std::string& name, std::string_view
         return core::asset::AssetId::fromPath(normalized);
     }
     try {
-        backend::graphics::CompiledShader compiled = detail::compileEffect(source, normalized);
+        backend::graphics::CompiledShader compiled = detail::compileShader(source, normalized);
         static_cast<void>(_shaders.store(*id, std::move(normalized), std::move(compiled)));
         _added.push_back(*id);
     } catch (const std::exception& error) {

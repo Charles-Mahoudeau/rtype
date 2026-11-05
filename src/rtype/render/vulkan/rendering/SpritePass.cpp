@@ -45,7 +45,7 @@ constexpr std::uint32_t kValuesLocation = 7;
 /// @brief Bytes of one instance's values: four vec4.
 constexpr std::size_t kValuesSize = sizeof(plugins::backend::graphics::ShaderInstanceValues);
 
-/// @return A pipeline of the default effect: sprite.vert and @p fragment (sprite.frag or glyph.frag).
+/// @return A pipeline of the default shader: sprite.vert and @p fragment (sprite.frag or glyph.frag).
 pipeline::GraphicsPipeline createPipeline(const core::Device& device, const vk::raii::ShaderModule& fragment,
                                           pipeline::ShaderCache& shaders, const pipeline::PipelineLayout& layout,
                                           vk::Format colorFormat, const vk::raii::PipelineCache* cache) {

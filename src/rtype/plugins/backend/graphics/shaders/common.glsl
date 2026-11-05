@@ -5,11 +5,11 @@
 ** common
 */
 
-// The shaders ABI of the backend contract: game effects are assembled in it (plugins/shader), and backends write their
-// built-in shaders against it. The start of every stage of every effect: the frame (set 0, binding 0), the drawing's
-// texture (set 1, binding 0) and the built-ins an effect reads and writes. Every name of the engine starts with rtype,
-// a prefix effects cannot use. Kept ASCII: it is embedded as chars. It has no #version: the assembler writes it first,
-// as a backend's built-in shaders (the default effect, which #include these files) do.
+// The shaders ABI of the backend contract: game shaders are assembled in it (plugins/shader), and backends write their
+// built-in shaders against it. The start of every stage of every shader: the frame (set 0, binding 0), the drawing's
+// texture (set 1, binding 0) and the built-ins a shader reads and writes. Every name of the engine starts with rtype,
+// a prefix shaders cannot use. Kept ASCII: it is embedded as chars. It has no #version: the assembler writes it first,
+// as a backend's built-in shaders (the default shader, which #include these files) do.
 
 layout(set = 0, binding = 0, std140) uniform RtypeFrame {
     float time;            // Seconds since the renderer started.

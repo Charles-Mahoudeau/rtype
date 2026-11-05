@@ -47,8 +47,8 @@ struct Shape {
     Color outlineColor{0.0F};               ///< The outline's colour.
     float outlineThickness = 0.0F;          ///< In world units, drawn inside the shape. 0: no outline.
     BlendMode blend = BlendMode::kAlpha;    ///< kAlpha or kAdditive (kCutout is drawn as kAlpha).
-    MaterialId material;                    ///< Its effect; the default one (the fill and the outline) if 0.
-    ShaderInstanceValues instanceValues{};  ///< Its own `instance uniform` values, for its material's effect.
+    MaterialId material;                    ///< Its shader; the default one (the fill and the outline) if 0.
+    ShaderInstanceValues instanceValues{};  ///< Its own `instance uniform` values, for its material's shader.
 };
 
 }  // namespace rtype::plugins::backend::graphics

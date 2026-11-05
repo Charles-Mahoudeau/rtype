@@ -5,7 +5,7 @@
 ** particle_constants
 */
 
-// What every particle of one draw shares, as push constants: rendering/ParticleConstants.hpp, then, for an effect that
+// What every particle of one draw shares, as push constants: rendering/ParticleConstants.hpp, then, for a shader that
 // has some (RTYPE_INSTANCE_VALUES), the draw's instance values at offset 48.
 layout(push_constant, std430) uniform RtypeParticles {
     vec4 uvRect;      // Part of the texture: (u0, v0, u1, v1).

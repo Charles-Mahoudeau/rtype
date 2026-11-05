@@ -199,7 +199,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     void draw(const plugins::backend::graphics::Shape& shape) override;
 
     /// @brief Adds the glyphs of @p text to the frame's sprites, one instance each, drawn by the glyph variant of the
-    /// default effect (shaders/glyph.frag): batched with the glyphs before and after it that share its atlas, in the
+    /// default shader (shaders/glyph.frag): batched with the glyphs before and after it that share its atlas, in the
     /// sprites' draw order. Does nothing if beginFrame() skipped the frame.
     /// @throws std::invalid_argument If its texture was destroyed or never created.
     void draw(const plugins::backend::graphics::Text& text) override;
@@ -226,8 +226,8 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// @throws std::invalid_argument If the texture or the GPU system was destroyed or never created.
     void draw(const plugins::backend::graphics::ParticleDraw& particles) override;
 
-    /// @return true: sprites are drawn with game shaders. Texts and particles are drawn with their default effect for
-    /// now.
+    /// @return true: sprites and shapes are drawn with game shaders. Texts and particles are drawn with their default
+    /// shader for now.
     [[nodiscard]] bool supportsShaders() const noexcept override;
 
     /// @brief Creates the modules of @p shader's variants (material::GameShader); its pipelines are built the first

@@ -5,8 +5,8 @@
 ** glyph
 */
 
-// The default effect of glyphs, fragment stage (their vertex stage is sprite.vert): the shaders ABI
-// (plugins/backend/graphics/shaders/) without an effect, the stage game effects are assembled in for kGlyph.
+// The default shader of glyphs, fragment stage (their vertex stage is sprite.vert): the shaders ABI
+// (plugins/backend/graphics/shaders/) without a shader, the stage game shaders are assembled in for kGlyph.
 #version 450
 #extension GL_GOOGLE_include_directive : require
 
