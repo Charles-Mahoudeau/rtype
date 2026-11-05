@@ -31,6 +31,7 @@
 #include "rtype/ecs/system/DynamicQueries.hpp"
 #include "rtype/ecs/system/DynamicResources.hpp"
 #include "rtype/ecs/time/Time.hpp"
+#include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/luau/CallContext.hpp"
 #include "rtype/luau/Exceptions.hpp"
 #include "rtype/luau/Function.hpp"
@@ -194,8 +195,8 @@ class EventsContext {
                             term.type->name, _system->name)};
         }
         const luau::Table* fields = nullptr;
-        if (arguments.argCount() > 1 && !arguments.args()[1].is<luau::Value::Nil>()) {
-            fields = arguments.args()[1].tryAs<luau::Table>();
+        if (arguments.argCount() > 1 && !std::next(arguments.args().begin())->is<luau::Value::Nil>()) {
+            fields = std::next(arguments.args().begin())->tryAs<luau::Table>();
             if (fields == nullptr) {
                 throw luau::exceptions::RuntimeError{"events.send expects a table of fields as its second argument"};
             }
