@@ -37,8 +37,9 @@ namespace rtype::render::vulkan::rendering {
 /// recording, so they are rewritten, or replaced by bigger ones, without waiting.
 ///
 /// A batch with a game material is drawn by its shader's pipeline (createMaterialPipeline(), on the game shaders'
-/// layout), with its set 2, and the instance values as a second vertex binding, locations 7 to 10. Its draw starts at
-/// instance 0 with both buffers bound at the batch's first entries, since the two arrays are not indexed alike.
+/// layout), with its set 2. If the shader has instance values, they are a second vertex binding, locations 7 to 10,
+/// and its draw starts at instance 0 with both buffers bound at the batch's first entries, since the two arrays are
+/// not indexed alike.
 /// @warning Destroy it before the Allocator and the Device.
 class RTYPE_RENDER_VULKAN_API SpritePass {
   public:
@@ -49,6 +50,7 @@ class RTYPE_RENDER_VULKAN_API SpritePass {
     struct MaterialBinding {
         const pipeline::GraphicsPipeline* pipeline = nullptr;  ///< Its shader's; null: drawn as the default material.
         vk::DescriptorSet set;                                 ///< Its set 2, for this frame.
+        bool instanceValues = false;                           ///< Its pipeline reads the instance values binding.
     };
     /// @brief Finds what a game material is drawn with this frame, or a null pipeline if it cannot be drawn.
     using MaterialFinder = std::function<MaterialBinding(plugins::backend::graphics::MaterialId)>;
@@ -67,12 +69,14 @@ class RTYPE_RENDER_VULKAN_API SpritePass {
     SpritePass(SpritePass&&) = delete;
     SpritePass& operator=(SpritePass&&) = delete;
 
-    /// @return The pipeline of a game shader's sprite variant: @p vertex and @p fragment, the SpriteInstance and
-    /// instance values bindings, premultiplied alpha, on @p layout (the game shaders' layout).
+    /// @return The pipeline of a game shader's sprite variant: @p vertex and @p fragment, the SpriteInstance binding
+    /// and, if @p instanceValues, the instance values binding, premultiplied alpha, on @p layout (the game shaders'
+    /// layout).
     /// @throws vk::SystemError If the pipeline cannot be created.
     [[nodiscard]] static pipeline::GraphicsPipeline createMaterialPipeline(
         const core::Device& device, const vk::raii::ShaderModule& vertex, const vk::raii::ShaderModule& fragment,
-        const pipeline::PipelineLayout& layout, vk::Format colorFormat, const vk::raii::PipelineCache* cache);
+        bool instanceValues, const pipeline::PipelineLayout& layout, vk::Format colorFormat,
+        const vk::raii::PipelineCache* cache);
 
     /// @brief Copies @p batch's instances and instance values into frame @p frameIndex's buffers, for record().
     /// @throws vk::SystemError If a bigger buffer cannot be created.

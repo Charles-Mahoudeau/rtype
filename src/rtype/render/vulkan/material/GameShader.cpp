@@ -34,7 +34,7 @@ vk::raii::ShaderModule createModule(const core::Device& device, std::span<const 
 }  // namespace
 
 GameShader::GameShader(const core::Device& device, const plugins::backend::graphics::CompiledShader& shader)
-    : _name{shader.name}, _materialSize{shader.materialSize} {
+    : _name{shader.name}, _materialSize{shader.materialSize}, _instanceValues{!shader.instanceValues.empty()} {
     plugins::backend::graphics::validate(shader);
     for (const plugins::backend::graphics::ShaderVariant& variant : shader.variants) {
         Variant& created = _variants.at(static_cast<std::size_t>(variant.target));
@@ -58,7 +58,8 @@ const pipeline::GraphicsPipeline* GameShader::getPipeline(plugins::backend::grap
     }
     if (!variant.built || variant.format != colorFormat) {
         variant.built.reset();
-        variant.built.emplace(build(device, variant.vertex, variant.fragment, layout, colorFormat, cache));
+        variant.built.emplace(
+            build(device, variant.vertex, variant.fragment, _instanceValues, layout, colorFormat, cache));
         variant.format = colorFormat;
     }
     return &*variant.built;

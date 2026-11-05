@@ -720,7 +720,9 @@ rendering::SpritePass::MaterialBinding VulkanRenderer::findMaterial(plugins::bac
         return material::GameMaterial::TextureBinding{
             .view = *found->image.getImageView(), .sampler = *_samplers->get(found->desc.filter, found->desc.repeat)};
     };
-    return {.pipeline = pipeline, .set = found->prepare(*_device, frameIndex, findTexture, _fallbackTexture)};
+    return {.pipeline = pipeline,
+            .set = found->prepare(*_device, frameIndex, findTexture, _fallbackTexture),
+            .instanceValues = shader->hasInstanceValues()};
 }
 
 interop::vulkan::IVulkanSurfaceSource& VulkanRenderer::surfaceSourceOf(

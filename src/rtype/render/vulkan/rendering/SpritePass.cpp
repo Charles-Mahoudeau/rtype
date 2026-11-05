@@ -72,18 +72,19 @@ SpritePass::SpritePass(const core::Device& device, const memory::Allocator& allo
 
 pipeline::GraphicsPipeline SpritePass::createMaterialPipeline(
     const core::Device& device, const vk::raii::ShaderModule& vertex, const vk::raii::ShaderModule& fragment,
-    const pipeline::PipelineLayout& layout, vk::Format colorFormat, const vk::raii::PipelineCache* cache) {
-    const auto instance = SpriteInstance::getBindings();
-    const std::array bindings{instance.front(),
-                              vk::VertexInputBindingDescription{kValuesBinding, static_cast<std::uint32_t>(kValuesSize),
-                                                                vk::VertexInputRate::eInstance}};
+    bool instanceValues, const pipeline::PipelineLayout& layout, vk::Format colorFormat,
+    const vk::raii::PipelineCache* cache) {
+    std::vector<vk::VertexInputBindingDescription> bindings{SpriteInstance::getBindings().front()};
     std::vector<vk::VertexInputAttributeDescription> attributes;
     for (const vk::VertexInputAttributeDescription& attribute : SpriteInstance::getAttributes()) {
         attributes.push_back(attribute);
     }
-    for (std::uint32_t vector = 0; vector < plugins::backend::graphics::ShaderInstanceValues{}.size(); ++vector) {
-        attributes.emplace_back(kValuesLocation + vector, kValuesBinding, vk::Format::eR32G32B32A32Sfloat,
-                                vector * static_cast<std::uint32_t>(sizeof(glm::vec4)));
+    if (instanceValues) {
+        bindings.emplace_back(kValuesBinding, static_cast<std::uint32_t>(kValuesSize), vk::VertexInputRate::eInstance);
+        for (std::uint32_t vector = 0; vector < plugins::backend::graphics::ShaderInstanceValues{}.size(); ++vector) {
+            attributes.emplace_back(kValuesLocation + vector, kValuesBinding, vk::Format::eR32G32B32A32Sfloat,
+                                    vector * static_cast<std::uint32_t>(sizeof(glm::vec4)));
+        }
     }
     return pipeline::GraphicsPipeline::Builder{}
         .setShaders(vertex, fragment)
@@ -130,9 +131,12 @@ void SpritePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_
         if (!set) {
             continue;
         }
-        const MaterialBinding material = range.material != plugins::backend::graphics::MaterialId{} && values
-                                             ? findMaterial(range.material)
-                                             : MaterialBinding{};
+        MaterialBinding material = range.material != plugins::backend::graphics::MaterialId{}
+                                       ? findMaterial(range.material)
+                                       : MaterialBinding{};
+        if (material.instanceValues && !values) {
+            material = MaterialBinding{};
+        }
         const pipeline::GraphicsPipeline& drawn = material.pipeline != nullptr ? *material.pipeline : _pipeline;
         if (bound != &drawn) {
             drawn.bind(commandBuffer);
@@ -140,7 +144,10 @@ void SpritePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_
         }
         const vk::PipelineLayout layout = *drawn.getLayout().getLayout();
         commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, kTextureSet, set, {});
-        if (material.pipeline == nullptr || !values) {
+        if (material.pipeline != nullptr) {
+            commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, kMaterialSet, material.set, {});
+        }
+        if (!material.instanceValues || !values) {
             if (!instancesFromStart) {
                 commandBuffer.bindVertexBuffers(0, *buffer->getBuffer(), vk::DeviceSize{0});
                 instancesFromStart = true;
@@ -148,7 +155,6 @@ void SpritePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_
             commandBuffer.draw(kQuadVertexCount, range.instanceCount, 0, range.firstInstance);
             continue;
         }
-        commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, kMaterialSet, material.set, {});
         const std::array vertexBuffers{*buffer->getBuffer(), *values->getBuffer()};
         const std::array offsets{vk::DeviceSize{range.firstInstance} * sizeof(SpriteInstance),
                                  vk::DeviceSize{range.firstValues} * kValuesSize};

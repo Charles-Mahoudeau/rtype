@@ -29,10 +29,14 @@ namespace rtype::render::vulkan::material {
 /// @warning Destroy it before the Device.
 class RTYPE_RENDER_VULKAN_API GameShader {
   public:
-    /// @brief Builds the pipeline of a target: its modules, the colour format, and the layout and cache to use.
-    using PipelineBuilder = pipeline::GraphicsPipeline (*)(
-        const core::Device& device, const vk::raii::ShaderModule& vertex, const vk::raii::ShaderModule& fragment,
-        const pipeline::PipelineLayout& layout, vk::Format colorFormat, const vk::raii::PipelineCache* cache);
+    /// @brief Builds the pipeline of a target: its modules, whether they read instance values, the colour format, and
+    /// the layout and cache to use.
+    using PipelineBuilder = pipeline::GraphicsPipeline (*)(const core::Device& device,
+                                                           const vk::raii::ShaderModule& vertex,
+                                                           const vk::raii::ShaderModule& fragment, bool instanceValues,
+                                                           const pipeline::PipelineLayout& layout,
+                                                           vk::Format colorFormat,
+                                                           const vk::raii::PipelineCache* cache);
 
     /// @brief Creates the modules of every variant of @p shader.
     /// @throws std::invalid_argument If @p shader is invalid (plugins::backend::graphics::validate()).
@@ -49,6 +53,8 @@ class RTYPE_RENDER_VULKAN_API GameShader {
     [[nodiscard]] const std::string& getName() const noexcept { return _name; }
     /// @return The bytes of its material block (0: none).
     [[nodiscard]] std::uint32_t getMaterialSize() const noexcept { return _materialSize; }
+    /// @return Whether it declares instance values: only then do its sprites carry them.
+    [[nodiscard]] bool hasInstanceValues() const noexcept { return _instanceValues; }
 
     /// @return Whether it serves @p target.
     [[nodiscard]] bool serves(plugins::backend::graphics::ShaderTarget target) const noexcept;
@@ -74,6 +80,7 @@ class RTYPE_RENDER_VULKAN_API GameShader {
 
     std::string _name;                                                              ///< For messages.
     std::uint32_t _materialSize{0};                                                 ///< Its material block.
+    bool _instanceValues{false};                                                    ///< It has `instance uniform`s.
     std::array<Variant, plugins::backend::graphics::kShaderTargetCount> _variants;  ///< By ShaderTarget.
 };
 
