@@ -84,6 +84,11 @@ class RTYPE_ECS_API App {
     template <Resource T>
     App& insertResource(T value);
 
+    /// @brief Sets a resource of the world only if it has no value yet, keeping an existing one
+    /// (Resources::insertIfAbsent()).
+    template <Resource T>
+    App& insertResourceIfAbsent(T value = T{});
+
     /// @brief Runs one frame (Schedules::runFrame()), adding a TimePlugin with the defaults first if none was added.
     /// @throws exceptions::ScheduleException When a schedule cannot be built.
     void runFrame();
