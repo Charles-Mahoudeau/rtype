@@ -58,9 +58,10 @@
 #include "plugins/backend/platform/IPlatform.hpp"
 #include "presentation/Swapchain.hpp"
 #include "rendering/DrawList.hpp"
+#include "rendering/MaterialBinding.hpp"
 #include "rendering/ParticleConstants.hpp"
 #include "rendering/ParticlePass.hpp"
-#include "rendering/ShapeInstance.hpp"
+#include "rendering/ShapeBatch.hpp"
 #include "rendering/ShapePass.hpp"
 #include "rendering/SpriteBatch.hpp"
 #include "rendering/SpritePass.hpp"
@@ -77,12 +78,13 @@ namespace rtype::render::vulkan {
 /// draws and presents it. createTexture() uploads RGBA8 sRGB images, premultiplied by their alpha
 /// (texture::premultiplySrgb()), and data (TextureEncoding::kLinear) as it is. draw(Sprite) and draw(Text) collect the
 /// frame's sprites, and endFrame() draws them in batches (one instanced draw per run of sprites sharing a texture),
-/// through the view given to setView(). draw(Shape) collects the frame's shapes, and endFrame() draws them all after
-/// the sprites, in one instanced draw, from their signed distance (rendering/ShapePass.hpp). Sprites and shapes are
-/// blended with premultiplied alpha: every graphics::BlendMode is drawn by the same pipeline, read per instance
-/// (shaders/include/Blend.glsl), so the mode never splits a batch. A sprite with a game material
-/// (createShader(), createMaterial()) is drawn by its shader's pipeline, built the first time it is drawn, with the
-/// material's set 2 (material/GameMaterial.hpp); a run of sprites sharing a texture and a material stays one batch.
+/// through the view given to setView(). draw(Shape) collects the frame's shapes, and endFrame() draws them after the
+/// sprites, one instanced draw per run of shapes sharing a material, from their signed distance
+/// (rendering/ShapePass.hpp). Sprites and shapes are blended with premultiplied alpha: every graphics::BlendMode is
+/// drawn by the same pipeline, read per instance (the shaders ABI's fragment_common.glsl), so the mode never splits a
+/// batch. A sprite or a shape with a game material (createShader(), createMaterial()) is drawn by its shader's
+/// pipeline, built the first time it is drawn, with the material's set 2 (material/GameMaterial.hpp); a run of sprites
+/// sharing a texture and a material stays one batch.
 ///
 /// Needs a platform that implements interop::vulkan::IVulkanSurfaceSource (GlfwPlatform does).
 class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::graphics::IRenderer {
@@ -193,7 +195,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     void draw(const plugins::backend::graphics::Sprite& sprite) override;
 
     /// @brief Adds @p shape to the frame, drawn by endFrame() after every sprite, on top of the shapes drawn before
-    /// it. Does nothing if beginFrame() skipped the frame.
+    /// it, with its material (the default one if it no longer exists). Does nothing if beginFrame() skipped the frame.
     void draw(const plugins::backend::graphics::Shape& shape) override;
 
     /// @brief Adds the glyphs of @p text to the frame's sprites, one instance each, drawn by the glyph variant of the
@@ -290,10 +292,12 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     /// @return The descriptor set of @p texture, or a null handle if it no longer exists.
     [[nodiscard]] vk::DescriptorSet findTextureSet(plugins::backend::graphics::TextureId texture) const;
 
-    /// @return What sprites with @p material are drawn with in frame @p frameIndex: its shader's pipeline, built if
-    /// needed, and its set, brought up to date; a null pipeline if it or its shader no longer exists.
-    [[nodiscard]] rendering::SpritePass::MaterialBinding findMaterial(plugins::backend::graphics::MaterialId material,
-                                                                      std::size_t frameIndex);
+    /// @return What @p target (kSprite or kShape) is drawn with for @p material in frame @p frameIndex: its shader's
+    /// pipeline, built if needed, and its set, brought up to date; a null pipeline if it or its shader no longer
+    /// exists, or if its shader does not serve @p target.
+    [[nodiscard]] rendering::MaterialBinding findMaterial(plugins::backend::graphics::MaterialId material,
+                                                          plugins::backend::graphics::ShaderTarget target,
+                                                          std::size_t frameIndex);
 
     /// @brief Checks that @p desc fits @p shader: values of its block's size, and textures that exist.
     /// @throws std::invalid_argument Naming @p function if not.
@@ -334,7 +338,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public plugins::backend::gr
     std::filesystem::path _pipelineCachePath;  ///< Config::pipelineCache resolved by init(); empty: not kept.
     plugins::backend::graphics::Color _clearColor{0.0F};  ///< From beginFrame(): what endFrame() clears with.
     rendering::SpriteBatch _sprites;                      ///< The frame's sprites; cleared by beginFrame().
-    std::vector<rendering::ShapeInstance> _shapes;        ///< The frame's shapes; cleared by beginFrame().
+    rendering::ShapeBatch _shapes;                        ///< The frame's shapes; cleared by beginFrame().
     std::vector<plugins::backend::graphics::ParticleInstance> _particleInstances;  ///< The frame's CPU particles.
     std::vector<ParticleRange> _particleRanges;  ///< The frame's particle draws; cleared by beginFrame().
     rendering::DrawList _drawList;               ///< Where the particle draws sit among the sprite batches.

@@ -63,7 +63,9 @@
 #include "rendering/DrawConstants.hpp"
 #include "rendering/DynamicRendering.hpp"
 #include "rendering/FrameUniforms.hpp"
+#include "rendering/MaterialBinding.hpp"
 #include "rendering/ShaderLayout.hpp"
+#include "rendering/ShapeBatch.hpp"
 #include "rendering/ShapeInstance.hpp"
 #include "rendering/ShapePass.hpp"
 #include "rendering/SpriteBatch.hpp"
@@ -437,7 +439,11 @@ void VulkanRenderer::endFrame() {
     commandBuffer.beginRendering(rendering::renderingInfo(_swapchain->getExtent(), {&color, 1}));
     _globals->bind(commandBuffer, *_layout, frameIndex);
     recordSpritesAndParticles(commandBuffer, frameIndex, view);
-    _shapePass->record(commandBuffer, frameIndex, _shapes, view.getViewport());
+    const auto findShapeMaterial = [this, frameIndex](plugins::backend::graphics::MaterialId material) {
+        return findMaterial(material, plugins::backend::graphics::ShaderTarget::kShape, frameIndex);
+    };
+    _shapePass->record(commandBuffer, frameIndex, _shapes, view.getViewport(), findTextureSet(_fallbackTexture),
+                       findShapeMaterial);
     _shapes.clear();
 
     commandBuffer.endRendering();
@@ -493,7 +499,12 @@ void VulkanRenderer::draw(const plugins::backend::graphics::Shape& shape) {
     if (!_acquiredImage) {
         return;
     }
-    _shapes.push_back(rendering::ShapeInstance::fromShape(shape));
+    const rendering::ShapeInstance instance = rendering::ShapeInstance::fromShape(shape);
+    if (shape.material != plugins::backend::graphics::MaterialId{} && _materials.find(shape.material) != nullptr) {
+        _shapes.add(shape.material, instance, shape.instanceValues);
+        return;
+    }
+    _shapes.add(instance);
 }
 
 void VulkanRenderer::draw(const plugins::backend::graphics::Text& text) {
@@ -596,7 +607,7 @@ void VulkanRenderer::recordSpritesAndParticles(const vk::raii::CommandBuffer& co
     const std::span<const rendering::SpriteBatch::Batch> batches = _sprites.getBatches();
     const auto findSet = [this](plugins::backend::graphics::TextureId texture) { return findTextureSet(texture); };
     const auto findSpriteMaterial = [this, frameIndex](plugins::backend::graphics::MaterialId material) {
-        return findMaterial(material, frameIndex);
+        return findMaterial(material, plugins::backend::graphics::ShaderTarget::kSprite, frameIndex);
     };
     for (const rendering::DrawList::Step& step : _drawList.getSteps(static_cast<std::uint32_t>(batches.size()))) {
         if (const auto* run = std::get_if<rendering::DrawList::SpriteRun>(&step)) {
@@ -698,16 +709,18 @@ void VulkanRenderer::checkMaterial(const plugins::backend::graphics::MaterialDes
     }
 }
 
-rendering::SpritePass::MaterialBinding VulkanRenderer::findMaterial(plugins::backend::graphics::MaterialId material,
-                                                                    std::size_t frameIndex) {
+rendering::MaterialBinding VulkanRenderer::findMaterial(plugins::backend::graphics::MaterialId material,
+                                                        plugins::backend::graphics::ShaderTarget target,
+                                                        std::size_t frameIndex) {
     material::GameMaterial* found = _materials.find(material);
     material::GameShader* shader = found != nullptr ? _gameShaders.find(found->getShader()) : nullptr;
     if (shader == nullptr) {
         return {};
     }
     const pipeline::GraphicsPipeline* pipeline = shader->getPipeline(
-        plugins::backend::graphics::ShaderTarget::kSprite, *_device, *_materialLayout, _swapchain->getFormat(),
-        &_pipelineCache->getCache(), &rendering::SpritePass::createMaterialPipeline);
+        target, *_device, *_materialLayout, _swapchain->getFormat(), &_pipelineCache->getCache(),
+        target == plugins::backend::graphics::ShaderTarget::kShape ? &rendering::ShapePass::createMaterialPipeline
+                                                                   : &rendering::SpritePass::createMaterialPipeline);
     if (pipeline == nullptr) {
         return {};
     }

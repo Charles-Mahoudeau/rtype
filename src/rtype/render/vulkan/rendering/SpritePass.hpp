@@ -14,9 +14,9 @@
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
+#include "MaterialBinding.hpp"
 #include "SpriteBatch.hpp"
 #include "plugins/backend/graphics/CameraView.hpp"
-#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "render/vulkan/Export.hpp"
 #include "render/vulkan/core/Device.hpp"
@@ -46,15 +46,6 @@ class RTYPE_RENDER_VULKAN_API SpritePass {
   public:
     /// @brief Finds the descriptor set of a texture, or a null handle if it no longer exists.
     using TextureSetFinder = std::function<vk::DescriptorSet(plugins::backend::graphics::TextureId)>;
-
-    /// @brief What a batch with a game material is drawn with.
-    struct MaterialBinding {
-        const pipeline::GraphicsPipeline* pipeline = nullptr;  ///< Its shader's; null: drawn as the default material.
-        vk::DescriptorSet set;                                 ///< Its set 2, for this frame.
-        bool instanceValues = false;                           ///< Its pipeline reads the instance values binding.
-    };
-    /// @brief Finds what a game material is drawn with this frame, or a null pipeline if it cannot be drawn.
-    using MaterialFinder = std::function<MaterialBinding(plugins::backend::graphics::MaterialId)>;
 
     /// @param shaders Gives the built-in sprite and glyph shaders.
     /// @param layout The shared layout (ShaderLayout.hpp); must outlive the pass.

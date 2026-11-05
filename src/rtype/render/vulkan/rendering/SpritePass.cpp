@@ -16,6 +16,7 @@
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
+#include "MaterialBinding.hpp"
 #include "ShaderLayout.hpp"
 #include "SpriteBatch.hpp"
 #include "glyph.frag.h"
