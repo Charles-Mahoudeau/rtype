@@ -62,6 +62,29 @@ commands.spawn()
   the frame's texture, source and origin into the entity's `SpriteRenderer`, only when they change, so an idle sprite
   stays unchanged for change detection and replication.
 
+## From scripts
+
+The SpritePlugin registers [engine calls](ecs/features/19-luau-bridge.md#engine-calls) on `AtlasAssets`. An atlas is
+made with one call and filled by name with the others, since call arguments hold no lists: an animation's frames are a
+range, `first` and `count` (0: up to the last frame).
+
+```luau
+local ship = engine.call("rtype.sprite.createAtlas", {
+    name = "game.ship", texture = "assets/ship.png",
+    frameSize = { x = 48, y = 48 }, count = 5, spacing = { x = 17, y = 0 },   -- a grid; count 0: no frames
+})
+engine.call("rtype.sprite.addAnimation", { atlas = ship, name = "fly", frameDuration = 0.1, direction = "pingPong" })
+
+engine.call("rtype.sprite.createAtlas", { name = "game.laser", texture = "assets/laser.png" })
+engine.call("rtype.sprite.addFrame", {                       -- named "0"; returns its index
+    atlas = "game.laser", position = { x = 108, y = 151 }, size = { x = 80, y = 16 },   -- origin: its centre
+})
+local explosion = engine.call("rtype.sprite.loadAtlas", { path = "assets/explosion.json" })
+```
+
+`rtype.sprite.addFrame` and `rtype.sprite.addAnimation` change an atlas already added (`AtlasAssets::edit()`). An
+unknown atlas or direction, or an index that is not a frame, is an error.
+
 ## Performance
 
 `examples/plugins/SpriteBenchmark` animates N sprites (10 000 by default) of one atlas, drifting and bouncing, and

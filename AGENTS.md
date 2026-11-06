@@ -85,7 +85,9 @@ are added.
 - `src/rtype/plugins/` — the engine, as ECS plugins: one shared library per plugin (`plugin-<name>`,
   `rtype-plugin-<name>`), one folder each, included as `plugins/<name>/<File>.hpp`, namespace `rtype::plugins::<name>`,
   exported symbols marked `RTYPE_PLUGIN_<NAME>_API`. Each plugin keeps its own code and declares its own components,
-  resources and events (`RTYPE_ECS_*`). A plugin names what it requires in `getDependencies()`; the program adds it
+  resources and events (`RTYPE_ECS_*`). A plugin scripts drive registers its engine calls in `<Name>Calls.hpp`
+  (`add<Name>Calls()`, called from its `build()`), named `rtype.<plugin>.<verb>`, with their argument and result structs
+  (`RTYPE_ECS_CALL_DATA`). A plugin names what it requires in `getDependencies()`; the program adds it
   first, and no plugin adds another one. See `docs/Plugins.md`.
     - `plugins/graphics/` (`rtype::plugins::graphics`) — `GraphicsPlugin`: starts the platform and the renderer from a
       `BackendRegistry` the executable fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the
@@ -94,7 +96,8 @@ are added.
       `TextureAssets` resource (the textures by `AssetId`, queued by `load()` and decoded with stb), the `SpriteQueue`
       resource (what the frame draws) and the `VisibleArea` resource (what the frame shows). It requires the
       `InputPlugin` and the `TransformPlugin`.
-    - `plugins/input/` (`rtype::plugins::input`) — `InputPlugin`: `Control`, `Input`, `InputAction`, `ButtonStates`,
+    - `plugins/input/` (`rtype::plugins::input`) — `InputPlugin`: `Control` (named with text by `controlFromName()`,
+      `ControlNames.hpp`, over `contract/platform/input/KeyNames.hpp`), `Input`, `InputAction`, `ButtonStates`,
       the `rtype.Input` resource, fed by a `PreUpdate` system from the `PlatformEvent`s in order, and the typed input
       events (`InputEvents.hpp`) for gameplay code. It knows nothing of the graphics plugin, which requires it.
     - `plugins/transform/` (`rtype::plugins::transform`) — `TransformPlugin`: the `Transform` component gameplay writes,

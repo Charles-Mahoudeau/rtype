@@ -363,6 +363,13 @@ struct StopMusic {
 Music is a single slot owned by the plugin, so gameplay never tracks a music voice itself. Its sound is best loaded
 with `SoundDesc{.stream = true}`.
 
+### From scripts
+
+The plugin registers two [engine calls](../ecs/features/19-luau-bridge.md#engine-calls): `rtype.audio.loadSound { path,
+stream }` returns the sound's id, and `rtype.audio.playSound { sound, bus, volume, pitch, position }` sends a
+`PlaySound`, which scripts cannot send through `ctx.events` because its `position` is optional (a `position` left out
+plays centred). `PlayMusic` and `StopMusic` are plain data: scripts send them as events.
+
 ### Systems
 
 All are client systems (`setSide(ecs::Side::kClient)`), as the graphics plugin's are.

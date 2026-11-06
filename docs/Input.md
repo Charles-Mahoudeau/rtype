@@ -258,6 +258,26 @@ An action has any number of bindings, from any device. Each frame every binding 
 
 `control.inverted()` returns the same control with its value negated. The optional `scale` / `sensitivity` multiplies the raw value.
 
+### From scripts
+
+The InputPlugin registers [engine calls](ecs/features/19-luau-bridge.md#engine-calls) that name controls with text,
+read by `controlFromName()` (`plugins/input/ControlNames.hpp`): a key by its enumerator without the `k` (`"W"`,
+`"Space"`, `"Up"`, `"LeftShift"`), `"Mouse"` plus a button (`"MouseLeft"`), `"MouseDeltaX"`, `"MouseScrollY"`,
+`"Gamepad"` plus a button or an axis (`"GamepadSouth"`, `"GamepadLeftX"`). The key, button and axis names alone come
+from `contract/platform/input/KeyNames.hpp`.
+
+```luau
+engine.call("rtype.input.addAction", { name = "move", type = "vector2" })
+engine.call("rtype.input.bindVector", { action = "move", up = "W", down = "S", left = "A", right = "D" })
+engine.call("rtype.input.bindVector", { action = "move", x = "GamepadLeftX", y = "GamepadLeftY" })
+engine.call("rtype.input.addAction", { name = "shoot" })                 -- a button
+engine.call("rtype.input.bind", { action = "shoot", control = "MouseLeft" })
+local shoot = engine.call("rtype.input.read", { action = "shoot" })     -- { value, held, pressed, released }
+```
+
+`rtype.input.bindAxis` takes `negative` and `positive`, `rtype.input.bind` a `scale`. An unknown action, control or
+type is an error naming it.
+
 ## Conventions
 
 - **Keys are physical positions**, named after the US QWERTY layout: `Key::kW` is the key right of Tab on every layout (Z on AZERTY). WASD bindings therefore land on ZQSD for French players without any setting. Use `TextEntered` to read the characters actually typed.

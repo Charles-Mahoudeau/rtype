@@ -689,6 +689,9 @@ their bytes would be wrong anyway.
   load, and with `ctx.call(name, {...})` in a system that lists it under `calls = {...}`; the system takes the call's
   access (and its main-thread need), so the scheduler orders it like any other. A call the system does not list is a
   Luau error; an unknown call is refused when the script loads, unless the system does not run in that `App`'s mode.
+  The asset, input and audio plugins register their calls (`rtype.sprite.createAtlas`, `rtype.input.bindVector`,
+  `rtype.audio.playSound`...; see the list in `docs/ecs/features/19-luau-bridge.md`). Controls are named with text
+  (`plugins/input/ControlNames.hpp`).
 - **Declarative forms for the common setup**, written in `scripting` on top of the calls, so scripts do not juggle
   handles: `engine.input.action("move", "vector2")`, `engine.assets.atlas{ path = ..., grid = {...}, animations =
   {...} }`, `engine.assets.sound(path)`, `engine.assets.font(path)`. Each one registers on both sides when the same

@@ -147,6 +147,18 @@ the system did not declare raises a Luau error. An unknown call, a wrong argumen
 naming the call. An unknown call in `calls` is refused when the script loads, unless the system does not run in that
 `App`'s mode: a client system may list a call only the client plugins register.
 
+The engine's plugins register these calls, on the side they are added on (the backend plugin and the plugins it
+adds run on clients):
+
+| Plugin | Calls |
+|---|---|
+| Sprite | `rtype.sprite.loadAtlas`, `rtype.sprite.createAtlas`, `rtype.sprite.addFrame`, `rtype.sprite.addAnimation` ([Sprites](../../Sprites.md#from-scripts)) |
+| Backend | `rtype.backend.loadTexture` |
+| Text | `rtype.text.loadFont` ([Text](../../Text.md#from-scripts)) |
+| Tilemap | `rtype.tilemap.load`, `rtype.tilemap.spawn` ([Tilemaps](../../Tilemap.md#from-scripts)) |
+| Audio | `rtype.audio.loadSound`, `rtype.audio.playSound` ([Audio](../../audio/design.md#from-scripts)) |
+| Input | `rtype.input.addAction`, `rtype.input.bind`, `rtype.input.bindAxis`, `rtype.input.bindVector`, `rtype.input.read` ([Input](../../Input.md#from-scripts)) |
+
 ### Plugins
 
 ```luau
