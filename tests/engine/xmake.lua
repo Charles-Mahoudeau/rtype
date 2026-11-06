@@ -1,8 +1,17 @@
+-- A plugin library for the PluginLoader's tests, built apart as a real one is.
+target("engine-test-plugin")
+    set_kind("shared")
+    set_default(false)
+    set_group("tests")
+    set_basename("rtype-test-plugin")
+    add_deps("core", "ecs")
+    add_files("fixtures/TestPlugin.cpp")
+
 target("engine-tests")
     set_kind("binary")
     set_default(false)
     set_group("tests")
-    add_deps("engine", "replication", "plugin-graphics", "plugin-input", "plugin-physics", "plugin-physics-debug", "plugin-shader", "plugin-shape", "plugin-sprite", "plugin-text", "plugin-tilemap", "plugin-transform")
+    add_deps("engine-test-plugin", "engine", "replication", "plugin-graphics", "plugin-input", "plugin-physics", "plugin-physics-debug", "plugin-shader", "plugin-shape", "plugin-sprite", "plugin-text", "plugin-tilemap", "plugin-transform")
     add_files("*.cpp", "../main.cpp")
     add_packages("gtest")
     add_tests("default")
