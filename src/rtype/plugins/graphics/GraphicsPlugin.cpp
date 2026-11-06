@@ -29,6 +29,7 @@
 #include "plugins/graphics/BackendRegistry.hpp"
 #include "plugins/graphics/Camera.hpp"
 #include "plugins/graphics/GraphicsResources.hpp"
+#include "plugins/graphics/OverlayQueue.hpp"
 #include "plugins/graphics/SpriteQueue.hpp"
 #include "plugins/graphics/TextureAssets.hpp"
 #include "plugins/graphics/TextureCalls.hpp"
@@ -154,8 +155,16 @@ graphics::VisibleArea visibleAreaOf(const contract::renderer::View& view, glm::v
 /// @brief Render: shows the world from the camera entity with the highest priority, at its GlobalTransform; the first
 /// one found wins a tie. Records what the frame shows in the VisibleArea resource.
 void applyCamera(ecs::NonSendMut<plugins::graphics::Backend> backend, ecs::ResMut<graphics::VisibleArea> visible,
+                 ecs::ResMut<graphics::ViewInfo> info,
                  ecs::Query<const transform::GlobalTransform, const graphics::Camera> cameras) {
     plugins::graphics::Backend& started = *backend;
+    if (isStarted(started)) {
+        const glm::vec2 size = started.renderer->getViewSize();
+        const glm::uvec2 framebuffer = started.platform->getFramebufferSize();
+        *info = graphics::ViewInfo{.viewSize = size.x > 0.0F && size.y > 0.0F ? size : glm::vec2{framebuffer},
+                                   .framebuffer = framebuffer,
+                                   .window = started.platform->getWindowSize()};
+    }
     if (!isStarted(started) || isMinimized(started)) {
         *visible = graphics::VisibleArea{};
         return;
@@ -197,9 +206,13 @@ void drawSprites(ecs::NonSendMut<plugins::graphics::Backend> backend, ecs::ResMu
 }
 
 /// @brief Render: shows what was drawn since beginFrame().
-void endFrame(ecs::NonSendMut<plugins::graphics::Backend> backend) {
+void endFrame(ecs::NonSendMut<plugins::graphics::Backend> backend, ecs::ResMut<graphics::OverlayQueue> overlay) {
     plugins::graphics::Backend& started = *backend;
+    const std::vector<contract::renderer::OverlayItem> items = overlay->take();
     if (isStarted(started) && !isMinimized(started)) {
+        if (!items.empty()) {
+            started.renderer->drawOverlay(items);
+        }
         started.renderer->endFrame();
     }
 }
@@ -249,6 +262,8 @@ void GraphicsPlugin::build(ecs::App& app) {
     resources.insertIfAbsent<TextureAssets>();
     resources.getMut<TextureAssets>()->setDirectory(assetDirectoryOf(resources));
     resources.insertIfAbsent<graphics::SpriteQueue>();
+    resources.insertIfAbsent<graphics::OverlayQueue>();
+    resources.insertIfAbsent<graphics::ViewInfo>();
     resources.insertIfAbsent<graphics::VisibleArea>();
     static_cast<void>(app.getWorld().getComponents().registerType<graphics::Camera>());
     addTextureCalls(app);
