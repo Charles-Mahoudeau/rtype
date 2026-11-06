@@ -31,9 +31,8 @@ namespace rtype::plugins::shader {
 /// It requires the GraphicsPlugin. Its system is ordered against the GraphicsPlugin's, so an App without a window (a
 /// server) does not add it: it inserts ShaderAssets and MaterialAssets itself if its gameplay code names materials.
 ///
-/// Built from the project's settings, shader paths are relative to the game directory and, with `shader.hotReload`, a
-/// second system, Render "rtype.Shader.HotReload", follows `assets/shaders` of the game with a ShaderWatcher, just
-/// before the update. Without settings, paths are relative to the working directory and nothing is followed.
+/// In a game, with `shader.hotReload`, a second system, Render "rtype.Shader.HotReload", follows `assets/shaders` of
+/// the game with a ShaderWatcher, just before the update. Without an AssetDirectory, nothing is followed.
 /// @code
 /// const rtype::core::asset::AssetId flash = shaders->load("assets/shaders/flash.glsl");
 /// const rtype::core::asset::AssetId hit =
@@ -66,7 +65,7 @@ class RTYPE_PLUGIN_SHADER_API ShaderPlugin : public ecs::Plugin {
     void build(ecs::App& app) override;
 
   private:
-    ShaderConfig _config;  ///< The game directory and hot reload.
+    ShaderConfig _config;  ///< Hot reload.
 };
 
 }  // namespace rtype::plugins::shader

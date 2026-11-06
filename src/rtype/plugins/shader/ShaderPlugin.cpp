@@ -8,10 +8,12 @@
 #include "plugins/shader/ShaderPlugin.hpp"
 
 #include <array>
+#include <filesystem>
 #include <span>
 #include <string>
 #include <string_view>
 
+#include "plugins/AssetDirectory.hpp"
 #include "plugins/graphics/BackendRegistry.hpp"
 #include "plugins/graphics/GraphicsPlugin.hpp"
 #include "plugins/graphics/GraphicsResources.hpp"  // IWYU pragma: keep
@@ -69,9 +71,10 @@ void ShaderPlugin::build(ecs::App& app) {
         .before(std::string{graphics::GraphicsPlugin::kBeginFrameSystem})
         .setSide(ecs::Side::kClient);
     addShaderCalls(app);
-    resources.getMut<ShaderAssets>()->setDirectory(_config.gameDirectory);
-    if (_config.hotReload && !_config.gameDirectory.empty()) {
-        resources.insert(ShaderWatcher{_config.gameDirectory});
+    const std::filesystem::path directory = assetDirectoryOf(resources);
+    resources.getMut<ShaderAssets>()->setDirectory(directory);
+    if (_config.hotReload && !directory.empty()) {
+        resources.insert(ShaderWatcher{directory});
         app.addSystem(ecs::Phase::kRender, std::string{kHotReloadSystem}, &reloadShaders)
             .before(std::string{kUpdateSystem})
             .setSide(ecs::Side::kClient);

@@ -17,8 +17,8 @@
 
 namespace rtype::plugins::shader {
 
-ShaderWatcher::ShaderWatcher(std::filesystem::path gameDirectory)
-    : _gameDirectory{std::move(gameDirectory)}, _files{scan()}, _nextPoll{Clock::now() + kInterval} {}
+ShaderWatcher::ShaderWatcher(std::filesystem::path assetDirectory)
+    : _assetDirectory{std::move(assetDirectory)}, _files{scan()}, _nextPoll{Clock::now() + kInterval} {}
 
 void ShaderWatcher::update(ShaderAssets& shaders, const Clock::time_point now) {
     if (now < _nextPoll) {
@@ -43,13 +43,13 @@ ShaderWatcher::WriteTimes ShaderWatcher::scan() const {
     WriteTimes files;
     std::error_code error;
     std::filesystem::recursive_directory_iterator entry{
-        _gameDirectory / kDirectory, std::filesystem::directory_options::skip_permission_denied, error};
+        _assetDirectory / kDirectory, std::filesystem::directory_options::skip_permission_denied, error};
     const std::filesystem::recursive_directory_iterator end;
     while (!error && entry != end) {
         std::error_code fileError;
         const auto time = std::filesystem::last_write_time(entry->path(), fileError);
         if (!fileError && entry->is_regular_file(fileError)) {
-            files.emplace(core::asset::normalizePath(entry->path().lexically_relative(_gameDirectory)), time);
+            files.emplace(core::asset::normalizePath(entry->path().lexically_relative(_assetDirectory)), time);
         }
         entry.increment(error);
     }

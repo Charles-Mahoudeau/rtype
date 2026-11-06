@@ -114,7 +114,7 @@ std::vector<core::asset::AssetId> ShaderAssets::takeUnloaded() { return std::exc
 contract::renderer::CompiledShader ShaderAssets::compileFile(const std::string& name) const {
     std::string text;
     try {
-        text = core::asset::readTextFile(_directory / name);
+        text = core::asset::readTextFile(core::asset::resolveAssetPath(_directory, name));
     } catch (const core::asset::exceptions::AssetLoadException& error) {
         throw core::asset::exceptions::AssetLoadException{std::format("Shader '{}': {}", name, error.what())};
     }

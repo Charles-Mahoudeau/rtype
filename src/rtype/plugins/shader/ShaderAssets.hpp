@@ -48,11 +48,12 @@ class RTYPE_PLUGIN_SHADER_API ShaderAssets {
     [[nodiscard]] std::size_t getCount() const noexcept;
 
     /// @brief Sets what the paths given to load() are relative to, for the shaders loaded from now on.
-    /// @param directory The game directory; empty: the working directory.
+    /// A path that leaves it fails (core::asset::resolveAssetPath()).
+    /// @param directory The assets' directory; empty: the working directory, unchecked.
     void setDirectory(std::filesystem::path directory);
 
     /// @brief Reads and compiles the shader file at @p path (the engine's GLSL dialect, docs/Shaders.md).
-    /// @param path Relative to setDirectory()'s directory, unless absolute. It names the shader as it is given.
+    /// @param path Relative to setDirectory()'s directory. It names the shader as it is given.
     /// @return Its id (AssetId::fromPath()), at once, even if it failed. Asking twice gives the first one.
     /// @throws core::asset::exceptions::AssetLoadException If another path already has this id (a hash collision).
     core::asset::AssetId load(const std::filesystem::path& path);

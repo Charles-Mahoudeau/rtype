@@ -30,11 +30,11 @@ class RTYPE_PLUGIN_SHADER_API ShaderWatcher {
   public:
     using Clock = std::chrono::steady_clock;  ///< What update() is timed with.
 
-    static constexpr std::string_view kDirectory = "assets/shaders";  ///< The folder, in the game directory.
-    static constexpr std::chrono::milliseconds kInterval{500};        ///< Between two looks at the folder.
+    static constexpr std::string_view kDirectory = "shaders";   ///< The folder, in the assets' directory.
+    static constexpr std::chrono::milliseconds kInterval{500};  ///< Between two looks at the folder.
 
-    /// @param gameDirectory The game directory; the files already in the folder are taken as they are.
-    explicit ShaderWatcher(std::filesystem::path gameDirectory);
+    /// @param assetDirectory The game's assets; the files already in the folder are taken as they are.
+    explicit ShaderWatcher(std::filesystem::path assetDirectory);
     ~ShaderWatcher() = default;
     ShaderWatcher(const ShaderWatcher& other) = delete;
     ShaderWatcher& operator=(const ShaderWatcher& other) = delete;
@@ -50,15 +50,15 @@ class RTYPE_PLUGIN_SHADER_API ShaderWatcher {
     void poll(ShaderAssets& shaders);
 
   private:
-    /// @brief When each file was last written, by its path in the game directory (normalizePath()).
+    /// @brief When each file was last written, by its path in the assets' directory (normalizePath()).
     using WriteTimes = std::unordered_map<std::string, std::filesystem::file_time_type>;
 
     /// @return The files in the folder now; none if it does not exist.
     [[nodiscard]] WriteTimes scan() const;
 
-    std::filesystem::path _gameDirectory;  ///< What the files' paths are relative to.
-    WriteTimes _files;                     ///< The files, at the last look.
-    Clock::time_point _nextPoll;           ///< When update() looks at the folder again.
+    std::filesystem::path _assetDirectory;  ///< What the files' paths are relative to.
+    WriteTimes _files;                      ///< The files, at the last look.
+    Clock::time_point _nextPoll;            ///< When update() looks at the folder again.
 };
 RTYPE_ECS_RESOURCE(ShaderWatcher, "rtype.ShaderWatcher");
 

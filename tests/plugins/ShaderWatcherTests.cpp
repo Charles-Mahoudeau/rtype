@@ -32,7 +32,7 @@ using rtype::plugins::shader::ShaderWatcher;
 static_assert(rtype::ecs::Resource<ShaderWatcher>);
 
 namespace {
-constexpr std::string_view kPath = "assets/shaders/tint.glsl";  ///< The shader, in the game directory.
+constexpr std::string_view kPath = "shaders/tint.glsl";  ///< The shader, in the assets.
 constexpr std::string_view kFirst = "uniform vec4 first;\nvoid fragment() { COLOR *= first; }\n";
 constexpr std::string_view kSecond = "uniform vec4 second;\nvoid fragment() { COLOR *= second; }\n";
 constexpr std::string_view kBroken = "void fragment() { COLOR = notDeclared; }\n";
@@ -41,7 +41,7 @@ constexpr std::string_view kBroken = "void fragment() { COLOR = notDeclared; }\n
 class ShaderWatcherTest : public ::testing::Test {
   protected:
     void SetUp() override {
-        std::filesystem::create_directories(_game / "assets/shaders");
+        std::filesystem::create_directories(_game / "shaders");
         _shaders.setDirectory(_game);
     }
     void TearDown() override {
@@ -86,11 +86,11 @@ TEST_F(ShaderWatcherTest, ReloadsALoadedShaderWhenItsFileChanges) {
 }
 
 TEST_F(ShaderWatcherTest, FollowsTheSubfolders) {
-    std::filesystem::create_directories(_game / "assets/shaders/enemies");
-    write("assets/shaders/enemies/tint.glsl", kFirst);
-    const AssetId id = _shaders.load("assets/shaders/enemies/tint.glsl");
+    std::filesystem::create_directories(_game / "shaders/enemies");
+    write("shaders/enemies/tint.glsl", kFirst);
+    const AssetId id = _shaders.load("shaders/enemies/tint.glsl");
     ShaderWatcher watcher{_game};
-    write("assets/shaders/enemies/tint.glsl", kSecond);
+    write("shaders/enemies/tint.glsl", kSecond);
     watcher.poll(_shaders);
     EXPECT_EQ(firstValue(id), "second");
 }
@@ -127,7 +127,7 @@ TEST_F(ShaderWatcherTest, KeepsTheLastVersionWhenAnEditDoesNotCompile) {
 }
 
 TEST_F(ShaderWatcherTest, ToleratesAMissingFolder) {
-    std::filesystem::remove_all(_game / "assets");
+    std::filesystem::remove_all(_game / "shaders");
     ShaderWatcher watcher{_game};
     watcher.poll(_shaders);
     EXPECT_EQ(_shaders.getCount(), 0U);
@@ -145,13 +145,10 @@ TEST_F(ShaderWatcherTest, UpdateWaitsForTheInterval) {
     EXPECT_EQ(firstValue(id), "second");
 }
 
-TEST(ShaderConfig, ReadsTheGameDirectoryAndHotReload) {
+TEST(ShaderConfig, ReadsHotReload) {
     rtype::core::config::Settings settings;
-    settings.set(std::string{ShaderConfig::kGameDirectoryKey}, "games/duel");
     settings.set("shader.hotReload", true);
-    const ShaderConfig config = ShaderConfig::fromSettings(settings);
-    EXPECT_EQ(config.gameDirectory, std::filesystem::path{"games/duel"});
-    EXPECT_TRUE(config.hotReload);
+    EXPECT_TRUE(ShaderConfig::fromSettings(settings).hotReload);
 
     settings.set("shader.hotReload", false);
     EXPECT_FALSE(ShaderConfig::fromSettings(settings).hotReload);
