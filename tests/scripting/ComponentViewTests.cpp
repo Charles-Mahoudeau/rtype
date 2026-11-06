@@ -44,7 +44,7 @@ struct Fixture {
     rtype::luau::Runtime runtime{makeRuntime()};
     rtype::ecs::ComponentInfo info;
     std::vector<std::byte> bytes;
-    sv::ViewScope scope;
+    std::shared_ptr<sv::ViewScope> scope{std::make_shared<sv::ViewScope>()};
 
     explicit Fixture(const sc::ComponentDeclaration& declaration) {
         const auto layout = sc::registerComponent(world.getComponents(), declaration);
@@ -70,8 +70,8 @@ struct Fixture {
     void expose(const std::string& name, const bool readOnly = false) {
         const auto userdata = runtime.usertype<sv::ComponentView>().create({.type = &info.type,
                                                                             .bytes = bytes,
-                                                                            .scope = &scope,
-                                                                            .generation = scope.generation,
+                                                                            .scope = scope,
+                                                                            .generation = scope->generation,
                                                                             .readOnly = readOnly});
         ASSERT_TRUE(userdata);
         ASSERT_TRUE(runtime.globals().set(name, rtype::luau::Value{*userdata}));
@@ -412,7 +412,7 @@ TEST(ComponentView, RefusesAccessOnceTheScopeMovedOn) {
     fixture.expose("shield");
     ASSERT_EQ(fixture.run("value = shield.strength"), "");
 
-    ++fixture.scope.generation;
+    ++fixture.scope->generation;
 
     EXPECT_NE(fixture.run("value = shield.strength").find("no longer valid"), std::string::npos);
     EXPECT_NE(fixture.run("shield.strength = 1").find("no longer valid"), std::string::npos);

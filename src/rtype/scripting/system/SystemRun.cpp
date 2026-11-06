@@ -13,6 +13,8 @@
 #include <format>
 #include <iostream>
 #include <iterator>
+#include <memory>
+#include <new>
 #include <optional>
 #include <span>
 #include <string>
@@ -48,6 +50,14 @@
 
 namespace rtype::scripting::system {
 namespace {
+/// @return Zero-initialised-size storage for one value of `type`, aligned as the type requires.
+[[nodiscard]] std::shared_ptr<std::byte> allocateBytes(const ecs::TypeInfo& type) {
+    const std::align_val_t alignment{std::max<std::size_t>(type.alignment, 1)};
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+    auto* raw = static_cast<std::byte*>(::operator new(std::max<std::size_t>(type.size, 1), alignment));
+    return {raw, [alignment](std::byte* bytes) { ::operator delete(bytes, alignment); }};
+}
+
 /// @return The value a script gets for the user data it was given, or the error that made it.
 [[nodiscard]] luau::Value handOver(luau::Result<luau::Userdata> userdata) {
     if (!userdata) {
@@ -113,7 +123,7 @@ class QueryStepper {
         return handOver(_views.create(view::ComponentView{
             .type = &info->type,
             .bytes = bytes,
-            .scope = _system->scope.get(),
+            .scope = _system->scope,
             .generation = _system->scope->generation,
             .readOnly = readOnly,
         }));
@@ -201,9 +211,10 @@ class EventsContext {
                 throw luau::exceptions::RuntimeError{"events.send expects a table of fields as its second argument"};
             }
         }
-        std::vector<std::byte> bytes(term.type->size);
+        const std::shared_ptr<std::byte> storage = allocateBytes(*term.type);
+        const std::span<std::byte> bytes{storage.get(), term.type->size};
         if (term.type->hooks.construct != nullptr) {
-            term.type->hooks.construct(bytes.data());  // the defaults the type's members declare
+            term.type->hooks.construct(storage.get());  // the defaults the type's members declare
         }
         if (fields != nullptr) {
             if (auto filled = view::fillFromTable(*term.type, *fields, bytes); !filled) {
@@ -241,16 +252,18 @@ class EventsContext {
         }
         const std::span<const std::byte> read = *pass.next;
         ++pass.next;
-        // The view refuses writes, so the bytes are never written through it.
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-        const std::span<std::byte> bytes{const_cast<std::byte*>(read.data()), read.size()};
+        // The view owns a copy: a send of the same type during the pass can grow the queue and move the original.
+        const std::shared_ptr<std::byte> storage = allocateBytes(*pass.type);
+        const std::span<std::byte> bytes{storage.get(), read.size()};
+        std::ranges::copy(read, bytes.begin());
         luau::ValuePack pack;
         pack.add(handOver(_views.create(view::ComponentView{
             .type = pass.type,
             .bytes = bytes,
-            .scope = _system->scope.get(),
+            .scope = _system->scope,
             .generation = _system->scope->generation,
             .readOnly = true,
+            .storage = storage,
         })));
         return pack;
     }

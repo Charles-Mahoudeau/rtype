@@ -58,7 +58,7 @@ namespace {
     auto view = runtime.usertype<view::ComponentView>().create(view::ComponentView{
         .type = found->type,
         .bytes = bytes,
-        .scope = scope.get(),
+        .scope = scope,
         .generation = handle.generation,
         .readOnly = !found->write,
     });

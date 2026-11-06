@@ -30,7 +30,7 @@ namespace rtype::scripting::view {
 namespace {
 /// @brief Raises a Luau error unless the view can still be used.
 void checkAlive(const ComponentView& view) {
-    if (view.type == nullptr || view.scope == nullptr) {
+    if (view.type == nullptr || !view.scope) {
         throw luau::exceptions::RuntimeError{"the view is not bound to a component"};
     }
     if (view.scope->generation != view.generation) {

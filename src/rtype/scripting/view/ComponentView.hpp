@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <span>
 
 #include "ViewScope.hpp"
@@ -24,8 +25,10 @@ namespace rtype::scripting::view {
 struct RTYPE_SCRIPTING_API ComponentView {
     const ecs::TypeInfo* type{nullptr};  ///< The component, resource or event of the bytes; outlives the view.
     std::span<std::byte> bytes;          ///< The component's value, `type->size` bytes.
-    ViewScope* scope{nullptr};           ///< The scope that invalidates the view.
-    std::uint64_t generation{0};         ///< The scope's generation when the view was created.
-    bool readOnly{false};                ///< Whether writes are refused (read terms of a query).
+    std::shared_ptr<ViewScope>
+        scope;                      ///< The scope that invalidates the view; shared so a retained view never dangles.
+    std::uint64_t generation{0};    ///< The scope's generation when the view was created.
+    bool readOnly{false};           ///< Whether writes are refused (read terms of a query).
+    std::shared_ptr<void> storage;  ///< Keeps `bytes` alive when the view owns a copy of them; null otherwise.
 };
 }  // namespace rtype::scripting::view
