@@ -28,7 +28,6 @@
 #include "rtype/contract/renderer/drawing/Shape.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/query/Query.hpp"
-#include "rtype/ecs/query/QueryTerms.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/system/Side.hpp"
