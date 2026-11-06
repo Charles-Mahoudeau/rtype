@@ -6,7 +6,7 @@ target("engine")
     -- Public: Engine.hpp and EngineConfig.hpp expose the App and the settings.
     add_deps("core", "ecs", {public = true})
     -- The transform plugin is the only one the Engine names: every game has it.
-    add_deps("luau", "scripting", "replication", "plugin-transform")
+    add_deps("luau", "scripting", "replication", "plugin-transform", "plugin-physics", "plugin-physics-debug")
     add_files("**.cpp")
     add_headerfiles("**.hpp")
     add_defines("RTYPE_ENGINE_BUILD", {public = false})
