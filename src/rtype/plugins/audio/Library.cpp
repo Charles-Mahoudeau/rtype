@@ -10,12 +10,14 @@
 #include <utility>
 
 #include "core/config/Settings.hpp"
+#include "plugins/audio/AudioCalls.hpp"
 #include "plugins/audio/AudioPlugin.hpp"
 #include "plugins/audio/AudioRegistry.hpp"
 #include "rtype/contract/audiodevice/AudioDeviceRegistry.hpp"
 #include "rtype/ecs/app/PluginEntry.hpp"
 
 RTYPE_PLUGIN_LIBRARY(registrar) {
+    rtype::plugins::audio::addAudioForms(registrar.getPlugins());
     using rtype::plugins::audio::AudioPlugin;
     using rtype::plugins::audio::AudioRegistry;
     // Filled by the backend libraries, then given to the plugin when it is built.

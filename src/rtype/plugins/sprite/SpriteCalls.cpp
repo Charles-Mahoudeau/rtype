@@ -7,6 +7,7 @@
 
 #include "plugins/sprite/SpriteCalls.hpp"
 
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
@@ -111,7 +112,16 @@ void addAnimation(ecs::ResMut<AtlasAssets> atlases, const AddAnimationArguments&
 }
 }  // namespace
 
+void addSpriteForms(ecs::PluginRegistry& registry) {
+    static constexpr auto kForms = std::to_array<char>({
+#include "SpriteForms.luau.h"
+    });
+    // bin2c ends the bytes with a null terminator, which is not part of the source.
+    registry.addScriptForms("addSpriteForms", std::string_view{kForms.data(), kForms.size() - 1});
+}
+
 void addSpriteCalls(ecs::App& app) {
+    addSpriteForms(app.getPluginRegistry());
     app.addCall(std::string{kLoadAtlasCall}, &loadAtlas);
     app.addCall(std::string{kCreateAtlasCall}, &createAtlas);
     app.addCall(std::string{kAddFrameCall}, &addFrame);

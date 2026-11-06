@@ -16,6 +16,7 @@
 #include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
 #include "plugins/GlmReflection.hpp"      // IWYU pragma: keep
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/call/CallTraits.hpp"
 #include "rtype/ecs/type/String.hpp"
 
@@ -89,5 +90,9 @@ RTYPE_ECS_CALL_DATA(AddAnimationArguments, "rtype.sprite.AddAnimationArguments",
 /// `rtype.AtlasAssets` resource. They throw an AtlasException naming what is wrong (an unknown atlas or direction, an
 /// index that is not a frame, a name already taken). Called by the SpritePlugin.
 void addSpriteCalls(ecs::App& app);
+
+/// @brief Registers the setup forms of the plugin on @p registry: its library does it on every side, so a server gets
+/// the ids of what it does not load, and so does building the plugin, for a program without libraries.
+void addSpriteForms(ecs::PluginRegistry& registry);
 
 }  // namespace rtype::plugins::sprite

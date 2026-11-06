@@ -12,6 +12,7 @@
 
 #include "plugins/GlmReflection.hpp"  // IWYU pragma: keep
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/call/CallTraits.hpp"
 #include "rtype/ecs/type/String.hpp"
 
@@ -78,5 +79,9 @@ RTYPE_ECS_CALL_DATA(ActionState, "rtype.input.ActionState", value, held, pressed
 /// `rtype.input.bindAxis`, `rtype.input.bindVector` and `rtype.input.read`, each on the `rtype.Input` resource. They
 /// throw an InputException naming an unknown action, control or action type. Called by the InputPlugin.
 void addInputCalls(ecs::App& app);
+
+/// @brief Registers the setup forms of the plugin on @p registry: its library does it on every side, so a server gets
+/// the ids of what it does not load, and so does building the plugin, for a program without libraries.
+void addInputForms(ecs::PluginRegistry& registry);
 
 }  // namespace rtype::plugins::input

@@ -15,6 +15,7 @@
 #include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
 #include "plugins/GlmReflection.hpp"      // IWYU pragma: keep
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/call/CallTraits.hpp"
 #include "rtype/ecs/type/String.hpp"
 
@@ -53,5 +54,9 @@ RTYPE_ECS_CALL_DATA(SpawnTilemapResult, "rtype.tilemap.SpawnTilemapResult", laye
 /// @brief Registers the tilemap engine calls on @p app, for scripts: `rtype.tilemap.load` and `rtype.tilemap.spawn`,
 /// on the `rtype.TilemapAssets` resource. Called by the TilemapPlugin.
 void addTilemapCalls(ecs::App& app);
+
+/// @brief Registers the setup forms of the plugin on @p registry: its library does it on every side, so a server gets
+/// the ids of what it does not load, and so does building the plugin, for a program without libraries.
+void addTilemapForms(ecs::PluginRegistry& registry);
 
 }  // namespace rtype::plugins::tilemap

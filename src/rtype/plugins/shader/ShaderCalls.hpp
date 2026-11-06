@@ -13,6 +13,7 @@
 #include "core/asset/AssetId.hpp"
 #include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/call/CallTraits.hpp"
 #include "rtype/ecs/type/String.hpp"
 
@@ -74,5 +75,9 @@ RTYPE_ECS_CALL_DATA(SetMaterialTextureArguments, "rtype.shader.SetMaterialTextur
 /// `rtype.shader.setMaterialValue` and `rtype.shader.setMaterialTexture`. They throw a ShaderException naming what is
 /// wrong (an unknown material, a size that is not 1 to 4). Called by the ShaderPlugin.
 void addShaderCalls(ecs::App& app);
+
+/// @brief Registers the setup forms of the plugin on @p registry: its library does it on every side, so a server gets
+/// the ids of what it does not load, and so does building the plugin, for a program without libraries.
+void addShaderForms(ecs::PluginRegistry& registry);
 
 }  // namespace rtype::plugins::shader

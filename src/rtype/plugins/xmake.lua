@@ -25,6 +25,8 @@ local function plugin(name, deps)
         -- Plain x/y/z/w members instead of unions (cppcoreguidelines-pro-type-union-access).
         add_defines("GLM_FORCE_XYZW_ONLY", {public = true})
         add_rules("rtype.plugin_library")
+        -- Embeds the plugin's setup forms (<Name>Forms.luau) as byte arrays, included as "<file>.luau.h".
+        add_rules("utils.bin2c", {extensions = {".luau", ".glsl"}})
 end
 
 plugin("transform", {})
@@ -33,23 +35,25 @@ plugin("transform", {})
 
 plugin("input", {"contract-platform"})
     add_files("input/**.cpp")
+    add_files("input/InputForms.luau")
     add_headerfiles("input/**.hpp", "input/**.tpp")
 
 plugin("graphics", {"contract-renderer", "plugin-input", "plugin-transform"})
     add_files("graphics/**.cpp")
+    add_files("graphics/TextureForms.luau")
     add_headerfiles("graphics/**.hpp", "graphics/**.tpp")
     -- Decodes image files into texture pixels (graphics/ImageDecoding.cpp). Private.
     add_packages("stb")
 
 plugin("shader", {"plugin-graphics"})
     add_files("shader/**.cpp")
+    add_files("shader/ShaderForms.luau")
     add_headerfiles("shader/**.hpp", "shader/**.tpp")
     -- The shaders' compiler (glslang, required by the root xmake.lua). Private: only shader/detail/ShaderCompiler.cpp
     -- includes it.
     add_packages("glslang")
     -- The shaders ABI of the renderer contract (contract/renderer/shaders/*.glsl), the prelude of the game's shaders,
     -- embedded as byte arrays that shader/detail/ShaderAssembler.cpp includes as "<file>.glsl.h".
-    add_rules("utils.bin2c", {extensions = {".glsl"}})
     add_files("../contract/renderer/shaders/*.glsl")
 
 plugin("shape", {"plugin-graphics", "plugin-transform"})
@@ -58,6 +62,7 @@ plugin("shape", {"plugin-graphics", "plugin-transform"})
 
 plugin("sprite", {"plugin-graphics", "plugin-shader", "plugin-transform"})
     add_files("sprite/**.cpp")
+    add_files("sprite/SpriteForms.luau")
     add_headerfiles("sprite/**.hpp", "sprite/**.tpp")
     -- Reads Aseprite and TexturePacker atlases, and packs images with stb_rect_pack. Private: only sprite/detail/
     -- includes them.
@@ -65,12 +70,14 @@ plugin("sprite", {"plugin-graphics", "plugin-shader", "plugin-transform"})
 
 plugin("tilemap", {"plugin-graphics", "plugin-transform"})
     add_files("tilemap/**.cpp")
+    add_files("tilemap/TilemapForms.luau")
     add_headerfiles("tilemap/**.hpp", "tilemap/**.tpp")
     -- Reads Tiled maps. Private: only tilemap/detail/ includes it.
     add_packages("nlohmann_json")
 
 plugin("text", {"plugin-graphics", "plugin-shader", "plugin-transform"})
     add_files("text/**.cpp")
+    add_files("text/TextForms.luau")
     add_headerfiles("text/**.hpp", "text/**.tpp")
     -- Reads msdf-atlas-gen fonts. Private: only text/detail/ includes it.
     add_packages("nlohmann_json")
@@ -81,6 +88,7 @@ plugin("particle", {"plugin-graphics", "plugin-shader", "plugin-transform"})
 
 plugin("audio", {"contract-audiodevice", "plugin-transform"})
     add_files("audio/**.cpp")
+    add_files("audio/AudioForms.luau")
     add_headerfiles("audio/**.hpp", "audio/**.tpp")
 
 plugin("physics", {"plugin-transform"})

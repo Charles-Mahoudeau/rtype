@@ -7,8 +7,10 @@
 
 #include "plugins/graphics/TextureCalls.hpp"
 
+#include <array>
 #include <filesystem>
 #include <string>
+#include <string_view>
 
 #include "plugins/graphics/TextureAssets.hpp"
 #include "rtype/contract/renderer/drawing/Texture.hpp"
@@ -27,6 +29,17 @@ TextureResult loadTexture(ecs::ResMut<TextureAssets> textures, const LoadTexture
 }
 }  // namespace
 
-void addTextureCalls(ecs::App& app) { app.addCall(std::string{kLoadTextureCall}, &loadTexture); }
+void addTextureForms(ecs::PluginRegistry& registry) {
+    static constexpr auto kForms = std::to_array<char>({
+#include "TextureForms.luau.h"
+    });
+    // bin2c ends the bytes with a null terminator, which is not part of the source.
+    registry.addScriptForms("addTextureForms", std::string_view{kForms.data(), kForms.size() - 1});
+}
+
+void addTextureCalls(ecs::App& app) {
+    app.addCall(std::string{kLoadTextureCall}, &loadTexture);
+    addTextureForms(app.getPluginRegistry());
+}
 
 }  // namespace rtype::plugins::graphics
