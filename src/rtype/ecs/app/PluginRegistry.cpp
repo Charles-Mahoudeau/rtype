@@ -14,9 +14,12 @@
 #include <utility>
 #include <vector>
 
+#include "core/config/Settings.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
+void PluginRegistry::setSettings(core::config::Settings settings) { _settings = std::move(settings); }
+
 std::vector<std::string> PluginRegistry::getNames() const {
     std::vector<std::string> names;
     names.reserve(_factories.size());
@@ -31,6 +34,12 @@ void PluginRegistry::add(std::string name, Factory factory) {
     _factories.insert_or_assign(std::move(name), std::move(factory));
 }
 
+void PluginRegistry::add(std::string name, DefaultFactory factory) {
+    assert(factory != nullptr);
+    add(std::move(name),
+        Factory{[factory = std::move(factory)](const core::config::Settings& /*settings*/) { return factory(); }});
+}
+
 bool PluginRegistry::has(std::string_view name) const noexcept { return _factories.contains(name); }
 
 std::unique_ptr<Plugin> PluginRegistry::create(std::string_view name) const {
@@ -38,7 +47,7 @@ std::unique_ptr<Plugin> PluginRegistry::create(std::string_view name) const {
     if (found == _factories.end()) {
         return nullptr;
     }
-    std::unique_ptr<Plugin> plugin = found->second();
+    std::unique_ptr<Plugin> plugin = found->second(_settings);
     assert(plugin != nullptr);
     return plugin;
 }
