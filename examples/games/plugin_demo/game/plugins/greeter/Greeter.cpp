@@ -6,7 +6,7 @@
 */
 
 // A game's own plugin: this folder, its xmake.lua and one line in project.luau are all it takes. No file of the engine
-// changes for it. Scripts call it with `engine.call("duel.greet", { name = "pilot" })`.
+// changes for it. Scripts call it with `engine.call("demo.greet", { name = "pilot" })`.
 
 #include <format>
 #include <memory>
@@ -20,26 +20,26 @@
 #include "rtype/ecs/type/String.hpp"
 
 namespace {
-/// @brief The arguments of `duel.greet`.
+/// @brief The arguments of `demo.greet`.
 struct GreetArguments {
     rtype::ecs::String name;  ///< Who to greet.
 };
-RTYPE_ECS_CALL_DATA(GreetArguments, "duel.GreetArguments", name);
+RTYPE_ECS_CALL_DATA(GreetArguments, "demo.GreetArguments", name);
 
-/// @brief The result of `duel.greet`.
+/// @brief The result of `demo.greet`.
 struct GreetResult {
     rtype::ecs::String message;  ///< The greeting.
 };
-RTYPE_ECS_CALL_DATA(GreetResult, "duel.GreetResult", message);
+RTYPE_ECS_CALL_DATA(GreetResult, "demo.GreetResult", message);
 
 GreetResult greet(const GreetArguments& arguments) {
     return GreetResult{.message = rtype::ecs::String{std::format("Good luck, {}!", arguments.name.view())}};
 }
 
-/// @brief Adds the call `duel.greet`.
+/// @brief Adds the call `demo.greet`.
 class GreeterPlugin final : public rtype::ecs::Plugin {
   public:
-    static constexpr std::string_view kName = "duel.Greeter";  ///< The plugin's name, as project.luau names it.
+    static constexpr std::string_view kName = "demo.Greeter";  ///< The plugin's name, as project.luau names it.
 
     GreeterPlugin() = default;
     ~GreeterPlugin() override = default;
@@ -49,7 +49,7 @@ class GreeterPlugin final : public rtype::ecs::Plugin {
     GreeterPlugin& operator=(GreeterPlugin&& other) noexcept = default;
 
     [[nodiscard]] std::string_view getName() const noexcept override { return kName; }
-    void build(rtype::ecs::App& app) override { app.addCall("duel.greet", &greet); }
+    void build(rtype::ecs::App& app) override { app.addCall("demo.greet", &greet); }
 };
 }  // namespace
 
