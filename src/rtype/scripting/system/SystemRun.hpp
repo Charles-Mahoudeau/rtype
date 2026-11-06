@@ -16,6 +16,7 @@
 #include "rtype/ecs/call/DynamicCalls.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
+#include "rtype/ecs/component/ComponentRegistry.hpp"
 #include "rtype/ecs/system/DynamicEvents.hpp"
 #include "rtype/ecs/system/DynamicQueries.hpp"
 #include "rtype/ecs/system/DynamicResources.hpp"
@@ -54,8 +55,9 @@ struct ScriptSystem {
     std::vector<EventTerm> events;            ///< Its event types, in the order of its EventList.
     std::vector<const ecs::CallInfo*> calls;  ///< Its engine calls, in the order of its CallList; owned by the world.
     bool clientSide{false};                   ///< Runs on clients only: its commands cannot add replicated components.
-    std::shared_ptr<RuntimeHandle> runtime;   ///< The runtime of the host, null inside once it is destroyed.
-    std::shared_ptr<view::ViewScope> scope;   ///< Invalidates the views of a run when it returns.
+    const ecs::ComponentRegistry* components{nullptr};  ///< The world's components, for its commands.
+    std::shared_ptr<RuntimeHandle> runtime;             ///< The runtime of the host, null inside once it is destroyed.
+    std::shared_ptr<view::ViewScope> scope;             ///< Invalidates the views of a run when it returns.
 };
 
 /// @brief Runs a script system once: calls its `run` with a `ctx`.

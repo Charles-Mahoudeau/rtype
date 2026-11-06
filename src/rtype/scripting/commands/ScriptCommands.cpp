@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <format>
 #include <optional>
+#include <span>
 #include <string>
 #include <tl/expected.hpp>
 #include <utility>
@@ -18,6 +19,8 @@
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
+#include "rtype/ecs/type/Field.hpp"
+#include "rtype/ecs/type/TypeHooks.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/luau/Exceptions.hpp"
 #include "rtype/luau/Result.hpp"
@@ -30,7 +33,7 @@ namespace rtype::scripting::commands {
 namespace {
 /// @brief A component value ready to be recorded.
 struct Built {
-    ecs::ComponentId id;           ///< The component.
+    ecs::ComponentId id{};         ///< The component.
     std::vector<std::byte> bytes;  ///< Its defaults with the fields of the script written over them.
 };
 
@@ -43,22 +46,59 @@ void checkAlive(const ScriptCommands& handle) {
     }
 }
 
-/// @brief Builds the value of a component from its defaults and the fields of a table.
-/// @throws luau::exceptions::RuntimeError If no script declared the component, or a field is refused.
-[[nodiscard]] Built build(const ScriptCommands& handle, const std::string& name, const luau::Table* fields) {
-    const auto layout = handle.layouts->find(name);
-    if (layout == handle.layouts->end()) {
-        throw luau::exceptions::RuntimeError{std::format("unknown component '{}': no script declared it", name)};
+/// @return A plain-data C++ component of the world.
+/// @throws luau::exceptions::RuntimeError If the world has no such component, it is not plain data, or the system runs
+/// on clients and the component is replicated or server-only.
+[[nodiscard]] const ecs::ComponentInfo& requireEngineComponent(const ScriptCommands& handle, const std::string& name) {
+    const ecs::ComponentInfo* info = handle.registry != nullptr ? handle.registry->findByName(name) : nullptr;
+    if (info == nullptr) {
+        throw luau::exceptions::RuntimeError{
+            std::format("unknown component '{}': no script declared it and the world has none", name)};
     }
-    if (handle.clientSide && !layout->second.clientWritable) {
+    const ecs::TypeHooks& hooks = info->type.hooks;
+    if (hooks.destruct != nullptr || hooks.move != nullptr || hooks.copy != nullptr) {
+        throw luau::exceptions::RuntimeError{
+            std::format("cannot add '{}': it is not plain data (it owns memory of its own)", name)};
+    }
+    if (handle.clientSide &&
+        (info->type.replication != ecs::ReplicationMode::kNone || info->type.presence == ecs::Presence::kServerOnly)) {
         throw luau::exceptions::RuntimeError{
             std::format("a client system cannot add '{}': it is replicated or server-only", name)};
     }
-    Built built{.id = layout->second.id, .bytes = layout->second.defaults};
+    return *info;
+}
+
+/// @return The bytes of a default-constructed value of a C++ type.
+[[nodiscard]] std::vector<std::byte> defaultsOf(const ecs::TypeInfo& type) {
+    std::vector<std::byte> bytes(type.size);
+    if (type.hooks.construct != nullptr && !bytes.empty()) {
+        type.hooks.construct(bytes.data());
+    }
+    return bytes;
+}
+
+/// @brief Builds the value of a component from its defaults and the fields of a table.
+/// @throws luau::exceptions::RuntimeError If the component is unknown or refused, or a field is refused.
+[[nodiscard]] Built build(const ScriptCommands& handle, const std::string& name, const luau::Table* fields) {
+    const auto layout = handle.layouts->find(name);
+    Built built;
+    std::span<const ecs::FieldInfo> described;
+    if (layout != handle.layouts->end()) {
+        if (handle.clientSide && !layout->second.clientWritable) {
+            throw luau::exceptions::RuntimeError{
+                std::format("a client system cannot add '{}': it is replicated or server-only", name)};
+        }
+        built = Built{.id = layout->second.id, .bytes = layout->second.defaults};
+        described = layout->second.fields;
+    } else {
+        const ecs::ComponentInfo& info = requireEngineComponent(handle, name);
+        built = Built{.id = info.type.id, .bytes = defaultsOf(info.type)};
+        described = info.type.fields;
+    }
     if (fields != nullptr) {
         ecs::TypeInfo description;
         description.name = name;
-        description.fields = layout->second.fields;
+        description.fields.assign(described.begin(), described.end());
         if (auto filled = view::fillFromTable(description, *fields, built.bytes); !filled) {
             throw luau::exceptions::RuntimeError{std::string{filled.error().message()}};
         }

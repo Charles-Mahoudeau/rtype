@@ -251,6 +251,7 @@ Result<void> registerSystem(ecs::App& app, SystemDeclaration declaration, std::s
         .events = std::move(events->first),
         .calls = std::move(calls->first),
         .clientSide = declaration.side == ecs::Side::kClient,
+        .components = &components.getRegistry(),
         .runtime = std::move(runtime),
         .scope = std::make_shared<view::ViewScope>(),
     });
