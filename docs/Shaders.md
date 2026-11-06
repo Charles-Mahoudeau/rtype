@@ -113,6 +113,48 @@ if (const ShaderHandles::Material* material = handles->getMaterial(hit)) {
 
 `examples/plugins/shader` shows sprites and shapes with both kinds of values.
 
+### From a script
+
+`engine.assets.shader` and `engine.assets.material` do the same from a game's scripts. A value is a number or a vector
+`{x, y}`, `{x, y, z}` or `{x, y, z, w}`; a whole number fills an `int`. The form gives the material's id, for the
+`material` field of a `SpriteRenderer`. On a server, which has no ShaderPlugin, both forms only give the id.
+
+```lua
+local flash = engine.assets.shader("assets/shaders/flash.glsl")
+local hit = engine.assets.material({
+    name = "enemy_hit",
+    shader = flash,
+    values = { amount = 0.8, tint = { x = 1, y = 0.2, z = 0.2, w = 1 } },
+    textures = { noise = engine.assets.texture("assets/noise.png") },
+})
+```
+
+### Where the files are
+
+A game built by the `Engine` gives `ShaderPlugin{settings}` its directory: a shader's path is relative to the **game
+directory**, so `assets/shaders/flash.glsl` is `<game>/assets/shaders/flash.glsl`. Without settings (`ShaderPlugin{}`, as
+the examples that have no `Engine`), it is relative to the working directory. Only shaders work this way for now:
+textures, fonts and sounds are still relative to the working directory.
+
+## Hot reload
+
+With hot reload on, saving a shader changes the running game. The `ShaderWatcher` looks at `<game>/assets/shaders` and
+its subfolders twice a second, by the files' modification times.
+
+```lua
+-- project.luau: true by default in a debug build, false in a release one.
+engine.settings.shader = { hotReload = true }
+```
+
+- Only the shaders the game loaded are compiled. Another file in the folder is ignored until the game asks for it, and a
+  shader loaded from elsewhere, or written in code, is not followed.
+- A shader keeps its `AssetId`, so its materials follow it: `ShaderHandles` creates the new shader, then its materials,
+  in the same frame. A material whose values no longer match the shader is reported and drawn with the default material
+  until the next save.
+- An edit that does not compile prints the error and keeps the last version on screen. A shader that failed at load
+  is created at the first save that compiles.
+- A `MaterialInstance` keeps its bytes: if a save moves or retypes an `instance uniform`, set its values again.
+
 ## Limits
 
 | What                              | Limit                                                    |

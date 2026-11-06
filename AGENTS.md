@@ -146,8 +146,9 @@ are added.
       its glyphs in the sprites' order, read by the default shader's glyph variant, `glyph.frag`). It requires the graphics and shader plugins. See `docs/Text.md`.
     - `plugins/shader/` (`rtype::plugins::shader`) — `ShaderPlugin`: game shaders and materials. `ShaderAssets` (shaders
       by `AssetId`, written in the engine's GLSL dialect), `MaterialAssets` (`Material`: a shader and its values),
-      the `MaterialInstance` component (an entity's own `instance uniform` values) and `ShaderHandles`, which keeps the
-      renderer up to date. `detail/` holds the parser, the assembler and the compiler. glslang is a private package: only
+      the `MaterialInstance` component (an entity's own `instance uniform` values), `ShaderHandles`, which keeps the
+      renderer up to date, and `ShaderWatcher`, which reloads the shaders saved in `<game>/assets/shaders`
+      (`shader.hotReload`). `ShaderCalls.hpp` holds what `engine.assets.shader` and `material` call. `detail/` holds the parser, the assembler and the compiler. glslang is a private package: only
       `shader/detail/ShaderCompiler.cpp` includes it. It requires the graphics plugin. See `docs/Shaders.md`.
     - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
     - `plugins/AssetIdReflection.hpp` — lets components reflect `core::asset::AssetId` fields (`kAssetId`).

@@ -112,7 +112,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public contract::renderer::
             vk::PresentModeKHR::eFifo;  ///< Swapchain present mode: FIFO (vsync, always supported), MAILBOX (vsync,
                                         ///< a newer image replaces the pending one instead of waiting) or IMMEDIATE
                                         ///< (no vsync, may tear; benchmarks); FIFO when unsupported.
-        std::filesystem::path shaderDirectory = "shaders";  ///< Where the game's SPIR-V shaders are loaded from.
+        std::filesystem::path shaderDirectory = "shaders";  ///< Where the built-in SPIR-V shaders are loaded from.
                                                             ///< Relative: to the executable's directory, never to
                                                             ///< the working directory. Built-in shaders are embedded.
         std::filesystem::path pipelineCache = "pipeline_cache.bin";  ///< Where the compiled pipelines are kept between
