@@ -22,13 +22,17 @@
 #include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/exceptions/PluginException.hpp"
+#include "rtype/ecs/prefab/PrefabConfig.hpp"
+#include "rtype/ecs/prefab/Prefabs.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/schedule/Schedules.hpp"
 #include "rtype/ecs/time/TimePlugin.hpp"
 #include "rtype/ecs/world/World.hpp"
 
 namespace rtype::ecs {
-App::App(RunMode mode) : _schedules{_world, mode} {}
+App::App(RunMode mode) : _schedules{_world, mode} {
+    _world.getPrefabs().setRunMode(mode);  // a spawn leaves out the components of the other side
+}
 
 App::~App() = default;  // defined here, where Plugin is complete, for the unique_ptrs to destroy it
 
@@ -104,6 +108,8 @@ void App::addDependencies(const Plugin& plugin) {
     }
     _resolving.pop_back();
 }
+
+PrefabConfig App::addPrefab(std::string name) { return PrefabConfig{_world, _world.getPrefabs().add(std::move(name))}; }
 
 void App::runFrame() {
     if (!hasPlugin(TimePlugin::kName)) {  // every App has time: the default one unless a configured one was added
