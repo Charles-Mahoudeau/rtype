@@ -14,6 +14,7 @@
 
 #include "plugins/text/FontAssets.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 
 namespace rtype::plugins::text {

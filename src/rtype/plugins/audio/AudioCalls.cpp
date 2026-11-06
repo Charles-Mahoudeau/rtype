@@ -19,6 +19,7 @@
 #include "plugins/audio/exceptions/AudioCallException.hpp"
 #include "rtype/contract/audiodevice/AudioTypes.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/system/EventWriter.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 

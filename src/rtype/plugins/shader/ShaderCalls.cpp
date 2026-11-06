@@ -26,6 +26,7 @@
 #include "plugins/shader/exceptions/ShaderExceptions.hpp"
 #include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 
 namespace rtype::plugins::shader {

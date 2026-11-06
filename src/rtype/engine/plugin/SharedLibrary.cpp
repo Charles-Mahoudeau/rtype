@@ -39,7 +39,6 @@ constexpr std::string_view kExtension = ".so";
 #endif
 }  // namespace
 
-// NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer): it is set by a different call on each system.
 SharedLibrary::SharedLibrary(const std::filesystem::path& path) {
 #ifdef _WIN32
     // A module of the same name is shared: the engine's own copy, next to the executable, is the one its code uses.
@@ -55,6 +54,7 @@ SharedLibrary::SharedLibrary(const std::filesystem::path& path) {
             std::format("Cannot load the library '{}': system error {}", path.generic_string(), GetLastError())};
     }
 #else
+    // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer): it is set by a different call on each system.
     _handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (_handle == nullptr) {
         const char* reason = dlerror();

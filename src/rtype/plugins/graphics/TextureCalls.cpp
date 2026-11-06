@@ -15,6 +15,7 @@
 #include "plugins/graphics/TextureAssets.hpp"
 #include "rtype/contract/renderer/drawing/Texture.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 
 namespace rtype::plugins::graphics {

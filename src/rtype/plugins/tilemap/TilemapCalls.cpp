@@ -16,6 +16,7 @@
 #include "plugins/tilemap/SpawnTilemap.hpp"
 #include "plugins/tilemap/TilemapAssets.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 

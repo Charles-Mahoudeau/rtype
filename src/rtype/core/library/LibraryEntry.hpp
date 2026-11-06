@@ -14,6 +14,7 @@
 
 /// @brief Names the compiler and the standard library a binary was built with, as a string literal.
 /// @details What a library shares with the engine is C++: they must agree on it, so they must be built alike.
+// NOLINTBEGIN(cppcoreguidelines-macro-usage): these build a string literal from the compiler's own macros.
 #define RTYPE_CORE_DETAIL_STRINGIFY_VALUE(value) #value
 #define RTYPE_CORE_DETAIL_STRINGIFY(value) RTYPE_CORE_DETAIL_STRINGIFY_VALUE(value)
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -36,6 +37,7 @@
 #else
 #define RTYPE_LIBRARY_EXPORT __attribute__((visibility("default")))
 #endif
+// NOLINTEND(cppcoreguidelines-macro-usage)
 
 namespace rtype::core::library {
 
@@ -98,14 +100,16 @@ void checkLibrary(const LibraryEntry& entry, std::string_view file);
 /// @endcode
 // NOLINTBEGIN(cppcoreguidelines-macro-usage,bugprone-macro-parentheses): it declares an exported C function and names
 // a parameter, which only a macro can do and which parentheses would break.
-#define RTYPE_LIBRARY(target)                                                                                    \
-    static void rtypeRegisterLibrary(::rtype::core::library::LibraryRegistrar& target);                          \
-    extern "C" RTYPE_LIBRARY_EXPORT const ::rtype::core::library::LibraryEntry* rtypeLibrary() {                 \
-        static const ::rtype::core::library::LibraryEntry entry{::rtype::core::library::kLibraryAbiVersion,      \
-                                                                RTYPE_LIBRARY_TOOLCHAIN, &rtypeRegisterLibrary}; \
-        return &entry;                                                                                           \
-    }                                                                                                            \
-    static void rtypeRegisterLibrary(::rtype::core::library::LibraryRegistrar& target)
+#define RTYPE_LIBRARY(target)                                                                                      \
+    namespace rtype_library {                                                                                      \
+    void registerLibrary(::rtype::core::library::LibraryRegistrar& target);                                        \
+    }                                                                                                              \
+    extern "C" RTYPE_LIBRARY_EXPORT const ::rtype::core::library::LibraryEntry* rtypeLibrary() {                   \
+        static const ::rtype::core::library::LibraryEntry entry{                                                   \
+            ::rtype::core::library::kLibraryAbiVersion, RTYPE_LIBRARY_TOOLCHAIN, &rtype_library::registerLibrary}; \
+        return &entry;                                                                                             \
+    }                                                                                                              \
+    void rtype_library::registerLibrary(::rtype::core::library::LibraryRegistrar& target)
 // NOLINTEND(cppcoreguidelines-macro-usage,bugprone-macro-parentheses)
 
 #define RTYPE_LIBRARY_ENTRY_INCLUDING_TPP

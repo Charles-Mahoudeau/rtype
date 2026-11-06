@@ -26,6 +26,7 @@
 #include "rtype/contract/renderer/drawing/Texture.hpp"
 #include "rtype/contract/renderer/math/Rect.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 
 namespace rtype::plugins::sprite {
