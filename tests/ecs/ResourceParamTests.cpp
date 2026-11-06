@@ -33,6 +33,7 @@ namespace {
 using rtype::ecs::NonSend;
 using rtype::ecs::NonSendMut;
 using rtype::ecs::Res;
+using rtype::ecs::ResAppend;
 using rtype::ecs::ResMut;
 using rtype::ecs::ResourceAccess;
 using rtype::ecs::ResourceThread;
@@ -50,6 +51,9 @@ static_assert(ResMut<Time>::kAccess == ResourceAccess::kWrite && ResMut<Time>::k
 static_assert(NonSend<Time>::kAccess == ResourceAccess::kRead && NonSend<Time>::kThread == ResourceThread::kMain);
 static_assert(NonSendMut<Time>::kAccess == ResourceAccess::kWrite &&
               NonSendMut<Time>::kThread == ResourceThread::kMain);
+
+static_assert(ResAppend<Time>::kAccess == ResourceAccess::kAppend && ResAppend<Time>::kThread == ResourceThread::kAny);
+static_assert(ResAppend<Time>::kWrites && ResMut<Time>::kWrites && !Res<Time>::kWrites);
 
 // A read parameter gives read-only access; a written one gives write access.
 static_assert(std::is_same_v<decltype(std::declval<Res<Time>&>().operator->()), const Time*>);

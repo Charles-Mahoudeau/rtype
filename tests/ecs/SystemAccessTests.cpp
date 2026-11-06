@@ -38,6 +38,19 @@ TEST(SystemAccess, KeepsEachKindApart) {
     EXPECT_EQ(toVector(access.getEvents()), (std::vector<TypeAccess>{{.id = 3, .write = true}}));
 }
 
+TEST(SystemAccess, KeepsAnAppendOnlyWhileItIsTheOnlyUse) {
+    SystemAccess access;
+    access.addResource(1, true, true);
+    access.addResource(1, true, true);
+    access.addResource(2, true, true);
+    access.addResource(2, false);  // it also reads what is there
+    access.addResource(3, false);
+    access.addResource(3, true, true);  // same, in the other order
+    EXPECT_EQ(toVector(access.getResources()),
+              (std::vector<TypeAccess>{
+                  {.id = 1, .write = true, .append = true}, {.id = 2, .write = true}, {.id = 3, .write = true}}));
+}
+
 TEST(SystemAccess, ListsEachTypeOnceWithWriteWinning) {
     SystemAccess access;
     access.addComponent(1, false);
