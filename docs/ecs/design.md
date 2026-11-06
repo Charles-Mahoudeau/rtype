@@ -815,8 +815,10 @@ level).
 prefabs, Unreal Mass entity configs.
 
 **Our choice.** v2: a **prefab** is a named list of component values, built from C++ or Luau and
-spawned by name (`commands.spawnPrefab("game.Bydo")`). Because it only references components by name,
-the server can tell clients "spawn `game.Bydo`" cheaply. Scenes (v3) reuse the reflection serializer.
+spawned by name (`commands.spawnPrefab("game.Bydo")`, or `world.spawnPrefab` outside systems), with child
+prefabs spawned as a parented tree, overrides added after, and the components of the other side of the
+network left out. Because it only references components by name, the server can tell clients "spawn
+`game.Bydo`" cheaply. Scenes (v3) reuse the reflection serializer.
 Serves: R2, R3, R4.
 
 **Details:** [`features/18-prefabs-and-scenes.md`](features/18-prefabs-and-scenes.md).

@@ -27,8 +27,9 @@ loaded into a world.
 
 ## Our choice
 
-- **Prefabs (v2):** a named list of `(component name, field values)`, registered from C++ or Luau,
-  instantiated by copying values (no inheritance). Simple, and it serializes trivially.
+- **Prefabs (v2, implemented):** a named list of component values with child prefabs, registered from C++
+  or by id and bytes (Luau), instantiated by copying values (no inheritance). Simple, and it serializes
+  trivially.
 - **Scenes (v3):** files listing entities and their component values by name, read and written with the
   [reflection serializer](15-reflection-and-serialization.md).
 
@@ -36,49 +37,88 @@ loaded into a world.
 
 ### Declaring a prefab
 
-```luau
-app:prefab("game.Bydo", {
-    ["rtype.Transform"] = {},                                       -- defaults
-    ["rtype.SpriteRenderer"] = { texture = asset("sprites/bydo.png") },
-    ["rtype.Collider"] = { size = vec2(24, 24) },
-    ["game.Health"] = { value = 3 },
-    ["game.Enemy"] = {},
-})
-```
+A prefab lives in the world's **`Prefabs`** (`prefab/Prefabs.hpp`, `world.getPrefabs()`): a name, its
+**`ComponentValues`** (one live value per component, copied and destroyed with its type's hooks), and its child
+prefabs. From C++, the App fills one with a chain (`PrefabConfig`):
 
 ```c++
-app.prefab("game.Bullet")
+app.addPrefab("game.Bullet")
     .with(Transform{})
     .with(Velocity{.value = {600.F, 0.F}})
     .with(Bullet{});
 ```
 
-The prefab is stored as **component bytes per component id**, prepared once at registration with the
-field values applied over each component's defaults.
+The Luau bridge, which only knows components by id, uses the same registry with bytes (SCR-08 builds the
+`app:prefab` form below on it):
+
+```c++
+const rtype::ecs::PrefabId bydo = world.getPrefabs().add("game.Bydo");
+world.getPrefabs().edit(bydo).getValues().set(world.getComponents(), transformId, transformBytes);
+```
+
+```luau
+app:prefab("game.Bydo", {                                            -- planned (SCR-08)
+    ["rtype.Transform"] = {},                                       -- defaults
+    ["rtype.SpriteRenderer"] = { texture = asset("sprites/bydo.png") },
+    ["game.Health"] = { value = 3 },
+    ["game.Enemy"] = {},
+})
+```
+
+| Rule | Behaviour |
+|---|---|
+| Names | Unique per world; an empty name, a taken one or a hash collision throws `PrefabException` |
+| Values | Any component (all are copyable); setting one again replaces it. `Parent` and `Children` are refused: the prefab's children set the hierarchy |
+| Editing | `edit(id)` changes the prefab; entities already spawned keep their copies |
 
 ### Spawning
 
-```luau
-local enemy = ctx.commands:spawnPrefab("game.Bydo", {
-    ["rtype.Transform"] = { position = vec2(820, 140) },   -- overrides
-})
+```c++
+// in a system: reserved at once, alive at the next flush
+const rtype::ecs::Entity enemy =
+    commands.spawnPrefab("game.Bydo").add(Transform{.position = {820.F, 140.F}}).getEntity();   // override
+
+// outside systems (loading a level, tests): at once
+const rtype::ecs::Entity boss = world.spawnPrefab("game.Boss");
 ```
 
 ```mermaid
 flowchart LR
-    prefab["Prefab game.Bydo<br/>prepared component bytes"] --> copy["Copy each component<br/>(copy hook or memcpy)"]
-    overrides["Overrides<br/>Transform.position"] --> copy
+    prefab["Prefab game.Bydo<br/>prepared component values"] --> copy["Copy each kept value<br/>(copy hook or memcpy)"]
     copy --> commands["Commands buffer"]
+    overrides[".add(Transform{...})<br/>recorded after"] --> commands
     commands --> world["World at next flush"]
 ```
 
-Spawning goes through [commands](09-commands.md), so it is safe inside systems and returns the reserved
-entity at once.
+`spawnPrefab` (by id or by name) returns the root's `EntityCommands`, so an override is a plain `add()`: it
+is recorded after the prefab's values and replaces them for this entity. Field-level overrides from Luau
+(`{ ["rtype.Transform"] = { position = ... } }`) are built by the scripting layer from the prefab's bytes
+(`getValues().get(id)`). An unknown prefab throws `PrefabException`. `World::spawnPrefab` despawns what it
+created if a copy fails halfway, so no half-built tree is left.
+
+**Presence.** The App gives its run mode to the prefabs: a client leaves out `kServerOnly` components
+(overrides of children included), a dedicated server `kClientOnly` ones; standalone, and a `World` without
+an App, keep everything.
 
 ### Prefabs with children
 
-A prefab can list child prefabs with their `Transform` relative to the root (a boss and its turrets).
-Spawning creates the whole tree and sets `Parent` on each child (see [Hierarchy](17-hierarchy.md)).
+A prefab lists child prefabs, each with its own overrides (typically its `Transform` relative to the
+root). Spawning creates the whole tree, depth first, and sets `Parent` on each child, so the World keeps
+`Children` in sync (see [Hierarchy](17-hierarchy.md)):
+
+```c++
+app.addPrefab("game.Turret").with(Transform{}).with(Health{.value = 5});
+app.addPrefab("game.Boss")
+    .with(Transform{})
+    .with(Health{.value = 50})
+    .withChild("game.Turret", Transform{.position = {-40.F, 0.F}})
+    .withChild("game.Turret", Transform{.position = {40.F, 0.F}});
+```
+
+A child must be registered first, and a prefab cannot contain itself: `Prefabs::addChild()` refuses a
+child whose tree holds the parent (`A → B → A`), while sharing a child (a diamond) is fine. `Commands` and
+the `World` spawn through the same tree walk (`detail::spawnPrefabTree`), so both create the same entities
+in the same order.
 
 ### Over the network
 
