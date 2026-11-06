@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -20,6 +21,27 @@
 #include "rtype/ecs/time/FixedTimestep.hpp"
 #include "rtype/ecs/time/TimePlugin.hpp"
 #include "rtype/scripting/ScriptHost.hpp"
+
+namespace rtype::test::commands {
+/// @brief A plain-data C++ component, with defaults of its own.
+struct Hull {
+    float armor{7.0F};
+    std::uint32_t plates{3};
+};
+RTYPE_ECS_COMPONENT(Hull, "test.Hull", armor, plates);
+
+/// @brief A replicated C++ component.
+struct Beacon {
+    std::uint32_t channel{0};
+};
+RTYPE_ECS_COMPONENT(Beacon, "test.Beacon", channel);
+
+/// @brief A C++ component that owns memory: not plain data.
+struct Cargo {
+    std::vector<std::int32_t> items;
+};
+RTYPE_ECS_COMPONENT(Cargo, "test.Cargo");
+}  // namespace rtype::test::commands
 
 namespace {
 /// @brief An App whose every frame lasts one second, and a host on it with a few components declared, and one marked
@@ -462,4 +484,78 @@ TEST(ScriptLists, ReadsAndWritesATextOfAnyLength) {
     fixture.app.runFrame();
     EXPECT_EQ(fixture.run("assert(seen == 'hello' and refused == false)"), "");
     EXPECT_EQ(world.getComponents().get<Sign>(entity)->text, std::string(1000, 'a'));
+}
+
+TEST(ScriptCommands, AScriptSpawnsACxxComponentFromItsCxxDefaults) {
+    Fixture fixture;
+    static_cast<void>(fixture.app.getWorld().getComponents().registerType<rtype::test::commands::Hull>());
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Builder", {
+            phase = "Update",
+            query = { with = { "game.Marker" } },
+            run = function(ctx)
+                ctx.commands:spawn({ ["test.Hull"] = { plates = 5 } })
+            end,
+        })
+        engine.ecs.system("game.Inspector", {
+            phase = "PostUpdate",
+            query = { read = { "test.Hull" } },
+            run = function(ctx)
+                for entity, hull in ctx.query do
+                    seenArmor, seenPlates = hull.armor, hull.plates
+                end
+            end,
+        })
+    )"),
+              "");
+
+    fixture.app.runFrame();
+
+    EXPECT_EQ(fixture.run("assert(seenArmor == 7 and seenPlates == 5, tostring(seenArmor))"), "");
+}
+
+TEST(ScriptCommands, AClientSystemCannotAddAReplicatedCxxComponent) {
+    Fixture fixture;
+    static_cast<void>(fixture.app.getWorld().getComponents().registerType<rtype::test::commands::Beacon>(
+        {.replication = rtype::ecs::ReplicationMode::kEveryChange}));
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Lighter", {
+            phase = "Update",
+            side = "client",
+            query = { with = { "game.Marker" } },
+            run = function(ctx)
+                ctx.commands:spawn({ ["test.Beacon"] = { channel = 2 } })
+            end,
+        })
+    )"),
+              "");
+
+    testing::internal::CaptureStderr();
+    fixture.app.runFrame();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_NE(log.find("a client system cannot add 'test.Beacon'"), std::string::npos) << log;
+    EXPECT_EQ(fixture.app.getWorld().getEntityCount(), 1U);
+}
+
+TEST(ScriptCommands, ACxxComponentThatIsNotPlainDataIsRefused) {
+    Fixture fixture;
+    static_cast<void>(fixture.app.getWorld().getComponents().registerType<rtype::test::commands::Cargo>());
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Loader", {
+            phase = "Update",
+            query = { with = { "game.Marker" } },
+            run = function(ctx)
+                ctx.commands:spawn({ ["test.Cargo"] = { } })
+            end,
+        })
+    )"),
+              "");
+
+    testing::internal::CaptureStderr();
+    fixture.app.runFrame();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_NE(log.find("cannot add 'test.Cargo': it is not plain data"), std::string::npos) << log;
+    EXPECT_EQ(fixture.app.getWorld().getEntityCount(), 1U);
 }
