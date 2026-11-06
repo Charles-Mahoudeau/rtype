@@ -8,11 +8,15 @@
 #include "FieldAccess.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <format>
+#include <glm/ext/vector_float3.hpp>
+#include <iterator>
 #include <limits>
 #include <span>
 #include <string>
@@ -20,6 +24,7 @@
 #include <tl/expected.hpp>
 #include <utility>
 
+#include "core/asset/AssetId.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/type/Field.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
@@ -46,15 +51,26 @@ Result<void> checkSupported(const std::string_view component, const ecs::FieldIn
     if (field.count != 1) {
         return tl::unexpected{fieldError(component, field, "array fields are not supported")};
     }
-    if (field.type == ecs::FieldType::kVec2 || field.type == ecs::FieldType::kVec3 ||
-        field.type == ecs::FieldType::kVec4 || field.type == ecs::FieldType::kAssetId) {
-        return tl::unexpected{fieldError(component, field, "this field type is not supported yet")};
-    }
     const auto size = ecs::getFieldLayout(field.type).size;
     if (size > bytes.size() || field.offset > bytes.size() - size) {
         return tl::unexpected{fieldError(component, field, "the field is out of the component's bytes")};
     }
     return {};
+}
+
+/// @brief Names of the components of a vector field, in memory order.
+constexpr std::array<std::string_view, 4> kVectorKeys{"x", "y", "z", "w"};
+
+/// @return How many floats a vector field type holds.
+std::size_t vectorWidth(const ecs::FieldType type) {
+    switch (type) {
+        case ecs::FieldType::kVec2:
+            return 2;
+        case ecs::FieldType::kVec3:
+            return 3;
+        default:
+            return 4;
+    }
 }
 
 template <typename T>
@@ -96,10 +112,139 @@ Result<luau::Value> readInteger(const std::string_view component, const ecs::Fie
     }
     return luau::Value{static_cast<double>(value)};
 }
+
+/// @return Whether narrowing the number to a float is defined: infinities and NaN pass, finite overflows do not.
+bool fitsFloat(const double number) {
+    return !std::isfinite(number) || std::fabs(number) <= static_cast<double>(std::numeric_limits<float>::max());
+}
+
+/// @return The names of the components of a vector field type.
+std::span<const std::string_view> vectorKeys(const ecs::FieldType type) {
+    return std::span{kVectorKeys}.first(vectorWidth(type));
+}
+
+/// @return What a table written to a vector field type must name, for the messages.
+std::string_view expectedKeys(const ecs::FieldType type) {
+    switch (type) {
+        case ecs::FieldType::kVec2:
+            return "x and y";
+        case ecs::FieldType::kVec3:
+            return "x, y and z";
+        default:
+            return "x, y, z and w";
+    }
+}
+
+/// @brief Reads a vector field: a Luau `vector` for a `vec3`, a table of its components for the others.
+Result<luau::Value> readVector(const std::string_view component, const ecs::FieldInfo& field,
+                               const std::span<const std::byte> bytes, const FieldReadContext& context) {
+    const auto keys = vectorKeys(field.type);
+    std::array<float, 4> components{};
+    std::memcpy(components.data(), bytes.subspan(field.offset, keys.size() * sizeof(float)).data(),
+                keys.size() * sizeof(float));
+    if (field.type == ecs::FieldType::kVec3) {
+        return luau::Value{glm::vec3{components.at(0), components.at(1), components.at(2)}};
+    }
+    if (context.runtime == nullptr) {
+        return tl::unexpected{fieldError(component, field, "no runtime to build a table with")};
+    }
+    auto table = luau::Table::create(*context.runtime, 0, static_cast<int>(keys.size()));
+    if (!table) {
+        return tl::unexpected{fieldError(component, field, table.error().message())};
+    }
+    for (std::size_t index = 0; index < keys.size(); ++index) {
+        const luau::Value number{static_cast<double>(components.at(index))};
+        if (auto set = table->set(keys.subspan(index, 1).front(), number); !set) {
+            return tl::unexpected{fieldError(component, field, set.error().message())};
+        }
+    }
+    return luau::Value{std::move(*table)};
+}
+
+/// @brief Writes the components of a vector field from a table that names every one of them and nothing else.
+Result<void> writeVectorTable(const std::string_view component, const ecs::FieldInfo& field,
+                              const std::span<std::byte> bytes, const luau::Table& table) {
+    const auto keys = vectorKeys(field.type);
+    const auto entries = table.entries();
+    if (!entries) {
+        return tl::unexpected{fieldError(component, field, entries.error().message())};
+    }
+    std::array<float, 4> components{};
+    std::array<bool, 4> seen{};
+    for (const auto& [key, value] : *entries) {
+        const auto* name = key.tryAs<std::string>();
+        // A span's iterator is a pointer on libstdc++ and libc++ but a class on MSVC, so it cannot be spelled `auto*`.
+        // NOLINTNEXTLINE(readability-qualified-auto)
+        const auto found = name != nullptr ? std::ranges::find(keys, *name) : keys.end();
+        if (found == keys.end()) {
+            const std::string_view given = name != nullptr ? std::string_view{*name} : "(not a string)";
+            return tl::unexpected{fieldError(
+                component, field, std::format("unexpected key '{}', expected {}", given, expectedKeys(field.type)))};
+        }
+        const auto* number = value.tryAs<double>();
+        if (number == nullptr) {
+            return tl::unexpected{fieldError(component, field, std::format("'{}' must be a number", *found))};
+        }
+        if (!fitsFloat(*number)) {
+            return tl::unexpected{fieldError(component, field, std::format("'{}' is out of range", *found))};
+        }
+        const auto index = static_cast<std::size_t>(std::ranges::distance(keys.begin(), found));
+        components.at(index) = static_cast<float>(*number);
+        seen.at(index) = true;
+    }
+    for (std::size_t index = 0; index < keys.size(); ++index) {
+        if (!seen.at(index)) {
+            return tl::unexpected{
+                fieldError(component, field, std::format("missing '{}'", keys.subspan(index, 1).front()))};
+        }
+    }
+    std::memcpy(bytes.subspan(field.offset, keys.size() * sizeof(float)).data(), components.data(),
+                keys.size() * sizeof(float));
+    return {};
+}
+
+/// @brief Writes a `vec2`, `vec3` or `vec4` field from a table, or from a `vector` for a `vec3`.
+Result<void> writeVector(const std::string_view component, const ecs::FieldInfo& field,
+                         const std::span<std::byte> bytes, const luau::Value& value) {
+    if (const auto* table = value.tryAs<luau::Table>(); table != nullptr) {
+        return writeVectorTable(component, field, bytes, *table);
+    }
+    if (const auto* vector = value.tryAs<glm::vec3>(); vector != nullptr && field.type == ecs::FieldType::kVec3) {
+        std::memcpy(bytes.subspan(field.offset, sizeof(glm::vec3)).data(), &vector->x, sizeof(glm::vec3));
+        return {};
+    }
+    switch (field.type) {
+        case ecs::FieldType::kVec2:
+            return tl::unexpected{fieldError(component, field, "expected a table {x=, y=}")};
+        case ecs::FieldType::kVec3:
+            return tl::unexpected{fieldError(component, field, "expected a vector or a table {x=, y=, z=}")};
+        default:
+            return tl::unexpected{fieldError(component, field, "expected a table {x=, y=, z=, w=}")};
+    }
+}
+
+/// @brief Writes an asset id field from a path, which is hashed, or from an `AssetId`.
+Result<void> writeAssetId(const std::string_view component, const ecs::FieldInfo& field,
+                          const std::span<std::byte> bytes, const luau::Value& value) {
+    if (const auto* path = value.tryAs<std::string>(); path != nullptr) {
+        if (path->empty()) {
+            return tl::unexpected{fieldError(component, field, "an asset path cannot be empty")};
+        }
+        store<std::uint64_t>(bytes, field, core::asset::AssetId::fromPath(std::filesystem::path{*path}).value);
+        return {};
+    }
+    const auto* userdata = value.tryAs<luau::Userdata>();
+    const auto* id = userdata != nullptr ? userdata->tryAs<core::asset::AssetId>() : nullptr;
+    if (id == nullptr) {
+        return tl::unexpected{fieldError(component, field, "expected an asset path or an AssetId")};
+    }
+    store<std::uint64_t>(bytes, field, id->value);
+    return {};
+}
 }  // namespace
 
 Result<luau::Value> readField(const std::string_view component, const ecs::FieldInfo& field,
-                              const std::span<const std::byte> bytes, const luau::Usertype<ecs::Entity>& entities) {
+                              const std::span<const std::byte> bytes, const FieldReadContext& context) {
     if (auto supported = checkSupported(component, field, bytes); !supported) {
         return tl::unexpected{supported.error()};
     }
@@ -127,16 +272,25 @@ Result<luau::Value> readField(const std::string_view component, const ecs::Field
         case ecs::FieldType::kF64:
             return luau::Value{load<double>(bytes, field)};
         case ecs::FieldType::kEntity: {
-            auto userdata = entities.create(load<ecs::Entity>(bytes, field));
+            auto userdata = context.entities.create(load<ecs::Entity>(bytes, field));
             if (!userdata) {
                 return tl::unexpected{fieldError(component, field, userdata.error().message())};
             }
             return luau::Value{std::move(*userdata)};
         }
-        default:
-            break;
+        case ecs::FieldType::kVec2:
+        case ecs::FieldType::kVec3:
+        case ecs::FieldType::kVec4:
+            return readVector(component, field, bytes, context);
+        case ecs::FieldType::kAssetId: {
+            auto userdata = context.assetIds.create(core::asset::AssetId{.value = load<std::uint64_t>(bytes, field)});
+            if (!userdata) {
+                return tl::unexpected{fieldError(component, field, userdata.error().message())};
+            }
+            return luau::Value{std::move(*userdata)};
+        }
     }
-    return tl::unexpected{fieldError(component, field, "this field type is not supported yet")};
+    return tl::unexpected{fieldError(component, field, "this field type is not supported")};
 }
 
 Result<void> writeField(const std::string_view component, const ecs::FieldInfo& field, const std::span<std::byte> bytes,
@@ -161,6 +315,13 @@ Result<void> writeField(const std::string_view component, const ecs::FieldInfo& 
         store<ecs::Entity>(bytes, field, *entity);
         return {};
     }
+    if (field.type == ecs::FieldType::kVec2 || field.type == ecs::FieldType::kVec3 ||
+        field.type == ecs::FieldType::kVec4) {
+        return writeVector(component, field, bytes, value);
+    }
+    if (field.type == ecs::FieldType::kAssetId) {
+        return writeAssetId(component, field, bytes, value);
+    }
     const auto* number = value.tryAs<double>();
     if (number == nullptr) {
         return tl::unexpected{fieldError(component, field, "expected a number")};
@@ -183,6 +344,9 @@ Result<void> writeField(const std::string_view component, const ecs::FieldInfo& 
         case ecs::FieldType::kU64:
             return writeInteger<std::uint64_t>(component, field, bytes, *number);
         case ecs::FieldType::kF32:
+            if (!fitsFloat(*number)) {
+                return tl::unexpected{fieldError(component, field, std::format("{} is out of range", *number))};
+            }
             store<float>(bytes, field, static_cast<float>(*number));
             return {};
         case ecs::FieldType::kF64:
@@ -191,7 +355,7 @@ Result<void> writeField(const std::string_view component, const ecs::FieldInfo& 
         default:
             break;
     }
-    return tl::unexpected{fieldError(component, field, "this field type is not supported yet")};
+    return tl::unexpected{fieldError(component, field, "this field type is not supported")};
 }
 
 Result<void> fillFromTable(const ecs::TypeInfo& type, const luau::Table& table, const std::span<std::byte> bytes) {

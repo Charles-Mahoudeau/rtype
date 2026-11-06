@@ -21,13 +21,28 @@ struct TermDeclaration {
     std::string component;                     ///< Name of the component, "game.Shield".
 };
 
+/// @brief A resource a script system uses, named as the script wrote it.
+struct ResourceDeclaration {
+    std::string name;   ///< Name of the resource, "rtype.Time".
+    bool write{false};  ///< Whether the system may write it (`resources.write`), false when it only reads it.
+};
+
+/// @brief An event type a script system uses, named as the script wrote it.
+struct EventDeclaration {
+    std::string name;  ///< Name of the event, "rtype.Collision".
+    bool read{false};  ///< Whether the system reads the events (`events.read`).
+    bool send{false};  ///< Whether the system sends events of this type (`events.send`).
+};
+
 /// @brief A system as a script declares it, before its components are looked up.
 struct SystemDeclaration {
-    std::string name;                    ///< Name of the system, unique: "game.ShieldRegen".
-    ecs::Phase phase;                    ///< Phase the system runs in.
-    std::vector<TermDeclaration> terms;  ///< Terms of its query, in the fixed order of readSystemDeclaration().
-    std::vector<std::string> after;      ///< Names of the systems it runs after.
-    std::vector<std::string> before;     ///< Names of the systems it runs before.
-    luau::FunctionRef run;               ///< The `run` function of the declaration.
+    std::string name;                            ///< Name of the system, unique: "game.ShieldRegen".
+    ecs::Phase phase;                            ///< Phase the system runs in.
+    std::vector<TermDeclaration> terms;          ///< Terms of its query, in the fixed order of readSystemDeclaration().
+    std::vector<ResourceDeclaration> resources;  ///< Resources it uses, one entry per name.
+    std::vector<EventDeclaration> events;        ///< Event types it uses, one entry per name.
+    std::vector<std::string> after;              ///< Names of the systems it runs after.
+    std::vector<std::string> before;             ///< Names of the systems it runs before.
+    luau::FunctionRef run;                       ///< The `run` function of the declaration.
 };
 }  // namespace rtype::scripting::system

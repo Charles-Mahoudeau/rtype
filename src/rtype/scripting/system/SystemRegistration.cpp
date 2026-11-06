@@ -21,14 +21,21 @@
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/Components.hpp"
+#include "rtype/ecs/event/EventInfo.hpp"
+#include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/exceptions/ScheduleException.hpp"
 #include "rtype/ecs/query/QueryBuilder.hpp"
 #include "rtype/ecs/query/QueryTerm.hpp"
+#include "rtype/ecs/resource/ResourceInfo.hpp"
+#include "rtype/ecs/resource/Resources.hpp"
+#include "rtype/ecs/system/DynamicEvents.hpp"
 #include "rtype/ecs/system/DynamicQueries.hpp"
+#include "rtype/ecs/system/DynamicResources.hpp"
 #include "rtype/ecs/system/QueryList.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/system/ScriptCallable.hpp"
 #include "rtype/ecs/time/Time.hpp"
+#include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/scripting/ErrorKind.hpp"
 #include "rtype/scripting/Result.hpp"
 #include "rtype/scripting/view/ViewScope.hpp"
@@ -65,8 +72,13 @@ void addTerm(ecs::QueryBuilder& builder, const ecs::TermKind kind, const ecs::Co
     }
 }
 
-/// @return The builder of the system's query, checked against the world's components, or the reason it is refused.
-[[nodiscard]] Result<ecs::QueryBuilder> makeQuery(ecs::Components& components, const SystemDeclaration& declaration) {
+/// @return The builder of the system's query, checked against the world's components, or the reason it is refused. A
+/// system without terms (one that only uses resources and events) has no query: the list is empty.
+[[nodiscard]] Result<std::vector<ecs::QueryBuilder>> makeQuery(ecs::Components& components,
+                                                               const SystemDeclaration& declaration) {
+    if (declaration.terms.empty()) {
+        return std::vector<ecs::QueryBuilder>{};
+    }
     ecs::QueryBuilder builder;
     for (const auto& [kind, component] : declaration.terms) {
         const auto id = components.find(component);
@@ -80,7 +92,9 @@ void addTerm(ecs::QueryBuilder& builder, const ecs::TermKind kind, const ecs::Co
         return fail(ErrorKind::kInvalidDeclaration,
                     std::format("System '{}': invalid query: {}", declaration.name, built.error().getMessage()));
     }
-    return builder;
+    std::vector<ecs::QueryBuilder> builders;
+    builders.push_back(std::move(builder));
+    return builders;
 }
 
 /// @return The data terms of the system's query, in the order the query yields them (the order of the declaration).
@@ -96,6 +110,60 @@ void addTerm(ecs::QueryBuilder& builder, const ecs::TermKind kind, const ecs::Co
     }
     return terms;
 }
+
+/// @return Why a type cannot be given to scripts as bytes, or an empty string when it can: a script only gets plain
+/// data, whose bytes it may read and write in place.
+[[nodiscard]] std::string whyNotPlainData(const ecs::TypeInfo& type, const bool mainThread) {
+    if (mainThread) {
+        return "it is main-thread only";
+    }
+    if (type.hooks.destruct != nullptr || type.hooks.move != nullptr || type.hooks.copy != nullptr) {
+        return "it is not plain data (it owns memory of its own)";
+    }
+    return {};
+}
+
+/// @return The resources the system declared, checked against the world, with the access they ask of the scheduler.
+[[nodiscard]] Result<std::pair<std::vector<ResourceTerm>, ecs::ResourceList>> makeResources(
+    const ecs::Resources& resources, const SystemDeclaration& declaration) {
+    std::pair<std::vector<ResourceTerm>, ecs::ResourceList> made;
+    for (const auto& [name, write] : declaration.resources) {
+        const ecs::ResourceInfo* info = resources.getRegistry().findByName(name);
+        if (info == nullptr) {
+            return fail(ErrorKind::kInvalidDeclaration,
+                        std::format("System '{}': unknown resource '{}'", declaration.name, name));
+        }
+        if (const auto why = whyNotPlainData(info->type, info->nonSend); !why.empty()) {
+            return fail(
+                ErrorKind::kInvalidDeclaration,
+                std::format("System '{}': resource '{}' cannot be used by a script: {}", declaration.name, name, why));
+        }
+        made.first.push_back({.type = &info->type, .write = write});
+        made.second.resources.push_back({.id = info->type.id, .write = write});
+    }
+    return made;
+}
+
+/// @return The event types the system declared, checked against the world, with the access they ask of the scheduler.
+[[nodiscard]] Result<std::pair<std::vector<EventTerm>, ecs::EventList>> makeEvents(
+    const ecs::Events& events, const SystemDeclaration& declaration) {
+    std::pair<std::vector<EventTerm>, ecs::EventList> made;
+    for (const auto& [name, read, send] : declaration.events) {
+        const ecs::EventInfo* info = events.getRegistry().findByName(name);
+        if (info == nullptr) {
+            return fail(ErrorKind::kInvalidDeclaration,
+                        std::format("System '{}': unknown event '{}'", declaration.name, name));
+        }
+        if (const auto why = whyNotPlainData(info->type, false); !why.empty()) {
+            return fail(
+                ErrorKind::kInvalidDeclaration,
+                std::format("System '{}': event '{}' cannot be used by a script: {}", declaration.name, name, why));
+        }
+        made.first.push_back({.type = &info->type, .read = read, .send = send});
+        made.second.events.push_back({.id = info->type.id, .read = read, .send = send});
+    }
+    return made;
+}
 }  // namespace
 
 Result<void> registerSystem(ecs::App& app, SystemDeclaration declaration, std::shared_ptr<RuntimeHandle> runtime) {
@@ -104,24 +172,36 @@ Result<void> registerSystem(ecs::App& app, SystemDeclaration declaration, std::s
     if (!query) {
         return tl::unexpected{std::move(query.error())};
     }
+    auto resources = makeResources(app.getWorld().getResources(), declaration);
+    if (!resources) {
+        return tl::unexpected{std::move(resources.error())};
+    }
+    auto events = makeEvents(app.getWorld().getEvents(), declaration);
+    if (!events) {
+        return tl::unexpected{std::move(events.error())};
+    }
     auto system = std::make_unique<ScriptSystem>(ScriptSystem{
         .name = declaration.name,
         .run = std::move(declaration.run),
         .terms = makeDataTerms(components, declaration),
+        .resources = std::move(resources->first),
+        .events = std::move(events->first),
         .runtime = std::move(runtime),
         .scope = std::make_shared<view::ViewScope>(),
     });
     // The body keeps what a run needs; the scope of the views is shared, so commands a script kept can tell the system
     // is gone.
     ecs::ScriptCallable callable{
-        [system = std::move(system)](const ecs::DynamicQueries queries, const ecs::Res<ecs::Time> time,
+        [system = std::move(system)](const ecs::DynamicQueries queries, ecs::DynamicResources resources,
+                                     const ecs::DynamicEvents events, const ecs::Res<ecs::Time> time,
                                      ecs::Commands& commands) {
-            runScriptSystem(*system, queries, time.get(), commands);
+            runScriptSystem(*system, queries, resources, events, time.get(), commands);
         },
     };
     try {
-        auto config = app.addSystem(declaration.phase, declaration.name, std::move(callable),
-                                    ecs::QueryList{{std::move(*query)}});
+        auto config =
+            app.addSystem(declaration.phase, declaration.name, std::move(callable), ecs::QueryList{std::move(*query)},
+                          std::move(resources->second), std::move(events->second));
         for (auto& name : declaration.after) {
             config.after(std::move(name));
         }
