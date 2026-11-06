@@ -84,7 +84,8 @@ are added.
       theme. Exception to the namespace rule, as in `ecs`: these folders stay in the flat
       `rtype::contract::renderer` (`rtype/contract/renderer/drawing/Sprite.hpp` declares
       `rtype::contract::renderer::Sprite`); only `math/` and `exceptions/` get a sub-namespace.
-        - `drawing/` — `Sprite`, `Shape`, `Text` (a laid-out text: MSDF glyphs), `Texture`, `Color`, `BlendMode`.
+        - `drawing/` — `Sprite`, `Shape`, `Text` (a laid-out text: MSDF glyphs), `OverlayItem` (one drawing of
+          `IRenderer::drawOverlay()`), `Texture`, `Color`, `BlendMode`.
         - `view/` — `View` and `CameraView` (what a `View` shows: letterboxed viewport, view-projection, screen and
           world conversions).
         - `particle/` — the particle types: `Particle`, `ParticleSystemDesc`, `ParticleCurve`, `ParticleRandom`.
@@ -103,7 +104,8 @@ are added.
       `BackendRegistry` the executable fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the
       window events and the PreUpdate / Render systems that poll the window, frame the drawing and draw the `SpriteQueue`
       by layer. Also the `Camera` component (projection and priority, placed by its entity's `Transform`), the
-      `TextureAssets` resource (the textures by `AssetId`, queued by `load()` and decoded with stb), the `SpriteQueue`
+      `TextureAssets` resource (the textures by `AssetId`, queued by `load()` and decoded with stb), the `OverlayQueue`
+      resource (what the frame draws on top, in view pixels, with `ViewInfo` for its sizes), the `SpriteQueue`
       resource (what the frame draws) and the `VisibleArea` resource (what the frame shows). It requires the
       `InputPlugin` and the `TransformPlugin`.
     - `plugins/input/` (`rtype::plugins::input`) — `InputPlugin`: `Control` (named with text by `controlFromName()`,
@@ -155,6 +157,12 @@ are added.
       renderer up to date, and `ShaderWatcher`, which reloads the shaders saved in `<game>/assets/shaders`
       (`shader.hotReload`). `ShaderCalls.hpp` holds what `engine.assets.shader` and `material` call. `detail/` holds the parser, the assembler and the compiler. glslang is a private package: only
       `shader/detail/ShaderCompiler.cpp` includes it. It requires the graphics plugin. See `docs/Shaders.md`.
+    - `plugins/ui/` (`rtype::plugins::ui`) — `UiPlugin`: the user interface, as entities laid out by Yoga. `UiNode` (every
+      flexbox property), `UiComputed` (where the layout put a node), `UiBackground`, `UiImage` (9-slice), `UiText`, the
+      widgets (`UiInteraction`, `UiButton`, `UiToggle`, `UiSlider`, `UiScroll`, `UiTextInput`), their events (`UiClicked`...)
+      and `UiPointer`, `UiFocus`. `UiForms.luau` holds `engine.ui.spawn`. It pushes to the `OverlayQueue` and never touches
+      the backend. Yoga is a private package: only `ui/detail/UiLayout.cpp` includes it. It requires the graphics, input and
+      text plugins. See `docs/Ui.md`.
     - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
     - `plugins/AssetIdReflection.hpp` — lets components reflect `core::asset::AssetId` fields (`kAssetId`).
     - `plugins/AssetDirectory.hpp` — the `AssetDirectory` resource the `Engine` inserts: `<game>/assets`, where every
@@ -214,7 +222,7 @@ are added.
   `docs/Input.md` for the event and input pipeline, `docs/physics/design.md`
   for the physics, `docs/audio/design.md` for the audio, `docs/Sprites.md` for atlases and animations,
   `docs/Tilemap.md` for tilemaps and parallax, `docs/Text.md` for MSDF text, `docs/Shaders.md` for game shaders,
-  `docs/engine/design.md` for the `Engine`, its build order and reloads).
+  `docs/engine/design.md` for the `Engine`, its build order and reloads, `docs/Ui.md` for the user interface).
 - `.github/` — CI workflow and issue templates.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
 
