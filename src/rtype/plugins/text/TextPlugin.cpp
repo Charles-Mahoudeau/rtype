@@ -15,12 +15,12 @@
 #include <utility>
 
 #include "plugins/backend/Names.hpp"
+#include "plugins/backend/graphics/MaterialInstance.hpp"
+#include "plugins/backend/graphics/Materials.hpp"
 #include "plugins/backend/graphics/SpriteQueue.hpp"
 #include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
-#include "plugins/shader/MaterialInstance.hpp"
-#include "plugins/shader/ShaderHandles.hpp"
 #include "plugins/text/Font.hpp"
 #include "plugins/text/FontAssets.hpp"
 #include "plugins/text/TextLayout.hpp"
@@ -49,13 +49,13 @@ void queueFontTextures(ecs::ResMut<FontAssets> fonts, ecs::ResMut<backend::Textu
     }
 }
 
-/// @brief Render, client: lays out the texts and pushes them to the SpriteQueue. A text whose material is created is
-/// drawn with it, and with its MaterialInstance's values or else its shader's defaults.
-void drawTexts(
-    ecs::Res<FontAssets> fonts, ecs::Res<backend::TextureAssets> textures, ecs::Res<shader::ShaderHandles> handles,
-    ecs::ResMut<backend::graphics::SpriteQueue> queue,
-    ecs::Query<const transform::GlobalTransform, const TextRenderer, ecs::Optional<const shader::MaterialInstance>>
-        texts) {
+/// @brief Render, client: lays out the texts and pushes them to the SpriteQueue. A text whose material is ready
+/// (Materials) is drawn with it, and with its MaterialInstance's values or else its shader's defaults.
+void drawTexts(ecs::Res<FontAssets> fonts, ecs::Res<backend::TextureAssets> textures,
+               ecs::Res<backend::graphics::Materials> materials, ecs::ResMut<backend::graphics::SpriteQueue> queue,
+               ecs::Query<const transform::GlobalTransform, const TextRenderer,
+                          ecs::Optional<const backend::graphics::MaterialInstance>>
+                   texts) {
     for (auto [entity, global, drawn, instance] : texts) {
         const Font* font = fonts->get(drawn.font);
         if (font == nullptr || drawn.text.empty()) {
@@ -78,7 +78,7 @@ void drawTexts(
                                      .color = drawn.color,
                                      .distanceRange = font->getDistanceRange(),
                                      .blend = drawn.blend};
-        if (const shader::ShaderHandles::Material* material = handles->getMaterial(drawn.material)) {
+        if (const backend::graphics::Materials::Entry* material = materials->find(drawn.material)) {
             text.material = material->material;
             text.instanceValues = instance != nullptr ? instance->values : material->instanceDefaults;
         }
@@ -95,6 +95,7 @@ void TextPlugin::build(ecs::App& app) {
     resources.insertIfAbsent<FontAssets>();
     resources.insertIfAbsent<backend::TextureAssets>();
     resources.insertIfAbsent<backend::graphics::SpriteQueue>();
+    resources.insertIfAbsent<backend::graphics::Materials>();
     static_cast<void>(app.getWorld().getComponents().registerType<TextRenderer>());
     app.addSystem(ecs::Phase::kRender, std::string{kTexturesSystem}, &queueFontTextures)
         .after(std::string{backend::names::kTilemapTextures})
