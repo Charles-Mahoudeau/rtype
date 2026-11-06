@@ -1,0 +1,30 @@
+site_name: R-Type Engine Manual
+site_description: How to make a game with the R-Type engine, in Luau.
+repo_url: https://github.com/Charles-Mahoudeau/rtype
+docs_dir: pages
+site_dir: site
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - tables
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Project settings: project-settings.md
+  - Components: components.md
+  - Systems: systems.md
+  - Engine calls: engine-calls.md
+  - Setup forms: setup-forms.md
+  - Networking: networking.md
+  - Physics: physics.md
+  - Walkthrough, R-Type Duel: duel-walkthrough.md
