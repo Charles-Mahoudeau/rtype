@@ -32,6 +32,7 @@
 #include "rtype/engine/EngineConfig.hpp"
 #include "rtype/engine/Exceptions.hpp"
 #include "rtype/engine/NetworkInput.hpp"
+#include "rtype/engine/plugin/PluginSignature.hpp"
 #include "rtype/engine/scripting/SettingsLoader.hpp"
 #include "rtype/network/NetworkSettings.hpp"
 #include "rtype/network/io/Address.hpp"
@@ -126,6 +127,21 @@ std::unique_ptr<rtype::ecs::Plugin> makeNetworkPlugin(const rtype::ecs::RunMode 
 }  // namespace
 
 namespace rtype::engine {
+#ifdef NDEBUG
+namespace {
+/// @brief Refuses a library of the game that the root key built into this engine does not vouch for.
+void verifyGamePlugin(const std::filesystem::path& library) {
+    const std::optional<plugin::PublicKey> root = plugin::parsePublicKey(RTYPE_PLUGIN_ROOT_KEY);
+    if (!root) {
+        throw exceptions::RuntimeError{std::format(
+            "Plugin library '{}' cannot be checked: this build has no root key (xmake f --plugin_root_key=<hex>)",
+            library.generic_string())};
+    }
+    plugin::verifyPluginSignature(library, *root);
+}
+}  // namespace
+#endif
+
 Engine::Engine(EngineConfig config)
     : _config{std::move(config)},
       _commandLine{CommandLine::parse(_config.args)},
@@ -171,7 +187,12 @@ void Engine::registerLibraries() {
         (_settings.has("platform") || _settings.has("renderer") || _settings.has("audio.backend"))) {
         _loader.load(plugins / kBackendsDirectory);
     }
+    // A debug build is where plugins are written: only a release build, what players run, checks their signature.
+#ifdef NDEBUG
+    _loader.load(_gameDirectory / kPluginsDirectory, &verifyGamePlugin);
+#else
     _loader.load(_gameDirectory / kPluginsDirectory);
+#endif
     ecs::PluginRegistry& registry = _app->getPluginRegistry();
     registry.setSettings(_settings);
     core::library::LibraryRegistrar registrar;

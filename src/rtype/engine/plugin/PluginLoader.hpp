@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -23,6 +24,9 @@ namespace rtype::engine::plugin {
 /// App built again after a reload registers the same libraries, which are not opened twice.
 class RTYPE_ENGINE_API PluginLoader {
   public:
+    /// @brief What a folder's libraries must pass before they are opened.
+    using Verifier = std::function<void(const std::filesystem::path&)>;
+
     PluginLoader() = default;
     ~PluginLoader() = default;
     PluginLoader(const PluginLoader& other) = delete;
@@ -40,6 +44,11 @@ class RTYPE_ENGINE_API PluginLoader {
     /// @throws core::library::exceptions::LibraryException If a library was built for another engine.
     void load(const std::filesystem::path& directory);
 
+    /// @brief As load(), but refuses a library before opening it if @p verify throws.
+    /// @param directory The folder.
+    /// @param verify Checks a library's file, and throws to refuse it.
+    void load(const std::filesystem::path& directory, const Verifier& verify);
+
     /// @brief Calls the registration of every library, in the order they were loaded.
     void registerInto(core::library::LibraryRegistrar& registrar) const;
 
@@ -52,7 +61,7 @@ class RTYPE_ENGINE_API PluginLoader {
     };
 
     /// @brief Opens and checks the library @p file.
-    void loadFile(const std::filesystem::path& file);
+    void loadFile(const std::filesystem::path& file, const Verifier& verify);
 
     std::vector<std::filesystem::path> _directories;  ///< The folders read.
     std::vector<Loaded> _libraries;                   ///< The libraries, in the order loaded.

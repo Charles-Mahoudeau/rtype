@@ -27,7 +27,9 @@ using EntryPoint = const core::library::LibraryEntry* (*)();
 
 std::size_t PluginLoader::getCount() const noexcept { return _libraries.size(); }
 
-void PluginLoader::load(const std::filesystem::path& directory) {
+void PluginLoader::load(const std::filesystem::path& directory) { load(directory, Verifier{}); }
+
+void PluginLoader::load(const std::filesystem::path& directory, const Verifier& verify) {
     if (std::ranges::find(_directories, directory) != _directories.end()) {
         return;
     }
@@ -41,7 +43,7 @@ void PluginLoader::load(const std::filesystem::path& directory) {
     }
     std::ranges::sort(files);
     for (const std::filesystem::path& file : files) {
-        loadFile(file);
+        loadFile(file, verify);
     }
 }
 
@@ -51,12 +53,15 @@ void PluginLoader::registerInto(core::library::LibraryRegistrar& registrar) cons
     }
 }
 
-void PluginLoader::loadFile(const std::filesystem::path& file) {
+void PluginLoader::loadFile(const std::filesystem::path& file, const Verifier& verify) {
     const auto known = std::ranges::find_if(
         _libraries, [&file](const Loaded& loaded) { return loaded.file.filename() == file.filename(); });
     if (known != _libraries.end()) {
         throw exceptions::RuntimeError{std::format("Two plugin libraries have the same name: '{}' and '{}'",
                                                    known->file.generic_string(), file.generic_string())};
+    }
+    if (verify) {
+        verify(file);
     }
     SharedLibrary library{file};
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast): a symbol's address is what the system gives.
