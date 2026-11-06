@@ -196,6 +196,161 @@ TEST(ScriptCommands, AHeldCommandsHandleIsRefusedOnceTheRunEnded) {
     EXPECT_NE(log.find("no longer valid"), std::string::npos) << log;
 }
 
+TEST(ScriptCommands, SetParentAndRemoveParentLinkEntitiesAndDespawnCascades) {
+    Fixture fixture;
+    static_cast<void>(
+        fixture.app.getWorld().getComponents().registerType<rtype::ecs::Parent>(rtype::ecs::kParentOptions));
+    ASSERT_EQ(fixture.run(R"(
+        local frame = 0
+        local parent, first, second
+        engine.ecs.system("game.Family", {
+            phase = "Update",
+            query = { with = { "game.Marker" } },
+            run = function(ctx)
+                for _ in ctx.query do
+                    frame += 1
+                    if frame == 1 then
+                        parent = ctx.commands:spawn()
+                        first = ctx.commands:spawn()
+                        second = ctx.commands:spawn()
+                        ctx.commands:setParent(first, parent)
+                        ctx.commands:setParent(second, parent)
+                    elseif frame == 2 then
+                        ctx.commands:removeParent(first)
+                    elseif frame == 3 then
+                        ctx.commands:despawn(parent)
+                    end
+                end
+            end,
+        })
+        engine.ecs.system("game.Count", {
+            phase = "PostUpdate",
+            query = { read = { "rtype.Parent" } },
+            run = function(ctx)
+                linked = 0
+                for _ in ctx.query do
+                    linked += 1
+                end
+            end,
+        })
+    )"),
+              "");
+    fixture.app.runFrame();
+    EXPECT_EQ(fixture.run("assert(linked == 2, tostring(linked))"), "");
+    EXPECT_EQ(fixture.app.getWorld().getEntityCount(), 4U);
+    fixture.app.runFrame();
+    EXPECT_EQ(fixture.run("assert(linked == 1, tostring(linked))"), "");
+    fixture.app.runFrame();
+    EXPECT_EQ(fixture.app.getWorld().getEntityCount(), 2U);  // the marker and the detached child
+}
+
+TEST(ScriptCommands, SetParentRefusesWhatIsNotAnEntity) {
+    Fixture fixture;
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Wrong", {
+            phase = "Update",
+            query = { with = { "game.Marker" } },
+            run = function(ctx)
+                for _ in ctx.query do
+                    wrong = pcall(function()
+                        ctx.commands:setParent(ctx.commands:spawn(), ctx.commands)
+                    end)
+                end
+            end,
+        })
+    )"),
+              "");
+    fixture.app.runFrame();
+    EXPECT_EQ(fixture.run("assert(wrong == false, tostring(wrong))"), "");
+}
+
+TEST(ScriptHierarchy, ScriptsReadChildrenAndParentThroughDeclaredTerms) {
+    Fixture fixture;
+    rtype::ecs::World& world = fixture.app.getWorld();
+    static_cast<void>(world.getComponents().registerType<rtype::ecs::Parent>(rtype::ecs::kParentOptions));
+    static_cast<void>(world.getComponents().registerType<rtype::ecs::Children>());
+    const rtype::ecs::Entity parent = world.spawn();
+    const rtype::ecs::Entity first = world.spawn();
+    const rtype::ecs::Entity second = world.spawn();
+    EXPECT_TRUE(world.setParent(first, parent));
+    EXPECT_TRUE(world.setParent(second, parent));
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.ReadChildren", {
+            phase = "Update",
+            query = { read = { "rtype.Children" } },
+            run = function(ctx)
+                for entity, children in ctx.query do
+                    owner = entity
+                    list = children.entities
+                end
+            end,
+        })
+        engine.ecs.system("game.ReadParent", {
+            phase = "Update",
+            query = { read = { "rtype.Parent" } },
+            run = function(ctx)
+                parents = {}
+                for entity, parent in ctx.query do
+                    parents[entity.bits] = parent.entity
+                end
+            end,
+        })
+    )"),
+              "");
+    fixture.app.runFrame();
+    EXPECT_EQ(fixture.run("assert(#list == 2, tostring(#list))"), "");
+    EXPECT_EQ(fixture.run("assert(typeof(list[1]) == 'Entity')"), "");
+    EXPECT_EQ(fixture.run("assert(parents[list[1].bits] == owner and parents[list[2].bits] == owner)"), "");
+    EXPECT_EQ(fixture.run("assert(list[1] ~= list[2])"), "");
+}
+
+TEST(ScriptHierarchy, ChangingTheListGivenToAScriptChangesNothing) {
+    Fixture fixture;
+    rtype::ecs::World& world = fixture.app.getWorld();
+    static_cast<void>(world.getComponents().registerType<rtype::ecs::Children>());
+    const rtype::ecs::Entity parent = world.spawn();
+    const rtype::ecs::Entity child = world.spawn();
+    EXPECT_TRUE(world.setParent(child, parent));
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Tamper", {
+            phase = "Update",
+            query = { read = { "rtype.Children" } },
+            run = function(ctx)
+                for _, children in ctx.query do
+                    local list = children.entities
+                    list[1] = nil
+                end
+            end,
+        })
+    )"),
+              "");
+    fixture.app.runFrame();
+    EXPECT_EQ(world.getComponents().get<rtype::ecs::Children>(parent)->entities.size(), 1U);
+}
+
+TEST(ScriptHierarchy, RefusesASystemWritingTheHierarchy) {
+    Fixture fixture;
+    auto& components = fixture.app.getWorld().getComponents();
+    static_cast<void>(components.registerType<rtype::ecs::Parent>(rtype::ecs::kParentOptions));
+    static_cast<void>(components.registerType<rtype::ecs::Children>());
+    const std::string parent = fixture.run(R"(
+        engine.ecs.system("game.WriteParent", {
+            phase = "Update",
+            query = { write = { "rtype.Parent" } },
+            run = function(ctx) end,
+        })
+    )");
+    EXPECT_NE(parent.find("cannot be written"), std::string::npos) << parent;
+    const std::string children = fixture.run(R"(
+        engine.ecs.system("game.WriteChildren", {
+            phase = "Update",
+            query = { optionalWrite = { "rtype.Children" }, with = { "game.Marker" } },
+            run = function(ctx) end,
+        })
+    )");
+    EXPECT_NE(children.find("cannot be written"), std::string::npos) << children;
+}
+
 TEST(ScriptLists, ReadsAListAsATableOfItsValues) {
     Fixture fixture;
     rtype::ecs::World& world = fixture.app.getWorld();
