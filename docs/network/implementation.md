@@ -3229,7 +3229,7 @@ check.
 
 ## 17. Filing the issues
 
-- File only reviewed tasks (M1 for now). One issue per `NET-xx` task, with the **Network Feature** template (`.github/ISSUE_TEMPLATE/network-feature.yml`).
+- File only reviewed tasks (M1 for now). One issue per `NET-xx` task, with the **Feature** template (`.github/ISSUE_TEMPLATE/feature.yml`, Area `network`, the task id filled in).
 - Title: `[Network] NET-xx <task title>` (e.g. `[Network] NET-06 Connection: acks, RTT and message packing`).
 - One epic issue per milestone (`[Network] M1 · Prototype`...), with its tasks as sub-issues.
 - *Blocked by* relationships from the **Blocked by** column; external blockers link to the ECS / render / Luau
