@@ -7,9 +7,14 @@
 
 #include <gtest/gtest.h>
 
+#include <filesystem>
+#include <format>
+#include <fstream>
 #include <glm/ext/vector_float4.hpp>
 #include <memory>
+#include <random>
 #include <string_view>
+#include <system_error>
 
 #include "FakeBackend.hpp"
 #include "TestImages.hpp"
@@ -51,6 +56,25 @@ class ShaderHandlesTest : public ::testing::Test {
     rtype::plugins::shader::MaterialAssets _materials;                ///< The game's materials.
     rtype::plugins::graphics::TextureAssets _textures;                ///< The game's textures.
     ShaderHandles _handles;                                           ///< Under test.
+};
+
+/// @brief ShaderHandlesTest with a shader file of its own, to reload.
+class ShaderReloadTest : public ShaderHandlesTest {
+  protected:
+    void SetUp() override {
+        ShaderHandlesTest::SetUp();
+        write(kShader);
+    }
+    void TearDown() override {
+        std::error_code error;
+        std::filesystem::remove(_file, error);
+    }
+
+    /// @brief Replaces the text of the file.
+    void write(const std::string_view text) const { std::ofstream{_file, std::ios::binary} << text; }
+
+    std::filesystem::path _file{std::filesystem::temp_directory_path() /
+                                std::format("rtype_shader_handles_{:08x}.glsl", std::random_device{}())};
 };
 }  // namespace
 
@@ -143,5 +167,47 @@ TEST_F(ShaderHandlesTest, RecreatesTheMaterialsOfAReloadedShader) {
     static_cast<void>(_shaders.add("glow", kShader));
     update();
     EXPECT_EQ(_state->createdMaterials.size(), 2U);
+    EXPECT_NE(_handles.getMaterial(material), nullptr);
+}
+
+TEST_F(ShaderReloadTest, ReplacesTheShaderAndItsMaterialsInOneUpdate) {
+    const AssetId shader = _shaders.load(_file);
+    const AssetId material = _materials.add("red", Material{.shader = shader});
+    update();
+    const rtype::contract::renderer::MaterialId before = _handles.getMaterial(material)->material;
+
+    write("instance uniform float flash = 0.25;\nuniform sampler2D noise;\nvoid fragment() { COLOR.a *= flash; }\n");
+    ASSERT_TRUE(_shaders.reload(shader));
+    update();
+
+    EXPECT_EQ(_state->createdShaders.size(), 2U);
+    EXPECT_EQ(_state->destroyedShaders.size(), 1U);
+    const ShaderHandles::Material* created = _handles.getMaterial(material);
+    ASSERT_NE(created, nullptr);
+    EXPECT_NE(created->material, before);
+    EXPECT_FLOAT_EQ(created->instanceDefaults[0].x, 0.25F);
+}
+
+TEST_F(ShaderReloadTest, GivesARejectedMaterialAnotherChance) {
+    const AssetId shader = _shaders.load(_file);
+    const AssetId material = _materials.add("red", Material{.shader = shader}.set("strength", 1.0F));
+    update();
+    ASSERT_EQ(_handles.getMaterial(material), nullptr);
+
+    write("uniform float strength;\nvoid fragment() { COLOR.a *= strength; }\n");
+    ASSERT_TRUE(_shaders.reload(shader));
+    update();
+    EXPECT_NE(_handles.getMaterial(material), nullptr);
+}
+
+TEST_F(ShaderReloadTest, KeepsTheOldShaderWhenTheRendererRefusesTheNewOne) {
+    const AssetId shader = _shaders.load(_file);
+    const AssetId material = _materials.add("red", Material{.shader = shader});
+    update();
+    ASSERT_TRUE(_shaders.reload(shader));
+    _state->shaders = false;
+    _handles.update(_shaders, _materials, _textures, _renderer);
+    _state->shaders = true;
+    EXPECT_TRUE(_state->destroyedShaders.empty());
     EXPECT_NE(_handles.getMaterial(material), nullptr);
 }
