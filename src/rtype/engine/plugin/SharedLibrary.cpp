@@ -31,6 +31,7 @@ namespace rtype::engine::plugin {
 namespace {
 #ifdef _WIN32
 constexpr std::string_view kExtension = ".dll";
+// NOLINTNEXTLINE(readability-use-concise-preprocessor-directives): #elifdef is not in every compiler the project needs.
 #elif defined(__APPLE__)
 constexpr std::string_view kExtension = ".dylib";
 #else
@@ -38,6 +39,7 @@ constexpr std::string_view kExtension = ".so";
 #endif
 }  // namespace
 
+// NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer): it is set by a different call on each system.
 SharedLibrary::SharedLibrary(const std::filesystem::path& path) {
 #ifdef _WIN32
     // A module of the same name is shared: the engine's own copy, next to the executable, is the one its code uses.
