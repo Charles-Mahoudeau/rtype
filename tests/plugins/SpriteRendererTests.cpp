@@ -7,6 +7,9 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
+#include <cstddef>
+#include <cstring>
 #include <glm/ext/vector_float2.hpp>
 
 #include "core/asset/AssetId.hpp"
@@ -34,22 +37,33 @@ TEST(SpriteRenderer, HasNeutralDefaults) {
     EXPECT_EQ(sprite.material, rtype::core::asset::AssetId{});
 }
 
-TEST(SpriteRenderer, ReflectsEveryFieldButTheSource) {
+TEST(SpriteRenderer, ReflectsEveryFieldField) {
     using Traits = rtype::ecs::ComponentTraits<rtype::plugins::sprite::SpriteRenderer>;
     EXPECT_EQ(Traits::kName, "rtype.SpriteRenderer");
-    ASSERT_EQ(Traits::kFields.size(), 6U);
+    ASSERT_EQ(Traits::kFields.size(), 7U);
     EXPECT_EQ(Traits::kFields[0].name, "texture");
     EXPECT_EQ(Traits::kFields[0].type, rtype::ecs::FieldType::kAssetId);
-    EXPECT_EQ(Traits::kFields[1].name, "color");
+    EXPECT_EQ(Traits::kFields[1].name, "source");
     EXPECT_EQ(Traits::kFields[1].type, rtype::ecs::FieldType::kVec4);
-    EXPECT_EQ(Traits::kFields[2].name, "origin");
-    EXPECT_EQ(Traits::kFields[2].type, rtype::ecs::FieldType::kVec2);
-    EXPECT_EQ(Traits::kFields[3].name, "layer");
-    EXPECT_EQ(Traits::kFields[3].type, rtype::ecs::FieldType::kI32);
-    EXPECT_EQ(Traits::kFields[4].name, "blend");
-    EXPECT_EQ(Traits::kFields[4].type, rtype::ecs::FieldType::kU8);
-    EXPECT_EQ(Traits::kFields[5].name, "material");
-    EXPECT_EQ(Traits::kFields[5].type, rtype::ecs::FieldType::kAssetId);
+    EXPECT_EQ(Traits::kFields[2].name, "color");
+    EXPECT_EQ(Traits::kFields[2].type, rtype::ecs::FieldType::kVec4);
+    EXPECT_EQ(Traits::kFields[3].name, "origin");
+    EXPECT_EQ(Traits::kFields[3].type, rtype::ecs::FieldType::kVec2);
+    EXPECT_EQ(Traits::kFields[4].name, "layer");
+    EXPECT_EQ(Traits::kFields[4].type, rtype::ecs::FieldType::kI32);
+    EXPECT_EQ(Traits::kFields[5].name, "blend");
+    EXPECT_EQ(Traits::kFields[5].type, rtype::ecs::FieldType::kU8);
+    EXPECT_EQ(Traits::kFields[6].name, "material");
+    EXPECT_EQ(Traits::kFields[6].type, rtype::ecs::FieldType::kAssetId);
+}
+
+TEST(SpriteRenderer, ReflectsTheSourceAsItsPositionThenItsSize) {
+    rtype::plugins::sprite::SpriteRenderer sprite{
+        .source = rtype::contract::renderer::math::Rect{{1.0F, 2.0F}, {3.0F, 4.0F}}};
+    const auto& source = rtype::ecs::ComponentTraits<rtype::plugins::sprite::SpriteRenderer>::kFields[1];
+    std::array<float, 4> read{};
+    std::memcpy(read.data(), reinterpret_cast<const std::byte*>(&sprite) + source.offset, sizeof(read));  // NOLINT
+    EXPECT_EQ(read, (std::array<float, 4>{1.0F, 2.0F, 3.0F, 4.0F}));
 }
 
 TEST(SpriteRenderer, IsStoredOnAnEntity) {
