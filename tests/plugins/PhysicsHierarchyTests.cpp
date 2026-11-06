@@ -15,6 +15,7 @@
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "plugins/physics/PhysicsWorld.hpp"
 #include "plugins/physics/RigidBody.hpp"
+#include "plugins/physics/Velocity.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/component/Components.hpp"
@@ -32,6 +33,7 @@ using rtype::plugins::physics::PhysicsSettings;
 using rtype::plugins::physics::PhysicsWorld;
 using rtype::plugins::physics::RigidBody;
 using rtype::plugins::physics::ShapeType;
+using rtype::plugins::physics::Velocity;
 using rtype::plugins::transform::Transform;
 
 namespace {
@@ -167,4 +169,85 @@ TEST(PhysicsHierarchy, AClientBodyFollowsItsParent) {
     fixture.move(parent, {300.0F, 0.0F});
     fixture.tick();
     fixture.expectBodyAt(child, {310.0F, 0.0F});
+}
+
+TEST(PhysicsHierarchy, ADynamicChildDoesNotFollowItsParent) {
+    HierarchyApp fixture;
+    const Entity parent = fixture.spawn({100.0F, 0.0F});
+    const Entity child = fixture.spawnBody(parent, {10.0F, 0.0F}, BodyType::kDynamic);
+    fixture.tick();
+    fixture.expectBodyAt(child, {110.0F, 0.0F});
+    fixture.move(parent, {300.0F, 0.0F});
+    fixture.tick(3);
+    fixture.expectBodyAt(child, {110.0F, 0.0F});
+}
+
+TEST(PhysicsHierarchy, ADynamicChildKeepsItsPlaceInTheWorldThroughItsTransform) {
+    HierarchyApp fixture;
+    const Entity parent = fixture.spawn({100.0F, 0.0F});
+    const Entity child = fixture.spawnBody(parent, {10.0F, 0.0F}, BodyType::kDynamic);
+    fixture.tick();
+    fixture.move(parent, {300.0F, 0.0F});
+    fixture.tick();
+    const Transform* local = fixture.components().get<Transform>(child);
+    EXPECT_NEAR(local->position.x, -190.0F, kTolerance);
+}
+
+TEST(PhysicsHierarchy, ADynamicChildMovesWithItsVelocityAndWritesItRelative) {
+    HierarchyApp fixture;
+    const Entity parent = fixture.spawn({100.0F, 0.0F});
+    const Entity child = fixture.spawnBody(parent, {10.0F, 0.0F}, BodyType::kDynamic);
+    fixture.components().add(child, Velocity{.linear = {60.0F, 0.0F}});
+    fixture.tick(60);
+    const float body = fixture.physics().getBodyPosition(child)->x;
+    EXPECT_GT(body, 160.0F);  // a little under 170: bodies have a default damping
+    EXPECT_NEAR(fixture.components().get<Transform>(child)->position.x, body - 100.0F, kTolerance);
+}
+
+TEST(PhysicsHierarchy, GameplayTeleportsADynamicChild) {
+    HierarchyApp fixture;
+    const Entity parent = fixture.spawn({100.0F, 0.0F});
+    const Entity child = fixture.spawnBody(parent, {10.0F, 0.0F}, BodyType::kDynamic);
+    fixture.tick(2);
+    fixture.move(child, {50.0F, 20.0F});
+    fixture.tick();
+    fixture.expectBodyAt(child, {150.0F, 20.0F});
+}
+
+TEST(PhysicsHierarchy, ARestingDynamicChildIsNotTeleportedUnderATurnedParent) {
+    HierarchyApp fixture;
+    const Entity parent = fixture.app.getWorld().spawn();
+    fixture.components().add(parent, Transform{.position = {33.3F, 71.7F}, .rotation = 0.7F, .scale = {1.3F, 1.3F}});
+    const Entity child = fixture.spawnBody(parent, {12.1F, -7.3F}, BodyType::kDynamic);
+    fixture.tick();
+    const glm::vec2 first = *fixture.physics().getBodyPosition(child);
+    fixture.tick(30);
+    EXPECT_EQ(*fixture.physics().getBodyPosition(child), first);
+}
+
+TEST(PhysicsHierarchy, ADynamicChildOfADynamicParentIsWrittenRelativeToItsNewPose) {
+    HierarchyApp fixture;
+    const Entity root = fixture.spawn({0.0F, 0.0F});
+    const Entity parent = fixture.spawnBody(root, {100.0F, 0.0F}, BodyType::kDynamic);
+    const Entity child = fixture.spawnBody(parent, {200.0F, 0.0F}, BodyType::kDynamic);  // far enough not to touch
+    fixture.components().add(parent, Velocity{.linear = {60.0F, 0.0F}});
+    fixture.tick(60);
+    const float parentBody = fixture.physics().getBodyPosition(parent)->x;
+    EXPECT_GT(parentBody, 150.0F);
+    fixture.expectBodyAt(child, {300.0F, 0.0F});
+    EXPECT_NEAR(fixture.components().get<Transform>(child)->position.x, 300.0F - parentBody, kTolerance);
+}
+
+TEST(PhysicsHierarchy, AKinematicChildWithAVelocityMovesAndFollowsItsParent) {
+    HierarchyApp fixture;
+    const Entity parent = fixture.spawn({100.0F, 0.0F});
+    const Entity child = fixture.spawnBody(parent, {10.0F, 0.0F}, BodyType::kKinematic);
+    fixture.components().add(child, Velocity{.linear = {60.0F, 0.0F}});
+    fixture.tick(60);
+    const float before = fixture.physics().getBodyPosition(child)->x;
+    EXPECT_GT(before, 160.0F);
+    EXPECT_NEAR(fixture.components().get<Transform>(child)->position.x, before - 100.0F, kTolerance);
+    fixture.move(parent, {200.0F, 0.0F});
+    fixture.tick(2);
+    EXPECT_NEAR(fixture.physics().getBodyPosition(child)->x, before + 100.0F, 5.0F);
 }

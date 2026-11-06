@@ -7,6 +7,7 @@
 
 #include "WorldPoses.hpp"
 
+#include <cstddef>
 #include <ranges>
 #include <vector>
 
@@ -33,5 +34,17 @@ GlobalTransform WorldPoses::of(ecs::Entity entity) const {
         pose = combine(pose, *local);
     }
     return pose;
+}
+
+std::size_t WorldPoses::depthOf(ecs::Entity entity) const {
+    std::size_t depth = 0;
+    auto found = _entries.find(entity);
+    while (found != _entries.end() && found->second.parent != nullptr) {
+        found = _entries.find(found->second.parent->entity);
+        if (found != _entries.end()) {
+            ++depth;
+        }
+    }
+    return depth;
 }
 }  // namespace rtype::plugins::transform

@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <unordered_map>
 
 #include "Transform.hpp"
@@ -39,6 +40,9 @@ class WorldPoses {
     /// @return Where the entity is in the world, as the TransformPlugin would compute it: a parent that was not added
     /// ends the chain, as a parent without a Transform does. The default GlobalTransform for an entity not added.
     [[nodiscard]] GlobalTransform of(ecs::Entity entity) const;
+
+    /// @return How many parents the entity has, up to the first one not added: 0 for a root.
+    [[nodiscard]] std::size_t depthOf(ecs::Entity entity) const;
 
   private:
     /// @brief What one entity gave to add().

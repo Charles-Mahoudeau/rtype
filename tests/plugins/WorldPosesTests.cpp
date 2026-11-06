@@ -54,6 +54,23 @@ TEST(WorldPoses, CombinesAWholeChainWhateverTheOrderOfAdd) {
     EXPECT_EQ(poses.of(middle).position, (glm::vec2{110.0F, 0.0F}));
 }
 
+TEST(WorldPoses, CountsTheParentsOfAnEntity) {
+    rtype::ecs::World world;
+    const Entity root = world.spawn();
+    const Entity child = world.spawn();
+    const Entity orphan = world.spawn();
+    const Transform local;
+    const Parent toRoot{.entity = root};
+    const Parent toUnknown{.entity = world.spawn()};
+    WorldPoses poses;
+    poses.add(root, local, nullptr);
+    poses.add(child, local, &toRoot);
+    poses.add(orphan, local, &toUnknown);
+    EXPECT_EQ(poses.depthOf(root), 0U);
+    EXPECT_EQ(poses.depthOf(child), 1U);
+    EXPECT_EQ(poses.depthOf(orphan), 0U);
+}
+
 TEST(WorldPoses, GivesTheDefaultToAnEntityNotAdded) {
     rtype::ecs::World world;
     const Entity unknown = world.spawn();
