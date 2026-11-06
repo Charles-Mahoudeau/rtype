@@ -17,6 +17,7 @@
 #include "plugins/sprite/AtlasAssets.hpp"
 #include "plugins/sprite/SpriteAnimator.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
+#include "plugins/sprite/SpriteCalls.hpp"
 #include "plugins/sprite/SpriteRenderer.hpp"
 #include "rtype/contract/renderer/math/Rect.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -101,6 +102,7 @@ void SpritePlugin::build(ecs::App& app) {
     static_cast<void>(app.getWorld().getComponents().registerType<SpriteRenderer>());
     static_cast<void>(app.getWorld().getComponents().registerType<SpriteAnimator>());
     static_cast<void>(app.getWorld().getEvents().registerType<AnimationFinished>());
+    addSpriteCalls(app);
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kAnimateSystem}, &animateSprites).setSide(ecs::Side::kBoth);
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kTexturesSystem}, &queueAtlasTextures)
         .after(std::string{kAnimateSystem})
