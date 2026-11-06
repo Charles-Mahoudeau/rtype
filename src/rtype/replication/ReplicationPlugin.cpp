@@ -12,6 +12,7 @@
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/event/Events.hpp"
+#include "rtype/ecs/hierarchy/Parent.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/replication/component/NetworkId.hpp"
 #include "rtype/replication/component/Owner.hpp"
@@ -30,6 +31,8 @@ void ReplicationPlugin::build(ecs::App& app) {
     static_cast<void>(components.registerType<component::NetworkId>(
         {.presence = ecs::Presence::kBoth, .replication = ecs::ReplicationMode::kNone}));
     static_cast<void>(components.registerType<component::Owner>(
+        {.presence = ecs::Presence::kBoth, .replication = ecs::ReplicationMode::kEveryChange}));
+    static_cast<void>(components.registerType<ecs::Parent>(
         {.presence = ecs::Presence::kBoth, .replication = ecs::ReplicationMode::kEveryChange}));
     static_cast<void>(components.registerType<component::PlayerInput>(
         {.presence = ecs::Presence::kBoth, .replication = ecs::ReplicationMode::kNone}));

@@ -19,6 +19,8 @@
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/hierarchy/Children.hpp"
+#include "rtype/ecs/hierarchy/Parent.hpp"
 #include "rtype/ecs/world/World.hpp"
 #include "rtype/network/NetworkSettings.hpp"
 #include "rtype/network/Types.hpp"
@@ -70,6 +72,8 @@ void registerComponents(World& world, const bool withFollow = true) {
         components.registerType<Owner>({.presence = Presence::kBoth, .replication = ReplicationMode::kEveryChange}));
     static_cast<void>(
         components.registerType<Position>({.presence = Presence::kBoth, .replication = ReplicationMode::kEveryChange}));
+    static_cast<void>(components.registerType<rtype::ecs::Parent>(
+        {.presence = Presence::kBoth, .replication = ReplicationMode::kEveryChange}));
     if (withFollow) {
         static_cast<void>(components.registerType<Follow>(
             {.presence = Presence::kBoth, .replication = ReplicationMode::kEveryChange}));
@@ -117,6 +121,7 @@ class ClientStateTest : public ::testing::Test {
         _positionId = _world.getComponents().find("test.server.Position").value();
         _followId = _world.getComponents().find("test.server.Follow").value();
         _ownerId = _world.getComponents().find("net.Owner").value();
+        _parentId = _world.getComponents().find("rtype.Parent").value();
     }
 
     /// @brief Gives the state the manifest of the world.
@@ -139,6 +144,16 @@ class ClientStateTest : public ::testing::Test {
 
     [[nodiscard]] snapshot::ComponentValue follow(const std::uint32_t target) const {
         return {.shortId = shortId(_followId), .bytes = u32Bytes(target)};
+    }
+
+    [[nodiscard]] snapshot::ComponentValue parent(const std::uint32_t target) const {
+        return {.shortId = shortId(_parentId), .bytes = u32Bytes(target)};
+    }
+
+    /// @return The children of an entity, empty if it has none.
+    [[nodiscard]] std::vector<Entity> childrenOf(const Entity entity) const {
+        const rtype::ecs::Children* children = _world.getComponents().get<rtype::ecs::Children>(entity);
+        return children != nullptr ? children->entities : std::vector<Entity>{};
     }
 
     [[nodiscard]] snapshot::ComponentValue owner(const std::uint32_t client) const {
@@ -174,6 +189,7 @@ class ClientStateTest : public ::testing::Test {
     rtype::ecs::ComponentId _positionId{};
     rtype::ecs::ComponentId _followId{};
     rtype::ecs::ComponentId _ownerId{};
+    rtype::ecs::ComponentId _parentId{};
 };
 }  // namespace
 
@@ -265,6 +281,79 @@ TEST_F(ClientStateTest, LetsTwoEntitiesOfTheSameSnapshotReferToEachOther) {
     ASSERT_NE(second, Entity{});
     EXPECT_EQ(_world.getComponents().get<Follow>(first)->target, second);
     EXPECT_EQ(_world.getComponents().get<Follow>(second)->target, first);
+}
+
+TEST_F(ClientStateTest, LinksAChildListedBeforeItsParent) {
+    accept();
+    ASSERT_TRUE(apply(
+        {.tick = 1, .spawns = {{.networkId = 1, .components = {parent(2)}}, {.networkId = 2, .components = {}}}}));
+    EXPECT_EQ(_world.getComponents().get<rtype::ecs::Parent>(_state.find(1))->entity, _state.find(2));
+    EXPECT_EQ(childrenOf(_state.find(2)), std::vector<Entity>{_state.find(1)});
+}
+
+TEST_F(ClientStateTest, LinksAChildOnceASnapshotBringsItsParent) {
+    accept();
+    ASSERT_TRUE(apply({.tick = 1, .spawns = {{.networkId = 1, .components = {parent(2)}}}}));
+    EXPECT_FALSE(_world.getComponents().has<rtype::ecs::Parent>(_state.find(1)));
+    ASSERT_TRUE(apply({.tick = 2,
+                       .spawns = {{.networkId = 2, .components = {}}},
+                       .updates = {{.networkId = 1, .components = {parent(2)}}}}));
+    EXPECT_EQ(childrenOf(_state.find(2)), std::vector<Entity>{_state.find(1)});
+}
+
+TEST_F(ClientStateTest, KeepsTheOrderOfChildrenWhenSnapshotsRepeatTheirParent) {
+    accept();
+    ASSERT_TRUE(apply({.tick = 1,
+                       .spawns = {{.networkId = 1, .components = {}},
+                                  {.networkId = 2, .components = {parent(1)}},
+                                  {.networkId = 3, .components = {parent(1)}}}}));
+    const std::vector<Entity> expected{_state.find(2), _state.find(3)};
+    ASSERT_TRUE(
+        apply({.tick = 2,
+               .updates = {{.networkId = 3, .components = {parent(1)}}, {.networkId = 2, .components = {parent(1)}}}}));
+    EXPECT_EQ(childrenOf(_state.find(1)), expected);
+}
+
+TEST_F(ClientStateTest, MovesAChildToTheParentASnapshotGivesIt) {
+    accept();
+    ASSERT_TRUE(apply({.tick = 1,
+                       .spawns = {{.networkId = 1, .components = {}},
+                                  {.networkId = 2, .components = {}},
+                                  {.networkId = 3, .components = {parent(1)}}}}));
+    ASSERT_TRUE(apply({.tick = 2, .updates = {{.networkId = 3, .components = {parent(2)}}}}));
+    EXPECT_TRUE(childrenOf(_state.find(1)).empty());
+    EXPECT_EQ(childrenOf(_state.find(2)), std::vector<Entity>{_state.find(3)});
+}
+
+TEST_F(ClientStateTest, DetachesAChildWhoseParentIsRemoved) {
+    accept();
+    ASSERT_TRUE(apply(
+        {.tick = 1, .spawns = {{.networkId = 1, .components = {}}, {.networkId = 2, .components = {parent(1)}}}}));
+    ASSERT_TRUE(apply({.tick = 2, .removals = {{.networkId = 2, .shortId = shortId(_parentId)}}}));
+    EXPECT_FALSE(_world.getComponents().has<rtype::ecs::Parent>(_state.find(2)));
+    EXPECT_TRUE(childrenOf(_state.find(1)).empty());
+}
+
+TEST_F(ClientStateTest, DespawnsAChildWithItsParentWhateverTheOrderOfDespawns) {
+    accept();
+    ASSERT_TRUE(apply({.tick = 1,
+                       .spawns = {{.networkId = 1, .components = {}},
+                                  {.networkId = 2, .components = {parent(1)}},
+                                  {.networkId = 3, .components = {parent(1)}}}}));
+    const Entity child = _state.find(2);
+    const Entity other = _state.find(3);
+    ASSERT_TRUE(apply({.tick = 2, .despawns = {1, 2}}));
+    EXPECT_FALSE(_world.isAlive(child));
+    EXPECT_FALSE(_world.isAlive(other));
+}
+
+TEST_F(ClientStateTest, RespawnsAChildAfterACascadeTheServerDidNotSend) {
+    accept();
+    ASSERT_TRUE(apply(
+        {.tick = 1, .spawns = {{.networkId = 1, .components = {}}, {.networkId = 2, .components = {parent(1)}}}}));
+    ASSERT_TRUE(apply({.tick = 2, .despawns = {1}}));
+    ASSERT_TRUE(apply({.tick = 3, .spawns = {{.networkId = 2, .components = {}}}}));
+    EXPECT_TRUE(_world.isAlive(_state.find(2)));
 }
 
 TEST_F(ClientStateTest, ReadsAnUnknownReferenceAsTheNullEntity) {
