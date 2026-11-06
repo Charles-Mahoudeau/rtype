@@ -51,8 +51,10 @@ class RTYPE_ECS_API PluginRegistrar {
 /// @endcode
 // NOLINTBEGIN(cppcoreguidelines-macro-usage,bugprone-macro-parentheses): it wraps RTYPE_LIBRARY and names a parameter.
 #define RTYPE_PLUGIN_LIBRARY(target)                                  \
+    namespace {                                                       \
     namespace rtype_library {                                         \
     void registerPlugins(::rtype::ecs::PluginRegistrar& target);      \
+    }                                                                 \
     }                                                                 \
     RTYPE_LIBRARY(rtypeLibraryRegistrar) {                            \
         ::rtype::ecs::PluginRegistrar plugins{rtypeLibraryRegistrar}; \

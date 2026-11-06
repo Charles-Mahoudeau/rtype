@@ -10,7 +10,6 @@
 #include <cstddef>
 #include <filesystem>
 #include <functional>
-#include <string>
 #include <vector>
 
 #include "core/library/LibraryEntry.hpp"

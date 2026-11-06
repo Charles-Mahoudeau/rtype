@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <string>
 #include <string_view>
@@ -91,6 +92,8 @@ void checkLibrary(const LibraryEntry& entry, std::string_view file);
 
 /// @brief Makes a shared library loadable by the engine: put it once in a `.cpp`, followed by what it registers. A
 /// plugin library uses RTYPE_PLUGIN_LIBRARY instead.
+/// @details The function it declares has internal linkage: every library has one of this name, and on Linux a visible
+/// one would resolve to the first library loaded.
 /// @code
 /// RTYPE_LIBRARY(registrar) {
 ///     if (auto* renderers = registrar.find<RendererRegistry>(kRendererRegistryService)) {
@@ -101,8 +104,10 @@ void checkLibrary(const LibraryEntry& entry, std::string_view file);
 // NOLINTBEGIN(cppcoreguidelines-macro-usage,bugprone-macro-parentheses): it declares an exported C function and names
 // a parameter, which only a macro can do and which parentheses would break.
 #define RTYPE_LIBRARY(target)                                                                                      \
+    namespace {                                                                                                    \
     namespace rtype_library {                                                                                      \
     void registerLibrary(::rtype::core::library::LibraryRegistrar& target);                                        \
+    }                                                                                                              \
     }                                                                                                              \
     extern "C" RTYPE_LIBRARY_EXPORT const ::rtype::core::library::LibraryEntry* rtypeLibrary() {                   \
         static const ::rtype::core::library::LibraryEntry entry{                                                   \
