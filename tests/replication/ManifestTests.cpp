@@ -383,7 +383,7 @@ TEST(ManifestReceiver, RejectsMessagesThatDoNotDecode) {
 
 TEST(ManifestReceiver, RejectsADuplicatedShortIdOrIndex) {
     ManifestReceiver receiver;
-    const Bytes component = ManifestCodec::encode(ManifestComponent{.shortId = 0, .name = "game.A", .layoutHash = 1});
+    const Bytes component = ManifestCodec::encode(ManifestComponent{.shortId = 0, .name = "game.A", .wireHash = 1});
     const Bytes action =
         ManifestCodec::encode(ManifestInputAction{.index = 0, .name = "fire", .kind = InputKind::kButton});
 

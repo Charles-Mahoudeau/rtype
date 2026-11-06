@@ -78,7 +78,7 @@ Manifest Manifest::build(const ecs::World& world, const input::InputLayout& inpu
     for (const ecs::ComponentInfo* info : infos) {
         const auto shortId = static_cast<std::uint16_t>(manifest._entries.size());
         manifest._entries.push_back(
-            {.name = info->type.name, .layoutHash = serialization::computeManifestHash(info->type)});
+            {.name = info->type.name, .wireHash = serialization::computeManifestHash(info->type)});
         manifest._components.push_back(info->type.id);
         manifest._shorts.emplace(info->type.id, shortId);
     }
@@ -93,7 +93,7 @@ std::vector<network::Bytes> Manifest::encode(const ReplicationSettings& settings
     std::uint16_t shortId = 0;
     for (const ComponentEntry& entry : _entries) {
         messages.push_back(ManifestCodec::encode(
-            ManifestComponent{.shortId = shortId, .name = entry.name, .layoutHash = entry.layoutHash}));
+            ManifestComponent{.shortId = shortId, .name = entry.name, .wireHash = entry.wireHash}));
         ++shortId;
     }
     std::uint8_t index = 0;
@@ -144,7 +144,7 @@ std::uint64_t Manifest::computeHash(const std::span<const ComponentEntry> compon
         hash = core::hash::hashInteger(hash, shortId);
         hash = core::hash::hashInteger(hash, entry.name.size());
         hash = core::hash::hashString(hash, entry.name);
-        hash = core::hash::hashInteger(hash, entry.layoutHash);
+        hash = core::hash::hashInteger(hash, entry.wireHash);
         ++shortId;
     }
     std::uint64_t index = 0;
