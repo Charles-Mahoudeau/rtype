@@ -8,7 +8,9 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cstddef>
 #include <memory>
+#include <span>
 #include <string_view>
 
 #include "rtype/ecs/app/App.hpp"
@@ -16,6 +18,12 @@
 #include "rtype/ecs/app/MinimalPlugins.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 #include "rtype/ecs/app/PluginGroup.hpp"
+#include "rtype/ecs/component/ComponentTraits.hpp"
+#include "rtype/ecs/exceptions/PrefabException.hpp"
+#include "rtype/ecs/hierarchy/Children.hpp"
+#include "rtype/ecs/prefab/Prefab.hpp"
+#include "rtype/ecs/prefab/PrefabConfig.hpp"
+#include "rtype/ecs/prefab/Prefabs.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
@@ -47,6 +55,16 @@ struct FixedRuns {
     int count;
 };
 RTYPE_ECS_RESOURCE(FixedRuns, "test.app.FixedRuns", count);
+
+struct Armor {
+    int value;
+};
+RTYPE_ECS_COMPONENT(Armor, "test.app.Armor", value);
+
+struct Gun {
+    int barrels;
+};
+RTYPE_ECS_COMPONENT(Gun, "test.app.Gun", barrels);
 }  // namespace rtype::test::app
 
 namespace {
@@ -216,6 +234,49 @@ TEST(App, InsertsAResourceOnlyIfAbsent) {
     EXPECT_EQ(app.getWorld().getResources().get<FixedRuns>()->count, 1);  // the second call kept the first value
     app.insertResourceIfAbsent<Started>();
     EXPECT_EQ(app.getWorld().getResources().get<Started>()->count, 0);
+}
+
+TEST(App, AddsPrefabsWithValuesAndChildren) {
+    App app;
+    app.addPrefab("game.Gun").with(rtype::test::app::Gun{.barrels = 1});
+    const rtype::ecs::PrefabId ship = app.addPrefab("game.Ship")
+                                          .with(rtype::test::app::Armor{.value = 2})
+                                          .withChild("game.Gun", rtype::test::app::Gun{.barrels = 3})
+                                          .withChild("game.Gun")
+                                          .getId();
+    const rtype::ecs::Entity entity = app.getWorld().spawnPrefab(ship);
+    const rtype::ecs::Components& components = app.getWorld().getComponents();
+    EXPECT_EQ(components.get<rtype::test::app::Armor>(entity)->value, 2);
+    const auto& children = components.get<rtype::ecs::Children>(entity)->entities;
+    ASSERT_EQ(children.size(), 2U);
+    EXPECT_EQ(components.get<rtype::test::app::Gun>(children[0])->barrels, 3);  // its override
+    EXPECT_EQ(components.get<rtype::test::app::Gun>(children[1])->barrels, 1);  // the child prefab's value
+}
+
+TEST(App, AddsAPrefabValueByIdAndBytes) {
+    App app;
+    const rtype::ecs::ComponentId armor = app.getWorld().getComponents().registerType<rtype::test::app::Armor>();
+    const rtype::test::app::Armor value{.value = 7};
+    const rtype::ecs::PrefabId id = app.addPrefab("game.Wall").with(armor, std::as_bytes(std::span{&value, 1})).getId();
+    EXPECT_EQ(app.getWorld()
+                  .getPrefabs()
+                  .findById(id)
+                  ->getValues()
+                  .get<rtype::test::app::Armor>(app.getWorld().getComponents())
+                  ->value,
+              7);
+}
+
+TEST(App, RefusesAnUnknownChildPrefab) {
+    App app;
+    EXPECT_THROW(app.addPrefab("game.Ship").withChild("game.Missing"), rtype::ecs::exceptions::PrefabException);
+    EXPECT_THROW(app.addPrefab("game.Ship"), rtype::ecs::exceptions::PrefabException);  // the name is taken
+}
+
+TEST(App, GivesItsRunModeToThePrefabs) {
+    EXPECT_EQ(App{RunMode::kServer}.getWorld().getPrefabs().getRunMode(), RunMode::kServer);
+    EXPECT_EQ(App{RunMode::kClient}.getWorld().getPrefabs().getRunMode(), RunMode::kClient);
+    EXPECT_EQ(App{}.getWorld().getPrefabs().getRunMode(), RunMode::kStandalone);
 }
 
 TEST(App, RunsFramesUntilAppExit) {
