@@ -18,7 +18,10 @@
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/hierarchy/Parent.hpp"
 #include "rtype/ecs/storage/ByteColumn.hpp"
+#include "rtype/ecs/storage/ViewAs.hpp"
+#include "rtype/ecs/type/TypeTraits.hpp"
 #include "rtype/ecs/world/World.hpp"
 
 namespace rtype::ecs {
@@ -118,12 +121,23 @@ void Commands::flush() {
         switch (record.kind) {
             case Kind::kAdd: {
                 Column& column = *std::next(_columns.begin(), record.column);
+                if (column.key == TypeTraits<Parent>::kLayoutHash) {
+                    const Parent* parent = storage::viewAs<Parent>(column.values.at(record.index));
+                    static_cast<void>(_world->setParent(record.entity, parent->entity));
+                    break;
+                }
                 static_cast<void>(components.addMove(record.entity, column.id, column.values.at(record.index)));
                 break;  // false for an entity dead by now: skipped
             }
-            case Kind::kRemove:
-                static_cast<void>(components.remove(record.entity, std::next(_columns.begin(), record.column)->id));
+            case Kind::kRemove: {
+                const Column& column = *std::next(_columns.begin(), record.column);
+                if (column.key == TypeTraits<Parent>::kLayoutHash) {
+                    static_cast<void>(_world->removeParent(record.entity));
+                    break;
+                }
+                static_cast<void>(components.remove(record.entity, column.id));
                 break;
+            }
             case Kind::kDespawn:
                 static_cast<void>(_world->despawn(record.entity));
                 break;

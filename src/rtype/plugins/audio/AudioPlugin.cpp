@@ -34,6 +34,7 @@
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/event/Events.hpp"
+#include "rtype/ecs/hierarchy/Parent.hpp"
 #include "rtype/ecs/query/Query.hpp"
 #include "rtype/ecs/query/QueryTerms.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
@@ -47,16 +48,17 @@ namespace rtype::plugins::audio {
 namespace {
 /// @brief The entities that hear: the first one placed is the listener.
 using Listeners = ecs::Query<ecs::Optional<const transform::GlobalTransform>, ecs::Optional<const transform::Transform>,
-                             ecs::With<AudioListener>>;
+                             ecs::Optional<const ecs::Parent>, ecs::With<AudioListener>>;
 
 /// @return Where an entity is: its GlobalTransform, or its Transform while it has no GlobalTransform yet (spawned this
-/// frame: the TransformPlugin's commands give it one at the end of PostUpdate); nothing if it has neither.
+/// frame: the TransformPlugin's commands give it one at the end of PostUpdate); nothing if it has neither, or for such
+/// a new entity with a parent, whose Transform is not a place in the world.
 [[nodiscard]] std::optional<glm::vec2> positionOf(const transform::GlobalTransform* global,
-                                                  const transform::Transform* local) {
+                                                  const transform::Transform* local, const ecs::Parent* parent) {
     if (global != nullptr) {
         return global->position;
     }
-    if (local != nullptr) {
+    if (local != nullptr && parent == nullptr) {
         return local->position;
     }
     return std::nullopt;
@@ -64,8 +66,8 @@ using Listeners = ecs::Query<ecs::Optional<const transform::GlobalTransform>, ec
 
 /// @return Where the listener is, or nothing if no entity with an AudioListener is placed.
 [[nodiscard]] std::optional<glm::vec2> findListener(Listeners& listeners) {
-    for (auto [entity, global, local] : listeners) {
-        if (const std::optional<glm::vec2> position = positionOf(global, local)) {
+    for (auto [entity, global, local, parent] : listeners) {
+        if (const std::optional<glm::vec2> position = positionOf(global, local, parent)) {
             return position;
         }
     }
@@ -171,7 +173,7 @@ void playEvents(ecs::NonSendMut<Audio> audio, ecs::Res<AudioAssets> sounds, ecs:
 /// @brief PostUpdate: keeps one voice per AudioSource, and stops the voices of the sources that went.
 void followSources(ecs::NonSendMut<Audio> audio, ecs::Res<AudioAssets> sounds,
                    ecs::Query<const AudioSource, ecs::Optional<const transform::GlobalTransform>,
-                              ecs::Optional<const transform::Transform>>
+                              ecs::Optional<const transform::Transform>, ecs::Optional<const ecs::Parent>>
                        sources,
                    Listeners listeners) {
     if (!audio->device) {
@@ -180,8 +182,8 @@ void followSources(ecs::NonSendMut<Audio> audio, ecs::Res<AudioAssets> sounds,
     IAudioDevice& device = *audio->device;
     const std::optional<glm::vec2> listener = findListener(listeners);
     std::unordered_map<ecs::Entity, SourceVoice> kept;
-    for (auto [entity, source, global, local] : sources) {
-        const std::optional<glm::vec2> position = source.spatial ? positionOf(global, local) : std::nullopt;
+    for (auto [entity, source, global, local, parent] : sources) {
+        const std::optional<glm::vec2> position = source.spatial ? positionOf(global, local, parent) : std::nullopt;
         const float pan = panOf(position, listener, audio->panDistance);
         const auto known = audio->sources.find(entity);
         if (known != audio->sources.end() && known->second.sound == source.sound) {

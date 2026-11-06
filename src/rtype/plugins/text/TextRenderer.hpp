@@ -33,8 +33,8 @@ namespace rtype::plugins::text {
 ///
 /// @details Only what to draw: where (position, scale, rotation) comes from the entity's GlobalTransform, the anchor
 /// saying which point of the text sits there. The font is referred to by its AssetId, which FontAssets::load() returns
-/// at once; the text is drawn once its font and its atlas are loaded, sorted with the sprites by layer. Every field but
-/// `text` is reflected (Luau, network): the ECS reflects no strings yet.
+/// at once; the text is drawn once its font and its atlas are loaded, sorted with the sprites by layer. Its fields are
+/// reflected (Luau, network).
 /// @code
 /// commands.spawn()
 ///     .add(rtype::plugins::transform::Transform{.position = {400.0F, 300.0F}})
@@ -54,5 +54,5 @@ struct TextRenderer {
     core::asset::AssetId material;  ///< From MaterialAssets; the default material if empty or not created yet. Its
                                     ///< `instance uniform` values come from the entity's MaterialInstance.
 };
-RTYPE_ECS_COMPONENT(TextRenderer, "rtype.TextRenderer", font, size, color, align, anchor, layer, material);
+RTYPE_ECS_COMPONENT(TextRenderer, "rtype.TextRenderer", text, font, size, color, align, anchor, layer, material);
 }  // namespace rtype::plugins::text

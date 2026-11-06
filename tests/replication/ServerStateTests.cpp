@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -184,8 +185,8 @@ TEST_F(ServerStateTest, StartsWithoutClientsNorEntities) {
 TEST_F(ServerStateTest, PrepareFreezesTheInputLayoutAndBuildsTheManifest) {
     makeState();
     EXPECT_TRUE(_layout.isFrozen());
-    // net.Owner, test.server.Follow and test.server.Position, by name.
-    EXPECT_EQ(_state->manifest().components().size(), 3U);
+    // net.Owner, rtype.Parent, test.server.Follow and test.server.Position, by name.
+    EXPECT_EQ(_state->manifest().components().size(), 4U);
     EXPECT_EQ(_state->manifest().actions().size(), 3U);
 }
 
@@ -633,4 +634,48 @@ TEST_F(ServerStateTest, TheSnapshotIsNotCompleteAboveTheBudget) {
         EXPECT_EQ(decoded.spawns[index].networkId, index + 1);
         EXPECT_EQ(decoded.spawns[index].components.size(), 1U);
     }
+}
+
+TEST_F(ServerStateTest, SendsAComponentWithListsThatComesBackWhole) {
+    using rtype::test::server::Cargo;
+    static_cast<void>(world().getComponents().registerType<Cargo>(
+        {.presence = Presence::kBoth, .replication = ReplicationMode::kEveryChange}));
+    makeState();
+    join(kFirst);
+    const Entity crew = spawnTracked(1.F);
+    const Entity ship = spawnTracked(2.F);
+    world().getComponents().add(ship, Cargo{.items = {10, 20, 30}, .crew = {crew}, .weight = 4.F});
+
+    const auto commands = build(3);
+
+    ASSERT_EQ(commands.size(), 1U);
+    const snapshot::Snapshot decoded = decode(commands.front());
+    ASSERT_EQ(decoded.spawns.size(), 2U);
+    const auto shortId = _state->manifest().toShort(world().getComponents().find("test.server.Cargo").value());
+    ASSERT_TRUE(shortId);
+    const auto& components = decoded.spawns[1].components;
+    const auto value = std::ranges::find(components, *shortId, &snapshot::ComponentValue::shortId);
+    ASSERT_NE(value, components.end());
+    EXPECT_TRUE(value->lengthPrefixed);
+    EXPECT_EQ(value->bytes.size(), 2U + 12U + 2U + 4U + 4U);
+}
+
+TEST_F(ServerStateTest, LeavesOutAValueTooBigForItsLength) {
+    using rtype::test::server::Cargo;
+    static_cast<void>(world().getComponents().registerType<Cargo>(
+        {.presence = Presence::kBoth, .replication = ReplicationMode::kEveryChange}));
+    makeState();
+    join(kFirst);
+    const Entity ship = spawnTracked(2.F);
+    world().getComponents().add(ship, Cargo{.items = std::vector<std::uint32_t>(70000, 1U)});
+
+    const auto commands = build(3);
+
+    ASSERT_EQ(commands.size(), 1U);
+    const snapshot::Snapshot decoded = decode(commands.front());
+    ASSERT_EQ(decoded.spawns.size(), 1U);
+    const auto shortId = _state->manifest().toShort(world().getComponents().find("test.server.Cargo").value());
+    ASSERT_TRUE(shortId);
+    EXPECT_EQ(std::ranges::find(decoded.spawns[0].components, *shortId, &snapshot::ComponentValue::shortId),
+              decoded.spawns[0].components.end());
 }

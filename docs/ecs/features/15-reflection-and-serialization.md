@@ -105,6 +105,20 @@ Two field types are not copied as raw numbers:
   variable size (`isVariableSize()`): `computeWireSize()` gives its upper bound, and the snapshot writes such a
   component after its `u16` length (`snapshot::kVariableSize`).
 
+- **Lists**: a `std::vector<T>` of trivially copyable values with a `FieldTypeOf<T>` mapping is a field, except
+  for `std::vector<bool>`. Its `FieldInfo::list` tells how to reach its values
+  (`ecs/type/FieldList.hpp`): they live outside the value and their number changes, so `offset` and `count` describe
+  the vector itself and `type` its values. On the wire it is a `u16` count then the values, so its component has a
+  variable size; `readFields()` then needs a live value, since a value that owns memory is not bytes. A count the
+  received bytes cannot hold is refused before anything is allocated. A list of entities leaves out the ones the other
+  side does not know, and loses an entity that is despawned instead of keeping a null one.
+- **`kText`**: a `std::string` field is a list of bytes, read as one text of any length. It is for C++ components: a
+  component declared in Luau has no hooks and uses `kString`.
+
+A type with a list has a size and offsets that depend on the standard library, so client and server compare a hash of
+its name and fields instead of its layout hash (`computeManifestHash()`). A value that does not fit in a message is not
+sent: messages hold 1000 bytes.
+
 ### Determinism
 
 Field order comes from the layout rules in [Component registry](02-component-registry.md) (alignment,

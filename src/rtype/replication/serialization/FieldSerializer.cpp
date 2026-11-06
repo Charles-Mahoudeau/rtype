@@ -13,7 +13,9 @@
 #include <cstdint>
 #include <cstring>
 #include <span>
+#include <vector>
 
+#include "core/hash/NameHash.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/type/Field.hpp"
 #include "rtype/ecs/type/String.hpp"
@@ -30,6 +32,7 @@ constexpr std::size_t getValueWireSize(const ecs::FieldType type) noexcept {
         case ecs::FieldType::kBool:
         case ecs::FieldType::kI8:
         case ecs::FieldType::kU8:
+        case ecs::FieldType::kText:
             return 1;
         case ecs::FieldType::kI16:
         case ecs::FieldType::kU16:
@@ -103,6 +106,7 @@ void writeValue(network::bytes::ByteWriter& writer, ecs::FieldType type, std::sp
             writer.writeI64(load<std::int64_t>(bytes));
             break;
         case ecs::FieldType::kU8:
+        case ecs::FieldType::kText:
             writer.writeU8(load<std::uint8_t>(bytes));
             break;
         case ecs::FieldType::kU16:
@@ -174,6 +178,7 @@ bool readValue(network::bytes::ByteReader& reader, ecs::FieldType type, std::spa
             store(bytes, reader.readI64());
             return true;
         case ecs::FieldType::kU8:
+        case ecs::FieldType::kText:
             store(bytes, reader.readU8());
             return true;
         case ecs::FieldType::kU16:
@@ -220,22 +225,97 @@ bool readValue(network::bytes::ByteReader& reader, ecs::FieldType type, std::spa
     }
     return false;  // Unreachable: every FieldType is handled above.
 }
+
+/// @return Whether a field is a list: a count and then its values, on the wire.
+bool isList(const ecs::FieldInfo& field) noexcept { return field.list != nullptr; }
+
+/// @return The values of a list field of `value`, a live value of its type.
+std::span<const std::byte> listOf(const ecs::FieldInfo& field, std::span<const std::byte> value) noexcept {
+    return field.list->elements(value.subspan(field.offset).data());
+}
+
+/// @return How many values `values`, the bytes of a list field, holds.
+std::size_t countValues(const ecs::FieldInfo& field, std::span<const std::byte> values) noexcept {
+    return values.size() / ecs::getFieldLayout(field.type).size;
+}
+
+/// @brief Reads a list field into `value`, a live value of its type. An entity that is null or unknown here is left
+/// out: a list has no use for a null entity.
+/// @return False when bytes are missing, a value is invalid, or the count announces more values than the bytes left can
+/// hold: it comes from the network, so it is checked before anything is allocated.
+bool readList(network::bytes::ByteReader& reader, const ecs::FieldInfo& field, std::span<std::byte> value,
+              const EntityMapper& mapper) noexcept {
+    const std::size_t count = reader.readU16();
+    const std::size_t smallest = field.type == ecs::FieldType::kString ? 1 : getValueWireSize(field.type);
+    if (!reader.isValid() || count > reader.remainingSize() / smallest) {
+        return false;
+    }
+    const std::size_t valueSize = ecs::getFieldLayout(field.type).size;
+    try {
+        std::vector<std::byte> values(count * valueSize);
+        std::size_t kept = 0;
+        for (std::size_t i = 0; i < count; ++i) {
+            const std::span<std::byte> slot = std::span{values}.subspan(kept * valueSize, valueSize);
+            if (!readValue(reader, field.type, slot, mapper)) {
+                return false;
+            }
+            if (field.type != ecs::FieldType::kEntity || !load<ecs::Entity>(slot).isNull()) {
+                ++kept;
+            }
+        }
+        field.list->assign(value.subspan(field.offset).data(), std::span{values}.first(kept * valueSize));
+    } catch (...) {  // out of memory: a value that cannot be built is a value that was not received
+        return false;
+    }
+    return true;
+}
 }  // namespace
 
 bool isSerializable(const ecs::TypeInfo& info) noexcept {
-    return !info.fields.empty() && info.hooks.destruct == nullptr && info.hooks.move == nullptr &&
-           info.hooks.copy == nullptr;
+    if (info.fields.empty()) {
+        return false;
+    }
+    const bool plain = info.hooks.destruct == nullptr && info.hooks.move == nullptr && info.hooks.copy == nullptr;
+    const bool hasList = std::ranges::any_of(info.fields, &isList);
+    return plain || (hasList && info.copyable && info.hooks.construct != nullptr);
 }
 
 bool isVariableSize(const ecs::TypeInfo& info) noexcept {
-    return std::ranges::any_of(info.fields,
-                               [](const ecs::FieldInfo& field) { return field.type == ecs::FieldType::kString; });
+    return std::ranges::any_of(info.fields, [](const ecs::FieldInfo& field) {
+        return field.type == ecs::FieldType::kString || isList(field);
+    });
+}
+
+std::uint64_t computeManifestHash(const ecs::TypeInfo& info) noexcept {
+    if (std::ranges::none_of(info.fields, &isList)) {
+        return info.layoutHash;
+    }
+    std::uint64_t hash = core::hash::kNameHashOffsetBasis;
+    hash = core::hash::hashString(hash, info.name);
+    for (const ecs::FieldInfo& field : info.fields) {
+        hash = core::hash::hashInteger(hash, field.name.size());
+        hash = core::hash::hashString(hash, field.name);
+        hash = core::hash::hashInteger(hash, static_cast<std::uint64_t>(field.type));
+        hash = core::hash::hashInteger(hash, field.count);
+        hash = core::hash::hashInteger(hash, isList(field) ? 1U : 0U);
+    }
+    return hash;
 }
 
 std::size_t computeWireSize(const ecs::TypeInfo& info) noexcept {
     std::size_t size = 0;
     for (const ecs::FieldInfo& field : info.fields) {
-        size += getValueWireSize(field.type) * field.count;
+        size += isList(field) ? sizeof(std::uint16_t) : getValueWireSize(field.type) * field.count;
+    }
+    return size;
+}
+
+std::size_t computeWireSize(const ecs::TypeInfo& info, std::span<const std::byte> value) noexcept {
+    std::size_t size = computeWireSize(info);
+    for (const ecs::FieldInfo& field : info.fields) {
+        if (isList(field)) {
+            size += countValues(field, listOf(field, value)) * getValueWireSize(field.type);
+        }
     }
     return size;
 }
@@ -244,6 +324,15 @@ void writeFields(network::bytes::ByteWriter& writer, const ecs::TypeInfo& info, 
                  const EntityMapper& mapper) noexcept {
     for (const ecs::FieldInfo& field : info.fields) {
         const std::size_t valueSize = ecs::getFieldLayout(field.type).size;
+        if (isList(field)) {
+            const std::span<const std::byte> values = listOf(field, value);
+            const std::size_t count = countValues(field, values);
+            writer.writeU16(static_cast<std::uint16_t>(count));
+            for (std::size_t i = 0; i < count; ++i) {
+                writeValue(writer, field.type, values.subspan(i * valueSize, valueSize), mapper);
+            }
+            continue;
+        }
         for (std::size_t i = 0; i < field.count; ++i) {
             writeValue(writer, field.type, value.subspan(field.offset + (i * valueSize), valueSize), mapper);
         }
@@ -255,9 +344,17 @@ bool readFields(network::bytes::ByteReader& reader, const ecs::TypeInfo& info, s
     if (value.size() < info.size) {
         return false;
     }
-    std::ranges::fill(value, std::byte{0});
+    if (info.hooks.destruct == nullptr) {
+        std::ranges::fill(value, std::byte{0});  // a value that owns memory is a live object: its bytes are not ours
+    }
     for (const ecs::FieldInfo& field : info.fields) {
         const std::size_t valueSize = ecs::getFieldLayout(field.type).size;
+        if (isList(field)) {
+            if (!readList(reader, field, value, mapper)) {
+                return false;
+            }
+            continue;
+        }
         for (std::size_t i = 0; i < field.count; ++i) {
             if (!readValue(reader, field.type, value.subspan(field.offset + (i * valueSize), valueSize), mapper)) {
                 return false;

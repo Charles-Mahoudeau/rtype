@@ -2748,6 +2748,10 @@ changed components, removals, despawns, filled in priority order up to the budge
 - [ ] Budget: despawns, spawns, then updates with the oldest-confirmed entities first; an entity whole or not at
   all; never set `kComplete`.
 - [ ] Client: nothing new (NET-17 already applies the four lists); verify updates add missing components.
+- [ ] Hierarchy: a `Parent` read while its target is unknown is dropped, and complete snapshots send it again. A delta
+  must keep sending it until the parent's spawn is confirmed, or the child stays a root.
+- [ ] Values larger than a message (a long list or text) are left out today, and snapshots stay incomplete: decide what
+  happens to them.
 - [ ] Update `design.md` 7.4 with the `flags` byte (deviation 1).
 - [ ] Tests: each row of the design's table; budget overflow completed over the next snapshots; no starvation
   (an entity left out is sent within N snapshots); spawn-then-despawn before any snapshot never sent.

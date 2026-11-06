@@ -134,7 +134,17 @@ TEST(ReplicationPlugin, GivesEachComponentItsPresenceAndReplication) {
     EXPECT_EQ(input->type.presence, Presence::kBoth);
     EXPECT_EQ(input->type.replication, ReplicationMode::kNone);
 
-    EXPECT_EQ(replicatedNames(app), std::vector<std::string_view>{"net.Owner"});
+    EXPECT_EQ(replicatedNames(app), (std::vector<std::string_view>{"net.Owner", "rtype.Parent"}));
+}
+
+TEST(ReplicationPlugin, ReplicatesParentButNotChildren) {
+    rtype::ecs::App app;
+    app.addPlugin(rtype::replication::ReplicationPlugin{});
+    const ComponentInfo* parent = findComponent(app, "rtype.Parent");
+    ASSERT_NE(parent, nullptr);
+    EXPECT_EQ(parent->type.presence, rtype::ecs::Presence::kBoth);
+    EXPECT_EQ(parent->type.replication, rtype::ecs::ReplicationMode::kEveryChange);
+    EXPECT_EQ(findComponent(app, "rtype.Children"), nullptr);
 }
 
 TEST(ReplicationPlugin, RegistersTheEventsOnTheServerOnly) {

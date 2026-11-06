@@ -15,11 +15,13 @@
 #include <string>
 #include <vector>
 
+#include "ServerFixtures.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/type/Field.hpp"
 #include "rtype/ecs/type/String.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/type/TypeTraits.hpp"
+#include "rtype/ecs/world/World.hpp"
 #include "rtype/network/bytes/ByteReader.hpp"
 #include "rtype/network/bytes/ByteWriter.hpp"
 #include "rtype/replication/component/Owner.hpp"
@@ -214,6 +216,34 @@ std::vector<std::byte> f32Bytes(float value, std::size_t count = 1) {
     for (std::size_t i = 0; i < count; ++i) {
         writer.writeF32(value);
     }
+    return buffer;
+}
+/// @brief A component with a text of any length.
+struct Letter {
+    std::string body;
+    std::int32_t stamp{0};
+};
+RTYPE_ECS_COMPONENT(Letter, "test.serializer.Letter", body, stamp);
+
+/// @brief A component with lists around a plain field.
+struct Crate {
+    std::vector<std::uint32_t> numbers;
+    std::int32_t label{0};
+    std::vector<Entity> owners;
+};
+RTYPE_ECS_COMPONENT(Crate, "test.serializer.Crate", numbers, label, owners);
+
+/// @return The bytes of @p crate.
+std::span<std::byte> bytesOf(Crate& crate) { return std::as_writable_bytes(std::span{&crate, 1}); }
+
+/// @return @p crate as written on the wire.
+std::vector<std::byte> encodeCrate(Crate& crate, const rtype::ecs::TypeInfo& info) {
+    TestMapper mapper;
+    std::vector<std::byte> buffer(computeWireSize(info, bytesOf(crate)));
+    rtype::network::bytes::ByteWriter writer{buffer};
+    writeFields(writer, info, bytesOf(crate), mapper);
+    EXPECT_TRUE(writer.isValid());
+    buffer.resize(writer.bytesWritten());
     return buffer;
 }
 }  // namespace
@@ -488,4 +518,120 @@ TEST(FieldSerializer, RefusesAStringCutShort) {
 
     EXPECT_FALSE(accepts(info, wire));
     EXPECT_FALSE(accepts(info, std::vector<std::byte>{}));
+}
+
+TEST(FieldList, IsSerializableAndOfVariableSize) {
+    const rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Crate>::makeTypeInfo();
+    EXPECT_TRUE(isSerializable(info));
+    EXPECT_TRUE(isVariableSize(info));
+}
+
+TEST(FieldList, GivesTheSizeOfAValueOnTheWire) {
+    const rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Crate>::makeTypeInfo();
+    EXPECT_EQ(computeWireSize(info), 8U);  // two counts and the label
+    Crate crate{.numbers = {1, 2, 3}, .label = 7, .owners = {kTracked}};
+    EXPECT_EQ(computeWireSize(info, bytesOf(crate)), 24U);
+}
+
+TEST(FieldList, ComesBackFromTheWire) {
+    const rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Crate>::makeTypeInfo();
+    Crate crate{.numbers = {1, 2, 3}, .label = 7, .owners = {kTracked}};
+    const std::vector<std::byte> wire = encodeCrate(crate, info);
+    EXPECT_EQ(wire.size(), 24U);
+
+    TestMapper mapper;
+    Crate read;
+    rtype::network::bytes::ByteReader reader{wire};
+    ASSERT_TRUE(readFields(reader, info, bytesOf(read), mapper));
+    EXPECT_TRUE(reader.isFinished());
+    EXPECT_EQ(read.numbers, crate.numbers);
+    EXPECT_EQ(read.label, 7);
+    EXPECT_EQ(read.owners, crate.owners);
+}
+
+TEST(FieldList, ComesBackEmpty) {
+    const rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Crate>::makeTypeInfo();
+    Crate crate;
+    const std::vector<std::byte> wire = encodeCrate(crate, info);
+    TestMapper mapper;
+    Crate read{.numbers = {9}};
+    rtype::network::bytes::ByteReader reader{wire};
+    ASSERT_TRUE(readFields(reader, info, bytesOf(read), mapper));
+    EXPECT_TRUE(read.numbers.empty());
+}
+
+TEST(FieldList, LeavesOutTheEntitiesTheOtherSideDoesNotKnow) {
+    const rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Crate>::makeTypeInfo();
+    Crate crate{.owners = {Entity{9, 1}, kTracked, Entity{}}};
+    const std::vector<std::byte> wire = encodeCrate(crate, info);
+    TestMapper mapper;
+    Crate read;
+    rtype::network::bytes::ByteReader reader{wire};
+    ASSERT_TRUE(readFields(reader, info, bytesOf(read), mapper));
+    EXPECT_EQ(read.owners, std::vector<Entity>{kTracked});
+}
+
+TEST(FieldList, RefusesACountTheBytesCannotHold) {
+    const rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Crate>::makeTypeInfo();
+    std::vector<std::byte> wire(4);
+    rtype::network::bytes::ByteWriter writer{wire};
+    writer.writeU16(0xFFFF);  // a hostile message: no value follows
+    TestMapper mapper;
+    Crate read;
+    rtype::network::bytes::ByteReader reader{wire};
+    EXPECT_FALSE(readFields(reader, info, bytesOf(read), mapper));
+    EXPECT_TRUE(read.numbers.empty());
+}
+
+TEST(FieldList, RefusesAMessageCutInTheMiddleOfAList) {
+    const rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Crate>::makeTypeInfo();
+    Crate crate{.numbers = {1, 2, 3}};
+    std::vector<std::byte> wire = encodeCrate(crate, info);
+    wire.resize(6);
+    TestMapper mapper;
+    Crate read;
+    rtype::network::bytes::ByteReader reader{wire};
+    EXPECT_FALSE(readFields(reader, info, bytesOf(read), mapper));
+}
+
+TEST(FieldText, ComesBackFromTheWireWhateverItsLength) {
+    const rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Letter>::makeTypeInfo();
+    EXPECT_TRUE(isSerializable(info));
+    EXPECT_TRUE(isVariableSize(info));
+    Letter letter{.body = std::string(600, 'z'), .stamp = 3};
+    const std::span<std::byte> bytes = std::as_writable_bytes(std::span{&letter, 1});
+    TestMapper mapper;
+    std::vector<std::byte> wire(computeWireSize(info, bytes));
+    EXPECT_EQ(wire.size(), 2U + 600U + 4U);
+    rtype::network::bytes::ByteWriter writer{wire};
+    writeFields(writer, info, bytes, mapper);
+    ASSERT_TRUE(writer.isValid());
+
+    Letter read;
+    rtype::network::bytes::ByteReader reader{wire};
+    ASSERT_TRUE(readFields(reader, info, std::as_writable_bytes(std::span{&read, 1}), mapper));
+    EXPECT_EQ(read.body, letter.body);
+    EXPECT_EQ(read.stamp, 3);
+}
+
+TEST(ManifestHash, IsTheLayoutHashWithoutAList) {
+    rtype::ecs::World world;
+    static_cast<void>(world.getComponents().registerType<rtype::test::server::Position>());
+    const auto& type = world.getComponents().getRegistry().find<rtype::test::server::Position>()->type;
+    EXPECT_EQ(rtype::replication::serialization::computeManifestHash(type), type.layoutHash);
+}
+
+TEST(ManifestHash, DoesNotDependOnTheSizeOfAList) {
+    rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Letter>::makeTypeInfo();
+    const std::uint64_t hash = rtype::replication::serialization::computeManifestHash(info);
+    info.size += 8;  // as with another standard library, where `std::string` has another size
+    info.fields.back().offset += 8;
+    EXPECT_EQ(rtype::replication::serialization::computeManifestHash(info), hash);
+}
+
+TEST(ManifestHash, ChangesWithTheFields) {
+    rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Letter>::makeTypeInfo();
+    const std::uint64_t hash = rtype::replication::serialization::computeManifestHash(info);
+    info.fields.back().name = "other";
+    EXPECT_NE(rtype::replication::serialization::computeManifestHash(info), hash);
 }

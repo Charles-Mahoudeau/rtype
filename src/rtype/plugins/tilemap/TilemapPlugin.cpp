@@ -49,7 +49,7 @@ namespace {
 void applyParallax(
     ecs::Res<ecs::Time> time,
     ecs::Query<const transform::GlobalTransform, const backend::graphics::Camera, ecs::Without<Parallax>> cameras,
-    ecs::Query<const transform::Transform, Parallax, transform::GlobalTransform> moved) {
+    ecs::Query<Parallax, transform::GlobalTransform> moved) {
     std::optional<glm::vec2> camera;
     std::int32_t priority = 0;
     for (auto [entity, global, shown] : cameras) {
@@ -58,19 +58,16 @@ void applyParallax(
             priority = shown.priority;
         }
     }
-    for (auto [entity, local, parallax, global] : moved) {
+    for (auto [entity, parallax, global] : moved) {
         if (parallax.get().scroll != glm::vec2{0.0F}) {
             parallax->scrolled += parallax.get().scroll * time->delta;
         }
         const Parallax& current = parallax.get();
         const glm::vec2 follow =
             camera ? (*camera - current.origin) * (glm::vec2{1.0F} - current.factor) : glm::vec2{0.0F};
-        const glm::vec2 position = local.position + follow + current.scrolled;
-        if (global.get().position != position || global.get().scale != local.scale ||
-            global.get().rotation != local.rotation) {
-            global->position = position;
-            global->scale = local.scale;
-            global->rotation = local.rotation;
+        const glm::vec2 shift = follow + current.scrolled;
+        if (shift != glm::vec2{0.0F}) {
+            global->position += shift;
         }
     }
 }

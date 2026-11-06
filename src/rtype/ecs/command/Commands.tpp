@@ -5,6 +5,7 @@
 ** Commands
 */
 
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
@@ -12,6 +13,7 @@
 #include <span>
 #include <utility>
 
+#include "rtype/ecs/hierarchy/Parent.hpp"
 #include "rtype/ecs/type/TypeTraits.hpp"
 
 namespace rtype::ecs {
@@ -61,6 +63,10 @@ ComponentId Commands::registerIfNeeded(Components& components) {
     if (const ComponentInfo* info = components.getRegistry().find<T>()) {
         return info->type.id;  // keeps the options it was registered with
     }
-    return components.registerType<T>();
+    if constexpr (std::same_as<T, Parent>) {
+        return components.registerType<T>(kParentOptions);
+    } else {
+        return components.registerType<T>();
+    }
 }
 }  // namespace rtype::ecs
