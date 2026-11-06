@@ -105,7 +105,8 @@ Two field types are not copied as raw numbers:
   variable size (`isVariableSize()`): `computeWireSize()` gives its upper bound, and the snapshot writes such a
   component after its `u16` length (`snapshot::kVariableSize`).
 
-- **Lists**: a `std::vector<T>` of plain data is a field whose `FieldInfo::list` tells how to reach its values
+- **Lists**: a `std::vector<T>` of trivially copyable values with a `FieldTypeOf<T>` mapping is a field, except
+  for `std::vector<bool>`. Its `FieldInfo::list` tells how to reach its values
   (`ecs/type/FieldList.hpp`): they live outside the value and their number changes, so `offset` and `count` describe
   the vector itself and `type` its values. On the wire it is a `u16` count then the values, so its component has a
   variable size; `readFields()` then needs a live value, since a value that owns memory is not bytes. A count the
