@@ -10,12 +10,14 @@
 #include <chrono>
 #include <memory>
 #include <string_view>
+#include <vector>
 
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/app/MinimalPlugins.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 #include "rtype/ecs/app/PluginGroup.hpp"
+#include "rtype/ecs/resource/ResourceInfo.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
@@ -82,6 +84,7 @@ void markStarted(ResMut<Started> started, Res<Frames> frames) {
 }
 
 void countFixed(ResMut<FixedRuns> runs) { ++runs->count; }
+void countFixedToo(ResMut<FixedRuns> runs) { ++runs->count; }
 
 /// @return The App's clock as a TimeClock, or nullptr if it is another clock or none.
 const TimeClock* timeClockOf(const App& app) { return dynamic_cast<const TimeClock*>(app.getSchedules().getClock()); }
@@ -216,6 +219,30 @@ TEST(App, InsertsAResourceOnlyIfAbsent) {
     EXPECT_EQ(app.getWorld().getResources().get<FixedRuns>()->count, 1);  // the second call kept the first value
     app.insertResourceIfAbsent<Started>();
     EXPECT_EQ(app.getWorld().getResources().get<Started>()->count, 0);
+}
+
+TEST(App, ConfiguresASetOfAPhase) {
+    App app;
+    app.addSystem(Phase::kUpdate, "z.first", &countFixed);
+    app.configureSet(Phase::kUpdate, "later").after("z.first");
+    app.addSystem(Phase::kUpdate, "a.second", &countFixedToo).inSet("later");
+    app.getSchedules().build();
+    const std::vector<std::string_view> order = app.getSchedules().getOrder(Phase::kUpdate);
+    EXPECT_EQ(order, (std::vector<std::string_view>{"z.first", "a.second"}));
+}
+
+TEST(App, AllowsAnAmbiguousResourceItRegisters) {
+    App app;
+    EXPECT_EQ(app.getWorld().getResources().getRegistry().find<FixedRuns>(), nullptr);
+    app.allowAmbiguousResource<FixedRuns>().allowAmbiguousResource<FixedRuns>();  // chains; twice is harmless
+    const rtype::ecs::ResourceInfo* info = app.getWorld().getResources().getRegistry().find<FixedRuns>();
+    ASSERT_NE(info, nullptr);
+    for (const Phase phase : {Phase::kUpdate, Phase::kRender}) {
+        EXPECT_TRUE(app.getSchedules().getSchedule(phase).isAmbiguousResource(info->type.id));
+    }
+    app.addSystem(Phase::kUpdate, "a.count", &countFixed);
+    app.addSystem(Phase::kUpdate, "b.count", &countFixedToo);
+    EXPECT_NO_THROW(app.getSchedules().build());
 }
 
 TEST(App, RunsFramesUntilAppExit) {
