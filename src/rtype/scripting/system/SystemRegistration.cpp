@@ -177,8 +177,8 @@ void warnAboutServerOnlyWrites(const ecs::Components& components, const SystemDe
         const ecs::ComponentInfo* info = components.getRegistry().findByName(component);
         if (ecs::isWriteTerm(kind) && info != nullptr && info->type.presence == ecs::Presence::kServerOnly) {
             std::cerr << std::format(
-                "[Scripting] System '{}' runs on both sides but writes '{}', which is server-only: it does nothing "
-                "on clients\n",
+                "[Scripting] System '{}' runs on both sides but writes '{}', which is server-only: it cannot write "
+                "it on clients\n",
                 declaration.name, component);
         }
     }
@@ -205,6 +205,7 @@ Result<void> registerSystem(ecs::App& app, SystemDeclaration declaration, std::s
         .terms = makeDataTerms(components, declaration),
         .resources = std::move(resources->first),
         .events = std::move(events->first),
+        .clientSide = declaration.side == ecs::Side::kClient,
         .runtime = std::move(runtime),
         .scope = std::make_shared<view::ViewScope>(),
     });

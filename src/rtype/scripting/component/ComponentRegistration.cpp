@@ -24,6 +24,7 @@
 #include "rtype/ecs/error/Error.hpp"
 #include "rtype/ecs/error/Result.hpp"
 #include "rtype/ecs/type/Field.hpp"
+#include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/scripting/ErrorKind.hpp"
 #include "rtype/scripting/Result.hpp"
 
@@ -107,6 +108,8 @@ Result<ComponentLayout> registerComponent(ecs::Components& components, const Com
         return fail(kind, std::string{registered.error().getMessage()});
     }
     layout.id = *registered;
+    layout.clientWritable =
+        declaration.replication == ecs::ReplicationMode::kNone && declaration.presence != ecs::Presence::kServerOnly;
     return layout;
 }
 }  // namespace rtype::scripting::component

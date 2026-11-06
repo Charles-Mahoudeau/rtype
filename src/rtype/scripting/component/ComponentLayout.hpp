@@ -23,6 +23,8 @@ struct ComponentLayout {
     std::size_t alignment{1};                       ///< Alignment of a value, the largest of its fields'.
     std::vector<ecs::FieldInfo> fields;             ///< Fields with their offsets, sorted by alignment then name.
     std::vector<std::byte> defaults;                ///< A default value: `size` bytes, fields set and padding zeroed.
+    bool clientWritable{
+        true};  ///< False if the component is replicated or server-only: client systems cannot write it.
 };
 
 /// @brief The components scripts declared, by name.

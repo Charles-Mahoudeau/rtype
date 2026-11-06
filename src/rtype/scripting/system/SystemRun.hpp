@@ -50,6 +50,7 @@ struct ScriptSystem {
     std::vector<DataTerm> terms;             ///< The data terms of its query, in the order the query yields them.
     std::vector<ResourceTerm> resources;     ///< Its resources, in the order of its ResourceList.
     std::vector<EventTerm> events;           ///< Its event types, in the order of its EventList.
+    bool clientSide{false};                  ///< Runs on clients only: its commands cannot add replicated components.
     std::shared_ptr<RuntimeHandle> runtime;  ///< The runtime of the host, null inside once it is destroyed.
     std::shared_ptr<view::ViewScope> scope;  ///< Invalidates the views of a run when it returns.
 };
