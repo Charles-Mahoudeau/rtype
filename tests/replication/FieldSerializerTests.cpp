@@ -216,6 +216,27 @@ std::vector<std::byte> f32Bytes(float value, std::size_t count = 1) {
     }
     return buffer;
 }
+/// @brief A component with lists around a plain field.
+struct Crate {
+    std::vector<std::uint32_t> numbers;
+    std::int32_t label{0};
+    std::vector<Entity> owners;
+};
+RTYPE_ECS_COMPONENT(Crate, "test.serializer.Crate", numbers, label, owners);
+
+/// @return The bytes of @p crate.
+std::span<std::byte> bytesOf(Crate& crate) { return std::as_writable_bytes(std::span{&crate, 1}); }
+
+/// @return @p crate as written on the wire.
+std::vector<std::byte> encodeCrate(Crate& crate, const rtype::ecs::TypeInfo& info) {
+    TestMapper mapper;
+    std::vector<std::byte> buffer(computeWireSize(info, bytesOf(crate)));
+    rtype::network::bytes::ByteWriter writer{buffer};
+    writeFields(writer, info, bytesOf(crate), mapper);
+    EXPECT_TRUE(writer.isValid());
+    buffer.resize(writer.bytesWritten());
+    return buffer;
+}
 }  // namespace
 
 TEST(FieldSerializer, RoundTripsEveryFieldType) {
@@ -488,4 +509,78 @@ TEST(FieldSerializer, RefusesAStringCutShort) {
 
     EXPECT_FALSE(accepts(info, wire));
     EXPECT_FALSE(accepts(info, std::vector<std::byte>{}));
+}
+
+TEST(FieldList, IsSerializableAndOfVariableSize) {
+    const rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Crate>::makeTypeInfo();
+    EXPECT_TRUE(isSerializable(info));
+    EXPECT_TRUE(isVariableSize(info));
+}
+
+TEST(FieldList, GivesTheSizeOfAValueOnTheWire) {
+    const rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Crate>::makeTypeInfo();
+    EXPECT_EQ(computeWireSize(info), 8U);  // two counts and the label
+    Crate crate{.numbers = {1, 2, 3}, .label = 7, .owners = {kTracked}};
+    EXPECT_EQ(computeWireSize(info, bytesOf(crate)), 24U);
+}
+
+TEST(FieldList, ComesBackFromTheWire) {
+    const rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Crate>::makeTypeInfo();
+    Crate crate{.numbers = {1, 2, 3}, .label = 7, .owners = {kTracked}};
+    const std::vector<std::byte> wire = encodeCrate(crate, info);
+    EXPECT_EQ(wire.size(), 24U);
+
+    TestMapper mapper;
+    Crate read;
+    rtype::network::bytes::ByteReader reader{wire};
+    ASSERT_TRUE(readFields(reader, info, bytesOf(read), mapper));
+    EXPECT_TRUE(reader.isFinished());
+    EXPECT_EQ(read.numbers, crate.numbers);
+    EXPECT_EQ(read.label, 7);
+    EXPECT_EQ(read.owners, crate.owners);
+}
+
+TEST(FieldList, ComesBackEmpty) {
+    const rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Crate>::makeTypeInfo();
+    Crate crate;
+    const std::vector<std::byte> wire = encodeCrate(crate, info);
+    TestMapper mapper;
+    Crate read{.numbers = {9}};
+    rtype::network::bytes::ByteReader reader{wire};
+    ASSERT_TRUE(readFields(reader, info, bytesOf(read), mapper));
+    EXPECT_TRUE(read.numbers.empty());
+}
+
+TEST(FieldList, LeavesOutTheEntitiesTheOtherSideDoesNotKnow) {
+    const rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Crate>::makeTypeInfo();
+    Crate crate{.owners = {Entity{9, 1}, kTracked, Entity{}}};
+    const std::vector<std::byte> wire = encodeCrate(crate, info);
+    TestMapper mapper;
+    Crate read;
+    rtype::network::bytes::ByteReader reader{wire};
+    ASSERT_TRUE(readFields(reader, info, bytesOf(read), mapper));
+    EXPECT_EQ(read.owners, std::vector<Entity>{kTracked});
+}
+
+TEST(FieldList, RefusesACountTheBytesCannotHold) {
+    const rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Crate>::makeTypeInfo();
+    std::vector<std::byte> wire(4);
+    rtype::network::bytes::ByteWriter writer{wire};
+    writer.writeU16(0xFFFF);  // a hostile message: no value follows
+    TestMapper mapper;
+    Crate read;
+    rtype::network::bytes::ByteReader reader{wire};
+    EXPECT_FALSE(readFields(reader, info, bytesOf(read), mapper));
+    EXPECT_TRUE(read.numbers.empty());
+}
+
+TEST(FieldList, RefusesAMessageCutInTheMiddleOfAList) {
+    const rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Crate>::makeTypeInfo();
+    Crate crate{.numbers = {1, 2, 3}};
+    std::vector<std::byte> wire = encodeCrate(crate, info);
+    wire.resize(6);
+    TestMapper mapper;
+    Crate read;
+    rtype::network::bytes::ByteReader reader{wire};
+    EXPECT_FALSE(readFields(reader, info, bytesOf(read), mapper));
 }

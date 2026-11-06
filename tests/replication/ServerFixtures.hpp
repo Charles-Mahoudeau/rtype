@@ -7,6 +7,9 @@
 
 #pragma once
 
+#include <cstdint>
+#include <vector>
+
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 
@@ -23,6 +26,14 @@ struct Follow {
     rtype::ecs::Entity target;
 };
 RTYPE_ECS_COMPONENT(Follow, "test.server.Follow", target);
+
+/// @brief A replicated component of the game with lists: not plain data, and of a size that depends on its value.
+struct Cargo {
+    std::vector<std::uint32_t> items;
+    std::vector<rtype::ecs::Entity> crew;
+    float weight{0.F};
+};
+RTYPE_ECS_COMPONENT(Cargo, "test.server.Cargo", items, crew, weight);
 
 /// @brief A component the server does not replicate.
 struct Secret {

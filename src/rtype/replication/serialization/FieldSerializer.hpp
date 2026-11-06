@@ -23,7 +23,8 @@
 /// 2, 3 or 4 `f32`, entities as the `u32` NetworkId given by an EntityMapper, asset ids as a `u64`, strings as a `u8`
 /// length and their bytes. Padding bytes are never written. Nothing allocates or throws.
 namespace rtype::replication::serialization {
-/// @brief Tells whether values of a type can be sent: it has at least one field, and its values are plain data that
+/// @brief Tells whether values of a type can be sent: it has at least one field, and either a list field, with a type
+/// that can be built and copied, or values that are plain data that
 /// can be copied, moved and destroyed as bytes (no destruct, move or copy hook).
 ///
 /// @details A construct hook is allowed: it only applies default member initializers, and readFields() writes every
@@ -32,8 +33,8 @@ namespace rtype::replication::serialization {
 /// @return True when writeFields() and readFields() can handle the type.
 [[nodiscard]] RTYPE_REPLICATION_API bool isSerializable(const ecs::TypeInfo& info) noexcept;
 
-/// @brief Tells whether the size of a value on the wire depends on the value: true when a field is a string, which
-/// takes its length and its bytes.
+/// @brief Tells whether the size of a value on the wire depends on the value: true when a field is a list, or a string,
+/// which takes its length and its bytes.
 /// @param info The description of the type.
 /// @return True when writeFields() writes a different number of bytes for different values.
 [[nodiscard]] RTYPE_REPLICATION_API bool isVariableSize(const ecs::TypeInfo& info) noexcept;
@@ -44,6 +45,13 @@ namespace rtype::replication::serialization {
 /// @return The size of one value on the wire, or its upper bound.
 [[nodiscard]] RTYPE_REPLICATION_API std::size_t computeWireSize(const ecs::TypeInfo& info) noexcept;
 
+/// @brief Gives the most bytes writeFields() writes for one value: computeWireSize() plus the values of its lists.
+/// @param info The description of the type.
+/// @param value The bytes of a live value of the type.
+/// @return The upper bound of this value's size on the wire.
+[[nodiscard]] RTYPE_REPLICATION_API std::size_t computeWireSize(const ecs::TypeInfo& info,
+                                                                std::span<const std::byte> value) noexcept;
+
 /// @brief Writes every field of a value; a value that does not fit makes the writer invalid.
 /// @param writer Where to write.
 /// @param info The description of the type, valid (see ecs::validateType()) and serializable.
@@ -53,7 +61,8 @@ namespace rtype::replication::serialization {
 RTYPE_REPLICATION_API void writeFields(network::bytes::ByteWriter& writer, const ecs::TypeInfo& info,
                                        std::span<const std::byte> value, const EntityMapper& mapper) noexcept;
 
-/// @brief Zeroes a value, then reads every field of it.
+/// @brief Reads every field of a value. A plain value is zeroed first; a type that owns memory (a list field) needs a
+/// live value, built by its construct hook, and its fields are written over it.
 /// @param reader Where to read, usually bytes received from the network.
 /// @param info The description of the type, valid (see ecs::validateType()) and serializable.
 /// @param value Where to build the value: zeroed, then filled; padding bytes stay zero.

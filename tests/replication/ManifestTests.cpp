@@ -461,19 +461,18 @@ TEST(InputLayout, RefusesDuplicatesInvalidNamesAndChangesOnceFrozen) {
 }
 
 namespace {
-/// @brief A component with a list: not plain data, so it cannot be sent yet.
+/// @brief A component with a list.
 struct Backpack {
     std::vector<std::uint32_t> items;
 };
 RTYPE_ECS_COMPONENT(Backpack, "test.manifest.Backpack", items);
 }  // namespace
 
-TEST(Manifest, RefusesToReplicateAComponentWithAList) {
+TEST(Manifest, ReplicatesAComponentWithAList) {
     rtype::ecs::World world;
     static_cast<void>(world.getComponents().registerType<Backpack>(
         {.presence = rtype::ecs::Presence::kBoth, .replication = rtype::ecs::ReplicationMode::kEveryChange}));
     rtype::replication::input::InputLayout layout;
     layout.freeze();
-    EXPECT_THROW(static_cast<void>(rtype::replication::manifest::Manifest::build(world, layout)),
-                 rtype::replication::exceptions::ManifestException);
+    EXPECT_NO_THROW(static_cast<void>(rtype::replication::manifest::Manifest::build(world, layout)));
 }

@@ -82,6 +82,8 @@ void registerComponents(World& world, const bool withFollow = true) {
         components.registerType<Position>({.presence = Presence::kBoth, .replication = ReplicationMode::kEveryChange}));
     static_cast<void>(components.registerType<rtype::ecs::Parent>(
         {.presence = Presence::kBoth, .replication = ReplicationMode::kEveryChange}));
+    static_cast<void>(components.registerType<rtype::test::server::Cargo>(
+        {.presence = Presence::kBoth, .replication = ReplicationMode::kEveryChange}));
     if (withFollow) {
         static_cast<void>(components.registerType<Follow>(
             {.presence = Presence::kBoth, .replication = ReplicationMode::kEveryChange}));
@@ -130,6 +132,7 @@ class ClientStateTest : public ::testing::Test {
         _followId = _world.getComponents().find("test.server.Follow").value();
         _ownerId = _world.getComponents().find("net.Owner").value();
         _parentId = _world.getComponents().find("rtype.Parent").value();
+        _cargoId = _world.getComponents().find("test.server.Cargo").value();
     }
 
     /// @brief Gives the state the manifest of the world.
@@ -152,6 +155,23 @@ class ClientStateTest : public ::testing::Test {
 
     [[nodiscard]] snapshot::ComponentValue follow(const std::uint32_t target) const {
         return {.shortId = shortId(_followId), .bytes = u32Bytes(target)};
+    }
+
+    /// @return A Cargo on the wire: its items, the NetworkIds of its crew and its weight.
+    [[nodiscard]] snapshot::ComponentValue cargo(const std::vector<std::uint32_t>& items,
+                                                 const std::vector<std::uint32_t>& crew, const float weight) const {
+        network::Bytes bytes(sizeof(std::uint16_t) * 2 + (items.size() + crew.size() + 1) * sizeof(std::uint32_t));
+        network::bytes::ByteWriter writer{bytes};
+        writer.writeU16(static_cast<std::uint16_t>(items.size()));
+        for (const std::uint32_t item : items) {
+            writer.writeU32(item);
+        }
+        writer.writeU16(static_cast<std::uint16_t>(crew.size()));
+        for (const std::uint32_t member : crew) {
+            writer.writeU32(member);
+        }
+        writer.writeF32(weight);
+        return {.shortId = shortId(_cargoId), .bytes = std::move(bytes), .lengthPrefixed = true};
     }
 
     [[nodiscard]] snapshot::ComponentValue parent(const std::uint32_t target) const {
@@ -198,6 +218,7 @@ class ClientStateTest : public ::testing::Test {
     rtype::ecs::ComponentId _followId{};
     rtype::ecs::ComponentId _ownerId{};
     rtype::ecs::ComponentId _parentId{};
+    rtype::ecs::ComponentId _cargoId{};
 };
 }  // namespace
 
@@ -403,6 +424,37 @@ TEST_F(ClientStateTest, RespawnsAChildAfterACascadeTheServerDidNotSend) {
     ASSERT_TRUE(apply({.tick = 2, .despawns = {1}}));
     ASSERT_TRUE(apply({.tick = 3, .spawns = {{.networkId = 2, .components = {}}}}));
     EXPECT_TRUE(_world.isAlive(_state.find(2)));
+}
+
+TEST_F(ClientStateTest, AppliesAComponentWithLists) {
+    accept();
+    ASSERT_TRUE(apply({.tick = 1,
+                       .spawns = {{.networkId = 1, .components = {cargo({4, 5}, {2, 77}, 1.5F)}},
+                                  {.networkId = 2, .components = {}}}}));
+    const auto* received = _world.getComponents().get<rtype::test::server::Cargo>(_state.find(1));
+    ASSERT_NE(received, nullptr);
+    EXPECT_EQ(received->items, (std::vector<std::uint32_t>{4, 5}));
+    EXPECT_EQ(received->crew, std::vector<Entity>{_state.find(2)});  // 77 is not known here
+    EXPECT_FLOAT_EQ(received->weight, 1.5F);
+}
+
+TEST_F(ClientStateTest, ReplacesAListThatChanged) {
+    accept();
+    ASSERT_TRUE(apply({.tick = 1, .spawns = {{.networkId = 1, .components = {cargo({1, 2, 3}, {}, 0.F)}}}}));
+    ASSERT_TRUE(apply({.tick = 2, .updates = {{.networkId = 1, .components = {cargo({9}, {}, 2.F)}}}}));
+    const auto* received = _world.getComponents().get<rtype::test::server::Cargo>(_state.find(1));
+    ASSERT_NE(received, nullptr);
+    EXPECT_EQ(received->items, std::vector<std::uint32_t>{9});
+    EXPECT_FLOAT_EQ(received->weight, 2.F);
+}
+
+TEST_F(ClientStateTest, DropsASnapshotWithABadListAndAppliesNothing) {
+    accept();
+    snapshot::ComponentValue lying = cargo({1}, {}, 0.F);
+    lying.bytes.at(0) = std::byte{0xFF};  // announces more values than the bytes hold
+    lying.bytes.at(1) = std::byte{0xFF};
+    EXPECT_FALSE(apply({.tick = 1, .spawns = {{.networkId = 1, .components = {std::move(lying)}}}}));
+    EXPECT_EQ(_state.find(1), Entity{});
 }
 
 TEST_F(ClientStateTest, ReadsAnUnknownReferenceAsTheNullEntity) {

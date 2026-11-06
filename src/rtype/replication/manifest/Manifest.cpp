@@ -56,7 +56,7 @@ Manifest Manifest::build(const ecs::World& world, const input::InputLayout& inpu
         if (!serialization::isSerializable(info->type)) {
             throw exceptions::ManifestException{
                 std::format("The replicated component '{}' cannot be serialized: it needs at least one field and "
-                            "plain data (no destruct, move or copy hook)",
+                            "plain data (no destruct, move or copy hook) or a copyable type with a list field",
                             info->type.name)};
         }
         if (info->type.name.size() > kMaxNameLength) {
