@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "rtype/ecs/Export.hpp"
+#include "rtype/ecs/resource/ResourceInfo.hpp"
 #include "rtype/ecs/schedule/FrameClock.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
@@ -72,6 +73,14 @@ class RTYPE_ECS_API Schedules {
     /// @brief Adds a system to a phase. Its schedule is built again before it next runs.
     /// @throws exceptions::ScheduleException When a system of any phase already has its name.
     Schedule::SystemConfig addSystem(Phase phase, System system);
+
+    /// @brief Creates the set named `name` in a phase if needed, to order it as a whole (Schedule::configureSet()).
+    /// Sets belong to one phase: a set of the same name in another phase is another set.
+    Schedule::SetConfig configureSet(Phase phase, std::string name);
+
+    /// @brief Lets systems of every phase write the resource `id` with no order between them: its writes commute
+    /// (Schedule::allowAmbiguousResource()).
+    void allowAmbiguousResource(ResourceId id);
 
     /// @brief Builds every schedule (Schedule::build()).
     /// @throws exceptions::ScheduleException When a schedule cannot be built.

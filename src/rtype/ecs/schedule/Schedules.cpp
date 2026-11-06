@@ -15,6 +15,7 @@
 #include <iterator>
 #include <memory>
 #include <span>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -22,6 +23,7 @@
 #include "rtype/ecs/event/EventInfo.hpp"
 #include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/exceptions/ScheduleException.hpp"
+#include "rtype/ecs/resource/ResourceInfo.hpp"
 #include "rtype/ecs/schedule/FrameClock.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
@@ -64,6 +66,16 @@ Schedule::SystemConfig Schedules::addSystem(Phase phase, System system) {
         }
     }
     return at(phase).addSystem(std::move(system));
+}
+
+Schedule::SetConfig Schedules::configureSet(Phase phase, std::string name) {
+    return at(phase).configureSet(std::move(name));
+}
+
+void Schedules::allowAmbiguousResource(ResourceId id) {
+    for (Schedule& schedule : _schedules) {
+        schedule.allowAmbiguousResource(id);
+    }
 }
 
 void Schedules::build() {
