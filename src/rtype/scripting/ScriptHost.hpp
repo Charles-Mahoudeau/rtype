@@ -11,6 +11,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -45,8 +46,10 @@ namespace rtype::scripting {
 ///
 /// `engine.call(name, fields)` calls an engine call a plugin registered on the App (ecs::Calls) right away, with the
 /// fields of its arguments (see call::callEngine()); an unknown name is a Luau error. A system makes calls at each run
-/// through `ctx.call` instead, for the calls it lists under `calls`. `engine.assets` and `engine.input` hold the setup
-/// forms, which make those calls from a declarative table (see setup::buildAssetForms() and setup::buildInputForms()).
+/// through `ctx.call` instead, for the calls it lists under `calls`. `engine.hasCall(name)` tells whether a call exists
+/// and `engine.assetId(path)` gives the id of an asset. `engine.assets` and `engine.input` hold the setup forms, which
+/// make those calls from a declarative table: each plugin brings its own (ecs::PluginRegistry::addScriptForms()),
+/// written with `engine.forms` (setup::getFormsPrelude()), and they run before the next script.
 ///
 /// The host and the App may be destroyed in either order. The systems a script added stay in the App when the host
 /// is destroyed first, but their script is gone with the runtime: they can no longer run it.
@@ -83,6 +86,12 @@ class RTYPE_SCRIPTING_API ScriptHost {
     [[nodiscard]] const component::ComponentLayout* findComponent(std::string_view name) const noexcept;
 
   private:
+    /// @brief Compiles a script and runs it, once, without loading the forms first.
+    [[nodiscard]] luau::Result<> runSource(std::string name, const std::string& source) const;
+
+    /// @brief Runs the setup forms of the App's plugins that did not run yet.
+    [[nodiscard]] luau::Result<> loadForms() const;
+
     /// @param app The App scripts declare their ECS data on.
     /// @param runtime The runtime of the scripts.
     ScriptHost(ecs::App& app, luau::Runtime runtime) noexcept;
@@ -130,6 +139,7 @@ class RTYPE_SCRIPTING_API ScriptHost {
     luau::Runtime _runtime;  ///< The runtime of the scripts; declared before what holds references into it.
     std::shared_ptr<system::RuntimeHandle> _handle;  ///< Points to the runtime for the systems; cleared on destruction.
     std::optional<luau::Library> _engine;            ///< The `engine` library, with the sub-library `ecs`.
+    mutable std::set<std::string> _loadedForms;      ///< The setup forms already run, by name.
     component::ComponentLayouts _components;         ///< Components scripts declared.
     std::map<std::string, PluginEntry> _plugins;     ///< Luau plugins scripts declared, by name.
     std::vector<std::string> _pluginStack;           ///< Plugins being added, outermost first, to name a cycle.

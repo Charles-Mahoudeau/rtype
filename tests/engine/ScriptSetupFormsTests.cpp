@@ -259,12 +259,3 @@ TEST(ScriptSetupForms, AMaterialFormChecksItsTable) {
     )");
     EXPECT_NE(error.find("engine.assets.material: value 'v'"), std::string::npos) << error;
 }
-
-TEST(ScriptSetupForms, ShaderFormsGiveTheIdsWithoutThePlugin) {
-    ScriptApp script;
-    ASSERT_EQ(script.run(R"(
-        local flash = engine.assets.shader("flash.glsl")
-        engine.assets.material({ name = "enemy_hit", shader = flash, values = { strength = 0.5 } })
-    )"),
-              "");
-}
