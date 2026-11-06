@@ -52,6 +52,7 @@ void noop() {}
 void count(ResMut<Runs> runs) { ++runs->count; }
 void writeHealth(Query<Health> /*healths*/) {}
 void readHealth(Query<const Health> /*healths*/) {}
+void countToo(ResMut<Runs> runs) { ++runs->count; }
 
 /// @brief A clock that never runs a fixed tick.
 class NoTicks : public FrameClock {
@@ -169,4 +170,28 @@ TEST(Schedules, KeepsTheClockItIsGiven) {
     EXPECT_EQ(schedules.getClock(), installed);
     schedules.setClock(nullptr);
     EXPECT_EQ(schedules.getClock(), nullptr);
+}
+
+TEST(Schedules, ConfiguresASetOfOnePhase) {
+    World world;
+    Schedules schedules{world, RunMode::kStandalone};
+    schedules.addSystem(Phase::kRender, "z.camera", &noop);
+    schedules.configureSet(Phase::kRender, "draw").after("z.camera");
+    schedules.addSystem(Phase::kRender, "a.map", &noop).inSet("draw");
+    schedules.build();
+    EXPECT_EQ(orderOf(schedules, Phase::kRender), (std::vector<std::string>{"z.camera", "a.map"}));
+    EXPECT_TRUE(schedules.getSchedule(Phase::kRender).containsSet("draw"));
+    EXPECT_FALSE(schedules.getSchedule(Phase::kUpdate).containsSet("draw"));  // sets belong to one phase
+}
+
+TEST(Schedules, AllowsAnAmbiguousResourceInEveryPhase) {
+    World world;
+    Schedules schedules{world, RunMode::kStandalone};
+    schedules.addSystem(Phase::kUpdate, "a.count", &count);
+    schedules.addSystem(Phase::kUpdate, "b.count", &countToo);
+    schedules.addSystem(Phase::kRender, "c.count", &count);
+    schedules.addSystem(Phase::kRender, "d.count", &countToo);
+    expectScheduleError([&] { schedules.build(); }, "both use resource 'test.schedules.Runs'");
+    schedules.allowAmbiguousResource(*world.getResources().find("test.schedules.Runs"));
+    EXPECT_NO_THROW(schedules.build());
 }
