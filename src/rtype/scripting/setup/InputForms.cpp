@@ -35,6 +35,8 @@ constexpr std::string_view kAddActionCall = "rtype.input.addAction";
 constexpr std::string_view kBindCall = "rtype.input.bind";
 constexpr std::string_view kBindAxisCall = "rtype.input.bindAxis";
 constexpr std::string_view kBindVectorCall = "rtype.input.bindVector";
+// The call of the replication plugin that declares an action of the network InputLayout.
+constexpr std::string_view kAddInputCall = "rtype.replication.addInput";
 
 constexpr std::string_view kActionForm = "engine.input.action";
 
@@ -136,6 +138,14 @@ luau::ValuePack action(const SetupCalls& calls, const luau::CallContext& context
         for (const PlannedCall& call : planned) {
             static_cast<void>(calls.invoke(kActionForm, call.call, call.fields));
         }
+    }
+    // On every side with the replication plugin, so the server and its clients agree on the PlayerInput layout.
+    if (calls.has(kAddInputCall)) {
+        CallFields addInput{{"name", name}};
+        if (type.is<std::string>()) {
+            addInput.emplace_back("kind", type);
+        }
+        static_cast<void>(calls.invoke(kActionForm, kAddInputCall, addInput));
     }
     return luau::ValuePack{};
 }
