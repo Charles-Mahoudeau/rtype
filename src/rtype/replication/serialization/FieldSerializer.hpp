@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <span>
 
 #include "rtype/ecs/type/TypeInfo.hpp"
@@ -38,6 +39,13 @@ namespace rtype::replication::serialization {
 /// @param info The description of the type.
 /// @return True when writeFields() writes a different number of bytes for different values.
 [[nodiscard]] RTYPE_REPLICATION_API bool isVariableSize(const ecs::TypeInfo& info) noexcept;
+
+/// @brief Gives what client and server compare to agree on a type in the manifest: its layout hash, or for a type with
+/// a list field a hash of its name and fields, since `sizeof(std::string)` and the offsets after it depend on the
+/// standard library, and only the fields matter on the wire.
+/// @param info The description of the type.
+/// @return The hash, the same in every process.
+[[nodiscard]] RTYPE_REPLICATION_API std::uint64_t computeManifestHash(const ecs::TypeInfo& info) noexcept;
 
 /// @brief Gives the number of bytes writeFields() writes for a value of a type: the same for every value, unless
 /// isVariableSize() is true, where it is the most it can write (each string at its capacity).

@@ -35,7 +35,8 @@ struct FieldReadContext {
 /// @details Booleans give a boolean, integers and floats a number, an entity an `Entity` userdata, an asset id an
 /// `AssetId` userdata. A `vec3` gives a Luau `vector`, a `vec2` a table `{x=, y=}` and a `vec4` a table
 /// `{x=, y=, z=, w=}`, since the Luau build has three-wide vectors only. A list field gives a table of its values, a
-/// copy; it is written from an array, whose values all replace the list's. Array fields are not supported.
+/// copy; it is written from an array, whose values all replace the list's. A `std::string` field gives a string, and
+/// takes one of any length. Array fields are not supported.
 /// @param component Name of the component, for the messages.
 /// @param field The field to read.
 /// @param bytes The component's value.

@@ -20,11 +20,11 @@
 #include <vector>
 
 namespace rtype::ecs::detail {
-template <typename T>
+template <typename List>
 consteval ListAccess makeListAccess() noexcept {
+    using T = List::value_type;
     static_assert(!std::same_as<T, bool>, "RTYPE_ECS: std::vector<bool> holds no bools: use std::vector<std::uint8_t>");
     static_assert(std::is_trivially_copyable_v<T>, "RTYPE_ECS: the values of a list field must be plain data");
-    using List = std::vector<T>;
     return ListAccess{
         .size = static_cast<std::uint32_t>(sizeof(List)),
         .alignment = static_cast<std::uint32_t>(alignof(List)),
@@ -39,7 +39,7 @@ consteval ListAccess makeListAccess() noexcept {
             },
         .erase =
             [](void* list, std::span<const std::byte> element) noexcept {
-                if constexpr (std::equality_comparable<T>) {
+                if constexpr (std::equality_comparable<T> && !std::same_as<T, char>) {
                     T value{};
                     std::memcpy(&value, element.data(), sizeof(T));
                     std::erase(*static_cast<List*>(list), value);

@@ -397,6 +397,10 @@ Result<luau::Value> readList(const std::string_view component, const ecs::FieldI
         return tl::unexpected{fieldError(component, field, "no runtime to build a table with")};
     }
     const std::span<const std::byte> values = field.list->elements(bytes.subspan(field.offset).data());
+    if (field.type == ecs::FieldType::kText) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast): the bytes of a std::string are its characters
+        return luau::Value{std::string{reinterpret_cast<const char*>(values.data()), values.size()}};
+    }
     const std::size_t size = ecs::getFieldLayout(field.type).size;
     auto table = luau::Table::create(*context.runtime, static_cast<int>(values.size() / size), 0);
     if (!table) {
@@ -420,6 +424,14 @@ Result<void> writeList(const std::string_view component, const ecs::FieldInfo& f
                        const luau::Value& value) {
     if (auto checked = checkList(component, field, bytes); !checked) {
         return checked;
+    }
+    if (field.type == ecs::FieldType::kText) {
+        const auto* text = value.tryAs<std::string>();
+        if (text == nullptr) {
+            return tl::unexpected{fieldError(component, field, "expected a string")};
+        }
+        field.list->assign(bytes.subspan(field.offset).data(), std::as_bytes(std::span{*text}));
+        return {};
     }
     const auto* table = value.tryAs<luau::Table>();
     if (table == nullptr) {

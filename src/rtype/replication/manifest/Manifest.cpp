@@ -77,7 +77,8 @@ Manifest Manifest::build(const ecs::World& world, const input::InputLayout& inpu
     manifest._components.reserve(infos.size());
     for (const ecs::ComponentInfo* info : infos) {
         const auto shortId = static_cast<std::uint16_t>(manifest._entries.size());
-        manifest._entries.push_back({.name = info->type.name, .layoutHash = info->type.layoutHash});
+        manifest._entries.push_back(
+            {.name = info->type.name, .layoutHash = serialization::computeManifestHash(info->type)});
         manifest._components.push_back(info->type.id);
         manifest._shorts.emplace(info->type.id, shortId);
     }

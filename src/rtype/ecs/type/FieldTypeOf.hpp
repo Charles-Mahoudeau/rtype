@@ -58,6 +58,10 @@ struct FieldTypeOf<double> : std::integral_constant<FieldType, FieldType::kF64> 
 template <>
 struct FieldTypeOf<Entity> : std::integral_constant<FieldType, FieldType::kEntity> {};
 
+/// @brief The bytes of a `std::string` field.
+template <>
+struct FieldTypeOf<detail::TextByte> : std::integral_constant<FieldType, FieldType::kText> {};
+
 /// @brief True when a FieldTypeOf specialization reflects `T`.
 template <typename T>
 concept HasFieldType = requires {

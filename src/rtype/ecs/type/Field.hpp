@@ -32,6 +32,7 @@ enum class FieldType : std::uint8_t {
     kVec4,     ///< Four floats (glm layout).
     kEntity,   ///< An Entity: remapped by the network, cleared when its target is released.
     kAssetId,  ///< A stable 64-bit asset identifier, the same in every process.
+    kText,     ///< One byte of a `std::string` field: such a field is a list of them, read as one text.
     kString,   ///< An ecs::String: a length (`u8`) and 255 bytes of UTF-8, 256 bytes in all.
 };
 
@@ -47,6 +48,7 @@ struct FieldLayout {
         case FieldType::kBool:
         case FieldType::kI8:
         case FieldType::kU8:
+        case FieldType::kText:
             return {.size = 1, .alignment = 1};
         case FieldType::kI16:
         case FieldType::kU16:

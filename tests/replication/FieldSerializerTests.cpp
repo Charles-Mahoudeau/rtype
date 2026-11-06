@@ -15,11 +15,13 @@
 #include <string>
 #include <vector>
 
+#include "ServerFixtures.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/type/Field.hpp"
 #include "rtype/ecs/type/String.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/type/TypeTraits.hpp"
+#include "rtype/ecs/world/World.hpp"
 #include "rtype/network/bytes/ByteReader.hpp"
 #include "rtype/network/bytes/ByteWriter.hpp"
 #include "rtype/replication/component/Owner.hpp"
@@ -216,6 +218,13 @@ std::vector<std::byte> f32Bytes(float value, std::size_t count = 1) {
     }
     return buffer;
 }
+/// @brief A component with a text of any length.
+struct Letter {
+    std::string body;
+    std::int32_t stamp{0};
+};
+RTYPE_ECS_COMPONENT(Letter, "test.serializer.Letter", body, stamp);
+
 /// @brief A component with lists around a plain field.
 struct Crate {
     std::vector<std::uint32_t> numbers;
@@ -583,4 +592,46 @@ TEST(FieldList, RefusesAMessageCutInTheMiddleOfAList) {
     Crate read;
     rtype::network::bytes::ByteReader reader{wire};
     EXPECT_FALSE(readFields(reader, info, bytesOf(read), mapper));
+}
+
+TEST(FieldText, ComesBackFromTheWireWhateverItsLength) {
+    const rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Letter>::makeTypeInfo();
+    EXPECT_TRUE(isSerializable(info));
+    EXPECT_TRUE(isVariableSize(info));
+    Letter letter{.body = std::string(600, 'z'), .stamp = 3};
+    const std::span<std::byte> bytes = std::as_writable_bytes(std::span{&letter, 1});
+    TestMapper mapper;
+    std::vector<std::byte> wire(computeWireSize(info, bytes));
+    EXPECT_EQ(wire.size(), 2U + 600U + 4U);
+    rtype::network::bytes::ByteWriter writer{wire};
+    writeFields(writer, info, bytes, mapper);
+    ASSERT_TRUE(writer.isValid());
+
+    Letter read;
+    rtype::network::bytes::ByteReader reader{wire};
+    ASSERT_TRUE(readFields(reader, info, std::as_writable_bytes(std::span{&read, 1}), mapper));
+    EXPECT_EQ(read.body, letter.body);
+    EXPECT_EQ(read.stamp, 3);
+}
+
+TEST(ManifestHash, IsTheLayoutHashWithoutAList) {
+    rtype::ecs::World world;
+    static_cast<void>(world.getComponents().registerType<rtype::test::server::Position>());
+    const auto& type = world.getComponents().getRegistry().find<rtype::test::server::Position>()->type;
+    EXPECT_EQ(rtype::replication::serialization::computeManifestHash(type), type.layoutHash);
+}
+
+TEST(ManifestHash, DoesNotDependOnTheSizeOfAList) {
+    rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Letter>::makeTypeInfo();
+    const std::uint64_t hash = rtype::replication::serialization::computeManifestHash(info);
+    info.size += 8;  // as with another standard library, where `std::string` has another size
+    info.fields.back().offset += 8;
+    EXPECT_EQ(rtype::replication::serialization::computeManifestHash(info), hash);
+}
+
+TEST(ManifestHash, ChangesWithTheFields) {
+    rtype::ecs::TypeInfo info = rtype::ecs::TypeTraits<Letter>::makeTypeInfo();
+    const std::uint64_t hash = rtype::replication::serialization::computeManifestHash(info);
+    info.fields.back().name = "other";
+    EXPECT_NE(rtype::replication::serialization::computeManifestHash(info), hash);
 }

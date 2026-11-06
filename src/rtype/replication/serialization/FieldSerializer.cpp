@@ -15,6 +15,7 @@
 #include <span>
 #include <vector>
 
+#include "core/hash/NameHash.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/type/Field.hpp"
 #include "rtype/ecs/type/String.hpp"
@@ -31,6 +32,7 @@ constexpr std::size_t getValueWireSize(const ecs::FieldType type) noexcept {
         case ecs::FieldType::kBool:
         case ecs::FieldType::kI8:
         case ecs::FieldType::kU8:
+        case ecs::FieldType::kText:
             return 1;
         case ecs::FieldType::kI16:
         case ecs::FieldType::kU16:
@@ -104,6 +106,7 @@ void writeValue(network::bytes::ByteWriter& writer, ecs::FieldType type, std::sp
             writer.writeI64(load<std::int64_t>(bytes));
             break;
         case ecs::FieldType::kU8:
+        case ecs::FieldType::kText:
             writer.writeU8(load<std::uint8_t>(bytes));
             break;
         case ecs::FieldType::kU16:
@@ -175,6 +178,7 @@ bool readValue(network::bytes::ByteReader& reader, ecs::FieldType type, std::spa
             store(bytes, reader.readI64());
             return true;
         case ecs::FieldType::kU8:
+        case ecs::FieldType::kText:
             store(bytes, reader.readU8());
             return true;
         case ecs::FieldType::kU16:
@@ -280,6 +284,22 @@ bool isVariableSize(const ecs::TypeInfo& info) noexcept {
     return std::ranges::any_of(info.fields, [](const ecs::FieldInfo& field) {
         return field.type == ecs::FieldType::kString || isList(field);
     });
+}
+
+std::uint64_t computeManifestHash(const ecs::TypeInfo& info) noexcept {
+    if (std::ranges::none_of(info.fields, &isList)) {
+        return info.layoutHash;
+    }
+    std::uint64_t hash = core::hash::kNameHashOffsetBasis;
+    hash = core::hash::hashString(hash, info.name);
+    for (const ecs::FieldInfo& field : info.fields) {
+        hash = core::hash::hashInteger(hash, field.name.size());
+        hash = core::hash::hashString(hash, field.name);
+        hash = core::hash::hashInteger(hash, static_cast<std::uint64_t>(field.type));
+        hash = core::hash::hashInteger(hash, field.count);
+        hash = core::hash::hashInteger(hash, isList(field) ? 1U : 0U);
+    }
+    return hash;
 }
 
 std::size_t computeWireSize(const ecs::TypeInfo& info) noexcept {

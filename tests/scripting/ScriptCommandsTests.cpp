@@ -61,6 +61,12 @@ struct Inventory {
     std::vector<std::uint32_t> items;
 };
 RTYPE_ECS_COMPONENT(Inventory, "test.script.Inventory", items);
+
+/// @brief A C++ component with a text of any length.
+struct Sign {
+    std::string text;
+};
+RTYPE_ECS_COMPONENT(Sign, "test.script.Sign", text);
 }  // namespace
 
 TEST(ScriptCommands, ASpawnerCreatesEntitiesASecondSystemSeesInTheNextPhase) {
@@ -432,4 +438,28 @@ TEST(ScriptLists, RefusesBadValuesAndLeavesTheListAlone) {
     EXPECT_EQ(fixture.run("assert(not notTable and not wrongType and not outOfRange and not withHole and not named)"),
               "");
     EXPECT_EQ(world.getComponents().get<Inventory>(entity)->items, (std::vector<std::uint32_t>{1, 2}));
+}
+
+TEST(ScriptLists, ReadsAndWritesATextOfAnyLength) {
+    Fixture fixture;
+    rtype::ecs::World& world = fixture.app.getWorld();
+    const rtype::ecs::Entity entity = world.spawn();
+    world.getComponents().add(entity, Sign{.text = "hello"});
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Rewrite", {
+            phase = "Update",
+            query = { write = { "test.script.Sign" } },
+            run = function(ctx)
+                for _, sign in ctx.query do
+                    seen = sign.text
+                    sign.text = string.rep("a", 1000)
+                    refused = pcall(function() sign.text = 3 end)
+                end
+            end,
+        })
+    )"),
+              "");
+    fixture.app.runFrame();
+    EXPECT_EQ(fixture.run("assert(seen == 'hello' and refused == false)"), "");
+    EXPECT_EQ(world.getComponents().get<Sign>(entity)->text, std::string(1000, 'a'));
 }
