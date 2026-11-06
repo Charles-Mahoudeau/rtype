@@ -11,6 +11,7 @@
 #include <string_view>
 
 #include "plugins/input/Control.hpp"
+#include "plugins/input/Export.hpp"
 
 namespace rtype::plugins::input {
 
@@ -26,6 +27,6 @@ namespace rtype::plugins::input {
 /// | "Gamepad" + an axis: "GamepadLeftX"    | Control::gamepadAxis()                      |
 ///
 /// @return The control, with a scale of 1, or nothing if no control has this name (names are case-sensitive).
-[[nodiscard]] std::optional<Control> controlFromName(std::string_view name) noexcept;
+[[nodiscard]] RTYPE_PLUGIN_INPUT_API std::optional<Control> controlFromName(std::string_view name) noexcept;
 
 }  // namespace rtype::plugins::input
