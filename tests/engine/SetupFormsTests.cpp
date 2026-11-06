@@ -13,17 +13,28 @@
 #include <utility>
 
 #include "core/asset/AssetId.hpp"
+#include "core/library/LibraryEntry.hpp"
+#include "core/system/ExecutablePath.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginEntry.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
+#include "rtype/engine/Engine.hpp"
+#include "rtype/engine/plugin/PluginLoader.hpp"
 #include "rtype/scripting/ScriptHost.hpp"
 
 namespace {
-/// @brief A server App without plugins, as on a dedicated server: the setup forms find none of their calls.
+/// @brief A server App with the plugin libraries loaded but no plugin added, as on a dedicated server: it has the
+/// setup forms, which find none of their calls.
 struct BareApp {
+    rtype::engine::plugin::PluginLoader loader;
     rtype::ecs::App app{rtype::ecs::RunMode::kServer};
     std::unique_ptr<rtype::scripting::ScriptHost> host;
 
     BareApp() {
+        loader.load(rtype::core::system::getExecutableDirectory() / rtype::engine::Engine::kPluginsDirectory);
+        rtype::core::library::LibraryRegistrar registrar;
+        registrar.provide(rtype::ecs::kPluginRegistryService, app.getPluginRegistry());
+        loader.registerInto(registrar);
         auto created = rtype::scripting::ScriptHost::create(app, {.isServer = true});
         EXPECT_TRUE(created) << (created ? "" : std::string{created.error().message()});
         host = std::move(*created);
@@ -123,4 +134,13 @@ TEST(SetupForms, MistakesAreErrorsNamingTheForm) {
     EXPECT_NE(script.run(R"(engine.input.action("shoot", "button", { keys = {} }))")
                   .find("engine.input.action: options: unexpected 'keys', expected 'bind'"),
               std::string::npos);
+}
+
+TEST(SetupForms, ShaderFormsGiveTheIdsWithoutThePlugin) {
+    const BareApp script;
+    ASSERT_EQ(script.run(R"(
+        local flash = engine.assets.shader("flash.glsl")
+        engine.assets.material({ name = "enemy_hit", shader = flash, values = { strength = 0.5 } })
+    )"),
+              "");
 }

@@ -39,7 +39,7 @@ class NamedPlugin : public rtype::ecs::Plugin {
 };
 
 /// @return A factory building a NamedPlugin with this name and tag.
-rtype::ecs::PluginRegistry::Factory makeFactory(std::string name, int tag) {
+rtype::ecs::PluginRegistry::DefaultFactory makeFactory(std::string name, int tag) {
     return [name = std::move(name), tag] { return std::make_unique<NamedPlugin>(name, tag); };
 }
 }  // namespace rtype::test::plugin_registry

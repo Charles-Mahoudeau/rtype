@@ -8,6 +8,7 @@
 #include "plugins/shader/ShaderCalls.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
@@ -25,6 +26,7 @@
 #include "plugins/shader/exceptions/ShaderExceptions.hpp"
 #include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 
 namespace rtype::plugins::shader {
@@ -89,7 +91,16 @@ MaterialResult setMaterialTexture(ecs::ResMut<MaterialAssets> materials, const S
 }
 }  // namespace
 
+void addShaderForms(ecs::PluginRegistry& registry) {
+    static constexpr auto kForms = std::to_array<char>({
+#include "ShaderForms.luau.h"
+    });
+    // bin2c ends the bytes with a null terminator, which is not part of the source.
+    registry.addScriptForms("addShaderForms", std::string_view{kForms.data(), kForms.size() - 1});
+}
+
 void addShaderCalls(ecs::App& app) {
+    addShaderForms(app.getPluginRegistry());
     app.addCall(std::string{kLoadShaderCall}, &loadShader);
     app.addCall(std::string{kAddMaterialCall}, &addMaterial);
     app.addCall(std::string{kSetValueCall}, &setMaterialValue);

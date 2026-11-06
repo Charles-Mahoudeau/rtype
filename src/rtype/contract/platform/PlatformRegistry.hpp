@@ -11,6 +11,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "core/config/Settings.hpp"
@@ -18,6 +19,9 @@
 #include "rtype/contract/platform/IPlatform.hpp"
 
 namespace rtype::contract::platform {
+
+/// @brief The name a PlatformRegistry is offered under to the libraries.
+inline constexpr std::string_view kPlatformRegistryService = "rtype.contract.platforms";
 
 /// @brief Platforms by name, so the configuration picks one instead of the code.
 ///

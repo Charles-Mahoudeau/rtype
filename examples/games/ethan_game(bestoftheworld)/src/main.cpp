@@ -164,31 +164,11 @@ void setup(engine::Engine& engine) {
 }
 }  // namespace
 
-/// @brief Adds the plugins of the client side, with the backends the settings can name: the only place that knows
-/// GLFW, Vulkan and miniaudio.
-void addClientPlugins(ecs::App& app, const core::config::Settings& settings) {
-    auto backends = std::make_unique<plugins::graphics::BackendRegistry>();
-    platform::glfw::registerPlatform(backends->platforms);
-    render::vulkan::registerRenderer(backends->renderers);
-    auto audio = std::make_unique<plugins::audio::AudioRegistry>();
-    audio::miniaudio::registerAudio(audio->devices);
-    app.addPlugin(plugins::input::InputPlugin{});
-    app.addPlugin(plugins::graphics::GraphicsPlugin{std::move(backends), settings});
-    app.addPlugin(plugins::shader::ShaderPlugin{settings});
-    app.addPlugin(plugins::sprite::SpritePlugin{});
-    app.addPlugin(plugins::sprite::SpriteDrawPlugin{});
-    app.addPlugin(plugins::tilemap::TilemapPlugin{});
-    app.addPlugin(plugins::text::TextPlugin{});
-    app.addPlugin(plugins::particle::ParticlePlugin{});
-    app.addPlugin(plugins::audio::AudioPlugin{std::move(audio), settings});
-}
-
 int main() {
     try {
         // Standalone: one process, both sides, no network.
         engine::Engine engine{{
             .game = kGame,
-            .addPlugins = &addClientPlugins,
             .setup = &setup,
         }};
         engine.run();

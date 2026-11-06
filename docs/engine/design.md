@@ -1,21 +1,13 @@
 # Engine
 
 `rtype::engine::Engine` (`src/rtype/engine/`) runs a game. It reads the game's project settings, builds an `ecs::App`
-with the plugins the program lists, runs it, and can build it again when the project changes. The `Engine` names no
-backend: a program adds the plugins it uses through `EngineConfig::addPlugins`, so a server links nothing it does not
-use.
+with the plugins they name, runs it, and can build it again when the project changes. The `Engine` names no backend, and
+an executable links none: it loads what `project.luau` names from their libraries ([`../Plugins.md`](../Plugins.md#loading)).
 
 ```cpp
 rtype::engine::Engine engine{{
     .mode = rtype::ecs::RunMode::kClient,
     .args = {args.begin() + 1, args.end()},
-    .addPlugins = [](rtype::ecs::App& app, const rtype::core::config::Settings& settings) {
-        auto backends = std::make_unique<rtype::plugins::graphics::BackendRegistry>();
-        rtype::platform::glfw::registerPlatform(backends->platforms);
-        rtype::render::vulkan::registerRenderer(backends->renderers);
-        app.addPlugin(rtype::plugins::input::InputPlugin{});
-        app.addPlugin(rtype::plugins::graphics::GraphicsPlugin{std::move(backends), settings});
-    },
 }};
 return engine.run();
 ```
@@ -73,9 +65,9 @@ macOS. On Windows, the rule copies the build folder's DLLs next to them.
 | 1 | `project.luau`, read with `isClient`, `isServer`, `isDebug` and `args` | always | everything below reads the settings |
 | 2 | the network settings, checked (`network.host`, `network.port`) | always | a wrong address fails before a window opens |
 | 3 | `MinimalPlugins`, `TransformPlugin` | always | time, the schedule and the positions, which every game has |
-| 4 | `EngineConfig::addPlugins` | if given | the plugins of the program, with the settings: a client adds its window and what it draws |
+| 4 | `EngineConfig::addPlugins` | if given | plugins a program adds in code rather than through its libraries; a client adds its window and what it draws |
 | 5 | `ReplicationPlugin` | network modes (`kClient`, `kServer`) | registers `Owner`, `PlayerInput`, the connection events and `InputLayout`, so the setup can declare its inputs |
-| 6 | the generic plugins listed under `plugins` (`GamePlugins`) | if listed | the setup and the scripts can use their components and calls |
+| 6 | the plugins named under `plugins`, from their libraries | if listed | the setup and the scripts can use their components and calls |
 | 7 | `EngineConfig::setup` | if given | the game's native components, resources, systems and plugins |
 | 8 | `ScriptingPlugin`, on `<game>/scripts` | always | the scripts can use what the setup registered |
 | 9 | `ServerPlugin` or `ClientPlugin` | network modes | **last**: it reads every replicated component when it is built, the game's and the scripts' |
@@ -90,28 +82,20 @@ The network reads the `network` section of the settings and refuses unknown keys
 
 `addPlugins` runs again on every build, so it creates what the plugins own, such as their registries, each time.
 
-### Generic plugins
+### Plugins
 
-The plugins every game may want but the engine does not add by itself are named in `project.luau`, so two games differ
-by data, not by an executable. `GamePlugins::fromSettings()` reads the list and the sections of the plugins, and refuses
-an unknown name, before the `App` is built, as the network settings are checked:
+`project.luau` names a game's plugins, so two games differ by data, not by an executable. The `Engine` loads the plugin
+libraries (`plugin::PluginLoader`), lets them register, then adds the plugins named under `plugins`, by their real name:
 
 ```lua
-engine.settings.plugins = { "physics", "physicsDebug" }
+engine.settings.plugins = { "rtype.Physics", "rtype.PhysicsDebug" }
 engine.settings.physics.gravity = { 0, 0 }
 engine.settings.physicsDebug.drawAll = true
 ```
 
-| Name | Plugin | Side | Section |
-|------|--------|------|---------|
-| `transform` | `TransformPlugin` | both | none |
-| `physics` | `PhysicsPlugin` | both | `physics`: `gravity`, `unitsPerMeter`, `maxBodies`, `maxBodyPairs`, `maxContactConstraints`, `tempAllocatorBytes` |
-| `physicsDebug` | `PhysicsDebugPlugin` | client (skipped on a server) | `physicsDebug`: `enabled`, `drawAll`, `outlineThickness`, `velocityScale` |
-
-The `physics` and `physicsDebug` sections are checked on every side, listed or not, so a typo fails everywhere; an
-unknown key is an error, as in `network`. The plugins the program adds in `EngineConfig::addPlugins` and the ones
-they require need no name. `physicsDebug` draws after the `ShapePlugin`, which it requires, so a client that lists it
-adds the `ShapePlugin` in `addPlugins`.
+A plugin reads its section when it is built, so a section is only checked if its plugin is listed; an unknown key is then
+an error, as in `network`. A server and a client list what they need (`engine.isClient` separates them). See
+[`../Plugins.md`](../Plugins.md#loading) for the folders, the entry points and the signatures.
 
 ## Assets
 

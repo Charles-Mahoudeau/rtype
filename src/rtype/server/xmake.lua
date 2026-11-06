@@ -3,5 +3,7 @@
 target("r-type_server")
     set_kind("binary")
     add_deps("engine")
+    -- Built first, not linked: the Engine loads them.
+    add_deps("plugin-libraries", {inherit = false})
     add_files("**.cpp")
     add_rules("rtype.copy_to_root")

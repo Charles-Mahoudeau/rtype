@@ -1,7 +1,7 @@
 # Plugins
 
-How the engine is split into libraries, and how a program picks the ones it needs. Nothing is mandatory but the base: a
-server links no window, and a game can leave out anything it does not use.
+How the engine is split into libraries, and how a game picks the ones it needs. Nothing is mandatory but the base: a
+server loads no window, and a game can leave out anything it does not use.
 
 ## The layers
 
@@ -74,3 +74,100 @@ server that adds `SpritePlugin` loads them, though it opens no window.
 Headers of a shared library export what other binaries use: `RTYPE_<TARGET>_API` on classes and functions that have
 code in a `.cpp`, `RTYPE_HEADER_ONLY_API` on the interfaces and exceptions that have none. The `detail/` functions the
 tests call are exported too.
+
+## Loading
+
+A game names its plugins in `project.luau`, by the name `getName()` gives. The executable links none of them: the
+`Engine` loads them from their libraries, so adding or removing a plugin rebuilds nothing.
+
+```lua
+engine.settings.plugins = { "rtype.graphics", "rtype.Sprite", "game.Boss" }
+```
+
+The plugins a listed plugin requires come with it, with a line on the error output. A name no library registers stops the
+start, and the message lists those that exist.
+
+| Folder | What it holds | Loaded by |
+|---|---|---|
+| `plugins/`, next to the executable | the engine's plugins | every side |
+| `plugins/backends/`, next to the executable | the platforms, renderers and audio devices | a client that names a `platform`, a `renderer` or an `audio.backend` |
+| `<game>/plugins/` | the game's own plugins | every side |
+
+The build fills `plugins/` next to the executables (rule `rtype.plugin_library`). A library in `<game>/plugins/` with the
+file name of an engine library stops the start: a game cannot silently replace part of the engine.
+
+Libraries stay loaded until the process ends, even through `Engine::requestReload()`, as what they built must outlive
+every App. A library and the engine must be built with the same compiler and version: `checkLibrary()` refuses another
+one rather than crash later. Raise `kLibraryAbiVersion` when `LibraryEntry` or `LibraryRegistrar` change.
+
+### Entry points
+
+A library exports one C function. A plugin library writes it with `RTYPE_PLUGIN_LIBRARY`:
+
+```cpp
+RTYPE_PLUGIN_LIBRARY(registrar) {
+    registrar.getPlugins().add("game.Boss", [](const rtype::core::config::Settings& settings) {
+        return std::make_unique<BossPlugin>(settings);
+    });
+}
+```
+
+A backend knows no ECS, so it writes `RTYPE_LIBRARY` and fills the registry it finds. The plugin that owns the registry
+offers it under a name the contract declares, such as `kRendererRegistryService`, and takes it back when it is built.
+
+### Setup forms
+
+A plugin brings its own forms (`engine.assets.texture`, `engine.input.action`...) in a `<Name>Forms.luau` file, embedded
+by `utils.bin2c` and given to `PluginRegistry::addScriptForms()`, by its library and when it is built. A plugin never
+links Luau: its forms are source text, written with the helpers of `engine.forms` (`scripting/setup/FormsPrelude.luau`).
+
+Registering them from the library matters on a server: the plugin is not added there, yet its forms exist, and give the
+id the asset would have. They test `engine.hasCall()` for that, and use `engine.assetId()`.
+
+## Writing a game's plugin
+
+Three steps, and no file of the engine changes:
+
+1. A folder `<game>/plugins/<name>/`, with the sources, one `RTYPE_PLUGIN_LIBRARY`, and this `xmake.lua`:
+
+   ```lua
+   target("game-boss")
+       set_kind("shared")
+       add_deps("core", "ecs")
+       add_files("*.cpp")
+       add_rules("rtype.game_plugin")
+   ```
+
+2. Its name in `engine.settings.plugins`.
+3. In a script, its calls: `engine.call("game.spawnBoss", { level = 3 })`.
+
+The root `xmake.lua` includes the plugins of `game/plugins/`. `examples/games/plugin_demo` is a complete one.
+
+## Signatures
+
+A plugin is native code: it can do anything the player can. A **release** build therefore opens a library of
+`<game>/plugins/` only if the project vouches for its author. A debug build checks nothing, as that is where plugins are
+written, and the libraries next to the executable are not checked: they are installed with it. Nothing in `project.luau`
+turns this off, or a game could disable its own check.
+
+- The project holds the **root key**. Its public half is built into the engine: `xmake f --plugin_root_key=<hex>`.
+  Without it, a release build refuses every game plugin. Its secret half never enters the repository.
+- A developer holds their own key pair. The root signs their public key: that is their **certificate**.
+- The developer signs each build of a library. `<library>.sig` holds their public key, their certificate and the Ed25519
+  signature of the library's bytes.
+
+```sh
+rtype-sign keygen root                          # once, by the project: root.pub, root.key
+rtype-sign keygen dev                           # by the developer: dev.pub, dev.key
+rtype-sign certify root.key dev.pub             # by the project: dev.pub.cert
+rtype-sign sign dev.key dev.pub libgame-boss.so # by the developer, after each build: libgame-boss.so.sig
+```
+
+What a signature does not do:
+
+- It proves who signed, not that the code is honest. A signed plugin can still do anything.
+- It covers the library's file, not the libraries it links.
+- It cannot revoke a key yet: a leaked developer key stays valid until the root key changes.
+- The file is read to check it, then opened again to load it: someone who can write to the folder between the two could
+  swap it.
+- The engine is open source: anyone can build one without the check. It protects players, it does not lock the engine.

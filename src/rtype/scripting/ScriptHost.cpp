@@ -23,8 +23,10 @@
 #include "component/ComponentLayout.hpp"
 #include "component/ComponentRegistration.hpp"
 #include "component/DeclarationReader.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugin/PluginDeclarationReader.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/call/CallInfo.hpp"
 #include "rtype/ecs/call/Calls.hpp"
 #include "rtype/ecs/world/World.hpp"
@@ -38,8 +40,7 @@
 #include "rtype/luau/Usertype.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
-#include "setup/AssetForms.hpp"
-#include "setup/InputForms.hpp"
+#include "setup/FormsPrelude.hpp"
 #include "system/ContextTypes.hpp"
 #include "system/RuntimeHandle.hpp"
 #include "system/SystemDeclarationReader.hpp"
@@ -83,7 +84,7 @@ luau::Result<std::unique_ptr<ScriptHost>> ScriptHost::create(ecs::App& app, cons
     return host;
 }
 
-ScriptHost::ScriptHost(ecs::App& app, luau::Runtime runtime) noexcept
+ScriptHost::ScriptHost(ecs::App& app, luau::Runtime runtime)
     : _app{app}, _runtime{std::move(runtime)}, _handle{std::make_shared<system::RuntimeHandle>()} {
     _handle->runtime = &_runtime;
     _handle->components = &_components;
@@ -92,6 +93,13 @@ ScriptHost::ScriptHost(ecs::App& app, luau::Runtime runtime) noexcept
 ScriptHost::~ScriptHost() { _handle->runtime = nullptr; }
 
 luau::Result<> ScriptHost::run(std::string name, const std::string& source) const {
+    if (auto loaded = loadForms(); !loaded) {
+        return loaded;
+    }
+    return runSource(std::move(name), source);
+}
+
+luau::Result<> ScriptHost::runSource(std::string name, const std::string& source) const {
     auto script = _runtime.load(std::move(name), source);
     if (!script) {
         return tl::unexpected{std::move(script.error())};
@@ -99,7 +107,18 @@ luau::Result<> ScriptHost::run(std::string name, const std::string& source) cons
     return _runtime.run(*script);
 }
 
-const component::ComponentLayout* ScriptHost::findComponent(const std::string_view name) const noexcept {
+luau::Result<> ScriptHost::loadForms() const {
+    for (const auto& [name, source] : _app.getPluginRegistry().getScriptForms()) {
+        if (_loadedForms.insert(name).second) {
+            if (auto ran = runSource(name, source); !ran) {
+                return ran;
+            }
+        }
+    }
+    return {};
+}
+
+const component::ComponentLayout* ScriptHost::findComponent(const std::string_view name) const {
     // The map is keyed by std::string and has no transparent lookup.
     const auto found = _components.find(std::string{name});
     return found == _components.end() ? nullptr : &found->second;
@@ -140,8 +159,24 @@ luau::Result<> ScriptHost::installEngine(const Options options) {
     luau::LibraryBuilder engineBuilder{_runtime};
     engineBuilder.setName("engine");
     engineBuilder.adoptLibrary(ecsBuilder.build());
-    engineBuilder.adoptLibrary(setup::buildAssetForms(_runtime, _app));
-    engineBuilder.adoptLibrary(setup::buildInputForms(_runtime, _app));
+    engineBuilder.function("hasCall").bind([this](const std::string& name) {
+        luau::ValuePack result;
+        result.add(luau::Value{_app.getWorld().getCalls().findByName(name) != nullptr});
+        return result;
+    });
+    engineBuilder.function("assetId").setHandler([this](const luau::CallContext& arguments) {
+        const auto* path = arguments.args().empty() ? nullptr : arguments.args().front().tryAs<std::string>();
+        if (path == nullptr) {
+            throw luau::exceptions::RuntimeError{"engine.assetId expects a path"};
+        }
+        auto id = _runtime.usertype<core::asset::AssetId>().create(core::asset::AssetId::fromPath(*path));
+        if (!id) {
+            throw luau::exceptions::RuntimeError{std::string{id.error().message()}};
+        }
+        luau::ValuePack result;
+        result.add(luau::Value{std::move(*id)});
+        return result;
+    });
     engineBuilder.function("call").setHandler(
         [this](const luau::CallContext& arguments) { return callEngine(arguments); });
     _engine.emplace(engineBuilder.build());
@@ -156,7 +191,10 @@ luau::Result<> ScriptHost::installEngine(const Options options) {
             return set;
         }
     }
-    return _runtime.globals().registerLibrary(*_engine);
+    if (auto registered = _runtime.globals().registerLibrary(*_engine); !registered) {
+        return registered;
+    }
+    return runSource(std::string{setup::kFormsPreludeName}, std::string{setup::getFormsPrelude()});
 }
 
 void ScriptHost::declareComponent(std::string name, const luau::Table& spec) {

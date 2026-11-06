@@ -164,7 +164,8 @@ adds run on clients):
 ### Setup forms
 
 The setup every game writes (its assets and its input actions) has declarative forms under `engine.assets` and
-`engine.input` (`scripting/setup/`), which make those calls from one table:
+`engine.input`, which make those calls from one table. Each plugin brings its own forms, in Luau
+([`Plugins.md`](../../Plugins.md#setup-forms)):
 
 ```luau
 local ship = engine.assets.atlas({

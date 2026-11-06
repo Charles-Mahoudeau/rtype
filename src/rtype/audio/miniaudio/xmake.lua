@@ -5,6 +5,7 @@ add_requires("miniaudio 0.11.x", {alias = "miniaudio", configs = {encoding = fal
 -- miniaudio audio backend: IAudioDevice on miniaudio's engine, registered as "miniaudio". The only module that includes
 -- miniaudio.
 target("audio-miniaudio")
+    add_rules("rtype.plugin_library", {folder = "plugins/backends"})
     set_kind("shared")
     set_basename("rtype-audio-miniaudio")
     add_defines("RTYPE_AUDIO_MINIAUDIO_BUILD", {public = false})

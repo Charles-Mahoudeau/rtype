@@ -7,6 +7,7 @@
 
 #include "plugins/input/InputCalls.hpp"
 
+#include <array>
 #include <format>
 #include <string>
 #include <string_view>
@@ -17,6 +18,7 @@
 #include "plugins/input/InputAction.hpp"
 #include "plugins/input/exceptions/InputExceptions.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 
 namespace rtype::plugins::input {
@@ -94,7 +96,16 @@ ActionState readAction(ecs::Res<Input> input, const ReadActionArguments& argumen
 }
 }  // namespace
 
+void addInputForms(ecs::PluginRegistry& registry) {
+    static constexpr auto kForms = std::to_array<char>({
+#include "InputForms.luau.h"
+    });
+    // bin2c ends the bytes with a null terminator, which is not part of the source.
+    registry.addScriptForms("addInputForms", std::string_view{kForms.data(), kForms.size() - 1});
+}
+
 void addInputCalls(ecs::App& app) {
+    addInputForms(app.getPluginRegistry());
     app.addCall(std::string{kAddActionCall}, &addAction);
     app.addCall(std::string{kBindCall}, &bind);
     app.addCall(std::string{kBindAxisCall}, &bindAxis);

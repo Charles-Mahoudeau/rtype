@@ -1,5 +1,6 @@
 -- GLFW platform: the window and the input devices, through GLFW. The only module that includes GLFW.
 target("platform-glfw")
+    add_rules("rtype.plugin_library", {folder = "plugins/backends"})
     set_kind("shared")
     set_basename("rtype-platform-glfw")
     add_defines("RTYPE_PLATFORM_GLFW_BUILD", {public = false})

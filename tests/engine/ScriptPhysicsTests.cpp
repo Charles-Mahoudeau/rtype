@@ -12,13 +12,18 @@
 #include <string>
 #include <utility>
 
+#include "core/library/LibraryEntry.hpp"
+#include "core/system/ExecutablePath.hpp"
 #include "plugins/physics/PhysicsPlugin.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginEntry.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/time/FixedTimestep.hpp"
 #include "rtype/ecs/time/TimePlugin.hpp"
+#include "rtype/engine/Engine.hpp"
+#include "rtype/engine/plugin/PluginLoader.hpp"
 #include "rtype/replication/ReplicationPlugin.hpp"
 #include "rtype/replication/event/ClientConnected.hpp"
 #include "rtype/replication/input/InputKind.hpp"
@@ -31,6 +36,7 @@ constexpr int kFrames = 12;
 /// @brief A server App with the physics, without gravity, and the replication plugin, one fixed tick per frame, and a
 /// script host on it.
 struct ServerScripts {
+    rtype::engine::plugin::PluginLoader loader;  ///< The plugin libraries, which bring the setup forms on every side.
     rtype::ecs::App app{rtype::ecs::RunMode::kServer};
     std::unique_ptr<rtype::scripting::ScriptHost> host;
 
@@ -45,6 +51,10 @@ struct ServerScripts {
             .tempAllocatorBytes = 1024 * 1024,
         }});
         app.addPlugin(rtype::replication::ReplicationPlugin{});
+        loader.load(rtype::core::system::getExecutableDirectory() / rtype::engine::Engine::kPluginsDirectory);
+        rtype::core::library::LibraryRegistrar registrar;
+        registrar.provide(rtype::ecs::kPluginRegistryService, app.getPluginRegistry());
+        loader.registerInto(registrar);
         auto created = rtype::scripting::ScriptHost::create(app, {.isServer = true});
         EXPECT_TRUE(created) << (created ? "" : std::string{created.error().message()});
         host = std::move(*created);

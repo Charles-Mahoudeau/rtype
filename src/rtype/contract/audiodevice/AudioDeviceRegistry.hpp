@@ -20,6 +20,9 @@
 #include "rtype/contract/audiodevice/IAudioDevice.hpp"
 
 namespace rtype::contract::audiodevice {
+/// @brief The name an AudioDeviceRegistry is offered under to the libraries.
+inline constexpr std::string_view kAudioDeviceRegistryService = "rtype.contract.audiodevices";
+
 /// @brief Audio devices by name, so the configuration picks one instead of the code.
 ///
 /// @details Each module registers its device (rtype::audio::miniaudio::registerAudio()...). A factory receives the

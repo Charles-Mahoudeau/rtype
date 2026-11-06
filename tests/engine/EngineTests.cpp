@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/system/ExecutablePath.hpp"
 #include "plugins/AssetDirectory.hpp"
 #include "rtype/core/config/Settings.hpp"
 #include "rtype/core/config/exceptions/ConfigExceptions.hpp"
@@ -150,6 +151,61 @@ TEST(Engine, RejectsAnInvalidCommandLine) {
     const GameDirectory game{"rtype-engine-bad-args"};
 
     EXPECT_THROW(Engine{serverConfig(game, {"server"})}, RuntimeError);
+}
+
+TEST(Engine, AddsThePluginsTheSettingsNameFromTheirLibraries) {
+    const GameDirectory game{"rtype-engine-listed", R"(
+        engine.settings.network.port = 0
+        engine.settings.plugins = { "test.Loaded", "rtype.Physics" }
+        engine.settings.physics.gravity = { 0, 0 }
+    )"};
+    Engine engine{serverConfig(game)};
+    EXPECT_TRUE(engine.app().hasPlugin("test.Loaded"));
+    EXPECT_TRUE(engine.app().hasPlugin("rtype.Physics"));
+}
+
+TEST(Engine, RefusesAPluginNoLibraryRegisters) {
+    const GameDirectory game{"rtype-engine-unknown-plugin", R"(
+        engine.settings.network.port = 0
+        engine.settings.plugins = { "game.Missing" }
+    )"};
+    try {
+        const Engine engine{serverConfig(game)};
+        FAIL() << "the plugin was accepted";
+    } catch (const RuntimeError& error) {
+        EXPECT_TRUE(std::string{error.what()}.contains("game.Missing"));
+    }
+}
+
+TEST(Engine, LoadsThePluginsOfTheGame) {
+    const GameDirectory game{"rtype-engine-game-plugin", R"(
+        engine.settings.network.port = 0
+    )"};
+    const std::filesystem::path plugins = game.path() / Engine::kPluginsDirectory;
+    std::filesystem::create_directories(plugins);
+    const std::filesystem::path library = rtype::core::system::getExecutableDirectory() / Engine::kPluginsDirectory;
+    for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator{library}) {
+        if (entry.path().filename().string().contains("test-plugin")) {
+            // A plugin of the same file name as one of the engine is refused, not silently preferred.
+            std::filesystem::copy_file(std::filesystem::canonical(entry.path()), plugins / entry.path().filename());
+        }
+    }
+    try {
+        const Engine engine{serverConfig(game)};
+        FAIL() << "the library was accepted";
+    } catch (const RuntimeError& error) {
+        EXPECT_TRUE(std::string{error.what()}.contains("same name"));
+    }
+}
+
+TEST(Engine, LoadsTheBackendsAGameNames) {
+    const GameDirectory game{"rtype-engine-backends", R"(
+        engine.settings.platform = "glfw"
+        engine.settings.renderer = "vulkan"
+    )"};
+    std::filesystem::create_directories(game.path() / Engine::kAssetsDirectory);
+    const EngineConfig standalone{.mode = rtype::ecs::RunMode::kStandalone, .game = game.path()};
+    EXPECT_NO_THROW(Engine{standalone});
 }
 
 TEST(Engine, GivesThePluginsTheAssetDirectory) {

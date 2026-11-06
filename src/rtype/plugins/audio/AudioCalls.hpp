@@ -15,6 +15,7 @@
 #include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
 #include "plugins/GlmReflection.hpp"      // IWYU pragma: keep
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/call/CallTraits.hpp"
 #include "rtype/ecs/type/String.hpp"
 
@@ -52,5 +53,9 @@ RTYPE_ECS_CALL_DATA(PlaySoundArguments, "rtype.audio.PlaySoundArguments", sound,
 /// `rtype.AudioAssets` resource, and `rtype.audio.playSound`, which sends a PlaySound (an unknown bus throws an
 /// AudioLoadException). Called by the AudioPlugin.
 void addAudioCalls(ecs::App& app);
+
+/// @brief Registers the setup forms of the plugin on @p registry: its library does it on every side, so a server gets
+/// the ids of what it does not load, and so does building the plugin, for a program without libraries.
+void addAudioForms(ecs::PluginRegistry& registry);
 
 }  // namespace rtype::plugins::audio

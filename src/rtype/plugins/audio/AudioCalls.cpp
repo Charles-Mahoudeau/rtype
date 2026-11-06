@@ -7,6 +7,7 @@
 
 #include "plugins/audio/AudioCalls.hpp"
 
+#include <array>
 #include <cmath>
 #include <filesystem>
 #include <format>
@@ -18,6 +19,7 @@
 #include "plugins/audio/exceptions/AudioCallException.hpp"
 #include "rtype/contract/audiodevice/AudioTypes.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/system/EventWriter.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 
@@ -54,7 +56,16 @@ void playSound(ecs::EventWriter<PlaySound> sounds, const PlaySoundArguments& arg
 }
 }  // namespace
 
+void addAudioForms(ecs::PluginRegistry& registry) {
+    static constexpr auto kForms = std::to_array<char>({
+#include "AudioForms.luau.h"
+    });
+    // bin2c ends the bytes with a null terminator, which is not part of the source.
+    registry.addScriptForms("addAudioForms", std::string_view{kForms.data(), kForms.size() - 1});
+}
+
 void addAudioCalls(ecs::App& app) {
+    addAudioForms(app.getPluginRegistry());
     app.addCall(std::string{kLoadSoundCall}, &loadSound);
     app.addCall(std::string{kPlaySoundCall}, &playSound);
 }
