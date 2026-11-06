@@ -37,12 +37,13 @@ struct RTYPE_SCRIPTING_API ScriptCommands {
 /// @details Scripts call `commands:spawn({ ["game.Shield"] = { strength = 10 } })`, which returns the reserved
 /// `Entity` (the table may be left out for an entity with no component), `commands:add(entity, "game.Shield", {...})`
 /// `commands:setParent(child, parent)`, `commands:removeParent(child)` and `commands:despawn(entity)`, which also
-/// despawns its children. A component is one a script declared or a plain-data C++ component of the world
-/// (`rtype.Collider`, `rtype.Transform`, `net.Owner`...), whose defaults are those of its C++ type. A component's value
-/// is its defaults with the fields of the table written over them. An unknown component, a C++ component that is not
-/// plain data, a field the component does not have, a value that does not fit or a value that is not an `Entity` raises
-/// a Luau error before anything of the call is recorded. As in C++, a command on an entity that is dead when the buffer
-/// is flushed does nothing.
+/// despawns its children. A component is one a script declared or a C++ component of the world (`rtype.Collider`,
+/// `rtype.Transform`, `rtype.TextRenderer`...), whose defaults are those of its C++ type: one that owns memory (a
+/// `std::string` or `std::vector` field) is constructed, filled, copied into the command buffer and destroyed. A
+/// component's value is its defaults with the fields of the table written over them. An unknown component, a C++
+/// component that owns memory but has no default constructor, a field the component does not have, a value that does
+/// not fit or a value that is not an `Entity` raises a Luau error before anything of the call is recorded. As in C++, a
+/// command on an entity that is dead when the buffer is flushed does nothing.
 /// @param runtime The runtime to register the usertype in; it must have the `Entity` usertype
 /// (view::registerViewTypes()) and not the `Commands` one yet.
 /// @return Nothing, or the `luau::ErrorKind::kLimitExceeded` error if @p runtime has no userdata tag left.
