@@ -85,6 +85,17 @@ local explosion = engine.call("rtype.sprite.loadAtlas", { path = "assets/explosi
 `rtype.sprite.addFrame` and `rtype.sprite.addAnimation` change an atlas already added (`AtlasAssets::edit()`). An
 unknown atlas or direction, or an index that is not a frame, is an error.
 
+The [`engine.assets.atlas` form](ecs/features/19-luau-bridge.md#setup-forms) makes those calls from one table, and only
+returns the atlas's id on a side without the SpritePlugin:
+
+```luau
+local ship = engine.assets.atlas({
+    name = "game.ship", texture = "assets/ship.png",
+    grid = { frameSize = { x = 48, y = 48 }, count = 5, spacing = { x = 17, y = 0 } },
+    animations = { fly = { frames = { 0, 1, 2, 3, 4 }, frameDuration = 0.1, direction = "pingPong" } },
+})
+```
+
 ## Performance
 
 `examples/plugins/SpriteBenchmark` animates N sprites (10 000 by default) of one atlas, drifting and bouncing, and

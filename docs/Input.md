@@ -278,6 +278,16 @@ local shoot = engine.call("rtype.input.read", { action = "shoot" })     -- { val
 `rtype.input.bindAxis` takes `negative` and `positive`, `rtype.input.bind` a `scale`. An unknown action, control or
 type is an error naming it.
 
+The [`engine.input.action` form](ecs/features/19-luau-bridge.md#setup-forms) declares an action and its bindings in one
+call, and does nothing on a side without the InputPlugin:
+
+```luau
+engine.input.action("move", "vector2", {
+    bind = { { up = "W", down = "S", left = "A", right = "D" }, { x = "GamepadLeftX", y = "GamepadLeftY" } },
+})
+engine.input.action("shoot", "button", { bind = { "MouseLeft", { control = "GamepadSouth", scale = 1 } } })
+```
+
 ## Conventions
 
 - **Keys are physical positions**, named after the US QWERTY layout: `Key::kW` is the key right of Tab on every layout (Z on AZERTY). WASD bindings therefore land on ZQSD for French players without any setting. Use `TextEntered` to read the characters actually typed.

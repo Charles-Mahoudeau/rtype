@@ -696,6 +696,9 @@ their bytes would be wrong anyway.
   handles: `engine.input.action("move", "vector2")`, `engine.assets.atlas{ path = ..., grid = {...}, animations =
   {...} }`, `engine.assets.sound(path)`, `engine.assets.font(path)`. Each one registers on both sides when the same
   files load on both, and does nothing on the side that does not need it.
+  *Done:* `engine.assets.texture`, `sound`, `font`, `tilemap` and `atlas`, and `engine.input.action` with a `bind`
+  list (`scripting/setup/`, see "Setup forms" in `docs/ecs/features/19-luau-bridge.md`). A form checks its table on
+  every side, skips its calls where the plugin is absent and returns the asset's id all the same.
 - **Plugin settings in `project.luau`.** `PhysicsSettings` (gravity) and the list of generic plugins to add are read
   from the project settings, so two games differ by data, not by an executable.
 - **Physics.** Expose `Collider`, `RigidBody` and `Velocity` (SCR-01 covers their enums), the collision events
