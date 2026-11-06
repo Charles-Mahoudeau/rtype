@@ -19,6 +19,7 @@
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/type/String.hpp"
 #include "rtype/ecs/world/World.hpp"
 #include "rtype/network/NetworkSettings.hpp"
 #include "rtype/network/Types.hpp"
@@ -58,6 +59,13 @@ using rtype::replication::input::InputLayout;
 using rtype::replication::manifest::Manifest;
 using rtype::test::server::Follow;
 using rtype::test::server::Position;
+
+/// @brief A component with a string, which takes a different number of bytes on the wire for each value.
+struct Named {
+    rtype::ecs::String name;
+    std::uint8_t level{0};
+};
+RTYPE_ECS_COMPONENT(Named, "test.client.Named", name, level);
 
 constexpr ReplicationSettings kServerSettings{.tickRate = 30, .snapshotRate = 15, .reconnectionGraceSeconds = 7};
 
@@ -242,6 +250,47 @@ TEST_F(ClientStateTest, AppliesASnapshotToAnEmptyWorld) {
     EXPECT_EQ(_world.getComponents().get<NetworkId>(second)->value, 5U);
     EXPECT_EQ(_state.lastAppliedTick(), 4U);
     EXPECT_EQ(_state.lastProcessedInput(), 9U);
+}
+
+TEST_F(ClientStateTest, AppliesAComponentWithAString) {
+    static_cast<void>(_world.getComponents().registerType<Named>(
+        {.presence = Presence::kBoth, .replication = ReplicationMode::kEveryChange}));
+    accept();
+    const std::uint16_t namedShort = shortId(_world.getComponents().find("test.client.Named").value());
+    const network::Bytes ana{std::byte{3}, std::byte{'A'}, std::byte{'n'}, std::byte{'a'}, std::byte{7}};
+    const network::Bytes nobody{std::byte{0}, std::byte{2}};
+
+    ASSERT_TRUE(apply(
+        {.tick = 1,
+         .spawns = {
+             {.networkId = 1, .components = {{.shortId = namedShort, .bytes = ana, .lengthPrefixed = true}}},
+             {.networkId = 2,
+              .components = {{.shortId = namedShort, .bytes = nobody, .lengthPrefixed = true}, position(5.F, 6.F)}}}}));
+
+    const Named* first = _world.getComponents().get<Named>(_state.find(1));
+    const Named* second = _world.getComponents().get<Named>(_state.find(2));
+    ASSERT_NE(first, nullptr);
+    ASSERT_NE(second, nullptr);
+    EXPECT_EQ(first->name.view(), "Ana");
+    EXPECT_EQ(first->level, 7);
+    EXPECT_TRUE(second->name.empty());
+    EXPECT_EQ(second->level, 2);
+    EXPECT_FLOAT_EQ(positionOf(_state.find(2))->x, 5.F);
+}
+
+TEST_F(ClientStateTest, DropsASnapshotWhoseStringIsCutShort) {
+    static_cast<void>(_world.getComponents().registerType<Named>(
+        {.presence = Presence::kBoth, .replication = ReplicationMode::kEveryChange}));
+    accept();
+    const std::uint16_t namedShort = shortId(_world.getComponents().find("test.client.Named").value());
+    // The string announces 9 bytes and the value holds 3.
+    const network::Bytes broken{std::byte{9}, std::byte{'A'}, std::byte{'n'}};
+
+    EXPECT_FALSE(
+        apply({.tick = 1,
+               .spawns = {{.networkId = 1,
+                           .components = {{.shortId = namedShort, .bytes = broken, .lengthPrefixed = true}}}}}));
+    EXPECT_EQ(_state.find(1), Entity{});
 }
 
 TEST_F(ClientStateTest, DropsASnapshotThatIsNotNewer) {
