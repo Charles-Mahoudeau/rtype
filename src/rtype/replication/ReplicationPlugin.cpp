@@ -19,6 +19,7 @@
 #include "rtype/replication/component/PlayerInput.hpp"
 #include "rtype/replication/event/ClientConnected.hpp"
 #include "rtype/replication/event/ClientDisconnected.hpp"
+#include "rtype/replication/input/InputCalls.hpp"
 #include "rtype/replication/input/InputLayout.hpp"
 
 namespace rtype::replication {
@@ -41,5 +42,6 @@ void ReplicationPlugin::build(ecs::App& app) {
     static_cast<void>(events.registerType<event::ClientDisconnected>({.presence = ecs::Presence::kServerOnly}));
 
     app.insertResourceIfAbsent<input::InputLayout>();
+    input::addInputCalls(app);
 }
 }  // namespace rtype::replication
