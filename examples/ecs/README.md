@@ -28,7 +28,7 @@ Read them roughly in this order: each one builds on the ones before.
 | [`EcsResources`](EcsResources/src/main.cpp) | `Res` / `ResMut`, a main-thread `NonSend` resource, a missing resource | [Resources](../../docs/ecs/features/10-resources.md) |
 | [`EcsEvents`](EcsEvents/src/main.cpp) | cursors, an event's two-update lifetime, `EventWriter` / `EventReader` | [Events](../../docs/ecs/features/11-events.md) |
 | [`EcsSystems`](EcsSystems/src/main.cpp) | systems from a function and a lambda, their deduced access, side, run and flush | [Systems](../../docs/ecs/features/12-systems.md) |
-| [`EcsSchedules`](EcsSchedules/src/main.cpp) | order inside a phase, ambiguities refused, a whole frame, run modes | [Scheduler](../../docs/ecs/features/13-scheduler.md) |
+| [`EcsSchedules`](EcsSchedules/src/main.cpp) | order inside a phase, ambiguities refused, sets framed once and joined, a resource whose writes commute, a whole frame, run modes | [Scheduler](../../docs/ecs/features/13-scheduler.md) |
 | [`EcsFixedTimestep`](EcsFixedTimestep/src/main.cpp) | ticks per frame for 5 / 16 / 50 ms frames, the cap, the `Time` resource | [Scheduler](../../docs/ecs/features/13-scheduler.md#fixed-timestep) |
 | [`EcsAppAndPlugins`](EcsAppAndPlugins/src/main.cpp) | the App, plugins and groups, plugin dependencies and the plugin registry, `MinimalPlugins`, `AppExit` | [App and plugins](../../docs/ecs/features/14-app-and-plugins.md) |
 | [`EcsScriptSystems`](EcsScriptSystems/src/main.cpp) | `DynamicQueries` configured with a `QueryList`, a `ScriptCallable` | [Systems](../../docs/ecs/features/12-systems.md#configured-parameters) |

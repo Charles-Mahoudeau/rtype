@@ -6,7 +6,8 @@
 */
 
 // Schedules: a world's systems, one schedule per phase. Inside a phase systems run by name unless before / after
-// order them; two systems touching the same data with no order are refused. runFrame() runs a whole frame.
+// order them; two systems touching the same data with no order are refused. A set orders its members as a whole, and
+// a resource whose writes commute may be written unordered. runFrame() runs a whole frame.
 
 #include <chrono>
 #include <exception>
@@ -18,9 +19,11 @@
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/exceptions/ScheduleException.hpp"
 #include "rtype/ecs/query/Query.hpp"
+#include "rtype/ecs/resource/ResourceTraits.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/schedule/Schedules.hpp"
+#include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/system/Side.hpp"
 #include "rtype/ecs/time/FixedTimestep.hpp"
 #include "rtype/ecs/time/TimeClock.hpp"
@@ -34,8 +37,15 @@ struct Health {
 };
 RTYPE_ECS_COMPONENT(Health, "example.Health", value);
 
+/// @brief What the draw systems push, sorted by layer before drawing: the order of the pushes does not matter.
+struct DrawQueue {
+    int pushed;
+};
+RTYPE_ECS_RESOURCE(DrawQueue, "example.DrawQueue", pushed);
+
 void noop() {}
 void writeHealth(Query<Health> /*healths*/) {}
+void push(ResMut<DrawQueue> queue) { ++queue->pushed; }
 
 void startup() { std::cout << "  Startup\n"; }
 void preUpdate() { std::cout << "  PreUpdate\n"; }
@@ -99,6 +109,28 @@ void run() {
         ordered.addSystem(Phase::kFixedUpdate, "game.regen", &writeHealth).after("game.damage");
         ordered.build();
         printOrder(ordered, Phase::kFixedUpdate);
+    }
+
+    std::cout << "\n== Sets: a stage framed once, which systems join without naming each other ==\n";
+    {
+        World world;
+        Schedules schedules{world, RunMode::kStandalone};
+        schedules.addSystem(Phase::kRender, "renderer.camera", &noop);
+        schedules.addSystem(Phase::kRender, "renderer.present", &noop);
+        // The renderer frames the stage once: between its camera and its present.
+        schedules.configureSet(Phase::kRender, "stage.draw").after("renderer.camera").before("renderer.present");
+        // Any plugin joins it, knowing neither the renderer's systems nor the other members.
+        schedules.addSystem(Phase::kRender, "map.draw", &push).inSet("stage.draw");
+        schedules.addSystem(Phase::kRender, "hud.draw", &push).inSet("stage.draw");
+        try {
+            schedules.build();
+        } catch (const exceptions::ScheduleException& error) {
+            std::cout << std::format("  {}\n", error.what());
+        }
+        std::cout << "  ...and accepted once the queue's writes are declared to commute:\n";
+        schedules.allowAmbiguousResource(world.getResources().registerType<DrawQueue>());
+        schedules.build();
+        printOrder(schedules, Phase::kRender);
     }
 
     std::cout << "\n== A frame: Startup once, then the phases, FixedUpdate once per fixed tick ==\n";
