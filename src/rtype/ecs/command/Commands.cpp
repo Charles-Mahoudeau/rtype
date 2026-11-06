@@ -10,15 +10,21 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <format>
 #include <iterator>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <utility>
 
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/exceptions/PrefabException.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
+#include "rtype/ecs/prefab/Prefab.hpp"
+#include "rtype/ecs/prefab/PrefabSpawner.hpp"
+#include "rtype/ecs/prefab/Prefabs.hpp"
 #include "rtype/ecs/storage/ByteColumn.hpp"
 #include "rtype/ecs/storage/ViewAs.hpp"
 #include "rtype/ecs/type/TypeTraits.hpp"
@@ -73,6 +79,46 @@ Commands::EntityCommands Commands::spawn() {
         throw;
     }
     return EntityCommands{*this, entity};
+}
+
+namespace {
+/// @brief Records each step of a prefab's spawn in a Commands buffer.
+class PrefabRecorder {
+  public:
+    explicit PrefabRecorder(Commands& commands) noexcept : _commands{&commands} {}
+    ~PrefabRecorder() = default;
+    PrefabRecorder(const PrefabRecorder& other) = delete;
+    PrefabRecorder& operator=(const PrefabRecorder& other) = delete;
+    PrefabRecorder(PrefabRecorder&& other) = delete;
+    PrefabRecorder& operator=(PrefabRecorder&& other) = delete;
+
+    [[nodiscard]] Entity spawnEntity() { return _commands->spawn().getEntity(); }
+    void addValue(Entity entity, ComponentId id, std::span<const std::byte> value) {
+        static_cast<void>(_commands->add(entity, id, value));  // the id comes from the registry: always known
+    }
+    void setParent(Entity child, Entity parent) { _commands->add(child, Parent{.entity = parent}); }
+
+  private:
+    Commands* _commands;  ///< The buffer the steps are recorded in.
+};
+}  // namespace
+
+Commands::EntityCommands Commands::spawnPrefab(PrefabId id) {
+    const Prefab* prefab = _world->getPrefabs().findById(id);
+    if (prefab == nullptr) {
+        throw exceptions::PrefabException{std::format("No prefab has the id {}", id)};
+    }
+    PrefabRecorder recorder{*this};
+    return entity(
+        detail::spawnPrefabTree(_world->getPrefabs(), _world->getComponents().getRegistry(), *prefab, recorder));
+}
+
+Commands::EntityCommands Commands::spawnPrefab(std::string_view name) {
+    const Prefab* prefab = _world->getPrefabs().findByName(name);
+    if (prefab == nullptr) {
+        throw exceptions::PrefabException{std::format("No prefab is named '{}'", name)};
+    }
+    return spawnPrefab(prefab->getId());
 }
 
 Commands::EntityCommands Commands::entity(Entity entity) noexcept { return EntityCommands{*this, entity}; }
