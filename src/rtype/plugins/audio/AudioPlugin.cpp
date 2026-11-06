@@ -29,6 +29,7 @@
 #include "plugins/audio/AudioTypes.hpp"
 #include "plugins/audio/AudioVolumes.hpp"
 #include "plugins/audio/IAudioDevice.hpp"
+#include "plugins/backend/Names.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -246,7 +247,7 @@ void AudioPlugin::build(ecs::App& app) {
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kSoundsSystem}, &loadSounds).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kPlaySystem}, &playEvents)
         .after(std::string{kSoundsSystem})
-        .after(std::string{plugins::transform::TransformPlugin::kPropagateSystem})
+        .after(std::string{backend::names::kTransformPropagate})
         .setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kSourcesSystem}, &followSources)
         .after(std::string{kPlaySystem})

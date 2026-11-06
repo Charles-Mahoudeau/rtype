@@ -9,6 +9,7 @@
 
 #include <string_view>
 
+#include "plugins/backend/Names.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -30,7 +31,7 @@ namespace rtype::plugins::sprite {
 /// The BackendPlugin adds it; a server without one adds it itself to keep its animators' time.
 class SpritePlugin : public ecs::Plugin {
   public:
-    static constexpr std::string_view kName = "rtype.Sprite";                     ///< The plugin's name.
+    static constexpr std::string_view kName = backend::names::kSprite;            ///< The plugin's name.
     static constexpr std::string_view kAnimateSystem = "rtype.Sprite.Animate";    ///< Plays the animations.
     static constexpr std::string_view kTexturesSystem = "rtype.Sprite.Textures";  ///< Queues the atlas textures.
 

@@ -12,6 +12,7 @@
 
 #include "core/config/Settings.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
+#include "plugins/backend/Names.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -27,8 +28,8 @@ namespace rtype::plugins::backend {
 /// - Startup "rtype.backend.create": creates the Backend (BackendRegistry::createBackend()) into the main-thread
 ///   resource "rtype.Backend".
 /// - PreUpdate "rtype.backend.events": polls the platform (or waits for an event while the window is minimized),
-///   sends every event as a PlatformEvent, in order, and as its typed ECS event (the input ones of InputEvents.hpp,
-///   and Closed, Resized, TextEntered), resizes the renderer, and sends AppExit once the window is closed. It runs
+///   sends every event as a PlatformEvent, in order, and as its typed ECS event (declared in WindowEvents.hpp),
+///   resizes the renderer, and sends AppExit once the window is closed. It runs
 ///   before the InputPlugin's system.
 /// - Render "rtype.backend.textures": destroys the unloaded textures and loads the queued ones of the TextureAssets
 ///   resource (updateTextures()), so a texture asked for during this frame's Update is drawn in this frame.
@@ -56,14 +57,16 @@ namespace rtype::plugins::backend {
 /// @endcode
 class BackendPlugin : public ecs::Plugin {
   public:
-    static constexpr std::string_view kName = "rtype.backend";                     ///< The plugin's name.
-    static constexpr std::string_view kCreateSystem = "rtype.backend.create";      ///< Startup: creates the Backend.
-    static constexpr std::string_view kEventsSystem = "rtype.backend.events";      ///< PreUpdate: sends the events.
-    static constexpr std::string_view kTexturesSystem = "rtype.backend.textures";  ///< Render: loads the textures.
-    static constexpr std::string_view kBeginFrameSystem = "rtype.backend.beginFrame";  ///< Render: starts the frame.
-    static constexpr std::string_view kCameraSystem = "rtype.backend.camera";          ///< Render: applies the camera.
-    static constexpr std::string_view kSpritesSystem = "rtype.backend.sprites";        ///< Render: draws the sprites.
-    static constexpr std::string_view kEndFrameSystem = "rtype.backend.endFrame";      ///< Render: shows the frame.
+    static constexpr std::string_view kName = backend::names::kBackend;        ///< The plugin's name.
+    static constexpr std::string_view kCreateSystem = "rtype.backend.create";  ///< Startup: creates the Backend.
+    static constexpr std::string_view kEventsSystem = backend::names::kBackendEvents;  ///< PreUpdate: sends the events.
+    static constexpr std::string_view kTexturesSystem =
+        backend::names::kBackendTextures;  ///< Render: loads the textures.
+    static constexpr std::string_view kBeginFrameSystem =
+        backend::names::kBackendBeginFrame;                                            ///< Render: starts the frame.
+    static constexpr std::string_view kCameraSystem = backend::names::kBackendCamera;  ///< Render: applies the camera.
+    static constexpr std::string_view kSpritesSystem = backend::names::kBackendSprites;  ///< Render: draws the sprites.
+    static constexpr std::string_view kEndFrameSystem = backend::names::kBackendEndFrame;  ///< Render: shows the frame.
 
     /// @param registry The platforms and renderers, registered by the executable.
     /// @param settings The configuration: `platform`, `renderer`, `window` and a section per backend.

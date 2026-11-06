@@ -9,6 +9,7 @@
 
 #include <string_view>
 
+#include "plugins/backend/Names.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -33,10 +34,10 @@ namespace rtype::plugins::tilemap {
 /// (a server) does not add it: it inserts TilemapAssets itself to read maps.
 class TilemapPlugin : public ecs::Plugin {
   public:
-    static constexpr std::string_view kName = "rtype.Tilemap";                     ///< The plugin's name.
+    static constexpr std::string_view kName = backend::names::kTilemap;            ///< The plugin's name.
     static constexpr std::string_view kParallaxSystem = "rtype.Tilemap.Parallax";  ///< Moves the Parallax entities.
-    static constexpr std::string_view kTexturesSystem = "rtype.Tilemap.Textures";  ///< Queues the map images.
-    static constexpr std::string_view kDrawSystem = "rtype.Tilemap.Draw";          ///< Draws the layers.
+    static constexpr std::string_view kTexturesSystem = backend::names::kTilemapTextures;  ///< Queues the map images.
+    static constexpr std::string_view kDrawSystem = backend::names::kTilemapDraw;          ///< Draws the layers.
 
     TilemapPlugin() = default;
     ~TilemapPlugin() override = default;

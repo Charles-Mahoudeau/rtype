@@ -19,7 +19,7 @@
 #include <string_view>
 #include <vector>
 
-#include "plugins/backend/BackendPlugin.hpp"
+#include "plugins/backend/Names.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/SpriteQueue.hpp"
@@ -172,14 +172,14 @@ void TilemapPlugin::build(ecs::App& app) {
     static_cast<void>(app.getWorld().getComponents().registerType<TilemapLayer>());
     static_cast<void>(app.getWorld().getComponents().registerType<Parallax>());
     app.addSystem(ecs::Phase::kRender, std::string{kParallaxSystem}, &applyParallax)
-        .before(std::string{backend::BackendPlugin::kCameraSystem})
+        .before(std::string{backend::names::kBackendCamera})
         .setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kRender, std::string{kTexturesSystem}, &queueMapTextures)
-        .before(std::string{backend::BackendPlugin::kTexturesSystem})
+        .before(std::string{backend::names::kBackendTextures})
         .setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kRender, std::string{kDrawSystem}, &drawTilemaps)
-        .after(std::string{backend::BackendPlugin::kCameraSystem})
-        .before(std::string{backend::BackendPlugin::kSpritesSystem})
+        .after(std::string{backend::names::kBackendCamera})
+        .before(std::string{backend::names::kBackendSprites})
         .setSide(ecs::Side::kClient);
 }
 

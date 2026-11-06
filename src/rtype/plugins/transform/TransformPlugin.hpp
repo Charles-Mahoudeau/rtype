@@ -9,6 +9,7 @@
 
 #include <string_view>
 
+#include "plugins/backend/Names.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -28,9 +29,10 @@ namespace rtype::plugins::transform {
 /// GlobalTransform after it.
 class TransformPlugin : public ecs::Plugin {
   public:
-    static constexpr std::string_view kName = "rtype.Transform";                       ///< The plugin's name.
-    static constexpr std::string_view kInsertSystem = "rtype.Transform.Insert";        ///< Adds GlobalTransform.
-    static constexpr std::string_view kPropagateSystem = "rtype.Transform.Propagate";  ///< Updates GlobalTransform.
+    static constexpr std::string_view kName = backend::names::kTransform;        ///< The plugin's name.
+    static constexpr std::string_view kInsertSystem = "rtype.Transform.Insert";  ///< Adds GlobalTransform.
+    static constexpr std::string_view kPropagateSystem =
+        backend::names::kTransformPropagate;  ///< Updates GlobalTransform.
 
     TransformPlugin() = default;
     ~TransformPlugin() override = default;

@@ -9,6 +9,7 @@
 
 #include <string_view>
 
+#include "plugins/backend/Names.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -34,7 +35,7 @@ namespace rtype::plugins::physics::debug {
 /// @endcode
 class PhysicsDebugPlugin : public ecs::Plugin {
   public:
-    static constexpr std::string_view kName = "rtype.PhysicsDebug";                 ///< The plugin's name.
+    static constexpr std::string_view kName = backend::names::kPhysicsDebug;        ///< The plugin's name.
     static constexpr std::string_view kToggleSystem = "rtype.PhysicsDebug.Toggle";  ///< Flips enabled on the key.
     static constexpr std::string_view kDrawSystem = "rtype.PhysicsDebug.Draw";      ///< Draws the outlines and arrows.
 

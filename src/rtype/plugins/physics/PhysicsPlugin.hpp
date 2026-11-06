@@ -9,6 +9,7 @@
 
 #include <string_view>
 
+#include "plugins/backend/Names.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
@@ -45,7 +46,7 @@ namespace rtype::plugins::physics {
 /// @endcode
 class PhysicsPlugin : public ecs::Plugin {
   public:
-    static constexpr std::string_view kName = "rtype.Physics";                         ///< The plugin's name.
+    static constexpr std::string_view kName = backend::names::kPhysics;                ///< The plugin's name.
     static constexpr std::string_view kSyncBodiesSystem = "rtype.Physics.SyncBodies";  ///< Creates and destroys bodies.
     static constexpr std::string_view kSyncToPhysicsSystem = "rtype.Physics.SyncToPhysics";  ///< Transform to body.
     static constexpr std::string_view kStepSystem = "rtype.Physics.Step";  ///< Steps the PhysicsWorld.

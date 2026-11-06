@@ -12,6 +12,7 @@
 
 #include "core/config/Settings.hpp"
 #include "plugins/audio/AudioRegistry.hpp"
+#include "plugins/backend/Names.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -46,7 +47,7 @@ namespace rtype::plugins::audio {
 /// @endcode
 class AudioPlugin : public ecs::Plugin {
   public:
-    static constexpr std::string_view kName = "rtype.audio";                   ///< The plugin's name.
+    static constexpr std::string_view kName = backend::names::kAudio;          ///< The plugin's name.
     static constexpr std::string_view kCreateSystem = "rtype.audio.create";    ///< Startup: creates the device.
     static constexpr std::string_view kSoundsSystem = "rtype.audio.sounds";    ///< PostUpdate: loads the sounds.
     static constexpr std::string_view kPlaySystem = "rtype.audio.play";        ///< PostUpdate: plays the events.

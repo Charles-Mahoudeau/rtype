@@ -34,6 +34,7 @@
 #include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
+#include "plugins/backend/WindowEvents.hpp"  // IWYU pragma: keep
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/Color.hpp"
@@ -43,7 +44,6 @@
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/backend/input/Key.hpp"
-#include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/particle/ParticleEffect.hpp"
 #include "plugins/particle/ParticleEffectAssets.hpp"
 #include "plugins/particle/ParticleEmitter.hpp"

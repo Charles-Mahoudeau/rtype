@@ -18,9 +18,9 @@
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/BackendResources.hpp"  // IWYU pragma: keep
+#include "plugins/backend/BackendResource.hpp"  // IWYU pragma: keep
+#include "plugins/backend/Names.hpp"
 #include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Particle.hpp"
@@ -37,7 +37,6 @@
 #include "plugins/particle/ParticleSystems.hpp"
 #include "plugins/shader/MaterialInstance.hpp"
 #include "plugins/shader/ShaderHandles.hpp"
-#include "plugins/text/TextPlugin.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -295,13 +294,13 @@ void ParticlePlugin::build(ecs::App& app) {
 
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kSpawnSystem}, &spawnParticles).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kUpdateSystem}, &updateEmitters)
-        .after(std::string{transform::TransformPlugin::kPropagateSystem})
+        .after(std::string{backend::names::kTransformPropagate})
         .after(std::string{kSpawnSystem})
         .setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kRender, std::string{kDrawSystem}, &drawEmitters)
-        .after(std::string{backend::BackendPlugin::kCameraSystem})
-        .after(std::string{text::TextPlugin::kDrawSystem})
-        .before(std::string{backend::BackendPlugin::kSpritesSystem})
+        .after(std::string{backend::names::kBackendCamera})
+        .after(std::string{backend::names::kTextDraw})
+        .before(std::string{backend::names::kBackendSprites})
         .setSide(ecs::Side::kClient);
 }
 

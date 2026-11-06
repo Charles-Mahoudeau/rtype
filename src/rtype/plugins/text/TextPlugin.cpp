@@ -14,7 +14,7 @@
 #include <string_view>
 #include <utility>
 
-#include "plugins/backend/BackendPlugin.hpp"
+#include "plugins/backend/Names.hpp"
 #include "plugins/backend/graphics/SpriteQueue.hpp"
 #include "plugins/backend/graphics/Text.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
@@ -25,7 +25,6 @@
 #include "plugins/text/FontAssets.hpp"
 #include "plugins/text/TextLayout.hpp"
 #include "plugins/text/TextRenderer.hpp"
-#include "plugins/tilemap/TilemapPlugin.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -98,13 +97,13 @@ void TextPlugin::build(ecs::App& app) {
     resources.insertIfAbsent<backend::graphics::SpriteQueue>();
     static_cast<void>(app.getWorld().getComponents().registerType<TextRenderer>());
     app.addSystem(ecs::Phase::kRender, std::string{kTexturesSystem}, &queueFontTextures)
-        .after(std::string{tilemap::TilemapPlugin::kTexturesSystem})
-        .before(std::string{backend::BackendPlugin::kTexturesSystem})
+        .after(std::string{backend::names::kTilemapTextures})
+        .before(std::string{backend::names::kBackendTextures})
         .setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kRender, std::string{kDrawSystem}, &drawTexts)
-        .after(std::string{backend::BackendPlugin::kCameraSystem})
-        .after(std::string{tilemap::TilemapPlugin::kDrawSystem})
-        .before(std::string{backend::BackendPlugin::kSpritesSystem})
+        .after(std::string{backend::names::kBackendCamera})
+        .after(std::string{backend::names::kTilemapDraw})
+        .before(std::string{backend::names::kBackendSprites})
         .setSide(ecs::Side::kClient);
 }
 

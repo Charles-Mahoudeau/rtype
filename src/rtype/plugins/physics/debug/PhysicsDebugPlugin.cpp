@@ -10,15 +10,15 @@
 #include <string>
 #include <string_view>
 
-#include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/BackendResources.hpp"  // IWYU pragma: keep
+#include "plugins/backend/BackendResource.hpp"  // IWYU pragma: keep
+#include "plugins/backend/Names.hpp"
+#include "plugins/backend/WindowEvents.hpp"  // IWYU pragma: keep
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/graphics/Color.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
 #include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/backend/input/Key.hpp"
-#include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/physics/Collider.hpp"
 #include "plugins/physics/ComponentOptions.hpp"
 #include "plugins/physics/Velocity.hpp"
@@ -96,8 +96,8 @@ void PhysicsDebugPlugin::build(ecs::App& app) {
     resources.insertIfAbsent<PhysicsDebugSettings>();
     app.addSystem(ecs::Phase::kUpdate, std::string{kToggleSystem}, &toggleDebug).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kRender, std::string{kDrawSystem}, &drawDebug)
-        .after(std::string{backend::BackendPlugin::kSpritesSystem})
-        .before(std::string{backend::BackendPlugin::kEndFrameSystem})
+        .after(std::string{backend::names::kBackendSprites})
+        .before(std::string{backend::names::kBackendEndFrame})
         .setSide(ecs::Side::kClient);
 }
 

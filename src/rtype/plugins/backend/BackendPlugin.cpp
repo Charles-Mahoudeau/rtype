@@ -40,7 +40,6 @@
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/backend/graphics/View.hpp"
 #include "plugins/backend/graphics/VisibleArea.hpp"
-#include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputPlugin.hpp"
 #include "plugins/particle/ParticlePlugin.hpp"
 #include "plugins/shader/MaterialInstance.hpp"

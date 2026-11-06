@@ -9,6 +9,7 @@
 
 #include <string_view>
 
+#include "plugins/backend/Names.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -34,7 +35,7 @@ namespace rtype::plugins::input {
 /// @endcode
 class InputPlugin : public ecs::Plugin {
   public:
-    static constexpr std::string_view kName = "rtype.Input";  ///< The plugin's name.
+    static constexpr std::string_view kName = backend::names::kInput;  ///< The plugin's name.
     /// @brief The PreUpdate system feeding the platform's events to Input. Producers of those events order their
     /// systems before it.
     static constexpr std::string_view kUpdateSystem = "rtype.Input.Update";

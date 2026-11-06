@@ -9,6 +9,7 @@
 
 #include <string_view>
 
+#include "plugins/backend/Names.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -33,9 +34,9 @@ namespace rtype::plugins::text {
 /// an App without a window (a server) does not add it: it inserts FontAssets itself to measure texts.
 class TextPlugin : public ecs::Plugin {
   public:
-    static constexpr std::string_view kName = "rtype.Text";                     ///< The plugin's name.
+    static constexpr std::string_view kName = backend::names::kText;            ///< The plugin's name.
     static constexpr std::string_view kTexturesSystem = "rtype.Text.Textures";  ///< Queues the atlas images.
-    static constexpr std::string_view kDrawSystem = "rtype.Text.Draw";          ///< Draws the texts.
+    static constexpr std::string_view kDrawSystem = backend::names::kTextDraw;  ///< Draws the texts.
 
     TextPlugin() = default;
     ~TextPlugin() override = default;

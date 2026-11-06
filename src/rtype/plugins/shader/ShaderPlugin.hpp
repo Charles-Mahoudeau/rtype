@@ -9,6 +9,7 @@
 
 #include <string_view>
 
+#include "plugins/backend/Names.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -34,7 +35,7 @@ namespace rtype::plugins::shader {
 /// @endcode
 class ShaderPlugin : public ecs::Plugin {
   public:
-    static constexpr std::string_view kName = "rtype.Shader";                 ///< The plugin's name.
+    static constexpr std::string_view kName = backend::names::kShader;        ///< The plugin's name.
     static constexpr std::string_view kUpdateSystem = "rtype.Shader.Update";  ///< Updates the renderer.
 
     ShaderPlugin() = default;

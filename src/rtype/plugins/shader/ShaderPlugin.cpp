@@ -10,9 +10,9 @@
 #include <string>
 #include <string_view>
 
-#include "plugins/backend/BackendPlugin.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/BackendResources.hpp"  // IWYU pragma: keep
+#include "plugins/backend/BackendResource.hpp"  // IWYU pragma: keep
+#include "plugins/backend/Names.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/shader/MaterialAssets.hpp"
 #include "plugins/shader/MaterialInstance.hpp"
@@ -47,8 +47,8 @@ void ShaderPlugin::build(ecs::App& app) {
     resources.insertIfAbsent<backend::TextureAssets>();
     static_cast<void>(app.getWorld().getComponents().registerType<MaterialInstance>());
     app.addSystem(ecs::Phase::kRender, std::string{kUpdateSystem}, &updateShaders)
-        .after(std::string{backend::BackendPlugin::kTexturesSystem})
-        .before(std::string{backend::BackendPlugin::kBeginFrameSystem})
+        .after(std::string{backend::names::kBackendTextures})
+        .before(std::string{backend::names::kBackendBeginFrame})
         .setSide(ecs::Side::kClient);
 }
 

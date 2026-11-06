@@ -9,6 +9,7 @@
 
 #include <string_view>
 
+#include "plugins/backend/Names.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -35,7 +36,7 @@ namespace rtype::plugins::particle {
 /// The BackendPlugin adds it, after the TextPlugin.
 class ParticlePlugin : public ecs::Plugin {
   public:
-    static constexpr std::string_view kName = "rtype.Particle";                 ///< The plugin's name.
+    static constexpr std::string_view kName = backend::names::kParticle;        ///< The plugin's name.
     static constexpr std::string_view kSpawnSystem = "rtype.Particle.Spawn";    ///< Spawns the one-shot emitters.
     static constexpr std::string_view kUpdateSystem = "rtype.Particle.Update";  ///< Plays the emitters.
     static constexpr std::string_view kDrawSystem = "rtype.Particle.Draw";      ///< Draws the emitters.
