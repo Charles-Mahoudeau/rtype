@@ -15,7 +15,7 @@ engine.ecs.system("game.SpawnShip", {
 
 engine.ecs.system("game.ShieldRegen", {
     phase = "FixedUpdate",
-    side = "server", -- authoritative: clients get the strength by replication
+    side = "server", -- authoritative gameplay: only the server regenerates
     query = { write = { "game.Shield" } },
     run = function(ctx)
         for entity, shield in ctx.query do
