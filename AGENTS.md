@@ -57,7 +57,9 @@ are added.
   default, `--game <dir>`): it reads its `project.luau` through Luau (`scripting/SettingsLoader`, which also exposes
   the command line as `engine.args`), builds the `App` with the program's plugins, `EngineConfig::addPlugins`, and the engine's (transform, replication,
   scripting, server or client) in a fixed order, calls the game's native `EngineConfig::setup`, runs it, and builds it
-  again on `requestReload()`. `EngineConfig` holds the mode, the command line and these functions; `CommandLine` parses the `--name value` flags. Exported symbols are marked `RTYPE_ENGINE_API`.
+  again on `requestReload()`. `GamePlugins` reads the generic plugins `project.luau` lists under `plugins`
+  (`transform`, `physics`, `physicsDebug`) and their sections, added after the replication plugin. `EngineConfig` holds
+  the mode, the command line and these functions; `CommandLine` parses the `--name value` flags. Exported symbols are marked `RTYPE_ENGINE_API`.
   Design in `docs/engine/design.md`.
 - `src/rtype/client/`, `src/rtype/server/` — the generic executables `r-type_client` and `r-type_server`: a `main` that
   lists its plugins and backends (client only) and runs an `Engine` on `game/`. The build copies them to the repository root

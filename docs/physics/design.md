@@ -124,6 +124,16 @@ public constants of `PhysicsPlugin`:
 
 `TransformPlugin` then computes `GlobalTransform` in `PostUpdate`, as for any entity.
 
+A game run by the `Engine` can add it from `project.luau` instead of C++ (see `../engine/design.md`, *Generic
+plugins*): `PhysicsSettings::fromSettings()` reads the `physics` section, every field but none required.
+
+```lua
+engine.settings.plugins = { "physics" }
+engine.settings.physics.gravity = { 0, 0 }     -- { x, y }, world units per second squared, Y down
+engine.settings.physics.unitsPerMeter = 32
+-- maxBodies, maxBodyPairs, maxContactConstraints, tempAllocatorBytes: positive integers
+```
+
 ## 6. Bodies and syncing
 
 - **Rebuild on change.** A changed `Collider` or `RigidBody` rebuilds the body (Jolt shapes are immutable); a moving
@@ -246,6 +256,10 @@ arrows as `Shape`s (one `kRect` / `kCircle` / `kCapsule` per outline, three `kLi
 It draws from the components (`Collider`, `GlobalTransform`, `Velocity`), not from Jolt, so it shows where sprites are
 drawn and works without bodies. It is a separate plugin and component on purpose: the headless server has no
 renderer, and toggling debug must never rebuild a body.
+
+From `project.luau`, `"physicsDebug"` in `engine.settings.plugins` adds it on the client side (a server skips it), with
+the `physicsDebug` section read by `PhysicsDebugSettings::fromSettings()`: `enabled`, `drawAll`, `outlineThickness` and
+`velocityScale` (the toggle key and the color keep their defaults).
 
 ## 12. Performance
 

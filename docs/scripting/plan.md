@@ -701,6 +701,9 @@ their bytes would be wrong anyway.
   every side, skips its calls where the plugin is absent and returns the asset's id all the same.
 - **Plugin settings in `project.luau`.** `PhysicsSettings` (gravity) and the list of generic plugins to add are read
   from the project settings, so two games differ by data, not by an executable.
+  *Done:* `engine.settings.plugins` lists `"transform"`, `"physics"` and `"physicsDebug"` (`engine/GamePlugins`), and
+  the `physics` and `physicsDebug` sections set their settings (`PhysicsSettings::fromSettings()`,
+  `PhysicsDebugSettings::fromSettings()`); see "Generic plugins" in `docs/engine/design.md`.
 - **Physics.** Expose `Collider`, `RigidBody` and `Velocity` (SCR-01 covers their enums), the collision events
   (SCR-04) and the scene queries as engine calls.
 - Replication components (`Owner`, `PlayerInput`) and `ClientConnected`: readable and writable like any component and
