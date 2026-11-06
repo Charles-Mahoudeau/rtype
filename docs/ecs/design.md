@@ -630,7 +630,9 @@ flowchart LR
 - **One `Schedule` per phase**, held with the frame by the world's `Schedules`, which the App owns (one App:
   one world, one `Schedules`, one run mode). System names are unique across every phase.
 - Inside a phase, `before`/`after` constraints are sorted topologically; a cycle is an error when the
-  schedule is built.
+  schedule is built. Systems can join **named sets** ordered as a whole (`inSet`, `configureSet`), so a plugin
+  places a system in a stage of the phase without naming other plugins' systems, and a resource whose writes
+  commute (`allowAmbiguousResource<T>()`) lets the members of a stage write it unordered.
 - **`FixedUpdate`** runs 0..N times per frame from a time accumulator (60 ticks per second and at most 5
   per frame by default, counted in integers so every machine counts the same ticks), so the simulation does
   not depend on the frame rate. The accumulator belongs to `TimePlugin`, which every App has; it plugs into

@@ -172,13 +172,57 @@ phases; the system is not added. Building throws one naming the systems involved
 
 | Problem | Message names |
 |---|---|
-| `before` / `after` naming a system that is not in the same phase (unknown, or in another phase) | the system, the target and the phase: only systems of one phase can be ordered |
-| A **cycle** of constraints | the systems of the cycle, `'a' -> 'b' -> 'c' -> 'a'` |
+| `before` / `after` naming neither a system nor a [set](#system-sets) of the same phase (unknown, or in another phase) | the system or set, the target and the phase: only systems and sets of one phase can be ordered |
+| A set named like a system of the phase | the name: systems and sets share their names |
+| A **cycle** of constraints | the systems and sets of the cycle, `'a' -> set 'draw' -> 'a'` |
 | Two systems with **conflicting access** and **no order** (direct or through other systems) | every such pair, in name order, and the component, resource or event they share |
 
 Access conflicts: one system writes a type the other reads or writes (two readers never conflict). Every
 system is checked whatever the run mode, so a schedule that builds on the server also builds on clients
 (standalone runs both kinds together).
+
+### System sets
+
+A system can join **named sets** of its phase, and a set is ordered **as a whole**: its constraints apply to
+every member. A plugin then places a system in a **stage** of the phase without naming the other systems
+there, and the stage's owner frames it once:
+
+```c++
+// the owner of the stage (here the backend), once
+app.configureSet(Phase::kRender, "rtype.render.queue").after("rtype.backend.camera").before("rtype.backend.sprites");
+
+// any plugin, without knowing the others
+app.addSystem(Phase::kRender, "rtype.Tilemap.Draw", &drawTilemaps).inSet("rtype.render.queue");
+app.addSystem(Phase::kRender, "rtype.Text.Draw", &drawTexts).inSet("rtype.render.queue");
+```
+
+| Rule | Behaviour |
+|---|---|
+| Names | Systems and sets share one namespace per phase: `before` / `after` (of a system or a set) name either |
+| A set exists | Once configured (`configureSet`), or once a system joins it (`inSet`) |
+| An empty or unconfigured set | Valid; an order through it still holds (`a` before S, S before `b`: `a` runs before `b`) |
+| Several sets | A system can join several; it follows each one's constraints |
+| Phases | A set belongs to one phase; a set of the same name in another phase is another set |
+| `getOrder()` | Lists the systems only |
+
+Inside the schedule each set is two nodes of the graph, its start and its end, with its members between them
+(`start -> member -> end`, and `start -> end` so the order survives an empty set). `Schedule`, `Schedules` and
+the App all have `configureSet()`.
+
+### Ambiguous resources
+
+The members of one stage often write the same resource: tilemap, text and particles all push to the
+`SpriteQueue`. The order of those pushes does not matter (the queue is sorted by layer before drawing), but the
+access check would refuse them as unordered writers. The owner of such a resource declares that **its writes
+commute**:
+
+```c++
+app.allowAmbiguousResource<rtype::plugins::backend::graphics::SpriteQueue>();  // every phase; registers T if needed
+```
+
+Two systems may then write it with no order between them; they still conflict on any other component,
+resource or event. Use it only for a resource whose result does not depend on the order of its writes (a
+queue sorted before it is read): otherwise the result depends on the systems' names.
 
 ### Running a phase
 
@@ -238,6 +282,8 @@ and no ordering constraint links them. Nothing in the systems changes.
 - **Gameplay in `Update`.** Anything that affects the simulation belongs in `FixedUpdate`; `Update` runs
   at the frame rate, which differs per machine.
 - **Implicit order.** Relying on registration order works until a plugin is added. Declare `after`.
+- **Ordering against another plugin's systems.** It makes that plugin a dependency only for the order. Put the
+  system in a stage (`inSet`) framed by the stage's owner instead.
 - **Too many phases.** Prefer ordering inside a phase over inventing new phases.
 - **Reading `FixedUpdate` events in `Update`.** Their queues move forward once per fixed tick, so a frame that
   runs 3 ticks or more drops the events of its first tick before `Update` runs. Read them in `FixedUpdate`.

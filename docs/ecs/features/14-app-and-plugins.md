@@ -123,6 +123,8 @@ return app.run();   // Startup once, then frames until a system sends AppExit; r
 | `addSystem(phase, name, function)` | `Schedules::addSystem()`, returning the system's configuration (`after`, `before`, `setSide`) |
 | `insertResource(value)` | A resource of the world |
 | `insertResourceIfAbsent(value = T{})` | A resource of the world, only if it has no value yet (a plugin's default) |
+| `configureSet(phase, name)` | Orders a [set](13-scheduler.md#system-sets) of systems as a whole (`after`, `before`) |
+| `allowAmbiguousResource<T>()` | Lets systems write `T` with no order between them: its writes [commute](13-scheduler.md#ambiguous-resources) |
 | `getWorld()`, `getSchedules()` | The world and its schedules |
 | `runFrame()` | One frame ([scheduler](13-scheduler.md#the-frame-and-its-clock)), adding the default time plugin first if none was added |
 | `run()` | Frames until an `AppExit` is read; returns its code |
