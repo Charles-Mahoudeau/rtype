@@ -16,6 +16,8 @@
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/exceptions/PrefabException.hpp"
+#include "rtype/ecs/hierarchy/Children.hpp"
+#include "rtype/ecs/hierarchy/Parent.hpp"
 #include "rtype/ecs/prefab/ComponentValues.hpp"
 #include "rtype/ecs/world/World.hpp"
 
@@ -154,5 +156,23 @@ TEST(ComponentValues, RefusesAnUnknownIdOrBytesOfTheWrongSize) {
     } catch (const rtype::ecs::exceptions::PrefabException& error) {
         EXPECT_EQ(std::string{error.what()}, "Component 'test.values.Health' takes 4 bytes, not 8");
     }
+    EXPECT_EQ(values.getCount(), 0U);
+}
+
+TEST(ComponentValues, RefusesTheHierarchyComponents) {
+    rtype::ecs::World world;
+    const rtype::ecs::ComponentId parent =
+        world.getComponents().registerType<rtype::ecs::Parent>(rtype::ecs::kParentOptions);
+    const rtype::ecs::ComponentId children = world.getComponents().registerType<rtype::ecs::Children>();
+    rtype::ecs::ComponentValues values;
+    try {
+        values.set(world.getComponents(), parent, bytesOf(rtype::ecs::Parent{}));
+        FAIL() << "no PrefabException";
+    } catch (const rtype::ecs::exceptions::PrefabException& error) {
+        EXPECT_EQ(std::string{error.what()},
+                  "Component 'rtype.Parent' cannot be a prefab value: a prefab's children set the hierarchy");
+    }
+    const rtype::ecs::Children list{};
+    EXPECT_THROW(values.set(world.getComponents(), children, bytesOf(list)), rtype::ecs::exceptions::PrefabException);
     EXPECT_EQ(values.getCount(), 0U);
 }
