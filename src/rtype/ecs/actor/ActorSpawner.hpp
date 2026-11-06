@@ -13,7 +13,6 @@
 
 #include "rtype/ecs/actor/Actor.hpp"
 #include "rtype/ecs/actor/Actors.hpp"
-#include "rtype/ecs/actor/ComponentValues.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/ComponentRegistry.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
