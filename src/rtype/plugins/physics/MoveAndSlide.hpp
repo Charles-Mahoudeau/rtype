@@ -11,6 +11,7 @@
 #include <glm/ext/vector_float2.hpp>
 
 #include "plugins/physics/Collider.hpp"
+#include "plugins/physics/Export.hpp"
 #include "plugins/physics/PhysicsWorld.hpp"
 #include "plugins/physics/QueryFilter.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
@@ -40,15 +41,18 @@ struct SlideSettings {
 /// transform->position = rtype::plugins::physics::moveAndSlide(*world, collider, transform->position, delta,
 ///                                                             {.mask = collider.mask, .ignore = ship});
 /// @endcode
-[[nodiscard]] glm::vec2 moveAndSlide(const PhysicsWorld& world, const Collider& shape, glm::vec2 from, glm::vec2 delta,
-                                     const QueryFilter& filter = {}, const SlideSettings& settings = {});
+[[nodiscard]] RTYPE_PLUGIN_PHYSICS_API glm::vec2 moveAndSlide(const PhysicsWorld& world, const Collider& shape,
+                                                              glm::vec2 from, glm::vec2 delta,
+                                                              const QueryFilter& filter = {},
+                                                              const SlideSettings& settings = {});
 
 /// @brief Moves an entity's collider by a delta, blocked by the bodies its mask collides with and never by its own.
 /// @details moveAndSlide() with a filter seeing Collider::mask and ignoring the entity.
 /// @code
 /// transform->position = rtype::plugins::physics::moveAndSlide(*world, ship, collider, transform->position, delta);
 /// @endcode
-[[nodiscard]] glm::vec2 moveAndSlide(const PhysicsWorld& world, ecs::Entity entity, const Collider& collider,
-                                     glm::vec2 from, glm::vec2 delta, const SlideSettings& settings = {});
+[[nodiscard]] RTYPE_PLUGIN_PHYSICS_API glm::vec2 moveAndSlide(const PhysicsWorld& world, ecs::Entity entity,
+                                                              const Collider& collider, glm::vec2 from, glm::vec2 delta,
+                                                              const SlideSettings& settings = {});
 
 }  // namespace rtype::plugins::physics

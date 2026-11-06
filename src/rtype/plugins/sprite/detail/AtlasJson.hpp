@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <string_view>
 
+#include "plugins/sprite/Export.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
 #include "rtype/contract/renderer/drawing/Texture.hpp"
 
@@ -27,7 +28,8 @@ namespace rtype::plugins::sprite::detail {
 /// @param path Where it was read from: names the atlas in errors and resolves `meta.image`.
 /// @param desc How the image is sampled.
 /// @throws exceptions::AtlasException If the text is not JSON, or lacks or mistypes a field this reads.
-[[nodiscard]] SpriteAtlas parseAtlasJson(std::string_view text, const std::filesystem::path& path,
-                                         const contract::renderer::TextureDesc& desc = {});
+[[nodiscard]] RTYPE_PLUGIN_SPRITE_API SpriteAtlas parseAtlasJson(std::string_view text,
+                                                                 const std::filesystem::path& path,
+                                                                 const contract::renderer::TextureDesc& desc = {});
 
 }  // namespace rtype::plugins::sprite::detail
