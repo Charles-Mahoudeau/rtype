@@ -32,6 +32,10 @@ namespace {
 constexpr std::size_t kChannels = 4;
 }  // namespace
 
+void TextureAssets::setDirectory(std::filesystem::path directory) { _directory = std::move(directory); }
+
+const std::filesystem::path& TextureAssets::getDirectory() const noexcept { return _directory; }
+
 std::size_t TextureAssets::getCount() const noexcept { return _entries.size(); }
 
 core::asset::AssetId TextureAssets::load(const std::filesystem::path& path,
@@ -141,7 +145,9 @@ void updateTextures(TextureAssets& assets, contract::renderer::IRenderer& render
                 continue;
             }
             const DecodedImage image =
-                decodeImage(entry.path, entry.encoded.empty() ? readFile(entry.path) : entry.encoded);
+                decodeImage(entry.path, entry.encoded.empty()
+                                            ? readFile(core::asset::resolveAssetPath(assets.getDirectory(), entry.path))
+                                            : entry.encoded);
             desc.size = image.size;
             assets.setLoaded(id, renderer.createTexture(desc, image.pixels), desc);
         } catch (const std::exception& error) {

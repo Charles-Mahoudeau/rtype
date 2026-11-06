@@ -20,6 +20,8 @@
 
 namespace rtype::plugins::text {
 
+void FontAssets::setDirectory(std::filesystem::path directory) { _fonts.setDirectory(std::move(directory)); }
+
 std::size_t FontAssets::getCount() const noexcept { return _fonts.getCount(); }
 
 core::asset::AssetId FontAssets::load(const std::filesystem::path& path) {

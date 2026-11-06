@@ -51,6 +51,10 @@ class RTYPE_PLUGIN_PARTICLE_API ParticleEffectAssets {
     ParticleEffectAssets(ParticleEffectAssets&& other) noexcept = default;
     ParticleEffectAssets& operator=(ParticleEffectAssets&& other) noexcept = default;
 
+    /// @brief Sets where the files are read; a path that leaves it fails (core::asset::resolveAssetPath()).
+    /// @param directory The assets' directory; empty: the working directory, unchecked.
+    void setDirectory(std::filesystem::path directory);
+
     /// @return The number of effects known, read or failed.
     [[nodiscard]] std::size_t getCount() const noexcept;
 

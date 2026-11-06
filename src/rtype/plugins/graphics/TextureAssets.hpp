@@ -64,6 +64,13 @@ class RTYPE_PLUGIN_GRAPHICS_API TextureAssets {
     TextureAssets(TextureAssets&& other) noexcept = default;
     TextureAssets& operator=(TextureAssets&& other) noexcept = default;
 
+    /// @brief Sets where the files are read; a path that leaves it fails (core::asset::resolveAssetPath()).
+    /// @param directory The assets' directory; empty: the working directory, unchecked.
+    void setDirectory(std::filesystem::path directory);
+
+    /// @return Where the files are read.
+    [[nodiscard]] const std::filesystem::path& getDirectory() const noexcept;
+
     /// @return The number of textures known, whatever their state.
     [[nodiscard]] std::size_t getCount() const noexcept;
 
@@ -129,6 +136,7 @@ class RTYPE_PLUGIN_GRAPHICS_API TextureAssets {
     /// @return The queued entry @p id names, removed from the queue, or nullptr if it is not queued.
     Entry* dequeue(core::asset::AssetId id);
 
+    std::filesystem::path _directory;                          ///< Where the files are read.
     std::unordered_map<core::asset::AssetId, Entry> _entries;  ///< Every texture asked for, by id.
     std::vector<core::asset::AssetId> _queued;             ///< The queued textures, in the order they were asked for.
     std::vector<contract::renderer::TextureId> _unloaded;  ///< Textures to destroy, from unload().
