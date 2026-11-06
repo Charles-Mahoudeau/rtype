@@ -215,6 +215,26 @@ TEST(TilemapPlugin, MovesAParallaxEntityByTheCamera) {
     EXPECT_EQ(app.world().getComponents().get<GlobalTransform>(far)->position, (glm::vec2{210.0F, 200.0F}));
 }
 
+TEST(TilemapPlugin, MovesAParallaxChildFromWhereItsParentPutsIt) {
+    TilemapApp app;
+    const rtype::ecs::Entity camera = app.world().spawn();
+    app.world().getComponents().add(camera, Transform{.position = {400.0F, 300.0F}});
+    app.world().getComponents().add(camera, rtype::plugins::backend::graphics::Camera{});
+    const rtype::ecs::Entity parent = app.world().spawn();
+    app.world().getComponents().add(parent, Transform{.position = {100.0F, 0.0F}});
+    const rtype::ecs::Entity far = app.world().spawn();
+    app.world().getComponents().add(far, Transform{.position = {10.0F, 0.0F}});
+    app.world().getComponents().add(far, Parallax{.factor = {0.5F, 0.0F}, .origin = {0.0F, 100.0F}});
+    EXPECT_TRUE(app.world().setParent(far, parent));
+    app.app().runFrame();
+    EXPECT_EQ(app.world().getComponents().get<GlobalTransform>(far)->position, (glm::vec2{310.0F, 200.0F}));
+    app.app().runFrame();  // the shift goes on top of this frame's position: it does not add up
+    EXPECT_EQ(app.world().getComponents().get<GlobalTransform>(far)->position, (glm::vec2{310.0F, 200.0F}));
+    app.world().getComponents().getMut<Transform>(parent)->position.x = 200.0F;
+    app.app().runFrame();
+    EXPECT_EQ(app.world().getComponents().get<GlobalTransform>(far)->position, (glm::vec2{410.0F, 200.0F}));
+}
+
 TEST(TilemapPlugin, ScrollsAParallaxEntityOnItsOwn) {
     TilemapApp app;
     const rtype::ecs::Entity cloud = app.world().spawn();
