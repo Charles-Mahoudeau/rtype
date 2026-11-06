@@ -119,6 +119,34 @@ system made from a [`ScriptCallable`](12-systems.md#script-callables): a lambda 
 whose `DynamicQueries` parameter declares the access to the scheduler. `shield` is a **view** over the component bytes, valid only
 during `run`; writing a field stamps the changed tick.
 
+### Engine calls
+
+What a plugin does through a C++ API rather than through plain data (load an atlas, bind an input action, play a
+sound) is an [engine call](12-systems.md#engine-calls): a named C++ function registered with `App::addCall()`.
+Scripts make it by name, with a table of argument fields converted as component fields are (an `assetId` takes a
+path):
+
+```luau
+local total = engine.call("game.addPoints", { points = 3 })   -- while the script loads
+
+engine.ecs.system("game.Scorer", {
+    query = { read = { "game.Ship" } },
+    calls = { "game.addPoints" },                              -- declared, like resources and events
+    run = function(ctx)
+        for entity, ship in ctx.query do
+            ctx.call("game.addPoints", { points = 1 })
+        end
+    end,
+})
+```
+
+Missing argument fields keep their defaults. A result of one field is returned as that value, a result of several as
+a table, and a call that returns nothing returns no value. A system's declared calls add their access to its own, so
+the scheduler sees what they read and write, and runs it on the main thread when one of them needs it. Calling a call
+the system did not declare raises a Luau error. An unknown call, a wrong argument or a call that throws raises an error
+naming the call. An unknown call in `calls` is refused when the script loads, unless the system does not run in that
+`App`'s mode: a client system may list a call only the client plugins register.
+
 ### Plugins
 
 ```luau

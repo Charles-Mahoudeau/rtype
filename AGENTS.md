@@ -173,7 +173,9 @@ are added.
   touch ECS data with: the `ComponentView` usertype (reads and writes a component's fields in place, checked against a
   `ViewScope` generation), the `Entity` usertype (`registerViewTypes()`) and the field conversions (`readField()`,
   `writeField()`, `fillFromTable()`). `system/` holds `SystemDeclaration`, its reader and `registerSystem()`, which
-  turns a script system into a `ScriptCallable` on the App. `ScriptHost` owns the Luau runtime and the `engine` global
+  turns a script system into a `ScriptCallable` on the App. `call/` holds `callEngine()`, which makes an `ecs` engine
+  call from a script's table of argument fields and turns its result into Luau values, for `engine.call` and for
+  `ctx.call` (a system's declared `calls`). `ScriptHost` owns the Luau runtime and the `engine` global
   (constant flags `isClient`, `isServer`, `isDebug`, `engine.ecs.component`, read by `component/DeclarationReader.hpp`,
   and `engine.ecs.system`, read by `system/SystemDeclarationReader.hpp`); a system declares the `resources` and `events` it uses, given to scripts by `ctx.resources` and `ctx.events` (plain-data ones only), through the `ecs` `DynamicResources` and `DynamicEvents` parameters; it knows no `Plugin`. The host and
   the App may be destroyed in either order. `plugin/` holds `ScriptingPlugin`, the `ecs::Plugin` that owns a

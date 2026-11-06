@@ -263,7 +263,8 @@ end
 return ShieldRegen
 ```
 
-`ctx` gives the query results, `ctx.time`, `ctx.commands`, `ctx.events` and `ctx.resources`. Because a
+`ctx` gives the query results, `ctx.time`, `ctx.commands`, `ctx.events`, `ctx.resources` and `ctx.call` (the
+[engine calls](#engine-calls) the table lists under `calls`). Because a
 script cannot be inspected like a C++ signature, its access is **declared** in the table, and the bridge
 refuses writes to anything declared as read-only. On the C++ side the bridge adds a
 [`ScriptCallable`](#script-callables) whose parameters are a `DynamicQueries` (the table's `query`, as a

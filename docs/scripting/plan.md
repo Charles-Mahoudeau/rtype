@@ -683,6 +683,12 @@ their bytes would be wrong anyway.
   `luau` (dependency rules). `scripting` exposes each call under `engine`, converting arguments with the SCR-01
   conversions (an `assetId` takes a path). A call runs where it is declared (`side`, SCR-06) and on the thread that
   owns the resource.
+  *Done:* `App::addCall(name, function)` registers a C++ function whose parameters are system parameters and an
+  optional `const Args&`, `Args` and its result being plain-data structs declared with `RTYPE_ECS_CALL_DATA` (so the
+  signature is a `TypeInfo` of `FieldType`s). Scripts call it with `engine.call(name, { field = value })` while they
+  load, and with `ctx.call(name, {...})` in a system that lists it under `calls = {...}`; the system takes the call's
+  access (and its main-thread need), so the scheduler orders it like any other. A call the system does not list is a
+  Luau error; an unknown call is refused when the script loads, unless the system does not run in that `App`'s mode.
 - **Declarative forms for the common setup**, written in `scripting` on top of the calls, so scripts do not juggle
   handles: `engine.input.action("move", "vector2")`, `engine.assets.atlas{ path = ..., grid = {...}, animations =
   {...} }`, `engine.assets.sound(path)`, `engine.assets.font(path)`. Each one registers on both sides when the same
@@ -704,7 +710,7 @@ both: the registry for the plugins, forms for the setup everybody writes.
 - [ ] A game's server and client scripts spawn ships and lasers with colliders, and a collision event reaches a script.
 - [ ] `plugins` and `ecs` still include nothing of `luau`.
 - [ ] `rtype_duel`'s `src/` holds the generic executable only; its rules are in `game/scripts/`.
-- [ ] An unknown engine call, or a wrong argument type, is an error naming the call and the script.
+- [x] An unknown engine call, or a wrong argument type, is an error naming the call and the script.
 
 #### Existing issue not in this list
 
