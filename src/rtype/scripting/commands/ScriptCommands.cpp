@@ -95,7 +95,7 @@ void checkAlive(const ScriptCommands& handle) {
 /// @return A C++ component of the world a script can build: plain data, or with a default constructor (components are
 /// copyable, which `Commands::add()` needs).
 /// @throws luau::exceptions::RuntimeError If the world has no such component, it owns memory but has no default
-/// constructor, or the system runs on clients and the component is replicated or server-only.
+/// constructor or cannot be copied, or the system runs on clients and the component is replicated or server-only.
 [[nodiscard]] const ecs::ComponentInfo& requireEngineComponent(const ScriptCommands& handle, const std::string& name) {
     const ecs::ComponentInfo* info = handle.registry != nullptr ? handle.registry->findByName(name) : nullptr;
     if (info == nullptr) {
@@ -107,6 +107,9 @@ void checkAlive(const ScriptCommands& handle) {
     if (!plain && hooks.construct == nullptr) {  // a plain one without the hook starts from zeroes
         throw luau::exceptions::RuntimeError{
             std::format("cannot add '{}': it has no default constructor to start from", name)};
+    }
+    if (!plain && hooks.copy == nullptr) {  // Commands::add() copies it: without the hook it would be memcpy'd
+        throw luau::exceptions::RuntimeError{std::format("cannot add '{}': it owns memory but cannot be copied", name)};
     }
     if (handle.clientSide &&
         (info->type.replication != ecs::ReplicationMode::kNone || info->type.presence == ecs::Presence::kServerOnly)) {
