@@ -19,6 +19,7 @@
 
 #include "rtype/ecs/Export.hpp"
 #include "rtype/ecs/event/EventInfo.hpp"
+#include "rtype/ecs/resource/ResourceInfo.hpp"
 #include "rtype/ecs/schedule/DependencyGraph.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
@@ -37,10 +38,11 @@ namespace rtype::ecs {
 /// order between them run by name, so the order never depends on the order systems were added. Building the schedule
 /// checks it and throws a ScheduleException naming the systems involved for: a constraint naming neither a system nor
 /// a set of the schedule, a set named like a system, a cycle of constraints, and two systems touching the same data,
-/// one of them writing it, with no order between them. Every system is checked
-/// whatever the run mode, so a schedule that builds on the server also builds on clients. Execution is sequential;
-/// the systems' access sets are kept for a parallel scheduler later. It keeps a pointer to the world: the world must
-/// outlive it. A world's schedules, one per phase, are held by Schedules.
+/// one of them writing it, with no order between them, unless it is a resource whose writes commute
+/// (allowAmbiguousResource()). Every system is checked whatever the run mode, so a schedule that builds on the server
+/// also builds on clients. Execution is sequential; the systems' access sets are kept for a parallel scheduler later.
+/// It keeps a pointer to the world: the world must outlive it. A world's schedules, one per phase, are held by
+/// Schedules.
 /// @code
 /// rtype::ecs::Schedule schedule{world, rtype::ecs::RunMode::kStandalone, rtype::ecs::Phase::kFixedUpdate};
 /// schedule.addSystem("rtype.movement", &movement);
@@ -152,6 +154,14 @@ class RTYPE_ECS_API Schedule {
     /// @throws exceptions::ScheduleException When a system of the schedule already has its name.
     SystemConfig addSystem(System system);
 
+    /// @return Whether two systems may write the resource `id` with no order between them (allowAmbiguousResource()).
+    [[nodiscard]] bool isAmbiguousResource(ResourceId id) const noexcept;
+
+    /// @brief Lets systems write the resource `id` with no order between them: its writes commute, so their order
+    /// does not change the result (a queue sorted before it is read). Two such systems still conflict on any other
+    /// data. The schedule is built again before the next run.
+    void allowAmbiguousResource(ResourceId id);
+
     /// @brief Creates the set named `name` if needed, to order it as a whole. The schedule is built again before the
     /// next run.
     SetConfig configureSet(std::string name);
@@ -230,7 +240,7 @@ class RTYPE_ECS_API Schedule {
                                                            const detail::DependencyGraph& graph) const;
 
     /// @return The name of the first type `first` and `second` both use, one of them writing it, as
-    /// "component 'rtype.Position'"; nothing if they do not conflict.
+    /// "component 'rtype.Position'"; nothing if they do not conflict. The ambiguous resources are not conflicts.
     [[nodiscard]] std::optional<std::string> findConflict(const System& first, const System& second) const;
 
     /// @return The events written by the systems that run in this mode, sorted, without duplicates.
@@ -241,6 +251,7 @@ class RTYPE_ECS_API Schedule {
     Phase _phase;                                        ///< The phase the schedule runs.
     std::vector<Entry> _entries;                         ///< Every system, in the order added.
     std::map<std::string, SetEntry, std::less<>> _sets;  ///< Every set, configured or joined, by name.
+    std::vector<ResourceId> _ambiguousResources;         ///< Resources whose writes commute.
     std::vector<std::size_t> _order;                     ///< Positions in _entries, in run order.
     std::vector<EventId> _writtenEvents;                 ///< Events written by the systems of this run mode, sorted.
     bool _built{false};                                  ///< Whether _order and _writtenEvents match _entries.

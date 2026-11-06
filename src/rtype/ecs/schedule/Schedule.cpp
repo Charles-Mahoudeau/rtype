@@ -23,6 +23,7 @@
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/event/EventInfo.hpp"
 #include "rtype/ecs/exceptions/ScheduleException.hpp"
+#include "rtype/ecs/resource/ResourceInfo.hpp"
 #include "rtype/ecs/schedule/DependencyGraph.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
@@ -34,10 +35,15 @@
 
 namespace rtype::ecs {
 namespace {
-/// @return The first type both lists use, one of them writing it; nothing if there is none.
+/// @return The first type both lists use, one of them writing it, apart from those of `allowed`; nothing if there is
+/// none.
 [[nodiscard]] std::optional<TypeId> findSharedWrite(std::span<const TypeAccess> first,
-                                                    std::span<const TypeAccess> second) {
+                                                    std::span<const TypeAccess> second,
+                                                    std::span<const TypeId> allowed = {}) {
     for (const TypeAccess& access : first) {
+        if (std::ranges::find(allowed, access.id) != allowed.end()) {
+            continue;
+        }
         const auto other = std::ranges::find(second, access.id, &TypeAccess::id);
         if (other != second.end() && (access.write || other->write)) {
             return access.id;
@@ -182,6 +188,17 @@ const System* Schedule::findSystem(std::string_view name) const noexcept {
 }
 
 bool Schedule::containsSet(std::string_view name) const noexcept { return _sets.contains(name); }
+
+bool Schedule::isAmbiguousResource(ResourceId id) const noexcept {
+    return std::ranges::find(_ambiguousResources, id) != _ambiguousResources.end();
+}
+
+void Schedule::allowAmbiguousResource(ResourceId id) {
+    if (!isAmbiguousResource(id)) {
+        _ambiguousResources.push_back(id);
+    }
+    _built = false;
+}
 
 Schedule::SetConfig Schedule::configureSet(std::string name) {
     static_cast<void>(_sets.try_emplace(name));
@@ -358,7 +375,7 @@ std::optional<std::string> Schedule::findConflict(const System& first, const Sys
     if (const std::optional<TypeId> id = findSharedWrite(a.getComponents(), b.getComponents())) {
         return std::format("component '{}'", _world->getComponents().getRegistry().findById(*id)->type.name);
     }
-    if (const std::optional<TypeId> id = findSharedWrite(a.getResources(), b.getResources())) {
+    if (const std::optional<TypeId> id = findSharedWrite(a.getResources(), b.getResources(), _ambiguousResources)) {
         return std::format("resource '{}'", _world->getResources().getRegistry().findById(*id)->type.name);
     }
     if (const std::optional<TypeId> id = findSharedWrite(a.getEvents(), b.getEvents())) {
