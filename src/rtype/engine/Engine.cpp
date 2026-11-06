@@ -28,6 +28,7 @@
 #include "rtype/engine/EngineConfig.hpp"
 #include "rtype/engine/Exceptions.hpp"
 #include "rtype/engine/GamePlugins.hpp"
+#include "rtype/engine/NetworkInput.hpp"
 #include "rtype/engine/scripting/SettingsLoader.hpp"
 #include "rtype/network/NetworkSettings.hpp"
 #include "rtype/network/io/Address.hpp"
@@ -189,6 +190,9 @@ void Engine::build() {
     }});
     if (networkPlugin) {
         app.addPlugin(std::move(networkPlugin));
+    }
+    if (_config.mode == ecs::RunMode::kClient) {
+        addNetworkInput(app);
     }
 }
 }  // namespace rtype::engine

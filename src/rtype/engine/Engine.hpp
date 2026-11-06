@@ -32,7 +32,8 @@ namespace rtype::engine {
 /// 4. the generic plugins the settings list under `plugins`, such as the physics (see GamePlugins);
 /// 5. the game's native code, EngineConfig::setup;
 /// 6. the scripting plugin, which runs the game's scripts;
-/// 7. the network plugin, server or client, last because it reads every replicated component when it is built.
+/// 7. the network plugin, server or client, last because it reads every replicated component when it is built;
+/// 8. on a client, the system that fills the input sent to the server from the input actions (see addNetworkInput()).
 ///
 /// The network reads the `network` section of the settings: `port` on both sides (4242 by default; 0 lets a server
 /// pick a free one) and `host` on a client ("127.0.0.1" by default).
