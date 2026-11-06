@@ -11,15 +11,9 @@
 
 #include "core/config/Settings.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
+#include "plugins/backend/BackendResource.hpp"  // IWYU pragma: export
 #include "plugins/backend/graphics/Color.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
-
-// The started platform and renderer, as a main-thread resource: GLFW and Vulkan must be used from the main thread.
-// The declaring macro must sit in the namespace of the type, so this reopens the engine's; engine-core itself stays
-// free of the ECS.
-namespace rtype::plugins::backend {
-RTYPE_ECS_RESOURCE(Backend, "rtype.Backend");
-}  // namespace rtype::plugins::backend
 
 namespace rtype::plugins::backend {
 /// @brief The colour each frame is cleared with.
