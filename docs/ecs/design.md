@@ -800,7 +800,7 @@ a camera following a player.
 **What exists.** Bevy `ChildOf` / `Children` components with transform propagation; flecs
 relationships as first-class pairs (`(ChildOf, parent)`, `(Likes, Apples)`), queryable.
 
-**Our choice.** v2: a `Parent` component (`kEntity` field) and a `Children` component, plus a
+**Our choice.** A `Parent` component (`kEntity` field) and a `Children` component kept by the `World`, plus a
 `PostUpdate` system that computes `GlobalTransform` from `Transform` down the tree. Despawning a parent
 despawns its children. General relationships are left for later. Serves: R1, R4.
 

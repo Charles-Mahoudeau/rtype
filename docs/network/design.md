@@ -552,7 +552,7 @@ server's game.
 
 | Entry | Content | Checked with |
 |---|---|---|
-| Component | short id `u16`, name, `layoutHash` `u64` | The client's `ComponentInfo::layoutHash` for that name |
+| Component | short id `u16`, name, `wireHash` `u64` | `computeManifestHash()` of the client's component of that name: its `layoutHash`, or for a type with a list a hash of its name and fields |
 | Custom packet | short id `u16`, name, schema hash `u64` | The client's schema hash for that name ([8](#8-custom-packets)) |
 | Prefab | short id `u16`, name | The client knows the name |
 | Input action | index `u8`, name, kind `u8` (`kButton`, `kAxis`, `kVector2`) | Same name and kind at the same index. At most 32 `kButton` actions (one bit each in `kInput`'s `u32`): the server refuses to start with a larger manifest |
@@ -572,7 +572,7 @@ server's game.
 
 | Value | Type | Channel | Direction | Content |
 |---|---|---|---|---|
-| `0x20` | `kManifestComponent` | reliable | S → C | short id `u16`, name, layout hash `u64` |
+| `0x20` | `kManifestComponent` | reliable | S → C | short id `u16`, name, wire hash `u64` |
 | `0x21` | `kManifestPacket` | reliable | S → C | short id `u16`, name, schema hash `u64` |
 | `0x22` | `kManifestPrefab` | reliable | S → C | short id `u16`, name |
 | `0x23` | `kManifestInputAction` | reliable | S → C | index `u8`, name, kind `u8` |

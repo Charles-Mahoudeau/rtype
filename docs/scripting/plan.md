@@ -84,8 +84,12 @@ Supported in the first version:
   `engine.ecs.addPlugin(name)` adds it. Adding one first adds the plugins it lists, then calls `build(app)`, where
   `app` has `component`, `system` and `addPlugin` (it only lives during the build). A plugin is built once; an unknown
   name, a cycle (`a -> b -> a`) or a name declared twice is an error.
-- **`ctx`**: `query` (iteration), `commands` (`spawn`, `despawn`, `add`), `fixedDelta`, `delta`.
+- **`ctx`**: `query` (iteration), `commands` (`spawn`, `despawn`, `add`, `setParent`, `removeParent`), `fixedDelta`,
+  `delta`.
 - Scripts can read components declared in C++ (they are in the registry), as long as their fields use the types above.
+  A `std::vector` field of a C++ component reads as a table, a copy, and is replaced from an array; a `std::string`
+  field reads and writes as a string of any length. Components declared in Luau have neither: they hold no memory of
+  their own. `rtype.Parent` and `rtype.Children` cannot be `write` terms: `commands:setParent()` changes a hierarchy.
 
 ## 3. Starting point
 
@@ -296,7 +300,8 @@ Each task is one issue and one pull request. Ids `LUA-xx`. Tests go in `tests/sc
 
 - `commands:spawn({ ["game.Shield"] = { strength = 10 }, ... })`: returns the reserved `Entity`.
 - `commands:add(entity, "game.Shield", {...})`.
-- `commands:despawn(entity)`.
+- `commands:despawn(entity)`, which despawns its children too.
+- `commands:setParent(child, parent)` and `commands:removeParent(child)`.
 - Component values are built with the LUA-03 conversion, over the defaults.
 
 **Done when**

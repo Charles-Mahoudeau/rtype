@@ -134,6 +134,13 @@ public constants of `PhysicsPlugin`:
   (`isOutOfSync`, `isVelocityOutOfSync`). A `Transform` the physics wrote itself is therefore never taken for a
   teleport by gameplay, and only bodies whose pose changed write their `Transform`: sleeping bodies never mark it
   changed, so replication does not send them.
+- **Bodies with a parent.** Bodies live in the world, and `Transform` is relative to the parent. The plugin computes
+  their pose with `transform::WorldPoses` from the `Transform`s and `Parent`s of the tick: it cannot read
+  `GlobalTransform`, computed after `FixedUpdate`, and a propagation system there would conflict with every gameplay
+  system writing `Transform`. With no child body, nothing is computed. Static and kinematic children follow their
+  parent. A dynamic child stays where the simulation put it when its parent moves, as a `Rigidbody` does in Unity: its
+  `Transform` is written back relative to its parent every tick, parents first, and only a `Transform` gameplay changed
+  (`isLocalOutOfSync()`) teleports it. To make a body follow, use a kinematic one, or later a joint.
 - **Kinematic bodies** move to their `Transform` with `MoveKinematic` (they push dynamic bodies on their way), or at
   their `Velocity` on the ticks gameplay did not move them.
 
