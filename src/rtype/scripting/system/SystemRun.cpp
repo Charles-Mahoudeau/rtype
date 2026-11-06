@@ -315,7 +315,22 @@ class EventsContext {
     if (!eventsTable) {
         return tl::unexpected{std::move(eventsTable.error())};
     }
-    auto ctx = luau::Table::create(runtime, 0, 6);
+    auto timeTable = luau::Table::create(runtime, 0, 5);
+    if (!timeTable) {
+        return tl::unexpected{std::move(timeTable.error())};
+    }
+    for (const auto& [name, value] : {
+             std::pair<std::string_view, double>{"delta", static_cast<double>(time.delta)},
+             {"fixedDelta", static_cast<double>(time.fixedDelta)},
+             {"elapsed", time.elapsed},
+             {"tick", static_cast<double>(time.tick)},
+             {"alpha", static_cast<double>(time.alpha)},
+         }) {
+        if (auto set = timeTable->set(name, luau::Value{value}); !set) {
+            return set;
+        }
+    }
+    auto ctx = luau::Table::create(runtime, 0, 7);
     if (!ctx) {
         return tl::unexpected{std::move(ctx.error())};
     }
@@ -323,6 +338,7 @@ class EventsContext {
              std::pair<std::string_view, luau::Value>{"query", luau::Value{iterator.ref()}},
              {"delta", luau::Value{static_cast<double>(time.delta)}},
              {"fixedDelta", luau::Value{static_cast<double>(time.fixedDelta)}},
+             {"time", luau::Value{*timeTable}},
              {"commands", luau::Value{std::move(*recorder)}},
              {"resources", luau::Value{std::move(*resourcesHandle)}},
              {"events", luau::Value{*eventsTable}},

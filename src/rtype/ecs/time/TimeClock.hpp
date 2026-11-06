@@ -22,7 +22,7 @@ namespace rtype::ecs {
 /// @brief The frame clock of the time plugin: measures each frame, runs the fixed timestep on it and keeps the Time
 /// resource up to date.
 /// @details Frames are measured with std::chrono::steady_clock (the first one counts 0), or all last a fixed manual
-/// duration, for deterministic tests and replays. It inserts Time if it has no value, then sets `delta` and
+/// duration, for deterministic tests and replays. It inserts Time if it has no value, then sets `delta`, `elapsed` and
 /// `fixedDelta` at the start of the frame, `tick` after each FixedUpdate (so while FixedUpdate runs it is the current
 /// tick), and `alpha` before Update.
 /// @code
@@ -48,7 +48,7 @@ class RTYPE_ECS_API TimeClock : public FrameClock {
     /// @return The duration of every frame, or nothing when the real clock is measured.
     [[nodiscard]] std::optional<std::chrono::nanoseconds> getManualFrame() const noexcept;
 
-    /// @brief Measures the frame, sets Time::delta and Time::fixedDelta.
+    /// @brief Measures the frame, sets Time::delta, Time::elapsed and Time::fixedDelta.
     /// @return The fixed ticks the frame completes (FixedTimestep::advance()).
     [[nodiscard]] std::uint32_t startFrame(World& world) override;
 
