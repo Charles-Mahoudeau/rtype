@@ -33,7 +33,8 @@ struct RTYPE_SCRIPTING_API ScriptCommands {
 ///
 /// @details Scripts call `commands:spawn({ ["game.Shield"] = { strength = 10 } })`, which returns the reserved
 /// `Entity` (the table may be left out for an entity with no component), `commands:add(entity, "game.Shield", {...})`
-/// and `commands:despawn(entity)`. A component's value is its defaults with the fields of the table written over them.
+/// `commands:setParent(child, parent)`, `commands:removeParent(child)` and `commands:despawn(entity)`, which also
+/// despawns its children. A component's value is its defaults with the fields of the table written over them.
 /// An unknown component (one no script declared), a field the component does not have, a value that does not fit or a
 /// value that is not an `Entity` raises a Luau error before anything of the call is recorded. As in C++, a command on
 /// an entity that is dead when the buffer is flushed does nothing.

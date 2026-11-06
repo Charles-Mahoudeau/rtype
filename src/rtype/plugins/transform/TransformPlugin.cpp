@@ -143,6 +143,8 @@ std::string_view TransformPlugin::getName() const noexcept { return kName; }
 void TransformPlugin::build(ecs::App& app) {
     static_cast<void>(app.getWorld().getComponents().registerType<Transform>());
     static_cast<void>(app.getWorld().getComponents().registerType<GlobalTransform>());
+    static_cast<void>(app.getWorld().getComponents().registerType<ecs::Parent>(ecs::kParentOptions));
+    static_cast<void>(app.getWorld().getComponents().registerType<ecs::Children>());
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kInsertSystem}, &insertGlobalTransforms)
         .setSide(ecs::Side::kBoth);
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kPropagateSystem}, &propagateTransforms)

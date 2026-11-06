@@ -17,6 +17,7 @@
 
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/hierarchy/Parent.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/luau/Exceptions.hpp"
 #include "rtype/luau/Result.hpp"
@@ -116,6 +117,16 @@ luau::Result<> registerCommandsType(luau::Runtime& runtime) {
                     const ecs::Entity target = toEntity(entity);
                     const auto [id, bytes] = build(handle, name, fields ? &*fields : nullptr);
                     handle.commands->add(target, id, bytes);
+                })
+        .method("setParent",
+                [](const ScriptCommands& handle, const luau::Userdata& child, const luau::Userdata& parent) {
+                    checkAlive(handle);
+                    handle.commands->add(toEntity(child), ecs::Parent{.entity = toEntity(parent)});
+                })
+        .method("removeParent",
+                [](const ScriptCommands& handle, const luau::Userdata& child) {
+                    checkAlive(handle);
+                    handle.commands->remove<ecs::Parent>(toEntity(child));
                 })
         .method("despawn",
                 [](const ScriptCommands& handle, const luau::Userdata& entity) {

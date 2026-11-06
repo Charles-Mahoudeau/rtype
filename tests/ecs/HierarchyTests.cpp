@@ -414,3 +414,19 @@ TEST(HierarchyCommands, KeepsTheOptionsParentWasRegisteredWith) {
     EXPECT_EQ(world.getComponents().getRegistry().find<Parent>()->type.id, id);
     EXPECT_EQ(parentOf(world, child), parent);
 }
+
+TEST(ParentOptions, AreTheSameWhoeverRegistersItFirst) {
+    World byWorld;
+    const Entity parent = byWorld.spawn();
+    EXPECT_TRUE(byWorld.setParent(byWorld.spawn(), parent));
+    EXPECT_EQ(byWorld.getComponents().getRegistry().find<Parent>()->type.replication,
+              rtype::ecs::kParentOptions.replication);
+
+    World byCommands;
+    const Entity other = byCommands.spawn();
+    rtype::ecs::Commands commands{byCommands};
+    commands.entity(byCommands.spawn()).add(Parent{.entity = other});
+    commands.flush();
+    EXPECT_EQ(byCommands.getComponents().getRegistry().find<Parent>()->type.replication,
+              rtype::ecs::kParentOptions.replication);
+}

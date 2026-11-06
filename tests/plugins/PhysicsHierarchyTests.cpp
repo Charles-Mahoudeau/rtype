@@ -16,8 +16,10 @@
 #include "plugins/physics/PhysicsWorld.hpp"
 #include "plugins/physics/RigidBody.hpp"
 #include "plugins/physics/Velocity.hpp"
+#include "plugins/transform/Reparent.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
@@ -250,4 +252,17 @@ TEST(PhysicsHierarchy, AKinematicChildWithAVelocityMovesAndFollowsItsParent) {
     fixture.move(parent, {200.0F, 0.0F});
     fixture.tick(2);
     EXPECT_NEAR(fixture.physics().getBodyPosition(child)->x, before + 100.0F, 5.0F);
+}
+
+TEST(PhysicsHierarchy, ADynamicChildDetachedInPlaceStaysWhereItIs) {
+    HierarchyApp fixture;
+    const Entity parent = fixture.spawn({100.0F, 0.0F});
+    const Entity child = fixture.spawnBody(parent, {10.0F, 0.0F}, BodyType::kDynamic);
+    fixture.tick(2);
+    rtype::ecs::Commands commands{fixture.app.getWorld()};
+    rtype::plugins::transform::detachInPlace(commands, child,
+                                             rtype::plugins::transform::GlobalTransform{.position = {110.0F, 0.0F}});
+    commands.flush();
+    fixture.tick(2);
+    fixture.expectBodyAt(child, {110.0F, 0.0F});
 }

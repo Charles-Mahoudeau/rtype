@@ -9,9 +9,11 @@
 
 #include <glm/ext/vector_float2.hpp>
 
+#include "plugins/transform/Reparent.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
@@ -222,4 +224,41 @@ TEST(TransformHierarchy, DoesNotMarkAnEntityThatDidNotMoveAsChanged) {
     fixture.app.runFrame();
     EXPECT_EQ(components.getTicks<GlobalTransform>(plain)->changed, plainTicks->changed);
     EXPECT_EQ(components.getTicks<GlobalTransform>(child)->changed, childTicks->changed);
+}
+
+TEST(TransformHierarchy, DetachInPlaceKeepsAChildWhereItIs) {
+    TransformApp fixture;
+    const rtype::ecs::Entity parent = fixture.spawn(Transform{.position = {100.0F, 50.0F}, .scale = {2.0F, 2.0F}});
+    const rtype::ecs::Entity child = fixture.spawnChild(parent, Transform{.position = {10.0F, 5.0F}});
+    fixture.app.runFrame();
+    rtype::ecs::Commands commands{fixture.app.getWorld()};
+    rtype::plugins::transform::detachInPlace(commands, child, *fixture.globalOf(child));
+    commands.flush();
+    EXPECT_FALSE(fixture.app.getWorld().getComponents().has<rtype::ecs::Parent>(child));
+    fixture.move(parent, {500.0F, 0.0F});
+    fixture.app.runFrame();
+    EXPECT_EQ(fixture.positionOf(child), (glm::vec2{120.0F, 60.0F}));
+    EXPECT_EQ(fixture.globalOf(child)->scale, (glm::vec2{2.0F, 2.0F}));
+}
+
+TEST(TransformHierarchy, AttachInPlaceKeepsAnEntityWhereItIs) {
+    TransformApp fixture;
+    const rtype::ecs::Entity parent = fixture.spawn(Transform{.position = {100.0F, 50.0F}, .scale = {2.0F, 2.0F}});
+    const rtype::ecs::Entity entity = fixture.spawn(Transform{.position = {120.0F, 60.0F}});
+    fixture.app.runFrame();
+    rtype::ecs::Commands commands{fixture.app.getWorld()};
+    rtype::plugins::transform::attachInPlace(commands, entity, *fixture.globalOf(entity), parent,
+                                             *fixture.globalOf(parent));
+    commands.flush();
+    fixture.app.runFrame();
+    EXPECT_EQ(fixture.positionOf(entity), (glm::vec2{120.0F, 60.0F}));
+    fixture.move(parent, {200.0F, 50.0F});
+    fixture.app.runFrame();
+    EXPECT_EQ(fixture.positionOf(entity), (glm::vec2{220.0F, 60.0F}));
+}
+
+TEST(TransformPlugin, RegistersTheHierarchy) {
+    TransformApp fixture;
+    EXPECT_TRUE(fixture.app.getWorld().getComponents().find("rtype.Parent"));
+    EXPECT_TRUE(fixture.app.getWorld().getComponents().find("rtype.Children"));
 }

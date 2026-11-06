@@ -13,6 +13,7 @@
 
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/hierarchy/Parent.hpp"
 #include "rtype/ecs/time/FixedTimestep.hpp"
 #include "rtype/ecs/time/TimePlugin.hpp"
 #include "rtype/scripting/ScriptHost.hpp"
@@ -176,4 +177,72 @@ TEST(ScriptCommands, AHeldCommandsHandleIsRefusedOnceTheRunEnded) {
     const std::string log = testing::internal::GetCapturedStderr();
 
     EXPECT_NE(log.find("no longer valid"), std::string::npos) << log;
+}
+
+TEST(ScriptCommands, SetParentAndRemoveParentLinkEntitiesAndDespawnCascades) {
+    Fixture fixture;
+    static_cast<void>(
+        fixture.app.getWorld().getComponents().registerType<rtype::ecs::Parent>(rtype::ecs::kParentOptions));
+    ASSERT_EQ(fixture.run(R"(
+        local frame = 0
+        local parent, first, second
+        engine.ecs.system("game.Family", {
+            phase = "Update",
+            query = { with = { "game.Marker" } },
+            run = function(ctx)
+                for _ in ctx.query do
+                    frame += 1
+                    if frame == 1 then
+                        parent = ctx.commands:spawn()
+                        first = ctx.commands:spawn()
+                        second = ctx.commands:spawn()
+                        ctx.commands:setParent(first, parent)
+                        ctx.commands:setParent(second, parent)
+                    elseif frame == 2 then
+                        ctx.commands:removeParent(first)
+                    elseif frame == 3 then
+                        ctx.commands:despawn(parent)
+                    end
+                end
+            end,
+        })
+        engine.ecs.system("game.Count", {
+            phase = "PostUpdate",
+            query = { read = { "rtype.Parent" } },
+            run = function(ctx)
+                linked = 0
+                for _ in ctx.query do
+                    linked += 1
+                end
+            end,
+        })
+    )"),
+              "");
+    fixture.app.runFrame();
+    EXPECT_EQ(fixture.run("assert(linked == 2, tostring(linked))"), "");
+    EXPECT_EQ(fixture.app.getWorld().getEntityCount(), 4U);
+    fixture.app.runFrame();
+    EXPECT_EQ(fixture.run("assert(linked == 1, tostring(linked))"), "");
+    fixture.app.runFrame();
+    EXPECT_EQ(fixture.app.getWorld().getEntityCount(), 2U);  // the marker and the detached child
+}
+
+TEST(ScriptCommands, SetParentRefusesWhatIsNotAnEntity) {
+    Fixture fixture;
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Wrong", {
+            phase = "Update",
+            query = { with = { "game.Marker" } },
+            run = function(ctx)
+                for _ in ctx.query do
+                    wrong = pcall(function()
+                        ctx.commands:setParent(ctx.commands:spawn(), ctx.commands)
+                    end)
+                end
+            end,
+        })
+    )"),
+              "");
+    fixture.app.runFrame();
+    EXPECT_EQ(fixture.run("assert(wrong == false, tostring(wrong))"), "");
 }

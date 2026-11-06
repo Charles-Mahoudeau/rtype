@@ -132,6 +132,9 @@ bool World::setParent(Entity child, Entity parent) {
         }
     }
     detachFromParent(getComponents(), child);
+    if (getComponents().getRegistry().find<Parent>() == nullptr) {
+        static_cast<void>(getComponents().registerType<Parent>(kParentOptions));
+    }
     static_cast<void>(getComponents().add(child, Parent{.entity = parent}));
     if (auto children = getComponents().getMut<Children>(parent); children) {
         children->entities.push_back(child);
