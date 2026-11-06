@@ -66,7 +66,10 @@ resource; `ServerPlugin` and `ClientPlugin` both add it, and a standalone game c
 [engine calls](19-luau-bridge.md#engine-calls) of the inputs (`input/InputCalls.hpp`): `rtype.replication.addInput`
 (`{name, kind}`, kind `"button"`, `"axis"` or `"vector2"`), which `engine.input.action` makes on both sides, and
 `rtype.replication.readInput` (`{entity, action}`), which gives a server script `{held, pressed, released, axis,
-vector}` from an entity's `PlayerInput`. The network I/O
+vector}` from an entity's `PlayerInput`, and, in an App that runs the client side, `rtype.replication.localClient`
+(`client/ClientCalls.hpp`), which gives a client script `{connected, client}`: its id once the server gave it one, to
+tell its own entities (their `Owner`) from the others'. It is registered here rather than by `ClientPlugin`, which the
+`Engine` adds after the scripts load. The network I/O
 (binding the socket, connecting, building the manifest) happens in `Startup` systems, once every plugin was built. The
 server reads replicated components by id through a `SystemParam` of `replication`
 ([Parameters from other libraries](12-systems.md#parameters-from-other-libraries): `ReplicatedRead`, one

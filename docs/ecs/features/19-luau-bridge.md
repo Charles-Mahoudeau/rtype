@@ -159,7 +159,7 @@ adds run on clients):
 | Audio | `rtype.audio.loadSound`, `rtype.audio.playSound` ([Audio](../../audio/design.md#from-scripts)) |
 | Input | `rtype.input.addAction`, `rtype.input.bind`, `rtype.input.bindAxis`, `rtype.input.bindVector`, `rtype.input.read` ([Input](../../Input.md#from-scripts)) |
 | Physics | `rtype.physics.raycast`, `rtype.physics.shapeCast`, `rtype.physics.overlap`, `rtype.physics.moveAndSlide`, `rtype.physics.applyForce`, `rtype.physics.applyImpulse`, `rtype.physics.applyTorque`, `rtype.physics.setGravity` ([Physics](../../physics/design.md#from-scripts)) |
-| Replication | `rtype.replication.addInput`, `rtype.replication.readInput` ([Replication](20-replication.md)) |
+| Replication | `rtype.replication.addInput`, `rtype.replication.readInput`, `rtype.replication.localClient` (clients) ([Replication](20-replication.md)) |
 
 ### Setup forms
 
@@ -285,6 +285,19 @@ engine.ecs.system("game.Ships", {
 Luau plugins load on the **server and the clients** (both need layouts, prefabs and input actions).
 System sides decide what runs where: `server` (gameplay, default), `client` (presentation), `both`
 (identical simulation such as bullet motion). In standalone mode both sides run in one App.
+
+A system is declared on both sides, whatever its side, and only its engine calls may be missing on the side it does not
+run on: its components, resources and events must exist there, and the systems it is ordered against too. A script that
+names what only one side has (the sprites, the audio, `net.applyInputs`) declares it on that side only, returning early
+on the other once its components are declared, as `examples/games/rtype_duel/game/scripts/` does:
+
+```luau
+engine.ecs.component("game.Explosion", { fields = {}, presence = "clientOnly" }) -- on both sides
+if not engine.isClient then
+    return
+end
+engine.ecs.system("game.RemoveExplosions", { side = "client", ... })
+```
 
 ## Connections
 

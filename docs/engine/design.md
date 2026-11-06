@@ -54,12 +54,13 @@ end
 |------------|------|-----------|-----------|
 | `r-type_server` (`src/rtype/server/`) | `kServer` | nothing (headless) | `game/` only |
 | `r-type_client` (`src/rtype/client/`) | `kClient` | GLFW, Vulkan, miniaudio | `game/` only |
-| `rtype_duel` (example) | `server` or `client`, the first argument | as the client, on the client side | `setupServer` / `setupClient` |
+| `rtype_duel` (example) | `server` or `client`, the first argument | as the client, on the client side | its `game/` only (Luau) |
 | `ethan_game(bestoftheworld)` (example) | `kStandalone` | as the client | `setup` |
 
-Once a game can be written entirely in Luau (SCR-10 in `../scripting/plan.md`), the two generic executables run it, and
-a game no longer needs its own `main`. `rtype_duel` and `ethan_game` show the step in between: their gameplay is still
-C++, given to the `Engine` as `EngineConfig::setup`. `rtype_duel` also shows that one binary can run both sides.
+A game written entirely in Luau (SCR-10 in `../scripting/plan.md`) needs no `main` of its own: the two generic
+executables run it (`./r-type_server --game examples/games/rtype_duel/game`). `rtype_duel` is one: its `main` only picks
+the side from its first argument, to show that one binary can run both sides, and registers the client's backends.
+`ethan_game` shows the step before: its gameplay is still C++, given to the `Engine` as `EngineConfig::setup`.
 
 The build copies `r-type_client` and `r-type_server` to the repository root (rule `rtype.copy_to_root` in the root
 `xmake.lua`). The copies find the project's shared libraries in the build folder through a relative rpath on Linux and
@@ -109,7 +110,8 @@ engine.settings.physicsDebug.drawAll = true
 
 The `physics` and `physicsDebug` sections are checked on every side, listed or not, so a typo fails everywhere; an
 unknown key is an error, as in `network`. The plugins the program adds in `EngineConfig::addPlugins` and the ones
-they require need no name.
+they require need no name. `physicsDebug` draws after the `ShapePlugin`, which it requires, so a client that lists it
+adds the `ShapePlugin` in `addPlugins`.
 
 ## Reloading
 

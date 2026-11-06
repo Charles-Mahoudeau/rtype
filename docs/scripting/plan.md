@@ -669,8 +669,13 @@ Not startable, for the same reason as SCR-08.
 | Blocked by | SCR-04 (resources), SCR-06 (a setup runs on a side); the design point below needs a team decision first               |
 
 **Goal.** A game's own setup is written in Luau: the executable only registers backends and adds the generic plugins,
-and everything specific to the game (assets, inputs, spawns, rules) lives in `game/scripts/`. Today `rtype_duel` still
-needs C++ for these (`GameAtlases`, `GameSounds`, `declareInputs`, `registerGame`).
+and everything specific to the game (assets, inputs, spawns, rules) lives in `game/scripts/`. `rtype_duel` needed C++
+for these (`GameAtlases`, `GameSounds`, `declareInputs`, `registerGame`).
+*Done:* `rtype_duel` is written in Luau (`examples/games/rtype_duel/game/scripts/`: `arena.luau` shared, `server/`,
+`client/`), and `r-type_server` / `r-type_client` run it with `--game`. What it needed on the way: the backend plugin
+draws a `ShapeRenderer` component (its obstacles) and reflects `SpriteRenderer::source` (its planets), and the
+replication plugin registers `rtype.replication.localClient` on clients (who won). Its texts (the players' names, the
+winner) wait for string fields in script commands; until then a client prints the winner.
 
 **Why M2 alone is not enough.** SCR-04 gives scripts the *bytes* of a plain-data resource. The setup of the duel is
 *calls*: `AtlasAssets::load()` / `grid()`, `TextureAssets::load()`, `FontAssets`, `AudioAssets`, `InputLayout::add()`,
@@ -727,10 +732,10 @@ both: the registry for the plugins, forms for the setup everybody writes.
 
 **Done when**
 
-- [ ] A script loads an atlas, a sound and a font, and sets inputs, without C++ code in the game.
+- [x] A script loads an atlas, a sound and a font, and sets inputs, without C++ code in the game.
 - [x] A game's server and client scripts spawn ships and lasers with colliders, and a collision event reaches a script.
-- [ ] `plugins` and `ecs` still include nothing of `luau`.
-- [ ] `rtype_duel`'s `src/` holds the generic executable only; its rules are in `game/scripts/`.
+- [x] `plugins` and `ecs` still include nothing of `luau`.
+- [x] `rtype_duel`'s `src/` holds the generic executable only; its rules are in `game/scripts/`.
 - [x] An unknown engine call, or a wrong argument type, is an error naming the call and the script.
 
 #### Existing issue not in this list

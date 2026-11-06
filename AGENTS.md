@@ -52,7 +52,8 @@ are added.
   knows both the ECS and the network; it turns a `World` into messages and back (`rtype::replication`).
   Exported symbols are marked `RTYPE_REPLICATION_API`. Feature folders and sub-namespaces as in `network`:
   `component/`, `event/`, `serialization/`, `manifest/`, `input/`, `snapshot/`, `server/`, `client/`,
-  `packet/`, `exceptions/`. `input/InputCalls.hpp` holds its engine calls (`rtype.replication.addInput`, `readInput`).
+  `packet/`, `exceptions/`. `input/InputCalls.hpp` holds its engine calls (`rtype.replication.addInput`, `readInput`),
+  `client/ClientCalls.hpp` the client's (`rtype.replication.localClient`), both registered by `ReplicationPlugin`.
 - `src/rtype/engine/` — `engine` target, shared library (`rtype-engine`): `Engine` runs a game directory (`game/` by
   default, `--game <dir>`): it reads its `project.luau` through Luau (`scripting/SettingsLoader`, which also exposes
   the command line as `engine.args`), builds the `App` with the program's plugins, `EngineConfig::addPlugins`, and the engine's (transform, replication,
@@ -64,8 +65,9 @@ are added.
   Design in `docs/engine/design.md`.
 - `src/rtype/client/`, `src/rtype/server/` — the generic executables `r-type_client` and `r-type_server`: a `main` that
   lists its plugins and backends (client only) and runs an `Engine` on `game/`. The build copies them to the repository root
-  (rule `rtype.copy_to_root`). Games whose gameplay is still C++ (`rtype_duel`, `ethan_game(bestoftheworld)`) keep
-  their own `main` and give it to the `Engine` as `EngineConfig::setup`.
+  (rule `rtype.copy_to_root`). Games whose gameplay is still C++ (`ethan_game(bestoftheworld)`) keep their own `main`
+  and give it to the `Engine` as `EngineConfig::setup`. `rtype_duel` is written in Luau (`game/scripts/`); its own `main`
+  only picks the side from its first argument.
 - `src/rtype/contract/` — the contracts, one shared library per interface (`contract-platform`, `contract-renderer`,
   `contract-audiodevice`, `rtype-contract-<name>`): what the implementations fulfil and the plugins use, with the
   vocabulary they speak, included as `rtype/contract/<name>/<File>.hpp`, namespace `rtype::contract::<name>`, exported
@@ -117,6 +119,10 @@ are added.
       `"null"` always registered, as `NullAudioDevice`), `AudioConfig`, `AudioVolumes`, the `AudioAssets` resource (sounds by `AssetId`, opened
       and decoded by the device), the `AudioSource` and `AudioListener` components and the `PlaySound` / `PlayMusic` /
       `StopMusic` events, played by client-side PostUpdate systems. `AudioReflection.hpp` reflects the contract's `Bus`. Design in `docs/audio/design.md`.
+    - `plugins/shape/` (`rtype::plugins::shape`) — `ShapePlugin`: the `ShapeRenderer` component (a `Shape` filled and/or
+      outlined at its entity's `GlobalTransform`) and the client Render system that draws them over the sprites, by layer.
+      `plugins/GraphicsReflection.hpp` reflects the renderer contract's `BlendMode` and `Rect` as ECS fields. It requires
+      the `GraphicsPlugin` and the `TransformPlugin`.
     - `plugins/sprite/` (`rtype::plugins::sprite`) — `SpritePlugin`: the `SpriteRenderer` component, sprite atlases and
       animations; it requires no plugin, so a server adds it alone. `SpriteDrawPlugin` pushes the sprite entities to the
       `SpriteQueue` on a client. `SpriteAtlas`
@@ -260,7 +266,8 @@ The project uses `xmake` with the `clang` toolchain and C++23.
 - Run the generic executables (copied to the repository root by the build): `./r-type_server` and `./r-type_client`,
   on `game/` or `--game <dir>`; other flags go to `project.luau` as `engine.args`
 - Run the duel game (example): `xmake f -y --rtype_duel=y`, then `xmake run rtype_duel server [--port <port>]` and
-  `xmake run rtype_duel client [--host <host>] [--port <port>]`
+  `xmake run rtype_duel client [--host <host>] [--port <port>]` (or the generic executables, with
+  `--game examples/games/rtype_duel/game`)
 - Enable examples, then rebuild: `xmake f --AllExamples=y` enables every discovered example. For
   now `--AllVulkanExamples=y`, `--AllLuauExamples=y` and `--AllEcsExamples=y` behave the same way (the
   root `xmake.lua` does not filter by category yet), so each also enables every discovered example. To
