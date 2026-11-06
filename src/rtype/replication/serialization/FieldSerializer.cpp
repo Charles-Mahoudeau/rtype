@@ -16,6 +16,7 @@
 
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/type/Field.hpp"
+#include "rtype/ecs/type/String.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/network/bytes/ByteReader.hpp"
 #include "rtype/network/bytes/ByteWriter.hpp"
@@ -48,6 +49,8 @@ constexpr std::size_t getValueWireSize(const ecs::FieldType type) noexcept {
             return 12;
         case ecs::FieldType::kVec4:
             return 16;
+        case ecs::FieldType::kString:
+            return 1 + ecs::String::kCapacity;  // The most: a length and the bytes.
     }
     return 0;  // Unreachable: every FieldType is handled above.
 }
@@ -130,6 +133,13 @@ void writeValue(network::bytes::ByteWriter& writer, ecs::FieldType type, std::sp
             writer.writeU32(entity.isNull() ? 0 : mapper.toNetwork(entity));
             break;
         }
+        case ecs::FieldType::kString: {
+            // The first byte of an ecs::String is its length, the text follows.
+            const std::size_t length = std::min<std::size_t>(load<std::uint8_t>(bytes), ecs::String::kCapacity);
+            writer.writeU8(static_cast<std::uint8_t>(length));
+            writer.writeBytes(bytes.subspan(1, length));
+            break;
+        }
     }
 }
 
@@ -197,6 +207,16 @@ bool readValue(network::bytes::ByteReader& reader, ecs::FieldType type, std::spa
             store(bytes, networkId == 0 ? ecs::Entity{} : mapper.toLocal(networkId));
             return true;
         }
+        case ecs::FieldType::kString: {
+            const std::uint8_t length = reader.readU8();
+            const std::span<const std::byte> text = reader.readBytes(length);
+            if (!reader.isValid()) {
+                return false;
+            }
+            bytes[0] = static_cast<std::byte>(length);
+            std::ranges::copy(text, bytes.begin() + 1);
+            return true;
+        }
     }
     return false;  // Unreachable: every FieldType is handled above.
 }
@@ -205,6 +225,11 @@ bool readValue(network::bytes::ByteReader& reader, ecs::FieldType type, std::spa
 bool isSerializable(const ecs::TypeInfo& info) noexcept {
     return !info.fields.empty() && info.hooks.destruct == nullptr && info.hooks.move == nullptr &&
            info.hooks.copy == nullptr;
+}
+
+bool isVariableSize(const ecs::TypeInfo& info) noexcept {
+    return std::ranges::any_of(info.fields,
+                               [](const ecs::FieldInfo& field) { return field.type == ecs::FieldType::kString; });
 }
 
 std::size_t computeWireSize(const ecs::TypeInfo& info) noexcept {

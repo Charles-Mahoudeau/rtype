@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <span>
 #include <vector>
@@ -44,10 +45,15 @@ inline constexpr std::size_t kLastProcessedInputOffset = 5;
 /// @brief The size of a snapshot with no record: the header and the four counts (`u16`).
 inline constexpr std::size_t kEmptySize = kHeaderSize + (4 * sizeof(std::uint16_t));
 
+/// @brief The size computeComponentSizes() gives to a component whose size depends on its value (it has a string):
+/// each of its values is then written after its length, a `u16`.
+inline constexpr std::size_t kVariableSize = std::numeric_limits<std::size_t>::max();
+
 /// @brief The value of one component in a record: its fields, written by the field serializer.
 struct ComponentValue {
-    std::uint16_t shortId{0};  ///< The component's short id in the manifest.
-    network::Bytes bytes;      ///< The fields, exactly the wire size of the component.
+    std::uint16_t shortId{0};    ///< The component's short id in the manifest.
+    network::Bytes bytes;        ///< The fields: exactly the wire size of the component, or fewer for a variable one.
+    bool lengthPrefixed{false};  ///< True for a component of variable size (kVariableSize): a `u16` gives its length.
 
     friend bool operator==(const ComponentValue& left, const ComponentValue& right) noexcept = default;
 };
@@ -109,8 +115,8 @@ struct Snapshot {
 
 /// @brief Reads a snapshot from bytes of the network; never throws.
 /// @param message The whole message, starting with the message type.
-/// @param componentSizes The wire size of every component by short id (see getComponentSizes()); its length is the
-/// number of components in the manifest.
+/// @param componentSizes The wire size of every component by short id (see computeComponentSizes()), or
+/// kVariableSize; its length is the number of components in the manifest.
 /// @return The snapshot, or nothing when a count is larger than the remaining bytes allow, a short id is unknown or
 /// listed twice in a record, a NetworkId is 0 or listed twice in a list, a reserved flag is set, or bytes are missing
 /// or left over.
@@ -122,7 +128,8 @@ struct Snapshot {
 /// @param sequence The new value.
 RTYPE_REPLICATION_API void setLastProcessedInput(std::span<std::byte> message, std::uint32_t sequence) noexcept;
 
-/// @brief Gives the size of every component's value on the wire, by short id.
+/// @brief Gives the size of every component's value on the wire, by short id, or kVariableSize for a component with
+/// a string.
 /// @param manifest The manifest of the world.
 /// @param world The world, whose components the manifest lists.
 /// @return The sizes, one per component of the manifest.

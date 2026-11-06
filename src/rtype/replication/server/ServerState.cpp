@@ -90,6 +90,7 @@ class TrackingMapper final : public serialization::EntityMapper {
     if (!writer.isValid()) {
         return std::nullopt;
     }
+    bytes.resize(writer.bytesWritten());
     return bytes;
 }
 }  // namespace
@@ -290,6 +291,7 @@ std::vector<network::server::SendMessage> ServerState::buildSnapshots(const std:
             continue;
         }
         const std::size_t wireSize = serialization::computeWireSize(info->type);
+        const bool variable = serialization::isVariableSize(info->type);
         for (const ecs::QueryMatch& match : replicated.iter(query)) {
             const std::optional<std::uint32_t> networkId = findNetworkId(match.getEntity());
             std::optional<network::Bytes> bytes = serializeValue(info->type, wireSize, match.get(0), mapper);
@@ -298,7 +300,7 @@ std::vector<network::server::SendMessage> ServerState::buildSnapshots(const std:
             }
             snapshot::SpawnRecord& record = records.try_emplace(*networkId).first->second;
             record.networkId = *networkId;
-            record.components.push_back({.shortId = *shortId, .bytes = std::move(*bytes)});
+            record.components.push_back({.shortId = *shortId, .bytes = std::move(*bytes), .lengthPrefixed = variable});
         }
     }
 
