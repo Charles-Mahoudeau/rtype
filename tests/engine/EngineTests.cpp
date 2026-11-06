@@ -176,6 +176,16 @@ TEST(Engine, RefusesAPluginNoLibraryRegisters) {
     }
 }
 
+TEST(Engine, LoadsTheBackendsAGameNames) {
+    const GameDirectory game{"rtype-engine-backends", R"(
+        engine.settings.platform = "glfw"
+        engine.settings.renderer = "vulkan"
+    )"};
+    std::filesystem::create_directories(game.path() / Engine::kAssetsDirectory);
+    const EngineConfig standalone{.mode = rtype::ecs::RunMode::kStandalone, .game = game.path()};
+    EXPECT_NO_THROW(Engine{standalone});
+}
+
 TEST(Engine, GivesThePluginsTheAssetDirectory) {
     const GameDirectory game{"rtype-engine-assets"};
     Engine engine{serverConfig(game)};
