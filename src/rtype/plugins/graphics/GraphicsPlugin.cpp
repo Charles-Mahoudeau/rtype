@@ -13,7 +13,6 @@
 #include <glm/common.hpp>
 #include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
-#include <iterator>
 #include <memory>
 #include <optional>
 #include <span>
@@ -39,16 +38,13 @@
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/contract/platform/event/Event.hpp"
-#include "rtype/contract/renderer/drawing/Sprite.hpp"
 #include "rtype/contract/renderer/drawing/Texture.hpp"
-#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 #include "rtype/contract/renderer/view/CameraView.hpp"
 #include "rtype/contract/renderer/view/View.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/query/Query.hpp"
-#include "rtype/ecs/query/QueryTerms.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/Schedule.hpp"

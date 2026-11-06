@@ -15,6 +15,7 @@
 
 #include "core/config/Settings.hpp"
 #include "rtype/contract/platform/exceptions/BackendExceptions.hpp"
+#include "rtype/contract/renderer/IRenderer.hpp"
 
 namespace rtype::contract::renderer {
 

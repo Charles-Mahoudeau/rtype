@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "core/config/Settings.hpp"
+#include "rtype/contract/platform/IPlatform.hpp"
 #include "rtype/contract/platform/exceptions/BackendExceptions.hpp"
 
 namespace rtype::contract::platform {
