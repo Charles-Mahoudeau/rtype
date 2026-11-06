@@ -27,6 +27,7 @@
 #include "rtype/engine/CommandLine.hpp"
 #include "rtype/engine/EngineConfig.hpp"
 #include "rtype/engine/Exceptions.hpp"
+#include "rtype/engine/GamePlugins.hpp"
 #include "rtype/engine/scripting/SettingsLoader.hpp"
 #include "rtype/network/NetworkSettings.hpp"
 #include "rtype/network/io/Address.hpp"
@@ -163,6 +164,7 @@ void Engine::build() {
     _settings = loadSettings(_gameDirectory, _config.mode, _commandLine);
     // Checked before anything is built, so a wrong address fails before a window opens; added last, see the class.
     std::unique_ptr<ecs::Plugin> networkPlugin = makeNetworkPlugin(_config.mode, _settings);
+    const GamePlugins gamePlugins = GamePlugins::fromSettings(_settings, _config.mode);
     _app = std::make_unique<ecs::App>(_config.mode);
 
     ecs::App& app = *_app;
@@ -177,6 +179,7 @@ void Engine::build() {
     if (_config.mode != ecs::RunMode::kStandalone) {
         app.addPlugin(replication::ReplicationPlugin{});
     }
+    gamePlugins.addTo(app);
     if (_config.setup) {
         _config.setup(*this);
     }
