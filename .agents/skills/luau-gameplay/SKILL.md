@@ -5,7 +5,7 @@ description: Write or change a game in Luau for the R-Type engine - project.luau
 
 # Write a game in Luau
 
-Read `examples/games/AGENTS.md` first: you write Luau and `project.luau` only, never C++. Learn the API from `manual/`
+Read `examples/games/AGENTS.md` first: you write Luau and `project.luau` only, never C++. Learn the API from `manual/pages/`
 (the game developer manual); where it does not cover something yet, `docs/ecs/features/19-luau-bridge.md`,
 `docs/scripting/plan.md` and `docs/engine/design.md` hold it. If neither says an API exists, it does not: file an engine
 issue (`plan-issues` skill) instead of working around it.
@@ -48,9 +48,9 @@ The server is authoritative: a client system never writes replicated or server-o
 
 ```luau
 engine.ecs.system("game.MoveShips", {
-	phase = "FixedUpdate",                -- default; Startup, Update... see the manual
+	phase = "FixedUpdate",                -- required: Startup, PreUpdate, FixedUpdate, Update, PostUpdate, Render
 	side = "server",                      -- "server" (default), "client" or "both"
-	query = { read = { "game.Ship" }, write = {}, with = {}, without = {} },
+	query = { read = { "game.Ship" }, write = {}, with = {}, without = {} },   -- required, {} for none
 	resources = {}, events = {}, calls = { "rtype.replication.readInput" },
 	run = function(ctx)
 		for entity, ship in ctx.query do ... end
