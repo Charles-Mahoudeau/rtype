@@ -8,21 +8,52 @@
 #include "World.hpp"
 
 #include <cstddef>
+#include <format>
+#include <span>
+#include <string_view>
 #include <vector>
 
 #include "rtype/ecs/change/Tick.hpp"
+#include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/detail/WorldState.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/event/Events.hpp"
+#include "rtype/ecs/exceptions/PrefabException.hpp"
 #include "rtype/ecs/hierarchy/Children.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
+#include "rtype/ecs/prefab/Prefab.hpp"
+#include "rtype/ecs/prefab/PrefabSpawner.hpp"
 #include "rtype/ecs/prefab/Prefabs.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
 
 namespace rtype::ecs {
 
 namespace {
+/// @brief Applies each step of a prefab's spawn to a World at once.
+class PrefabBuilder {
+  public:
+    explicit PrefabBuilder(World& world) noexcept : _world{&world} {}
+    ~PrefabBuilder() = default;
+    PrefabBuilder(const PrefabBuilder& other) = delete;
+    PrefabBuilder& operator=(const PrefabBuilder& other) = delete;
+    PrefabBuilder(PrefabBuilder&& other) = delete;
+    PrefabBuilder& operator=(PrefabBuilder&& other) = delete;
+
+    /// @return The entities spawned so far, to despawn them if the spawn fails halfway.
+    [[nodiscard]] const std::vector<Entity>& getSpawned() const noexcept { return _spawned; }
+
+    [[nodiscard]] Entity spawnEntity() { return _spawned.emplace_back(_world->spawn()); }
+    void addValue(Entity entity, ComponentId id, std::span<const std::byte> value) {
+        static_cast<void>(_world->getComponents().add(entity, id, value));  // alive, known id: cannot fail
+    }
+    void setParent(Entity child, Entity parent) { static_cast<void>(_world->setParent(child, parent)); }
+
+  private:
+    World* _world;                 ///< The world the steps are applied to.
+    std::vector<Entity> _spawned;  ///< Every entity spawned, root first.
+};
+
 /// @brief Takes `child` out of its parent's Children, removing the component once it is empty.
 void detachFromParent(Components& components, Entity child) noexcept {
     const auto* parent = components.get<Parent>(child);
@@ -98,6 +129,30 @@ Entity World::spawn() { return _state->entities.allocate(); }
 Entity World::reserve() { return _state->entities.reserve(); }
 
 void World::flushReserved() { _state->entities.flushReserved(); }
+
+Entity World::spawnPrefab(PrefabId id) {
+    const Prefab* prefab = getPrefabs().findById(id);
+    if (prefab == nullptr) {
+        throw exceptions::PrefabException{std::format("No prefab has the id {}", id)};
+    }
+    PrefabBuilder builder{*this};
+    try {
+        return detail::spawnPrefabTree(getPrefabs(), getComponents().getRegistry(), *prefab, builder);
+    } catch (...) {
+        for (const Entity entity : builder.getSpawned()) {  // no half-built tree is left behind
+            static_cast<void>(despawn(entity));
+        }
+        throw;
+    }
+}
+
+Entity World::spawnPrefab(std::string_view name) {
+    const Prefab* prefab = getPrefabs().findByName(name);
+    if (prefab == nullptr) {
+        throw exceptions::PrefabException{std::format("No prefab is named '{}'", name)};
+    }
+    return spawnPrefab(prefab->getId());
+}
 
 void World::destroyEntity(Entity entity) noexcept {
     detachFromParent(_state->components, entity);

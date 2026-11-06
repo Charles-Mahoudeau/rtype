@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <string_view>
 
 #include "rtype/ecs/Export.hpp"
 #include "rtype/ecs/change/Tick.hpp"
@@ -17,6 +18,7 @@
 #include "rtype/ecs/detail/WorldState.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/event/Events.hpp"
+#include "rtype/ecs/prefab/Prefab.hpp"
 #include "rtype/ecs/prefab/Prefabs.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
 
@@ -94,6 +96,15 @@ class RTYPE_ECS_API World {
     /// @throws exceptions::EntityLimitException When every entity index is in use or retired.
     template <Component First, Component... Rest>
     Entity spawn(First first, Rest... rest);
+
+    /// @brief Creates an entity from a prefab at once: a copy of each value the run mode keeps (Prefabs::keeps()),
+    /// and its child prefabs, each a new entity parented to it, with its overrides.
+    /// @details Outside systems (loading a level, tests); systems use Commands::spawnPrefab().
+    /// @return The prefab's entity: the root of the tree.
+    /// @throws exceptions::PrefabException When no prefab has this id or name.
+    /// @throws exceptions::EntityLimitException When every entity index is in use or retired.
+    Entity spawnPrefab(PrefabId id);
+    Entity spawnPrefab(std::string_view name);
 
     /// @brief Hands out an entity that becomes alive at the next flushReserved(): commands use it to give a spawned
     /// entity an id at once, while its creation waits for the flush.
