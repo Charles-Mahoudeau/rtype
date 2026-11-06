@@ -45,7 +45,8 @@ namespace rtype::scripting {
 ///
 /// `engine.call(name, fields)` calls an engine call a plugin registered on the App (ecs::Calls) right away, with the
 /// fields of its arguments (see call::callEngine()); an unknown name is a Luau error. A system makes calls at each run
-/// through `ctx.call` instead, for the calls it lists under `calls`.
+/// through `ctx.call` instead, for the calls it lists under `calls`. `engine.assets` and `engine.input` hold the setup
+/// forms, which make those calls from a declarative table (see setup::buildAssetForms() and setup::buildInputForms()).
 ///
 /// The host and the App may be destroyed in either order. The systems a script added stay in the App when the host
 /// is destroyed first, but their script is gone with the runtime: they can no longer run it.

@@ -38,6 +38,8 @@
 #include "rtype/luau/Usertype.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
+#include "setup/AssetForms.hpp"
+#include "setup/InputForms.hpp"
 #include "system/ContextTypes.hpp"
 #include "system/RuntimeHandle.hpp"
 #include "system/SystemDeclarationReader.hpp"
@@ -138,6 +140,8 @@ luau::Result<> ScriptHost::installEngine(const Options options) {
     luau::LibraryBuilder engineBuilder{_runtime};
     engineBuilder.setName("engine");
     engineBuilder.adoptLibrary(ecsBuilder.build());
+    engineBuilder.adoptLibrary(setup::buildAssetForms(_runtime, _app));
+    engineBuilder.adoptLibrary(setup::buildInputForms(_runtime, _app));
     engineBuilder.function("call").setHandler(
         [this](const luau::CallContext& arguments) { return callEngine(arguments); });
     _engine.emplace(engineBuilder.build());
