@@ -11,6 +11,7 @@
 #include <string_view>
 
 #include "plugins/input/Input.hpp"
+#include "plugins/input/InputCalls.hpp"
 #include "plugins/input/PlatformEvent.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/event/Events.hpp"
@@ -36,6 +37,7 @@ std::string_view InputPlugin::getName() const noexcept { return kName; }
 void InputPlugin::build(ecs::App& app) {
     static_cast<void>(app.getWorld().getEvents().registerType<input::PlatformEvent>());
     app.insertResource(Input{});
+    addInputCalls(app);
     app.addSystem(ecs::Phase::kPreUpdate, std::string{kUpdateSystem}, &updateInput).setSide(ecs::Side::kClient);
 }
 }  // namespace rtype::plugins::input
