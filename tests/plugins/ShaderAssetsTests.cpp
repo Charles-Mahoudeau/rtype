@@ -164,3 +164,13 @@ TEST(ShaderAssets, ReloadSkipsAShaderWrittenInCode) {
     EXPECT_FALSE(shaders.reload(id));
     EXPECT_FALSE(shaders.reload(AssetId::fromPath("unknown")));
 }
+
+TEST(ShaderAssets, RefusesAPathThatLeavesItsDirectory) {
+    const TemporaryFile file{"tint.glsl", kTint};
+    ShaderAssets shaders;
+    shaders.setDirectory(file.getPath().parent_path() / "assets");
+    const AssetId id = shaders.load("../tint.glsl");
+    EXPECT_EQ(shaders.get(id), nullptr);
+    ASSERT_NE(shaders.getEntry(id), nullptr);
+    EXPECT_TRUE(shaders.getEntry(id)->error.contains("outside the assets directory"));
+}
