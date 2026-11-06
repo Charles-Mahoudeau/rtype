@@ -14,12 +14,12 @@
 
 namespace rtype::plugins::transform {
 
-/// @brief Where an entity is: what gameplay writes. Relative to the world until entities have parents (hierarchy).
+/// @brief Where an entity is: what gameplay writes. Relative to its parent (ecs::Parent), or to the world without one.
 /// @code
 /// commands.spawn().add(rtype::plugins::transform::Transform{.position = {400.0F, 300.0F}});
 /// @endcode
 struct Transform {
-    glm::vec2 position{0.0F};  ///< In world units, X right, Y down.
+    glm::vec2 position{0.0F};  ///< In world units, X right, Y down; in the parent's axes if it has one.
     float rotation = 0.0F;     ///< In radians, clockwise on screen.
     glm::vec2 scale{1.0F};     ///< 1: natural size; negative flips.
 };
@@ -27,7 +27,7 @@ RTYPE_ECS_COMPONENT(Transform, "rtype.Transform", position, rotation, scale);
 
 /// @brief Where an entity is in the world: what rendering and collisions read, never written by gameplay.
 /// @details Computed from Transform in PostUpdate by the TransformPlugin, which adds it to every entity with a
-/// Transform. Equal to Transform until entities have parents; then it will combine the parents' transforms. Not
+/// Transform. Equal to Transform without a parent; otherwise it combines the parents' transforms (combine()). Not
 /// replicated: each process computes it.
 struct GlobalTransform {
     glm::vec2 position{0.0F};  ///< In world units.

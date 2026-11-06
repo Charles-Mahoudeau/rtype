@@ -17,13 +17,16 @@ class App;
 
 namespace rtype::plugins::transform {
 
-/// @brief Positions entities: registers Transform and GlobalTransform, and computes GlobalTransform from Transform.
+/// @brief Positions entities: registers Transform and GlobalTransform, and computes GlobalTransform from Transform and
+/// the entity's parents (ecs::Parent).
 ///
 /// @details Two PostUpdate systems, on every side (Side::kBoth: the server's gameplay and the client's rendering need
 /// them):
-/// - "rtype.Transform.Insert": gives a GlobalTransform, equal to its Transform, to every entity that has a Transform
-///   but no GlobalTransform yet (spawned this frame); the commands apply at the end of PostUpdate, so Render sees it.
-/// - "rtype.Transform.Propagate", after it: copies each changed Transform into its GlobalTransform.
+/// - "rtype.Transform.Insert": gives a GlobalTransform to every entity that has a Transform but no GlobalTransform yet
+///   (spawned this frame), combined with its parents; the commands apply at the end of PostUpdate, so Render sees it.
+/// - "rtype.Transform.Propagate", after it: computes every GlobalTransform from the roots down, writing only those
+///   that differ, so `Changed<GlobalTransform>` only reports entities that moved. A parent without a Transform is
+///   ignored: its child is treated as a root.
 /// Systems that move entities write Transform before PostUpdate; systems that read positions (rendering) read
 /// GlobalTransform after it.
 class TransformPlugin : public ecs::Plugin {
