@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <vector>
 
+#include "rtype/ecs/call/Calls.hpp"
 #include "rtype/ecs/change/Tick.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/detail/WorldState.hpp"
@@ -69,6 +70,10 @@ const Resources& World::getResources() const noexcept { return _state->resources
 Events& World::getEvents() noexcept { return _state->events; }
 
 const Events& World::getEvents() const noexcept { return _state->events; }
+
+Calls& World::getCalls() noexcept { return _state->calls; }
+
+const Calls& World::getCalls() const noexcept { return _state->calls; }
 
 Tick World::getChangeTick() const noexcept { return _state->changeTick; }
 
