@@ -11,9 +11,11 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <vector>
 
 #include "rtype/ecs/Export.hpp"
+#include "rtype/ecs/actor/Actor.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/component/Components.hpp"
@@ -95,6 +97,19 @@ class RTYPE_ECS_API Commands {
     /// getEntity() gives the entity.
     /// @throws exceptions::EntityLimitException When every entity index is in use or retired.
     [[nodiscard]] EntityCommands spawn();
+
+    /// @brief Records spawning an actor: a new entity with a copy of each of its values, and its child actors, each a
+    /// new entity parented to it, with its overrides.
+    /// @details Spawns the actor's tree at once (the entities are reserved, alive at the flush) and records the values
+    /// the run mode keeps (Actors::keeps()). The returned commands are the root's: an add() on them replaces the
+    /// actor's value for this entity only.
+    /// @code
+    /// commands.spawnActor("game.Bydo").add(Transform{.position = {820.F, 140.F}});
+    /// @endcode
+    /// @throws exceptions::ActorException When no actor has this id or name.
+    /// @throws exceptions::EntityLimitException When every entity index is in use or retired.
+    [[nodiscard]] EntityCommands spawnActor(ActorId id);
+    [[nodiscard]] EntityCommands spawnActor(std::string_view name);
 
     /// @return The commands of an existing entity, to chain several commands on it.
     [[nodiscard]] EntityCommands entity(Entity entity) noexcept;

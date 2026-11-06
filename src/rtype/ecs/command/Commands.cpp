@@ -10,14 +10,20 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <format>
 #include <iterator>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <utility>
 
+#include "rtype/ecs/actor/Actor.hpp"
+#include "rtype/ecs/actor/ActorSpawner.hpp"
+#include "rtype/ecs/actor/Actors.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/exceptions/ActorException.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
 #include "rtype/ecs/storage/ByteColumn.hpp"
 #include "rtype/ecs/storage/ViewAs.hpp"
@@ -73,6 +79,45 @@ Commands::EntityCommands Commands::spawn() {
         throw;
     }
     return EntityCommands{*this, entity};
+}
+
+namespace {
+/// @brief Records each step of an actor's spawn in a Commands buffer.
+class ActorRecorder {
+  public:
+    explicit ActorRecorder(Commands& commands) noexcept : _commands{&commands} {}
+    ~ActorRecorder() = default;
+    ActorRecorder(const ActorRecorder& other) = delete;
+    ActorRecorder& operator=(const ActorRecorder& other) = delete;
+    ActorRecorder(ActorRecorder&& other) = delete;
+    ActorRecorder& operator=(ActorRecorder&& other) = delete;
+
+    [[nodiscard]] Entity spawnEntity() { return _commands->spawn().getEntity(); }
+    void addValue(Entity entity, ComponentId id, std::span<const std::byte> value) {
+        static_cast<void>(_commands->add(entity, id, value));  // the id comes from the registry: always known
+    }
+    void setParent(Entity child, Entity parent) { _commands->add(child, Parent{.entity = parent}); }
+
+  private:
+    Commands* _commands;  ///< The buffer the steps are recorded in.
+};
+}  // namespace
+
+Commands::EntityCommands Commands::spawnActor(ActorId id) {
+    const Actor* actor = _world->getActors().findById(id);
+    if (actor == nullptr) {
+        throw exceptions::ActorException{std::format("No actor has the id {}", id)};
+    }
+    ActorRecorder recorder{*this};
+    return entity(detail::spawnActorTree(_world->getActors(), _world->getComponents().getRegistry(), *actor, recorder));
+}
+
+Commands::EntityCommands Commands::spawnActor(std::string_view name) {
+    const Actor* actor = _world->getActors().findByName(name);
+    if (actor == nullptr) {
+        throw exceptions::ActorException{std::format("No actor is named '{}'", name)};
+    }
+    return spawnActor(actor->getId());
 }
 
 Commands::EntityCommands Commands::entity(Entity entity) noexcept { return EntityCommands{*this, entity}; }

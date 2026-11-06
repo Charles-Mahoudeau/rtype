@@ -8,14 +8,22 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cstddef>
 #include <memory>
+#include <span>
 #include <string_view>
 
+#include "rtype/ecs/actor/Actor.hpp"
+#include "rtype/ecs/actor/ActorConfig.hpp"
+#include "rtype/ecs/actor/Actors.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/app/MinimalPlugins.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 #include "rtype/ecs/app/PluginGroup.hpp"
+#include "rtype/ecs/component/ComponentTraits.hpp"
+#include "rtype/ecs/exceptions/ActorException.hpp"
+#include "rtype/ecs/hierarchy/Children.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
@@ -47,6 +55,16 @@ struct FixedRuns {
     int count;
 };
 RTYPE_ECS_RESOURCE(FixedRuns, "test.app.FixedRuns", count);
+
+struct Armor {
+    int value;
+};
+RTYPE_ECS_COMPONENT(Armor, "test.app.Armor", value);
+
+struct Gun {
+    int barrels;
+};
+RTYPE_ECS_COMPONENT(Gun, "test.app.Gun", barrels);
 }  // namespace rtype::test::app
 
 namespace {
@@ -216,6 +234,49 @@ TEST(App, InsertsAResourceOnlyIfAbsent) {
     EXPECT_EQ(app.getWorld().getResources().get<FixedRuns>()->count, 1);  // the second call kept the first value
     app.insertResourceIfAbsent<Started>();
     EXPECT_EQ(app.getWorld().getResources().get<Started>()->count, 0);
+}
+
+TEST(App, AddsActorsWithValuesAndChildren) {
+    App app;
+    app.addActor("game.Gun").with(rtype::test::app::Gun{.barrels = 1});
+    const rtype::ecs::ActorId ship = app.addActor("game.Ship")
+                                         .with(rtype::test::app::Armor{.value = 2})
+                                         .withChild("game.Gun", rtype::test::app::Gun{.barrels = 3})
+                                         .withChild("game.Gun")
+                                         .getId();
+    const rtype::ecs::Entity entity = app.getWorld().spawnActor(ship);
+    const rtype::ecs::Components& components = app.getWorld().getComponents();
+    EXPECT_EQ(components.get<rtype::test::app::Armor>(entity)->value, 2);
+    const auto& children = components.get<rtype::ecs::Children>(entity)->entities;
+    ASSERT_EQ(children.size(), 2U);
+    EXPECT_EQ(components.get<rtype::test::app::Gun>(children[0])->barrels, 3);  // its override
+    EXPECT_EQ(components.get<rtype::test::app::Gun>(children[1])->barrels, 1);  // the child actor's value
+}
+
+TEST(App, AddsAActorValueByIdAndBytes) {
+    App app;
+    const rtype::ecs::ComponentId armor = app.getWorld().getComponents().registerType<rtype::test::app::Armor>();
+    const rtype::test::app::Armor value{.value = 7};
+    const rtype::ecs::ActorId id = app.addActor("game.Wall").with(armor, std::as_bytes(std::span{&value, 1})).getId();
+    EXPECT_EQ(app.getWorld()
+                  .getActors()
+                  .findById(id)
+                  ->getValues()
+                  .get<rtype::test::app::Armor>(app.getWorld().getComponents())
+                  ->value,
+              7);
+}
+
+TEST(App, RefusesAnUnknownChildActor) {
+    App app;
+    EXPECT_THROW(app.addActor("game.Ship").withChild("game.Missing"), rtype::ecs::exceptions::ActorException);
+    EXPECT_THROW(app.addActor("game.Ship"), rtype::ecs::exceptions::ActorException);  // the name is taken
+}
+
+TEST(App, GivesItsRunModeToTheActors) {
+    EXPECT_EQ(App{RunMode::kServer}.getWorld().getActors().getRunMode(), RunMode::kServer);
+    EXPECT_EQ(App{RunMode::kClient}.getWorld().getActors().getRunMode(), RunMode::kClient);
+    EXPECT_EQ(App{}.getWorld().getActors().getRunMode(), RunMode::kStandalone);
 }
 
 TEST(App, RunsFramesUntilAppExit) {

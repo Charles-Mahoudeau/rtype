@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "rtype/ecs/Export.hpp"
+#include "rtype/ecs/actor/ActorConfig.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 #include "rtype/ecs/app/PluginGroup.hpp"
 #include "rtype/ecs/app/PluginRegistry.hpp"
@@ -91,6 +92,13 @@ class RTYPE_ECS_API App {
     /// @throws exceptions::ScheduleException When a system of any phase already has this name.
     template <typename Function, typename... Configs>
     Schedule::SystemConfig addSystem(Phase phase, std::string name, Function function, Configs... configs);
+
+    /// @brief Adds an empty actor to the world (Actors::add()), to fill with the returned configuration.
+    /// @code
+    /// app.addActor("game.Bullet").with(Transform{}).with(Velocity{.value = {600.F, 0.F}});
+    /// @endcode
+    /// @throws exceptions::ActorException When the name is empty or already taken.
+    ActorConfig addActor(std::string name);
 
     /// @brief Gives scripts an engine call made of a function (makeCallInfo() tells what it may take and return).
     /// @param name Its stable name, such as "rtype.audio.loadSound".

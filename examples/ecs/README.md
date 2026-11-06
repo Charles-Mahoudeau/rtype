@@ -31,6 +31,7 @@ Read them roughly in this order: each one builds on the ones before.
 | [`EcsSchedules`](EcsSchedules/src/main.cpp) | order inside a phase, ambiguities refused, a whole frame, run modes | [Scheduler](../../docs/ecs/features/13-scheduler.md) |
 | [`EcsFixedTimestep`](EcsFixedTimestep/src/main.cpp) | ticks per frame for 5 / 16 / 50 ms frames, the cap, the `Time` resource | [Scheduler](../../docs/ecs/features/13-scheduler.md#fixed-timestep) |
 | [`EcsAppAndPlugins`](EcsAppAndPlugins/src/main.cpp) | the App, plugins and groups, plugin dependencies and the plugin registry, `MinimalPlugins`, `AppExit` | [App and plugins](../../docs/ecs/features/14-app-and-plugins.md) |
+| [`EcsActors`](EcsActors/src/main.cpp) | an actor with child actors, an override after the spawn, server-only values left out on a client, mistakes refused | [Actors and scenes](../../docs/ecs/features/18-actors-and-scenes.md) |
 | [`EcsScriptSystems`](EcsScriptSystems/src/main.cpp) | `DynamicQueries` configured with a `QueryList`, a `ScriptCallable` | [Systems](../../docs/ecs/features/12-systems.md#configured-parameters) |
 
 ## Conventions

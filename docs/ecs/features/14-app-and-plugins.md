@@ -248,7 +248,7 @@ function RtypePlugin:build(app)
     app:load("components/Shield.luau")
     app:load("systems/ShieldRegen.luau")
     app:addPlugin("scripts/rtype/weapons/plugin.luau")
-    app:prefab("game.Bydo", { --[[ ... ]] })
+    app:actor("game.Bydo", { --[[ ... ]] })
 end
 
 return RtypePlugin

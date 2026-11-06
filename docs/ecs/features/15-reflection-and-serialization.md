@@ -14,7 +14,7 @@ One description of the fields, many users:
 |---|---|
 | [Replication](20-replication.md) (R3) | Write any replicated component into a packet, compactly |
 | [Luau bridge](19-luau-bridge.md) (R2) | Convert between component bytes and Luau tables; read and write single fields |
-| [Prefabs and scenes](18-prefabs-and-scenes.md) | Store component values by field name |
+| [Actors and scenes](18-actors-and-scenes.md) | Store component values by field name |
 | Debug tools (R4) | Show and edit any component in an inspector |
 
 Without reflection, each of these would need hand-written code per component, and Luau components would
@@ -128,7 +128,7 @@ mismatches.
 ## Connections
 
 - Uses: [Component registry](02-component-registry.md) (`FieldInfo`, layout).
-- Used by: [Prefabs and scenes](18-prefabs-and-scenes.md), [Luau bridge](19-luau-bridge.md),
+- Used by: [Actors and scenes](18-actors-and-scenes.md), [Luau bridge](19-luau-bridge.md),
   [Replication](20-replication.md), debug tooling.
 
 ## Pitfalls

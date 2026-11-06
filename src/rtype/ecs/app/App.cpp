@@ -17,6 +17,8 @@
 #include <string_view>
 #include <utility>
 
+#include "rtype/ecs/actor/ActorConfig.hpp"
+#include "rtype/ecs/actor/Actors.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 #include "rtype/ecs/app/PluginRegistry.hpp"
@@ -28,7 +30,9 @@
 #include "rtype/ecs/world/World.hpp"
 
 namespace rtype::ecs {
-App::App(RunMode mode) : _schedules{_world, mode} {}
+App::App(RunMode mode) : _schedules{_world, mode} {
+    _world.getActors().setRunMode(mode);  // a spawn leaves out the components of the other side
+}
 
 App::~App() = default;  // defined here, where Plugin is complete, for the unique_ptrs to destroy it
 
@@ -104,6 +108,8 @@ void App::addDependencies(const Plugin& plugin) {
     }
     _resolving.pop_back();
 }
+
+ActorConfig App::addActor(std::string name) { return ActorConfig{_world, _world.getActors().add(std::move(name))}; }
 
 void App::runFrame() {
     if (!hasPlugin(TimePlugin::kName)) {  // every App has time: the default one unless a configured one was added

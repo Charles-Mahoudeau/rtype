@@ -9,8 +9,11 @@
 
 #include <cstddef>
 #include <memory>
+#include <string_view>
 
 #include "rtype/ecs/Export.hpp"
+#include "rtype/ecs/actor/Actor.hpp"
+#include "rtype/ecs/actor/Actors.hpp"
 #include "rtype/ecs/call/Calls.hpp"
 #include "rtype/ecs/change/Tick.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
@@ -59,6 +62,10 @@ class RTYPE_ECS_API World {
     [[nodiscard]] Events& getEvents() noexcept;
     [[nodiscard]] const Events& getEvents() const noexcept;
 
+    /// @return The actors: named templates of entities, spawned by copying their values.
+    [[nodiscard]] Actors& getActors() noexcept;
+    [[nodiscard]] const Actors& getActors() const noexcept;
+
     /// @return The engine calls of this world: the functions plugins give to scripts.
     [[nodiscard]] Calls& getCalls() noexcept;
     [[nodiscard]] const Calls& getCalls() const noexcept;
@@ -94,6 +101,15 @@ class RTYPE_ECS_API World {
     /// @throws exceptions::EntityLimitException When every entity index is in use or retired.
     template <Component First, Component... Rest>
     Entity spawn(First first, Rest... rest);
+
+    /// @brief Creates an entity from an actor at once: a copy of each value the run mode keeps (Actors::keeps()),
+    /// and its child actors, each a new entity parented to it, with its overrides.
+    /// @details Outside systems (loading a level, tests); systems use Commands::spawnActor().
+    /// @return The actor's entity: the root of the tree.
+    /// @throws exceptions::ActorException When no actor has this id or name.
+    /// @throws exceptions::EntityLimitException When every entity index is in use or retired.
+    Entity spawnActor(ActorId id);
+    Entity spawnActor(std::string_view name);
 
     /// @brief Hands out an entity that becomes alive at the next flushReserved(): commands use it to give a spawned
     /// entity an id at once, while its creation waits for the flush.
