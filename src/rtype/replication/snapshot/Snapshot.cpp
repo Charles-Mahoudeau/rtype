@@ -47,10 +47,14 @@ constexpr std::size_t kDespawnSize = 4;
 /// @brief Short id (2): what a component takes besides its fields.
 constexpr std::size_t kComponentFixedSize = 2;
 
+/// @brief Length (2) written before a value of variable size.
+constexpr std::size_t kLengthSize = 2;
+
 [[nodiscard]] std::size_t getComponentsSize(const std::vector<ComponentValue>& components) noexcept {
     return std::accumulate(components.begin(), components.end(), std::size_t{0},
                            [](const std::size_t total, const ComponentValue& component) {
-                               return total + kComponentFixedSize + component.bytes.size();
+                               return total + kComponentFixedSize + (component.lengthPrefixed ? kLengthSize : 0) +
+                                      component.bytes.size();
                            });
 }
 
@@ -62,6 +66,9 @@ void writeComponents(network::bytes::ByteWriter& writer, const std::vector<Compo
     writer.writeU8(static_cast<std::uint8_t>(components.size()));
     for (const ComponentValue& component : components) {
         writer.writeU16(component.shortId);
+        if (component.lengthPrefixed) {
+            writer.writeU16(static_cast<std::uint16_t>(component.bytes.size()));
+        }
         writer.writeBytes(component.bytes);
     }
 }
@@ -90,11 +97,14 @@ void writeComponents(network::bytes::ByteWriter& writer, const std::vector<Compo
                                 [shortId](const ComponentValue& known) { return known.shortId == shortId; })) {
             return false;
         }
-        const std::span<const std::byte> value = reader.readBytes(sizes.subspan(shortId).front());
+        const std::size_t size = sizes.subspan(shortId).front();
+        const bool variable = size == kVariableSize;
+        const std::span<const std::byte> value = reader.readBytes(variable ? reader.readU16() : size);
         if (!reader.isValid()) {
             return false;
         }
-        components.push_back({.shortId = shortId, .bytes = network::Bytes{value.begin(), value.end()}});
+        components.push_back(
+            {.shortId = shortId, .bytes = network::Bytes{value.begin(), value.end()}, .lengthPrefixed = variable});
     }
     return reader.isValid();
 }
@@ -278,7 +288,13 @@ std::vector<std::size_t> computeComponentSizes(const manifest::Manifest& manifes
     sizes.reserve(manifest.components().size());
     for (const ecs::ComponentId id : manifest.components()) {
         const ecs::ComponentInfo* info = registry.findById(id);
-        sizes.push_back(info == nullptr ? 0 : serialization::computeWireSize(info->type));
+        if (info == nullptr) {
+            sizes.push_back(0);
+        } else if (serialization::isVariableSize(info->type)) {
+            sizes.push_back(kVariableSize);
+        } else {
+            sizes.push_back(serialization::computeWireSize(info->type));
+        }
     }
     return sizes;
 }

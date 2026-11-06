@@ -99,6 +99,11 @@ Two field types are not copied as raw numbers:
 - **`kEntity`**: written as the target's `NetworkId` (or "none"), and translated back to a local
   `Entity` on the receiving side.
 - **`kAssetId`**: already stable across processes (derived from the asset path), written as is.
+- **`kString`**: an `ecs::String` (`ecs/type/String.hpp`), a text held inline: a `u8` length and 255 bytes of UTF-8,
+  256 bytes in all, so it is plain data with the same size on every compiler and needs no hook. A longer text is cut
+  at a character boundary. On the wire it is the length then the bytes only, so a component with a string has a
+  variable size (`isVariableSize()`): `computeWireSize()` gives its upper bound, and the snapshot writes such a
+  component after its `u16` length (`snapshot::kVariableSize`).
 
 ### Determinism
 
@@ -122,5 +127,4 @@ mismatches.
 
 ## Open questions
 
-- A `kStringId` field type (interned strings) for names and labels? (ECS + Charles)
 - Per-field change masks to serialize only changed fields? (see [Change detection](08-change-detection.md))

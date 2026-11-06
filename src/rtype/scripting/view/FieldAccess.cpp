@@ -27,6 +27,7 @@
 #include "core/asset/AssetId.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/type/Field.hpp"
+#include "rtype/ecs/type/String.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/luau/Table.hpp"
 #include "rtype/luau/Userdata.hpp"
@@ -289,6 +290,12 @@ Result<luau::Value> readField(const std::string_view component, const ecs::Field
             }
             return luau::Value{std::move(*userdata)};
         }
+        case ecs::FieldType::kString: {
+            // The first byte of an ecs::String is its length, the text follows.
+            const auto length = std::min<std::size_t>(load<std::uint8_t>(bytes, field), ecs::String::kCapacity);
+            const auto* text = reinterpret_cast<const char*>(bytes.data() + field.offset + 1);  // NOLINT
+            return luau::Value{std::string{text, length}};
+        }
     }
     return tl::unexpected{fieldError(component, field, "this field type is not supported")};
 }
@@ -321,6 +328,16 @@ Result<void> writeField(const std::string_view component, const ecs::FieldInfo& 
     }
     if (field.type == ecs::FieldType::kAssetId) {
         return writeAssetId(component, field, bytes, value);
+    }
+    if (field.type == ecs::FieldType::kString) {
+        const auto* text = value.tryAs<std::string>();
+        if (text == nullptr) {
+            return tl::unexpected{fieldError(component, field, "expected a string")};
+        }
+        // A text longer than ecs::String::kCapacity is cut, as everywhere else.
+        const ecs::String converted{*text};
+        std::memcpy(bytes.subspan(field.offset).data(), &converted, sizeof(ecs::String));
+        return {};
     }
     const auto* number = value.tryAs<double>();
     if (number == nullptr) {

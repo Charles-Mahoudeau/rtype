@@ -74,7 +74,8 @@ Supported in the first version:
   and `assetId` (every `ecs::FieldType`). A `vec3` reads as a Luau `vector` and writes from one or from a table; the
   Luau build has three-wide vectors only, so `vec2` and `vec4` read and write as tables `{x=, y=}` / `{x=, y=, z=, w=}`
   with every key present. An `assetId` writes from a path string (hashed to its `AssetId`) or an `AssetId`, and reads as
-  an opaque `AssetId` userdata (`==`, `tostring`).
+  an opaque `AssetId` userdata (`==`, `tostring`). A `string` field is an `ecs::String` (255 bytes of UTF-8 at most,
+  a longer text is cut): it reads and writes as a Luau string.
 - **Query terms**: `read`, `write`, `optionalRead`, `optionalWrite`, `with`, `without` (all exist in `QueryBuilder`)
   and, since SCR-02, `added` and `changed`. Those two only filter, like `with`: they give no view, so a script that
   needs the value lists the component under `read` as well.
@@ -377,7 +378,8 @@ Ids follow the order the tasks are best done in. Weights are set when the issues
       `TextRenderer{.text = std::format(...)}` still compiles; `layoutText()` already takes a `std::string_view`.
       `TextRenderer::text` becomes an `ecs::String` and joins its reflected fields.
     - A script-declared `string` field uses the same type.
-    - Replication of strings: see SCR-07 (open point for the team).
+    - Replication of strings: an `ecs::String` is a `u8` length and 255 bytes inline (plain data, so no hooks), written
+      on the wire as its length and its bytes; a component with a string is sent after its `u16` length.
 
 **Done when**
 

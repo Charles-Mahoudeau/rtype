@@ -19,6 +19,7 @@
 #include "core/asset/AssetId.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/type/String.hpp"
 #include "rtype/ecs/world/World.hpp"
 #include "rtype/luau/Runtime.hpp"
 #include "rtype/luau/RuntimeConfig.hpp"
@@ -485,4 +486,40 @@ TEST(FillFromTable, RefusesAnUnknownFieldAndABadValue) {
     EXPECT_NE(unknownResult.error().message().find("bogus"), std::string_view::npos);
     ASSERT_FALSE(wrongResult);
     EXPECT_NE(wrongResult.error().message().find("strength"), std::string_view::npos);
+}
+
+TEST(ComponentView, ReadsAndWritesAStringField) {
+    Fixture fixture{{.name = "test.Named", .fields = {{.name = "name", .type = FieldType::kString}}}};
+    fixture.expose("v");
+
+    EXPECT_EQ(fixture.run(R"(
+        before = v.name
+        v.name = "Ana"
+        after = v.name
+    )"),
+              "");
+
+    EXPECT_EQ(*fixture.runtime.globals().get("before")->tryAs<std::string>(), "");
+    EXPECT_EQ(*fixture.runtime.globals().get("after")->tryAs<std::string>(), "Ana");
+    EXPECT_EQ(fixture.read<rtype::ecs::String>("name"), rtype::ecs::String{"Ana"});
+}
+
+TEST(ComponentView, CutsAStringLongerThanItsCapacity) {
+    Fixture fixture{{.name = "test.Named", .fields = {{.name = "name", .type = FieldType::kString}}}};
+    fixture.expose("v");
+
+    EXPECT_EQ(fixture.run(R"(
+        v.name = string.rep("x", 300)
+        length = #v.name
+    )"),
+              "");
+
+    EXPECT_EQ(fixture.number("length"), static_cast<double>(rtype::ecs::String::kCapacity));
+}
+
+TEST(ComponentView, RefusesANumberInAStringField) {
+    Fixture fixture{{.name = "test.Named", .fields = {{.name = "name", .type = FieldType::kString}}}};
+    fixture.expose("v");
+
+    EXPECT_NE(fixture.run("v.name = 3"), "");
 }

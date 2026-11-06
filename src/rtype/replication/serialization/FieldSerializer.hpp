@@ -20,8 +20,8 @@
 ///
 /// @details Every field of `info.fields` is written in that order, and for each field its `count` values in order,
 /// each in a fixed form whatever the machine: integers and floats little-endian, `bool` as a `u8` 0 or 1, vectors as
-/// 2, 3 or 4 `f32`, entities as the `u32` NetworkId given by an EntityMapper, asset ids as a `u64`. Padding bytes are
-/// never written. Nothing allocates or throws.
+/// 2, 3 or 4 `f32`, entities as the `u32` NetworkId given by an EntityMapper, asset ids as a `u64`, strings as a `u8`
+/// length and their bytes. Padding bytes are never written. Nothing allocates or throws.
 namespace rtype::replication::serialization {
 /// @brief Tells whether values of a type can be sent: it has at least one field, and its values are plain data that
 /// can be copied, moved and destroyed as bytes (no destruct, move or copy hook).
@@ -32,10 +32,16 @@ namespace rtype::replication::serialization {
 /// @return True when writeFields() and readFields() can handle the type.
 [[nodiscard]] RTYPE_REPLICATION_API bool isSerializable(const ecs::TypeInfo& info) noexcept;
 
-/// @brief Gives the number of bytes writeFields() writes for a value of a type; the same for every value, since no
-/// field has a variable size.
+/// @brief Tells whether the size of a value on the wire depends on the value: true when a field is a string, which
+/// takes its length and its bytes.
 /// @param info The description of the type.
-/// @return The size of one value on the wire.
+/// @return True when writeFields() writes a different number of bytes for different values.
+[[nodiscard]] RTYPE_REPLICATION_API bool isVariableSize(const ecs::TypeInfo& info) noexcept;
+
+/// @brief Gives the number of bytes writeFields() writes for a value of a type: the same for every value, unless
+/// isVariableSize() is true, where it is the most it can write (each string at its capacity).
+/// @param info The description of the type.
+/// @return The size of one value on the wire, or its upper bound.
 [[nodiscard]] RTYPE_REPLICATION_API std::size_t computeWireSize(const ecs::TypeInfo& info) noexcept;
 
 /// @brief Writes every field of a value; a value that does not fit makes the writer invalid.

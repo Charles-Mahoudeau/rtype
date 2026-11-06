@@ -52,6 +52,7 @@ constexpr std::array kFieldTypes{
     FieldTypeName{.name = "vec4", .type = ecs::FieldType::kVec4},
     FieldTypeName{.name = "entity", .type = ecs::FieldType::kEntity},
     FieldTypeName{.name = "assetId", .type = ecs::FieldType::kAssetId},
+    FieldTypeName{.name = "string", .type = ecs::FieldType::kString},
 };
 
 /// @brief What the reader works on: the component's name, for the messages, and its table.
