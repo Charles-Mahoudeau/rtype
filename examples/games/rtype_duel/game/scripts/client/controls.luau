@@ -5,6 +5,7 @@ if not engine.isClient then
 	return
 end
 
+print(engine.call("duel.greet", { name = "pilot" }))
 print("WASD or the arrows to move, click to fire, F3 for the colliders, Escape to quit.")
 
 engine.call("rtype.input.addAction", { name = "quit", type = "button" })

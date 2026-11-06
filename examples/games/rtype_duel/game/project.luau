@@ -8,10 +8,10 @@ if engine.isClient then
 end
 
 -- A top-down arena: the physics without gravity, and F3 outlines every collider (hidden at first).
-engine.settings.plugins = { "rtype.Physics" }
+engine.settings.plugins = { "rtype.Physics", "duel.Greeter" }
 if engine.isClient then
 	engine.settings.plugins = {
-		"rtype.Physics", "rtype.Input", "rtype.graphics", "rtype.Shader", "rtype.Sprite", "rtype.SpriteDraw",
+		"rtype.Physics", "duel.Greeter", "rtype.Input", "rtype.graphics", "rtype.Shader", "rtype.Sprite", "rtype.SpriteDraw",
 		"rtype.Shape", "rtype.Tilemap", "rtype.Text", "rtype.Particle", "rtype.audio", "rtype.PhysicsDebug",
 	}
 end
