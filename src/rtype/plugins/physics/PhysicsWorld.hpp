@@ -105,11 +105,16 @@ class PhysicsWorld {
     [[nodiscard]] std::optional<ecs::Entity> findEntity(PhysicsHandle handle) const;
     /// @return Where the entity's body is, in world units, Y down; nothing if it has no body.
     [[nodiscard]] std::optional<glm::vec2> getBodyPosition(ecs::Entity entity) const;
+    /// @return Where the entity's body is and how it is turned; nothing if it has no body.
+    [[nodiscard]] std::optional<BodyPose> getBodyPose(ecs::Entity entity) const;
     /// @return How fast the entity's body moves; nothing if it has no body.
     [[nodiscard]] std::optional<Velocity> getBodyVelocity(ecs::Entity entity) const;
     /// @return Whether the Transform differs from the last pose the world gave the body or read from it: gameplay moved
     /// the entity. False for an entity without a body.
     [[nodiscard]] bool isOutOfSync(ecs::Entity entity, const transform::Transform& transform) const;
+    /// @return Whether a child's Transform, relative to its parent, differs from the last one rememberLocal() recorded:
+    /// gameplay moved the entity. False when none was recorded, or for an entity without a body.
+    [[nodiscard]] bool isLocalOutOfSync(ecs::Entity entity, const transform::Transform& local) const;
     /// @return Whether the Velocity differs from the last velocity the world gave the body or read from it: gameplay
     /// changed it, or the body was rebuilt or moved to a Transform since. False for an entity without a moving body.
     [[nodiscard]] bool isVelocityOutOfSync(ecs::Entity entity, const Velocity& velocity) const;
@@ -158,6 +163,12 @@ class PhysicsWorld {
     /// @brief Puts the entity's body at its Transform at once, waking it up: a respawn, a moved wall.
     /// @details Keeps the body's velocity. Does nothing for an entity without a body.
     void teleport(ecs::Entity entity, const transform::Transform& transform);
+    /// @brief Records the pose isOutOfSync() compares to, without moving the body: the pose a child's Transform gives
+    /// back, which can differ from the body's by a rounding. Does nothing for an entity without a body.
+    void rememberPose(ecs::Entity entity, const transform::Transform& pose);
+    /// @brief Records a child's Transform, relative to its parent, for isLocalOutOfSync(). Does nothing for an entity
+    /// without a body.
+    void rememberLocal(ecs::Entity entity, const transform::Transform& local);
     /// @brief Sets how fast the entity's body moves, waking it up when the velocity is not zero.
     /// @details An axis the body cannot move along (RigidBody::fixedRotation) stays at zero. Does nothing for an entity
     /// without a dynamic or kinematic body.

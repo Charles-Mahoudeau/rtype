@@ -114,6 +114,8 @@ struct PhysicsWorld::Impl {
         std::uint64_t seenPass = 0;          ///< The last body pass that saw the entity.
         glm::vec2 lastPosition{0.0F, 0.0F};  ///< The last position given to the body or read from it, in world units.
         float lastRotation = 0.0F;           ///< The last rotation given to the body or read from it.
+        std::optional<glm::vec2> lastLocalPosition;  ///< A child's last relative position; nothing if not recorded.
+        float lastLocalRotation = 0.0F;              ///< A child's last relative rotation.
         std::optional<Velocity>
             lastVelocity;                     ///< The last velocity given to the body or read from it; none if unknown.
         std::uint64_t kinematicMoveStep = 0;  ///< The step (as getStepCount() counts it after it) of the last
@@ -283,6 +285,24 @@ bool PhysicsWorld::isOutOfSync(ecs::Entity entity, const transform::Transform& t
     return found != _impl->bodies.end() && !found->second.isAt(transform.position, transform.rotation);
 }
 
+bool PhysicsWorld::isLocalOutOfSync(ecs::Entity entity, const transform::Transform& local) const {
+    const auto found = _impl->bodies.find(entity.getBits());
+    return found != _impl->bodies.end() && found->second.lastLocalPosition &&
+           (*found->second.lastLocalPosition != local.position || found->second.lastLocalRotation != local.rotation);
+}
+
+std::optional<PhysicsWorld::BodyPose> PhysicsWorld::getBodyPose(ecs::Entity entity) const {
+    const auto found = _impl->bodies.find(entity.getBits());
+    if (found == _impl->bodies.end()) {
+        return std::nullopt;
+    }
+    const JPH::BodyInterface& bodyInterface = _impl->system.GetBodyInterface();
+    return BodyPose{
+        .entity = entity,
+        .position = detail::fromJolt2D(bodyInterface.GetPosition(found->second.body)) * _impl->unitsPerMeter,
+        .rotation = detail::fromJoltRotation2D(bodyInterface.GetRotation(found->second.body))};
+}
+
 std::optional<glm::vec2> PhysicsWorld::getBodyPosition(ecs::Entity entity) const {
     const auto found = _impl->bodies.find(entity.getBits());
     if (found == _impl->bodies.end()) {
@@ -418,6 +438,21 @@ void PhysicsWorld::teleport(ecs::Entity entity, const transform::Transform& tran
         found->second.body, detail::toJolt2D(transform.position / _impl->unitsPerMeter),
         detail::toJoltRotation2D(transform.rotation), JPH::EActivation::Activate);
     found->second.remember(transform.position, transform.rotation);
+}
+
+void PhysicsWorld::rememberPose(ecs::Entity entity, const transform::Transform& pose) {
+    const auto found = _impl->bodies.find(entity.getBits());
+    if (found != _impl->bodies.end()) {
+        found->second.remember(pose.position, pose.rotation);
+    }
+}
+
+void PhysicsWorld::rememberLocal(ecs::Entity entity, const transform::Transform& local) {
+    const auto found = _impl->bodies.find(entity.getBits());
+    if (found != _impl->bodies.end()) {
+        found->second.lastLocalPosition = local.position;
+        found->second.lastLocalRotation = local.rotation;
+    }
 }
 
 void PhysicsWorld::setVelocity(ecs::Entity entity, const Velocity& velocity) {
