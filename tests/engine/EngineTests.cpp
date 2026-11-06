@@ -151,6 +151,12 @@ TEST(Engine, RejectsAnInvalidCommandLine) {
     EXPECT_THROW(Engine{serverConfig(game, {"server"})}, RuntimeError);
 }
 
+TEST(Engine, GivesThePluginsTheGameDirectory) {
+    const GameDirectory game{"rtype-engine-game-setting"};
+    const Engine engine{serverConfig(game)};
+    EXPECT_EQ(engine.settings().getString(Engine::kGameDirectorySetting, ""), engine.gameDirectory().string());
+}
+
 TEST(Engine, GivesTheProjectItsModeAndCommandLine) {
     const GameDirectory game{"rtype-engine-project", R"(
         engine.settings.network.port = 0
