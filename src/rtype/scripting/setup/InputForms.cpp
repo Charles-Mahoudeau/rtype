@@ -86,8 +86,8 @@ struct PlannedCall {
         return PlannedCall{.call = kBindCall, .fields = {{"action", luau::Value{action}}, {"control", value}}};
     }
     const FormTable binding{std::format("{}: binding {}", kActionForm, number), value, kBindingKeys};
-    const auto* shape = std::ranges::find_if(
-        kBindingShapes, [&binding](const BindingShape& shape) { return hasShape(binding, shape); });
+    const auto shape = std::ranges::find_if(kBindingShapes,
+                                            [&binding](const BindingShape& shape) { return hasShape(binding, shape); });
     if (shape == kBindingShapes.end()) {
         binding.fail(
             "expected a control name, {control, scale}, {negative, positive}, {up, down, left, right} or {x, y}");
