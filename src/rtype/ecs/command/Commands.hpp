@@ -123,7 +123,9 @@ class RTYPE_ECS_API Commands {
     /// @brief Applies every command in the order it was recorded, then empties the buffer.
     /// @details First registers the C++ components it needs (if that throws, nothing is applied and the buffer is
     /// kept), then makes the reserved entities alive, then applies each command; one on an entity dead by then is
-    /// skipped. The buffer can be reused afterwards and keeps its capacity.
+    /// skipped. Adding or removing a Parent goes through World::setParent() or removeParent(), whatever way it was
+    /// recorded; a parent the World refuses (a cycle, a dead entity) is skipped. The buffer can be reused afterwards
+    /// and keeps its capacity.
     /// @throws exceptions::ComponentRegistrationException When a component must be registered and its name is taken.
     void flush();
 
