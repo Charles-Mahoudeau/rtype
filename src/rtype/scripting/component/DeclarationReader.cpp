@@ -52,6 +52,7 @@ constexpr std::array kFieldTypes{
     FieldTypeName{.name = "vec4", .type = ecs::FieldType::kVec4},
     FieldTypeName{.name = "entity", .type = ecs::FieldType::kEntity},
     FieldTypeName{.name = "assetId", .type = ecs::FieldType::kAssetId},
+    FieldTypeName{.name = "string", .type = ecs::FieldType::kString},
 };
 
 /// @brief What the reader works on: the component's name, for the messages, and its table.
@@ -148,6 +149,43 @@ struct Source {
     }
     return invalid(component, R"('replication' must be "none", "everyChange" or "spawnOnly")");
 }
+
+[[nodiscard]] Result<ecs::Presence> readPresence(const std::string_view component, const luau::Value& value) {
+    const auto* mode = value.tryAs<std::string>();
+    if (mode != nullptr && *mode == "both") {
+        return ecs::Presence::kBoth;
+    }
+    if (mode != nullptr && *mode == "serverOnly") {
+        return ecs::Presence::kServerOnly;
+    }
+    if (mode != nullptr && *mode == "clientOnly") {
+        return ecs::Presence::kClientOnly;
+    }
+    return invalid(component, R"('presence' must be "both", "serverOnly" or "clientOnly")");
+}
+
+/// @brief Reads `replication` or `presence` into the declaration; any other option is an error.
+[[nodiscard]] Result<void> readPolicy(ComponentDeclaration& declaration, const std::string& option,
+                                      const luau::Value& value) {
+    if (option == "replication") {
+        const auto replication = readReplication(declaration.name, value);
+        if (!replication) {
+            return tl::unexpected{replication.error()};
+        }
+        declaration.replication = *replication;
+    } else if (option == "presence") {
+        const auto presence = readPresence(declaration.name, value);
+        if (!presence) {
+            return tl::unexpected{presence.error()};
+        }
+        declaration.presence = *presence;
+    } else {
+        return invalid(
+            declaration.name,
+            std::format("unknown option '{}' (expected 'fields', 'defaults', 'replication' or 'presence')", option));
+    }
+    return {};
+}
 }  // namespace
 
 Result<ComponentDeclaration> readComponentDeclaration(std::string name, const luau::Table& spec) {
@@ -156,7 +194,12 @@ Result<ComponentDeclaration> readComponentDeclaration(std::string name, const lu
         return tl::unexpected{entries.error()};
     }
 
-    ComponentDeclaration declaration{.name = std::move(name), .fields = {}, .replication = ecs::ReplicationMode::kNone};
+    ComponentDeclaration declaration{
+        .name = std::move(name),
+        .fields = {},
+        .replication = ecs::ReplicationMode::kNone,
+        .presence = ecs::Presence::kBoth,
+    };
     std::optional<luau::Table> defaults;
     bool hasFields = false;
     for (const auto& [key, value] : *entries) {
@@ -176,15 +219,8 @@ Result<ComponentDeclaration> readComponentDeclaration(std::string name, const lu
             }
             declaration.fields = std::move(*fields);
             hasFields = true;
-        } else if (option == "replication") {
-            const auto replication = readReplication(declaration.name, value);
-            if (!replication) {
-                return tl::unexpected{replication.error()};
-            }
-            declaration.replication = *replication;
-        } else {
-            return invalid(declaration.name,
-                           std::format("unknown option '{}' (expected 'fields', 'defaults' or 'replication')", option));
+        } else if (auto applied = readPolicy(declaration, option, value); !applied) {
+            return tl::unexpected{std::move(applied.error())};
         }
     }
     if (!hasFields) {

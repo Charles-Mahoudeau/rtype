@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -257,4 +258,47 @@ TEST(SnapshotDecoder, NeverCrashesOnEveryByteOfAValidMessage) {
         }
     }
     SUCCEED();
+}
+
+TEST(Snapshot, WritesAComponentOfVariableSizeAfterItsLength) {
+    Snapshot value;
+    value.spawns.push_back(
+        {.networkId = 9, .components = {{.shortId = 1, .bytes = makeBytes(3, 7), .lengthPrefixed = true}}});
+
+    const std::optional<Bytes> bytes = snapshot::encode(value);
+
+    ASSERT_TRUE(bytes);
+    EXPECT_EQ(snapshot::computeWireSize(value), bytes->size());
+    const Bytes tail{std::byte{0x01}, std::byte{0x00},                    // short id
+                     std::byte{0x03}, std::byte{0x00},                    // length
+                     std::byte{0x07}, std::byte{0x08}, std::byte{0x09}};  // fields
+    EXPECT_TRUE(std::ranges::search(*bytes, tail).begin() != bytes->end());
+}
+
+TEST(Snapshot, DecodesAComponentOfVariableSize) {
+    constexpr std::array<std::size_t, 3> variableSizes{4, snapshot::kVariableSize, 8};
+    Snapshot value;
+    value.spawns.push_back({.networkId = 1,
+                            .components = {{.shortId = 0, .bytes = makeBytes(4, 1)},
+                                           {.shortId = 1, .bytes = makeBytes(5, 20), .lengthPrefixed = true},
+                                           {.shortId = 2, .bytes = makeBytes(8, 9)}}});
+    value.updates.push_back({.networkId = 2, .components = {{.shortId = 1, .bytes = Bytes{}, .lengthPrefixed = true}}});
+
+    const std::optional<Snapshot> decoded = snapshot::decode(snapshot::encode(value).value(), variableSizes);
+
+    ASSERT_TRUE(decoded);
+    EXPECT_EQ(*decoded, value);
+}
+
+TEST(Snapshot, RefusesAVariableLengthPastTheEndOfTheMessage) {
+    constexpr std::array<std::size_t, 3> variableSizes{4, snapshot::kVariableSize, 8};
+    Snapshot value;
+    value.spawns.push_back(
+        {.networkId = 1, .components = {{.shortId = 1, .bytes = makeBytes(5, 20), .lengthPrefixed = true}}});
+    Bytes bytes = snapshot::encode(value).value();
+    // The length sits after the header, the count, the record's id, prefab, component count and short id.
+    constexpr std::size_t kLengthOffset = 10 + 2 + 4 + 2 + 1 + 2;
+    bytes[kLengthOffset] = std::byte{200};
+
+    EXPECT_FALSE(snapshot::decode(bytes, variableSizes));
 }

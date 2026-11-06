@@ -50,6 +50,10 @@ void checkAlive(const ScriptCommands& handle) {
     if (layout == handle.layouts->end()) {
         throw luau::exceptions::RuntimeError{std::format("unknown component '{}': no script declared it", name)};
     }
+    if (handle.clientSide && !layout->second.clientWritable) {
+        throw luau::exceptions::RuntimeError{
+            std::format("a client system cannot add '{}': it is replicated or server-only", name)};
+    }
     Built built{.id = layout->second.id, .bytes = layout->second.defaults};
     if (fields != nullptr) {
         ecs::TypeInfo description;

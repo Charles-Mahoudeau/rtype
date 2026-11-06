@@ -74,7 +74,8 @@ Supported in the first version:
   and `assetId` (every `ecs::FieldType`). A `vec3` reads as a Luau `vector` and writes from one or from a table; the
   Luau build has three-wide vectors only, so `vec2` and `vec4` read and write as tables `{x=, y=}` / `{x=, y=, z=, w=}`
   with every key present. An `assetId` writes from a path string (hashed to its `AssetId`) or an `AssetId`, and reads as
-  an opaque `AssetId` userdata (`==`, `tostring`).
+  an opaque `AssetId` userdata (`==`, `tostring`). A `string` field is an `ecs::String` (255 bytes of UTF-8 at most,
+  a longer text is cut): it reads and writes as a Luau string.
 - **Query terms**: `read`, `write`, `optionalRead`, `optionalWrite`, `with`, `without` (all exist in `QueryBuilder`)
   and, since SCR-02, `added` and `changed`. Those two only filter, like `with`: they give no view, so a script that
   needs the value lists the component under `read` as well.
@@ -377,7 +378,8 @@ Ids follow the order the tasks are best done in. Weights are set when the issues
       `TextRenderer{.text = std::format(...)}` still compiles; `layoutText()` already takes a `std::string_view`.
       `TextRenderer::text` becomes an `ecs::String` and joins its reflected fields.
     - A script-declared `string` field uses the same type.
-    - Replication of strings: see SCR-07 (open point for the team).
+    - Replication of strings: an `ecs::String` is a `u8` length and 255 bytes inline (plain data, so no hooks), written
+      on the wire as its length and its bytes; a component with a string is sent after its `u16` length.
 
 **Done when**
 
@@ -497,14 +499,17 @@ Small: it can be folded into SCR-04 if the `rtype.Time` view is enough. Keep `ct
 
 **Done when**
 
-- [ ] A `side = "client"` system does not run in a server `App`, and does in a client one.
-- [ ] A client script system writing a replicated component fails to load, with the script name.
-- [ ] The `Shield` example declares its sides.
+- [x] A `side = "client"` system does not run in a server `App`, and does in a client one.
+- [x] A client script system writing a replicated component fails to load, with the script name.
+- [x] The `Shield` example declares its sides.
 
-**ECS prerequisite (not numbered).** A `Side::kClient` system that writes a component other than `kClientOnly` must be
-refused when it is added, as an `Error` (rule of `../ecs/features/19-luau-bridge.md`; `Presence` exists but nothing
-reads it). Open point for the team: the case of `kBoth` systems and of `Presence::kBoth` components that clients
-predict.
+**ECS prerequisite (not numbered).** A `Side::kClient` system that writes a replicated or `kServerOnly` component is
+refused by `Schedule::SystemConfig::setSide()` with a `ScheduleException` naming the system and the component (rule
+of `../ecs/features/19-luau-bridge.md`). The loader turns it into a registration error, which the plugin reports with
+the script name. Local components that are never replicated (`GlobalTransform`, written by the tilemap's client
+system) stay allowed: nothing overwrites them. Decision on the open point: `kBoth` systems are never refused, since they are meant to simulate
+replicated components identically on both sides (clients are overwritten by the snapshot, there is no prediction); the
+loader only warns on `std::cerr` when a `both` system writes a `serverOnly` component, which does not exist on clients.
 
 #### SCR-07: Replication of script components
 

@@ -23,6 +23,7 @@
 #include "SystemDeclaration.hpp"
 #include "rtype/ecs/query/QueryTerm.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
+#include "rtype/ecs/system/Side.hpp"
 #include "rtype/luau/FunctionRef.hpp"
 #include "rtype/luau/Table.hpp"
 #include "rtype/luau/Value.hpp"
@@ -120,6 +121,20 @@ struct Source {
         }
     }
     return invalid(system, std::format("unknown phase '{}'", *name));
+}
+
+[[nodiscard]] Result<ecs::Side> readSide(const std::string_view system, const luau::Value& value) {
+    const auto* name = value.tryAs<std::string>();
+    if (name != nullptr && *name == "server") {
+        return ecs::Side::kServer;
+    }
+    if (name != nullptr && *name == "client") {
+        return ecs::Side::kClient;
+    }
+    if (name != nullptr && *name == "both") {
+        return ecs::Side::kBoth;
+    }
+    return invalid(system, R"('side' must be "server", "client" or "both")");
 }
 
 [[nodiscard]] Result<std::vector<TermDeclaration>> readQuery(const Source& source, const luau::Value& value) {
@@ -233,6 +248,7 @@ template <typename Use>
 /// @brief What the options of a declaration give, before the required ones are checked.
 struct Options {
     std::optional<ecs::Phase> phase;
+    std::optional<ecs::Side> side;
     std::optional<std::vector<TermDeclaration>> terms;
     std::optional<luau::FunctionRef> run;
     std::vector<ResourceDeclaration> resources;
@@ -250,6 +266,12 @@ struct Options {
             return tl::unexpected{phase.error()};
         }
         options.phase = *phase;
+    } else if (option == "side") {
+        const auto side = readSide(system, value);
+        if (!side) {
+            return tl::unexpected{side.error()};
+        }
+        options.side = *side;
     } else if (option == "query") {
         auto terms = readQuery({.system = system}, value);
         if (!terms) {
@@ -281,8 +303,8 @@ struct Options {
         }
         options.run = *function;
     } else {
-        return invalid(system, std::format("unknown option '{}' (expected 'phase', 'query', 'resources', 'events', "
-                                           "'after', 'before' or 'run')",
+        return invalid(system, std::format("unknown option '{}' (expected 'phase', 'side', 'query', 'resources', "
+                                           "'events', 'after', 'before' or 'run')",
                                            option));
     }
     return {};
@@ -313,6 +335,7 @@ Result<SystemDeclaration> readSystemDeclaration(std::string name, const luau::Ta
     return SystemDeclaration{
         .name = std::move(name),
         .phase = *options.phase,
+        .side = options.side,
         .terms = std::move(*options.terms),
         .resources = std::move(options.resources),
         .events = std::move(options.events),

@@ -12,10 +12,12 @@
 #include <cstdint>
 #include <limits>
 #include <span>
+#include <string>
 #include <vector>
 
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/type/Field.hpp"
+#include "rtype/ecs/type/String.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/type/TypeTraits.hpp"
 #include "rtype/network/bytes/ByteReader.hpp"
@@ -34,6 +36,7 @@ using rtype::network::bytes::ByteWriter;
 using rtype::replication::serialization::computeWireSize;
 using rtype::replication::serialization::EntityMapper;
 using rtype::replication::serialization::isSerializable;
+using rtype::replication::serialization::isVariableSize;
 using rtype::replication::serialization::readFields;
 using rtype::replication::serialization::writeFields;
 
@@ -403,4 +406,86 @@ TEST(FieldSerializer, ATypeWithLifecycleHooksIsNotSerializable) {
     TypeInfo withCopy = makeSmallInfo();
     withCopy.hooks.copy = [](void* /*destination*/, const void* /*source*/) {};
     EXPECT_FALSE(isSerializable(withCopy));
+}
+
+namespace {
+/// @brief A value with a string, then a number, to check that what follows the string is read at its place.
+struct Named {
+    rtype::ecs::String name;
+    std::uint8_t level{0};
+};
+
+/// @return The description of Named.
+TypeInfo makeNamedInfo() {
+    TypeInfo info;
+    info.name = "test.Named";
+    info.size = sizeof(Named);
+    info.alignment = alignof(Named);
+    info.fields = {
+        makeField("name", FieldType::kString, offsetof(Named, name)),
+        makeField("level", FieldType::kU8, offsetof(Named, level)),
+    };
+    return info;
+}
+
+/// @return The bytes writeFields() writes for `value`, as many as it wrote.
+std::vector<std::byte> serializeNamed(const Named& value) {
+    const TestMapper mapper;
+    const TypeInfo info = makeNamedInfo();
+    std::vector<std::byte> buffer(computeWireSize(info));
+    ByteWriter writer{buffer};
+    writeFields(writer, info, bytesOf(value), mapper);
+    EXPECT_TRUE(writer.isValid());
+    buffer.resize(writer.bytesWritten());
+    return buffer;
+}
+}  // namespace
+
+TEST(FieldSerializer, OnlyAStringMakesTheSizeVariable) {
+    EXPECT_TRUE(isVariableSize(makeNamedInfo()));
+    EXPECT_FALSE(isVariableSize(makeAllTypesInfo()));
+    EXPECT_FALSE(isVariableSize(TypeInfo{}));
+}
+
+TEST(FieldSerializer, WireSizeOfAStringIsItsUpperBound) {
+    // A length and 255 bytes, then the level.
+    EXPECT_EQ(computeWireSize(makeNamedInfo()), 1U + 255U + 1U);
+}
+
+TEST(FieldSerializer, WritesAStringAsItsLengthAndItsBytes) {
+    const Named value{.name = "Ana", .level = 9};
+
+    const std::vector<std::byte> expected{std::byte{3}, std::byte{'A'}, std::byte{'n'}, std::byte{'a'}, std::byte{9}};
+    EXPECT_EQ(serializeNamed(value), expected);
+}
+
+TEST(FieldSerializer, WritesAnEmptyStringAsItsLengthOnly) {
+    const Named value{.name = "", .level = 4};
+
+    EXPECT_EQ(serializeNamed(value), (std::vector<std::byte>{std::byte{0}, std::byte{4}}));
+}
+
+TEST(FieldSerializer, RoundTripsAString) {
+    const TypeInfo info = makeNamedInfo();
+    const TestMapper mapper;
+    for (const std::string text : {std::string{}, std::string{"Ana"}, std::string{"héllo"}, std::string(255, 'z')}) {
+        const Named source{.name = text, .level = 7};
+        const std::vector<std::byte> wire = serializeNamed(source);
+
+        Named result{};
+        ByteReader reader{wire};
+        ASSERT_TRUE(readFields(reader, info, writableBytesOf(result), mapper)) << text.size();
+        EXPECT_TRUE(reader.isFinished());
+        EXPECT_EQ(result.name, source.name);
+        EXPECT_EQ(result.level, 7);
+    }
+}
+
+TEST(FieldSerializer, RefusesAStringCutShort) {
+    const TypeInfo info = makeNamedInfo();
+    // Announces 5 bytes and holds 2.
+    const std::vector<std::byte> wire{std::byte{5}, std::byte{'a'}, std::byte{'b'}};
+
+    EXPECT_FALSE(accepts(info, wire));
+    EXPECT_FALSE(accepts(info, std::vector<std::byte>{}));
 }

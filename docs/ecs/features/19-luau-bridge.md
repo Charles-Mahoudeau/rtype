@@ -164,7 +164,7 @@ in the network manifest so the server knows the layout of `PlayerInput`.
 | Nothing throws into Luau | The type-erased API returns failures; the bridge raises a Luau error with an `ErrorKind` |
 | Component views are only valid during `run` | Same reason as handles |
 | Writes to read-only terms are refused | Keeps access sets truthful for the scheduler |
-| `client` systems may only write `kClientOnly` components | Replication would overwrite anything else |
+| `client` systems may not write replicated or server-only components, in their query terms or through `ctx.commands` (checked when the side is set and when a command is recorded; `both` systems are not checked) | Replication would overwrite anything else |
 | Hot reload re-registers a component only if its `layoutHash` is unchanged | Existing data keeps its meaning |
 
 ### Where scripts run

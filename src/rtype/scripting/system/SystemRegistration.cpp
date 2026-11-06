@@ -8,6 +8,7 @@
 #include "SystemRegistration.hpp"
 
 #include <format>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <tl/expected.hpp>
@@ -36,6 +37,7 @@
 #include "rtype/ecs/system/QueryList.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/system/ScriptCallable.hpp"
+#include "rtype/ecs/system/Side.hpp"
 #include "rtype/ecs/time/Time.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/type/TypeTraits.hpp"
@@ -173,6 +175,23 @@ void addTerm(ecs::QueryBuilder& builder, const ecs::TermKind kind, const ecs::Co
     }
     return made;
 }
+
+/// @brief Warns about a system of both sides that writes a server-only component: clients have none of it, so the
+/// system finds nothing to write there.
+void warnAboutServerOnlyWrites(const ecs::Components& components, const SystemDeclaration& declaration) {
+    if (declaration.side != ecs::Side::kBoth) {
+        return;
+    }
+    for (const auto& [kind, component] : declaration.terms) {
+        const ecs::ComponentInfo* info = components.getRegistry().findByName(component);
+        if (ecs::isWriteTerm(kind) && info != nullptr && info->type.presence == ecs::Presence::kServerOnly) {
+            std::cerr << std::format(
+                "[Scripting] System '{}' runs on both sides but writes '{}', which is server-only: it cannot write "
+                "it on clients\n",
+                declaration.name, component);
+        }
+    }
+}
 }  // namespace
 
 Result<void> registerSystem(ecs::App& app, SystemDeclaration declaration, std::shared_ptr<RuntimeHandle> runtime) {
@@ -195,6 +214,7 @@ Result<void> registerSystem(ecs::App& app, SystemDeclaration declaration, std::s
         .terms = makeDataTerms(components, declaration),
         .resources = std::move(resources->first),
         .events = std::move(events->first),
+        .clientSide = declaration.side == ecs::Side::kClient,
         .runtime = std::move(runtime),
         .scope = std::make_shared<view::ViewScope>(),
     });
@@ -207,10 +227,14 @@ Result<void> registerSystem(ecs::App& app, SystemDeclaration declaration, std::s
             runScriptSystem(*system, queries, resources, events, time.get(), commands);
         },
     };
+    warnAboutServerOnlyWrites(components, declaration);
     try {
         auto config =
             app.addSystem(declaration.phase, declaration.name, std::move(callable), ecs::QueryList{std::move(*query)},
                           std::move(resources->second), std::move(events->second));
+        if (declaration.side) {
+            config.setSide(*declaration.side);
+        }
         for (auto& name : declaration.after) {
             config.after(std::move(name));
         }
