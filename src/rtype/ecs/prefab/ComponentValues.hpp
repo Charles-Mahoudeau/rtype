@@ -57,11 +57,13 @@ class RTYPE_ECS_API ComponentValues {
 
     /// @brief Sets the component to a copy of a value, replacing its value if it has one.
     /// @param value The bytes of a live value of the component, exactly its size (empty for a tag).
-    /// @throws exceptions::PrefabException When the id is not a registered component, or `value` has the wrong size.
+    /// @throws exceptions::PrefabException When the id is not a registered component, is Parent or Children (a
+    /// prefab's children set the hierarchy), or `value` has the wrong size.
     void set(const Components& components, ComponentId id, std::span<const std::byte> value);
 
     /// @brief Sets the C++ component to a value, moved in, replacing its value if it has one.
-    /// @details Registers `T` with the default options if it is not registered yet, as Components::add() does.
+    /// @details Registers `T` with the default options if it is not registered yet, as Components::add() does. Parent
+    /// and Children are refused at compile time: a prefab's children set the hierarchy.
     template <Component T>
     void set(Components& components, T value);
 

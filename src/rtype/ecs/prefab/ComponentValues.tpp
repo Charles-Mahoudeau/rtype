@@ -11,6 +11,7 @@
 #error "ComponentValues.tpp is an implementation detail of ComponentValues.hpp: include ComponentValues.hpp instead"
 #endif
 
+#include <concepts>
 #include <cstddef>
 #include <span>
 #include <type_traits>
@@ -18,6 +19,8 @@
 
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/Components.hpp"
+#include "rtype/ecs/hierarchy/Children.hpp"
+#include "rtype/ecs/hierarchy/Parent.hpp"
 #include "rtype/ecs/storage/ByteColumn.hpp"
 #include "rtype/ecs/storage/ViewAs.hpp"
 
@@ -35,6 +38,8 @@ const T* ComponentValues::get(const Components& components) const noexcept {
 
 template <Component T>
 void ComponentValues::set(Components& components, T value) {
+    static_assert(!std::same_as<T, Parent> && !std::same_as<T, Children>,
+                  "Parent and Children cannot be prefab values: a prefab's children set the hierarchy");
     const ComponentInfo* info = components.getRegistry().find<T>();
     if (info == nullptr) {
         info = components.getRegistry().findById(components.registerType<T>());

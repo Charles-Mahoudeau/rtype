@@ -18,7 +18,10 @@
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/exceptions/PrefabException.hpp"
+#include "rtype/ecs/hierarchy/Children.hpp"
+#include "rtype/ecs/hierarchy/Parent.hpp"
 #include "rtype/ecs/storage/ByteColumn.hpp"
+#include "rtype/ecs/type/TypeTraits.hpp"
 
 namespace rtype::ecs {
 std::size_t ComponentValues::getCount() const noexcept { return _entries.size(); }
@@ -44,6 +47,10 @@ void ComponentValues::set(const Components& components, ComponentId id, std::spa
     const ComponentInfo* info = components.getRegistry().findById(id);
     if (info == nullptr) {
         throw exceptions::PrefabException{std::format("Component id {} is not registered", id)};
+    }
+    if (info->type.name == TypeTraits<Parent>::kName || info->type.name == TypeTraits<Children>::kName) {
+        throw exceptions::PrefabException{std::format(
+            "Component '{}' cannot be a prefab value: a prefab's children set the hierarchy", info->type.name)};
     }
     if (value.size() != info->type.size) {
         throw exceptions::PrefabException{
