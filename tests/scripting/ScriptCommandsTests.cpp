@@ -10,9 +10,13 @@
 #include <chrono>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/hierarchy/Children.hpp"
+#include "rtype/ecs/hierarchy/Parent.hpp"
 #include "rtype/ecs/time/FixedTimestep.hpp"
 #include "rtype/ecs/time/TimePlugin.hpp"
 #include "rtype/scripting/ScriptHost.hpp"
@@ -49,6 +53,20 @@ struct Fixture {
         return result ? std::string{} : std::string{result.error().message()};
     }
 };
+}  // namespace
+
+namespace {
+/// @brief A C++ component with a list, as scripts see it.
+struct Inventory {
+    std::vector<std::uint32_t> items;
+};
+RTYPE_ECS_COMPONENT(Inventory, "test.script.Inventory", items);
+
+/// @brief A C++ component with a text of any length.
+struct Sign {
+    std::string text;
+};
+RTYPE_ECS_COMPONENT(Sign, "test.script.Sign", text);
 }  // namespace
 
 TEST(ScriptCommands, ASpawnerCreatesEntitiesASecondSystemSeesInTheNextPhase) {
@@ -176,4 +194,117 @@ TEST(ScriptCommands, AHeldCommandsHandleIsRefusedOnceTheRunEnded) {
     const std::string log = testing::internal::GetCapturedStderr();
 
     EXPECT_NE(log.find("no longer valid"), std::string::npos) << log;
+}
+
+TEST(ScriptLists, ReadsAListAsATableOfItsValues) {
+    Fixture fixture;
+    rtype::ecs::World& world = fixture.app.getWorld();
+    world.getComponents().add(world.spawn(), Inventory{.items = {4, 5, 6}});
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.ReadItems", {
+            phase = "Update",
+            query = { read = { "test.script.Inventory" } },
+            run = function(ctx)
+                for _, inventory in ctx.query do
+                    items = inventory.items
+                end
+            end,
+        })
+    )"),
+              "");
+    fixture.app.runFrame();
+    EXPECT_EQ(fixture.run("assert(#items == 3 and items[1] == 4 and items[3] == 6, tostring(#items))"), "");
+}
+
+TEST(ScriptLists, ReplacesAListFromATable) {
+    Fixture fixture;
+    rtype::ecs::World& world = fixture.app.getWorld();
+    const rtype::ecs::Entity entity = world.spawn();
+    world.getComponents().add(entity, Inventory{.items = {1, 2, 3}});
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.WriteItems", {
+            phase = "Update",
+            query = { write = { "test.script.Inventory" } },
+            run = function(ctx)
+                for _, inventory in ctx.query do
+                    inventory.items = { 7, 8 }
+                end
+            end,
+        })
+    )"),
+              "");
+    fixture.app.runFrame();
+    EXPECT_EQ(world.getComponents().get<Inventory>(entity)->items, (std::vector<std::uint32_t>{7, 8}));
+}
+
+TEST(ScriptLists, EmptiesAListFromAnEmptyTable) {
+    Fixture fixture;
+    rtype::ecs::World& world = fixture.app.getWorld();
+    const rtype::ecs::Entity entity = world.spawn();
+    world.getComponents().add(entity, Inventory{.items = {1}});
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.ClearItems", {
+            phase = "Update",
+            query = { write = { "test.script.Inventory" } },
+            run = function(ctx)
+                for _, inventory in ctx.query do
+                    inventory.items = {}
+                end
+            end,
+        })
+    )"),
+              "");
+    fixture.app.runFrame();
+    EXPECT_TRUE(world.getComponents().get<Inventory>(entity)->items.empty());
+}
+
+TEST(ScriptLists, RefusesBadValuesAndLeavesTheListAlone) {
+    Fixture fixture;
+    rtype::ecs::World& world = fixture.app.getWorld();
+    const rtype::ecs::Entity entity = world.spawn();
+    world.getComponents().add(entity, Inventory{.items = {1, 2}});
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.BadItems", {
+            phase = "Update",
+            query = { write = { "test.script.Inventory" } },
+            run = function(ctx)
+                for _, inventory in ctx.query do
+                    notTable = pcall(function() inventory.items = 3 end)
+                    wrongType = pcall(function() inventory.items = { "sword" } end)
+                    outOfRange = pcall(function() inventory.items = { 1, -1 } end)
+                    withHole = pcall(function() inventory.items = { [1] = 1, [3] = 3 } end)
+                    named = pcall(function() inventory.items = { first = 1 } end)
+                end
+            end,
+        })
+    )"),
+              "");
+    fixture.app.runFrame();
+    EXPECT_EQ(fixture.run("assert(not notTable and not wrongType and not outOfRange and not withHole and not named)"),
+              "");
+    EXPECT_EQ(world.getComponents().get<Inventory>(entity)->items, (std::vector<std::uint32_t>{1, 2}));
+}
+
+TEST(ScriptLists, ReadsAndWritesATextOfAnyLength) {
+    Fixture fixture;
+    rtype::ecs::World& world = fixture.app.getWorld();
+    const rtype::ecs::Entity entity = world.spawn();
+    world.getComponents().add(entity, Sign{.text = "hello"});
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Rewrite", {
+            phase = "Update",
+            query = { write = { "test.script.Sign" } },
+            run = function(ctx)
+                for _, sign in ctx.query do
+                    seen = sign.text
+                    sign.text = string.rep("a", 1000)
+                    refused = pcall(function() sign.text = 3 end)
+                end
+            end,
+        })
+    )"),
+              "");
+    fixture.app.runFrame();
+    EXPECT_EQ(fixture.run("assert(seen == 'hello' and refused == false)"), "");
+    EXPECT_EQ(world.getComponents().get<Sign>(entity)->text, std::string(1000, 'a'));
 }

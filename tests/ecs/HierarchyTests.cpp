@@ -45,7 +45,12 @@ TEST(Parent, IsClearedWhenItsTargetIsDespawned) {
     EXPECT_EQ(world.getComponents().get<Parent>(child)->entity, Entity{});
 }
 
-TEST(Children, IsNotReflected) { EXPECT_TRUE(rtype::ecs::TypeTraits<Children>::kFields.empty()); }
+TEST(Children, ReflectsItsEntitiesAsAList) {
+    const auto& fields = rtype::ecs::TypeTraits<Children>::kFields;
+    ASSERT_EQ(fields.size(), 1U);
+    EXPECT_EQ(fields.front().type, rtype::ecs::FieldType::kEntity);
+    EXPECT_NE(fields.front().list, nullptr);
+}
 
 TEST(Children, KeepsItsEntitiesWhenThePoolMovesThem) {
     World world;
