@@ -75,13 +75,17 @@ are added.
       the textures by `AssetId`, queued by `load()` and decoded with stb by the backend plugin, the `SpriteQueue`
       resource (sprites and texts that are not sprite entities, drawn with them) and the `VisibleArea` resource (what
       the frame shows)),
-      `event/` (the `Event` variant), `input/` (`Key`, `MouseButton`...), `exceptions/`, `math/`, `system/`; plus
+      the `MaterialInstance` component and the `Materials` resource (the materials ready to draw with, filled by the
+      shader plugin, read by every plugin that draws), `event/` (the `Event` variant), `input/` (`Key`,
+      `MouseButton`...), `exceptions/` (`ShaderException` among them), `math/`, `system/`; `Names.hpp` (each plugin's
+      name and the systems other plugins order against), `WindowEvents.hpp` (every platform event as an ECS event) and
+      `BackendResource.hpp` (the `rtype.Backend` resource), so plugins know each other through this contract only; plus
       `BackendRegistry` and `BackendPlugin`, which starts the platform and the renderer from a registry the executable
       fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the window events and the
       PreUpdate / Render systems that poll the window, frame the drawing and draw the sprites by layer.
     - `plugins/input/` (`rtype::plugins::input`) — `InputPlugin`: `Control`, `Input`, `InputAction`, `ButtonStates`,
-      the `rtype.Input` resource, fed by a `PreUpdate` system from the `PlatformEvent`s in order, and the typed input
-      events (`InputEvents.hpp`) for gameplay code. It knows nothing of the backend plugin, which adds it.
+      the `rtype.Input` resource, fed by a `PreUpdate` system from the `PlatformEvent`s in order. It knows nothing of
+      the backend plugin, which adds it and orders itself before it.
     - `plugins/transform/` (`rtype::plugins::transform`) — `TransformPlugin`: the `Transform` component gameplay writes
       and the `GlobalTransform` rendering reads, computed from it in `PostUpdate` on every side. The backend plugin adds
       it and draws each `SpriteRenderer` at its `GlobalTransform`.
@@ -119,9 +123,10 @@ are added.
       tilemap plugin. See `docs/Text.md`.
     - `plugins/shader/` (`rtype::plugins::shader`) — `ShaderPlugin`: game shaders and materials. `ShaderAssets` (shaders
       by `AssetId`, written in the engine's GLSL dialect), `MaterialAssets` (`Material`: a shader and its values),
-      the `MaterialInstance` component (an entity's own `instance uniform` values) and `ShaderHandles`, which keeps the
-      renderer up to date. `detail/` holds the parser, the assembler and the compiler. glslang is a private package of
-      `plugins`: only `shader/detail/ShaderCompiler.cpp` includes it. The backend plugin adds it. See `docs/Shaders.md`.
+      and `ShaderHandles`, which keeps the renderer up to date and publishes the materials it creates in the contract's
+      `Materials` (`MaterialInstance` lives in the contract; `shader::MaterialInstance` is an alias). `detail/` holds
+      the parser, the assembler and the compiler. glslang is a private package of `plugins`: only
+      `shader/detail/ShaderCompiler.cpp` includes it. The backend plugin adds it. See `docs/Shaders.md`.
     - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
     - `plugins/AssetIdReflection.hpp` — lets components reflect `core::asset::AssetId` fields (`kAssetId`).
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,

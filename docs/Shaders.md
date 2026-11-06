@@ -96,11 +96,17 @@ void spawnEnemy(ecs::ResMut<ShaderAssets> shaders, ecs::ResMut<MaterialAssets> m
 - **`MaterialAssets`** keeps the materials: a shader and the values of its `uniform`s and textures, shared by every
   drawing that uses it. What a material does not set keeps the shader's defaults.
 - **`SpriteRenderer::material`** names the material of a sprite.
-- **`MaterialInstance`** (the component `rtype.MaterialInstance`) holds an entity's own `instance uniform` values.
+- **`MaterialInstance`** (the component `rtype.MaterialInstance`, in the contract as
+  `backend::graphics::MaterialInstance`, also reachable as `shader::MaterialInstance`) holds an entity's own
+  `instance uniform` values.
   Without it, the entity gets the declared defaults. Sprites that share a material and a texture stay in one batch,
   whatever their values, so one enemy flashes without a material of its own.
 - **`ShaderHandles`** creates the shaders and materials in the renderer, in the Render phase, before the frame begins.
   A material waits for its shader and its textures: until then, the drawing keeps the default material.
+- **`Materials`** (the resource `rtype.Materials`, in the contract: `backend::graphics::Materials`) lists the materials
+  ready to draw with, as `ShaderHandles` creates and destroys them. The plugins that draw (sprites, texts, particles)
+  read it, not `ShaderHandles`, so they know nothing of the shader plugin: without it, the table stays empty and
+  everything is drawn with the default material.
 
 A `Shape` has no component: it is drawn by calling `IRenderer::draw()`, so it takes its material from `ShaderHandles`.
 
