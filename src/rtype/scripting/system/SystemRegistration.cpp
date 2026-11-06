@@ -7,6 +7,7 @@
 
 #include "SystemRegistration.hpp"
 
+#include <algorithm>
 #include <format>
 #include <iostream>
 #include <memory>
@@ -19,6 +20,9 @@
 #include "SystemDeclaration.hpp"
 #include "SystemRun.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/call/CallInfo.hpp"
+#include "rtype/ecs/call/Calls.hpp"
+#include "rtype/ecs/call/DynamicCalls.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/Components.hpp"
@@ -31,6 +35,8 @@
 #include "rtype/ecs/query/QueryTerm.hpp"
 #include "rtype/ecs/resource/ResourceInfo.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
+#include "rtype/ecs/schedule/RunMode.hpp"
+#include "rtype/ecs/schedule/Schedules.hpp"
 #include "rtype/ecs/system/DynamicEvents.hpp"
 #include "rtype/ecs/system/DynamicQueries.hpp"
 #include "rtype/ecs/system/DynamicResources.hpp"
@@ -176,6 +182,31 @@ void addTerm(ecs::QueryBuilder& builder, const ecs::TermKind kind, const ecs::Co
     return made;
 }
 
+/// @return The engine calls the system declared, found in the world, with the list the scheduler takes their access
+/// from. A call no plugin registered is refused, unless the system does not run in this App's mode: the plugin that
+/// registers it may only be added on the other side (the audio calls exist on clients only).
+[[nodiscard]] Result<std::pair<std::vector<const ecs::CallInfo*>, ecs::CallList>> makeCalls(
+    const ecs::App& app, const SystemDeclaration& declaration) {
+    const bool runs = ecs::runsIn(declaration.side.value_or(ecs::Side::kServer), app.getSchedules().getRunMode());
+    std::pair<std::vector<const ecs::CallInfo*>, ecs::CallList> made;
+    for (const std::string& name : declaration.calls) {
+        const ecs::CallInfo* info = app.getWorld().getCalls().findByName(name);
+        if (info == nullptr) {
+            if (!runs) {
+                continue;
+            }
+            return fail(ErrorKind::kInvalidDeclaration,
+                        std::format("System '{}': unknown engine call '{}'", declaration.name, name));
+        }
+        if (std::ranges::find(made.first, info) != made.first.end()) {
+            continue;  // listed twice
+        }
+        made.first.push_back(info);
+        made.second.calls.push_back(info->id);
+    }
+    return made;
+}
+
 /// @brief Warns about a system of both sides that writes a server-only component: clients have none of it, so the
 /// system finds nothing to write there.
 void warnAboutServerOnlyWrites(const ecs::Components& components, const SystemDeclaration& declaration) {
@@ -208,12 +239,17 @@ Result<void> registerSystem(ecs::App& app, SystemDeclaration declaration, std::s
     if (!events) {
         return tl::unexpected{std::move(events.error())};
     }
+    auto calls = makeCalls(app, declaration);
+    if (!calls) {
+        return tl::unexpected{std::move(calls.error())};
+    }
     auto system = std::make_unique<ScriptSystem>(ScriptSystem{
         .name = declaration.name,
         .run = std::move(declaration.run),
         .terms = makeDataTerms(components, declaration),
         .resources = std::move(resources->first),
         .events = std::move(events->first),
+        .calls = std::move(calls->first),
         .clientSide = declaration.side == ecs::Side::kClient,
         .runtime = std::move(runtime),
         .scope = std::make_shared<view::ViewScope>(),
@@ -222,16 +258,16 @@ Result<void> registerSystem(ecs::App& app, SystemDeclaration declaration, std::s
     // is gone.
     ecs::ScriptCallable callable{
         [system = std::move(system)](const ecs::DynamicQueries queries, ecs::DynamicResources resources,
-                                     const ecs::DynamicEvents events, const ecs::Res<ecs::Time> time,
-                                     ecs::Commands& commands) {
-            runScriptSystem(*system, queries, resources, events, time.get(), commands);
+                                     const ecs::DynamicEvents events, const ecs::DynamicCalls calls,
+                                     const ecs::Res<ecs::Time> time, ecs::Commands& commands) {
+            runScriptSystem(*system, queries, resources, events, calls, time.get(), commands);
         },
     };
     warnAboutServerOnlyWrites(components, declaration);
     try {
         auto config =
             app.addSystem(declaration.phase, declaration.name, std::move(callable), ecs::QueryList{std::move(*query)},
-                          std::move(resources->second), std::move(events->second));
+                          std::move(resources->second), std::move(events->second), std::move(calls->second));
         if (declaration.side) {
             config.setSide(*declaration.side);
         }
