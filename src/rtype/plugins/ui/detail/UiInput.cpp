@@ -15,13 +15,29 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
+#include "plugins/graphics/OverlayQueue.hpp"
+#include "plugins/input/Input.hpp"
+#include "plugins/ui/UiComponents.hpp"
+#include "plugins/ui/UiEvents.hpp"
+#include "plugins/ui/UiNode.hpp"
+#include "plugins/ui/UiResources.hpp"
+#include "plugins/ui/UiWidgets.hpp"
 #include "plugins/ui/detail/UiNavigation.hpp"
 #include "plugins/ui/detail/UiSystems.hpp"
 #include "plugins/ui/detail/UiText.hpp"
+#include "rtype/contract/platform/event/Event.hpp"
 #include "rtype/contract/platform/input/Key.hpp"
 #include "rtype/contract/renderer/view/CameraView.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/hierarchy/Parent.hpp"
+#include "rtype/ecs/query/Query.hpp"
+#include "rtype/ecs/query/QueryTerms.hpp"
+#include "rtype/ecs/system/EventReader.hpp"
+#include "rtype/ecs/system/EventWriter.hpp"
+#include "rtype/ecs/system/ResourceParam.hpp"
 
 namespace rtype::plugins::ui::detail {
 namespace {
@@ -135,7 +151,8 @@ void cycleFocus(UiFocus& focus, const std::vector<Focusable>& items, const bool 
     }
     const auto current = std::ranges::find(items, focus.focused, &Focusable::entity);
     const auto count = static_cast<std::ptrdiff_t>(items.size());
-    const std::ptrdiff_t index = current == items.end() ? (backwards ? 0 : -1) : current - items.begin();
+    const std::ptrdiff_t none = backwards ? 0 : -1;
+    const std::ptrdiff_t index = current == items.end() ? none : current - items.begin();
     focus.focused = items.at(static_cast<std::size_t>((index + (backwards ? -1 : 1) + count) % count)).entity;
 }
 
@@ -146,6 +163,30 @@ void cycleFocus(UiFocus& focus, const std::vector<Focusable>& items, const bool 
     const float stepped =
         slider.step > 0.0F ? slider.min + (std::round((value - slider.min) / slider.step) * slider.step) : value;
     return std::clamp(stepped, low, high);
+}
+}  // namespace
+
+namespace {
+/// @brief Sets what @p pointer is over, from the node on top under it.
+void pickTop(const std::vector<Candidate>& candidates, const std::unordered_map<ecs::Entity, std::size_t>& byEntity,
+             UiPointer& pointer) {
+    pointer.hovered = ecs::Entity{};
+    const Candidate* top = nullptr;
+    for (const Candidate& candidate : candidates) {
+        if (candidate.over && (candidate.solid || candidate.interactive) &&
+            (top == nullptr || candidate.order > top->order)) {
+            top = &candidate;
+        }
+    }
+    pointer.overUi = top != nullptr;
+    // What is drawn inside a button is the button: go up to the node that reacts.
+    while (top != nullptr && !top->interactive) {
+        const auto parent = byEntity.find(top->parent);
+        top = parent != byEntity.end() ? &candidates.at(parent->second) : nullptr;
+    }
+    if (top != nullptr) {
+        pointer.hovered = top->entity;
+    }
 }
 }  // namespace
 
@@ -172,31 +213,7 @@ void pickNodes(
                                        .solid = visibleBackground || image != nullptr,
                                        .interactive = interaction != nullptr && !interaction->disabled});
     }
-    std::vector<const Candidate*> sorted;
-    sorted.reserve(candidates.size());
-    for (const Candidate& candidate : candidates) {
-        sorted.push_back(&candidate);
-    }
-    std::ranges::sort(sorted, [](const Candidate* left, const Candidate* right) { return left->order > right->order; });
-
-    pointer->overUi = false;
-    pointer->hovered = ecs::Entity{};
-    for (const Candidate* candidate : sorted) {
-        if (!candidate->over || (!candidate->solid && !candidate->interactive)) {
-            continue;
-        }
-        pointer->overUi = true;
-        // What is drawn inside a button is the button: go up to the node that reacts.
-        for (const Candidate* node = candidate; node != nullptr;) {
-            if (node->interactive) {
-                pointer->hovered = node->entity;
-                break;
-            }
-            const auto parent = byEntity.find(node->parent);
-            node = parent != byEntity.end() ? &candidates.at(parent->second) : nullptr;
-        }
-        break;
-    }
+    pickTop(candidates, byEntity, *pointer);
 
     for (const auto& press : presses) {
         if (press.button == MouseButton::kLeft) {
@@ -363,6 +380,46 @@ void updateScrolls(ecs::Res<UiPointer> pointer, ecs::EventReader<contract::platf
     }
 }
 
+namespace {
+/// @brief The text of a UiTextInput while it is edited.
+struct Editing {
+    std::string text;      ///< The text.
+    std::size_t caret;     ///< Where typing goes, in bytes.
+    bool changed = false;  ///< The text changed.
+};
+
+/// @brief Types @p codepoint at the caret, unless it is a control character or goes past @p maxLength (0: no limit).
+void insertCharacter(Editing& editing, const char32_t codepoint, const std::uint32_t maxLength) {
+    const std::string bytes = encodeUtf8(codepoint);
+    if (codepoint >= U' ' && (maxLength == 0 || editing.text.size() + bytes.size() <= maxLength)) {
+        editing.text.insert(editing.caret, bytes);
+        editing.caret += bytes.size();
+        editing.changed = true;
+    }
+}
+
+/// @brief Applies an editing key to @p editing.
+void editByKey(Editing& editing, const Key key) {
+    if (key == Key::kBackspace && editing.caret > 0) {
+        const std::size_t start = previousCharacter(editing.text, editing.caret);
+        editing.text.erase(start, editing.caret - start);
+        editing.caret = start;
+        editing.changed = true;
+    } else if (key == Key::kDelete && editing.caret < editing.text.size()) {
+        editing.text.erase(editing.caret, nextCharacter(editing.text, editing.caret) - editing.caret);
+        editing.changed = true;
+    } else if (key == Key::kLeft) {
+        editing.caret = previousCharacter(editing.text, editing.caret);
+    } else if (key == Key::kRight) {
+        editing.caret = nextCharacter(editing.text, editing.caret);
+    } else if (key == Key::kHome) {
+        editing.caret = 0;
+    } else if (key == Key::kEnd) {
+        editing.caret = editing.text.size();
+    }
+}
+}  // namespace
+
 void updateTextInputs(ecs::EventReader<contract::platform::event::TextEntered> typed,
                       ecs::EventReader<contract::platform::event::KeyPressed> keys,
                       ecs::EventWriter<UiTextChanged> changes, ecs::EventWriter<UiTextSubmitted> submits,
@@ -371,44 +428,22 @@ void updateTextInputs(ecs::EventReader<contract::platform::event::TextEntered> t
         if (!interaction.focused) {
             continue;
         }
-        std::string text = shown.get().text;
-        std::size_t caret = std::min<std::size_t>(input.get().caret, text.size());
-        const std::uint32_t maxLength = input.get().maxLength;
-        bool changed = false;
+        Editing editing{.text = shown.get().text,
+                        .caret = std::min<std::size_t>(input.get().caret, shown.get().text.size())};
         for (const auto& entered : typed) {
-            const std::string bytes = encodeUtf8(entered.codepoint);
-            if (entered.codepoint >= U' ' && (maxLength == 0 || text.size() + bytes.size() <= maxLength)) {
-                text.insert(caret, bytes);
-                caret += bytes.size();
-                changed = true;
-            }
+            insertCharacter(editing, entered.codepoint, input.get().maxLength);
         }
         for (const auto& pressed : keys) {
-            if (pressed.key == Key::kBackspace && caret > 0) {
-                const std::size_t start = previousCharacter(text, caret);
-                text.erase(start, caret - start);
-                caret = start;
-                changed = true;
-            } else if (pressed.key == Key::kDelete && caret < text.size()) {
-                text.erase(caret, nextCharacter(text, caret) - caret);
-                changed = true;
-            } else if (pressed.key == Key::kLeft) {
-                caret = previousCharacter(text, caret);
-            } else if (pressed.key == Key::kRight) {
-                caret = nextCharacter(text, caret);
-            } else if (pressed.key == Key::kHome) {
-                caret = 0;
-            } else if (pressed.key == Key::kEnd) {
-                caret = text.size();
-            } else if (pressed.key == Key::kEnter) {
+            editByKey(editing, pressed.key);
+            if (pressed.key == Key::kEnter) {
                 submits.send(UiTextSubmitted{.entity = entity, .action = input.get().action});
             }
         }
-        if (caret != input.get().caret) {
-            input->caret = static_cast<std::uint32_t>(caret);
+        if (editing.caret != input.get().caret) {
+            input->caret = static_cast<std::uint32_t>(editing.caret);
         }
-        if (changed) {
-            shown->text = std::move(text);
+        if (editing.changed) {
+            shown->text = std::move(editing.text);
             changes.send(UiTextChanged{.entity = entity, .action = input.get().action});
         }
     }

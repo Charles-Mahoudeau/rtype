@@ -9,7 +9,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <glm/common.hpp>
 #include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_float4.hpp>
 #include <optional>
@@ -19,16 +18,31 @@
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
+#include "plugins/graphics/OverlayQueue.hpp"
+#include "plugins/graphics/TextureAssets.hpp"
 #include "plugins/text/Font.hpp"
+#include "plugins/text/FontAssets.hpp"
 #include "plugins/text/TextLayout.hpp"
+#include "plugins/ui/UiComponents.hpp"
+#include "plugins/ui/UiNode.hpp"
+#include "plugins/ui/UiWidgets.hpp"
 #include "plugins/ui/detail/UiLayout.hpp"
 #include "plugins/ui/detail/UiSystems.hpp"
 #include "plugins/ui/detail/UiText.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
 #include "rtype/contract/renderer/drawing/Overlay.hpp"
 #include "rtype/contract/renderer/drawing/Shape.hpp"
 #include "rtype/contract/renderer/drawing/Sprite.hpp"
 #include "rtype/contract/renderer/drawing/Text.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
 #include "rtype/contract/renderer/math/Rect.hpp"
+#include "rtype/ecs/command/Commands.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/hierarchy/Children.hpp"
+#include "rtype/ecs/hierarchy/Parent.hpp"
+#include "rtype/ecs/query/Query.hpp"
+#include "rtype/ecs/query/QueryTerms.hpp"
+#include "rtype/ecs/system/ResourceParam.hpp"
 
 namespace rtype::plugins::ui::detail {
 namespace {
@@ -207,6 +221,97 @@ void paintCaret(Painter& painter, const text::FontAssets& fonts, const UiCompute
 }
 }  // namespace
 
+namespace {
+/// @brief Fills the children of @p layout from the hierarchy.
+/// @return The nodes without a parent node.
+[[nodiscard]] std::vector<std::size_t> linkNodes(std::vector<UiLayoutNode>& layout,
+                                                 const std::vector<const ecs::Children*>& hierarchy,
+                                                 const std::vector<ecs::Entity>& parents,
+                                                 const std::unordered_map<ecs::Entity, std::size_t>& indices) {
+    std::vector<std::size_t> roots;
+    for (std::size_t index = 0; index < layout.size(); ++index) {
+        if (const ecs::Children* children = hierarchy.at(index)) {
+            for (const ecs::Entity child : children->entities) {
+                if (const auto found = indices.find(child); found != indices.end()) {
+                    layout.at(index).children.push_back(found->second);
+                }
+            }
+        }
+        if (!indices.contains(parents.at(index))) {
+            roots.push_back(index);
+        }
+    }
+    return roots;
+}
+
+/// @return What each node of @p placed computes to, its order being its rank.
+[[nodiscard]] std::unordered_map<ecs::Entity, UiComputed> toComputed(const std::vector<UiLaidOutNode>& placed) {
+    std::unordered_map<ecs::Entity, UiComputed> results;
+    results.reserve(placed.size());
+    std::uint32_t order = 0;
+    for (const UiLaidOutNode& node : placed) {
+        results.emplace(node.entity, UiComputed{.position = node.position,
+                                                .size = node.size,
+                                                .contentSize = node.contentSize,
+                                                .clip = node.clip,
+                                                .padding = node.padding,
+                                                .order = order});
+        ++order;
+    }
+    return results;
+}
+
+/// @brief What a node draws.
+struct DrawnNode {
+    const UiComputed* computed;        ///< Where it is.
+    const UiBackground* background;    ///< Its background, or null.
+    const UiImage* image;              ///< Its image, or null.
+    const UiText* shown;               ///< Its text, or null.
+    const UiToggle* toggle;            ///< Its toggle, or null.
+    const UiSlider* slider;            ///< Its slider, or null.
+    const UiTextInput* input;          ///< Its input, or null.
+    const UiInteraction* interaction;  ///< Its state, or null.
+};
+
+/// @brief Draws the text of @p node, or the placeholder of its input, and the caret.
+void paintNodeText(Painter& painter, const text::FontAssets& fonts, const graphics::TextureAssets& textures,
+                   const DrawnNode& node) {
+    const bool placeholder = node.input != nullptr && node.shown->text.empty();
+    Color color = node.shown->color;
+    if (placeholder) {
+        color.w *= 0.5F;
+    }
+    paintText(painter, fonts, textures, *node.computed, *node.shown,
+              placeholder ? node.input->placeholder : node.shown->text, color);
+    if (node.input != nullptr && node.interaction != nullptr && node.interaction->focused) {
+        paintCaret(painter, fonts, *node.computed, *node.shown, *node.input);
+    }
+}
+
+/// @brief Draws @p node, from its background up.
+void paintNode(Painter& painter, const text::FontAssets& fonts, const graphics::TextureAssets& textures,
+               const DrawnNode& node) {
+    const UiComputed& computed = *node.computed;
+    if (node.background != nullptr) {
+        painter.rectangle(computed.position, computed.size, node.background->cornerRadius, node.background->color,
+                          node.background->borderColor, node.background->borderWidth);
+    }
+    if (node.image != nullptr) {
+        paintImage(painter, textures, computed, *node.image);
+    }
+    if (node.toggle != nullptr && node.toggle->checked) {
+        const glm::vec2 inset{node.toggle->markInset};
+        painter.rectangle(computed.position + inset, computed.size - (inset * 2.0F), 2.0F, node.toggle->markColor);
+    }
+    if (node.slider != nullptr) {
+        paintSlider(painter, computed, *node.slider);
+    }
+    if (node.shown != nullptr) {
+        paintNodeText(painter, fonts, textures, node);
+    }
+}
+}  // namespace
+
 void layoutUi(ecs::Res<graphics::ViewInfo> view, ecs::Res<text::FontAssets> fonts, ecs::Commands& commands,
               ecs::Query<const UiNode, ecs::Optional<const ecs::Parent>, ecs::Optional<const ecs::Children>,
                          ecs::Optional<const UiText>, ecs::Optional<const UiScroll>>
@@ -229,33 +334,10 @@ void layoutUi(ecs::Res<graphics::ViewInfo> view, ecs::Res<text::FontAssets> font
         hierarchy.push_back(children);
         parents.push_back(parent != nullptr ? parent->entity : ecs::Entity{});
     }
-    std::vector<std::size_t> roots;
-    for (std::size_t index = 0; index < layout.size(); ++index) {
-        if (hierarchy.at(index) != nullptr) {
-            for (const ecs::Entity child : hierarchy.at(index)->entities) {
-                if (const auto found = indices.find(child); found != indices.end()) {
-                    layout.at(index).children.push_back(found->second);
-                }
-            }
-        }
-        if (!indices.contains(parents.at(index))) {
-            roots.push_back(index);
-        }
-    }
+    const std::vector<std::size_t> roots = linkNodes(layout, hierarchy, parents, indices);
 
     const std::vector<UiLaidOutNode> placed = layoutNodes(layout, roots, view->viewSize);
-    std::unordered_map<ecs::Entity, UiComputed> results;
-    results.reserve(placed.size());
-    std::uint32_t order = 0;
-    for (const UiLaidOutNode& node : placed) {
-        results.emplace(node.entity, UiComputed{.position = node.position,
-                                                .size = node.size,
-                                                .contentSize = node.contentSize,
-                                                .clip = node.clip,
-                                                .padding = node.padding,
-                                                .order = order});
-        ++order;
-    }
+    std::unordered_map<ecs::Entity, UiComputed> results = toComputed(placed);
     for (auto [entity, result] : computed) {
         const auto found = results.find(entity);
         // A node that is not shown keeps a size of 0, so it can neither be drawn nor picked.
@@ -275,54 +357,25 @@ void drawUi(ecs::ResAppend<graphics::OverlayQueue> overlay, ecs::Res<text::FontA
                        ecs::Optional<const UiText>, ecs::Optional<const UiToggle>, ecs::Optional<const UiSlider>,
                        ecs::Optional<const UiTextInput>, ecs::Optional<const UiInteraction>>
                 nodes) {
-    struct Node {
-        const UiComputed* computed;
-        const UiBackground* background;
-        const UiImage* image;
-        const UiText* shown;
-        const UiToggle* toggle;
-        const UiSlider* slider;
-        const UiTextInput* input;
-        const UiInteraction* interaction;
-    };
-    std::vector<Node> sorted;
+    std::vector<DrawnNode> sorted;
     for (auto [entity, computed, background, image, shown, toggle, slider, input, interaction] : nodes) {
         if (computed.size.x > 0.0F || computed.size.y > 0.0F) {
-            sorted.push_back(Node{&computed, background, image, shown, toggle, slider, input, interaction});
+            sorted.push_back(DrawnNode{.computed = &computed,
+                                       .background = background,
+                                       .image = image,
+                                       .shown = shown,
+                                       .toggle = toggle,
+                                       .slider = slider,
+                                       .input = input,
+                                       .interaction = interaction});
         }
     }
-    std::ranges::sort(sorted, {}, [](const Node& node) { return node.computed->order; });
+    std::ranges::sort(sorted, {}, [](const DrawnNode& node) { return node.computed->order; });
 
     std::vector<OverlayItem> items;
-    for (const Node& node : sorted) {
-        const UiComputed& computed = *node.computed;
-        Painter painter{items, computed.clip};
-        if (node.background != nullptr) {
-            painter.rectangle(computed.position, computed.size, node.background->cornerRadius, node.background->color,
-                              node.background->borderColor, node.background->borderWidth);
-        }
-        if (node.image != nullptr) {
-            paintImage(painter, *textures, computed, *node.image);
-        }
-        if (node.toggle != nullptr && node.toggle->checked) {
-            const glm::vec2 inset{node.toggle->markInset};
-            painter.rectangle(computed.position + inset, computed.size - (inset * 2.0F), 2.0F, node.toggle->markColor);
-        }
-        if (node.slider != nullptr) {
-            paintSlider(painter, computed, *node.slider);
-        }
-        if (node.shown != nullptr) {
-            const bool placeholder = node.input != nullptr && node.shown->text.empty();
-            Color color = node.shown->color;
-            if (placeholder) {
-                color.w *= 0.5F;
-            }
-            paintText(painter, *fonts, *textures, computed, *node.shown,
-                      placeholder ? node.input->placeholder : node.shown->text, color);
-            if (node.input != nullptr && node.interaction != nullptr && node.interaction->focused) {
-                paintCaret(painter, *fonts, computed, *node.shown, *node.input);
-            }
-        }
+    for (const DrawnNode& node : sorted) {
+        Painter painter{items, node.computed->clip};
+        paintNode(painter, *fonts, *textures, node);
     }
     for (OverlayItem& item : items) {
         overlay->push(std::move(item));

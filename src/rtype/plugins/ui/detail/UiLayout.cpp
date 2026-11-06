@@ -7,7 +7,11 @@
 
 #include "plugins/ui/detail/UiLayout.hpp"
 
-#include <yoga/Yoga.h>
+#include <yoga/YGConfig.h>
+#include <yoga/YGEnums.h>
+#include <yoga/YGNode.h>
+#include <yoga/YGNodeLayout.h>
+#include <yoga/YGNodeStyle.h>
 
 #include <algorithm>
 #include <cstddef>
@@ -30,6 +34,22 @@ struct ConfigDeleter {
 struct NodeDeleter {
     void operator()(YGNode* node) const noexcept { YGNodeFreeRecursive(node); }
 };
+
+[[nodiscard]] YGPositionType toYoga(const UiPosition position) noexcept {
+    return position == UiPosition::kAbsolute ? YGPositionTypeAbsolute : YGPositionTypeRelative;
+}
+
+[[nodiscard]] YGOverflow toYoga(const UiOverflow overflow) noexcept {
+    switch (overflow) {
+        case UiOverflow::kHidden:
+            return YGOverflowHidden;
+        case UiOverflow::kScroll:
+            return YGOverflowScroll;
+        case UiOverflow::kVisible:
+            break;
+    }
+    return YGOverflowVisible;
+}
 
 [[nodiscard]] YGFlexDirection toYoga(const UiDirection direction) noexcept {
     switch (direction) {
@@ -135,17 +155,14 @@ void applyPadding(YGNodeRef node, const YGEdge edge, const UiLength length) {
 
 /// @brief Gives @p node the properties of @p style.
 void applyStyle(YGNodeRef node, const UiNode& style) {
-    YGNodeStyleSetPositionType(
-        node, style.position == UiPosition::kAbsolute ? YGPositionTypeAbsolute : YGPositionTypeRelative);
+    YGNodeStyleSetPositionType(node, toYoga(style.position));
     YGNodeStyleSetFlexDirection(node, toYoga(style.direction));
     YGNodeStyleSetFlexWrap(node, toYoga(style.wrap));
     YGNodeStyleSetJustifyContent(node, toYoga(style.justify));
     YGNodeStyleSetAlignItems(node, toYoga(style.alignItems));
     YGNodeStyleSetAlignSelf(node, toYoga(style.alignSelf));
     YGNodeStyleSetAlignContent(node, toYoga(style.alignContent));
-    YGNodeStyleSetOverflow(node, style.overflow == UiOverflow::kVisible  ? YGOverflowVisible
-                                 : style.overflow == UiOverflow::kHidden ? YGOverflowHidden
-                                                                         : YGOverflowScroll);
+    YGNodeStyleSetOverflow(node, toYoga(style.overflow));
     YGNodeStyleSetFlexGrow(node, style.grow);
     YGNodeStyleSetFlexShrink(node, style.shrink);
     applyLength(
@@ -198,6 +215,7 @@ YGSize measureNode(YGNodeConstRef node, const float width, const YGMeasureMode w
 }
 
 /// @brief Builds the Yoga tree of the node @p index, in the order of the hierarchy.
+// NOLINTNEXTLINE(misc-no-recursion): the depth is the depth of the interface, and the ECS hierarchy has no cycle.
 [[nodiscard]] YGNodeRef build(const std::vector<UiLayoutNode>& nodes, const std::size_t index, YGConfigConstRef config,
                               std::vector<YGNodeRef>& built) {
     const UiLayoutNode& source = nodes.at(index);
@@ -230,6 +248,7 @@ YGSize measureNode(YGNodeConstRef node, const float width, const YGMeasureMode w
 }
 
 /// @brief Adds the node @p index and what is under it to @p result, in draw order.
+// NOLINTNEXTLINE(misc-no-recursion): the depth is the depth of the interface, and the ECS hierarchy has no cycle.
 void collect(const std::vector<UiLayoutNode>& nodes, const std::vector<YGNodeRef>& built, const std::size_t index,
              const glm::vec2 origin, const glm::vec4& clip, std::vector<UiLaidOutNode>& result) {
     const UiLayoutNode& source = nodes.at(index);

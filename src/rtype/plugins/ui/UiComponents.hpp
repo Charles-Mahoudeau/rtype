@@ -16,7 +16,8 @@
 #include "plugins/AssetIdReflection.hpp"   // IWYU pragma: keep
 #include "plugins/GlmReflection.hpp"       // IWYU pragma: keep
 #include "plugins/GraphicsReflection.hpp"  // IWYU pragma: keep
-#include "plugins/text/TextRenderer.hpp"   // IWYU pragma: keep
+#include "plugins/text/TextLayout.hpp"
+#include "plugins/text/TextRenderer.hpp"  // IWYU pragma: keep
 #include "rtype/contract/renderer/drawing/Color.hpp"
 #include "rtype/contract/renderer/math/Rect.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"

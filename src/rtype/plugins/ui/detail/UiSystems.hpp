@@ -9,11 +9,10 @@
 
 #include "plugins/graphics/OverlayQueue.hpp"
 #include "plugins/graphics/TextureAssets.hpp"
-#include "plugins/graphics/WindowEvents.hpp"
+#include "plugins/graphics/WindowEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/Input.hpp"
-#include "plugins/input/InputEvents.hpp"
+#include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
 #include "plugins/text/FontAssets.hpp"
-#include "plugins/ui/Export.hpp"
 #include "plugins/ui/UiComponents.hpp"
 #include "plugins/ui/UiEvents.hpp"
 #include "plugins/ui/UiNode.hpp"
@@ -24,6 +23,7 @@
 #include "rtype/ecs/hierarchy/Children.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
 #include "rtype/ecs/query/Query.hpp"
+#include "rtype/ecs/query/QueryTerms.hpp"
 #include "rtype/ecs/system/EventReader.hpp"
 #include "rtype/ecs/system/EventWriter.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"

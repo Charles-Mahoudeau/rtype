@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "plugins/text/Font.hpp"
 #include "plugins/text/TextLayout.hpp"
@@ -86,23 +87,23 @@ std::string encodeUtf8(const char32_t codepoint) {
     return bytes;
 }
 
-std::size_t previousCharacter(const std::string_view text, std::size_t caret) noexcept {
+std::size_t previousCharacter(const std::string_view text, std::size_t caret) {
     if (caret == 0 || caret > text.size()) {
         return caret == 0 ? 0 : text.size();
     }
     --caret;
-    while (caret > 0 && isContinuation(text[caret])) {
+    while (caret > 0 && isContinuation(text.at(caret))) {
         --caret;
     }
     return caret;
 }
 
-std::size_t nextCharacter(const std::string_view text, std::size_t caret) noexcept {
+std::size_t nextCharacter(const std::string_view text, std::size_t caret) {
     if (caret >= text.size()) {
         return text.size();
     }
     ++caret;
-    while (caret < text.size() && isContinuation(text[caret])) {
+    while (caret < text.size() && isContinuation(text.at(caret))) {
         ++caret;
     }
     return caret;

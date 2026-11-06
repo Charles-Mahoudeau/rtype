@@ -22,18 +22,17 @@ std::optional<std::size_t> findNext(const std::span<const glm::vec2> centers, co
     constexpr float kSidePenalty = 3.0F;
     std::optional<std::size_t> best;
     float bestScore = 0.0F;
-    for (std::size_t index = 0; index < centers.size(); ++index) {
-        const glm::vec2 offset = centers[index] - from;
+    std::size_t index = 0;
+    for (const glm::vec2 center : centers) {
+        const glm::vec2 offset = center - from;
         const float along = glm::dot(offset, direction);
-        if (along <= 1.0F) {
-            continue;
-        }
         const float side = std::abs((offset.x * direction.y) - (offset.y * direction.x));
         const float score = along + (side * kSidePenalty);
-        if (!best || score < bestScore) {
+        if (along > 1.0F && (!best || score < bestScore)) {
             best = index;
             bestScore = score;
         }
+        ++index;
     }
     return best;
 }
