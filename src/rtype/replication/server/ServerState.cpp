@@ -14,6 +14,7 @@
 #include <format>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -78,10 +79,14 @@ class TrackingMapper final : public serialization::EntityMapper {
 };
 
 /// @brief Writes the value of a component, if the entity's bytes are a whole value.
-[[nodiscard]] std::optional<network::Bytes> serializeValue(const ecs::TypeInfo& type, const std::size_t wireSize,
+[[nodiscard]] std::optional<network::Bytes> serializeValue(const ecs::TypeInfo& type,
                                                            const std::span<const std::byte> value,
                                                            const serialization::EntityMapper& mapper) {
     if (value.size() < type.size) {
+        return std::nullopt;
+    }
+    const std::size_t wireSize = serialization::computeWireSize(type, value);
+    if (wireSize > std::numeric_limits<std::uint16_t>::max()) {
         return std::nullopt;
     }
     network::Bytes bytes(wireSize);
@@ -290,11 +295,10 @@ std::vector<network::server::SendMessage> ServerState::buildSnapshots(const std:
         if (info == nullptr || !shortId) {
             continue;
         }
-        const std::size_t wireSize = serialization::computeWireSize(info->type);
         const bool variable = serialization::isVariableSize(info->type);
         for (const ecs::QueryMatch& match : replicated.iter(query)) {
             const std::optional<std::uint32_t> networkId = findNetworkId(match.getEntity());
-            std::optional<network::Bytes> bytes = serializeValue(info->type, wireSize, match.get(0), mapper);
+            std::optional<network::Bytes> bytes = serializeValue(info->type, match.get(0), mapper);
             if (!networkId || !bytes) {
                 continue;
             }

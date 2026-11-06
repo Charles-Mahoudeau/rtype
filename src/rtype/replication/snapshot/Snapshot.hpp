@@ -45,8 +45,8 @@ inline constexpr std::size_t kLastProcessedInputOffset = 5;
 /// @brief The size of a snapshot with no record: the header and the four counts (`u16`).
 inline constexpr std::size_t kEmptySize = kHeaderSize + (4 * sizeof(std::uint16_t));
 
-/// @brief The size computeComponentSizes() gives to a component whose size depends on its value (it has a string):
-/// each of its values is then written after its length, a `u16`.
+/// @brief The size computeComponentSizes() gives to a component whose size depends on its value (it has a list or a
+/// string): each of its values is then written after its length, a `u16`.
 inline constexpr std::size_t kVariableSize = std::numeric_limits<std::size_t>::max();
 
 /// @brief The value of one component in a record: its fields, written by the field serializer.

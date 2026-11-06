@@ -62,7 +62,7 @@ template <typename Key, typename Entry>
         if (clientOnly) {
             return std::format("`{}` exists on the client but not on the server: update your game", clientIt->name);
         }
-        if (serverIt->second.layoutHash != clientIt->layoutHash) {
+        if (serverIt->second.wireHash != clientIt->wireHash) {
             return std::format("`{}` differs between client and server: update your game", clientIt->name);
         }
         ++serverIt;
@@ -117,7 +117,7 @@ bool ManifestReceiver::receive(const std::span<const std::byte> message) {
             [this](const ManifestComponent& component) {
                 return _components
                     .try_emplace(component.shortId,
-                                 ComponentEntry{.name = component.name, .layoutHash = component.layoutHash})
+                                 ComponentEntry{.name = component.name, .wireHash = component.wireHash})
                     .second;
             },
             [this](const ManifestInputAction& action) {

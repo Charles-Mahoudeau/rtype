@@ -85,14 +85,42 @@ class MapMapper final : public serialization::EntityMapper {
     const std::unordered_map<std::uint32_t, ecs::Entity>* _entities;  ///< The `NetworkId → Entity` map.
 };
 
+/// @brief One value of a component read from the network. A type that owns memory (a list field) is a live object,
+/// built here and destroyed with this: the world takes a copy of it.
+class ReceivedValue {
+  public:
+    explicit ReceivedValue(const ecs::TypeInfo& type) : _bytes(type.size) {
+        if (type.hooks.destruct != nullptr) {
+            type.hooks.construct(_bytes.data());
+            _owned = &type;
+        }
+    }
+    ~ReceivedValue() {
+        if (_owned != nullptr) {
+            _owned->hooks.destruct(_bytes.data());
+        }
+    }
+    ReceivedValue(const ReceivedValue& other) = delete;
+    ReceivedValue& operator=(const ReceivedValue& other) = delete;
+    ReceivedValue(ReceivedValue&& other) noexcept
+        : _bytes{std::move(other._bytes)}, _owned{std::exchange(other._owned, nullptr)} {}
+    ReceivedValue& operator=(ReceivedValue&& other) = delete;
+
+    /// @return The bytes of the value.
+    [[nodiscard]] std::span<std::byte> getBytes() noexcept { return _bytes; }
+
+  private:
+    std::vector<std::byte> _bytes;         ///< The value; its buffer does not move with this object.
+    const ecs::TypeInfo* _owned{nullptr};  ///< The type to destroy the value with; null for plain data.
+};
+
 /// @brief Reads one value of a component.
-/// @return The bytes of the value, or nothing when the bytes are not a valid value.
-[[nodiscard]] std::optional<std::vector<std::byte>> readValue(const ecs::TypeInfo& type,
-                                                              const std::span<const std::byte> bytes,
-                                                              const serialization::EntityMapper& mapper) {
-    std::vector<std::byte> value(type.size);
+/// @return The value, or nothing when the bytes are not a valid value.
+[[nodiscard]] std::optional<ReceivedValue> readValue(const ecs::TypeInfo& type, const std::span<const std::byte> bytes,
+                                                     const serialization::EntityMapper& mapper) {
+    ReceivedValue value{type};
     network::bytes::ByteReader reader{bytes};
-    if (!serialization::readFields(reader, type, value, mapper) || !reader.isFinished()) {
+    if (!serialization::readFields(reader, type, value.getBytes(), mapper) || !reader.isFinished()) {
         return std::nullopt;
     }
     return value;
@@ -245,7 +273,7 @@ bool ClientState::validate(const snapshot::Snapshot& decoded, const manifest::Ma
         return std::ranges::all_of(values, [&](const snapshot::ComponentValue& value) {
             const std::optional<ecs::ComponentId> id = manifest.toLocal(value.shortId);
             const ecs::ComponentInfo* info = id ? registry.findById(*id) : nullptr;
-            return info != nullptr && readValue(info->type, value.bytes, mapper);
+            return info != nullptr && readValue(info->type, value.bytes, mapper).has_value();
         });
     };
     return std::ranges::all_of(decoded.spawns,
@@ -286,8 +314,8 @@ void ClientState::writeValues(const std::uint32_t networkId, const std::vector<s
         if (info == nullptr) {
             continue;
         }
-        if (const std::optional<std::vector<std::byte>> bytes = readValue(info->type, value.bytes, mapper)) {
-            static_cast<void>(commands.add(entity->second, *id, *bytes));
+        if (std::optional<ReceivedValue> received = readValue(info->type, value.bytes, mapper)) {
+            static_cast<void>(commands.add(entity->second, *id, received->getBytes()));
         }
     }
 }

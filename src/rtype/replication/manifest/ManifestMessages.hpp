@@ -25,14 +25,14 @@ struct ManifestComponent {
     static constexpr auto kKind = MessageType::kManifestComponent;  ///< The kind byte.
     std::uint16_t shortId{0};                                       ///< Position in the manifest, sorted by name.
     std::string name;                                               ///< The component's name.
-    std::uint64_t layoutHash{0};                                    ///< The component's layout hash.
+    std::uint64_t wireHash{0};  ///< What client and server compare (computeManifestHash()).
 
     /// @brief Lists the fields in wire order.
     template <typename Self, typename Stream>
     static void serialize(Self& self, Stream& stream) {
         stream.value(self.shortId);
         stream.string(self.name, kMaxNameLength);
-        stream.value(self.layoutHash);
+        stream.value(self.wireHash);
     }
 };
 

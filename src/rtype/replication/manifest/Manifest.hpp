@@ -27,8 +27,8 @@ class World;
 namespace rtype::replication::manifest {
 /// @brief A replicated component as the manifest lists it.
 struct ComponentEntry {
-    std::string name;             ///< The component's name.
-    std::uint64_t layoutHash{0};  ///< The component's layout hash.
+    std::string name;           ///< The component's name.
+    std::uint64_t wireHash{0};  ///< What client and server compare (computeManifestHash()).
 
     friend bool operator==(const ComponentEntry& left, const ComponentEntry& right) noexcept = default;
 };
