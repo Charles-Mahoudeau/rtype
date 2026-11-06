@@ -22,7 +22,9 @@
 #include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/exceptions/PluginException.hpp"
+#include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
+#include "rtype/ecs/schedule/Schedule.hpp"
 #include "rtype/ecs/schedule/Schedules.hpp"
 #include "rtype/ecs/time/TimePlugin.hpp"
 #include "rtype/ecs/world/World.hpp"
@@ -103,6 +105,10 @@ void App::addDependencies(const Plugin& plugin) {
         throw;
     }
     _resolving.pop_back();
+}
+
+Schedule::SetConfig App::configureSet(Phase phase, std::string name) {
+    return _schedules.configureSet(phase, std::move(name));
 }
 
 void App::runFrame() {

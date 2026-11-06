@@ -10,6 +10,9 @@
 #include <string>
 #include <utility>
 
+#include "rtype/ecs/resource/ResourceInfo.hpp"
+#include "rtype/ecs/resource/Resources.hpp"
+
 namespace rtype::ecs {
 template <std::derived_from<Plugin> P>
 App& App::addPlugin(P plugin) {
@@ -25,6 +28,14 @@ App& App::addPlugins(G group) {
 template <typename Function, typename... Configs>
 Schedule::SystemConfig App::addSystem(Phase phase, std::string name, Function function, Configs... configs) {
     return _schedules.addSystem(phase, std::move(name), std::move(function), std::move(configs)...);
+}
+
+template <Resource T>
+App& App::allowAmbiguousResource() {
+    Resources& resources = _world.getResources();
+    const ResourceInfo* info = resources.getRegistry().find<T>();
+    _schedules.allowAmbiguousResource(info != nullptr ? info->type.id : resources.registerType<T>());
+    return *this;
 }
 
 template <Resource T>

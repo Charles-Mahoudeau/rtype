@@ -91,6 +91,16 @@ class RTYPE_ECS_API App {
     template <typename Function, typename... Configs>
     Schedule::SystemConfig addSystem(Phase phase, std::string name, Function function, Configs... configs);
 
+    /// @brief Creates the set named `name` in a phase if needed, to order it as a whole (Schedules::configureSet()):
+    /// the owner of a stage frames it once, and plugins put their systems in it with `inSet()`.
+    Schedule::SetConfig configureSet(Phase phase, std::string name);
+
+    /// @brief Lets systems write the resource `T` with no order between them, in every phase: its writes commute
+    /// (Schedules::allowAmbiguousResource()). Registers `T` if it is not registered yet.
+    /// @throws exceptions::ResourceRegistrationException When `T` has to be registered and its name is taken.
+    template <Resource T>
+    App& allowAmbiguousResource();
+
     /// @brief Sets a resource of the world, replacing its value if any (Resources::insert()).
     template <Resource T>
     App& insertResource(T value);
