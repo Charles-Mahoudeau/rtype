@@ -18,16 +18,18 @@
 #include <string>
 #include <utility>
 
+#include "core/system/ExecutablePath.hpp"
 #include "rtype/core/config/Settings.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/MinimalPlugins.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
+#include "rtype/ecs/app/PluginEntry.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/system/Side.hpp"
 #include "rtype/engine/CommandLine.hpp"
 #include "rtype/engine/EngineConfig.hpp"
 #include "rtype/engine/Exceptions.hpp"
-#include "rtype/engine/GamePlugins.hpp"
 #include "rtype/engine/NetworkInput.hpp"
 #include "rtype/engine/scripting/SettingsLoader.hpp"
 #include "rtype/network/NetworkSettings.hpp"
@@ -160,13 +162,37 @@ int Engine::run() {
     }
 }
 
+void Engine::registerLibraries() {
+    _loader.load(core::system::getExecutableDirectory() / kPluginsDirectory);
+    _loader.load(_gameDirectory / kPluginsDirectory);
+    ecs::PluginRegistry& plugins = _app->getPluginRegistry();
+    plugins.setSettings(_settings);
+    ecs::PluginRegistrar registrar{plugins};
+    _loader.registerInto(registrar);
+}
+
+void Engine::addListedPlugins() {
+    const ecs::PluginRegistry& plugins = _app->getPluginRegistry();
+    for (const std::string& name : _settings.getStringList(kPluginsSetting, {})) {
+        std::unique_ptr<ecs::Plugin> plugin = plugins.create(name);
+        if (plugin == nullptr) {
+            std::string known;
+            for (const std::string& registered : plugins.getNames()) {
+                known += std::format("{}'{}'", known.empty() ? "" : ", ", registered);
+            }
+            throw exceptions::RuntimeError{std::format("Invalid setting '{}': unknown plugin '{}' (known: {})",
+                                                       kPluginsSetting, name, known.empty() ? "none" : known)};
+        }
+        _app->addPlugin(std::move(plugin));
+    }
+}
+
 void Engine::build() {
     // The old App goes first: its window and its socket must be released before the new one opens them again.
     _app.reset();
     _settings = loadSettings(_gameDirectory, _config.mode, _commandLine);
     // Checked before anything is built, so a wrong address fails before a window opens; added last, see the class.
     std::unique_ptr<ecs::Plugin> networkPlugin = makeNetworkPlugin(_config.mode, _settings);
-    const GamePlugins gamePlugins = GamePlugins::fromSettings(_settings, _config.mode);
     const bool client = runsClient(_config.mode);
     const bool server = runsServer(_config.mode);
     const std::filesystem::path assets = _gameDirectory / kAssetsDirectory;
@@ -181,6 +207,7 @@ void Engine::build() {
     // Inserted first, so every plugin finds it when it is built.
     app.getWorld().getResources().insert(plugins::AssetDirectory{.path = assets});
 
+    registerLibraries();
     app.addPlugins(ecs::MinimalPlugins{});
     app.addPlugin(plugins::transform::TransformPlugin{});
     if (_config.addPlugins) {
@@ -189,7 +216,7 @@ void Engine::build() {
     if (_config.mode != ecs::RunMode::kStandalone) {
         app.addPlugin(replication::ReplicationPlugin{});
     }
-    gamePlugins.addTo(app);
+    addListedPlugins();
     if (_config.setup) {
         _config.setup(*this);
     }

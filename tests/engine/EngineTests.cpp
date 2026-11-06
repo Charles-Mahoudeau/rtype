@@ -152,6 +152,30 @@ TEST(Engine, RejectsAnInvalidCommandLine) {
     EXPECT_THROW(Engine{serverConfig(game, {"server"})}, RuntimeError);
 }
 
+TEST(Engine, AddsThePluginsTheSettingsNameFromTheirLibraries) {
+    const GameDirectory game{"rtype-engine-listed", R"(
+        engine.settings.network.port = 0
+        engine.settings.plugins = { "test.Loaded", "rtype.Physics" }
+        engine.settings.physics.gravity = { 0, 0 }
+    )"};
+    Engine engine{serverConfig(game)};
+    EXPECT_TRUE(engine.app().hasPlugin("test.Loaded"));
+    EXPECT_TRUE(engine.app().hasPlugin("rtype.Physics"));
+}
+
+TEST(Engine, RefusesAPluginNoLibraryRegisters) {
+    const GameDirectory game{"rtype-engine-unknown-plugin", R"(
+        engine.settings.network.port = 0
+        engine.settings.plugins = { "game.Missing" }
+    )"};
+    try {
+        const Engine engine{serverConfig(game)};
+        FAIL() << "the plugin was accepted";
+    } catch (const RuntimeError& error) {
+        EXPECT_TRUE(std::string{error.what()}.contains("game.Missing"));
+    }
+}
+
 TEST(Engine, GivesThePluginsTheAssetDirectory) {
     const GameDirectory game{"rtype-engine-assets"};
     Engine engine{serverConfig(game)};

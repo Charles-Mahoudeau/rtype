@@ -5,9 +5,9 @@ target("engine")
     set_basename("rtype-engine")
     -- Public: Engine.hpp and EngineConfig.hpp expose the App and the settings.
     add_deps("core", "ecs", {public = true})
-    -- The plugins the Engine names: the transform plugin, which every game has, the generic ones project.luau lists
-    -- (GamePlugins), and the input plugin, which NetworkInput reads.
-    add_deps("luau", "scripting", "replication", "plugin-transform", "plugin-input", "plugin-physics", "plugin-physics-debug")
+    -- The plugins the Engine names: the transform plugin, which every game has, and the input plugin, which NetworkInput
+    -- reads. The others are loaded from their libraries.
+    add_deps("luau", "scripting", "replication", "plugin-transform", "plugin-input")
     add_files("**.cpp")
     add_headerfiles("**.hpp")
     add_defines("RTYPE_ENGINE_BUILD", {public = false})

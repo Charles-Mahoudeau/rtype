@@ -8,7 +8,7 @@ if engine.isClient then
 end
 
 -- A top-down arena: the physics without gravity, and F3 outlines every collider (hidden at first).
-engine.settings.plugins = { "physics", "physicsDebug" }
+engine.settings.plugins = engine.isClient and { "rtype.Physics", "rtype.PhysicsDebug" } or { "rtype.Physics" }
 engine.settings.physics.gravity = { 0, 0 }
 engine.settings.physicsDebug.enabled = false
 engine.settings.physicsDebug.drawAll = true

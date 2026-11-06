@@ -97,7 +97,7 @@ by data, not by an executable. `GamePlugins::fromSettings()` reads the list and 
 an unknown name, before the `App` is built, as the network settings are checked:
 
 ```lua
-engine.settings.plugins = { "physics", "physicsDebug" }
+engine.settings.plugins = { "rtype.Physics", "rtype.PhysicsDebug" }
 engine.settings.physics.gravity = { 0, 0 }
 engine.settings.physicsDebug.drawAll = true
 ```

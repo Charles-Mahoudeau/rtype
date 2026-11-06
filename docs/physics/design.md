@@ -128,7 +128,7 @@ A game run by the `Engine` can add it from `project.luau` instead of C++ (see `.
 plugins*): `PhysicsSettings::fromSettings()` reads the `physics` section, every field but none required.
 
 ```lua
-engine.settings.plugins = { "physics" }
+engine.settings.plugins = { "rtype.Physics" }
 engine.settings.physics.gravity = { 0, 0 }     -- { x, y }, world units per second squared, Y down
 engine.settings.physics.unitsPerMeter = 32
 -- maxBodies, maxBodyPairs, maxContactConstraints, tempAllocatorBytes: positive integers

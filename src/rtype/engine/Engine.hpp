@@ -18,6 +18,7 @@
 #include "rtype/core/config/Settings.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
+#include "rtype/engine/plugin/PluginLoader.hpp"
 
 namespace rtype::engine {
 /// @brief Runs a game: reads its project settings, builds the App with the engine's plugins, then runs it.
@@ -29,7 +30,8 @@ namespace rtype::engine {
 /// 2. the plugins of the program, EngineConfig::addPlugins, with the settings: a client adds its window and what it
 ///    draws there, so the Engine names no backend and a server links none;
 /// 3. on a network side (client and server modes), the replication plugin;
-/// 4. the generic plugins the settings list under `plugins`, such as the physics (see GamePlugins);
+/// 4. the plugins the settings name under `plugins`, built from the plugin libraries of the `plugins` folders, next to
+///    the executable and in the game directory; those they require come with them;
 /// 5. the game's native code, EngineConfig::setup;
 /// 6. the scripting plugin, which runs the game's scripts;
 /// 7. the network plugin, server or client, last because it reads every replicated component when it is built;
@@ -50,7 +52,10 @@ class RTYPE_ENGINE_API Engine {
     static constexpr std::string_view kProjectFile = "project.luau";  ///< The settings, in the game directory.
     static constexpr std::string_view kScriptsDirectory = "scripts";  ///< The scripts, in the game directory.
     static constexpr std::string_view kAssetsDirectory = "assets";    ///< The assets, in the game directory.
-    static constexpr std::string_view kDefaultHost = "127.0.0.1";     ///< The server a client joins by default.
+    static constexpr std::string_view kPluginsDirectory =
+        "plugins";                                                  ///< The libraries, by the executable and the game.
+    static constexpr std::string_view kPluginsSetting = "plugins";  ///< The setting naming the plugins to add.
+    static constexpr std::string_view kDefaultHost = "127.0.0.1";   ///< The server a client joins by default.
 
     /// @brief Reads the command line and the project settings, then builds the App.
     /// @param config What to run; kept to build the App again on a reload.
@@ -97,6 +102,14 @@ class RTYPE_ENGINE_API Engine {
     /// @brief Reads the project settings and builds a new App from them, replacing the current one.
     void build();
 
+    /// @brief Loads the plugin libraries, once, and registers them in the App, with the settings.
+    void registerLibraries();
+
+    /// @brief Adds the plugins the settings name.
+    /// @throws exceptions::RuntimeError If a name is not registered.
+    void addListedPlugins();
+
+    plugin::PluginLoader _loader;               ///< The plugin libraries; outlives every App built from them.
     EngineConfig _config;                       ///< What to run, kept for the reloads.
     CommandLine _commandLine;                   ///< The flags of EngineConfig::args.
     std::filesystem::path _gameDirectory;       ///< The game directory, absolute.
