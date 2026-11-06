@@ -56,6 +56,9 @@ class RTYPE_RENDER_VULKAN_API ShapeBatch {
     /// @brief Adds @p instance, drawn with the game material @p material with its @p values, as add().
     void add(contract::renderer::MaterialId material, const ShapeInstance& instance,
              const contract::renderer::ShaderInstanceValues& values);
+    /// @brief Makes the next add() start a new batch: something else is drawn between the two.
+    void split() noexcept;
+
     /// @brief Forgets every instance and batch, keeping the memory for the next frame.
     void clear() noexcept;
 
@@ -66,6 +69,7 @@ class RTYPE_RENDER_VULKAN_API ShapeBatch {
     std::vector<ShapeInstance> _instances;                          ///< In draw order.
     std::vector<contract::renderer::ShaderInstanceValues> _values;  ///< Of the material shapes, in order.
     std::vector<Batch> _batches;                                    ///< In draw order.
+    bool _split = false;                                            ///< The next add() starts a new batch.
 };
 
 }  // namespace rtype::render::vulkan::rendering

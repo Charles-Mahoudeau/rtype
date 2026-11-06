@@ -99,33 +99,42 @@ pipeline::GraphicsPipeline ShapePass::createMaterialPipeline(
         .build(device, cache);
 }
 
-void ShapePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex, const ShapeBatch& shapes,
-                       const contract::renderer::Viewport& viewport, vk::DescriptorSet textureSet,
-                       const MaterialFinder& findMaterial) {
+void ShapePass::upload(std::size_t frameIndex, const ShapeBatch& shapes) {
     const std::span<const ShapeInstance> instances = shapes.getInstances();
-    if (instances.empty() || viewport.size.x <= 0.0F || viewport.size.y <= 0.0F) {
+    if (instances.empty()) {
         return;
     }
-    memory::Buffer& buffer =
-        reserve(_buffers.at(frameIndex), instances.size(), sizeof(ShapeInstance), "Shape instances");
-    buffer.write(std::as_bytes(instances));
+    reserve(_buffers.at(frameIndex), instances.size(), sizeof(ShapeInstance), "Shape instances")
+        .write(std::as_bytes(instances));
     const std::span<const contract::renderer::ShaderInstanceValues> instanceValues = shapes.getInstanceValues();
     if (!instanceValues.empty()) {
         reserve(_values.at(frameIndex), instanceValues.size(), kValuesSize, "Shape instance values")
             .write(std::as_bytes(instanceValues));
     }
+}
+
+void ShapePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
+                       std::span<const ShapeBatch::Batch> batches, const contract::renderer::Viewport& viewport,
+                       vk::DescriptorSet textureSet, const MaterialFinder& findMaterial,
+                       const std::optional<vk::Rect2D>& scissor) {
+    const std::optional<memory::Buffer>& instances = _buffers.at(frameIndex);
+    if (batches.empty() || !instances || viewport.size.x <= 0.0F || viewport.size.y <= 0.0F) {
+        return;
+    }
+    const memory::Buffer& buffer = *instances;
 
     _pipeline.bind(commandBuffer);
     commandBuffer.setViewport(
         0, vk::Viewport{viewport.position.x, viewport.position.y, viewport.size.x, viewport.size.y, 0.0F, 1.0F});
-    commandBuffer.setScissor(0, vk::Rect2D{vk::Offset2D{static_cast<std::int32_t>(viewport.position.x),
-                                                        static_cast<std::int32_t>(viewport.position.y)},
-                                           vk::Extent2D{static_cast<std::uint32_t>(viewport.size.x),
-                                                        static_cast<std::uint32_t>(viewport.size.y)}});
+    commandBuffer.setScissor(0,
+                             scissor.value_or(vk::Rect2D{vk::Offset2D{static_cast<std::int32_t>(viewport.position.x),
+                                                                      static_cast<std::int32_t>(viewport.position.y)},
+                                                         vk::Extent2D{static_cast<std::uint32_t>(viewport.size.x),
+                                                                      static_cast<std::uint32_t>(viewport.size.y)}}));
     const std::optional<memory::Buffer>& values = _values.at(frameIndex);
     const pipeline::GraphicsPipeline* bound = &_pipeline;
     bool instancesFromStart = false;
-    for (const ShapeBatch::Batch& range : shapes.getBatches()) {
+    for (const ShapeBatch::Batch& range : batches) {
         MaterialBinding material = range.material != contract::renderer::MaterialId{} && textureSet
                                        ? findMaterial(range.material, contract::renderer::ShaderTarget::kShape)
                                        : MaterialBinding{};

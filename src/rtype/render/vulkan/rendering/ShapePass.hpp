@@ -64,14 +64,19 @@ class RTYPE_RENDER_VULKAN_API ShapePass {
         bool instanceValues, const pipeline::PipelineLayout& layout, vk::Format colorFormat,
         const vk::raii::PipelineCache* cache);
 
-    /// @brief Copies @p shapes into frame @p frameIndex's buffers and records their draws, inside dynamic rendering,
-    /// into @p viewport: a batch with a game material through @p findMaterial (the default material if it gives no
-    /// pipeline). The frame's set 0 must already be bound. Nothing is recorded without shapes.
-    /// @param textureSet The set 1 of the batches with a game material: what TEXTURE reads in their shader.
+    /// @brief Copies @p shapes into frame @p frameIndex's buffers, for record().
     /// @throws vk::SystemError If a bigger buffer cannot be created.
-    void record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex, const ShapeBatch& shapes,
-                const contract::renderer::Viewport& viewport, vk::DescriptorSet textureSet,
-                const MaterialFinder& findMaterial);
+    void upload(std::size_t frameIndex, const ShapeBatch& shapes);
+
+    /// @brief Records the draws of @p batches, some of the uploaded batch's, inside dynamic rendering, into @p
+    /// viewport: a batch with a game material through @p findMaterial (the default material if it gives no pipeline).
+    /// The frame's set 0 must already be bound. Nothing is recorded without batches or before upload().
+    /// @param textureSet The set 1 of the batches with a game material: what TEXTURE reads in their shader.
+    /// @param scissor What the draws stay in, in framebuffer pixels; nothing: @p viewport.
+    void record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
+                std::span<const ShapeBatch::Batch> batches, const contract::renderer::Viewport& viewport,
+                vk::DescriptorSet textureSet, const MaterialFinder& findMaterial,
+                const std::optional<vk::Rect2D>& scissor = std::nullopt);
 
   private:
     /// @brief Instances the first buffer holds; each new one doubles until the frame's instances fit.
