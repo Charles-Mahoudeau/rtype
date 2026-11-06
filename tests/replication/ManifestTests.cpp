@@ -383,7 +383,7 @@ TEST(ManifestReceiver, RejectsMessagesThatDoNotDecode) {
 
 TEST(ManifestReceiver, RejectsADuplicatedShortIdOrIndex) {
     ManifestReceiver receiver;
-    const Bytes component = ManifestCodec::encode(ManifestComponent{.shortId = 0, .name = "game.A", .layoutHash = 1});
+    const Bytes component = ManifestCodec::encode(ManifestComponent{.shortId = 0, .name = "game.A", .wireHash = 1});
     const Bytes action =
         ManifestCodec::encode(ManifestInputAction{.index = 0, .name = "fire", .kind = InputKind::kButton});
 
@@ -458,4 +458,21 @@ TEST(InputLayout, RefusesDuplicatesInvalidNamesAndChangesOnceFrozen) {
     EXPECT_TRUE(layout.isFrozen());
     EXPECT_THROW(layout.add("jump", InputKind::kButton), InputLayoutException);
     EXPECT_EQ(layout.actions().size(), 1U);
+}
+
+namespace {
+/// @brief A component with a list.
+struct Backpack {
+    std::vector<std::uint32_t> items;
+};
+RTYPE_ECS_COMPONENT(Backpack, "test.manifest.Backpack", items);
+}  // namespace
+
+TEST(Manifest, ReplicatesAComponentWithAList) {
+    rtype::ecs::World world;
+    static_cast<void>(world.getComponents().registerType<Backpack>(
+        {.presence = rtype::ecs::Presence::kBoth, .replication = rtype::ecs::ReplicationMode::kEveryChange}));
+    rtype::replication::input::InputLayout layout;
+    layout.freeze();
+    EXPECT_NO_THROW(static_cast<void>(rtype::replication::manifest::Manifest::build(world, layout)));
 }
