@@ -21,3 +21,6 @@ compile_commands.json
 **/game/plugins/*.so
 **/game/plugins/*.dylib
 **/game/plugins/*.dll
+
+# Game manual build output
+/manual/site/
