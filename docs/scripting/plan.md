@@ -476,7 +476,7 @@ Small: it can be folded into SCR-04 if the `rtype.Time` view is enough. Keep `ct
 
 **Done when**
 
-- [ ] `ctx.time` gives the values of `rtype.Time` and the old fields still work.
+- [x] `ctx.time` gives the values of `rtype.Time` and the old fields still work.
 
 #### SCR-06: `side` and `presence` in declarations
 

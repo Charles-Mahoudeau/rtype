@@ -58,12 +58,12 @@ struct ScriptSystem {
 ///
 /// @details `ctx.query` is an iterator: `for entity, shield in ctx.query do` yields the entity and, for each data term
 /// in the order of the query, a view of its component (read-only for a read term, `nil` for an optional component the
-/// entity lacks). `ctx.delta` and `ctx.fixedDelta` are the durations of Time, and `ctx.commands` records structural
-/// changes (see registerCommandsType()). `ctx.resources["rtype.Input"]` is a view of a declared resource (read-only
-/// unless declared `write`, `nil` while it has no value), and `ctx.events` has `send(name, fields)` and `read(name)`
-/// for the declared events (see registerContextTypes()). The views die when `run` returns. A Luau
-/// error in `run` is written to `std::cerr` with the name of the system and skips the rest of the run; nothing is
-/// thrown.
+/// entity lacks). `ctx.time` is a table of the values of Time (`delta`, `fixedDelta`, `elapsed`, `tick`, `alpha`),
+/// `ctx.delta` and `ctx.fixedDelta` stay as shorthands of its first two, and `ctx.commands` records structural changes
+/// (see registerCommandsType()). `ctx.resources["rtype.Input"]` is a view of a declared resource (read-only unless
+/// declared `write`, `nil` while it has no value), and `ctx.events` has `send(name, fields)` and `read(name)` for the
+/// declared events (see registerContextTypes()). The views die when `run` returns. A Luau error in `run` is written to
+/// `std::cerr` with the name of the system and skips the rest of the run; nothing is thrown.
 /// @param system The system to run.
 /// @param queries The system's queries, of which the first is iterated.
 /// @param resources The system's resources, in the order of `system.resources`.

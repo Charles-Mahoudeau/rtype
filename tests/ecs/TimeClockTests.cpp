@@ -93,6 +93,25 @@ TEST(TimeClock, InsertsTimeAndKeepsItUpToDate) {
     EXPECT_EQ(world.getResources().require<Time>().tick, 2U);
 }
 
+TEST(TimeClock, SumsTheFramesIntoElapsed) {
+    World world;
+    Schedules schedules{world, RunMode::kStandalone};
+    useManualFrames(schedules, milliseconds{20});
+    schedules.runFrame();
+    EXPECT_DOUBLE_EQ(world.getResources().require<Time>().elapsed, 0.02);
+    schedules.runFrame();
+    schedules.runFrame();
+    EXPECT_DOUBLE_EQ(world.getResources().require<Time>().elapsed, 0.06);
+}
+
+TEST(TimeClock, DoesNotCountANegativeFrameInElapsed) {
+    World world;
+    Schedules schedules{world, RunMode::kStandalone};
+    useManualFrames(schedules, milliseconds{-20});
+    schedules.runFrame();
+    EXPECT_EQ(world.getResources().require<Time>().elapsed, 0.);
+}
+
 TEST(TimeClock, FollowsItsFixedTimestep) {
     World world;
     Schedules schedules{world, RunMode::kStandalone};

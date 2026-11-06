@@ -29,7 +29,9 @@ std::optional<std::chrono::nanoseconds> TimeClock::getManualFrame() const noexce
 std::uint32_t TimeClock::startFrame(World& world) {
     const std::chrono::nanoseconds frame = measureFrame();
     Mut<Time> time = getTime(world);
-    time->delta = std::chrono::duration<float>{std::max(frame, std::chrono::nanoseconds::zero())}.count();
+    const std::chrono::nanoseconds duration = std::max(frame, std::chrono::nanoseconds::zero());
+    time->delta = std::chrono::duration<float>{duration}.count();
+    time->elapsed += std::chrono::duration<double>{duration}.count();
     time->fixedDelta = _timestep.getTickSeconds();
     return _timestep.advance(frame);
 }
@@ -53,7 +55,8 @@ std::chrono::nanoseconds TimeClock::measureFrame() noexcept {
 Mut<Time> TimeClock::getTime(World& world) const {
     Resources& resources = world.getResources();
     // checked each time: a system may have removed or replaced it
-    resources.insertIfAbsent(Time{.delta = 0.F, .fixedDelta = _timestep.getTickSeconds(), .tick = 0, .alpha = 0.F});
+    resources.insertIfAbsent(
+        Time{.delta = 0.F, .fixedDelta = _timestep.getTickSeconds(), .tick = 0, .alpha = 0.F, .elapsed = 0.});
     return resources.getMut<Time>();
 }
 }  // namespace rtype::ecs
