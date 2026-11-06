@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/system/ExecutablePath.hpp"
 #include "plugins/AssetDirectory.hpp"
 #include "rtype/core/config/Settings.hpp"
 #include "rtype/core/config/exceptions/ConfigExceptions.hpp"
@@ -173,6 +174,27 @@ TEST(Engine, RefusesAPluginNoLibraryRegisters) {
         FAIL() << "the plugin was accepted";
     } catch (const RuntimeError& error) {
         EXPECT_TRUE(std::string{error.what()}.contains("game.Missing"));
+    }
+}
+
+TEST(Engine, LoadsThePluginsOfTheGame) {
+    const GameDirectory game{"rtype-engine-game-plugin", R"(
+        engine.settings.network.port = 0
+    )"};
+    const std::filesystem::path plugins = game.path() / Engine::kPluginsDirectory;
+    std::filesystem::create_directories(plugins);
+    const std::filesystem::path library = rtype::core::system::getExecutableDirectory() / Engine::kPluginsDirectory;
+    for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator{library}) {
+        if (entry.path().filename().string().contains("test-plugin")) {
+            // A plugin of the same file name as one of the engine is refused, not silently preferred.
+            std::filesystem::copy_file(std::filesystem::canonical(entry.path()), plugins / entry.path().filename());
+        }
+    }
+    try {
+        const Engine engine{serverConfig(game)};
+        FAIL() << "the library was accepted";
+    } catch (const RuntimeError& error) {
+        EXPECT_TRUE(std::string{error.what()}.contains("same name"));
     }
 }
 
