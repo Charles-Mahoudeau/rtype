@@ -70,7 +70,7 @@ void addClientPlugins(rtype::ecs::App& app, const rtype::core::config::Settings&
     rtype::audio::miniaudio::registerAudio(audio->devices);
     app.addPlugin(rtype::plugins::input::InputPlugin{});
     app.addPlugin(rtype::plugins::graphics::GraphicsPlugin{std::move(backends), settings});
-    app.addPlugin(rtype::plugins::shader::ShaderPlugin{});
+    app.addPlugin(rtype::plugins::shader::ShaderPlugin{settings});
     app.addPlugin(rtype::plugins::sprite::SpritePlugin{});
     app.addPlugin(rtype::plugins::sprite::SpriteDrawPlugin{});
     app.addPlugin(rtype::plugins::shape::ShapePlugin{});

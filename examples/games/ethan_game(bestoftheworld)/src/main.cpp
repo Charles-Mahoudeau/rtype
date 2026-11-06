@@ -176,7 +176,7 @@ void addClientPlugins(ecs::App& app, const core::config::Settings& settings) {
     audio::miniaudio::registerAudio(audio->devices);
     app.addPlugin(plugins::input::InputPlugin{});
     app.addPlugin(plugins::graphics::GraphicsPlugin{std::move(backends), settings});
-    app.addPlugin(plugins::shader::ShaderPlugin{});
+    app.addPlugin(plugins::shader::ShaderPlugin{settings});
     app.addPlugin(plugins::sprite::SpritePlugin{});
     app.addPlugin(plugins::sprite::SpriteDrawPlugin{});
     app.addPlugin(plugins::tilemap::TilemapPlugin{});
