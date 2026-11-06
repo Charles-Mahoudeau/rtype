@@ -17,6 +17,7 @@
 #include "rtype/ecs/detail/WorldState.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/event/Events.hpp"
+#include "rtype/ecs/prefab/Prefabs.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
 
 namespace rtype::ecs {
@@ -57,6 +58,10 @@ class RTYPE_ECS_API World {
     /// @return The events of this world: their registry and queues.
     [[nodiscard]] Events& getEvents() noexcept;
     [[nodiscard]] const Events& getEvents() const noexcept;
+
+    /// @return The prefabs: named templates of entities, spawned by copying their values.
+    [[nodiscard]] Prefabs& getPrefabs() noexcept;
+    [[nodiscard]] const Prefabs& getPrefabs() const noexcept;
 
     /// @return The world's change tick, stamped on every component added or replaced.
     [[nodiscard]] Tick getChangeTick() const noexcept;

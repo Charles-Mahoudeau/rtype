@@ -17,6 +17,7 @@
 #include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/hierarchy/Children.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
+#include "rtype/ecs/prefab/Prefabs.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
 
 namespace rtype::ecs {
@@ -69,6 +70,10 @@ const Resources& World::getResources() const noexcept { return _state->resources
 Events& World::getEvents() noexcept { return _state->events; }
 
 const Events& World::getEvents() const noexcept { return _state->events; }
+
+Prefabs& World::getPrefabs() noexcept { return _state->prefabs; }
+
+const Prefabs& World::getPrefabs() const noexcept { return _state->prefabs; }
 
 Tick World::getChangeTick() const noexcept { return _state->changeTick; }
 
