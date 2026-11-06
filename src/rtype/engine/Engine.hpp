@@ -53,7 +53,9 @@ class RTYPE_ENGINE_API Engine {
     static constexpr std::string_view kScriptsDirectory = "scripts";  ///< The scripts, in the game directory.
     static constexpr std::string_view kAssetsDirectory = "assets";    ///< The assets, in the game directory.
     static constexpr std::string_view kPluginsDirectory =
-        "plugins";                                                  ///< The libraries, by the executable and the game.
+        "plugins";  ///< The libraries, by the executable and the game.
+    static constexpr std::string_view kBackendsDirectory =
+        "backends";                                                 ///< The backends, in the plugins by the executable.
     static constexpr std::string_view kPluginsSetting = "plugins";  ///< The setting naming the plugins to add.
     static constexpr std::string_view kDefaultHost = "127.0.0.1";   ///< The server a client joins by default.
 

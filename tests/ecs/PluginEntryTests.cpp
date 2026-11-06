@@ -13,11 +13,12 @@
 #include <utility>
 
 #include "core/config/Settings.hpp"
+#include "core/library/LibraryEntry.hpp"
+#include "core/library/exceptions/LibraryException.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 #include "rtype/ecs/app/PluginEntry.hpp"
 #include "rtype/ecs/app/PluginRegistry.hpp"
-#include "rtype/ecs/exceptions/PluginException.hpp"
 
 namespace {
 /// @brief A plugin that keeps a setting, as one read by a factory.
@@ -46,7 +47,7 @@ RTYPE_PLUGIN_LIBRARY(registrar) {
 }
 
 TEST(PluginEntry, ALibraryPassesItsOwnCheck) {
-    EXPECT_NO_THROW(rtype::ecs::checkPluginLibrary(*rtypePluginLibrary(), "test"));
+    EXPECT_NO_THROW(rtype::core::library::checkLibrary(*rtypeLibrary(), "test"));
 }
 
 TEST(PluginEntry, ALibraryRegistersItsPluginsWithTheSettings) {
@@ -54,8 +55,9 @@ TEST(PluginEntry, ALibraryRegistersItsPluginsWithTheSettings) {
     rtype::core::config::Settings settings;
     settings.set("test.level", "hard");
     registry.setSettings(settings);
-    rtype::ecs::PluginRegistrar registrar{registry};
-    rtypePluginLibrary()->registerPlugins(registrar);
+    rtype::core::library::LibraryRegistrar registrar;
+    registrar.provide(rtype::ecs::kPluginRegistryService, registry);
+    rtypeLibrary()->registerLibrary(registrar);
 
     const std::unique_ptr<rtype::ecs::Plugin> plugin = registry.create("test.configured");
     ASSERT_NE(plugin, nullptr);
@@ -63,20 +65,22 @@ TEST(PluginEntry, ALibraryRegistersItsPluginsWithTheSettings) {
 }
 
 TEST(PluginEntry, RefusesAnotherVersionAndNamesTheFile) {
-    rtype::ecs::PluginLibrary library = *rtypePluginLibrary();
-    library.abiVersion = rtype::ecs::kPluginAbiVersion + 1;
+    rtype::core::library::LibraryEntry library = *rtypeLibrary();
+    library.abiVersion = rtype::core::library::kLibraryAbiVersion + 1;
     try {
-        rtype::ecs::checkPluginLibrary(library, "boss.so");
+        rtype::core::library::checkLibrary(library, "boss.so");
         FAIL() << "the library was accepted";
-    } catch (const rtype::ecs::exceptions::PluginException& error) {
+    } catch (const rtype::core::library::exceptions::LibraryException& error) {
         EXPECT_TRUE(std::string_view{error.what()}.contains("boss.so"));
     }
 }
 
 TEST(PluginEntry, RefusesAnotherToolchain) {
-    rtype::ecs::PluginLibrary library = *rtypePluginLibrary();
+    rtype::core::library::LibraryEntry library = *rtypeLibrary();
     library.toolchain = "another compiler";
-    EXPECT_THROW(rtype::ecs::checkPluginLibrary(library, "boss.so"), rtype::ecs::exceptions::PluginException);
+    EXPECT_THROW(rtype::core::library::checkLibrary(library, "boss.so"),
+                 rtype::core::library::exceptions::LibraryException);
     library.toolchain = nullptr;
-    EXPECT_THROW(rtype::ecs::checkPluginLibrary(library, "boss.so"), rtype::ecs::exceptions::PluginException);
+    EXPECT_THROW(rtype::core::library::checkLibrary(library, "boss.so"),
+                 rtype::core::library::exceptions::LibraryException);
 }

@@ -7,28 +7,15 @@
 
 #include "PluginEntry.hpp"
 
-#include <format>
-#include <string_view>
-
+#include "core/library/LibraryEntry.hpp"
 #include "rtype/ecs/app/PluginRegistry.hpp"
-#include "rtype/ecs/exceptions/PluginException.hpp"
 
 namespace rtype::ecs {
-PluginRegistrar::PluginRegistrar(PluginRegistry& plugins) noexcept : _plugins{&plugins} {}
+PluginRegistrar::PluginRegistrar(core::library::LibraryRegistrar& library) noexcept : _library{&library} {}
 
-PluginRegistry& PluginRegistrar::getPlugins() noexcept { return *_plugins; }
-
-void checkPluginLibrary(const PluginLibrary& library, const std::string_view file) {
-    if (library.abiVersion != kPluginAbiVersion) {
-        throw exceptions::PluginException{
-            std::format("Plugin library '{}' was built for the plugin version {}, the engine has {}: rebuild it", file,
-                        library.abiVersion, kPluginAbiVersion)};
-    }
-    const std::string_view toolchain = library.toolchain != nullptr ? library.toolchain : "";
-    if (toolchain != RTYPE_ECS_PLUGIN_TOOLCHAIN) {
-        throw exceptions::PluginException{
-            std::format("Plugin library '{}' was built with '{}', the engine with '{}': rebuild it", file, toolchain,
-                        RTYPE_ECS_PLUGIN_TOOLCHAIN)};
-    }
+PluginRegistry& PluginRegistrar::getPlugins() const noexcept {
+    return *_library->find<PluginRegistry>(kPluginRegistryService);
 }
+
+core::library::LibraryRegistrar& PluginRegistrar::getLibrary() const noexcept { return *_library; }
 }  // namespace rtype::ecs

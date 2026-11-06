@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-#include "rtype/ecs/app/PluginEntry.hpp"
+#include "core/library/LibraryEntry.hpp"
 #include "rtype/engine/Export.hpp"
 #include "rtype/engine/plugin/SharedLibrary.hpp"
 
@@ -37,18 +37,18 @@ class RTYPE_ENGINE_API PluginLoader {
     /// exist has none. A folder given twice is read once.
     /// @throws exceptions::RuntimeError If a library cannot be opened, has no entry point, or has the file name of a
     /// library of another folder.
-    /// @throws ecs::exceptions::PluginException If a library was built for another engine.
+    /// @throws core::library::exceptions::LibraryException If a library was built for another engine.
     void load(const std::filesystem::path& directory);
 
     /// @brief Calls the registration of every library, in the order they were loaded.
-    void registerInto(ecs::PluginRegistrar& registrar) const;
+    void registerInto(core::library::LibraryRegistrar& registrar) const;
 
   private:
     /// @brief One library, loaded and checked.
     struct Loaded {
-        std::filesystem::path file;       ///< Its file.
-        SharedLibrary library;            ///< Keeps it in memory.
-        const ecs::PluginLibrary* entry;  ///< What it exports.
+        std::filesystem::path file;                ///< Its file.
+        SharedLibrary library;                     ///< Keeps it in memory.
+        const core::library::LibraryEntry* entry;  ///< What it exports.
     };
 
     /// @brief Opens and checks the library @p file.

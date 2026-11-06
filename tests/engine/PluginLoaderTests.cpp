@@ -14,6 +14,7 @@
 #include <string>
 #include <system_error>
 
+#include "core/library/LibraryEntry.hpp"
 #include "core/system/ExecutablePath.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/PluginEntry.hpp"
@@ -68,7 +69,8 @@ TEST_F(PluginLoaderTest, LoadsALibraryAndRegistersItsPlugins) {
     EXPECT_EQ(loader.getCount(), 1U);
 
     rtype::ecs::App app;
-    rtype::ecs::PluginRegistrar registrar{app.getPluginRegistry()};
+    rtype::core::library::LibraryRegistrar registrar;
+    registrar.provide(rtype::ecs::kPluginRegistryService, app.getPluginRegistry());
     loader.registerInto(registrar);
     ASSERT_TRUE(app.getPluginRegistry().has("test.Loaded"));
     app.addPlugin(app.getPluginRegistry().create("test.Loaded"));

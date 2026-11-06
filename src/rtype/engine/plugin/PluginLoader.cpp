@@ -15,14 +15,14 @@
 #include <utility>
 #include <vector>
 
-#include "rtype/ecs/app/PluginEntry.hpp"
+#include "core/library/LibraryEntry.hpp"
 #include "rtype/engine/Exceptions.hpp"
 #include "rtype/engine/plugin/SharedLibrary.hpp"
 
 namespace rtype::engine::plugin {
 namespace {
 /// @brief What the entry point of a plugin library is.
-using EntryPoint = const ecs::PluginLibrary* (*)();
+using EntryPoint = const core::library::LibraryEntry* (*)();
 }  // namespace
 
 std::size_t PluginLoader::getCount() const noexcept { return _libraries.size(); }
@@ -45,9 +45,9 @@ void PluginLoader::load(const std::filesystem::path& directory) {
     }
 }
 
-void PluginLoader::registerInto(ecs::PluginRegistrar& registrar) const {
+void PluginLoader::registerInto(core::library::LibraryRegistrar& registrar) const {
     for (const Loaded& loaded : _libraries) {
-        loaded.entry->registerPlugins(registrar);
+        loaded.entry->registerLibrary(registrar);
     }
 }
 
@@ -60,13 +60,13 @@ void PluginLoader::loadFile(const std::filesystem::path& file) {
     }
     SharedLibrary library{file};
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast): a symbol's address is what the system gives.
-    const auto entryPoint = reinterpret_cast<EntryPoint>(library.findSymbol(ecs::kPluginEntrySymbol));
+    const auto entryPoint = reinterpret_cast<EntryPoint>(library.findSymbol(core::library::kLibraryEntrySymbol));
     if (entryPoint == nullptr) {
         throw exceptions::RuntimeError{std::format("'{}' is not a plugin library: it has no '{}'",
-                                                   file.generic_string(), ecs::kPluginEntrySymbol)};
+                                                   file.generic_string(), core::library::kLibraryEntrySymbol)};
     }
-    const ecs::PluginLibrary* entry = entryPoint();
-    ecs::checkPluginLibrary(*entry, file.generic_string());
+    const core::library::LibraryEntry* entry = entryPoint();
+    core::library::checkLibrary(*entry, file.generic_string());
     _libraries.push_back(Loaded{.file = file, .library = std::move(library), .entry = entry});
 }
 }  // namespace rtype::engine::plugin

@@ -18,6 +18,7 @@
 #include <string>
 #include <utility>
 
+#include "core/library/LibraryEntry.hpp"
 #include "core/system/ExecutablePath.hpp"
 #include "rtype/core/config/Settings.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -163,11 +164,17 @@ int Engine::run() {
 }
 
 void Engine::registerLibraries() {
-    _loader.load(core::system::getExecutableDirectory() / kPluginsDirectory);
+    const std::filesystem::path plugins = core::system::getExecutableDirectory() / kPluginsDirectory;
+    _loader.load(plugins);
+    // A server has no window and no sound: it does not even load what opens them.
+    if (runsClient(_config.mode)) {
+        _loader.load(plugins / kBackendsDirectory);
+    }
     _loader.load(_gameDirectory / kPluginsDirectory);
-    ecs::PluginRegistry& plugins = _app->getPluginRegistry();
-    plugins.setSettings(_settings);
-    ecs::PluginRegistrar registrar{plugins};
+    ecs::PluginRegistry& registry = _app->getPluginRegistry();
+    registry.setSettings(_settings);
+    core::library::LibraryRegistrar registrar;
+    registrar.provide(ecs::kPluginRegistryService, registry);
     _loader.registerInto(registrar);
 }
 
