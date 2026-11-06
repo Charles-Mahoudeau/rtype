@@ -19,6 +19,7 @@
 #include "plugins/shader/MaterialAssets.hpp"
 #include "plugins/shader/MaterialInstance.hpp"
 #include "plugins/shader/ShaderAssets.hpp"
+#include "plugins/shader/ShaderCalls.hpp"
 #include "plugins/shader/ShaderConfig.hpp"
 #include "plugins/shader/ShaderHandles.hpp"
 #include "plugins/shader/ShaderWatcher.hpp"
@@ -67,6 +68,7 @@ void ShaderPlugin::build(ecs::App& app) {
         .after(std::string{graphics::GraphicsPlugin::kTexturesSystem})
         .before(std::string{graphics::GraphicsPlugin::kBeginFrameSystem})
         .setSide(ecs::Side::kClient);
+    addShaderCalls(app);
     resources.getMut<ShaderAssets>()->setDirectory(_config.gameDirectory);
     if (_config.hotReload && !_config.gameDirectory.empty()) {
         resources.insert(ShaderWatcher{_config.gameDirectory});
