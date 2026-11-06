@@ -61,6 +61,8 @@ commands.spawn()
   stops a finite animation on its last frame (`playing` turns false, an `AnimationFinished` event is sent), and writes
   the frame's texture, source and origin into the entity's `SpriteRenderer`, only when they change, so an idle sprite
   stays unchanged for change detection and replication.
+- A sprite without an animator is drawn from its own `source`: a script writes it as a `vec4`, `x` and `y` its position
+  in the texture, `z` and `w` its size (`source = { x = 0, y = 0, z = 51, w = 115 }`, the whole of a 51x115 image).
 
 ## From scripts
 

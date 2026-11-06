@@ -100,6 +100,33 @@ while (backend.platform->isOpen()) {
 `Backend` owns both. Its renderer is destroyed before its platform, since it may hold resources tied to the window
 (a Vulkan surface).
 
+### Drawing from the ECS
+
+In an App, the `BackendPlugin` draws two components at their entity's `GlobalTransform`, in its client Render systems:
+
+| Component | System | What it draws |
+|---|---|---|
+| `SpriteRenderer` (`rtype.SpriteRenderer`) | `rtype.backend.sprites` | a texture's `source` rectangle, with the `SpriteQueue` (tiles, texts), sorted by `layer` |
+| `ShapeRenderer` (`rtype.ShapeRenderer`) | `rtype.backend.shapes`, after the sprites | a `Shape`: a rectangle, circle, capsule or line, filled and/or outlined, sorted by `layer` among the shapes |
+
+A shape turns and scales with its entity (its `size` on both axes, its radii, corner radius and outline on X), and a
+line runs from the entity's position to its `end`, in the entity's space. Shapes are overlays: they are drawn over every
+sprite whatever their layers, then the physics debug view draws over them. Both components are reflected, so scripts and
+the network see them: their enums as their byte (`blend`: 0 alpha, 1 additive, 2 cutout; `kind`: 0 rect, 1 circle, 2
+capsule, 3 line) and the sprite's `source` as a `vec4` (`x`, `y` its position, `z`, `w` its size), through
+`plugins/backend/graphics/GraphicsReflection.hpp`, which the renderers do not include.
+
+```luau
+ctx.commands:spawn({
+    ["rtype.Transform"] = { position = { x = 400, y = 300 } },
+    ["rtype.ShapeRenderer"] = {
+        kind = 1, radius = 36, -- a circle
+        fillColor = { x = 0.25, y = 0.27, z = 0.32, w = 1 },
+        outlineColor = { x = 0.55, y = 0.6, z = 0.7, w = 1 }, outlineThickness = 2,
+    },
+})
+```
+
 ## The interfaces
 
 ### `IPlatform`
