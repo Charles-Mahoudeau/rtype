@@ -9,6 +9,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <format>
 #include <memory>
@@ -34,6 +35,14 @@
 #include "plugins/input/InputPlugin.hpp"
 #include "plugins/input/PlatformEvent.hpp"
 #include "plugins/input/exceptions/InputExceptions.hpp"
+#include "plugins/physics/Collider.hpp"
+#include "plugins/physics/PhysicsCalls.hpp"
+#include "plugins/physics/PhysicsPlugin.hpp"
+#include "plugins/physics/PhysicsSettings.hpp"
+#include "plugins/physics/PhysicsWorld.hpp"
+#include "plugins/physics/RigidBody.hpp"
+#include "plugins/physics/Velocity.hpp"
+#include "plugins/physics/exceptions/PhysicsExceptions.hpp"
 #include "plugins/sprite/AtlasAssets.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
 #include "plugins/sprite/SpriteCalls.hpp"
@@ -45,6 +54,7 @@
 #include "plugins/tilemap/TilemapAssets.hpp"
 #include "plugins/tilemap/TilemapCalls.hpp"
 #include "plugins/tilemap/TilemapPlugin.hpp"
+#include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/contract/audiodevice/AudioTypes.hpp"
 #include "rtype/contract/platform/event/Event.hpp"
@@ -53,6 +63,8 @@
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/call/CallInfo.hpp"
 #include "rtype/ecs/call/Calls.hpp"
+#include "rtype/ecs/change/Mut.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/event/EventCursor.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 
@@ -375,4 +387,119 @@ TEST(AudioCalls, PlaySoundSendsAPlaySound) {
     EXPECT_EQ(sent[1].bus, rtype::contract::audiodevice::Bus::kEffects);
     ASSERT_TRUE(sent[1].position);
     EXPECT_FLOAT_EQ(sent[1].position->y, 4.0F);
+}
+
+// ---- physics ----
+
+namespace {
+namespace physics = rtype::plugins::physics;
+
+constexpr float kTolerance = 0.05F;
+constexpr std::uint32_t kWallLayer = 1U << 1;
+
+/// @brief An App with the physics plugin and a static wall across the +X axis, its left face at x = 90.
+struct PhysicsCallsApp {
+    rtype::ecs::App app{rtype::ecs::RunMode::kServer};
+    rtype::ecs::Entity wall;
+
+    PhysicsCallsApp() {
+        app.addPlugin(rtype::plugins::transform::TransformPlugin{});
+        app.addPlugin(physics::PhysicsPlugin{physics::PhysicsSettings{
+            .maxBodies = 16, .maxBodyPairs = 16, .maxContactConstraints = 16, .tempAllocatorBytes = 1024 * 1024}});
+        const physics::Collider collider{.size = {20.0F, 200.0F}, .layer = kWallLayer};
+        const rtype::plugins::transform::Transform at{.position = {100.0F, 0.0F}};
+        wall = app.getWorld().spawn(collider, at);
+        static_cast<void>(world()->createBody(wall, collider, nullptr, at));
+    }
+
+    /// @return The physics world, to give bodies without stepping the App.
+    [[nodiscard]] rtype::ecs::Mut<physics::PhysicsWorld> world() {
+        return app.getWorld().getResources().requireMut<physics::PhysicsWorld>();
+    }
+};
+}  // namespace
+
+TEST(PhysicsCalls, RaycastHitsTheNearestBodyItsFilterSees) {
+    PhysicsCallsApp physics;
+    const auto hit =
+        call<physics::HitResult>(physics.app, physics::kRaycastCall, physics::RaycastArguments{.maxDistance = 1000.0F});
+    ASSERT_TRUE(hit.hit);
+    EXPECT_EQ(hit.entity, physics.wall);
+    EXPECT_NEAR(hit.point.x, 90.0F, kTolerance);
+    EXPECT_NEAR(hit.normal.x, -1.0F, kTolerance);
+    EXPECT_NEAR(hit.distance, 90.0F, kTolerance);
+
+    const auto ignored = call<physics::HitResult>(
+        physics.app, physics::kRaycastCall, physics::RaycastArguments{.maxDistance = 1000.0F, .ignore = physics.wall});
+    EXPECT_FALSE(ignored.hit);
+    EXPECT_TRUE(ignored.entity.isNull());
+    const auto masked = call<physics::HitResult>(physics.app, physics::kRaycastCall,
+                                                 physics::RaycastArguments{.maxDistance = 1000.0F, .mask = 1U << 3});
+    EXPECT_FALSE(masked.hit);
+}
+
+TEST(PhysicsCalls, ShapeCastAndOverlapUseTheShapeFields) {
+    PhysicsCallsApp physics;
+    const auto cast = call<physics::HitResult>(
+        physics.app, physics::kShapeCastCall,
+        physics::ShapeCastArguments{.shape = physics::ShapeType::kCircle, .radius = 10.0F, .maxDistance = 1000.0F});
+    ASSERT_TRUE(cast.hit);
+    EXPECT_EQ(cast.entity, physics.wall);
+    EXPECT_NEAR(cast.distance, 80.0F, kTolerance);  // the circle's edge touches the face at x = 90
+
+    const auto inside = call<physics::OverlapResult>(physics.app, physics::kOverlapCall,
+                                                     physics::OverlapArguments{.at = {100.0F, 0.0F}});
+    EXPECT_EQ(inside.count, 1U);
+    EXPECT_EQ(inside.first, physics.wall);
+    const auto outside = call<physics::OverlapResult>(physics.app, physics::kOverlapCall,
+                                                      physics::OverlapArguments{.at = {500.0F, 0.0F}});
+    EXPECT_EQ(outside.count, 0U);
+    EXPECT_TRUE(outside.first.isNull());
+    EXPECT_THROW(
+        call<physics::OverlapResult>(physics.app, physics::kOverlapCall,
+                                     physics::OverlapArguments{.shape = physics::ShapeType::kCircle, .radius = -1.0F}),
+        physics::exceptions::PhysicsException);
+}
+
+TEST(PhysicsCalls, MoveAndSlideStopsAnEntityAgainstAWall) {
+    PhysicsCallsApp physics;
+    const rtype::ecs::Entity ship =
+        physics.app.getWorld().spawn(physics::Collider{.shape = physics::ShapeType::kCircle, .radius = 10.0F});
+
+    const auto moved = call<physics::MoveAndSlideResult>(
+        physics.app, physics::kMoveAndSlideCall,
+        physics::MoveAndSlideArguments{.entity = ship, .delta = {200.0F, 0.0F}, .skin = 0.5F});
+    EXPECT_NEAR(moved.position.x, 79.5F, kTolerance);  // a skin away from the wall
+    EXPECT_NEAR(moved.position.y, 0.0F, kTolerance);
+
+    const rtype::ecs::Entity ghost = physics.app.getWorld().spawn();
+    EXPECT_THROW(call<physics::MoveAndSlideResult>(physics.app, physics::kMoveAndSlideCall,
+                                                   physics::MoveAndSlideArguments{.entity = ghost}),
+                 physics::exceptions::PhysicsException);
+}
+
+TEST(PhysicsCalls, PushesAndGravityReachTheWorld) {
+    PhysicsCallsApp physics;
+    call<void>(physics.app, physics::kSetGravityCall, physics::GravityArguments{.gravity = {0.0F, 0.0F}});
+    EXPECT_FLOAT_EQ(physics.world()->getGravity().y, 0.0F);
+
+    const physics::Collider collider{.shape = physics::ShapeType::kCircle, .radius = 5.0F};
+    const rtype::plugins::transform::Transform at{.position = {0.0F, 300.0F}};
+    const rtype::ecs::Entity ball = physics.app.getWorld().spawn(collider, at, physics::RigidBody{});
+    const physics::RigidBody body{.linearDamping = 0.0F};
+    static_cast<void>(physics.world()->createBody(ball, collider, &body, at));
+
+    call<void>(physics.app, physics::kApplyImpulseCall, physics::PushArguments{.entity = ball, .value = {10.0F, 0.0F}});
+    physics.world()->step(1.0F / 60.0F);
+    const auto velocity = physics.world()->getBodyVelocity(ball);
+    ASSERT_TRUE(velocity);
+    EXPECT_NEAR(velocity->linear.x, 10.0F, kTolerance);  // one kilogram: the impulse is the change of velocity
+
+    call<void>(physics.app, physics::kApplyForceCall, physics::PushArguments{.entity = ball, .value = {0.0F, 60.0F}});
+    call<void>(physics.app, physics::kApplyTorqueCall, physics::TorqueArguments{.entity = ball, .torque = 1.0F});
+    physics.world()->step(1.0F / 60.0F);
+    const auto pushed = physics.world()->getBodyVelocity(ball);
+    ASSERT_TRUE(pushed);
+    EXPECT_NEAR(pushed->linear.y, 1.0F, kTolerance);  // 60 N for a sixtieth of a second
+    EXPECT_GT(pushed->angular, 0.0F);
 }
