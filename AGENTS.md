@@ -30,7 +30,8 @@ are added.
   kind and defining `RTYPE_ECS_STATIC` publicly (see `Export.hpp`).
     - Files are grouped in one folder per feature (`entity/`, `type/` (the core shared by every kind of ECS
       data: fields, hooks, descriptions, registry), `component/`, `resource/`, `event/`, `storage/`, `change/`
-      (change ticks), `world/`, `command/` (deferred structural changes), `query/`, `system/`, `schedule/`, `time/`,
+      (change ticks), `world/`, `command/` (deferred structural changes), `hierarchy/` (`Parent`, `Children`), `query/`, `system/`,
+      `schedule/`, `time/`,
       `app/` (the App and its plugins)), included as `rtype/ecs/<feature>/<File>.hpp`.
     - Exception to the namespace rule: the types users write every day stay in the flat `rtype::ecs`
       namespace whatever their folder (`rtype/ecs/entity/Entity.hpp` declares `rtype::ecs::Entity`).
@@ -82,8 +83,10 @@ are added.
     - `plugins/input/` (`rtype::plugins::input`) — `InputPlugin`: `Control`, `Input`, `InputAction`, `ButtonStates`,
       the `rtype.Input` resource, fed by a `PreUpdate` system from the `PlatformEvent`s in order, and the typed input
       events (`InputEvents.hpp`) for gameplay code. It knows nothing of the backend plugin, which adds it.
-    - `plugins/transform/` (`rtype::plugins::transform`) — `TransformPlugin`: the `Transform` component gameplay writes
-      and the `GlobalTransform` rendering reads, computed from it in `PostUpdate` on every side. The backend plugin adds
+    - `plugins/transform/` (`rtype::plugins::transform`) — `TransformPlugin`: the `Transform` component gameplay writes,
+      relative to the entity's parent, and the `GlobalTransform` rendering reads, computed from it in `PostUpdate` on
+      every side. `TransformMath.hpp` (`combine`, `toLocal`), `WorldPoses` (world poses for what runs before `PostUpdate`,
+      such as the physics) and `Reparent.hpp` (`detachInPlace`, `attachInPlace`). The backend plugin adds
       it and draws each `SpriteRenderer` at its `GlobalTransform`.
     - `plugins/physics/` (`rtype::plugins::physics`) — `PhysicsPlugin`: 2D physics on Jolt (`Collider`, `RigidBody`,
       `Velocity`, the `PhysicsWorld` resource, collision events, scene queries, `moveAndSlide`), simulated on the server
@@ -171,7 +174,8 @@ are added.
   folders of any depth (e.g. `examples/graphic/render/vulkan/VulkanInstance/`). Every `xmake.lua` under
   `examples/` is an example named after its folder. They are only built when enabled (see Commands).
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
-- `docs/` — design documentation (e.g. `docs/Input.md` for the event and input pipeline, `docs/physics/design.md`
+- `docs/` — design documentation (e.g. `docs/ecs/features/17-hierarchy.md` for parents and children,
+  `docs/Input.md` for the event and input pipeline, `docs/physics/design.md`
   for the physics, `docs/audio/design.md` for the audio, `docs/Sprites.md` for atlases and animations,
   `docs/Tilemap.md` for tilemaps and parallax, `docs/Text.md` for MSDF text, `docs/Shaders.md` for game shaders,
   `docs/engine/design.md` for the `Engine`, its build order and reloads).
