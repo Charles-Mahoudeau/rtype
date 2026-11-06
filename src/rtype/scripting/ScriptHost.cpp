@@ -8,19 +8,27 @@
 #include "ScriptHost.hpp"
 
 #include <algorithm>
+#include <cstddef>
 #include <format>
+#include <iterator>
 #include <memory>
+#include <span>
 #include <string>
 #include <string_view>
 #include <tl/expected.hpp>
 #include <utility>
 
+#include "call/EngineCall.hpp"
 #include "commands/ScriptCommands.hpp"
 #include "component/ComponentLayout.hpp"
 #include "component/ComponentRegistration.hpp"
 #include "component/DeclarationReader.hpp"
 #include "plugin/PluginDeclarationReader.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/call/CallInfo.hpp"
+#include "rtype/ecs/call/Calls.hpp"
+#include "rtype/ecs/world/World.hpp"
+#include "rtype/luau/CallContext.hpp"
 #include "rtype/luau/Exceptions.hpp"
 #include "rtype/luau/Function.hpp"
 #include "rtype/luau/LibraryBuilder.hpp"
@@ -130,6 +138,8 @@ luau::Result<> ScriptHost::installEngine(const Options options) {
     luau::LibraryBuilder engineBuilder{_runtime};
     engineBuilder.setName("engine");
     engineBuilder.adoptLibrary(ecsBuilder.build());
+    engineBuilder.function("call").setHandler(
+        [this](const luau::CallContext& arguments) { return callEngine(arguments); });
     _engine.emplace(engineBuilder.build());
 
     luau::Table engine = _engine->table();
@@ -229,6 +239,23 @@ void ScriptHost::addPlugin(const std::string& name) {
     }
     entry.state = PluginEntry::State::kAdded;
     _pluginStack.pop_back();
+}
+
+luau::ValuePack ScriptHost::callEngine(const luau::CallContext& arguments) {
+    const auto* name = arguments.argCount() > 0 ? arguments.args().front().tryAs<std::string>() : nullptr;
+    if (name == nullptr) {
+        throw luau::exceptions::RuntimeError{"engine.call expects the name of an engine call"};
+    }
+    ecs::World& world = _app.getWorld();
+    const ecs::CallInfo* info = world.getCalls().findByName(*name);
+    if (info == nullptr) {
+        throw luau::exceptions::RuntimeError{std::format("unknown engine call '{}'", *name)};
+    }
+    const luau::Value* fields = arguments.argCount() > 1 ? &*std::next(arguments.args().begin()) : nullptr;
+    return call::callEngine(_runtime, *info, fields,
+                            [&world, info](const std::span<const std::byte> bytes, const std::span<std::byte> result) {
+                                world.getCalls().invoke(world, info->id, bytes, result);
+                            });
 }
 
 luau::Result<> ScriptHost::registerAppType() {

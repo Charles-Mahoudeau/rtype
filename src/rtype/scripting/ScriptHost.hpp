@@ -19,9 +19,11 @@
 #include "component/ComponentLayout.hpp"
 #include "plugin/PluginDeclaration.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/luau/CallContext.hpp"
 #include "rtype/luau/Library.hpp"
 #include "rtype/luau/Result.hpp"
 #include "rtype/luau/Runtime.hpp"
+#include "rtype/luau/ValuePack.hpp"
 #include "system/RuntimeHandle.hpp"
 
 namespace rtype::scripting {
@@ -40,6 +42,10 @@ namespace rtype::scripting {
 /// it lists, then calls `build(app)`, where `app` has `component`, `system` and `addPlugin`, the same as `engine.ecs`.
 /// A plugin is built once however many times it is added; a cycle, an unknown name or a name declared twice is a Luau
 /// error naming the plugins.
+///
+/// `engine.call(name, fields)` calls an engine call a plugin registered on the App (ecs::Calls) right away, with the
+/// fields of its arguments (see call::callEngine()); an unknown name is a Luau error. A system makes calls at each run
+/// through `ctx.call` instead, for the calls it lists under `calls`.
 ///
 /// The host and the App may be destroyed in either order. The systems a script added stay in the App when the host
 /// is destroyed first, but their script is gone with the runtime: they can no longer run it.
@@ -99,6 +105,10 @@ class RTYPE_SCRIPTING_API ScriptHost {
     /// @throws luau::exceptions::RuntimeError When no plugin has this name, plugins depend on each other in a cycle, or
     /// a `build` raised an error.
     void addPlugin(const std::string& name);
+
+    /// @brief The body of `engine.call`: calls an engine call by name, outside any system.
+    /// @throws luau::exceptions::RuntimeError When no call has the name, or the call fails (see call::callEngine()).
+    [[nodiscard]] luau::ValuePack callEngine(const luau::CallContext& arguments);
 
     /// @brief Registers the `App` usertype that `build` receives.
     [[nodiscard]] luau::Result<> registerAppType();
