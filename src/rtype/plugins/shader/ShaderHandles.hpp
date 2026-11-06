@@ -19,6 +19,10 @@ namespace rtype::plugins::backend {
 class TextureAssets;
 }  // namespace rtype::plugins::backend
 
+namespace rtype::plugins::backend::graphics {
+class Materials;
+}  // namespace rtype::plugins::backend::graphics
+
 namespace rtype::plugins::shader {
 
 class MaterialAssets;
@@ -29,9 +33,11 @@ class ShaderAssets;
 ///
 /// @details update() follows the two asset resources each frame: it creates the shaders compiled since the last frame,
 /// creates or updates the materials added or changed once their shader and textures are ready, and destroys what was
-/// unloaded. A material waits (and is drawn with the default material) while its shader is not created or a texture is
-/// still queued; one whose values do not match its shader, or whose texture failed, is reported once and stays so until
-/// it changes again. A texture unloaded while a material uses it must not be drawn: unload the material first.
+/// unloaded. Each material created, updated or destroyed is published in the contract's graphics::Materials, which the
+/// plugins that draw read. A material waits (and is drawn with the default material) while its shader is not created or
+/// a texture is still queued; one whose values do not match its shader, or whose texture failed, is reported once and
+/// stays so until it changes again. A texture unloaded while a material uses it must not be drawn: unload the material
+/// first.
 class ShaderHandles {
   public:
     /// @brief A material created in the renderer.
@@ -56,22 +62,26 @@ class ShaderHandles {
     [[nodiscard]] bool hasShader(core::asset::AssetId id) const;
 
     /// @brief Brings the renderer up to date with @p shaders and @p materials, on the main thread, after @p textures
-    /// were loaded for the frame. With a renderer that does not support shaders, only empties their queues.
+    /// were loaded for the frame, and @p published with the materials ready to draw with. With a renderer that does not
+    /// support shaders, only empties their queues.
     void update(ShaderAssets& shaders, MaterialAssets& materials, const backend::TextureAssets& textures,
-                backend::graphics::IRenderer& renderer);
+                backend::graphics::IRenderer& renderer, backend::graphics::Materials& published);
 
   private:
-    /// @brief Destroys the material @p id was created as, if any, and forgets it.
-    void destroyMaterial(core::asset::AssetId id, backend::graphics::IRenderer& renderer);
+    /// @brief Destroys the material @p id was created as, if any, and forgets it here and in @p published.
+    void destroyMaterial(core::asset::AssetId id, backend::graphics::IRenderer& renderer,
+                         backend::graphics::Materials& published);
 
     /// @brief Destroys the shader @p id was created as, and the materials created with it, which wait for a shader of
-    /// this id again.
-    void destroyShader(core::asset::AssetId id, backend::graphics::IRenderer& renderer);
+    /// this id again (and leave @p published).
+    void destroyShader(core::asset::AssetId id, backend::graphics::IRenderer& renderer,
+                       backend::graphics::Materials& published);
 
-    /// @brief Creates or updates the waiting material @p id.
+    /// @brief Creates or updates the waiting material @p id, and publishes it in @p published once created.
     /// @return Whether it is done waiting: created, updated, unknown, or reported as wrong.
     bool createMaterial(core::asset::AssetId id, const ShaderAssets& shaders, const MaterialAssets& materials,
-                        const backend::TextureAssets& textures, backend::graphics::IRenderer& renderer);
+                        const backend::TextureAssets& textures, backend::graphics::IRenderer& renderer,
+                        backend::graphics::Materials& published);
 
     std::unordered_map<core::asset::AssetId, backend::graphics::ShaderId> _shaders;  ///< Created shaders, by asset.
     std::unordered_map<core::asset::AssetId, Material> _materials;                   ///< Created materials, by asset.

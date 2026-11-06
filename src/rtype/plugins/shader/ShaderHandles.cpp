@@ -17,6 +17,7 @@
 
 #include "core/asset/AssetId.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
+#include "plugins/backend/graphics/Materials.hpp"
 #include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
@@ -35,7 +36,7 @@ const ShaderHandles::Material* ShaderHandles::getMaterial(core::asset::AssetId i
 bool ShaderHandles::hasShader(core::asset::AssetId id) const { return _shaders.contains(id); }
 
 void ShaderHandles::update(ShaderAssets& shaders, MaterialAssets& materials, const backend::TextureAssets& textures,
-                           backend::graphics::IRenderer& renderer) {
+                           backend::graphics::IRenderer& renderer, backend::graphics::Materials& published) {
     const std::vector<core::asset::AssetId> unloadedMaterials = materials.takeUnloaded();
     const std::vector<core::asset::AssetId> unloadedShaders = shaders.takeUnloaded();
     const std::vector<core::asset::AssetId> addedShaders = shaders.takeAdded();
@@ -44,11 +45,11 @@ void ShaderHandles::update(ShaderAssets& shaders, MaterialAssets& materials, con
         return;
     }
     for (const core::asset::AssetId id : unloadedMaterials) {
-        destroyMaterial(id, renderer);
+        destroyMaterial(id, renderer, published);
         std::erase(_waiting, id);
     }
     for (const core::asset::AssetId id : unloadedShaders) {
-        destroyShader(id, renderer);
+        destroyShader(id, renderer, published);
     }
     for (const core::asset::AssetId id : addedShaders) {
         const backend::graphics::CompiledShader* compiled = shaders.get(id);
@@ -66,19 +67,23 @@ void ShaderHandles::update(ShaderAssets& shaders, MaterialAssets& materials, con
             _waiting.push_back(id);
         }
     }
-    std::erase_if(_waiting,
-                  [&](core::asset::AssetId id) { return createMaterial(id, shaders, materials, textures, renderer); });
+    std::erase_if(_waiting, [&](core::asset::AssetId id) {
+        return createMaterial(id, shaders, materials, textures, renderer, published);
+    });
 }
 
-void ShaderHandles::destroyMaterial(core::asset::AssetId id, backend::graphics::IRenderer& renderer) {
+void ShaderHandles::destroyMaterial(core::asset::AssetId id, backend::graphics::IRenderer& renderer,
+                                    backend::graphics::Materials& published) {
     const auto found = _materials.find(id);
     if (found != _materials.end()) {
         renderer.destroy(found->second.material);
         _materials.erase(found);
+        published.remove(id);
     }
 }
 
-void ShaderHandles::destroyShader(core::asset::AssetId id, backend::graphics::IRenderer& renderer) {
+void ShaderHandles::destroyShader(core::asset::AssetId id, backend::graphics::IRenderer& renderer,
+                                  backend::graphics::Materials& published) {
     const auto found = _shaders.find(id);
     if (found == _shaders.end()) {
         return;
@@ -89,6 +94,7 @@ void ShaderHandles::destroyShader(core::asset::AssetId id, backend::graphics::IR
             continue;
         }
         renderer.destroy(material->second.material);
+        published.remove(material->first);
         if (std::ranges::find(_waiting, material->first) == _waiting.end()) {
             _waiting.push_back(material->first);
         }
@@ -100,7 +106,7 @@ void ShaderHandles::destroyShader(core::asset::AssetId id, backend::graphics::IR
 
 bool ShaderHandles::createMaterial(core::asset::AssetId id, const ShaderAssets& shaders,
                                    const MaterialAssets& materials, const backend::TextureAssets& textures,
-                                   backend::graphics::IRenderer& renderer) {
+                                   backend::graphics::IRenderer& renderer, backend::graphics::Materials& published) {
     const shader::Material* material = materials.get(id);
     if (material == nullptr) {
         return true;
@@ -133,10 +139,14 @@ bool ShaderHandles::createMaterial(core::asset::AssetId id, const ShaderAssets& 
             renderer.updateMaterial(created->second.material, desc);
             return true;
         }
-        destroyMaterial(id, renderer);
-        _materials.emplace(id, Material{.material = renderer.createMaterial(desc),
-                                        .shader = material->shader,
-                                        .instanceDefaults = compiled->instanceDefaults});
+        destroyMaterial(id, renderer, published);
+        const Material& added = _materials
+                                    .emplace(id, Material{.material = renderer.createMaterial(desc),
+                                                          .shader = material->shader,
+                                                          .instanceDefaults = compiled->instanceDefaults})
+                                    .first->second;
+        published.set(id, backend::graphics::Materials::Entry{.material = added.material,
+                                                              .instanceDefaults = added.instanceDefaults});
     } catch (const std::exception& error) {
         std::cerr << "[ShaderHandles] Material '" << materials.getEntry(id)->path << "': " << error.what() << '\n';
     }

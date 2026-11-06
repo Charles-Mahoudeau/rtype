@@ -13,6 +13,7 @@
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResource.hpp"  // IWYU pragma: keep
 #include "plugins/backend/Names.hpp"
+#include "plugins/backend/graphics/Materials.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/shader/MaterialAssets.hpp"
 #include "plugins/shader/MaterialInstance.hpp"
@@ -30,9 +31,9 @@ namespace {
 /// @brief Render, client: creates, updates and destroys the shaders and materials in the renderer.
 void updateShaders(ecs::NonSendMut<backend::Backend> backend, ecs::ResMut<ShaderAssets> shaders,
                    ecs::ResMut<MaterialAssets> materials, ecs::Res<backend::TextureAssets> textures,
-                   ecs::ResMut<ShaderHandles> handles) {
+                   ecs::ResMut<ShaderHandles> handles, ecs::ResMut<backend::graphics::Materials> published) {
     if (backend->renderer != nullptr) {
-        handles->update(*shaders, *materials, *textures, *backend->renderer);
+        handles->update(*shaders, *materials, *textures, *backend->renderer, *published);
     }
 }
 }  // namespace
@@ -44,6 +45,7 @@ void ShaderPlugin::build(ecs::App& app) {
     resources.insertIfAbsent<ShaderAssets>();
     resources.insertIfAbsent<MaterialAssets>();
     resources.insertIfAbsent<ShaderHandles>();
+    resources.insertIfAbsent<backend::graphics::Materials>();
     resources.insertIfAbsent<backend::TextureAssets>();
     static_cast<void>(app.getWorld().getComponents().registerType<MaterialInstance>());
     app.addSystem(ecs::Phase::kRender, std::string{kUpdateSystem}, &updateShaders)

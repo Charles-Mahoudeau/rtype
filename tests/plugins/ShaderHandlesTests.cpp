@@ -14,6 +14,7 @@
 #include "FakeBackend.hpp"
 #include "TestImages.hpp"
 #include "core/asset/AssetId.hpp"
+#include "plugins/backend/graphics/Materials.hpp"
 #include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/backend/graphics/TextureAssets.hpp"
 #include "plugins/shader/Material.hpp"
@@ -42,7 +43,7 @@ class ShaderHandlesTest : public ::testing::Test {
     void SetUp() override { _state->shaders = true; }
 
     /// @brief Runs ShaderHandles::update(), as the ShaderPlugin does each frame.
-    void update() { _handles.update(_shaders, _materials, _textures, _renderer); }
+    void update() { _handles.update(_shaders, _materials, _textures, _renderer, _published); }
 
     std::shared_ptr<rtype::test::plugins::FakeBackendState> _state{
         std::make_shared<rtype::test::plugins::FakeBackendState>()};  ///< Drives the fake renderer.
@@ -51,6 +52,7 @@ class ShaderHandlesTest : public ::testing::Test {
     rtype::plugins::shader::MaterialAssets _materials;                ///< The game's materials.
     rtype::plugins::backend::TextureAssets _textures;                 ///< The game's textures.
     ShaderHandles _handles;                                           ///< Under test.
+    rtype::plugins::backend::graphics::Materials _published;          ///< What the handles publish.
 };
 }  // namespace
 
@@ -144,4 +146,63 @@ TEST_F(ShaderHandlesTest, RecreatesTheMaterialsOfAReloadedShader) {
     update();
     EXPECT_EQ(_state->createdMaterials.size(), 2U);
     EXPECT_NE(_handles.getMaterial(material), nullptr);
+}
+
+TEST_F(ShaderHandlesTest, PublishesACreatedMaterial) {
+    const AssetId material = _materials.add("red", Material{.shader = _shaders.add("glow", kShader)});
+    update();
+    const ShaderHandles::Material* created = _handles.getMaterial(material);
+    const rtype::plugins::backend::graphics::Materials::Entry* published = _published.find(material);
+    ASSERT_NE(created, nullptr);
+    ASSERT_NE(published, nullptr);
+    EXPECT_EQ(published->material, created->material);
+    EXPECT_EQ(published->instanceDefaults, created->instanceDefaults);
+    EXPECT_EQ(_published.getCount(), 1U);
+}
+
+TEST_F(ShaderHandlesTest, PublishesNothingWhileAMaterialWaits) {
+    const AssetId material = _materials.add("red", Material{.shader = AssetId::fromPath("glow")});
+    update();
+    EXPECT_EQ(_published.find(material), nullptr);
+    static_cast<void>(_shaders.add("glow", kShader));
+    update();
+    EXPECT_NE(_published.find(material), nullptr);
+}
+
+TEST_F(ShaderHandlesTest, PublishesNothingWithoutShaderSupport) {
+    _state->shaders = false;
+    static_cast<void>(_materials.add("red", Material{.shader = _shaders.add("glow", kShader)}));
+    update();
+    EXPECT_EQ(_published.getCount(), 0U);
+}
+
+TEST_F(ShaderHandlesTest, KeepsAnUpdatedMaterialPublished) {
+    const AssetId material = _materials.add("red", Material{.shader = _shaders.add("glow", kShader)});
+    update();
+    const rtype::plugins::backend::graphics::MaterialId first = _published.find(material)->material;
+    ASSERT_TRUE(_materials.setValue(material, "tint", glm::vec4{0.5F}));
+    update();
+    ASSERT_NE(_published.find(material), nullptr);
+    EXPECT_EQ(_published.find(material)->material, first);  // updated in place, same id
+}
+
+TEST_F(ShaderHandlesTest, WithdrawsAnUnloadedMaterial) {
+    const AssetId material = _materials.add("red", Material{.shader = _shaders.add("glow", kShader)});
+    update();
+    ASSERT_TRUE(_materials.unload(material));
+    update();
+    EXPECT_EQ(_published.find(material), nullptr);
+}
+
+TEST_F(ShaderHandlesTest, WithdrawsTheMaterialsOfAnUnloadedShaderUntilItIsBack) {
+    const AssetId shader = _shaders.add("glow", kShader);
+    const AssetId material = _materials.add("red", Material{.shader = shader});
+    update();
+    ASSERT_TRUE(_shaders.unload(shader));
+    update();
+    EXPECT_EQ(_published.find(material), nullptr);
+    static_cast<void>(_shaders.add("glow", kShader));
+    update();
+    ASSERT_NE(_published.find(material), nullptr);
+    EXPECT_EQ(_published.find(material)->material, _handles.getMaterial(material)->material);
 }
