@@ -49,9 +49,8 @@ class RTYPE_ENGINE_API Engine {
     static constexpr std::string_view kGameFlag = "game";             ///< The flag that names the game directory.
     static constexpr std::string_view kProjectFile = "project.luau";  ///< The settings, in the game directory.
     static constexpr std::string_view kScriptsDirectory = "scripts";  ///< The scripts, in the game directory.
-    /// @brief The setting the Engine fills with the game directory, for the plugins, which do not know the Engine.
-    static constexpr std::string_view kGameDirectorySetting = "game.directory";
-    static constexpr std::string_view kDefaultHost = "127.0.0.1";  ///< The server a client joins by default.
+    static constexpr std::string_view kAssetsDirectory = "assets";    ///< The assets, in the game directory.
+    static constexpr std::string_view kDefaultHost = "127.0.0.1";     ///< The server a client joins by default.
 
     /// @brief Reads the command line and the project settings, then builds the App.
     /// @param config What to run; kept to build the App again on a reload.

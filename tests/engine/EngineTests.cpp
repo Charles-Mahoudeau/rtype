@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "plugins/AssetDirectory.hpp"
 #include "rtype/core/config/Settings.hpp"
 #include "rtype/core/config/exceptions/ConfigExceptions.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -151,10 +152,21 @@ TEST(Engine, RejectsAnInvalidCommandLine) {
     EXPECT_THROW(Engine{serverConfig(game, {"server"})}, RuntimeError);
 }
 
-TEST(Engine, GivesThePluginsTheGameDirectory) {
-    const GameDirectory game{"rtype-engine-game-setting"};
-    const Engine engine{serverConfig(game)};
-    EXPECT_EQ(engine.settings().getString(Engine::kGameDirectorySetting, ""), engine.gameDirectory().string());
+TEST(Engine, GivesThePluginsTheAssetDirectory) {
+    const GameDirectory game{"rtype-engine-assets"};
+    Engine engine{serverConfig(game)};
+    EXPECT_EQ(rtype::plugins::assetDirectoryOf(engine.app().getWorld().getResources()),
+              engine.gameDirectory() / Engine::kAssetsDirectory);
+}
+
+TEST(Engine, AClientNeedsAnAssetsDirectoryAndAServerDoesNot) {
+    const GameDirectory game{"rtype-engine-no-assets"};
+    EngineConfig standalone{.mode = rtype::ecs::RunMode::kStandalone, .game = game.path()};
+    EXPECT_THROW(Engine{standalone}, RuntimeError);
+    EXPECT_NO_THROW(Engine{serverConfig(game)});
+
+    std::filesystem::create_directories(game.path() / Engine::kAssetsDirectory);
+    EXPECT_NO_THROW(Engine{standalone});
 }
 
 TEST(Engine, GivesTheProjectItsModeAndCommandLine) {

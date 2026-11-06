@@ -32,6 +32,7 @@
 #include "rtype/engine/scripting/SettingsLoader.hpp"
 #include "rtype/network/NetworkSettings.hpp"
 #include "rtype/network/io/Address.hpp"
+#include "rtype/plugins/AssetDirectory.hpp"
 #include "rtype/plugins/transform/TransformPlugin.hpp"
 #include "rtype/replication/ReplicationPlugin.hpp"
 #include "rtype/replication/ReplicationSettings.hpp"
@@ -163,15 +164,22 @@ void Engine::build() {
     // The old App goes first: its window and its socket must be released before the new one opens them again.
     _app.reset();
     _settings = loadSettings(_gameDirectory, _config.mode, _commandLine);
-    _settings.set(std::string{kGameDirectorySetting}, _gameDirectory.string());
     // Checked before anything is built, so a wrong address fails before a window opens; added last, see the class.
     std::unique_ptr<ecs::Plugin> networkPlugin = makeNetworkPlugin(_config.mode, _settings);
     const GamePlugins gamePlugins = GamePlugins::fromSettings(_settings, _config.mode);
+    const bool client = runsClient(_config.mode);
+    const bool server = runsServer(_config.mode);
+    const std::filesystem::path assets = _gameDirectory / kAssetsDirectory;
+    // A server can run with the scripts alone; a client always draws something, so it is checked before a window opens.
+    if (client && !std::filesystem::is_directory(assets)) {
+        throw exceptions::RuntimeError{
+            std::format("No assets in '{}': it has no {} directory", _gameDirectory.string(), kAssetsDirectory)};
+    }
     _app = std::make_unique<ecs::App>(_config.mode);
 
     ecs::App& app = *_app;
-    const bool client = runsClient(_config.mode);
-    const bool server = runsServer(_config.mode);
+    // Inserted first, so every plugin finds it when it is built.
+    app.getWorld().getResources().insert(plugins::AssetDirectory{.path = assets});
 
     app.addPlugins(ecs::MinimalPlugins{});
     app.addPlugin(plugins::transform::TransformPlugin{});
