@@ -56,7 +56,7 @@ the case for every Luau component.
 | `emplace` | `construct` | zero-fill |
 | swap-and-pop `remove` | `move` (last → hole), then `destruct` (last) | `memcpy`, nothing |
 | Column growth | `move` for each element | `memcpy` of the whole block |
-| [Prefab](18-prefabs-and-scenes.md) instantiation | `copy` | `memcpy` |
+| [Actor](18-actors-and-scenes.md) instantiation | `copy` | `memcpy` |
 
 ### Reactions without observers
 
@@ -88,7 +88,7 @@ If those needs appear, observers can be added on top of the same events, without
 
 - Uses: [Component registry](02-component-registry.md) (hooks live in `ComponentInfo`).
 - Used by: [Pool](04-pool.md), [Archetype tables](05-archetype-tables.md),
-  [Prefabs](18-prefabs-and-scenes.md).
+  [Actors](18-actors-and-scenes.md).
 
 ## Pitfalls
 

@@ -111,7 +111,7 @@ refused as `write` terms, which would bypass the `World`. They are registered by
 
 - Uses: [Components](02-component-registry.md) (`kEntity` fields), [Commands](09-commands.md),
   [Change detection](08-change-detection.md), [Scheduler](13-scheduler.md) (`PostUpdate`).
-- Used by: rendering (via `GlobalTransform`), [Prefabs](18-prefabs-and-scenes.md) (prefabs with
+- Used by: rendering (via `GlobalTransform`), [Actors](18-actors-and-scenes.md) (actors with
   children), [Replication](20-replication.md).
 
 ## Pitfalls

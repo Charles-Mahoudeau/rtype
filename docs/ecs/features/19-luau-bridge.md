@@ -3,7 +3,7 @@
 ## What it is
 
 The bridge is the layer that lets **Luau scripts declare and run game code on the ECS**: components
-(as Luau types), systems (as Luau classes), plugins, prefabs, events, resources, input actions and
+(as Luau types), systems (as Luau classes), plugins, actors, events, resources, input actions and
 entities. It sits between Charles's `rtype-luau` runtime and the ECS's type-erased API, in the engine's
 `ScriptPlugin` / `LuauPlugin`.
 
@@ -78,7 +78,7 @@ flowchart LR
 ### Generated declarations for script components
 
 `generateTypes()` is extended to emit declarations for **script-defined** components, resources,
-events and prefabs, after loading the plugins:
+events and actors, after loading the plugins:
 
 ```luau
 -- generated: game.d.luau
@@ -89,11 +89,11 @@ declare class ShieldComponent
 end
 
 type ComponentName = "rtype.Transform" | "rtype.SpriteRenderer" | "game.Shield" | "game.Health"
-type PrefabName = "game.Bydo" | "game.Bullet"
+type ActorName = "game.Bydo" | "game.Bullet"
 ```
 
 Editors then autocomplete component fields, and the type checker flags a typo like
-`"game.Sheild"` in a query or prefab before the game runs.
+`"game.Sheild"` in a query or actor before the game runs.
 
 ### Systems
 
@@ -128,7 +128,7 @@ function RtypePlugin:build(app)
     app:load("components/Shield.luau")       -- by path: no require() across files
     app:load("systems/ShieldRegen.luau")
     app:addPlugin("scripts/rtype/weapons/plugin.luau")
-    app:prefab("game.Bydo", { --[[ ... ]] })
+    app:actor("game.Bydo", { --[[ ... ]] })
     app:state("game.Phase", { "Menu", "Lobby", "Playing", "GameOver" })
     app:event("game.BossDefeated", { type = "BossDefeated" })
     app:resource("game.Score", { type = "Score", replication = "everyChange" })
@@ -169,7 +169,7 @@ in the network manifest so the server knows the layout of `PlayerInput`.
 
 ### Where scripts run
 
-Luau plugins load on the **server and the clients** (both need layouts, prefabs and input actions).
+Luau plugins load on the **server and the clients** (both need layouts, actors and input actions).
 System sides decide what runs where: `server` (gameplay, default), `client` (presentation), `both`
 (identical simulation such as bullet motion). In standalone mode both sides run in one App.
 
@@ -177,7 +177,7 @@ System sides decide what runs where: `server` (gameplay, default), `client` (pre
 
 - Uses: [Component registry](02-component-registry.md), [Queries](07-queries.md),
   [Systems](12-systems.md), [Commands](09-commands.md), [Events](11-events.md),
-  [Resources](10-resources.md), [Prefabs](18-prefabs-and-scenes.md), [Reflection](15-reflection-and-serialization.md),
+  [Resources](10-resources.md), [Actors](18-actors-and-scenes.md), [Reflection](15-reflection-and-serialization.md),
   [App and plugins](14-app-and-plugins.md).
 - External: Charles's `rtype::luau::Runtime`, `Result`, `Error`, `generateTypes()`; Ethan's `Input` /
   `InputAction`.

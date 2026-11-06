@@ -31,7 +31,7 @@ are added.
     - Files are grouped in one folder per feature (`entity/`, `type/` (the core shared by every kind of ECS
       data: fields, hooks, descriptions, registry), `component/`, `resource/`, `event/`, `storage/`, `change/`
       (change ticks), `world/`, `command/` (deferred structural changes), `hierarchy/` (`Parent`, `Children`),
-      `prefab/` (named templates of entities), `query/`, `system/`, `schedule/`, `time/`,
+      `actor/` (named templates of entities), `query/`, `system/`, `schedule/`, `time/`,
       `app/` (the App and its plugins)), included as `rtype/ecs/<feature>/<File>.hpp`.
     - Exception to the namespace rule: the types users write every day stay in the flat `rtype::ecs`
       namespace whatever their folder (`rtype/ecs/entity/Entity.hpp` declares `rtype::ecs::Entity`).
