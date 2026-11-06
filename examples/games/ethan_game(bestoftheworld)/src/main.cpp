@@ -14,24 +14,36 @@
 #include <exception>
 #include <glm/ext/vector_float2.hpp>
 #include <iostream>
+#include <memory>
 #include <random>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "audio/miniaudio/Registration.hpp"
 #include "core/asset/AssetId.hpp"
+#include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
 #include "plugins/audio/AudioAssets.hpp"
+#include "plugins/audio/AudioPlugin.hpp"
 #include "plugins/audio/AudioRegistry.hpp"
 #include "plugins/audio/AudioResources.hpp"
-#include "plugins/audio/AudioTypes.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/BackendResources.hpp"
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/SpriteRenderer.hpp"
-#include "plugins/backend/graphics/TextureAssets.hpp"
+#include "plugins/graphics/BackendRegistry.hpp"
+#include "plugins/graphics/GraphicsPlugin.hpp"
+#include "plugins/graphics/GraphicsResources.hpp"
+#include "plugins/graphics/TextureAssets.hpp"
+#include "plugins/input/InputPlugin.hpp"
+#include "plugins/particle/ParticlePlugin.hpp"
+#include "plugins/shader/ShaderPlugin.hpp"
+#include "plugins/sprite/SpriteDrawPlugin.hpp"
+#include "plugins/sprite/SpritePlugin.hpp"
+#include "plugins/sprite/SpriteRenderer.hpp"
+#include "plugins/text/TextPlugin.hpp"
+#include "plugins/tilemap/TilemapPlugin.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "render/vulkan/Registration.hpp"
+#include "rtype/contract/audiodevice/AudioTypes.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/command/Commands.hpp"
@@ -55,7 +67,7 @@ constexpr float kFullSize = 0.7F;  // The image's scale once zoomed in: all.luau
 constexpr float kMinSoundSpeed = 0.1F;
 constexpr float kMaxSoundSpeed = 3.0F;
 // The image's background, 28/255 in sRGB: the clear colour is written as it is, in linear values.
-constexpr plugins::backend::graphics::Color kBackground{0.0116F, 0.0116F, 0.0116F, 1.0F};
+constexpr contract::renderer::Color kBackground{0.0116F, 0.0116F, 0.0116F, 1.0F};
 }  // namespace
 
 // The splash screen: all.luau moves it forward, the systems below show it.
@@ -70,7 +82,7 @@ RTYPE_ECS_COMPONENT(Splash, "game.Splash", pace, elapsed, zoom, finished);
 // The sound the splash screen ends with.
 struct Jingle {
     core::asset::AssetId sound;
-    plugins::audio::VoiceId voice;
+    contract::audiodevice::VoiceId voice;
     bool started{false};
 };
 RTYPE_ECS_RESOURCE(Jingle, "game.Jingle");
@@ -89,21 +101,21 @@ float randomSoundSpeed() {
 }
 
 // Startup: loads the image and the sound, and spawns the splash screen.
-void spawnSplash(ecs::ResMut<plugins::backend::TextureAssets> textures, ecs::ResMut<plugins::audio::AudioAssets> sounds,
-                 ecs::ResMut<Jingle> jingle, ecs::Commands& commands) {
+void spawnSplash(ecs::ResMut<plugins::graphics::TextureAssets> textures,
+                 ecs::ResMut<plugins::audio::AudioAssets> sounds, ecs::ResMut<Jingle> jingle, ecs::Commands& commands) {
     const std::string game{kGame};
     jingle->sound = sounds->load(game + "/assets/wafprout.mp3");
     commands.spawn()
         .add(plugins::transform::Transform{.position = {kWidth / 2.0F, kHeight / 2.0F}, .scale = glm::vec2{0.0F}})
-        .add(plugins::backend::SpriteRenderer{.texture = textures->load(game + "/assets/luau.png"),
-                                              .source = {{0.0F, 0.0F}, kImageSize},
-                                              .origin = kImageSize / 2.0F})
+        .add(plugins::sprite::SpriteRenderer{.texture = textures->load(game + "/assets/luau.png"),
+                                             .source = {{0.0F, 0.0F}, kImageSize},
+                                             .origin = kImageSize / 2.0F})
         .add(Splash{});
 }
 
 // Update: starts the zoom once the image is loaded, and shows what all.luau computed.
-void applyZoom(ecs::Res<plugins::backend::TextureAssets> textures,
-               ecs::Query<plugins::transform::Transform, Splash, const plugins::backend::SpriteRenderer> splashes) {
+void applyZoom(ecs::Res<plugins::graphics::TextureAssets> textures,
+               ecs::Query<plugins::transform::Transform, Splash, const plugins::sprite::SpriteRenderer> splashes) {
     for (auto [entity, transform, splash, sprite] : splashes) {
         splash->pace = textures->getTexture(sprite.texture) ? 1.0F : 0.0F;
         transform->scale = glm::vec2{splash->zoom * kFullSize};
@@ -133,7 +145,8 @@ void playJingle(ecs::NonSendMut<plugins::audio::Audio> audio, ecs::Res<plugins::
     }
     for (auto [entity, splash] : splashes) {
         if (splash.finished) {
-            jingle->voice = audio->device->play(sound->sound, plugins::audio::PlayParams{.pitch = randomSoundSpeed()});
+            jingle->voice =
+                audio->device->play(sound->sound, contract::audiodevice::PlayParams{.pitch = randomSoundSpeed()});
             jingle->started = true;
         }
     }
@@ -142,7 +155,7 @@ void playJingle(ecs::NonSendMut<plugins::audio::Audio> audio, ecs::Res<plugins::
 // The Engine's setup: the splash screen's data and systems; the Engine adds the window, the sound and all.luau.
 void setup(engine::Engine& engine) {
     ecs::App& app = engine.app();
-    app.insertResource(plugins::backend::ClearColor{.value = kBackground});
+    app.insertResource(plugins::graphics::ClearColor{.value = kBackground});
     app.insertResource(Jingle{});
     static_cast<void>(app.getWorld().getComponents().registerType<Splash>());
     app.addSystem(ecs::Phase::kStartup, "game.spawnSplash", &spawnSplash).setSide(ecs::Side::kClient);
@@ -153,17 +166,31 @@ void setup(engine::Engine& engine) {
 }
 }  // namespace
 
+/// @brief Adds the plugins of the client side, with the backends the settings can name: the only place that knows
+/// GLFW, Vulkan and miniaudio.
+void addClientPlugins(ecs::App& app, const core::config::Settings& settings) {
+    auto backends = std::make_unique<plugins::graphics::BackendRegistry>();
+    platform::glfw::registerPlatform(backends->platforms);
+    render::vulkan::registerRenderer(backends->renderers);
+    auto audio = std::make_unique<plugins::audio::AudioRegistry>();
+    audio::miniaudio::registerAudio(audio->devices);
+    app.addPlugin(plugins::input::InputPlugin{});
+    app.addPlugin(plugins::graphics::GraphicsPlugin{std::move(backends), settings});
+    app.addPlugin(plugins::shader::ShaderPlugin{});
+    app.addPlugin(plugins::sprite::SpritePlugin{});
+    app.addPlugin(plugins::sprite::SpriteDrawPlugin{});
+    app.addPlugin(plugins::tilemap::TilemapPlugin{});
+    app.addPlugin(plugins::text::TextPlugin{});
+    app.addPlugin(plugins::particle::ParticlePlugin{});
+    app.addPlugin(plugins::audio::AudioPlugin{std::move(audio), settings});
+}
+
 int main() {
     try {
         // Standalone: one process, both sides, no network.
         engine::Engine engine{{
             .game = kGame,
-            .registerBackends =
-                [](plugins::backend::BackendRegistry& registry) {
-                    platform::glfw::registerPlatform(registry);
-                    render::vulkan::registerRenderer(registry);
-                },
-            .registerAudio = [](plugins::audio::AudioRegistry& registry) { audio::miniaudio::registerAudio(registry); },
+            .addPlugins = &addClientPlugins,
             .setup = &setup,
         }};
         engine.run();

@@ -16,6 +16,7 @@
 #include "rtype/ecs/actor/Actor.hpp"
 #include "rtype/ecs/actor/ActorSpawner.hpp"
 #include "rtype/ecs/actor/Actors.hpp"
+#include "rtype/ecs/call/Calls.hpp"
 #include "rtype/ecs/change/Tick.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/Components.hpp"
@@ -105,6 +106,9 @@ const Events& World::getEvents() const noexcept { return _state->events; }
 Actors& World::getActors() noexcept { return _state->actors; }
 
 const Actors& World::getActors() const noexcept { return _state->actors; }
+Calls& World::getCalls() noexcept { return _state->calls; }
+
+const Calls& World::getCalls() const noexcept { return _state->calls; }
 
 Tick World::getChangeTick() const noexcept { return _state->changeTick; }
 

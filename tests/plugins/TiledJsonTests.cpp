@@ -15,10 +15,10 @@
 #include <string_view>
 #include <vector>
 
-#include "plugins/backend/graphics/Color.hpp"
 #include "plugins/tilemap/Tilemap.hpp"
 #include "plugins/tilemap/detail/TiledJson.hpp"
 #include "plugins/tilemap/exceptions/TilemapExceptions.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
 
 using rtype::plugins::tilemap::LayerKind;
 using rtype::plugins::tilemap::MapLayer;
@@ -98,7 +98,7 @@ TEST(TiledJson, ReadsAnImageLayer) {
     EXPECT_TRUE(sky.repeatX);
     EXPECT_FALSE(sky.repeatY);
     EXPECT_EQ(sky.parallax, (glm::vec2{0.5F, 1.0F}));
-    EXPECT_EQ(sky.tint, (rtype::plugins::backend::graphics::Color{1.0F, 0.0F, 0.0F, 1.0F}));
+    EXPECT_EQ(sky.tint, (rtype::contract::renderer::Color{1.0F, 0.0F, 0.0F, 1.0F}));
 }
 
 TEST(TiledJson, FlattensGroupsIntoTheirLayers) {

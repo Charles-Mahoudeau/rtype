@@ -13,14 +13,14 @@
 #include <string_view>
 #include <vector>
 
-#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/shader/detail/ShaderAssembler.hpp"
 #include "plugins/shader/detail/ShaderCompiler.hpp"
 #include "plugins/shader/detail/ShaderParser.hpp"
 #include "plugins/shader/exceptions/ShaderExceptions.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
-using rtype::plugins::backend::graphics::CompiledShader;
-using rtype::plugins::backend::graphics::ShaderTarget;
+using rtype::contract::renderer::CompiledShader;
+using rtype::contract::renderer::ShaderTarget;
 using rtype::plugins::shader::detail::assembleShader;
 using rtype::plugins::shader::detail::compileShader;
 using rtype::plugins::shader::detail::compileStage;
@@ -65,7 +65,7 @@ TEST(ShaderCompiler, CompilesAShaderForEveryTarget) {
         EXPECT_EQ(variant->vertex.front(), kSpirvMagic);
         EXPECT_EQ(variant->fragment.front(), kSpirvMagic);
     }
-    EXPECT_NO_THROW(rtype::plugins::backend::graphics::validate(shader));
+    EXPECT_NO_THROW(rtype::contract::renderer::validate(shader));
 }
 
 TEST(ShaderCompiler, CarriesWhatTheParserFound) {

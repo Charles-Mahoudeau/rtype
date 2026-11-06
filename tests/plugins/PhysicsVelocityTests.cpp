@@ -17,6 +17,7 @@
 #include "plugins/physics/RigidBody.hpp"
 #include "plugins/physics/Velocity.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/change/Mut.hpp"
 #include "rtype/ecs/component/Components.hpp"
@@ -48,6 +49,7 @@ struct PhysicsApp {
     rtype::ecs::App app;  ///< The App under test.
 
     explicit PhysicsApp(glm::vec2 gravity = {0.0F, 0.0F}) {
+        app.addPlugin(rtype::plugins::transform::TransformPlugin{});
         app.addPlugin(PhysicsPlugin{PhysicsSettings{.gravity = gravity,
                                                     .unitsPerMeter = kUnitsPerMeter,
                                                     .maxBodies = 16,

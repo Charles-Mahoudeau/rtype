@@ -20,9 +20,12 @@ namespace rtype::replication {
 /// @brief Registers the components and events through which a game takes part in replication.
 ///
 /// @details Registers NetworkId, Owner and PlayerInput (components) and ClientConnected and ClientDisconnected
-/// (server-only events), with the presence and replication mode of each. It only registers: it adds no system and
-/// does no I/O. The server and client plugins add it from their build(), so the types are registered once on both
-/// sides, as the manifest requires; a standalone game adds it alone.
+/// (server-only events), with the presence and replication mode of each, the InputLayout resource and the input
+/// engine calls for scripts (input::addInputCalls()), and, in an App that runs the client side, the client's
+/// (client::addClientCalls()): the ClientPlugin comes after the scripts, which must see its calls when they load. It
+/// only registers: it adds no system and does no I/O. The server
+/// and client plugins add it from their build(), so the types are registered once on both sides, as the manifest
+/// requires; a standalone game adds it alone.
 /// @code
 /// app.addPlugin(rtype::replication::ReplicationPlugin{});
 /// @endcode

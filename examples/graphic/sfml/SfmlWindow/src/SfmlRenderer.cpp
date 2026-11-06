@@ -39,26 +39,27 @@
 #include <variant>
 
 #include "SfmlPlatform.hpp"
-#include "plugins/backend/exceptions/PlatformExceptions.hpp"
-#include "plugins/backend/graphics/BlendMode.hpp"
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/Particle.hpp"
-#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
-#include "plugins/backend/graphics/Shape.hpp"
-#include "plugins/backend/graphics/Sprite.hpp"
-#include "plugins/backend/graphics/Text.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
-#include "plugins/backend/graphics/View.hpp"
-#include "plugins/backend/platform/IPlatform.hpp"
+#include "rtype/contract/platform/IPlatform.hpp"
+#include "rtype/contract/platform/exceptions/PlatformExceptions.hpp"
+#include "rtype/contract/renderer/drawing/BlendMode.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Shape.hpp"
+#include "rtype/contract/renderer/drawing/Sprite.hpp"
+#include "rtype/contract/renderer/drawing/Text.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
+#include "rtype/contract/renderer/view/View.hpp"
 
-using namespace rtype::plugins::backend;
+using namespace rtype::contract::platform;
+using namespace rtype::contract::renderer;
 
 namespace {
 
 constexpr std::size_t kBytesPerPixel = 4;
 
 /// @return The engine colour (floats in [0, 1]) as an SFML colour (bytes).
-sf::Color toSfColor(const graphics::Color& color) {
+sf::Color toSfColor(const rtype::contract::renderer::Color& color) {
     constexpr float kMax = 255.0F;
     const auto channel = [](float value) { return static_cast<std::uint8_t>(std::clamp(value, 0.0F, 1.0F) * kMax); };
     return {channel(color.x), channel(color.y), channel(color.z), channel(color.w)};
@@ -85,7 +86,7 @@ sf::ConvexShape capsuleShape(glm::vec2 center, float halfHeight, float radius, f
 
 /// @brief Gives an SFML shape the engine shape's colours; the engine draws the outline inside, SFML with a negative
 /// thickness.
-void paint(sf::Shape& target, const graphics::Shape& shape) {
+void paint(sf::Shape& target, const rtype::contract::renderer::Shape& shape) {
     target.setFillColor(toSfColor(shape.fillColor));
     target.setOutlineColor(toSfColor(shape.outlineColor));
     target.setOutlineThickness(-shape.outlineThickness);
@@ -117,14 +118,14 @@ void main() {
 
 /// @return How SFML draws @p mode. SFML blends straight alpha and cannot drop pixels without a shader, so kCutout is
 /// drawn as kAlpha.
-sf::RenderStates statesOf(graphics::BlendMode mode) {
-    return sf::RenderStates{mode == graphics::BlendMode::kAdditive ? sf::BlendAdd : sf::BlendAlpha};
+sf::RenderStates statesOf(rtype::contract::renderer::BlendMode mode) {
+    return sf::RenderStates{mode == rtype::contract::renderer::BlendMode::kAdditive ? sf::BlendAdd : sf::BlendAlpha};
 }
 }  // namespace
 
 namespace example {
 
-void SfmlRenderer::init(platform::IPlatform& platform) {
+void SfmlRenderer::init(IPlatform& platform) {
     auto* sfmlPlatform = dynamic_cast<SfmlPlatform*>(&platform);
     if (sfmlPlatform == nullptr) {
         throw exceptions::UnsupportedFeatureException(
@@ -136,7 +137,8 @@ void SfmlRenderer::init(platform::IPlatform& platform) {
 
 void SfmlRenderer::resize(glm::uvec2 framebufferSize) { _framebufferSize = framebufferSize; }
 
-graphics::TextureId SfmlRenderer::createTexture(const graphics::TextureDesc& desc, std::span<const std::byte> pixels) {
+rtype::contract::renderer::TextureId SfmlRenderer::createTexture(const rtype::contract::renderer::TextureDesc& desc,
+                                                                 std::span<const std::byte> pixels) {
     if (pixels.size() != static_cast<std::size_t>(desc.size.x) * desc.size.y * kBytesPerPixel) {
         throw std::invalid_argument("SfmlRenderer::createTexture: pixels must hold size.x * size.y RGBA pixels");
     }
@@ -144,7 +146,7 @@ graphics::TextureId SfmlRenderer::createTexture(const graphics::TextureDesc& des
     // std::byte and std::uint8_t are both raw bytes: SFML only takes the latter.
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
     texture.update(reinterpret_cast<const std::uint8_t*>(pixels.data()));
-    texture.setSmooth(desc.filter == graphics::TextureFilter::kLinear);
+    texture.setSmooth(desc.filter == rtype::contract::renderer::TextureFilter::kLinear);
     texture.setRepeated(desc.repeat);
 
     std::uint32_t index = 0;
@@ -160,7 +162,7 @@ graphics::TextureId SfmlRenderer::createTexture(const graphics::TextureDesc& des
     return {.index = index, .generation = slot.generation};
 }
 
-void SfmlRenderer::destroy(graphics::TextureId texture) {
+void SfmlRenderer::destroy(rtype::contract::renderer::TextureId texture) {
     if (find(texture) == nullptr) {
         return;  // Already destroyed: nothing to do.
     }
@@ -170,17 +172,17 @@ void SfmlRenderer::destroy(graphics::TextureId texture) {
     _freeSlots.push_back(texture.index);
 }
 
-void SfmlRenderer::beginFrame(const graphics::Color& clearColor) {
+void SfmlRenderer::beginFrame(const rtype::contract::renderer::Color& clearColor) {
     _window->setView(pixelView(_framebufferSize));
     _window->clear(toSfColor(clearColor));
 }
 
 void SfmlRenderer::endFrame() { _window->display(); }
 
-void SfmlRenderer::setView(const graphics::View& view) {
+void SfmlRenderer::setView(const rtype::contract::renderer::View& view) {
     // Only Orthographic exists: the visit makes the compiler point here the day another projection is added.
     std::visit(
-        [&](const graphics::Orthographic& projection) {
+        [&](const rtype::contract::renderer::Orthographic& projection) {
             sf::View shown;
             shown.setCenter({view.position.x, view.position.y});
             shown.setSize({static_cast<float>(_framebufferSize.x) / projection.zoom,
@@ -191,7 +193,7 @@ void SfmlRenderer::setView(const graphics::View& view) {
         view.projection);
 }
 
-void SfmlRenderer::draw(const graphics::Sprite& sprite) {
+void SfmlRenderer::draw(const rtype::contract::renderer::Sprite& sprite) {
     const sf::Texture* texture = find(sprite.texture);
     if (texture == nullptr) {
         throw std::invalid_argument("SfmlRenderer::draw: the sprite's texture was destroyed");
@@ -208,7 +210,7 @@ void SfmlRenderer::draw(const graphics::Sprite& sprite) {
     _window->draw(sfSprite, statesOf(sprite.blend));
 }
 
-void SfmlRenderer::draw(const graphics::Text& text) {
+void SfmlRenderer::draw(const rtype::contract::renderer::Text& text) {
     const sf::Texture* texture = find(text.texture);
     if (texture == nullptr) {
         throw std::invalid_argument("SfmlRenderer::draw: the text's texture was destroyed");
@@ -228,7 +230,7 @@ void SfmlRenderer::draw(const graphics::Text& text) {
     sf::VertexArray vertices{sf::PrimitiveType::Triangles, text.glyphs.size() * kVerticesPerGlyph};
     const sf::Color color = toSfColor(text.color);
     std::size_t index = 0;
-    for (const graphics::GlyphQuad& glyph : text.glyphs) {
+    for (const rtype::contract::renderer::GlyphQuad& glyph : text.glyphs) {
         const sf::Vector2f min{glyph.bounds.getX(), glyph.bounds.getY()};
         const sf::Vector2f max = min + sf::Vector2f{glyph.bounds.getWidth(), glyph.bounds.getHeight()};
         const sf::Vector2f uvMin{glyph.source.getX(), glyph.source.getY()};
@@ -254,9 +256,9 @@ void SfmlRenderer::draw(const graphics::Text& text) {
     _window->draw(vertices, states);
 }
 
-void SfmlRenderer::draw(const graphics::Shape& shape) {
+void SfmlRenderer::draw(const rtype::contract::renderer::Shape& shape) {
     switch (shape.kind) {
-        case graphics::ShapeKind::kRect: {
+        case rtype::contract::renderer::ShapeKind::kRect: {
             sf::RectangleShape rect{{shape.size.x, shape.size.y}};
             rect.setOrigin({shape.size.x * 0.5F, shape.size.y * 0.5F});
             rect.setPosition({shape.position.x, shape.position.y});
@@ -265,7 +267,7 @@ void SfmlRenderer::draw(const graphics::Shape& shape) {
             _window->draw(rect, statesOf(shape.blend));
             break;
         }
-        case graphics::ShapeKind::kCircle: {
+        case rtype::contract::renderer::ShapeKind::kCircle: {
             sf::CircleShape circle{shape.radius};
             circle.setOrigin({shape.radius, shape.radius});
             circle.setPosition({shape.position.x, shape.position.y});
@@ -273,13 +275,13 @@ void SfmlRenderer::draw(const graphics::Shape& shape) {
             _window->draw(circle, statesOf(shape.blend));
             break;
         }
-        case graphics::ShapeKind::kCapsule: {
+        case rtype::contract::renderer::ShapeKind::kCapsule: {
             sf::ConvexShape capsule = capsuleShape(shape.position, shape.halfHeight, shape.radius, shape.rotation);
             paint(capsule, shape);
             _window->draw(capsule, statesOf(shape.blend));
             break;
         }
-        case graphics::ShapeKind::kLine: {
+        case rtype::contract::renderer::ShapeKind::kLine: {
             // A capsule along the segment: its axis, local +Y, turned onto the direction from position to end.
             const glm::vec2 segment = shape.end - shape.position;
             const float rotation = std::atan2(-segment.x, segment.y);
@@ -305,7 +307,7 @@ sf::Shader* SfmlRenderer::msdfShader() {
     return _msdfShader ? &*_msdfShader : nullptr;
 }
 
-const sf::Texture* SfmlRenderer::find(graphics::TextureId texture) const {
+const sf::Texture* SfmlRenderer::find(rtype::contract::renderer::TextureId texture) const {
     if (texture.index >= _slots.size()) {
         return nullptr;
     }
@@ -316,17 +318,19 @@ const sf::Texture* SfmlRenderer::find(graphics::TextureId texture) const {
     return &*slot.texture;
 }
 
-graphics::ParticleSystemId SfmlRenderer::createParticleSystem(const graphics::ParticleSystemDesc& /*desc*/) {
+rtype::contract::renderer::ParticleSystemId SfmlRenderer::createParticleSystem(
+    const rtype::contract::renderer::ParticleSystemDesc& /*desc*/) {
     throw exceptions::UnsupportedFeatureException("SfmlRenderer cannot simulate particles on the GPU");
 }
 
-void SfmlRenderer::destroy(graphics::ParticleSystemId /*system*/) {}
+void SfmlRenderer::destroy(rtype::contract::renderer::ParticleSystemId /*system*/) {}
 
-void SfmlRenderer::simulate(graphics::ParticleSystemId /*system*/, const graphics::ParticleEmission& /*emission*/) {
+void SfmlRenderer::simulate(rtype::contract::renderer::ParticleSystemId /*system*/,
+                            const rtype::contract::renderer::ParticleEmission& /*emission*/) {
     throw std::invalid_argument("SfmlRenderer::simulate: the particle system was never created");
 }
 
-void SfmlRenderer::draw(const graphics::ParticleDraw& /*particles*/) {
+void SfmlRenderer::draw(const rtype::contract::renderer::ParticleDraw& /*particles*/) {
     throw exceptions::UnsupportedFeatureException("SfmlRenderer does not draw particles yet");
 }
 

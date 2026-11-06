@@ -14,17 +14,17 @@
 #include <string>
 #include <string_view>
 
-#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/shader/detail/ShaderParser.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::plugins::shader::detail {
 
 namespace {
 
-using backend::graphics::ShaderTarget;
-using backend::graphics::ShaderValueType;
+using contract::renderer::ShaderTarget;
+using contract::renderer::ShaderValueType;
 
-// The prelude, the shaders ABI of the backend contract (plugins/backend/graphics/shaders/*.glsl), embedded by xmake's
+// The prelude, the shaders ABI of the renderer contract (contract/renderer/shaders/*.glsl), embedded by xmake's
 // utils.bin2c rule: null-terminated, ASCII (the files are kept so, as they become chars).
 constexpr auto kCommon = std::to_array<char>({
 #include "common.glsl.h"
@@ -101,7 +101,7 @@ std::string_view glslType(ShaderValueType type) noexcept {
 }
 
 /// @return How the instance value @p value is read from @p source (4 vec4): its vec4 and components.
-std::string instanceAccess(const backend::graphics::ShaderValue& value, std::string_view source) {
+std::string instanceAccess(const contract::renderer::ShaderValue& value, std::string_view source) {
     constexpr std::string_view kComponents = "xyzw";
     const std::uint32_t slot = value.offset / 16;
     const std::uint32_t first = (value.offset % 16) / 4;
@@ -137,7 +137,7 @@ std::string declareValues(const ParsedShader& shader) {
         }
         glsl += "};\n";
     }
-    for (const backend::graphics::ShaderTexture& texture : shader.textures) {
+    for (const contract::renderer::ShaderTexture& texture : shader.textures) {
         glsl += std::format("layout(set = 2, binding = {}) uniform sampler2D {};\n", texture.slot + 1, texture.name);
     }
     for (const DeclaredValue& declared : shader.instanceValues) {

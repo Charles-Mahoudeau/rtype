@@ -139,6 +139,7 @@ int main() {
     try {
         App app;
         app.addPlugins(MinimalPlugins{});
+        app.addPlugin(rtype::plugins::transform::TransformPlugin{});
         app.addPlugin(PhysicsPlugin{PhysicsSettings{.gravity = {0.0F, 0.0F}, .unitsPerMeter = 100.0F}});
         app.insertResource(Boss{});
         app.addSystem(Phase::kStartup, "example.spawnBoss", &spawnBoss);

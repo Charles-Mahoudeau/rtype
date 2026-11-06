@@ -10,13 +10,13 @@
 #include <cstdint>
 #include <vulkan/vulkan_raii.hpp>
 
-#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "render/vulkan/Export.hpp"
 #include "render/vulkan/descriptor/DescriptorAllocator.hpp"
 #include "render/vulkan/descriptor/DescriptorSetLayout.hpp"
 #include "render/vulkan/memory/Allocator.hpp"
 #include "render/vulkan/memory/Buffer.hpp"
 #include "render/vulkan/memory/Uploader.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 
 namespace rtype::render::vulkan::particle {
 
@@ -33,11 +33,11 @@ class RTYPE_RENDER_VULKAN_API GpuParticleSystem {
   public:
     /// @brief Creates the buffers of @p desc's capacity, queues their first content into @p uploader and allocates
     /// the descriptor set of @p setLayout (ParticleSystem.glsl's set 0) from @p descriptors.
-    /// @throws plugins::backend::exceptions::ParticleException If @p desc is invalid.
+    /// @throws contract::renderer::exceptions::ParticleException If @p desc is invalid.
     /// @throws vk::SystemError If a buffer or the set cannot be created.
     GpuParticleSystem(const core::Device& device, const memory::Allocator& allocator, memory::Uploader& uploader,
                       descriptor::DescriptorAllocator& descriptors, const descriptor::DescriptorSetLayout& setLayout,
-                      const plugins::backend::graphics::ParticleSystemDesc& desc);
+                      const contract::renderer::ParticleSystemDesc& desc);
     ~GpuParticleSystem() = default;
     GpuParticleSystem(const GpuParticleSystem&) = delete;
     GpuParticleSystem& operator=(const GpuParticleSystem&) = delete;

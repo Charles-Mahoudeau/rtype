@@ -29,10 +29,10 @@
 
 #include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
-#include "plugins/backend/BackendPlugin.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/BackendResources.hpp"
-#include "plugins/backend/graphics/Color.hpp"
+#include "plugins/graphics/BackendRegistry.hpp"
+#include "plugins/graphics/GraphicsPlugin.hpp"
+#include "plugins/graphics/GraphicsResources.hpp"
+#include "plugins/input/InputPlugin.hpp"
 #include "plugins/physics/Collider.hpp"
 #include "plugins/physics/PhysicsPlugin.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
@@ -41,7 +41,9 @@
 #include "plugins/physics/debug/PhysicsDebug.hpp"
 #include "plugins/physics/debug/PhysicsDebugPlugin.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "render/vulkan/Registration.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/app/MinimalPlugins.hpp"
@@ -54,7 +56,7 @@
 
 using namespace rtype;
 using namespace rtype::plugins::physics;
-using rtype::plugins::backend::graphics::Color;
+using rtype::contract::renderer::Color;
 using rtype::plugins::transform::Transform;
 
 namespace {
@@ -162,17 +164,20 @@ int main(int argc, char** argv) {
         }
     }
     try {
-        auto registry = std::make_unique<plugins::backend::BackendRegistry>();
-        platform::glfw::registerPlatform(*registry);
-        render::vulkan::registerRenderer(*registry);
+        auto registry = std::make_unique<plugins::graphics::BackendRegistry>();
+        platform::glfw::registerPlatform(registry->platforms);
+        render::vulkan::registerRenderer(registry->renderers);
 
         ecs::App app;
         app.addPlugins(ecs::MinimalPlugins{})
-            .addPlugin(plugins::backend::BackendPlugin{std::move(registry), makeSettings(validate)})
+            .addPlugin(rtype::plugins::transform::TransformPlugin{})
+            .addPlugin(rtype::plugins::input::InputPlugin{})
+            .addPlugin(plugins::graphics::GraphicsPlugin{std::move(registry), makeSettings(validate)})
             // 980 units/s^2 down is 9.8 m/s^2 at 100 units per meter.
+            .addPlugin(rtype::plugins::transform::TransformPlugin{})
             .addPlugin(PhysicsPlugin{PhysicsSettings{.gravity = {0.0F, 980.0F}, .unitsPerMeter = 100.0F}})
             .addPlugin(debug::PhysicsDebugPlugin{});
-        app.insertResource(plugins::backend::ClearColor{.value = {0.05F, 0.05F, 0.08F, 1.0F}});
+        app.insertResource(plugins::graphics::ClearColor{.value = {0.05F, 0.05F, 0.08F, 1.0F}});
         app.insertResource(lifetime);
         app.addSystem(ecs::Phase::kStartup, "example.spawnScene", &spawnScene);
         app.addSystem(ecs::Phase::kUpdate, "example.quitWhenDone", &quitWhenDone);

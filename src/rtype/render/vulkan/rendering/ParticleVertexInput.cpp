@@ -12,12 +12,12 @@
 #include <cstdint>
 #include <vulkan/vulkan_raii.hpp>
 
-#include "plugins/backend/graphics/Particle.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
 
 namespace rtype::render::vulkan::rendering {
 
 namespace {
-using plugins::backend::graphics::ParticleInstance;
+using contract::renderer::ParticleInstance;
 }  // namespace
 
 std::array<vk::VertexInputBindingDescription, 1> getParticleBindings(std::uint32_t binding) noexcept {

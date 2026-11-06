@@ -7,17 +7,22 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <thread>
 
 #include "ServerFixtures.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/call/CallInfo.hpp"
+#include "rtype/ecs/call/Calls.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/query/Query.hpp"
@@ -33,6 +38,7 @@
 #include "rtype/network/io/Address.hpp"
 #include "rtype/replication/ReplicationPlugin.hpp"
 #include "rtype/replication/ReplicationSettings.hpp"
+#include "rtype/replication/client/ClientCalls.hpp"
 #include "rtype/replication/client/ClientPlugin.hpp"
 #include "rtype/replication/client/ClientState.hpp"
 #include "rtype/replication/component/NetworkId.hpp"
@@ -99,6 +105,21 @@ void moveShips(Query<Position> positions) {
     for (auto [entity, position] : positions) {
         position->x += 1.F;
     }
+}
+
+/// @brief Makes the `rtype.replication.localClient` call of @p app, as a script does.
+rtype::replication::client::LocalClient localClientOf(App& app) {
+    rtype::ecs::Calls& calls = app.getWorld().getCalls();
+    const rtype::ecs::CallInfo* info = calls.findByName(rtype::replication::client::kLocalClientCall);
+    EXPECT_NE(info, nullptr);
+    if (info == nullptr) {
+        return {};
+    }
+    std::array<std::byte, sizeof(rtype::replication::client::LocalClient)> result{};
+    calls.invoke(app.getWorld(), info->id, std::span<const std::byte>{}, result);
+    rtype::replication::client::LocalClient local{};
+    std::memcpy(&local, result.data(), sizeof(local));
+    return local;
 }
 
 /// @brief Registers the game's components and input actions in an App.
@@ -233,6 +254,16 @@ TEST(ClientPlugin, MirrorsTheServersEntitiesAfterThePreUpdatePhase) {
     ASSERT_TRUE(runUntil(server, client, [&] { return world.getComponents().get<Position>(*player)->x > 3.F; }));
     EXPECT_EQ(world.getComponents().get<NetworkId>(*player)->value, 1U);
     EXPECT_EQ(client.state().find(1), *player);
+}
+
+TEST(ClientPlugin, GivesScriptsTheClientsIdOnceConnected) {
+    Server server;
+    Client client{server.address()};
+    EXPECT_FALSE(localClientOf(client.app()).connected);
+    ASSERT_TRUE(runUntil(server, client, [&] { return client.state().clientId().has_value(); }));
+    const rtype::replication::client::LocalClient local = localClientOf(client.app());
+    EXPECT_TRUE(local.connected);
+    EXPECT_EQ(local.client, client.state().clientId().value());
 }
 
 TEST(ClientPlugin, SendsOneInputPerFrame) {

@@ -12,13 +12,14 @@
 #include <string>
 #include <string_view>
 
-#include "plugins/backend/graphics/SpriteRenderer.hpp"
-#include "plugins/backend/graphics/TextureAssets.hpp"
-#include "plugins/backend/math/Rect.hpp"
+#include "plugins/graphics/TextureAssets.hpp"
 #include "plugins/sprite/AnimationEvents.hpp"
 #include "plugins/sprite/AtlasAssets.hpp"
 #include "plugins/sprite/SpriteAnimator.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
+#include "plugins/sprite/SpriteCalls.hpp"
+#include "plugins/sprite/SpriteRenderer.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/change/Mut.hpp"
 #include "rtype/ecs/query/Query.hpp"
@@ -34,15 +35,15 @@ namespace rtype::plugins::sprite {
 
 namespace {
 /// @return Whether @p left and @p right are the same rectangle.
-bool sameRect(const backend::math::Rect& left, const backend::math::Rect& right) noexcept {
+bool sameRect(const contract::renderer::math::Rect& left, const contract::renderer::math::Rect& right) noexcept {
     return left.getX() == right.getX() && left.getY() == right.getY() && left.getWidth() == right.getWidth() &&
            left.getHeight() == right.getHeight();
 }
 
 /// @brief Shows @p frame of @p atlas in @p renderer, writing only what changes so an unchanged sprite stays unchanged
 /// for change detection and replication.
-void showFrame(ecs::Mut<backend::SpriteRenderer>& renderer, const SpriteAtlas& atlas, const AtlasFrame& frame) {
-    const backend::SpriteRenderer& current = renderer.get();
+void showFrame(ecs::Mut<sprite::SpriteRenderer>& renderer, const SpriteAtlas& atlas, const AtlasFrame& frame) {
+    const sprite::SpriteRenderer& current = renderer.get();
     if (current.texture == atlas.getTexture() && sameRect(current.source, frame.source) &&
         current.origin == frame.origin) {
         return;
@@ -54,7 +55,7 @@ void showFrame(ecs::Mut<backend::SpriteRenderer>& renderer, const SpriteAtlas& a
 
 /// @brief PostUpdate: advances the animations and shows their frame.
 void animateSprites(ecs::Res<AtlasAssets> atlases, ecs::Res<ecs::Time> time,
-                    ecs::Query<SpriteAnimator, ecs::Optional<backend::SpriteRenderer>> animators,
+                    ecs::Query<SpriteAnimator, ecs::Optional<sprite::SpriteRenderer>> animators,
                     ecs::EventWriter<AnimationFinished> finished) {
     for (auto [entity, animator, renderer] : animators) {
         const SpriteAtlas* atlas = atlases->get(animator.get().atlas);
@@ -77,7 +78,7 @@ void animateSprites(ecs::Res<AtlasAssets> atlases, ecs::Res<ecs::Time> time,
 }
 
 /// @brief PostUpdate, client: hands the atlases' textures to TextureAssets.
-void queueAtlasTextures(ecs::ResMut<AtlasAssets> atlases, ecs::ResMut<backend::TextureAssets> textures) {
+void queueAtlasTextures(ecs::ResMut<AtlasAssets> atlases, ecs::ResMut<graphics::TextureAssets> textures) {
     for (AtlasAssets::TextureRequest& request : atlases->takeTextureRequests()) {
         try {
             if (request.pixels.empty()) {
@@ -97,9 +98,11 @@ std::string_view SpritePlugin::getName() const noexcept { return kName; }
 void SpritePlugin::build(ecs::App& app) {
     ecs::Resources& resources = app.getWorld().getResources();
     resources.insertIfAbsent<AtlasAssets>();
-    resources.insertIfAbsent<backend::TextureAssets>();
+    resources.insertIfAbsent<graphics::TextureAssets>();
+    static_cast<void>(app.getWorld().getComponents().registerType<SpriteRenderer>());
     static_cast<void>(app.getWorld().getComponents().registerType<SpriteAnimator>());
     static_cast<void>(app.getWorld().getEvents().registerType<AnimationFinished>());
+    addSpriteCalls(app);
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kAnimateSystem}, &animateSprites).setSide(ecs::Side::kBoth);
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kTexturesSystem}, &queueAtlasTextures)
         .after(std::string{kAnimateSystem})

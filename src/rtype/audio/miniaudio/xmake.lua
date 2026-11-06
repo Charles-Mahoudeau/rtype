@@ -5,9 +5,11 @@ add_requires("miniaudio 0.11.x", {alias = "miniaudio", configs = {encoding = fal
 -- miniaudio audio backend: IAudioDevice on miniaudio's engine, registered as "miniaudio". The only module that includes
 -- miniaudio.
 target("audio-miniaudio")
-    set_kind("static")
+    set_kind("shared")
     set_basename("rtype-audio-miniaudio")
-    add_deps("core", "plugins")
+    add_defines("RTYPE_AUDIO_MINIAUDIO_BUILD", {public = false})
+    -- Public: Registration.hpp includes AudioRegistry.
+    add_deps("core", "contract-audiodevice", {public = true})
     -- Private: only this module includes miniaudio.h (MiniaudioDevice.hpp is internal: the executable sees
     -- Registration.hpp only), and only vendor/ includes stb_vorbis.c.
     add_packages("miniaudio", "stb")

@@ -15,8 +15,9 @@
 #include <variant>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/graphics/Particle.hpp"
 #include "plugins/particle/CpuSimulation.hpp"
+#include "plugins/particle/Export.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
@@ -31,9 +32,9 @@ struct EmitterState {
     std::uint32_t spawned{0};      ///< Particles emitted so far: the next ParticleEmission::firstParticle.
     bool finished{false};          ///< ParticlesFinished was sent.
     /// The CPU pool, or the GPU system created by the renderer: chosen once, at start, never switched while playing.
-    std::variant<CpuSimulation, backend::graphics::ParticleSystemId> simulation;
+    std::variant<CpuSimulation, contract::renderer::ParticleSystemId> simulation;
     /// This frame's emission of a GPU system: computed in PostUpdate, given to IRenderer::simulate() in Render.
-    backend::graphics::ParticleEmission emission;
+    contract::renderer::ParticleEmission emission;
 };
 
 /// @brief The live state of every emitter, by entity, as the resource "rtype.ParticleSystems" the ParticlePlugin
@@ -42,7 +43,7 @@ struct EmitterState {
 /// @details A resource rather than a component: the ECS has no removal detection yet, so a system sweeps it every frame
 /// and stops the emitters whose entity lost its ParticleEmitter, destroying their GPU system. It only keeps the
 /// states: creating and destroying GPU systems is up to the plugin, which has the renderer.
-class ParticleSystems {
+class RTYPE_PLUGIN_PARTICLE_API ParticleSystems {
   public:
     /// @brief The states by emitter entity.
     using Emitters = std::unordered_map<ecs::Entity, EmitterState>;

@@ -21,9 +21,9 @@
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
-#include "plugins/backend/math/Rect.hpp"
 #include "plugins/sprite/exceptions/SpriteExceptions.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 
 namespace rtype::plugins::sprite {
 
@@ -84,13 +84,13 @@ SpriteAnimation::Sample SpriteAnimation::sample(float time) const noexcept {
     return {.frame = last};
 }
 
-SpriteAtlas::SpriteAtlas(std::string texturePath, const backend::graphics::TextureDesc& desc)
+SpriteAtlas::SpriteAtlas(std::string texturePath, const contract::renderer::TextureDesc& desc)
     : _texturePath{std::move(texturePath)},
       _texture{core::asset::AssetId::fromPath(_texturePath)},
       _textureDesc{desc} {}
 
 SpriteAtlas SpriteAtlas::grid(std::string texturePath, glm::vec2 frameSize, std::uint32_t count, glm::vec2 spacing,
-                              std::uint32_t columns, glm::vec2 offset, const backend::graphics::TextureDesc& desc) {
+                              std::uint32_t columns, glm::vec2 offset, const contract::renderer::TextureDesc& desc) {
     SpriteAtlas atlas{std::move(texturePath), desc};
     const std::uint32_t perRow = columns == 0 ? count : columns;
     for (std::uint32_t index = 0; index < count; ++index) {
@@ -98,12 +98,12 @@ SpriteAtlas SpriteAtlas::grid(std::string texturePath, glm::vec2 frameSize, std:
         const std::uint32_t row = index / perRow;
         const glm::vec2 cell{static_cast<float>(column), static_cast<float>(row)};
         atlas.addFrame(std::format("{}", index),
-                       backend::math::Rect{offset + (cell * (frameSize + spacing)), frameSize});
+                       contract::renderer::math::Rect{offset + (cell * (frameSize + spacing)), frameSize});
     }
     return atlas;
 }
 
-SpriteAtlas& SpriteAtlas::addFrame(std::string name, const backend::math::Rect& source,
+SpriteAtlas& SpriteAtlas::addFrame(std::string name, const contract::renderer::math::Rect& source,
                                    std::optional<glm::vec2> origin) {
     if (_frameIndices.contains(name)) {
         throw exceptions::AtlasException{std::format("Atlas '{}': two frames are named '{}'", _texturePath, name)};

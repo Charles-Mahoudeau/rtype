@@ -14,10 +14,12 @@
 
 #include <cstdint>
 
+#include "plugins/physics/Export.hpp"
+
 namespace rtype::plugins::physics::detail {
 
 /// @brief Accepts the bodies whose collision categories are in the query's mask (QueryFilter::mask).
-class MaskLayerFilter final : public JPH::ObjectLayerFilter {
+class RTYPE_PLUGIN_PHYSICS_API MaskLayerFilter final : public JPH::ObjectLayerFilter {
   public:
     explicit MaskLayerFilter(std::uint32_t mask);
     ~MaskLayerFilter() override = default;
@@ -34,7 +36,7 @@ class MaskLayerFilter final : public JPH::ObjectLayerFilter {
 };
 
 /// @brief Skips the ignored body (QueryFilter::ignore) and, unless asked, sensors (QueryFilter::includeSensors).
-class QueryBodyFilter final : public JPH::BodyFilter {
+class RTYPE_PLUGIN_PHYSICS_API QueryBodyFilter final : public JPH::BodyFilter {
   public:
     QueryBodyFilter(JPH::BodyID ignored, bool includeSensors);
     ~QueryBodyFilter() override = default;

@@ -24,7 +24,7 @@ flowchart LR
         CB["GlfwPlatformCallbacks<br> <strong>onKey, onMouseButton, onCursorPos,<br>onScroll, onChar, onFocus, onResize, onClose </strong>"]
         PG["GlfwPlatformGamepad: <strong>pollGamepad()</strong><br>compares with the previous frame,<br>emits only the changes"]
         MAP["GlfwMapping<br> <strong>GLFW_KEY_W → Key::kW</strong><br>axes: Y up, triggers 0..1"]
-        Q["_events<br>std::vector&lt;plugins::backend::Event&gt;"]
+        Q["_events<br>std::vector&lt;contract::platform::Event&gt;"]
         POLL["GlfwPlatform::pollEvents()"]
   end
  subgraph BUTTONS["Buttons: ButtonStates&lt;T&gt;"]
@@ -76,7 +76,7 @@ flowchart LR
   end
  subgraph ENGINE["engine/ (no external library except glm)"]
     direction TB
-        EV["<strong>plugins::backend::Event</strong><br>std::variant: KeyPressed, MouseMoved,<br>GamepadAxisMoved, Resized…"]
+        EV["<strong>contract::platform::Event</strong><br>std::variant: KeyPressed, MouseMoved,<br>GamepadAxisMoved, Resized…"]
         INPUT
         ACTIONS
   end
@@ -112,10 +112,10 @@ flowchart LR
 
 | Module | Role | Depends on |
 | --- | --- | --- |
-| `plugins/backend/` (`plugins`) | `Key`, `Event`: the input vocabulary the platform speaks, with the platform interface. | `ecs`, glm |
-| `plugins/input/` (`plugins`) | `Control`, `Input`, `InputAction`, `ButtonStates` (pure logic, testable without a window), and `InputPlugin`, which makes `Input` an ECS resource fed by the input events. | `ecs`, glm |
+| `contract/platform/` (`contract-platform`) | `Key`, `Event`: the input vocabulary the platform speaks, with the platform interface. | `ecs`, glm |
+| `plugins/input/` (`plugin-input`) | `Control`, `Input`, `InputAction`, `ButtonStates` (pure logic, testable without a window), and `InputPlugin`, which makes `Input` an ECS resource fed by the input events. | `ecs`, glm |
 | `platform/glfw/` | `GlfwPlatform` (implements `IPlatform`): GLFW callbacks and gamepad polling, translated into engine events. | `plugins`, GLFW |
-| `render/vulkan/` | Rendering. It reads input through the engine, never through GLFW. | `plugins` |
+| `render/vulkan/` | Rendering. It reads input through the engine, never through GLFW. | `contract-renderer` |
 | `engine/main.cpp` (`engine`) | The executable: creates the window and feeds its events to `Input` (until the window plugin does it). | everything above |
 
 **Rule:** GLFW never leaves `platform/glfw/`. No public header outside it includes `<GLFW/glfw3.h>` or uses a `GLFW_*` code. Renderers attach to the window through the interop interfaces the platform implements (`IVulkanSurfaceSource`, see [`Backend.md`](Backend.md)), never through GLFW itself.
@@ -124,13 +124,13 @@ flowchart LR
 
 | File | Content |
 | --- | --- |
-| [`plugins/backend/input/Key.hpp`](../src/rtype/plugins/backend/input/Key.hpp) | `Key`, `MouseButton`, `GamepadButton`, `GamepadAxis`, `Mods` |
-| [`plugins/backend/event/Event.hpp`](../src/rtype/plugins/backend/event/Event.hpp) | Every event type and the `plugins::backend::Event` variant |
+| [`rtype/contract/platform/input/Key.hpp`](../src/rtype/contract/platform/input/Key.hpp) | `Key`, `MouseButton`, `GamepadButton`, `GamepadAxis`, `Mods` |
+| [`rtype/contract/platform/event/Event.hpp`](../src/rtype/contract/platform/event/Event.hpp) | Every event type and the `contract::platform::Event` variant |
 | [`plugins/input/Control.hpp`](../src/rtype/plugins/input/Control.hpp) | One physical control read as a float |
 | [`plugins/input/InputAction.hpp`](../src/rtype/plugins/input/InputAction.hpp) | A named action and its bindings |
 | [`plugins/input/Input.hpp`](../src/rtype/plugins/input/Input.hpp) | Input state and the action registry; the `rtype.Input` ECS resource |
 | [`plugins/input/ButtonStates.hpp`](../src/rtype/plugins/input/ButtonStates.hpp) | Held / tapped / snapshot state of a family of buttons |
-| [`plugins/input/InputEvents.hpp`](../src/rtype/plugins/input/InputEvents.hpp) | The input events of `plugins::backend::Event` declared as typed ECS events (`rtype.KeyPressed`...), for gameplay code |
+| [`plugins/input/InputEvents.hpp`](../src/rtype/plugins/input/InputEvents.hpp) | The input events of `contract::platform::Event` declared as typed ECS events (`rtype.KeyPressed`...), for gameplay code |
 | [`plugins/input/InputPlugin.hpp`](../src/rtype/plugins/input/InputPlugin.hpp) | Inserts `Input` and updates it in `PreUpdate` from the input events |
 | [`platform/glfw/GlfwPlatform.hpp`](../src/rtype/platform/glfw/GlfwPlatform.hpp) | The window, source of every event |
 | [`platform/glfw/GlfwPlatformCallbacks.cpp`](../src/rtype/platform/glfw/GlfwPlatformCallbacks.cpp) | GLFW callbacks → events |
@@ -140,10 +140,10 @@ flowchart LR
 ## In an App
 
 `InputPlugin` (`plugins/input/`) makes `Input` a resource of the world. It registers the `PlatformEvent` ECS event
-(`plugins/backend/event/PlatformEvent.hpp`: any `plugins::backend::Event`, one per event polled) and adds the client
+(`plugins/input/PlatformEvent.hpp`: any `contract::platform::Event`, one per event polled) and adds the client
 system `rtype.Input.Update` in `PreUpdate`: it feeds the frame's platform events to `Input` **in the order they
-happened**, then calls `update()`. The `BackendPlugin` sends them after polling the platform, and adds the
-`InputPlugin` itself; in tests they are sent by hand. The input plugin knows nothing of the backend plugin.
+happened**, then calls `update()`. The `GraphicsPlugin` sends them after polling the platform, and adds the
+`InputPlugin` itself; in tests they are sent by hand. The input plugin knows nothing of the graphics plugin.
 
 ```cpp
 app.addPlugin(rtype::plugins::input::InputPlugin{});
@@ -165,7 +165,7 @@ same events.
 ### 1. Declare the actions once
 
 ```cpp
-using namespace rtype::plugins::backend::input;   // Key, Control...
+using namespace rtype::contract::platform::input;   // Key, Control...
 using namespace rtype::plugins::input;  // Input, ActionType
 
 Input input;
@@ -208,9 +208,9 @@ Actions are for gameplay. One-off things (closing, resizing, typing text) read t
 ```cpp
 for (const auto& event : window.pollEvents()) {
     input.handleEvent(event);
-    if (const auto* key = std::get_if<rtype::plugins::backend::event::KeyPressed>(&event); key && key->key == Key::kEscape) {
+    if (const auto* key = std::get_if<rtype::contract::platform::event::KeyPressed>(&event); key && key->key == Key::kEscape) {
         window.close();
-    } else if (const auto* text = std::get_if<rtype::plugins::backend::event::TextEntered>(&event)) {
+    } else if (const auto* text = std::get_if<rtype::contract::platform::event::TextEntered>(&event)) {
         chat.append(text->codepoint);
     }
 }
@@ -257,6 +257,36 @@ An action has any number of bindings, from any device. Each frame every binding 
 | `Control::gamepadAxis(GamepadAxis::kLeftX, scale)` | [-1, 1] for sticks, [0, 1] for triggers, after deadzone |
 
 `control.inverted()` returns the same control with its value negated. The optional `scale` / `sensitivity` multiplies the raw value.
+
+### From scripts
+
+The InputPlugin registers [engine calls](ecs/features/19-luau-bridge.md#engine-calls) that name controls with text,
+read by `controlFromName()` (`plugins/input/ControlNames.hpp`): a key by its enumerator without the `k` (`"W"`,
+`"Space"`, `"Up"`, `"LeftShift"`), `"Mouse"` plus a button (`"MouseLeft"`), `"MouseDeltaX"`, `"MouseScrollY"`,
+`"Gamepad"` plus a button or an axis (`"GamepadSouth"`, `"GamepadLeftX"`). The key, button and axis names alone come
+from `contract/platform/input/KeyNames.hpp`.
+
+```luau
+engine.call("rtype.input.addAction", { name = "move", type = "vector2" })
+engine.call("rtype.input.bindVector", { action = "move", up = "W", down = "S", left = "A", right = "D" })
+engine.call("rtype.input.bindVector", { action = "move", x = "GamepadLeftX", y = "GamepadLeftY" })
+engine.call("rtype.input.addAction", { name = "shoot" })                 -- a button
+engine.call("rtype.input.bind", { action = "shoot", control = "MouseLeft" })
+local shoot = engine.call("rtype.input.read", { action = "shoot" })     -- { value, held, pressed, released }
+```
+
+`rtype.input.bindAxis` takes `negative` and `positive`, `rtype.input.bind` a `scale`. An unknown action, control or
+type is an error naming it.
+
+The [`engine.input.action` form](ecs/features/19-luau-bridge.md#setup-forms) declares an action and its bindings in one
+call, and does nothing on a side without the InputPlugin:
+
+```luau
+engine.input.action("move", "vector2", {
+    bind = { { up = "W", down = "S", left = "A", right = "D" }, { x = "GamepadLeftX", y = "GamepadLeftY" } },
+})
+engine.input.action("shoot", "button", { bind = { "MouseLeft", { control = "GamepadSouth", scale = 1 } } })
+```
 
 ## Conventions
 
@@ -321,14 +351,14 @@ GLFW has no gamepad callbacks, only `glfwGetGamepadState()`. `GlfwPlatform::poll
 
 ### Adding a key
 
-1. Add the value to `Key` in [`Key.hpp`](../src/rtype/plugins/backend/input/Key.hpp), before `kCount`.
+1. Add the value to `Key` in [`Key.hpp`](../src/rtype/contract/platform/input/Key.hpp), before `kCount`.
 2. Add its GLFW pair to the `kKeys` table in [`GlfwMapping.cpp`](../src/rtype/platform/glfw/GlfwMapping.cpp).
 
 A `static_assert` fails the build if a `Key` has no GLFW mapping, so step 2 cannot be forgotten.
 
 ### Adding an event
 
-1. Add the struct in [`Event.hpp`](../src/rtype/plugins/backend/event/Event.hpp) and add it to the `Event` variant.
+1. Add the struct in [`Event.hpp`](../src/rtype/contract/platform/event/Event.hpp) and add it to the `Event` variant.
 2. Emit it from the platform (a callback in `GlfwPlatformCallbacks.cpp`, or polling).
 3. If `Input` needs it, add an `onEvent()` overload in `Input.hpp` / `Input.cpp`. Events without an overload are ignored automatically.
 

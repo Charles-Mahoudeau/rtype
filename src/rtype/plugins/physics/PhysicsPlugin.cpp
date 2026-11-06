@@ -8,10 +8,12 @@
 #include "plugins/physics/PhysicsPlugin.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <glm/ext/vector_float2.hpp>
 #include <iterator>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -20,6 +22,7 @@
 #include "plugins/physics/Collider.hpp"
 #include "plugins/physics/CollisionEvents.hpp"
 #include "plugins/physics/ComponentOptions.hpp"
+#include "plugins/physics/PhysicsCalls.hpp"
 #include "plugins/physics/PhysicsHandle.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "plugins/physics/PhysicsWorld.hpp"
@@ -292,8 +295,12 @@ PhysicsPlugin::PhysicsPlugin() : PhysicsPlugin{PhysicsSettings{}} {}
 
 std::string_view PhysicsPlugin::getName() const noexcept { return kName; }
 
+std::span<const std::string_view> PhysicsPlugin::getDependencies() const noexcept {
+    static constexpr std::array<std::string_view, 1> kDependencies{transform::TransformPlugin::kName};
+    return kDependencies;
+}
+
 void PhysicsPlugin::build(ecs::App& app) {
-    app.addPlugin(plugins::transform::TransformPlugin{});
     static_cast<void>(app.getWorld().getComponents().registerType<RigidBody>(kRigidBodyOptions));
     static_cast<void>(app.getWorld().getComponents().registerType<Collider>(kColliderOptions));
     static_cast<void>(app.getWorld().getComponents().registerType<Velocity>());
@@ -321,6 +328,7 @@ void PhysicsPlugin::build(ecs::App& app) {
         .after(std::string{kStepSystem});
     app.addSystem(ecs::Phase::kFixedUpdate, std::string{kEventsSystem}, &sendContactEvents)
         .after(std::string{kSyncFromPhysicsSystem});
+    addPhysicsCalls(app);
 }
 
 }  // namespace rtype::plugins::physics

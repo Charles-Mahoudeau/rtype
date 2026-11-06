@@ -12,13 +12,13 @@
 #include <cstdint>
 #include <set>
 
-#include "plugins/backend/graphics/ParticleRandom.hpp"
+#include "rtype/contract/renderer/particle/ParticleRandom.hpp"
 
 namespace {
-using rtype::plugins::backend::graphics::particleRandom;
-using rtype::plugins::backend::graphics::particleRandomFloat;
-using rtype::plugins::backend::graphics::ParticleRandomStream;
-using rtype::plugins::backend::graphics::pcgHash;
+using rtype::contract::renderer::particleRandom;
+using rtype::contract::renderer::particleRandomFloat;
+using rtype::contract::renderer::ParticleRandomStream;
+using rtype::contract::renderer::pcgHash;
 
 constexpr std::uint32_t kDraws = 10000;
 

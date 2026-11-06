@@ -7,7 +7,7 @@ add_requires("sfml 3.x", {alias = "sfml", configs = {audio = false, network = fa
 target("SfmlWindow")
     set_kind("binary")
     set_default(false)
-    add_deps("plugins")
+    add_deps("plugin-graphics", "contract-platform", "contract-renderer")
     add_packages("sfml")
 
     add_files("src/**.cpp")

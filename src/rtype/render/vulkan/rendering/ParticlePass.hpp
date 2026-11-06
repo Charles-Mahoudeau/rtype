@@ -16,9 +16,6 @@
 
 #include "MaterialBinding.hpp"
 #include "ParticleConstants.hpp"
-#include "plugins/backend/graphics/CameraView.hpp"
-#include "plugins/backend/graphics/Particle.hpp"
-#include "plugins/backend/graphics/Shader.hpp"
 #include "render/vulkan/Export.hpp"
 #include "render/vulkan/core/Device.hpp"
 #include "render/vulkan/memory/Allocator.hpp"
@@ -26,6 +23,9 @@
 #include "render/vulkan/pipeline/GraphicsPipeline.hpp"
 #include "render/vulkan/pipeline/PipelineLayout.hpp"
 #include "render/vulkan/pipeline/ShaderCache.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
+#include "rtype/contract/renderer/view/CameraView.hpp"
 
 namespace rtype::render::vulkan::rendering {
 
@@ -48,7 +48,7 @@ class RTYPE_RENDER_VULKAN_API ParticlePass {
         std::uint32_t firstInstance = 0;  ///< First instance of the range, in the uploaded instances.
         std::uint32_t instanceCount = 0;  ///< Number of instances.
         MaterialBinding material;         ///< Its game material; a null pipeline draws the default one.
-        plugins::backend::graphics::ShaderInstanceValues instanceValues{};  ///< Of its game material.
+        contract::renderer::ShaderInstanceValues instanceValues{};  ///< Of its game material.
     };
 
     /// @param shaders Gives the built-in particle and sprite shaders.
@@ -76,25 +76,25 @@ class RTYPE_RENDER_VULKAN_API ParticlePass {
 
     /// @brief Copies @p instances, every CPU particle of the frame, into frame @p frameIndex's buffer, for record().
     /// @throws vk::SystemError If a bigger instance buffer cannot be created.
-    void upload(std::size_t frameIndex, std::span<const plugins::backend::graphics::ParticleInstance> instances);
+    void upload(std::size_t frameIndex, std::span<const contract::renderer::ParticleInstance> instances);
 
     /// @brief Records @p draw, inside dynamic rendering, into @p viewport: binds the pipeline (so call it again after
     /// another pass recorded), then draws its range of frame @p frameIndex's buffer. The frame's set 0 must already be
     /// bound. Does nothing for an empty range, a null texture set or before upload().
     void record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex, const Draw& draw,
-                const plugins::backend::graphics::Viewport& viewport);
+                const contract::renderer::Viewport& viewport);
 
     /// @brief Records the draw of a GPU system, inside dynamic rendering, into @p viewport: its packed @p instances,
     /// as many as the instanceCount its simulation wrote into @p indirect (a VkDrawIndirectCommand). Binds the pipeline
     /// as record() does. The frame's set 0 must already be bound. Does nothing for a null texture set.
     /// @param draw Its constants and texture set; its instance range is ignored.
     void recordIndirect(const vk::raii::CommandBuffer& commandBuffer, const Draw& draw, vk::Buffer instances,
-                        vk::Buffer indirect, const plugins::backend::graphics::Viewport& viewport);
+                        vk::Buffer indirect, const contract::renderer::Viewport& viewport);
 
   private:
     /// @brief Binds @p draw's pipeline, @p viewport, its push constants and sets, and @p instances.
     void bind(const vk::raii::CommandBuffer& commandBuffer, const Draw& draw, vk::Buffer instances,
-              const plugins::backend::graphics::Viewport& viewport);
+              const contract::renderer::Viewport& viewport);
 
     /// @brief Instances the first buffer holds; each new one doubles until the frame's instances fit.
     static constexpr std::size_t kInitialCapacity = 1024;

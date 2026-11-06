@@ -9,13 +9,13 @@
 
 #include <glm/ext/vector_float2.hpp>
 
-#include "plugins/backend/graphics/Text.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
-#include "plugins/backend/math/Rect.hpp"
 #include "plugins/text/Font.hpp"
 #include "plugins/text/TextLayout.hpp"
+#include "rtype/contract/renderer/drawing/Text.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 
-using rtype::plugins::backend::math::Rect;
+using rtype::contract::renderer::math::Rect;
 using rtype::plugins::text::Font;
 using rtype::plugins::text::Glyph;
 using rtype::plugins::text::TextAlign;

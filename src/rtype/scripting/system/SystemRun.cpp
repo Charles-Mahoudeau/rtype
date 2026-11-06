@@ -24,6 +24,8 @@
 #include <vector>
 
 #include "ContextTypes.hpp"
+#include "rtype/ecs/call/CallInfo.hpp"
+#include "rtype/ecs/call/DynamicCalls.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/event/EventRange.hpp"
@@ -44,6 +46,7 @@
 #include "rtype/luau/Usertype.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
+#include "rtype/scripting/call/EngineCall.hpp"
 #include "rtype/scripting/commands/ScriptCommands.hpp"
 #include "rtype/scripting/view/ComponentView.hpp"
 #include "rtype/scripting/view/FieldAccess.hpp"
@@ -277,10 +280,32 @@ class EventsContext {
     std::deque<Pass> _passes;                    ///< What each iterator steps.
 };
 
+/// @brief `ctx.call(name, fields)`: makes one of the engine calls the system declared.
+[[nodiscard]] luau::ValuePack makeCall(const ScriptSystem& system, const luau::Runtime& runtime,
+                                       const ecs::DynamicCalls& calls, const luau::CallContext& arguments) {
+    const auto* name = arguments.argCount() > 0 ? arguments.args().front().tryAs<std::string>() : nullptr;
+    if (name == nullptr) {
+        throw luau::exceptions::RuntimeError{"ctx.call expects the name of an engine call"};
+    }
+    const auto found =
+        std::ranges::find(system.calls, *name, [](const ecs::CallInfo* info) { return std::string_view{info->name}; });
+    if (found == system.calls.end()) {
+        throw luau::exceptions::RuntimeError{
+            std::format("engine call '{}' is not declared by system '{}': list it under 'calls'", *name, system.name)};
+    }
+    const auto index = static_cast<std::size_t>(std::distance(system.calls.begin(), found));
+    const luau::Value* fields = arguments.argCount() > 1 ? &*std::next(arguments.args().begin()) : nullptr;
+    return call::callEngine(runtime, **found, fields,
+                            [&calls, index](const std::span<const std::byte> bytes, const std::span<std::byte> result) {
+                                calls.invoke(index, bytes, result);
+                            });
+}
+
 /// @brief Builds `ctx` and calls `run` with it.
 [[nodiscard]] luau::Result<> call(ScriptSystem& system, const luau::Runtime& runtime,
                                   const ecs::DynamicQueries& queries, ecs::DynamicResources& resources,
-                                  const ecs::DynamicEvents& events, const ecs::Time& time, ecs::Commands& commands) {
+                                  const ecs::DynamicEvents& events, const ecs::DynamicCalls& calls,
+                                  const ecs::Time& time, ecs::Commands& commands) {
     // The iterator is a native function: it must stay alive while `run` can call it.
     // A system without query terms has no query: its iterator ends at once.
     std::optional<QueryStepper> stepper;
@@ -294,6 +319,7 @@ class EventsContext {
     auto recorder = runtime.usertype<commands::ScriptCommands>().create(commands::ScriptCommands{
         .commands = &commands,
         .layouts = system.runtime->components,
+        .registry = system.components,
         .clientSide = system.clientSide,
         .scope = system.scope,
         .generation = system.scope->generation,
@@ -316,6 +342,10 @@ class EventsContext {
     if (!eventsTable) {
         return tl::unexpected{std::move(eventsTable.error())};
     }
+    auto engineCall = luau::Function::create(runtime, std::format("{}.call", system.name));
+    engineCall.setHandler([&system, &runtime, &calls](const luau::CallContext& arguments) {
+        return makeCall(system, runtime, calls, arguments);
+    });
     auto timeTable = luau::Table::create(runtime, 0, 5);
     if (!timeTable) {
         return tl::unexpected{std::move(timeTable.error())};
@@ -331,7 +361,7 @@ class EventsContext {
             return set;
         }
     }
-    auto ctx = luau::Table::create(runtime, 0, 7);
+    auto ctx = luau::Table::create(runtime, 0, 8);
     if (!ctx) {
         return tl::unexpected{std::move(ctx.error())};
     }
@@ -343,6 +373,7 @@ class EventsContext {
              {"commands", luau::Value{std::move(*recorder)}},
              {"resources", luau::Value{std::move(*resourcesHandle)}},
              {"events", luau::Value{*eventsTable}},
+             {"call", luau::Value{engineCall.ref()}},
          }) {
         if (auto set = ctx->set(name, value); !set) {
             return set;
@@ -359,12 +390,13 @@ class EventsContext {
 }  // namespace
 
 void runScriptSystem(ScriptSystem& system, const ecs::DynamicQueries& queries, ecs::DynamicResources& resources,
-                     const ecs::DynamicEvents& events, const ecs::Time& time, ecs::Commands& commands) {
+                     const ecs::DynamicEvents& events, const ecs::DynamicCalls& calls, const ecs::Time& time,
+                     ecs::Commands& commands) {
     const luau::Runtime* const runtime = system.runtime->runtime;
     if (runtime == nullptr) {
         return;  // the host is gone, and the script with it
     }
-    const auto result = call(system, *runtime, queries, resources, events, time, commands);
+    const auto result = call(system, *runtime, queries, resources, events, calls, time, commands);
     ++system.scope->generation;  // every view of this run dies, even when it failed
     if (!result) {
         std::cerr << std::format("[ScriptSystem] '{}' failed, skipped this tick: {}\n", system.name,

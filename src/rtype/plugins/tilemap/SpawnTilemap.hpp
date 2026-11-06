@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
+#include "plugins/tilemap/Export.hpp"
 #include "plugins/tilemap/TilemapAssets.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
@@ -32,7 +33,8 @@ struct TilemapPlacement {
 /// sees the map's parallax origin. Hidden layers are spawned too (the plugin skips them), so layer indices and entities
 /// match.
 /// @return The entities, bottom layer first; none if @p map is unknown or failed to load.
-std::vector<ecs::Entity> spawnTilemap(ecs::Commands& commands, const TilemapAssets& maps, core::asset::AssetId map,
-                                      const TilemapPlacement& placement = {});
+RTYPE_PLUGIN_TILEMAP_API std::vector<ecs::Entity> spawnTilemap(ecs::Commands& commands, const TilemapAssets& maps,
+                                                               core::asset::AssetId map,
+                                                               const TilemapPlacement& placement = {});
 
 }  // namespace rtype::plugins::tilemap

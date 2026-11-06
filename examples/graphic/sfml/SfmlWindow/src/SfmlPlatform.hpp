@@ -15,9 +15,9 @@
 #include <string>
 #include <vector>
 
-#include "plugins/backend/event/Event.hpp"
-#include "plugins/backend/platform/IPlatform.hpp"
-#include "plugins/backend/platform/WindowConfig.hpp"
+#include "rtype/contract/platform/IPlatform.hpp"
+#include "rtype/contract/platform/WindowConfig.hpp"
+#include "rtype/contract/platform/event/Event.hpp"
 
 namespace example {
 
@@ -28,7 +28,7 @@ namespace example {
 /// no interop interface (such as IVulkanSurfaceSource): SfmlRenderer needs none.
 ///
 /// Kept short on purpose: only the common keys and the mouse are translated, and gamepads are ignored.
-class SfmlPlatform final : public rtype::plugins::backend::platform::IPlatform {
+class SfmlPlatform final : public rtype::contract::platform::IPlatform {
   public:
     /// @brief Does not open anything yet: the engine calls init().
     SfmlPlatform() = default;
@@ -44,9 +44,9 @@ class SfmlPlatform final : public rtype::plugins::backend::platform::IPlatform {
     void setSize(glm::uvec2 size) override;
 
     /// @throws std::runtime_error If init() was already called.
-    void init(const rtype::plugins::backend::platform::WindowConfig& config) override;
+    void init(const rtype::contract::platform::WindowConfig& config) override;
 
-    [[nodiscard]] std::vector<rtype::plugins::backend::Event> pollEvents() override;
+    [[nodiscard]] std::vector<rtype::contract::platform::Event> pollEvents() override;
     [[nodiscard]] bool isOpen() const noexcept override;
     void close() override;
     void setCursorLocked(bool locked) override;

@@ -19,6 +19,7 @@
 #include "rtype/ecs/app/Plugin.hpp"
 #include "rtype/ecs/app/PluginGroup.hpp"
 #include "rtype/ecs/app/PluginRegistry.hpp"
+#include "rtype/ecs/call/CallInfo.hpp"
 #include "rtype/ecs/event/EventCursor.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
@@ -98,6 +99,14 @@ class RTYPE_ECS_API App {
     /// @endcode
     /// @throws exceptions::ActorException When the name is empty or already taken.
     ActorConfig addActor(std::string name);
+
+    /// @brief Gives scripts an engine call made of a function (makeCallInfo() tells what it may take and return).
+    /// @param name Its stable name, such as "rtype.audio.loadSound".
+    /// @return The call's id in the world's Calls.
+    /// @throws exceptions::CallException When the name is taken, or the arguments or result break a rule of
+    /// validateType().
+    template <typename Function>
+    CallId addCall(std::string name, Function function);
 
     /// @brief Sets a resource of the world, replacing its value if any (Resources::insert()).
     template <Resource T>

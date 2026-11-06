@@ -10,10 +10,11 @@
 #include <miniaudio.h>
 
 #include "audio/miniaudio/MiniaudioConfig.hpp"
+#include "rtype/audio/miniaudio/Export.hpp"
 
 namespace rtype::audio::miniaudio::core {
 /// @brief Owns a ma_engine: the audio device and the mixer, started on construction and stopped on destruction.
-class Engine {
+class RTYPE_AUDIO_MINIAUDIO_API Engine {
   public:
     /// @param config The sample rate, channels and period size to mix with; 0 lets miniaudio choose.
     /// @throws exceptions::MiniaudioException If the device cannot open.

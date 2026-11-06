@@ -13,17 +13,17 @@
 #include <variant>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/graphics/Particle.hpp"
-#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "plugins/particle/CpuSimulation.hpp"
 #include "plugins/particle/ParticleSystems.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
+using rtype::contract::renderer::ParticleSystemDesc;
+using rtype::contract::renderer::ParticleSystemId;
 using rtype::core::asset::AssetId;
 using rtype::ecs::Entity;
-using rtype::plugins::backend::graphics::ParticleSystemDesc;
-using rtype::plugins::backend::graphics::ParticleSystemId;
 using rtype::plugins::particle::CpuSimulation;
 using rtype::plugins::particle::EmitterState;
 using rtype::plugins::particle::ParticleSystems;

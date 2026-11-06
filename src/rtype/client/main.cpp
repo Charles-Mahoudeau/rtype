@@ -12,20 +12,52 @@
 #include <cstddef>
 #include <exception>
 #include <iostream>
+#include <memory>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "core/config/Settings.hpp"
+#include "plugins/audio/AudioPlugin.hpp"
+#include "plugins/audio/AudioRegistry.hpp"
+#include "plugins/graphics/BackendRegistry.hpp"
+#include "plugins/graphics/GraphicsPlugin.hpp"
+#include "plugins/input/InputPlugin.hpp"
+#include "plugins/particle/ParticlePlugin.hpp"
+#include "plugins/shader/ShaderPlugin.hpp"
+#include "plugins/sprite/SpriteDrawPlugin.hpp"
+#include "plugins/sprite/SpritePlugin.hpp"
+#include "plugins/text/TextPlugin.hpp"
+#include "plugins/tilemap/TilemapPlugin.hpp"
 #include "rtype/audio/miniaudio/Registration.hpp"
+#include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/engine/Engine.hpp"
 #include "rtype/platform/glfw/Registration.hpp"
-#include "rtype/plugins/audio/AudioRegistry.hpp"
-#include "rtype/plugins/backend/BackendRegistry.hpp"
 #include "rtype/render/vulkan/Registration.hpp"
 
 namespace {
 constexpr int kErrorCode = 84;  ///< What the program returns when it cannot run the game.
+
+/// @brief Adds the plugins of the client side, with the backends the settings can name: the only place that knows
+/// GLFW, Vulkan and miniaudio.
+void addClientPlugins(rtype::ecs::App& app, const rtype::core::config::Settings& settings) {
+    auto backends = std::make_unique<rtype::plugins::graphics::BackendRegistry>();
+    rtype::platform::glfw::registerPlatform(backends->platforms);
+    rtype::render::vulkan::registerRenderer(backends->renderers);
+    auto audio = std::make_unique<rtype::plugins::audio::AudioRegistry>();
+    rtype::audio::miniaudio::registerAudio(audio->devices);
+    app.addPlugin(rtype::plugins::input::InputPlugin{});
+    app.addPlugin(rtype::plugins::graphics::GraphicsPlugin{std::move(backends), settings});
+    app.addPlugin(rtype::plugins::shader::ShaderPlugin{});
+    app.addPlugin(rtype::plugins::sprite::SpritePlugin{});
+    app.addPlugin(rtype::plugins::sprite::SpriteDrawPlugin{});
+    app.addPlugin(rtype::plugins::tilemap::TilemapPlugin{});
+    app.addPlugin(rtype::plugins::text::TextPlugin{});
+    app.addPlugin(rtype::plugins::particle::ParticlePlugin{});
+    app.addPlugin(rtype::plugins::audio::AudioPlugin{std::move(audio), settings});
+}
 }  // namespace
 
 int main(const int argc, char** argv) {
@@ -34,15 +66,7 @@ int main(const int argc, char** argv) {
         rtype::engine::Engine engine{{
             .mode = rtype::ecs::RunMode::kClient,
             .args = std::vector<std::string>{args.begin() + 1, args.end()},
-            .registerBackends =
-                [](rtype::plugins::backend::BackendRegistry& registry) {
-                    rtype::platform::glfw::registerPlatform(registry);
-                    rtype::render::vulkan::registerRenderer(registry);
-                },
-            .registerAudio =
-                [](rtype::plugins::audio::AudioRegistry& registry) {
-                    rtype::audio::miniaudio::registerAudio(registry);
-                },
+            .addPlugins = &addClientPlugins,
         }};
 
         return engine.run();

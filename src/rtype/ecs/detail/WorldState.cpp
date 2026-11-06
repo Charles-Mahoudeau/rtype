@@ -31,6 +31,8 @@ namespace {
             return KindTraits<ResourceInfo>::kLabel;
         case TypeKind::kEvent:
             return KindTraits<EventInfo>::kLabel;
+        case TypeKind::kCallData:
+            return "Call data";
     }
     return "Type";
 }
@@ -44,6 +46,8 @@ namespace {
             return "a resource";
         case TypeKind::kEvent:
             return "an event";
+        case TypeKind::kCallData:
+            return "call data";
     }
     return "a type";
 }

@@ -22,16 +22,16 @@
 #include "core/asset/AssetFiles.hpp"
 #include "core/asset/AssetId.hpp"
 #include "core/asset/AssetStore.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
 #include "plugins/sprite/detail/AtlasJson.hpp"
 #include "plugins/sprite/detail/AtlasPacker.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
 
 namespace rtype::plugins::sprite {
 
 std::size_t AtlasAssets::getCount() const noexcept { return _atlases.getCount(); }
 
-core::asset::AssetId AtlasAssets::load(const std::filesystem::path& path, const backend::graphics::TextureDesc& desc) {
+core::asset::AssetId AtlasAssets::load(const std::filesystem::path& path, const contract::renderer::TextureDesc& desc) {
     const auto stored = _atlases.load(path, [&desc](std::string_view text, const std::filesystem::path& file) {
         return detail::parseAtlasJson(text, file, desc);
     });
@@ -50,7 +50,7 @@ core::asset::AssetId AtlasAssets::add(const std::string& name, SpriteAtlas atlas
 }
 
 core::asset::AssetId AtlasAssets::pack(const std::string& name, std::span<const std::filesystem::path> images,
-                                       std::uint32_t padding, const backend::graphics::TextureDesc& desc) {
+                                       std::uint32_t padding, const contract::renderer::TextureDesc& desc) {
     std::string path = core::asset::normalizePath(name);
     const std::optional<core::asset::AssetId> id = _atlases.reserve(path);
     if (!id) {
@@ -58,7 +58,7 @@ core::asset::AssetId AtlasAssets::pack(const std::string& name, std::span<const 
     }
     try {
         detail::PackedImages packed = detail::packImages(images, padding);
-        backend::graphics::TextureDesc packedDesc = desc;
+        contract::renderer::TextureDesc packedDesc = desc;
         packedDesc.size = packed.size;
         SpriteAtlas atlas{path, packedDesc};
         for (const detail::PackedImages::Placement& placement : packed.placements) {
@@ -72,6 +72,8 @@ core::asset::AssetId AtlasAssets::pack(const std::string& name, std::span<const 
 }
 
 const SpriteAtlas* AtlasAssets::get(core::asset::AssetId id) const { return _atlases.get(id); }
+
+SpriteAtlas* AtlasAssets::edit(core::asset::AssetId id) { return _atlases.get(id); }
 
 const AtlasAssets::Entry* AtlasAssets::getEntry(core::asset::AssetId id) const { return _atlases.getEntry(id); }
 

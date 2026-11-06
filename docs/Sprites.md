@@ -2,7 +2,7 @@
 
 The sprite plugin (`src/rtype/plugins/sprite/`, `rtype::plugins::sprite`) cuts textures into named frames and plays
 animations made of them. It knows nothing of the renderer: it writes the `SpriteRenderer` of each animated entity, which
-the backend plugin draws as before. The `BackendPlugin` adds it; a server without a window adds `SpritePlugin` itself if
+the graphics plugin draws as before. The game adds `SpritePlugin`, and on a client `SpriteDrawPlugin`, which draws the entities and requires `SpritePlugin`, `GraphicsPlugin` and `ShaderPlugin`; a server adds `SpritePlugin` alone if
 it wants its animators to advance.
 
 ## Atlases
@@ -61,6 +61,42 @@ commands.spawn()
   stops a finite animation on its last frame (`playing` turns false, an `AnimationFinished` event is sent), and writes
   the frame's texture, source and origin into the entity's `SpriteRenderer`, only when they change, so an idle sprite
   stays unchanged for change detection and replication.
+- A sprite without an animator is drawn from its own `source`: a script writes it as a `vec4`, `x` and `y` its position
+  in the texture, `z` and `w` its size (`source = { x = 0, y = 0, z = 51, w = 115 }`, the whole of a 51x115 image).
+
+## From scripts
+
+The SpritePlugin registers [engine calls](ecs/features/19-luau-bridge.md#engine-calls) on `AtlasAssets`. An atlas is
+made with one call and filled by name with the others, since call arguments hold no lists: an animation's frames are a
+range, `first` and `count` (0: up to the last frame).
+
+```luau
+local ship = engine.call("rtype.sprite.createAtlas", {
+    name = "game.ship", texture = "assets/ship.png",
+    frameSize = { x = 48, y = 48 }, count = 5, spacing = { x = 17, y = 0 },   -- a grid; count 0: no frames
+})
+engine.call("rtype.sprite.addAnimation", { atlas = ship, name = "fly", frameDuration = 0.1, direction = "pingPong" })
+
+engine.call("rtype.sprite.createAtlas", { name = "game.laser", texture = "assets/laser.png" })
+engine.call("rtype.sprite.addFrame", {                       -- named "0"; returns its index
+    atlas = "game.laser", position = { x = 108, y = 151 }, size = { x = 80, y = 16 },   -- origin: its centre
+})
+local explosion = engine.call("rtype.sprite.loadAtlas", { path = "assets/explosion.json" })
+```
+
+`rtype.sprite.addFrame` and `rtype.sprite.addAnimation` change an atlas already added (`AtlasAssets::edit()`). An
+unknown atlas or direction, or an index that is not a frame, is an error.
+
+The [`engine.assets.atlas` form](ecs/features/19-luau-bridge.md#setup-forms) makes those calls from one table, and only
+returns the atlas's id on a side without the SpritePlugin:
+
+```luau
+local ship = engine.assets.atlas({
+    name = "game.ship", texture = "assets/ship.png",
+    grid = { frameSize = { x = 48, y = 48 }, count = 5, spacing = { x = 17, y = 0 } },
+    animations = { fly = { frames = { 0, 1, 2, 3, 4 }, frameDuration = 0.1, direction = "pingPong" } },
+})
+```
 
 ## Performance
 

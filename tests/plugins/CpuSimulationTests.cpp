@@ -13,16 +13,16 @@
 #include <glm/geometric.hpp>
 #include <numbers>
 
-#include "plugins/backend/exceptions/ParticleExceptions.hpp"
-#include "plugins/backend/graphics/Particle.hpp"
-#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "plugins/particle/CpuSimulation.hpp"
+#include "rtype/contract/renderer/exceptions/ParticleExceptions.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 
-using rtype::plugins::backend::graphics::CircleShape;
-using rtype::plugins::backend::graphics::ParticleEmission;
-using rtype::plugins::backend::graphics::ParticleSpace;
-using rtype::plugins::backend::graphics::ParticleSystemDesc;
-using rtype::plugins::backend::graphics::RectShape;
+using rtype::contract::renderer::CircleShape;
+using rtype::contract::renderer::ParticleEmission;
+using rtype::contract::renderer::ParticleSpace;
+using rtype::contract::renderer::ParticleSystemDesc;
+using rtype::contract::renderer::RectShape;
 using rtype::plugins::particle::CpuSimulation;
 
 namespace {
@@ -54,7 +54,7 @@ TEST(CpuSimulationTests, StartsEmpty) {
 TEST(CpuSimulationTests, ThrowsOnAnInvalidDesc) {
     ParticleSystemDesc desc = makeDesc();
     desc.capacity = 0;
-    EXPECT_THROW(CpuSimulation{desc}, rtype::plugins::backend::exceptions::ParticleException);
+    EXPECT_THROW(CpuSimulation{desc}, rtype::contract::renderer::exceptions::ParticleException);
 }
 
 TEST(CpuSimulationTests, EmitsTheSpawnCount) {

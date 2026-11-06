@@ -9,10 +9,10 @@
 
 #include <filesystem>
 
-#include "plugins/backend/system/CacheDirectory.hpp"
+#include "core/system/CacheDirectory.hpp"
 
 TEST(CacheDirectory, IsAnAbsolutePathOrNothing) {
-    const std::filesystem::path directory = rtype::plugins::backend::system::getCacheDirectory();
+    const std::filesystem::path directory = rtype::core::system::getCacheDirectory();
     EXPECT_TRUE(directory.empty() || directory.is_absolute());
 }
 
@@ -51,18 +51,18 @@ class ScopedEnvironment {
 
 TEST(CacheDirectory, FollowsXdgCacheHome) {
     const ScopedEnvironment xdg{"XDG_CACHE_HOME", "/tmp/rtype-cache"};
-    EXPECT_EQ(rtype::plugins::backend::system::getCacheDirectory(), std::filesystem::path{"/tmp/rtype-cache"});
+    EXPECT_EQ(rtype::core::system::getCacheDirectory(), std::filesystem::path{"/tmp/rtype-cache"});
 }
 
 TEST(CacheDirectory, IgnoresARelativeXdgCacheHome) {
     const ScopedEnvironment xdg{"XDG_CACHE_HOME", "relative/cache"};
     const ScopedEnvironment home{"HOME", "/home/player"};
-    EXPECT_EQ(rtype::plugins::backend::system::getCacheDirectory(), std::filesystem::path{"/home/player/.cache"});
+    EXPECT_EQ(rtype::core::system::getCacheDirectory(), std::filesystem::path{"/home/player/.cache"});
 }
 #endif
 
 #ifdef __APPLE__
 TEST(CacheDirectory, IsTheLibraryCachesOnMacOs) {
-    EXPECT_EQ(rtype::plugins::backend::system::getCacheDirectory().filename(), "Caches");
+    EXPECT_EQ(rtype::core::system::getCacheDirectory().filename(), "Caches");
 }
 #endif

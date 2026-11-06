@@ -12,11 +12,11 @@
 #include <string>
 #include <string_view>
 
-#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/shader/detail/ShaderAssembler.hpp"
 #include "plugins/shader/detail/ShaderParser.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
-using rtype::plugins::backend::graphics::ShaderTarget;
+using rtype::contract::renderer::ShaderTarget;
 using rtype::plugins::shader::detail::assembleShader;
 using rtype::plugins::shader::detail::blankFunction;
 using rtype::plugins::shader::detail::ParsedShader;

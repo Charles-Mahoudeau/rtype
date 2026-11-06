@@ -16,14 +16,16 @@
 namespace rtype::ecs {
 /// @brief How a system uses one component, resource or event type.
 struct TypeAccess {
-    TypeId id{0};       ///< The type, by its id in the world.
-    bool write{false};  ///< True when the system writes it, false when it only reads it.
+    TypeId id{0};        ///< The type, by its id in the world.
+    bool write{false};   ///< True when the system writes it, false when it only reads it.
+    bool append{false};  ///< True when all the system does is add to it (ResAppend): `write` is true then.
 
     [[nodiscard]] constexpr bool operator==(const TypeAccess& other) const noexcept = default;
 };
 
 /// @brief Everything a system reads and writes, deduced from its parameters: what the scheduler orders systems by
-/// (two systems conflict when one writes what the other reads or writes) and, later, runs disjoint ones in parallel.
+/// (two systems conflict when one writes what the other reads or writes, unless both only append to it) and, later,
+/// runs disjoint ones in parallel.
 /// @details Each type appears once per kind; adding it again as written turns a read into a write. Commands are not
 /// listed: they are structural changes applied at the flush, after the system ran.
 class RTYPE_ECS_API SystemAccess {
@@ -52,7 +54,9 @@ class RTYPE_ECS_API SystemAccess {
     void addComponent(TypeId id, bool write);
 
     /// @brief Records reading or writing a resource.
-    void addResource(TypeId id, bool write);
+    /// @param append Whether the write only adds to it (ResAppend). Any other use of the same resource by the system
+    /// makes it a plain write.
+    void addResource(TypeId id, bool write, bool append = false);
 
     /// @brief Records reading or sending an event type.
     void addEvent(TypeId id, bool write);
@@ -60,9 +64,13 @@ class RTYPE_ECS_API SystemAccess {
     /// @brief Records that the system must run on the main thread.
     void requireMainThread() noexcept;
 
+    /// @brief Records everything `other` reads and writes, and its main-thread need: what an engine call adds to the
+    /// system that uses it.
+    void merge(const SystemAccess& other);
+
   private:
     /// @brief Adds the type to `accesses`, or upgrades its entry to a write.
-    static void add(std::vector<TypeAccess>& accesses, TypeId id, bool write);
+    static void add(std::vector<TypeAccess>& accesses, TypeId id, bool write, bool append = false);
 
     std::vector<TypeAccess> _components;  ///< Components read or written, one entry each.
     std::vector<TypeAccess> _resources;   ///< Resources read or written, one entry each.

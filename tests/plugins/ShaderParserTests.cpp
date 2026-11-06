@@ -14,11 +14,11 @@
 #include <string>
 #include <string_view>
 
-#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/shader/detail/ShaderParser.hpp"
 #include "plugins/shader/exceptions/ShaderExceptions.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
-using rtype::plugins::backend::graphics::ShaderValueType;
+using rtype::contract::renderer::ShaderValueType;
 using rtype::plugins::shader::detail::ParsedShader;
 using rtype::plugins::shader::detail::parseShader;
 using rtype::plugins::shader::exceptions::ShaderException;

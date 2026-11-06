@@ -13,11 +13,12 @@
 #include <string>
 #include <unordered_map>
 
-#include "plugins/backend/event/Event.hpp"
-#include "plugins/backend/input/Key.hpp"
 #include "plugins/input/ButtonStates.hpp"
 #include "plugins/input/Control.hpp"
+#include "plugins/input/Export.hpp"
 #include "plugins/input/InputAction.hpp"
+#include "rtype/contract/platform/event/Event.hpp"
+#include "rtype/contract/platform/input/Key.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
 namespace rtype::plugins::input {
@@ -38,7 +39,7 @@ namespace rtype::plugins::input {
 ///
 /// A key pressed and released between two frames still counts as held for one frame,
 /// so short taps are never missed.
-class Input {
+class RTYPE_PLUGIN_INPUT_API Input {
   public:
     Input() = default;
     ~Input() = default;
@@ -48,7 +49,7 @@ class Input {
     Input& operator=(Input&& other) noexcept = default;
 
     /// @brief Feeds one event. Call it for every event of the frame, before update().
-    void handleEvent(const plugins::backend::Event& event);
+    void handleEvent(const contract::platform::Event& event);
 
     /// @brief Updates every action from the events received since the last call. Call once per frame.
     void update();
@@ -61,6 +62,9 @@ class Input {
 
     /// @throws InputException If no action has this name.
     [[nodiscard]] const InputAction& getAction(const std::string& name) const;
+
+    /// @return The action of this name, or nullptr if there is none.
+    [[nodiscard]] const InputAction* findAction(const std::string& name) const;
 
     /// @brief Deletes an action by name.
     /// @throws InputException If no action has this name.
@@ -84,32 +88,32 @@ class Input {
   private:
     /// @name Event handlers, dispatched by handleEvent().
     /// @{
-    void onEvent(const plugins::backend::event::KeyPressed& event);
-    void onEvent(const plugins::backend::event::KeyReleased& event);
-    void onEvent(const plugins::backend::event::MouseButtonPressed& event);
-    void onEvent(const plugins::backend::event::MouseButtonReleased& event);
-    void onEvent(const plugins::backend::event::MouseMoved& event) noexcept;
-    void onEvent(const plugins::backend::event::MouseScrolled& event) noexcept;
-    void onEvent(const plugins::backend::event::FocusChanged& event) noexcept;
-    void onEvent(const plugins::backend::event::GamepadConnected& event) noexcept;
-    void onEvent(const plugins::backend::event::GamepadDisconnected& event) noexcept;
-    void onEvent(const plugins::backend::event::GamepadButtonPressed& event);
-    void onEvent(const plugins::backend::event::GamepadButtonReleased& event);
-    void onEvent(const plugins::backend::event::GamepadAxisMoved& event);
+    void onEvent(const contract::platform::event::KeyPressed& event);
+    void onEvent(const contract::platform::event::KeyReleased& event);
+    void onEvent(const contract::platform::event::MouseButtonPressed& event);
+    void onEvent(const contract::platform::event::MouseButtonReleased& event);
+    void onEvent(const contract::platform::event::MouseMoved& event) noexcept;
+    void onEvent(const contract::platform::event::MouseScrolled& event) noexcept;
+    void onEvent(const contract::platform::event::FocusChanged& event) noexcept;
+    void onEvent(const contract::platform::event::GamepadConnected& event) noexcept;
+    void onEvent(const contract::platform::event::GamepadDisconnected& event) noexcept;
+    void onEvent(const contract::platform::event::GamepadButtonPressed& event);
+    void onEvent(const contract::platform::event::GamepadButtonReleased& event);
+    void onEvent(const contract::platform::event::GamepadAxisMoved& event);
     /// @brief Events Input does not use (Closed, Resized, TextEntered...).
     template <typename Unused>
     void onEvent(const Unused& event) noexcept;
     /// @}
 
-    [[nodiscard]] float readGamepadAxis(plugins::backend::input::GamepadAxis axis) const;
+    [[nodiscard]] float readGamepadAxis(contract::platform::input::GamepadAxis axis) const;
     [[nodiscard]] glm::vec2 evaluate(const InputAction::Binding& binding) const;
 
     std::unordered_map<std::string, InputAction> _actions;  ///< Actions by name.
 
-    ButtonStates<plugins::backend::input::Key> _keys;
-    ButtonStates<plugins::backend::input::MouseButton> _mouseButtons;
-    ButtonStates<plugins::backend::input::GamepadButton> _gamepadButtons;
-    std::array<float, static_cast<std::size_t>(plugins::backend::input::GamepadAxis::kCount)>
+    ButtonStates<contract::platform::input::Key> _keys;
+    ButtonStates<contract::platform::input::MouseButton> _mouseButtons;
+    ButtonStates<contract::platform::input::GamepadButton> _gamepadButtons;
+    std::array<float, static_cast<std::size_t>(contract::platform::input::GamepadAxis::kCount)>
         _gamepadAxes{};  ///< Raw values, no deadzone.
     bool _gamepadConnected = false;
     float _deadzone = 0.15F;  ///< Stick values below this are read as 0.

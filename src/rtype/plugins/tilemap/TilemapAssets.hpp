@@ -14,8 +14,9 @@
 
 #include "core/asset/AssetId.hpp"
 #include "core/asset/AssetStore.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
+#include "plugins/tilemap/Export.hpp"
 #include "plugins/tilemap/Tilemap.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
 namespace rtype::plugins::tilemap {
@@ -33,7 +34,7 @@ namespace rtype::plugins::tilemap {
 ///     rtype::plugins::tilemap::spawnTilemap(commands, *maps, level);
 /// }
 /// @endcode
-class TilemapAssets {
+class RTYPE_PLUGIN_TILEMAP_API TilemapAssets {
   public:
     /// @brief One map: its file (or the name it was added under), the map (nothing if it could not be built) and why it
     /// could not be.
@@ -41,8 +42,8 @@ class TilemapAssets {
 
     /// @brief An image a map needs, for TextureAssets.
     struct TextureRequest {
-        std::string path;                     ///< The image file.
-        backend::graphics::TextureDesc desc;  ///< Repeat mode: on for an image layer that repeats.
+        std::string path;                      ///< The image file.
+        contract::renderer::TextureDesc desc;  ///< Repeat mode: on for an image layer that repeats.
     };
 
     TilemapAssets() = default;

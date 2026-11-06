@@ -9,14 +9,14 @@
 
 #include <cstdint>
 
-#include "plugins/backend/graphics/Particle.hpp"
-#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "plugins/particle/ParticleSpawn.hpp"
 #include "plugins/particle/ParticleSystems.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 
-using rtype::plugins::backend::graphics::ParticleBurst;
-using rtype::plugins::backend::graphics::ParticleSystemDesc;
-using rtype::plugins::backend::graphics::ParticleSystemId;
+using rtype::contract::renderer::ParticleBurst;
+using rtype::contract::renderer::ParticleSystemDesc;
+using rtype::contract::renderer::ParticleSystemId;
 using rtype::plugins::particle::computeSpawnCount;
 using rtype::plugins::particle::EmitterState;
 using rtype::plugins::particle::isEmissionOver;

@@ -1102,7 +1102,7 @@ struct PlayerInput {
     std::array<glm::vec2, kMaxInputAxes> vectors;  ///< kAxis / kVector2 actions, in manifest order.
 };
 
-void collectInput(rtype::ecs::Res<rtype::plugins::backend::input::Input> input,
+void collectInput(rtype::ecs::Res<rtype::contract::platform::input::Input> input,
                   rtype::ecs::Query<PlayerInput, rtype::ecs::With<LocalPlayer>> players) {
     for (auto [entity, playerInput] : players) {
         playerInput->vectors[0] = input->getAction("move").readVector();
@@ -1318,24 +1318,24 @@ Going Bevy-style now means the ECS owns the loop. Ethan's **interfaces stay**; w
 | `IPlatform::pollEvents()` | `PreUpdate` system that forwards each `Event` alternative to `Events<…>` |
 | `Input` / `InputAction` | Resource updated by a `PreUpdate` system from window events; feeds `PlayerInput` |
 | `IRenderer` | Called by `Render`-phase systems: `beginFrame` / `setView` / `draw` / `endFrame` |
-| `graphics::Sprite` (with `position`) | **Kept as the renderer's draw command.** The ECS component is `plugins::backend::SpriteRenderer` (`AssetId`, source rect, color, origin, layer), and the position comes from `plugins::transform::GlobalTransform`. The backend plugin's Render system `rtype.backend.sprites` looks up each texture's `TextureId` in `TextureAssets`, sorts the sprites by layer then texture, and calls `draw()`; game code only spawns entities. |
-| `graphics::Camera` | **Split in two.** The ECS component `"rtype.Camera"` (`graphics/Camera.hpp`) holds only the `projection` (an `Orthographic`, not the `Projection` variant, so it stays standard-layout) and a `priority`, reflected; where the camera is comes from its entity's `Transform`, like any other entity. The renderer gets a `graphics::View` (position, rotation, projection, `graphics/View.hpp`): the backend plugin's Render system `rtype.backend.camera` builds it from the `GlobalTransform` and the `Camera` of the entity with the highest priority and passes it to `setView()`, between `beginFrame` and `endFrame`. |
-| `TextureId` (the RAII `Texture` and `Handle<Tag>` / `Resource<Tag, Owner>` are gone) | The renderer owns the textures; the `plugins::backend::TextureAssets` resource (inserted by `BackendPlugin`) maps each `AssetId` to its `TextureId`. `load(path)` returns the `AssetId` at once and queues the texture; the `BackendPlugin`'s Render system `rtype.backend.textures` decodes the queued images (stb) and creates them (`updateTextures()`), so gameplay never touches the renderer; components keep only the `AssetId` |
+| `graphics::Sprite` (with `position`) | **Kept as the renderer's draw command.** The ECS component is `plugins::sprite::SpriteRenderer` (`AssetId`, source rect, color, origin, layer), and the position comes from `plugins::transform::GlobalTransform`. The graphics plugin's Render system `rtype.graphics.sprites` looks up each texture's `TextureId` in `TextureAssets`, sorts the sprites by layer then texture, and calls `draw()`; game code only spawns entities. |
+| `graphics::Camera` | **Split in two.** The ECS component `"rtype.Camera"` (`graphics/Camera.hpp`) holds only the `projection` (an `Orthographic`, not the `Projection` variant, so it stays standard-layout) and a `priority`, reflected; where the camera is comes from its entity's `Transform`, like any other entity. The renderer gets a `graphics::View` (position, rotation, projection, `graphics/View.hpp`): the graphics plugin's Render system `rtype.graphics.camera` builds it from the `GlobalTransform` and the `Camera` of the entity with the highest priority and passes it to `setView()`, between `beginFrame` and `endFrame`. |
+| `TextureId` (the RAII `Texture` and `Handle<Tag>` / `Resource<Tag, Owner>` are gone) | The renderer owns the textures; the `plugins::graphics::TextureAssets` resource (inserted by `GraphicsPlugin`) maps each `AssetId` to its `TextureId`. `load(path)` returns the `AssetId` at once and queues the texture; the `GraphicsPlugin`'s Render system `rtype.graphics.textures` decodes the queued images (stb) and creates them (`updateTextures()`), so gameplay never touches the renderer; components keep only the `AssetId` |
 | `IAudio` | **Removed** (it had no implementation). Audio will come back as its own plugin once a library is chosen (miniaudio, OpenAL...): its interface, a resource of sounds by `AssetId`, sounds triggered by events |
 | `Settings` | Resource, filled from the config file at startup |
 
 ```c++
 void drawSprites(rtype::ecs::Query<const GlobalTransform, const SpriteRenderer> sprites,
-                 rtype::ecs::Res<rtype::plugins::backend::TextureAssets> textures,
-                 rtype::ecs::NonSendMut<rtype::plugins::backend::Backend> backend) {
-    rtype::plugins::backend::graphics::IRenderer& renderer = *backend->renderer;
-    renderer.beginFrame(rtype::plugins::backend::graphics::Color{0.F, 0.F, 0.F, 1.F});
+                 rtype::ecs::Res<rtype::plugins::graphics::TextureAssets> textures,
+                 rtype::ecs::NonSendMut<rtype::plugins::graphics::Backend> backend) {
+    rtype::contract::renderer::IRenderer& renderer = *backend->renderer;
+    renderer.beginFrame(rtype::contract::renderer::Color{0.F, 0.F, 0.F, 1.F});
     for (auto [entity, transform, sprite] : sprites) {
         const auto texture = textures->getTexture(sprite.texture);
         if (!texture) {
             continue;  // not loaded yet
         }
-        renderer.draw(rtype::plugins::backend::graphics::Sprite{
+        renderer.draw(rtype::contract::renderer::Sprite{
             .texture = *texture,  // the renderer's TextureId
             .source = sprite.source,
             .position = transform.position,
@@ -1408,7 +1408,7 @@ is the same idea as Bevy's modules with a short prelude.
 
 | Path | Contents |
 |---|---|
-| `src/rtype/plugins/` (target `plugins`) | One folder per plugin, which keeps its code and declares its own components, resources and events (`rtype::plugins::<name>`): `input/` (`InputPlugin`, `Input`, done), `backend/` (`BackendPlugin`: window, events, frame and sprites, done), `transform/` (`TransformPlugin`: `Transform`, `GlobalTransform`, done), later `AudioPlugin`, `AssetPlugin`, `CollisionPlugin`, `ScriptPlugin`, `LuauPlugin`, `ClientPlugin`, `ServerPlugin`, `StandalonePlugin`, plugin groups (`rtype::plugins`) |
+| `src/rtype/plugins/` (target `plugins`) | One folder per plugin, which keeps its code and declares its own components, resources and events (`rtype::plugins::<name>`): `input/` (`InputPlugin`, `Input`, done), `backend/` (`GraphicsPlugin`: window, events, frame and sprites, done), `transform/` (`TransformPlugin`: `Transform`, `GlobalTransform`, done), later `AudioPlugin`, `AssetPlugin`, `CollisionPlugin`, `ScriptPlugin`, `LuauPlugin`, `ClientPlugin`, `ServerPlugin`, `StandalonePlugin`, plugin groups (`rtype::plugins`) |
 | `tests/ecs/` | gtest, same setup as `tests/luau` (`xmake f --Tests=y`) |
 
 The public include path is `src/`: `#include <rtype/ecs/world/World.hpp>`.

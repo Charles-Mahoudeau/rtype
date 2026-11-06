@@ -17,64 +17,68 @@
 #include <utility>
 #include <variant>
 
-#include "plugins/backend/event/Event.hpp"
-#include "plugins/backend/input/Key.hpp"
 #include "plugins/input/Control.hpp"
 #include "plugins/input/InputAction.hpp"
 #include "plugins/input/exceptions/InputExceptions.hpp"
+#include "rtype/contract/platform/event/Event.hpp"
+#include "rtype/contract/platform/input/Key.hpp"
 
 namespace rtype::plugins::input {
 
-void Input::handleEvent(const plugins::backend::Event& event) {
+void Input::handleEvent(const contract::platform::Event& event) {
     std::visit([this](const auto& data) { onEvent(data); }, event);
 }
 
-void Input::onEvent(const plugins::backend::event::KeyPressed& event) {
-    if (!event.repeat && event.key != plugins::backend::input::Key::kUnknown) {
+void Input::onEvent(const contract::platform::event::KeyPressed& event) {
+    if (!event.repeat && event.key != contract::platform::input::Key::kUnknown) {
         _keys.press(event.key);
     }
 }
 
-void Input::onEvent(const plugins::backend::event::KeyReleased& event) { _keys.release(event.key); }
+void Input::onEvent(const contract::platform::event::KeyReleased& event) { _keys.release(event.key); }
 
-void Input::onEvent(const plugins::backend::event::MouseButtonPressed& event) {
-    if (event.button != plugins::backend::input::MouseButton::kUnknown) {
+void Input::onEvent(const contract::platform::event::MouseButtonPressed& event) {
+    if (event.button != contract::platform::input::MouseButton::kUnknown) {
         _mouseButtons.press(event.button);
     }
 }
 
-void Input::onEvent(const plugins::backend::event::MouseButtonReleased& event) { _mouseButtons.release(event.button); }
+void Input::onEvent(const contract::platform::event::MouseButtonReleased& event) {
+    _mouseButtons.release(event.button);
+}
 
-void Input::onEvent(const plugins::backend::event::MouseMoved& event) noexcept {
+void Input::onEvent(const contract::platform::event::MouseMoved& event) noexcept {
     _mousePosition = event.position;
     _pendingMouseDelta += event.delta;
 }
 
-void Input::onEvent(const plugins::backend::event::MouseScrolled& event) noexcept { _pendingScroll += event.offset; }
+void Input::onEvent(const contract::platform::event::MouseScrolled& event) noexcept { _pendingScroll += event.offset; }
 
-void Input::onEvent(const plugins::backend::event::FocusChanged& event) noexcept {
+void Input::onEvent(const contract::platform::event::FocusChanged& event) noexcept {
     if (!event.focused) {
         _keys.releaseAll();
         _mouseButtons.releaseAll();
     }
 }
 
-void Input::onEvent(const plugins::backend::event::GamepadConnected& /*event*/) noexcept { _gamepadConnected = true; }
+void Input::onEvent(const contract::platform::event::GamepadConnected& /*event*/) noexcept { _gamepadConnected = true; }
 
-void Input::onEvent(const plugins::backend::event::GamepadDisconnected& /*event*/) noexcept {
+void Input::onEvent(const contract::platform::event::GamepadDisconnected& /*event*/) noexcept {
     _gamepadConnected = false;
     _gamepadButtons.releaseAll();
     _gamepadAxes.fill(0.0F);
 }
 
-void Input::onEvent(const plugins::backend::event::GamepadButtonPressed& event) { _gamepadButtons.press(event.button); }
+void Input::onEvent(const contract::platform::event::GamepadButtonPressed& event) {
+    _gamepadButtons.press(event.button);
+}
 
-void Input::onEvent(const plugins::backend::event::GamepadButtonReleased& event) {
+void Input::onEvent(const contract::platform::event::GamepadButtonReleased& event) {
     _gamepadButtons.release(event.button);
 }
 
-void Input::onEvent(const plugins::backend::event::GamepadAxisMoved& event) {
-    if (event.axis < plugins::backend::input::GamepadAxis::kCount) {
+void Input::onEvent(const contract::platform::event::GamepadAxisMoved& event) {
+    if (event.axis < contract::platform::input::GamepadAxis::kCount) {
         _gamepadAxes.at(static_cast<std::size_t>(event.axis)) = event.value;
     }
 }
@@ -112,10 +116,11 @@ glm::vec2 Input::evaluate(const InputAction::Binding& binding) const {
 float Input::read(const plugins::input::Control& control) const {
     switch (control.source) {
         case plugins::input::Control::Source::kKey:
-            return _keys.isDown(static_cast<plugins::backend::input::Key>(control.code)) ? control.scale : 0.0F;
+            return _keys.isDown(static_cast<contract::platform::input::Key>(control.code)) ? control.scale : 0.0F;
         case plugins::input::Control::Source::kMouseButton:
-            return _mouseButtons.isDown(static_cast<plugins::backend::input::MouseButton>(control.code)) ? control.scale
-                                                                                                         : 0.0F;
+            return _mouseButtons.isDown(static_cast<contract::platform::input::MouseButton>(control.code))
+                       ? control.scale
+                       : 0.0F;
         case plugins::input::Control::Source::kMouseDeltaX:
             return _mouseDelta.x * control.scale;
         case plugins::input::Control::Source::kMouseDeltaY:
@@ -125,17 +130,17 @@ float Input::read(const plugins::input::Control& control) const {
         case plugins::input::Control::Source::kMouseScrollY:
             return _scroll.y * control.scale;
         case plugins::input::Control::Source::kGamepadButton:
-            return _gamepadButtons.isDown(static_cast<plugins::backend::input::GamepadButton>(control.code))
+            return _gamepadButtons.isDown(static_cast<contract::platform::input::GamepadButton>(control.code))
                        ? control.scale
                        : 0.0F;
         case plugins::input::Control::Source::kGamepadAxis:
-            return readGamepadAxis(static_cast<plugins::backend::input::GamepadAxis>(control.code)) * control.scale;
+            return readGamepadAxis(static_cast<contract::platform::input::GamepadAxis>(control.code)) * control.scale;
     }
     return 0.0F;
 }
 
-float Input::readGamepadAxis(plugins::backend::input::GamepadAxis axis) const {
-    if (!_gamepadConnected || axis >= plugins::backend::input::GamepadAxis::kCount) {
+float Input::readGamepadAxis(contract::platform::input::GamepadAxis axis) const {
+    if (!_gamepadConnected || axis >= contract::platform::input::GamepadAxis::kCount) {
         return 0.0F;
     }
     const float value = _gamepadAxes.at(static_cast<std::size_t>(axis));
@@ -174,6 +179,11 @@ const InputAction& Input::getAction(const std::string& name) const {
         throw exceptions::InputException(std::format("Unknown input action: {}", name));
     }
     return it->second;
+}
+
+const InputAction* Input::findAction(const std::string& name) const {
+    const auto found = _actions.find(name);
+    return found == _actions.end() ? nullptr : &found->second;
 }
 
 glm::vec2 Input::getMousePosition() const noexcept { return _mousePosition; }

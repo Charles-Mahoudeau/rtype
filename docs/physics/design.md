@@ -124,6 +124,16 @@ public constants of `PhysicsPlugin`:
 
 `TransformPlugin` then computes `GlobalTransform` in `PostUpdate`, as for any entity.
 
+A game run by the `Engine` can add it from `project.luau` instead of C++ (see `../engine/design.md`, *Generic
+plugins*): `PhysicsSettings::fromSettings()` reads the `physics` section, every field but none required.
+
+```lua
+engine.settings.plugins = { "physics" }
+engine.settings.physics.gravity = { 0, 0 }     -- { x, y }, world units per second squared, Y down
+engine.settings.physics.unitsPerMeter = 32
+-- maxBodies, maxBodyPairs, maxContactConstraints, tempAllocatorBytes: positive integers
+```
+
 ## 6. Bodies and syncing
 
 - **Rebuild on change.** A changed `Collider` or `RigidBody` rebuilds the body (Jolt shapes are immutable); a moving
@@ -203,6 +213,43 @@ transform->position = moveAndSlide(*world, ship, collider, transform->position, 
 
 Queries and `moveAndSlide` sweep shapes without rotation.
 
+### From scripts
+
+The components (`rtype.Collider`, `rtype.RigidBody`, `rtype.Velocity`, with their enums as numbers: `shape` 0 box, 1
+circle, 2 capsule) are plain data: scripts query them and spawn them with `ctx.commands`, and read the contact events
+(`rtype.CollisionStarted`...) declared under `events`. A body's velocity and position are set by writing its
+`Velocity` and `Transform`. The rest is [engine calls](../ecs/features/19-luau-bridge.md#engine-calls) the plugin
+registers (`PhysicsCalls.hpp`), on every side:
+
+| Call | Arguments | Result |
+|---|---|---|
+| `rtype.physics.raycast` | `origin`, `direction`, `maxDistance`, `mask`, `ignore`, `includeSensors` | `{hit, entity, point, normal, distance}` |
+| `rtype.physics.shapeCast` | the shape fields of a `Collider` (`shape`, `size`, `radius`, `halfHeight`, `offset`), `from`, `direction`, `maxDistance`, the filter | as `raycast` |
+| `rtype.physics.overlap` | the shape fields, `at`, the filter | `{count, first}`: call data holds no list |
+| `rtype.physics.moveAndSlide` | `entity` (its `Collider` is the shape, its mask the filter), `from`, `delta`, `skin`, `maxSlides` | the position it ends at |
+| `rtype.physics.applyForce`, `applyImpulse` | `entity`, `value` | nothing |
+| `rtype.physics.applyTorque` | `entity`, `torque` | nothing |
+| `rtype.physics.setGravity` | `gravity` | nothing |
+
+A null `ignore` (the default) skips no entity. `raycastAll` has no call yet, for the same reason as `overlap`.
+
+```luau
+engine.ecs.system("game.Ships", {
+    phase = "FixedUpdate",
+    query = { write = { "rtype.Transform" }, with = { "game.Ship" } },
+    calls = { "rtype.physics.moveAndSlide" },
+    after = { "rtype.Physics.SyncBodies" },
+    before = { "rtype.Physics.SyncToPhysics" },
+    run = function(ctx)
+        for ship, transform in ctx.query do
+            transform.position = ctx.call("rtype.physics.moveAndSlide", {
+                entity = ship, from = transform.position, delta = { x = 4, y = 0 },
+            })
+        end
+    end,
+})
+```
+
 ## 10. Network modes and prediction
 
 ```
@@ -236,7 +283,7 @@ physics plugin too (so both sides register the same replicated components) plus 
 
 ## 11. Debug view
 
-`physics::debug::PhysicsDebugPlugin`, client side, after the `BackendPlugin`, draws collider outlines and velocity
+`physics::debug::PhysicsDebugPlugin`, client side, after the `GraphicsPlugin`, draws collider outlines and velocity
 arrows as `Shape`s (one `kRect` / `kCircle` / `kCapsule` per outline, three `kLine` per arrow), after the sprites:
 
 - **per entity**, with a `PhysicsDebug{shape, velocity, color}` component, like gizmos in Unity;
@@ -246,6 +293,10 @@ arrows as `Shape`s (one `kRect` / `kCircle` / `kCapsule` per outline, three `kLi
 It draws from the components (`Collider`, `GlobalTransform`, `Velocity`), not from Jolt, so it shows where sprites are
 drawn and works without bodies. It is a separate plugin and component on purpose: the headless server has no
 renderer, and toggling debug must never rebuild a body.
+
+From `project.luau`, `"physicsDebug"` in `engine.settings.plugins` adds it on the client side (a server skips it), with
+the `physicsDebug` section read by `PhysicsDebugSettings::fromSettings()`: `enabled`, `drawAll`, `outlineThickness` and
+`velocityScale` (the toggle key and the color keep their defaults).
 
 ## 12. Performance
 

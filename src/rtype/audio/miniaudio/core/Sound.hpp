@@ -13,12 +13,13 @@
 
 #include "audio/miniaudio/core/Engine.hpp"
 #include "audio/miniaudio/core/SoundGroup.hpp"
+#include "rtype/audio/miniaudio/Export.hpp"
 
 namespace rtype::audio::miniaudio::core {
 /// @brief Owns a ma_sound: a sound loaded through the engine's resource manager, or a copy of one sharing its data.
 /// @details Used both as the model createSound() keeps (attached to no group, never played) and as a voice play()
 /// starts in a group.
-class Sound {
+class RTYPE_AUDIO_MINIAUDIO_API Sound {
   public:
     /// @brief Loads the file, or the encoded data registered, under @p name.
     /// @param engine The engine whose resource manager loads it; must outlive the sound.

@@ -36,6 +36,12 @@ const T* AssetStore<T>::get(AssetId id) const {
 }
 
 template <typename T>
+T* AssetStore<T>::get(AssetId id) {
+    const auto found = _entries.find(id);
+    return found != _entries.end() && found->second.value ? &*found->second.value : nullptr;
+}
+
+template <typename T>
 auto AssetStore<T>::getEntry(AssetId id) const -> const Entry* {
     const auto found = _entries.find(id);
     return found != _entries.end() ? &found->second : nullptr;

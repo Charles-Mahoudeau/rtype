@@ -11,6 +11,9 @@
 #include <cstdint>
 #include <glm/ext/vector_float2.hpp>
 
+#include "core/config/Settings.hpp"
+#include "rtype/plugins/physics/Export.hpp"
+
 namespace rtype::plugins::physics {
 
 /// @brief How a physics world is built: given to the PhysicsPlugin, which builds the PhysicsWorld from it.
@@ -26,6 +29,16 @@ struct PhysicsSettings {
     std::uint32_t maxBodyPairs = 4096;           ///< Body pairs the broad phase can report in one step.
     std::uint32_t maxContactConstraints = 2048;  ///< Contacts the solver can handle in one step.
     std::size_t tempAllocatorBytes = static_cast<std::size_t>(10) * 1024 * 1024;  ///< Scratch memory, per world.
+
+    /// @brief Reads the keys `gravity` (`{ x, y }`), `unitsPerMeter`, `maxBodies`, `maxBodyPairs`,
+    /// `maxContactConstraints` and `tempAllocatorBytes`; the missing ones keep their default.
+    /// @code{.lua}
+    /// engine.settings.physics.gravity = { 0, 981 }
+    /// engine.settings.physics.unitsPerMeter = 32
+    /// @endcode
+    /// @param settings The `physics` section.
+    /// @throws core::config::exceptions::SettingsException If a key is unknown, has the wrong type or an invalid value.
+    [[nodiscard]] RTYPE_PLUGIN_PHYSICS_API static PhysicsSettings fromSettings(const core::config::Settings& settings);
 };
 
 }  // namespace rtype::plugins::physics

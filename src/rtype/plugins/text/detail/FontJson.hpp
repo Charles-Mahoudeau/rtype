@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <string_view>
 
+#include "plugins/text/Export.hpp"
 #include "plugins/text/Font.hpp"
 
 namespace rtype::plugins::text::detail {
@@ -25,6 +26,6 @@ namespace rtype::plugins::text::detail {
 /// @param path Where it was read from: names the font in errors and gives the image.
 /// @throws exceptions::FontException If the text is not JSON, lacks or mistypes a field this reads, or is not an MSDF
 /// atlas.
-[[nodiscard]] Font parseFontJson(std::string_view text, const std::filesystem::path& path);
+[[nodiscard]] RTYPE_PLUGIN_TEXT_API Font parseFontJson(std::string_view text, const std::filesystem::path& path);
 
 }  // namespace rtype::plugins::text::detail

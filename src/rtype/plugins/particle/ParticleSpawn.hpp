@@ -9,8 +9,9 @@
 
 #include <cstdint>
 
-#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
+#include "plugins/particle/Export.hpp"
 #include "plugins/particle/ParticleSystems.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 
 namespace rtype::plugins::particle {
 
@@ -27,11 +28,12 @@ namespace rtype::plugins::particle {
 /// The count is not capped by the capacity: the simulations drop what does not fit.
 /// @param rateScale Multiplies the rate (ParticleEmitter::rateScale); a negative one counts as 0. Bursts ignore it.
 /// @return The particles to emit this frame (ParticleEmission::spawnCount).
-[[nodiscard]] std::uint32_t computeSpawnCount(const backend::graphics::ParticleSystemDesc& desc, float rateScale,
-                                              float deltaTime, EmitterState& state);
+[[nodiscard]] RTYPE_PLUGIN_PARTICLE_API std::uint32_t computeSpawnCount(
+    const contract::renderer::ParticleSystemDesc& desc, float rateScale, float deltaTime, EmitterState& state);
 
 /// @return Whether an emitter at @p time has emitted everything it will: never with desc.loop, else once its one cycle
 /// is over. Its particles may still be alive.
-[[nodiscard]] bool isEmissionOver(const backend::graphics::ParticleSystemDesc& desc, float time) noexcept;
+[[nodiscard]] RTYPE_PLUGIN_PARTICLE_API bool isEmissionOver(const contract::renderer::ParticleSystemDesc& desc,
+                                                            float time) noexcept;
 
 }  // namespace rtype::plugins::particle

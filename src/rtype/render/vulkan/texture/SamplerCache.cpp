@@ -13,9 +13,9 @@
 #include <string_view>
 #include <vulkan/vulkan_raii.hpp>
 
-#include "plugins/backend/graphics/Texture.hpp"
 #include "render/vulkan/core/Device.hpp"
 #include "render/vulkan/core/PhysicalDevice.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
 
 namespace rtype::render::vulkan::texture {
 
@@ -25,9 +25,9 @@ namespace {
 constexpr float kMaxAnisotropy = 16.0F;
 
 /// @return A sampler reading with @p filter, repeating or clamping; anisotropic if @p anisotropy is above 1.
-vk::raii::Sampler createSampler(const core::Device& device, plugins::backend::graphics::TextureFilter filter,
-                                bool repeat, float anisotropy) {
-    const bool linear = filter == plugins::backend::graphics::TextureFilter::kLinear;
+vk::raii::Sampler createSampler(const core::Device& device, contract::renderer::TextureFilter filter, bool repeat,
+                                float anisotropy) {
+    const bool linear = filter == contract::renderer::TextureFilter::kLinear;
     const vk::Filter vkFilter = linear ? vk::Filter::eLinear : vk::Filter::eNearest;
     const vk::SamplerAddressMode address =
         repeat ? vk::SamplerAddressMode::eRepeat : vk::SamplerAddressMode::eClampToEdge;
@@ -56,14 +56,10 @@ float anisotropyOf(const core::PhysicalDevice& physicalDevice) {
 }  // namespace
 
 SamplerCache::SamplerCache(const core::Device& device, const core::PhysicalDevice& physicalDevice)
-    : _samplers{createSampler(device, plugins::backend::graphics::TextureFilter::kNearest, false,
-                              anisotropyOf(physicalDevice)),
-                createSampler(device, plugins::backend::graphics::TextureFilter::kNearest, true,
-                              anisotropyOf(physicalDevice)),
-                createSampler(device, plugins::backend::graphics::TextureFilter::kLinear, false,
-                              anisotropyOf(physicalDevice)),
-                createSampler(device, plugins::backend::graphics::TextureFilter::kLinear, true,
-                              anisotropyOf(physicalDevice))} {
+    : _samplers{createSampler(device, contract::renderer::TextureFilter::kNearest, false, anisotropyOf(physicalDevice)),
+                createSampler(device, contract::renderer::TextureFilter::kNearest, true, anisotropyOf(physicalDevice)),
+                createSampler(device, contract::renderer::TextureFilter::kLinear, false, anisotropyOf(physicalDevice)),
+                createSampler(device, contract::renderer::TextureFilter::kLinear, true, anisotropyOf(physicalDevice))} {
     constexpr std::array<std::string_view, kSamplerCount> kNames{"Nearest clamped sampler", "Nearest repeating sampler",
                                                                  "Linear clamped sampler", "Linear repeating sampler"};
     for (std::size_t index = 0; index < kSamplerCount; ++index) {
@@ -71,12 +67,12 @@ SamplerCache::SamplerCache(const core::Device& device, const core::PhysicalDevic
     }
 }
 
-const vk::raii::Sampler& SamplerCache::get(plugins::backend::graphics::TextureFilter filter, bool repeat) const {
+const vk::raii::Sampler& SamplerCache::get(contract::renderer::TextureFilter filter, bool repeat) const {
     return _samplers.at(indexOf(filter, repeat));
 }
 
-std::size_t SamplerCache::indexOf(plugins::backend::graphics::TextureFilter filter, bool repeat) {
-    const std::size_t linear = filter == plugins::backend::graphics::TextureFilter::kLinear ? 1 : 0;
+std::size_t SamplerCache::indexOf(contract::renderer::TextureFilter filter, bool repeat) {
+    const std::size_t linear = filter == contract::renderer::TextureFilter::kLinear ? 1 : 0;
     return (linear * 2) + (repeat ? 1 : 0);
 }
 

@@ -15,9 +15,9 @@
 
 #include "core/asset/AssetId.hpp"
 #include "core/asset/exceptions/AssetExceptions.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/text/Font.hpp"
 #include "plugins/text/FontAssets.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
 using rtype::core::asset::AssetId;
@@ -78,8 +78,8 @@ TEST(FontAssets, AsksForTheAtlasOfEachFontOnce) {
     const std::vector<FontAssets::TextureRequest> requests = fonts.takeTextureRequests();
     ASSERT_EQ(requests.size(), 1U);
     EXPECT_EQ(std::filesystem::path{requests.at(0).path}.filename(), "rtype-font-tests.png");
-    EXPECT_EQ(requests.at(0).desc.encoding, rtype::plugins::backend::graphics::TextureEncoding::kLinear);
-    EXPECT_EQ(requests.at(0).desc.filter, rtype::plugins::backend::graphics::TextureFilter::kLinear);
+    EXPECT_EQ(requests.at(0).desc.encoding, rtype::contract::renderer::TextureEncoding::kLinear);
+    EXPECT_EQ(requests.at(0).desc.filter, rtype::contract::renderer::TextureFilter::kLinear);
     EXPECT_TRUE(fonts.takeTextureRequests().empty());
 }
 

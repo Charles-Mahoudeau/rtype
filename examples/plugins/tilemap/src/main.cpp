@@ -21,15 +21,18 @@
 #include "core/asset/AssetId.hpp"
 #include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
-#include "plugins/backend/BackendPlugin.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/BackendResources.hpp"
-#include "plugins/backend/graphics/Camera.hpp"
-#include "plugins/backend/graphics/Color.hpp"
+#include "plugins/graphics/BackendRegistry.hpp"
+#include "plugins/graphics/Camera.hpp"
+#include "plugins/graphics/GraphicsPlugin.hpp"
+#include "plugins/graphics/GraphicsResources.hpp"
+#include "plugins/input/InputPlugin.hpp"
 #include "plugins/tilemap/SpawnTilemap.hpp"
 #include "plugins/tilemap/TilemapAssets.hpp"
+#include "plugins/tilemap/TilemapPlugin.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "render/vulkan/Registration.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/MinimalPlugins.hpp"
 #include "rtype/ecs/command/Commands.hpp"
@@ -41,7 +44,8 @@
 #include "rtype/ecs/time/Time.hpp"
 
 using namespace rtype;
-using namespace rtype::plugins::backend;
+using namespace rtype::contract::renderer;
+using namespace rtype::plugins::graphics;
 using namespace rtype::plugins::tilemap;
 using rtype::core::asset::AssetId;
 using rtype::plugins::transform::Transform;
@@ -50,7 +54,7 @@ namespace {
 // The view: the size of the background images, shown four times bigger in the window.
 constexpr glm::vec2 kView{272.0F, 160.0F};
 constexpr float kWindowScale = 4.0F;
-constexpr graphics::Color kClear{0.0F, 0.0F, 0.0F, 1.0F};
+constexpr rtype::contract::renderer::Color kClear{0.0F, 0.0F, 0.0F, 1.0F};
 
 constexpr float kCameraSpeed = 48.0F;    // World units per second.
 constexpr float kLevelLength = 3200.0F;  // The level's width: 200 tiles of 16 pixels.
@@ -60,11 +64,11 @@ void spawnLevel(ecs::ResMut<TilemapAssets> maps, ecs::Commands& commands) {
     const AssetId level = maps->load("assets/levels/space.tmj");
     const std::vector<ecs::Entity> layers = spawnTilemap(commands, *maps, level);
     std::cout << "assets/levels/space.tmj: " << layers.size() << " layers\n";
-    commands.spawn().add(Transform{.position = kView / 2.0F}).add(graphics::Camera{});
+    commands.spawn().add(Transform{.position = kView / 2.0F}).add(rtype::plugins::graphics::Camera{});
 }
 
 // Update: flies the camera right, back to the start at the end of the level.
-void flyCamera(ecs::Res<ecs::Time> time, ecs::Query<Transform, ecs::With<graphics::Camera>> cameras) {
+void flyCamera(ecs::Res<ecs::Time> time, ecs::Query<Transform, ecs::With<rtype::plugins::graphics::Camera>> cameras) {
     for (auto [entity, transform] : cameras) {
         transform->position.x += kCameraSpeed * time->delta;
         if (transform.get().position.x > kLevelLength - (kView.x / 2.0F)) {
@@ -88,11 +92,15 @@ core::config::Settings makeSettings() {
 int main() {
     try {
         auto registry = std::make_unique<BackendRegistry>();
-        rtype::platform::glfw::registerPlatform(*registry);
-        render::vulkan::registerRenderer(*registry);
+        rtype::platform::glfw::registerPlatform(registry->platforms);
+        render::vulkan::registerRenderer(registry->renderers);
 
         ecs::App app;
-        app.addPlugins(ecs::MinimalPlugins{}).addPlugin(BackendPlugin{std::move(registry), makeSettings()});
+        app.addPlugins(ecs::MinimalPlugins{})
+            .addPlugin(rtype::plugins::transform::TransformPlugin{})
+            .addPlugin(rtype::plugins::input::InputPlugin{})
+            .addPlugin(GraphicsPlugin{std::move(registry), makeSettings()})
+            .addPlugin(rtype::plugins::tilemap::TilemapPlugin{});
         app.insertResource(ClearColor{.value = kClear});
         app.addSystem(ecs::Phase::kStartup, "example.spawnLevel", &spawnLevel);
         app.addSystem(ecs::Phase::kUpdate, "example.flyCamera", &flyCamera);

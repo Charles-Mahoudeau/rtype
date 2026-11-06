@@ -197,16 +197,16 @@ fills `PlayerInput` directly from local input instead of from the network. Becau
 
 ### Wiring Ethan's backends
 
-`BackendPlugin` (`plugins/backend/`, `rtype::plugins::backend`) reuses `BackendRegistry` unchanged. The executable,
+`GraphicsPlugin` (`plugins/backend/`, `rtype::plugins::backend`) reuses `BackendRegistry` unchanged. The executable,
 the only place that knows GLFW and Vulkan, fills a registry and hands it to the plugin with the `Settings`, so the
 plugins depend on no backend:
 
 ```c++
-auto registry = std::make_unique<rtype::plugins::backend::BackendRegistry>();
-rtype::platform::glfw::registerPlatform(*registry);
-rtype::render::vulkan::registerRenderer(*registry);
+auto registry = std::make_unique<rtype::plugins::graphics::BackendRegistry>();
+rtype::platform::glfw::registerPlatform(registry->platforms);
+rtype::render::vulkan::registerRenderer(registry->renderers);
 app.addPlugins(rtype::ecs::MinimalPlugins{})
-    .addPlugin(rtype::plugins::backend::BackendPlugin{std::move(registry), settings});  // brings InputPlugin
+    .addPlugin(rtype::plugins::graphics::GraphicsPlugin{std::move(registry), settings});  // brings InputPlugin
 return app.run();
 ```
 
@@ -217,21 +217,21 @@ of the plugin is a client one, so a dedicated server has no window.
 ```mermaid
 sequenceDiagram
     participant App
-    participant BP as BackendPlugin
+    participant BP as GraphicsPlugin
     participant BR as BackendRegistry
     App->>BP: build(app): resources, events, systems
-    App->>BP: Startup: rtype.backend.create
+    App->>BP: Startup: rtype.graphics.create
     BP->>BR: createBackend(settings)
     BR-->>BP: Backend (platform + renderer)
     loop Every frame
-        App->>BP: PreUpdate: rtype.backend.events (pollEvents → PlatformEvent in order + typed events, resize, AppExit)
-        App->>BP: Render: rtype.backend.beginFrame (ClearColor), drawing systems, rtype.backend.endFrame
+        App->>BP: PreUpdate: rtype.graphics.events (pollEvents → PlatformEvent in order + typed events, resize, AppExit)
+        App->>BP: Render: rtype.graphics.beginFrame (ClearColor), drawing systems, rtype.graphics.endFrame
     end
 ```
 
-Between the two frame systems, `rtype.backend.camera` shows the world from the entity with a `Camera` (the highest
+Between the two frame systems, `rtype.graphics.camera` shows the world from the entity with a `Camera` (the highest
 `priority`) and a `GlobalTransform`, through `renderer.setView()`; with no camera entity, the renderer keeps its default view. While the window is minimized,
-the events system waits for an event instead of polling, and the render systems skip the frame. A window always comes with input: the `BackendPlugin` adds the `InputPlugin` and orders its events system
+the events system waits for an event instead of polling, and the render systems skip the frame. A window always comes with input: the `GraphicsPlugin` adds the `InputPlugin` and orders its events system
 before `rtype.Input.Update`, which reads the `PlatformEvent`s in order. The dependency goes one way only: the input
 plugin knows nothing of the backend. Named system sets ("send platform events" before "read platform events") will
 later replace the explicit ordering, so other producers (replays, the network) join without knowing the input plugin.

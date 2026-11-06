@@ -12,10 +12,10 @@
 #include <string_view>
 #include <vector>
 
-#include "plugins/backend/graphics/Text.hpp"
-#include "plugins/backend/math/Rect.hpp"
 #include "plugins/text/Font.hpp"
 #include "plugins/text/detail/Utf8.hpp"
+#include "rtype/contract/renderer/drawing/Text.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 
 namespace rtype::plugins::text {
 
@@ -101,9 +101,9 @@ TextLayout layoutText(const Font& font, std::string_view text, float size, TextA
             }
             const Glyph& glyph = *placed.glyph;
             if (!glyph.isBlank()) {
-                layout.glyphs.push_back(backend::graphics::GlyphQuad{
+                layout.glyphs.push_back(contract::renderer::GlyphQuad{
                     .source = glyph.atlas,
-                    .bounds = backend::math::Rect{
+                    .bounds = contract::renderer::math::Rect{
                         glm::vec2{pen + (glyph.plane.getX() * size), baseline + (glyph.plane.getY() * size)},
                         glm::vec2{glyph.plane.getWidth(), glyph.plane.getHeight()} * size}});
             }

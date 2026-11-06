@@ -18,15 +18,15 @@
 #include "ParticleVertexInput.hpp"
 #include "ShaderLayout.hpp"
 #include "particle.vert.h"
-#include "plugins/backend/graphics/CameraView.hpp"
-#include "plugins/backend/graphics/Particle.hpp"
-#include "plugins/backend/graphics/Shader.hpp"
 #include "render/vulkan/core/Device.hpp"
 #include "render/vulkan/memory/Allocator.hpp"
 #include "render/vulkan/memory/Buffer.hpp"
 #include "render/vulkan/pipeline/GraphicsPipeline.hpp"
 #include "render/vulkan/pipeline/PipelineLayout.hpp"
 #include "render/vulkan/pipeline/ShaderCache.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
+#include "rtype/contract/renderer/view/CameraView.hpp"
 #include "sprite.frag.h"
 
 namespace rtype::render::vulkan::rendering {
@@ -63,8 +63,7 @@ ParticlePass::ParticlePass(const core::Device& device, const memory::Allocator& 
     device.setName(*_pipeline.getPipeline(), "Particle pipeline");
 }
 
-void ParticlePass::upload(std::size_t frameIndex,
-                          std::span<const plugins::backend::graphics::ParticleInstance> instances) {
+void ParticlePass::upload(std::size_t frameIndex, std::span<const contract::renderer::ParticleInstance> instances) {
     if (instances.empty()) {
         return;
     }
@@ -87,7 +86,7 @@ pipeline::GraphicsPipeline ParticlePass::createMaterialPipeline(
 }
 
 void ParticlePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex, const Draw& draw,
-                          const plugins::backend::graphics::Viewport& viewport) {
+                          const contract::renderer::Viewport& viewport) {
     const std::optional<memory::Buffer>& buffer = _buffers.at(frameIndex);
     if (draw.instanceCount == 0 || !draw.textureSet || !buffer || viewport.size.x <= 0.0F || viewport.size.y <= 0.0F) {
         return;
@@ -97,7 +96,7 @@ void ParticlePass::record(const vk::raii::CommandBuffer& commandBuffer, std::siz
 }
 
 void ParticlePass::recordIndirect(const vk::raii::CommandBuffer& commandBuffer, const Draw& draw, vk::Buffer instances,
-                                  vk::Buffer indirect, const plugins::backend::graphics::Viewport& viewport) {
+                                  vk::Buffer indirect, const contract::renderer::Viewport& viewport) {
     if (!draw.textureSet || viewport.size.x <= 0.0F || viewport.size.y <= 0.0F) {
         return;
     }
@@ -106,7 +105,7 @@ void ParticlePass::recordIndirect(const vk::raii::CommandBuffer& commandBuffer, 
 }
 
 void ParticlePass::bind(const vk::raii::CommandBuffer& commandBuffer, const Draw& draw, vk::Buffer instances,
-                        const plugins::backend::graphics::Viewport& viewport) {
+                        const contract::renderer::Viewport& viewport) {
     const pipeline::GraphicsPipeline& drawn = draw.material.pipeline != nullptr ? *draw.material.pipeline : _pipeline;
     const vk::PipelineLayout layout = *drawn.getLayout().getLayout();
     constexpr vk::ShaderStageFlags kStages = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment;
@@ -125,20 +124,20 @@ void ParticlePass::bind(const vk::raii::CommandBuffer& commandBuffer, const Draw
     }
     commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, kMaterialSet, draw.material.set, {});
     if (draw.material.instanceValues) {
-        commandBuffer.pushConstants<plugins::backend::graphics::ShaderInstanceValues>(
+        commandBuffer.pushConstants<contract::renderer::ShaderInstanceValues>(
             layout, kStages, kParticleInstanceValuesOffset, draw.instanceValues);
     }
 }
 
 memory::Buffer& ParticlePass::reserve(std::size_t frameIndex, std::size_t count) {
     std::optional<memory::Buffer>& buffer = _buffers.at(frameIndex);
-    const vk::DeviceSize needed = count * sizeof(plugins::backend::graphics::ParticleInstance);
+    const vk::DeviceSize needed = count * sizeof(contract::renderer::ParticleInstance);
     if (!buffer || buffer->getSize() < needed) {
         std::size_t capacity = kInitialCapacity;
         while (capacity < count) {
             capacity *= 2;
         }
-        buffer.emplace(*_allocator, capacity * sizeof(plugins::backend::graphics::ParticleInstance),
+        buffer.emplace(*_allocator, capacity * sizeof(contract::renderer::ParticleInstance),
                        vk::BufferUsageFlagBits::eVertexBuffer, memory::Allocator::MemoryAccess::kStaging);
         _allocator->getDevice().setName(*buffer->getBuffer(), std::format("Particle instances, frame {}", frameIndex));
     }

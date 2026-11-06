@@ -9,6 +9,7 @@
 
 #include <string_view>
 
+#include "plugins/sprite/Export.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -18,7 +19,7 @@ class App;
 namespace rtype::plugins::sprite {
 
 /// @brief Sprite atlases and animations: inserts the AtlasAssets resource (and TextureAssets if missing), registers
-/// SpriteAnimator and AnimationFinished, and plays the animations.
+/// SpriteRenderer, SpriteAnimator and AnimationFinished, and plays the animations.
 ///
 /// @details Two PostUpdate systems, so gameplay switches animations in Update and the frame drawn is already the new
 /// one:
@@ -26,9 +27,10 @@ namespace rtype::plugins::sprite {
 ///   their last frame (sending AnimationFinished), and writes the frame's texture, source and origin into the entity's
 ///   SpriteRenderer, if it has one, only when they change. Atlases and animations that do not exist (yet) are skipped.
 /// - "rtype.Sprite.Textures", on the client, after it: hands the textures of the atlases added since the last frame to
-///   TextureAssets, which the BackendPlugin loads before drawing.
-/// The BackendPlugin adds it; a server without one adds it itself to keep its animators' time.
-class SpritePlugin : public ecs::Plugin {
+///   TextureAssets, which the GraphicsPlugin loads before drawing.
+/// It requires no other plugin, so a server adds it alone to keep its animators' time. The SpriteDrawPlugin draws the
+/// entities on a client.
+class RTYPE_PLUGIN_SPRITE_API SpritePlugin : public ecs::Plugin {
   public:
     static constexpr std::string_view kName = "rtype.Sprite";                     ///< The plugin's name.
     static constexpr std::string_view kAnimateSystem = "rtype.Sprite.Animate";    ///< Plays the animations.

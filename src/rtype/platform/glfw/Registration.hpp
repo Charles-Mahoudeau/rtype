@@ -7,11 +7,12 @@
 
 #pragma once
 
-#include "plugins/backend/BackendRegistry.hpp"
+#include "rtype/contract/platform/PlatformRegistry.hpp"
+#include "rtype/platform/glfw/Export.hpp"
 
 namespace rtype::platform::glfw {
 
 /// @brief Registers the platforms of this module: "glfw" (GlfwPlatform, no setting of its own).
-void registerPlatform(plugins::backend::BackendRegistry& registry);
+RTYPE_PLATFORM_GLFW_API void registerPlatform(contract::platform::PlatformRegistry& registry);
 
 }  // namespace rtype::platform::glfw

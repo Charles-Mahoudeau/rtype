@@ -60,7 +60,7 @@ What the network can rely on as of **2026-10-19** (`main` at `2649ee9`):
 | `ecs`: queries (typed and dynamic), commands, systems, scheduler and phases, fixed timestep, `App`, `Plugin`, `RunMode` / `Side` | Done | The replication is written as plugins from the start: resources, systems on phases and sides, `Commands` (spawn, add by `ComponentId`, remove, despawn), queries |
 | `ecs`: prefabs, Luau bridge, field network options (quantization) | **Not started** | Needed by NET-35, NET-41, NET-42 |
 | `plugins/input`: `InputPlugin`, the `rtype.Input` resource, `Control` | Done | Client side: a system of the executable fills a `PlayerInput` from it |
-| `plugins/backend`: `BackendPlugin` (window, platform events, frame systems) and `platform-glfw` | Done | The prototype client is an `App` with a window, like `engine/main.cpp` |
+| `plugins/backend`: `GraphicsPlugin` (window, platform events, frame systems) and `platform-glfw` | Done | The prototype client is an `App` with a window, like `engine/main.cpp` |
 | `render-vulkan`: `draw(Shape)`, `draw(Sprite)`, `setView` | Done (`draw(Shape)`: SDF shapes, drawn after the sprites) | The prototype client can draw its bodies as shapes; it printed the world until then ([NET-18](#net-18--prototype-game)) |
 
 Consequences for the plan:
@@ -137,7 +137,7 @@ extend. It leaves out, on purpose:
 2. `xmake run prototype-server` (port 4242)
 3. Two or more `xmake run prototype-client 127.0.0.1 4242` (a window for the keyboard, `--bot` for a scripted
    player with no window). Both are `App`s: the server a `RunMode::kServer` one, the client a `RunMode::kClient`
-   one with the `BackendPlugin`.
+   one with the `GraphicsPlugin`.
 4. Each client moves its own square with the arrow keys / WASD and fires with Space; it sees the other players
    and every bullet. Closing a client removes its ship for the others at once; killing it (`kill -9`) removes it
    after the 2 s timeout, and the server keeps ticking.
@@ -247,7 +247,7 @@ These apply to every task; the acceptance criteria below do not repeat them.
   `Startup` system, when every plugin of the game has registered its types. A system parameter is built when the system
   is added, so a plugin whose parameters depend on registered types (`ServerPlugin`, through `ReplicatedRead`) is added
   after the plugins that register them. A plugin name is `rtype.replication...`;
-  each plugin exposes its system names as `static constexpr std::string_view` constants (as `BackendPlugin` does), so
+  each plugin exposes its system names as `static constexpr std::string_view` constants (as `GraphicsPlugin` does), so
   that game systems can order themselves with `.after(...)` / `.before(...)`. Server systems are `Side::kServer`,
   client systems `Side::kClient`.
 - **Sans-IO cores.** Everything with protocol logic (`Connection`, `ServerCore`, `ClientCore`, the state and helper classes of the plugins)
@@ -2680,7 +2680,7 @@ used for every later milestone: deltas, rooms and reconnection are all checked f
 *`prototype-client`*: `App app{RunMode::kClient}`.
 
 6. Arguments: server host and port; `--bot` for a scripted player without a window.
-7. With a window: `BackendPlugin` (the executable fills its registry like `engine/main.cpp`, with `platform-glfw` and
+7. With a window: `GraphicsPlugin` (the executable fills its registry like `engine/main.cpp`, with `platform-glfw` and
    `render-vulkan`), `PrototypePlugin{}` and `ClientPlugin{address, settings}`. With `--bot`: `MinimalPlugins`,
    `PrototypePlugin{}` and `ClientPlugin`, plus the pacing system of step 3 (no window, so no vsync to wait on).
    `PrototypePlugin` is needed in both: it registers the components the manifest compares with the server's.

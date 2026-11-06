@@ -18,10 +18,10 @@
 #include <string_view>
 
 #include "core/asset/AssetFiles.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
-#include "plugins/backend/math/Rect.hpp"
 #include "plugins/text/Font.hpp"
 #include "plugins/text/exceptions/TextExceptions.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 
 namespace rtype::plugins::text::detail {
 
@@ -45,10 +45,11 @@ Edges readEdges(const Json& object) {
 }
 
 /// @return @p edges as a rectangle Y down: its top is the smaller Y of the two edges.
-backend::math::Rect toRect(const Edges& edges) {
+contract::renderer::math::Rect toRect(const Edges& edges) {
     const float top = edges.top < edges.bottom ? edges.top : edges.bottom;
     const float bottom = edges.top < edges.bottom ? edges.bottom : edges.top;
-    return backend::math::Rect{glm::vec2{edges.left, top}, glm::vec2{edges.right - edges.left, bottom - top}};
+    return contract::renderer::math::Rect{glm::vec2{edges.left, top},
+                                          glm::vec2{edges.right - edges.left, bottom - top}};
 }
 
 /// @brief Reads the glyphs and the kerning of @p root into @p font. A file written Y up (@p yUp, yOrigin "bottom") is
@@ -94,9 +95,9 @@ Font parseFontJson(std::string_view text, const std::filesystem::path& path) {
         std::filesystem::path image = path;
         image.replace_extension(".png");
         Font font{core::asset::normalizePath(image),
-                  backend::graphics::TextureDesc{.size = size,
-                                                 .filter = backend::graphics::TextureFilter::kLinear,
-                                                 .encoding = backend::graphics::TextureEncoding::kLinear},
+                  contract::renderer::TextureDesc{.size = size,
+                                                  .filter = contract::renderer::TextureFilter::kLinear,
+                                                  .encoding = contract::renderer::TextureEncoding::kLinear},
                   atlas.at("distanceRange").get<float>(),
                   Font::Metrics{.lineHeight = metrics.at("lineHeight").get<float>(),
                                 .ascender = metrics.at("ascender").get<float>() * flip,

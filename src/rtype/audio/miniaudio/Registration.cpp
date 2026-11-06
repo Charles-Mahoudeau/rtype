@@ -7,22 +7,22 @@
 
 #include "audio/miniaudio/Registration.hpp"
 
+#include <cstdint>
 #include <memory>
 
 #include "audio/miniaudio/MiniaudioConfig.hpp"
 #include "audio/miniaudio/MiniaudioDevice.hpp"
 #include "core/config/Settings.hpp"
-#include "plugins/audio/AudioConfig.hpp"
-#include "plugins/audio/AudioRegistry.hpp"
-#include "plugins/audio/IAudioDevice.hpp"
+#include "rtype/contract/audiodevice/AudioDeviceRegistry.hpp"
+#include "rtype/contract/audiodevice/IAudioDevice.hpp"
 
 namespace rtype::audio::miniaudio {
 
-void registerAudio(plugins::audio::AudioRegistry& registry) {
+void registerAudio(contract::audiodevice::AudioDeviceRegistry& registry) {
     registry.add("miniaudio",
                  [](const rtype::core::config::Settings& section,
-                    const plugins::audio::AudioConfig& config) -> std::unique_ptr<plugins::audio::IAudioDevice> {
-                     return std::make_unique<MiniaudioDevice>(config, MiniaudioConfig::fromSettings(section));
+                    std::uint32_t maxVoices) -> std::unique_ptr<contract::audiodevice::IAudioDevice> {
+                     return std::make_unique<MiniaudioDevice>(maxVoices, MiniaudioConfig::fromSettings(section));
                  });
 }
 

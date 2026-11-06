@@ -14,34 +14,34 @@
 #include "SfmlPlatform.hpp"
 #include "SfmlRenderer.hpp"
 #include "core/config/Settings.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/event/Event.hpp"
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/IRenderer.hpp"
-#include "plugins/backend/input/Key.hpp"
-#include "plugins/backend/platform/IPlatform.hpp"
+#include "plugins/graphics/BackendRegistry.hpp"
+#include "rtype/contract/platform/IPlatform.hpp"
+#include "rtype/contract/platform/event/Event.hpp"
+#include "rtype/contract/platform/input/Key.hpp"
+#include "rtype/contract/renderer/IRenderer.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
 
-using namespace rtype::plugins::backend::event;
+using namespace rtype::contract::platform::event;
 using example::SfmlPlatform;
 using example::SfmlRenderer;
+using rtype::contract::platform::IPlatform;
+using rtype::contract::platform::input::Key;
+using rtype::contract::renderer::Color;
+using rtype::contract::renderer::IRenderer;
 using rtype::core::config::Settings;
-using rtype::plugins::backend::Backend;
-using rtype::plugins::backend::BackendRegistry;
-using rtype::plugins::backend::graphics::Color;
-using rtype::plugins::backend::graphics::IRenderer;
-using rtype::plugins::backend::input::Key;
-using rtype::plugins::backend::platform::IPlatform;
+using rtype::plugins::graphics::Backend;
+using rtype::plugins::graphics::BackendRegistry;
 
 int main() {
     try {
         /// @note Your own pair, platform and renderer, both written in this example: "sfml" and "sfml". A
         /// platform and a renderer may share a name: they live in two separate lists. Neither has settings.
         BackendRegistry registry;
-        registry.addPlatform("sfml", [](const Settings& settings) -> std::unique_ptr<IPlatform> {
+        registry.platforms.add("sfml", [](const Settings& settings) -> std::unique_ptr<IPlatform> {
             settings.checkKeys({}, "sfml");
             return std::make_unique<SfmlPlatform>();
         });
-        registry.addRenderer("sfml", [](const Settings& settings) -> std::unique_ptr<IRenderer> {
+        registry.renderers.add("sfml", [](const Settings& settings) -> std::unique_ptr<IRenderer> {
             settings.checkKeys({}, "sfml");
             return std::make_unique<SfmlRenderer>();
         });

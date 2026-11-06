@@ -10,6 +10,9 @@
 #include <string>
 #include <utility>
 
+#include "rtype/ecs/call/CallInfo.hpp"
+#include "rtype/ecs/call/FunctionCall.hpp"
+
 namespace rtype::ecs {
 template <std::derived_from<Plugin> P>
 App& App::addPlugin(P plugin) {
@@ -25,6 +28,11 @@ App& App::addPlugins(G group) {
 template <typename Function, typename... Configs>
 Schedule::SystemConfig App::addSystem(Phase phase, std::string name, Function function, Configs... configs) {
     return _schedules.addSystem(phase, std::move(name), std::move(function), std::move(configs)...);
+}
+
+template <typename Function>
+CallId App::addCall(std::string name, Function function) {
+    return _world.getCalls().add(makeCallInfo(_world, std::move(name), std::move(function)));
 }
 
 template <Resource T>

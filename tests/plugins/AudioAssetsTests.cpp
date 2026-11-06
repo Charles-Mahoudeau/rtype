@@ -17,8 +17,8 @@
 #include "FakeAudioDevice.hpp"
 #include "core/asset/AssetId.hpp"
 #include "plugins/audio/AudioAssets.hpp"
-#include "plugins/audio/AudioTypes.hpp"
-#include "plugins/audio/exceptions/AudioExceptions.hpp"
+#include "rtype/contract/audiodevice/AudioTypes.hpp"
+#include "rtype/contract/audiodevice/exceptions/AudioExceptions.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
 namespace {
@@ -65,8 +65,8 @@ TEST(AudioAssets, LoadsTheQueuedSoundsFromTheirFile) {
     EXPECT_EQ(fixture.state->sounds[0].path, "shot.wav");
     EXPECT_EQ(fixture.state->sounds[1].path, "music.ogg");
     EXPECT_TRUE(fixture.state->sounds[1].desc.stream);
-    EXPECT_EQ(fixture.assets.getSound(shot), (rtype::plugins::audio::SoundId{.value = 1}));
-    EXPECT_EQ(fixture.assets.getSound(music), (rtype::plugins::audio::SoundId{.value = 2}));
+    EXPECT_EQ(fixture.assets.getSound(shot), (rtype::contract::audiodevice::SoundId{.value = 1}));
+    EXPECT_EQ(fixture.assets.getSound(music), (rtype::contract::audiodevice::SoundId{.value = 2}));
     EXPECT_TRUE(fixture.assets.getQueued().empty());
 }
 
@@ -98,12 +98,12 @@ TEST(AudioAssets, DestroysAnUnloadedSoundAtTheNextUpdate) {
     AudioAssetsFixture fixture;
     const rtype::core::asset::AssetId id = fixture.assets.load("shot.wav");
     rtype::plugins::audio::updateSounds(fixture.assets, fixture.device);
-    const rtype::plugins::audio::SoundId sound = *fixture.assets.getSound(id);
+    const rtype::contract::audiodevice::SoundId sound = *fixture.assets.getSound(id);
     EXPECT_TRUE(fixture.assets.unload(id));
     EXPECT_EQ(fixture.assets.get(id), nullptr);
     EXPECT_TRUE(fixture.state->destroyed.empty());
     rtype::plugins::audio::updateSounds(fixture.assets, fixture.device);
-    EXPECT_EQ(fixture.state->destroyed, std::vector<rtype::plugins::audio::SoundId>{sound});
+    EXPECT_EQ(fixture.state->destroyed, std::vector<rtype::contract::audiodevice::SoundId>{sound});
 }
 
 TEST(AudioAssets, ForgetsAQueuedSoundWithoutLoadingIt) {
@@ -119,7 +119,7 @@ TEST(AudioAssets, IgnoresAnUnknownId) {
     AudioAssetsFixture fixture;
     const rtype::core::asset::AssetId unknown = rtype::core::asset::AssetId::fromPath("unknown.wav");
     EXPECT_FALSE(fixture.assets.unload(unknown));
-    fixture.assets.setLoaded(unknown, rtype::plugins::audio::SoundId{.value = 7});
+    fixture.assets.setLoaded(unknown, rtype::contract::audiodevice::SoundId{.value = 7});
     fixture.assets.setFailed(unknown, "no reason");
     EXPECT_EQ(fixture.assets.get(unknown), nullptr);
 }

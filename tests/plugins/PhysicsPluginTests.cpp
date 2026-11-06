@@ -13,6 +13,7 @@
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "plugins/physics/PhysicsWorld.hpp"
 #include "plugins/physics/exceptions/PhysicsExceptions.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/time/Time.hpp"
@@ -35,6 +36,7 @@ TEST(PhysicsPlugin, IsNamedRtypePhysics) { EXPECT_EQ(PhysicsPlugin{}.getName(), 
 
 TEST(PhysicsPlugin, RegistersTheComponents) {
     rtype::ecs::App app;
+    app.addPlugin(rtype::plugins::transform::TransformPlugin{});
     app.addPlugin(PhysicsPlugin{smallSettings()});
     EXPECT_TRUE(app.getWorld().getComponents().find("rtype.RigidBody"));
     EXPECT_TRUE(app.getWorld().getComponents().find("rtype.Collider"));
@@ -45,6 +47,7 @@ TEST(PhysicsPlugin, InsertsTheWorldFromItsSettings) {
     rtype::ecs::App app;
     PhysicsSettings settings = smallSettings();
     settings.unitsPerMeter = 50.0F;
+    app.addPlugin(rtype::plugins::transform::TransformPlugin{});
     app.addPlugin(PhysicsPlugin{settings});
 
     const PhysicsWorld* const world = app.getWorld().getResources().get<PhysicsWorld>();
@@ -54,12 +57,14 @@ TEST(PhysicsPlugin, InsertsTheWorldFromItsSettings) {
 
 TEST(PhysicsPlugin, AddsTheStepSystemInFixedUpdate) {
     rtype::ecs::App app;
+    app.addPlugin(rtype::plugins::transform::TransformPlugin{});
     app.addPlugin(PhysicsPlugin{smallSettings()});
     EXPECT_TRUE(app.getSchedules().getSchedule(rtype::ecs::Phase::kFixedUpdate).contains(PhysicsPlugin::kStepSystem));
 }
 
 TEST(PhysicsPlugin, StepsTheWorldOncePerFixedUpdate) {
     rtype::ecs::App app;
+    app.addPlugin(rtype::plugins::transform::TransformPlugin{});
     app.addPlugin(PhysicsPlugin{smallSettings()});
     app.getWorld().getResources().insert(rtype::ecs::Time{.fixedDelta = kFixedDelta});
 
@@ -73,5 +78,6 @@ TEST(PhysicsPlugin, RejectsInvalidSettingsWhenBuilt) {
     rtype::ecs::App app;
     PhysicsSettings settings = smallSettings();
     settings.unitsPerMeter = 0.0F;
+    app.addPlugin(rtype::plugins::transform::TransformPlugin{});
     EXPECT_THROW(app.addPlugin(PhysicsPlugin{settings}), rtype::plugins::physics::exceptions::PhysicsException);
 }

@@ -11,8 +11,9 @@
 #include <string>
 #include <string_view>
 
-#include "plugins/backend/graphics/Shader.hpp"
+#include "plugins/shader/Export.hpp"
 #include "plugins/shader/detail/ShaderParser.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::plugins::shader::detail {
 
@@ -41,11 +42,12 @@ enum class ShaderStage : std::uint8_t {
 /// shapes read ShapeInstance-like attributes (locations 0 to 7) and their instance values at locations 8 to 11;
 /// particles read ParticleInstance attributes (locations 0 to 5) and a push constant block of their draw's
 /// constants with the instance values at offset 48.
-[[nodiscard]] std::string assembleShader(const ParsedShader& shader, backend::graphics::ShaderTarget target,
-                                         ShaderStage stage);
+[[nodiscard]] RTYPE_PLUGIN_SHADER_API std::string assembleShader(const ParsedShader& shader,
+                                                                 contract::renderer::ShaderTarget target,
+                                                                 ShaderStage stage);
 
 /// @return @p body with the definition of `void <name>()` replaced by spaces, its line breaks kept; @p body as it is
 /// if it does not define it.
-[[nodiscard]] std::string blankFunction(std::string_view body, std::string_view name);
+[[nodiscard]] RTYPE_PLUGIN_SHADER_API std::string blankFunction(std::string_view body, std::string_view name);
 
 }  // namespace rtype::plugins::shader::detail

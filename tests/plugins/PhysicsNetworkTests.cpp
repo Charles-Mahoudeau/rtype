@@ -9,8 +9,10 @@
 
 #include <cstdint>
 #include <glm/ext/vector_float2.hpp>
+#include <memory>
 #include <optional>
 
+#include "FakeBackend.hpp"
 #include "plugins/physics/Collider.hpp"
 #include "plugins/physics/MoveAndSlide.hpp"
 #include "plugins/physics/PhysicsHandle.hpp"
@@ -23,6 +25,7 @@
 #include "plugins/physics/debug/PhysicsDebugPlugin.hpp"
 #include "plugins/physics/exceptions/PhysicsExceptions.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/change/Mut.hpp"
 #include "rtype/ecs/component/ComponentRegistry.hpp"
@@ -82,6 +85,7 @@ struct PhysicsApp {
     rtype::ecs::App app;  ///< The App under test.
 
     explicit PhysicsApp(RunMode mode) : app{mode} {
+        app.addPlugin(rtype::plugins::transform::TransformPlugin{});
         app.addPlugin(PhysicsPlugin{smallSettings()});
         app.getWorld().getResources().insert(rtype::ecs::Time{.fixedDelta = kFixedDelta});
     }
@@ -144,10 +148,19 @@ TEST(PhysicsNetwork, TheInternalComponentsAreNot) {
 }
 
 TEST(PhysicsNetwork, TheDebugPluginRegistersColliderTheSameWayInEitherOrder) {
+    const auto addGraphics = [](rtype::ecs::App& app) {
+        rtype::test::plugins::addDrawingPlugins(
+            app, rtype::test::plugins::makeFakeRegistry(std::make_shared<rtype::test::plugins::FakeBackendState>()),
+            rtype::test::plugins::makeFakeSettings());
+    };
     rtype::ecs::App debugFirst;
+    addGraphics(debugFirst);
     debugFirst.addPlugin(PhysicsDebugPlugin{});
+    debugFirst.addPlugin(rtype::plugins::transform::TransformPlugin{});
     EXPECT_NO_THROW(debugFirst.addPlugin(PhysicsPlugin{smallSettings()}));
     rtype::ecs::App physicsFirst;
+    addGraphics(physicsFirst);
+    physicsFirst.addPlugin(rtype::plugins::transform::TransformPlugin{});
     physicsFirst.addPlugin(PhysicsPlugin{smallSettings()});
     EXPECT_NO_THROW(physicsFirst.addPlugin(PhysicsDebugPlugin{}));
 }

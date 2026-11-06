@@ -19,8 +19,9 @@
 namespace rtype::ecs {
 /// @brief Whether a system parameter reads or writes its resource.
 enum class ResourceAccess : std::uint8_t {
-    kRead,   ///< Res, NonSend: the value is only read.
-    kWrite,  ///< ResMut, NonSendMut: the value is written, and marked changed when it is.
+    kRead,    ///< Res, NonSend: the value is only read.
+    kWrite,   ///< ResMut, NonSendMut: the value is written, and marked changed when it is.
+    kAppend,  ///< ResAppend: the value is written by adding to it, and marked changed when it is.
 };
 
 /// @brief On which thread a system using the resource may run.
@@ -29,29 +30,30 @@ enum class ResourceThread : std::uint8_t {
     kMain,  ///< NonSend, NonSendMut: the main thread only (the platform, the renderer).
 };
 
-/// @brief A resource as a system parameter: Res, ResMut, NonSend and NonSendMut are its four aliases.
+/// @brief A resource as a system parameter: Res, ResMut, ResAppend, NonSend and NonSendMut are its aliases.
 ///
 /// @details Made for each run from the world's resources, it gives the value (`->`, `*`, get()) and tells whether it
 /// was added or changed since the system last ran. A written parameter marks the value changed only when it is written
-/// through (`->`, `*`), as Mut does; get() never marks. The four aliases are distinct types, so a system's signature
+/// through (`->`, `*`), as Mut does; get() never marks. The aliases are distinct types, so a system's signature
 /// tells the scheduler what it reads, what it writes, and whether it must run on the main thread.
 /// @code
 /// void movement(rtype::ecs::Query<Position, const Velocity> query, rtype::ecs::Res<Time> time);
 /// void score(rtype::ecs::ResMut<Score> score) { score->value += 10; }
 /// @endcode
-/// @tparam A Read or write.
+/// @tparam A Read, write or append.
 /// @tparam H Any thread, or the main thread only.
 template <Resource T, ResourceAccess A, ResourceThread H>
 class ResourceParam {
   public:
     using Type = T;  ///< The resource.
     /// @brief What `->` returns: `T*` for a written parameter, `const T*` for a read one.
-    using Pointer = std::conditional_t<A == ResourceAccess::kWrite, T*, const T*>;
+    using Pointer = std::conditional_t<A != ResourceAccess::kRead, T*, const T*>;
     /// @brief What `*` returns: `T&` for a written parameter, `const T&` for a read one.
-    using Reference = std::conditional_t<A == ResourceAccess::kWrite, T&, const T&>;
+    using Reference = std::conditional_t<A != ResourceAccess::kRead, T&, const T&>;
 
-    static constexpr ResourceAccess kAccess = A;  ///< Read or write.
-    static constexpr ResourceThread kThread = H;  ///< Any thread, or the main thread only.
+    static constexpr ResourceAccess kAccess = A;                 ///< Read, write or append.
+    static constexpr bool kWrites = A != ResourceAccess::kRead;  ///< Whether the value can be changed through it.
+    static constexpr ResourceThread kThread = H;                 ///< Any thread, or the main thread only.
 
     /// @param resources The world's resources.
     /// @param lastRun Tick the system last ran at: isAdded() and isChanged() compare against it.
@@ -81,7 +83,7 @@ class ResourceParam {
 
   private:
     /// @brief How the value is held: through a Mut when written, a plain pointer when read.
-    using Value = std::conditional_t<A == ResourceAccess::kWrite, Mut<T>, const T*>;
+    using Value = std::conditional_t<kWrites, Mut<T>, const T*>;
 
     /// @return The value, from the resources, as this parameter holds it.
     [[nodiscard]] static Value fetch(Resources& resources);
@@ -99,6 +101,13 @@ using Res = ResourceParam<T, ResourceAccess::kRead, ResourceThread::kAny>;
 /// @brief A resource the system writes.
 template <Resource T>
 using ResMut = ResourceParam<T, ResourceAccess::kWrite, ResourceThread::kAny>;
+
+/// @brief A resource the system only adds to, such as a queue: two systems appending to it need no order between them.
+/// @details The result must not depend on the order of the additions, and the system must neither read what is there
+/// nor remove anything: the scheduler cannot check this, as `->` gives the value itself. It still orders an appending
+/// system against any system that reads or writes the resource, like the one that empties the queue.
+template <Resource T>
+using ResAppend = ResourceParam<T, ResourceAccess::kAppend, ResourceThread::kAny>;
 
 /// @brief A main-thread-only resource the system reads: the system runs on the main thread.
 template <Resource T>

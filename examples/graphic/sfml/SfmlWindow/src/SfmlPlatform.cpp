@@ -23,11 +23,11 @@
 #include <string>
 #include <vector>
 
-#include "plugins/backend/event/Event.hpp"
-#include "plugins/backend/input/Key.hpp"
-#include "plugins/backend/platform/WindowConfig.hpp"
+#include "rtype/contract/platform/WindowConfig.hpp"
+#include "rtype/contract/platform/event/Event.hpp"
+#include "rtype/contract/platform/input/Key.hpp"
 
-using namespace rtype::plugins::backend;
+using namespace rtype::contract::platform;
 
 namespace {
 
@@ -109,7 +109,7 @@ void SfmlPlatform::setTitle(const std::string& title) {
 
 void SfmlPlatform::setSize(glm::uvec2 size) { _window->setSize({size.x, size.y}); }
 
-void SfmlPlatform::init(const platform::WindowConfig& config) {
+void SfmlPlatform::init(const WindowConfig& config) {
     if (_window != nullptr) {
         throw std::runtime_error("SfmlPlatform::init() called twice");
     }

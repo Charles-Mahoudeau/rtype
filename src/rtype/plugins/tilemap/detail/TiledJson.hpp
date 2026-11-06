@@ -12,6 +12,7 @@
 #include <string>
 #include <string_view>
 
+#include "plugins/tilemap/Export.hpp"
 #include "plugins/tilemap/Tilemap.hpp"
 
 namespace rtype::plugins::tilemap::detail {
@@ -36,7 +37,7 @@ using TextReader = std::function<std::string(const std::filesystem::path& path)>
 /// @throws exceptions::TilemapException Naming the map, if a file is not JSON, lacks or mistypes a field this reads,
 /// uses what this does not support (another orientation, base64 tile data, a tileset of separate images), or cannot be
 /// read by @p readText.
-[[nodiscard]] Tilemap parseTiledMap(std::string_view text, const std::filesystem::path& path,
-                                    const TextReader& readText);
+[[nodiscard]] RTYPE_PLUGIN_TILEMAP_API Tilemap parseTiledMap(std::string_view text, const std::filesystem::path& path,
+                                                             const TextReader& readText);
 
 }  // namespace rtype::plugins::tilemap::detail

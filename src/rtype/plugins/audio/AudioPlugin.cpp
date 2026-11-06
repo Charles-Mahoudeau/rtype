@@ -8,10 +8,12 @@
 #include "plugins/audio/AudioPlugin.hpp"
 
 #include <algorithm>
+#include <array>
 #include <glm/ext/vector_float2.hpp>
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -20,17 +22,18 @@
 #include "core/asset/AssetId.hpp"
 #include "core/config/Settings.hpp"
 #include "plugins/audio/AudioAssets.hpp"
+#include "plugins/audio/AudioCalls.hpp"
 #include "plugins/audio/AudioConfig.hpp"
 #include "plugins/audio/AudioEvents.hpp"
 #include "plugins/audio/AudioListener.hpp"
 #include "plugins/audio/AudioRegistry.hpp"
 #include "plugins/audio/AudioResources.hpp"
 #include "plugins/audio/AudioSource.hpp"
-#include "plugins/audio/AudioTypes.hpp"
 #include "plugins/audio/AudioVolumes.hpp"
-#include "plugins/audio/IAudioDevice.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
+#include "rtype/contract/audiodevice/AudioTypes.hpp"
+#include "rtype/contract/audiodevice/IAudioDevice.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/event/Events.hpp"
@@ -84,31 +87,33 @@ using Listeners = ecs::Query<ecs::Optional<const transform::GlobalTransform>, ec
 }
 
 /// @brief Gives the device the volumes that differ from those it has (all of them the first time).
-void applyVolumes(Audio& audio, const AudioVolumes& volumes) {
-    const std::optional<AudioVolumes> applied = audio.appliedVolumes;
+void applyVolumes(Audio& audio, const plugins::audio::AudioVolumes& volumes) {
+    const std::optional<plugins::audio::AudioVolumes> applied = audio.appliedVolumes;
     if (!applied || applied->master != volumes.master) {
         audio.device->setMasterVolume(volumes.master);
     }
     if (!applied || applied->music != volumes.music) {
-        audio.device->setBusVolume(Bus::kMusic, volumes.music);
+        audio.device->setBusVolume(contract::audiodevice::Bus::kMusic, volumes.music);
     }
     if (!applied || applied->effects != volumes.effects) {
-        audio.device->setBusVolume(Bus::kEffects, volumes.effects);
+        audio.device->setBusVolume(contract::audiodevice::Bus::kEffects, volumes.effects);
     }
     audio.appliedVolumes = volumes;
 }
 
 /// @brief Stops the current music, if one plays, fading out over @p fadeOut seconds.
 void stopMusic(Audio& audio, float fadeOut) {
-    if (audio.music != VoiceId{}) {
+    if (audio.music != contract::audiodevice::VoiceId{}) {
         audio.device->stop(audio.music, fadeOut);
         audio.music = {};
     }
 }
 
 /// @brief Startup: creates the device the configuration names, and starts the volumes from the config.
-void createDevice(ecs::NonSendMut<AudioSetup> setup, ecs::NonSendMut<Audio> audio, ecs::ResMut<AudioVolumes> volumes) {
-    const AudioConfig config = AudioConfig::fromSettings(setup->settings.section("audio"));
+void createDevice(ecs::NonSendMut<AudioSetup> setup, ecs::NonSendMut<Audio> audio,
+                  ecs::ResMut<plugins::audio::AudioVolumes> volumes) {
+    const plugins::audio::AudioConfig config =
+        plugins::audio::AudioConfig::fromSettings(setup->settings.section("audio"));
     audio->device = setup->registry->createDevice(setup->settings);
     audio->panDistance = config.panDistance;
     *volumes = config.volume;
@@ -129,10 +134,11 @@ void startPendingMusic(Audio& audio, const AudioAssets& sounds) {
         return;
     }
     const PlayMusic music = *audio.pendingMusic;
-    if (const std::optional<SoundId> sound = sounds.getSound(music.sound)) {
+    if (const std::optional<contract::audiodevice::SoundId> sound = sounds.getSound(music.sound)) {
         stopMusic(audio, music.crossfade);
-        audio.music =
-            audio.device->play(*sound, PlayParams{.bus = Bus::kMusic, .loop = true, .fadeIn = music.crossfade});
+        audio.music = audio.device->play(
+            *sound, contract::audiodevice::PlayParams{
+                        .bus = contract::audiodevice::Bus::kMusic, .loop = true, .fadeIn = music.crossfade});
         audio.pendingMusic.reset();
         return;
     }
@@ -152,12 +158,12 @@ void playEvents(ecs::NonSendMut<Audio> audio, ecs::Res<AudioAssets> sounds, ecs:
     }
     const std::optional<glm::vec2> listener = findListener(listeners);
     for (const PlaySound& event : playSounds) {
-        if (const std::optional<SoundId> sound = sounds->getSound(event.sound)) {
-            static_cast<void>(
-                audio->device->play(*sound, PlayParams{.bus = event.bus,
-                                                       .volume = event.volume,
-                                                       .pitch = event.pitch,
-                                                       .pan = panOf(event.position, listener, audio->panDistance)}));
+        if (const std::optional<contract::audiodevice::SoundId> sound = sounds->getSound(event.sound)) {
+            static_cast<void>(audio->device->play(
+                *sound, contract::audiodevice::PlayParams{.bus = event.bus,
+                                                          .volume = event.volume,
+                                                          .pitch = event.pitch,
+                                                          .pan = panOf(event.position, listener, audio->panDistance)}));
         }
     }
     for (const StopMusic& event : stopMusics) {
@@ -179,7 +185,7 @@ void followSources(ecs::NonSendMut<Audio> audio, ecs::Res<AudioAssets> sounds,
     if (!audio->device) {
         return;
     }
-    IAudioDevice& device = *audio->device;
+    contract::audiodevice::IAudioDevice& device = *audio->device;
     const std::optional<glm::vec2> listener = findListener(listeners);
     std::unordered_map<ecs::Entity, SourceVoice> kept;
     for (auto [entity, source, global, local, parent] : sources) {
@@ -196,13 +202,13 @@ void followSources(ecs::NonSendMut<Audio> audio, ecs::Res<AudioAssets> sounds,
         if (known != audio->sources.end()) {
             device.stop(known->second.voice);
         }
-        const std::optional<SoundId> sound = sounds->getSound(source.sound);
+        const std::optional<contract::audiodevice::SoundId> sound = sounds->getSound(source.sound);
         if (!sound) {
             continue;
         }
-        const VoiceId voice = device.play(
+        const contract::audiodevice::VoiceId voice = device.play(
             *sound,
-            PlayParams{
+            contract::audiodevice::PlayParams{
                 .bus = source.bus, .volume = source.volume, .pitch = source.pitch, .pan = pan, .loop = source.loop});
         kept.emplace(entity, SourceVoice{.voice = voice, .sound = source.sound});
     }
@@ -215,7 +221,7 @@ void followSources(ecs::NonSendMut<Audio> audio, ecs::Res<AudioAssets> sounds,
 }
 
 /// @brief PostUpdate: applies the volumes that changed, then lets the backend reclaim its voices.
-void updateDevice(ecs::NonSendMut<Audio> audio, ecs::Res<AudioVolumes> volumes) {
+void updateDevice(ecs::NonSendMut<Audio> audio, ecs::Res<plugins::audio::AudioVolumes> volumes) {
     if (!audio->device) {
         return;
     }
@@ -224,13 +230,17 @@ void updateDevice(ecs::NonSendMut<Audio> audio, ecs::Res<AudioVolumes> volumes) 
 }
 }  // namespace
 
-AudioPlugin::AudioPlugin(std::unique_ptr<AudioRegistry> registry, core::config::Settings settings)
+AudioPlugin::AudioPlugin(std::unique_ptr<plugins::audio::AudioRegistry> registry, core::config::Settings settings)
     : _registry{std::move(registry)}, _settings{std::move(settings)} {}
 
 std::string_view AudioPlugin::getName() const noexcept { return kName; }
 
+std::span<const std::string_view> AudioPlugin::getDependencies() const noexcept {
+    static constexpr std::array<std::string_view, 1> kDependencies{transform::TransformPlugin::kName};
+    return kDependencies;
+}
+
 void AudioPlugin::build(ecs::App& app) {
-    app.addPlugin(plugins::transform::TransformPlugin{});
     ecs::Events& events = app.getWorld().getEvents();
     static_cast<void>(events.registerType<PlaySound>());
     static_cast<void>(events.registerType<PlayMusic>());
@@ -240,9 +250,10 @@ void AudioPlugin::build(ecs::App& app) {
     resources.insertNonSend(AudioSetup{.registry = std::move(_registry), .settings = std::move(_settings)});
     resources.insertNonSend(Audio{});
     resources.insertIfAbsent<AudioAssets>();
-    resources.insertIfAbsent<AudioVolumes>();
+    resources.insertIfAbsent<plugins::audio::AudioVolumes>();
     static_cast<void>(app.getWorld().getComponents().registerType<AudioSource>());
     static_cast<void>(app.getWorld().getComponents().registerType<AudioListener>());
+    addAudioCalls(app);
 
     app.addSystem(ecs::Phase::kStartup, std::string{kCreateSystem}, &createDevice).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kSoundsSystem}, &loadSounds).setSide(ecs::Side::kClient);

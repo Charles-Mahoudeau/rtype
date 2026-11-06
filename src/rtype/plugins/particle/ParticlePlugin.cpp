@@ -7,10 +7,12 @@
 
 #include "plugins/particle/ParticlePlugin.hpp"
 
+#include <array>
 #include <cstdint>
 #include <exception>
 #include <iostream>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_set>
@@ -18,16 +20,11 @@
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/BackendPlugin.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/BackendResources.hpp"  // IWYU pragma: keep
-#include "plugins/backend/graphics/BlendMode.hpp"
-#include "plugins/backend/graphics/IRenderer.hpp"
-#include "plugins/backend/graphics/Particle.hpp"
-#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
-#include "plugins/backend/graphics/SpriteQueue.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
-#include "plugins/backend/graphics/TextureAssets.hpp"
+#include "plugins/graphics/BackendRegistry.hpp"
+#include "plugins/graphics/GraphicsPlugin.hpp"
+#include "plugins/graphics/GraphicsResources.hpp"  // IWYU pragma: keep
+#include "plugins/graphics/SpriteQueue.hpp"
+#include "plugins/graphics/TextureAssets.hpp"
 #include "plugins/particle/CpuSimulation.hpp"
 #include "plugins/particle/ParticleEffect.hpp"
 #include "plugins/particle/ParticleEffectAssets.hpp"
@@ -37,9 +34,14 @@
 #include "plugins/particle/ParticleSystems.hpp"
 #include "plugins/shader/MaterialInstance.hpp"
 #include "plugins/shader/ShaderHandles.hpp"
-#include "plugins/text/TextPlugin.hpp"
+#include "plugins/shader/ShaderPlugin.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
+#include "rtype/contract/renderer/IRenderer.hpp"
+#include "rtype/contract/renderer/drawing/BlendMode.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
@@ -56,16 +58,16 @@
 namespace rtype::plugins::particle {
 
 namespace {
-using backend::graphics::ParticleSimulation;
-using backend::graphics::ParticleSystemId;
+using contract::renderer::ParticleSimulation;
+using contract::renderer::ParticleSystemId;
 
 /// @return The renderer, or nullptr before the Startup system created the backend.
-[[nodiscard]] backend::graphics::IRenderer* getRenderer(backend::Backend& started) noexcept {
+[[nodiscard]] contract::renderer::IRenderer* getRenderer(plugins::graphics::Backend& started) noexcept {
     return started.platform != nullptr ? started.renderer.get() : nullptr;
 }
 
 /// @brief Destroys the GPU system of @p state, if it has one.
-void release(backend::graphics::IRenderer* renderer, const EmitterState& state) {
+void release(contract::renderer::IRenderer* renderer, const EmitterState& state) {
     if (const auto* system = std::get_if<ParticleSystemId>(&state.simulation);
         system != nullptr && renderer != nullptr) {
         renderer->destroy(*system);
@@ -73,7 +75,7 @@ void release(backend::graphics::IRenderer* renderer, const EmitterState& state) 
 }
 
 /// @brief Stops @p entity's emitter, destroying its GPU system.
-void stopEmitter(ParticleSystems& systems, backend::graphics::IRenderer* renderer, ecs::Entity entity) {
+void stopEmitter(ParticleSystems& systems, contract::renderer::IRenderer* renderer, ecs::Entity entity) {
     if (const std::optional<EmitterState> stopped = systems.stop(entity)) {
         release(renderer, *stopped);
     }
@@ -81,7 +83,7 @@ void stopEmitter(ParticleSystems& systems, backend::graphics::IRenderer* rendere
 
 /// @return Whether @p emitter of @p effect (@p id) runs on the GPU: what it asks for, if @p renderer can.
 [[nodiscard]] bool pickGpu(const ParticleEmitter& emitter, const ParticleEffect& effect, core::asset::AssetId id,
-                           const backend::graphics::IRenderer* renderer, ParticleSystems& systems) {
+                           const contract::renderer::IRenderer* renderer, ParticleSystems& systems) {
     const ParticleSimulation wanted = emitter.overrideSimulation ? emitter.simulation : effect.desc.simulation;
     if (wanted == ParticleSimulation::kCpu) {
         return false;
@@ -96,17 +98,17 @@ void stopEmitter(ParticleSystems& systems, backend::graphics::IRenderer* rendere
 
 /// @return What the simulation of @p effect runs: its desc, sorted by age when it is alpha-blended, whose overlapping
 /// particles show their order.
-[[nodiscard]] backend::graphics::ParticleSystemDesc simulatedDesc(const ParticleEffect& effect) {
-    backend::graphics::ParticleSystemDesc desc = effect.desc;
-    desc.sortByAge = desc.sortByAge || effect.blend == backend::graphics::BlendMode::kAlpha;
+[[nodiscard]] contract::renderer::ParticleSystemDesc simulatedDesc(const ParticleEffect& effect) {
+    contract::renderer::ParticleSystemDesc desc = effect.desc;
+    desc.sortByAge = desc.sortByAge || effect.blend == contract::renderer::BlendMode::kAlpha;
     return desc;
 }
 
 /// @brief Starts @p entity's emitter of @p effect, on the GPU or the CPU.
-EmitterState& startEmitter(ParticleSystems& systems, backend::graphics::IRenderer* renderer, ecs::Entity entity,
+EmitterState& startEmitter(ParticleSystems& systems, contract::renderer::IRenderer* renderer, ecs::Entity entity,
                            const ParticleEmitter& emitter, const ParticleEffect& effect) {
     const std::uint32_t seed = emitter.seed != 0 ? emitter.seed : systems.pickSeed();
-    const backend::graphics::ParticleSystemDesc desc = simulatedDesc(effect);
+    const contract::renderer::ParticleSystemDesc desc = simulatedDesc(effect);
     if (pickGpu(emitter, effect, emitter.effect, renderer, systems)) {
         try {
             return systems.start(entity, EmitterState{.effect = emitter.effect,
@@ -121,7 +123,7 @@ EmitterState& startEmitter(ParticleSystems& systems, backend::graphics::IRendere
 }
 
 /// @return Whether the emitter of @p state, of @p desc, has emitted everything and its last particle died.
-[[nodiscard]] bool isFinished(const backend::graphics::ParticleSystemDesc& desc, const EmitterState& state) {
+[[nodiscard]] bool isFinished(const contract::renderer::ParticleSystemDesc& desc, const EmitterState& state) {
     if (!isEmissionOver(desc, state.time)) {
         return false;
     }
@@ -145,7 +147,7 @@ void spawnParticles(ecs::EventReader<SpawnParticles> requests, ecs::Commands& co
 /// @brief What updating an emitter needs, shared by the one-shot emitters and the others.
 struct UpdateContext {
     // Not owned: the system's parameters, valid while it runs.
-    backend::graphics::IRenderer* renderer;         ///< Null before the backend started.
+    contract::renderer::IRenderer* renderer;        ///< Null before the backend started.
     const ParticleEffectAssets* effects;            ///< The effects by id.
     ParticleSystems* systems;                       ///< The live states.
     float deltaTime;                                ///< Seconds since the previous frame.
@@ -178,13 +180,13 @@ void updateEmitter(UpdateContext& context, ecs::Entity entity, const transform::
 
     const std::uint32_t spawnCount =
         emitter.playing ? computeSpawnCount(effect->desc, emitter.rateScale, context.deltaTime, *state) : 0;
-    state->emission = backend::graphics::ParticleEmission{.position = global.position,
-                                                          .scale = global.scale,
-                                                          .rotation = global.rotation,
-                                                          .deltaTime = context.deltaTime,
-                                                          .seed = state->seed,
-                                                          .firstParticle = state->spawned,
-                                                          .spawnCount = spawnCount};
+    state->emission = contract::renderer::ParticleEmission{.position = global.position,
+                                                           .scale = global.scale,
+                                                           .rotation = global.rotation,
+                                                           .deltaTime = context.deltaTime,
+                                                           .seed = state->seed,
+                                                           .firstParticle = state->spawned,
+                                                           .spawnCount = spawnCount};
     state->spawned += spawnCount;
     if (auto* simulation = std::get_if<CpuSimulation>(&state->simulation)) {
         simulation->step(state->emission);
@@ -201,7 +203,7 @@ void updateEmitter(UpdateContext& context, ecs::Entity entity, const transform::
 
 /// @brief PostUpdate, client: starts, stops and advances the emitters, and runs the CPU simulations.
 void updateEmitters(
-    ecs::NonSendMut<backend::Backend> backend, ecs::Res<ParticleEffectAssets> effects,
+    ecs::NonSendMut<plugins::graphics::Backend> backend, ecs::Res<ParticleEffectAssets> effects,
     ecs::ResMut<ParticleSystems> systems, ecs::Res<ecs::Time> time,
     ecs::Query<const transform::GlobalTransform, const ParticleEmitter, ecs::Without<ParticleOneShot>> emitters,
     ecs::Query<const transform::GlobalTransform, const ParticleEmitter, ecs::With<ParticleOneShot>> oneShots,
@@ -234,11 +236,11 @@ void updateEmitters(
 /// @brief Render, client: simulates the GPU systems and pushes every emitter to the SpriteQueue. An emitter whose
 /// material (its own, or else its effect's) is created is drawn with it, and with its MaterialInstance's values or
 /// else its shader's defaults.
-void drawEmitters(ecs::NonSendMut<backend::Backend> backend, ecs::Res<ParticleEffectAssets> effects,
-                  ecs::Res<backend::TextureAssets> textures, ecs::Res<shader::ShaderHandles> handles,
-                  ecs::ResMut<ParticleSystems> systems, ecs::ResMut<backend::graphics::SpriteQueue> queue,
+void drawEmitters(ecs::NonSendMut<plugins::graphics::Backend> backend, ecs::Res<ParticleEffectAssets> effects,
+                  ecs::Res<graphics::TextureAssets> textures, ecs::Res<shader::ShaderHandles> handles,
+                  ecs::ResMut<ParticleSystems> systems, ecs::ResAppend<graphics::SpriteQueue> queue,
                   ecs::Query<const ParticleEmitter, ecs::Optional<const shader::MaterialInstance>> emitters) {
-    backend::graphics::IRenderer* renderer = getRenderer(*backend);
+    contract::renderer::IRenderer* renderer = getRenderer(*backend);
     const bool framed = renderer != nullptr && backend->platform->getFramebufferSize().x != 0 &&
                         backend->platform->getFramebufferSize().y != 0;
     for (auto [entity, emitter, instance] : emitters) {
@@ -247,7 +249,7 @@ void drawEmitters(ecs::NonSendMut<backend::Backend> backend, ecs::Res<ParticleEf
         if (state == nullptr || effect == nullptr || !framed) {
             continue;
         }
-        backend::graphics::ParticleDraw draw;
+        contract::renderer::ParticleDraw draw;
         if (const auto* system = std::get_if<ParticleSystemId>(&state->simulation)) {
             renderer->simulate(*system, state->emission);
             draw.particles = *system;
@@ -258,7 +260,7 @@ void drawEmitters(ecs::NonSendMut<backend::Backend> backend, ecs::Res<ParticleEf
             }
             draw.particles = simulation.getInstances();
         }
-        const std::optional<backend::graphics::TextureId> texture = textures->getTexture(effect->texture);
+        const std::optional<contract::renderer::TextureId> texture = textures->getTexture(effect->texture);
         if (!texture) {
             continue;
         }
@@ -281,13 +283,18 @@ void drawEmitters(ecs::NonSendMut<backend::Backend> backend, ecs::Res<ParticleEf
 
 std::string_view ParticlePlugin::getName() const noexcept { return kName; }
 
+std::span<const std::string_view> ParticlePlugin::getDependencies() const noexcept {
+    static constexpr std::array<std::string_view, 3> kDependencies{
+        graphics::GraphicsPlugin::kName, shader::ShaderPlugin::kName, transform::TransformPlugin::kName};
+    return kDependencies;
+}
+
 void ParticlePlugin::build(ecs::App& app) {
-    app.addPlugin(transform::TransformPlugin{});
     ecs::Resources& resources = app.getWorld().getResources();
     resources.insertIfAbsent<ParticleEffectAssets>();
     resources.insertIfAbsent<ParticleSystems>();
-    resources.insertIfAbsent<backend::TextureAssets>();
-    resources.insertIfAbsent<backend::graphics::SpriteQueue>();
+    resources.insertIfAbsent<graphics::TextureAssets>();
+    resources.insertIfAbsent<graphics::SpriteQueue>();
     static_cast<void>(app.getWorld().getComponents().registerType<ParticleEmitter>());
     static_cast<void>(app.getWorld().getComponents().registerType<ParticleOneShot>());
     static_cast<void>(app.getWorld().getEvents().registerType<SpawnParticles>());
@@ -299,9 +306,8 @@ void ParticlePlugin::build(ecs::App& app) {
         .after(std::string{kSpawnSystem})
         .setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kRender, std::string{kDrawSystem}, &drawEmitters)
-        .after(std::string{backend::BackendPlugin::kCameraSystem})
-        .after(std::string{text::TextPlugin::kDrawSystem})
-        .before(std::string{backend::BackendPlugin::kSpritesSystem})
+        .after(std::string{graphics::GraphicsPlugin::kCameraSystem})
+        .before(std::string{graphics::GraphicsPlugin::kSpritesSystem})
         .setSide(ecs::Side::kClient);
 }
 

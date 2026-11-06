@@ -18,11 +18,11 @@ Runnable examples:
 
 ```mermaid
 flowchart BT
-    subgraph CORE["plugins/backend/ (plugins): the contracts, no window, graphics or scripting library"]
+    subgraph CORE["contract/: the contracts, no ECS, window, graphics or scripting library"]
         IP["IPlatform"]
         IR["IRenderer"]
         ST["Settings"]
-        BR["BackendRegistry"]
+        BR["PlatformRegistry, RendererRegistry"]
     end
 
     subgraph INTEROP["interop/: one header-only target per graphics API"]
@@ -31,16 +31,16 @@ flowchart BT
 
     subgraph PLATFORM["platform/glfw/ (platform-glfw)"]
         GP["GlfwPlatform"]
-        RP["registerPlatform(registry)<br/>→ &quot;glfw&quot;"]
+        RP["registerPlatform(registry.platforms)<br/>→ &quot;glfw&quot;"]
     end
 
     subgraph VULKAN["render/vulkan/ (render-vulkan)"]
         VR["VulkanRenderer"]
-        RR["registerRenderer(registry)<br/>→ &quot;vulkan&quot;"]
+        RR["registerRenderer(registry.renderers)<br/>→ &quot;vulkan&quot;"]
     end
 
     subgraph OWN["your own code (e.g. examples)"]
-        OB["SdlPlatform, SfmlPlatform, SfmlRenderer...<br/>registry.addPlatform() / addRenderer()"]
+        OB["SdlPlatform, SfmlPlatform, SfmlRenderer...<br/>registry.platforms.add() / addRenderer()"]
     end
 
     GP -- implements --> IP
@@ -53,20 +53,20 @@ flowchart BT
     BR -- reads --> ST
 ```
 
-Dependencies keep pointing towards the backend plugin (see `AGENTS.md`): the interfaces, `Settings` and the registry
-live in `plugins/backend/`, next to the `BackendPlugin` that starts them in an App, and know nothing of any windowing
-or graphics library. The platforms and renderers depend on the `plugins` target, and through it on the ECS, but never
-include ECS headers. What a renderer needs from a window that is specific to its graphics API
-lives in `interop/`, which both sides depend on: the platform and the renderer never depend on each other. Only the
-code that registers the backends (`main.cpp`, an example) names the modules.
+Dependencies keep pointing towards the contracts (see `AGENTS.md` and [Plugins](Plugins.md)): the interfaces and their
+registries (`PlatformRegistry`, `RendererRegistry`) live in `contract/`, in libraries that know no ECS and no windowing or
+graphics library. `BackendRegistry`, in `plugins/graphics/`, holds both and starts the pair. The platforms and
+renderers link these libraries only, so neither the ECS nor a plugin can reach them. What a renderer needs from a window
+that is specific to its graphics API lives in `interop/`, which both sides depend on: the platform and the renderer
+never depend on each other. Only the code that registers the backends (`main.cpp`, an example) names the modules.
 
 | File | Role |
 |---|---|
-| [`plugins/backend/platform/IPlatform.hpp`](../src/rtype/plugins/backend/platform/IPlatform.hpp) | The window and its events |
-| [`plugins/backend/platform/WindowConfig.hpp`](../src/rtype/plugins/backend/platform/WindowConfig.hpp) | How the window is created, read from the `window` settings |
-| [`plugins/backend/graphics/IRenderer.hpp`](../src/rtype/plugins/backend/graphics/IRenderer.hpp) | Textures, camera, sprites and shapes |
+| [`rtype/contract/platform/IPlatform.hpp`](../src/rtype/contract/platform/IPlatform.hpp) | The window and its events |
+| [`rtype/contract/platform/WindowConfig.hpp`](../src/rtype/contract/platform/WindowConfig.hpp) | How the window is created, read from the `window` settings |
+| [`rtype/contract/renderer/IRenderer.hpp`](../src/rtype/contract/renderer/IRenderer.hpp) | Textures, camera, sprites and shapes |
 | [`core/config/Settings.hpp`](../src/rtype/core/config/Settings.hpp) | The configuration |
-| [`plugins/backend/BackendRegistry.hpp`](../src/rtype/plugins/backend/BackendRegistry.hpp) | Backends by name, and the start-up sequence |
+| [`rtype/plugins/graphics/BackendRegistry.hpp`](../src/rtype/plugins/graphics/BackendRegistry.hpp) | Backends by name, and the start-up sequence |
 | [`interop/vulkan/IVulkanSurfaceSource.hpp`](../src/rtype/interop/vulkan/IVulkanSurfaceSource.hpp) | What a Vulkan renderer needs from a window |
 | [`platform/glfw/Registration.hpp`](../src/rtype/platform/glfw/Registration.hpp) | Registers `glfw` |
 | [`render/vulkan/Registration.hpp`](../src/rtype/render/vulkan/Registration.hpp) | Registers `vulkan` |
@@ -75,9 +75,9 @@ code that registers the backends (`main.cpp`, an example) names the modules.
 
 ```cpp
 // 1. Every module registers its backends.
-rtype::plugins::backend::BackendRegistry registry;
-rtype::platform::glfw::registerPlatform(registry);   // "glfw"
-rtype::render::vulkan::registerRenderer(registry);  // "vulkan"
+rtype::plugins::graphics::BackendRegistry registry;
+rtype::platform::glfw::registerPlatform(registry.platforms);   // "glfw"
+rtype::render::vulkan::registerRenderer(registry.renderers);  // "vulkan"
 
 // 2. The configuration picks the pair and sets it up.
 rtype::core::config::Settings config;
@@ -88,7 +88,7 @@ config.set("window.size", std::vector<double>{1280, 720});
 config.set("vulkan.debugging", true);
 
 // 3. Start them, then only use the interfaces.
-const rtype::plugins::backend::Backend backend = registry.createBackend(config);
+const rtype::plugins::graphics::Backend backend = registry.createBackend(config);
 while (backend.platform->isOpen()) {
     for (const auto& event : backend.platform->pollEvents()) { /* ... */ }
     backend.renderer->beginFrame(color);
@@ -99,6 +99,33 @@ while (backend.platform->isOpen()) {
 
 `Backend` owns both. Its renderer is destroyed before its platform, since it may hold resources tied to the window
 (a Vulkan surface).
+
+### Drawing from the ECS
+
+In an App, the `BackendPlugin` draws two components at their entity's `GlobalTransform`, in its client Render systems:
+
+| Component | System | What it draws |
+|---|---|---|
+| `SpriteRenderer` (`rtype.SpriteRenderer`) | `rtype.backend.sprites` | a texture's `source` rectangle, with the `SpriteQueue` (tiles, texts), sorted by `layer` |
+| `ShapeRenderer` (`rtype.ShapeRenderer`) | `rtype.backend.shapes`, after the sprites | a `Shape`: a rectangle, circle, capsule or line, filled and/or outlined, sorted by `layer` among the shapes |
+
+A shape turns and scales with its entity (its `size` on both axes, its radii, corner radius and outline on X), and a
+line runs from the entity's position to its `end`, in the entity's space. Shapes are overlays: they are drawn over every
+sprite whatever their layers, then the physics debug view draws over them. Both components are reflected, so scripts and
+the network see them: their enums as their byte (`blend`: 0 alpha, 1 additive, 2 cutout; `kind`: 0 rect, 1 circle, 2
+capsule, 3 line) and the sprite's `source` as a `vec4` (`x`, `y` its position, `z`, `w` its size), through
+`plugins/backend/graphics/GraphicsReflection.hpp`, which the renderers do not include.
+
+```luau
+ctx.commands:spawn({
+    ["rtype.Transform"] = { position = { x = 400, y = 300 } },
+    ["rtype.ShapeRenderer"] = {
+        kind = 1, radius = 36, -- a circle
+        fillColor = { x = 0.25, y = 0.27, z = 0.32, w = 1 },
+        outlineColor = { x = 0.55, y = 0.6, z = 0.7, w = 1 }, outlineThickness = 2,
+    },
+})
+```
 
 ## The interfaces
 
@@ -125,7 +152,7 @@ the backend.
 | `setup(IPlatform&)` | Optional (default: nothing). Sets the platform up before its window exists, and may throw early if the pair does not fit. |
 | `init(IPlatform&)` | Attaches to the window. Called once, by the registry, after `IPlatform::init()`. |
 | `resize(size)` | Called on every `Resized` event. |
-| `getViewSize()` | Optional (default: 0x0, the view is the framebuffer). The resolution the game is designed for, which the view fits in the window with bars; the `BackendPlugin` uses it to record what each frame shows (`VisibleArea`). |
+| `getViewSize()` | Optional (default: 0x0, the view is the framebuffer). The resolution the game is designed for, which the view fits in the window with bars; the `GraphicsPlugin` uses it to record what each frame shows (`VisibleArea`). |
 | `createTexture(desc, pixels)`, `destroy(id)` | Textures from RGBA pixels, referred to by `TextureId`. `desc.encoding` says whether they are sRGB colours (images, which a renderer may premultiply) or data sampled as stored (`TextureEncoding::kLinear`: the distances of a font atlas). |
 | `beginFrame(clearColor)`, `endFrame()` | One frame. |
 | `setView(view)`, `draw(Sprite)`, `draw(Shape)`, `draw(Text)` | Drawing, between `beginFrame()` and `endFrame()`. A `Shape` is a rectangle (rounded corners), circle, capsule or line, filled and/or outlined; shapes are overlays, drawn after the sprites. A `Text` is already laid out by the text plugin: its glyphs, cut from an MSDF font atlas, drawn in order with the sprites (see `docs/Text.md`). |
@@ -159,7 +186,7 @@ is defined **once per API**, in a header-only target of `interop/` that depends 
 | `interop-vulkan` | [`IVulkanSurfaceSource`](../src/rtype/interop/vulkan/IVulkanSurfaceSource.hpp) | `GlfwPlatform`, the SDL example's `SdlPlatform` | `VulkanRenderer` |
 
 ```cpp
-class GlfwPlatform final : public plugins::backend::platform::IPlatform, public interop::vulkan::IVulkanSurfaceSource { ... };
+class GlfwPlatform final : public contract::platform::IPlatform, public interop::vulkan::IVulkanSurfaceSource { ... };
 ```
 
 | `IVulkanSurfaceSource` | `GlfwPlatform` | Called by `VulkanRenderer` in |
@@ -170,7 +197,7 @@ class GlfwPlatform final : public plugins::backend::platform::IPlatform, public 
 
 Why there:
 
-- **Not in `plugins/backend/`**, which would then depend on Vulkan (or pass `void*`).
+- **Not in `contract/`**, which would then depend on Vulkan (or pass `void*`).
 - **Not in the renderer module**: the platform would depend on the whole renderer (a shared library) for one
   interface.
 - **Not in the platform module**: the renderer would depend on GLFW, and could not serve a platform written
@@ -286,14 +313,14 @@ Everything is reported by exceptions, before a window opens whenever possible:
 
 A backend can live in an engine module or in your own code, as the SDL and SFML examples do. In both cases:
 
-1. **Implement the interface.** `class MyPlatform final : public rtype::plugins::backend::platform::IPlatform`, or `IRenderer`.
+1. **Implement the interface.** `class MyPlatform final : public rtype::contract::platform::IPlatform`, or `IRenderer`.
    A platform also implements the interop interfaces of the renderers it serves (`IVulkanSurfaceSource` for
    `vulkan`, with `add_deps("interop-vulkan")`); a renderer overrides `setup()` if it must set the platform up
    before its window exists.
 2. **Register it under a name**, with a factory that receives its own section of the settings:
 
    ```cpp
-   registry.addPlatform("sdl", [](const Settings& settings) -> std::unique_ptr<IPlatform> {
+   registry.platforms.add("sdl", [](const Settings& settings) -> std::unique_ptr<IPlatform> {
        settings.checkKeys({}, "sdl");  // no setting: reject anything
        return std::make_unique<SdlPlatform>();
    });

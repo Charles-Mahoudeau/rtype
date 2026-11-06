@@ -37,6 +37,7 @@
 #include "plugins/physics/RigidBody.hpp"
 #include "plugins/physics/Velocity.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/app/MinimalPlugins.hpp"
@@ -268,6 +269,7 @@ int main() {
         // MinimalPlugins brings Time (fixed ticks at 60 Hz), which the physics steps with.
         app.addPlugins(MinimalPlugins{});
         // 980 units/s^2 down is 9.8 m/s^2 at 100 units per meter. Invalid settings throw a PhysicsException here.
+        app.addPlugin(rtype::plugins::transform::TransformPlugin{});
         app.addPlugin(PhysicsPlugin{PhysicsSettings{.gravity = {0.0F, 980.0F}, .unitsPerMeter = 100.0F}});
         app.insertResource(Scene{});
         app.addSystem(Phase::kStartup, "example.spawnScene", &spawnScene);

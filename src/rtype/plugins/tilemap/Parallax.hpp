@@ -25,7 +25,7 @@ namespace rtype::plugins::tilemap {
 /// // A far background: moves at a tenth of the camera's speed, and drifts left on its own.
 /// commands.spawn()
 ///     .add(rtype::plugins::transform::Transform{})
-///     .add(rtype::plugins::backend::SpriteRenderer{.texture = sky, .layer = -100})
+///     .add(rtype::plugins::sprite::SpriteRenderer{.texture = sky, .layer = -100})
 ///     .add(rtype::plugins::tilemap::Parallax{.factor = {0.1F, 0.1F}, .scroll = {-8.0F, 0.0F}});
 /// @endcode
 struct Parallax {

@@ -13,12 +13,16 @@
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
+#include "rtype/ecs/schedule/RunMode.hpp"
+#include "rtype/ecs/system/Side.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
+#include "rtype/replication/client/ClientCalls.hpp"
 #include "rtype/replication/component/NetworkId.hpp"
 #include "rtype/replication/component/Owner.hpp"
 #include "rtype/replication/component/PlayerInput.hpp"
 #include "rtype/replication/event/ClientConnected.hpp"
 #include "rtype/replication/event/ClientDisconnected.hpp"
+#include "rtype/replication/input/InputCalls.hpp"
 #include "rtype/replication/input/InputLayout.hpp"
 
 namespace rtype::replication {
@@ -41,5 +45,9 @@ void ReplicationPlugin::build(ecs::App& app) {
     static_cast<void>(events.registerType<event::ClientDisconnected>({.presence = ecs::Presence::kServerOnly}));
 
     app.insertResourceIfAbsent<input::InputLayout>();
+    input::addInputCalls(app);
+    if (ecs::runsIn(ecs::Side::kClient, app.getSchedules().getRunMode())) {
+        client::addClientCalls(app);
+    }
 }
 }  // namespace rtype::replication

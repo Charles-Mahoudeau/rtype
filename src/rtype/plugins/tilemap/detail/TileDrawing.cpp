@@ -17,12 +17,12 @@
 #include <numbers>
 #include <optional>
 
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/Sprite.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
-#include "plugins/backend/graphics/VisibleArea.hpp"
-#include "plugins/backend/math/Rect.hpp"
+#include "plugins/graphics/VisibleArea.hpp"
 #include "plugins/tilemap/Tilemap.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Sprite.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 
 namespace rtype::plugins::tilemap::detail {
 
@@ -40,13 +40,13 @@ Span cover(float position, float size, float min, float max) {
 }
 }  // namespace
 
-backend::graphics::Color layerColor(const MapLayer& layer) {
-    return layer.tint * backend::graphics::Color{1.0F, 1.0F, 1.0F, layer.opacity};
+contract::renderer::Color layerColor(const MapLayer& layer) {
+    return layer.tint * contract::renderer::Color{1.0F, 1.0F, 1.0F, layer.opacity};
 }
 
-backend::graphics::Sprite tileSprite(const Tilemap& map, const Tileset& tileset, backend::graphics::TextureId texture,
-                                     std::uint32_t gid, glm::ivec2 cell, const LayerPlacement& placement,
-                                     const backend::graphics::Color& color) {
+contract::renderer::Sprite tileSprite(const Tilemap& map, const Tileset& tileset, contract::renderer::TextureId texture,
+                                      std::uint32_t gid, glm::ivec2 cell, const LayerPlacement& placement,
+                                      const contract::renderer::Color& color) {
     const glm::vec2 cellSize{map.getTileSize()};
     const glm::vec2 tileSize{tileset.tileSize};
     const glm::vec2 corner =
@@ -55,13 +55,13 @@ backend::graphics::Sprite tileSprite(const Tilemap& map, const Tileset& tileset,
     const float vertical = (gid & kFlipVertical) != 0 ? -1.0F : 1.0F;
     const bool diagonal = (gid & kFlipDiagonal) != 0;
     const glm::vec2 flip = diagonal ? glm::vec2{vertical, -horizontal} : glm::vec2{horizontal, vertical};
-    return backend::graphics::Sprite{.texture = texture,
-                                     .source = tileset.getSource((gid & kGidMask) - tileset.firstGid),
-                                     .position = placement.position + ((corner + (tileSize / 2.0F)) * placement.scale),
-                                     .scale = placement.scale * flip,
-                                     .origin = tileSize / 2.0F,
-                                     .rotation = diagonal ? std::numbers::pi_v<float> / 2.0F : 0.0F,
-                                     .color = color};
+    return contract::renderer::Sprite{.texture = texture,
+                                      .source = tileset.getSource((gid & kGidMask) - tileset.firstGid),
+                                      .position = placement.position + ((corner + (tileSize / 2.0F)) * placement.scale),
+                                      .scale = placement.scale * flip,
+                                      .origin = tileSize / 2.0F,
+                                      .rotation = diagonal ? std::numbers::pi_v<float> / 2.0F : 0.0F,
+                                      .color = color};
 }
 
 Bounds chunkBounds(const Tilemap& map, glm::ivec2 origin, const LayerPlacement& placement) {
@@ -74,9 +74,9 @@ Bounds chunkBounds(const Tilemap& map, glm::ivec2 origin, const LayerPlacement& 
     return Bounds{.min = glm::min(a, b), .max = glm::max(a, b)};
 }
 
-std::optional<backend::graphics::Sprite> imageSprite(const MapLayer& layer, backend::graphics::TextureId texture,
-                                                     glm::uvec2 imageSize, const LayerPlacement& placement,
-                                                     const backend::graphics::VisibleArea& visible) {
+std::optional<contract::renderer::Sprite> imageSprite(const MapLayer& layer, contract::renderer::TextureId texture,
+                                                      glm::uvec2 imageSize, const LayerPlacement& placement,
+                                                      const graphics::VisibleArea& visible) {
     const glm::vec2 scale = glm::abs(placement.scale);
     const glm::vec2 size = glm::vec2{imageSize} * scale;
     if (visible.isEmpty() || size.x <= 0.0F || size.y <= 0.0F) {
@@ -95,11 +95,12 @@ std::optional<backend::graphics::Sprite> imageSprite(const MapLayer& layer, back
     if (!visible.overlaps(start, start + (size * copies))) {
         return std::nullopt;
     }
-    return backend::graphics::Sprite{.texture = texture,
-                                     .source = backend::math::Rect{glm::vec2{0.0F}, glm::vec2{imageSize} * copies},
-                                     .position = start,
-                                     .scale = scale,
-                                     .color = layerColor(layer)};
+    return contract::renderer::Sprite{
+        .texture = texture,
+        .source = contract::renderer::math::Rect{glm::vec2{0.0F}, glm::vec2{imageSize} * copies},
+        .position = start,
+        .scale = scale,
+        .color = layerColor(layer)};
 }
 
 }  // namespace rtype::plugins::tilemap::detail

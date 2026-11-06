@@ -20,8 +20,9 @@
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/math/Rect.hpp"
+#include "plugins/tilemap/Export.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 
 namespace rtype::plugins::tilemap {
 
@@ -37,7 +38,7 @@ inline constexpr std::uint32_t kGidMask = 0x0FFFFFFFU;
 inline constexpr std::int32_t kChunkSize = 16;
 
 /// @brief An image cut into same-size tiles, as a Tiled tileset: tile `firstGid + n` of a map is its tile n.
-struct Tileset {
+struct RTYPE_PLUGIN_TILEMAP_API Tileset {
     std::string name;              ///< As named in Tiled.
     std::string imagePath;         ///< The image, as TextureAssets loads it (relative to the working directory).
     core::asset::AssetId texture;  ///< AssetId::fromPath(imagePath).
@@ -51,7 +52,7 @@ struct Tileset {
     glm::vec2 tileOffset{0.0F};    ///< Added to where each of its tiles is drawn, in pixels.
 
     /// @return Where its tile @p localId (0 for the first) is in the image, in pixels.
-    [[nodiscard]] backend::math::Rect getSource(std::uint32_t localId) const;
+    [[nodiscard]] contract::renderer::math::Rect getSource(std::uint32_t localId) const;
 };
 
 /// @brief A square of kChunkSize x kChunkSize cells of a tile layer.
@@ -69,32 +70,33 @@ enum class LayerKind : std::uint8_t {
 
 /// @brief One layer of a map, as Tiled draws it: groups are flattened into their layers (offsets added, parallax
 /// factors, opacities and tints multiplied).
-struct MapLayer {
-    std::string name;                     ///< Its name in Tiled, prefixed by its groups' ("group/layer").
-    LayerKind kind = LayerKind::kTiles;   ///< What it holds.
-    glm::vec2 offset{0.0F};               ///< Where it is drawn from the map's origin, in pixels.
-    glm::vec2 parallax{1.0F};             ///< Parallax factor (Parallax::factor): 1 moves with the map.
-    glm::vec2 scroll{0.0F};               ///< Pixels per second it scrolls on its own (custom properties scrollx and
-                                          ///< scrolly, an extension of this plugin).
-    float opacity = 1.0F;                 ///< Multiplies its alpha.
-    backend::graphics::Color tint{1.0F};  ///< Multiplies its colours.
-    bool visible = true;                  ///< Hidden layers are kept but not drawn.
-    std::vector<TileChunk> chunks;        ///< kTiles: the chunks that have tiles.
-    std::string imagePath;                ///< kImage: the image, as TextureAssets loads it.
-    core::asset::AssetId image;           ///< kImage: AssetId::fromPath(imagePath).
-    bool repeatX = false;                 ///< kImage: repeated to fill the view horizontally.
-    bool repeatY = false;                 ///< kImage: repeated to fill the view vertically.
+struct RTYPE_PLUGIN_TILEMAP_API MapLayer {
+    std::string name;                      ///< Its name in Tiled, prefixed by its groups' ("group/layer").
+    LayerKind kind = LayerKind::kTiles;    ///< What it holds.
+    glm::vec2 offset{0.0F};                ///< Where it is drawn from the map's origin, in pixels.
+    glm::vec2 parallax{1.0F};              ///< Parallax factor (Parallax::factor): 1 moves with the map.
+    glm::vec2 scroll{0.0F};                ///< Pixels per second it scrolls on its own (custom properties scrollx and
+                                           ///< scrolly, an extension of this plugin).
+    float opacity = 1.0F;                  ///< Multiplies its alpha.
+    contract::renderer::Color tint{1.0F};  ///< Multiplies its colours.
+    bool visible = true;                   ///< Hidden layers are kept but not drawn.
+    std::vector<TileChunk> chunks;         ///< kTiles: the chunks that have tiles.
+    std::string imagePath;                 ///< kImage: the image, as TextureAssets loads it.
+    core::asset::AssetId image;            ///< kImage: AssetId::fromPath(imagePath).
+    bool repeatX = false;                  ///< kImage: repeated to fill the view horizontally.
+    bool repeatY = false;                  ///< kImage: repeated to fill the view vertically.
 
     /// @return The tile id (with its flip flags) in @p cell, 0 if empty.
     [[nodiscard]] std::uint32_t getTile(glm::ivec2 cell) const;
 };
 
 /// @brief Writes the tile ids @p gids, @p width per row, into @p layer from @p origin (in cells); 0 clears a cell.
-void setTiles(MapLayer& layer, glm::ivec2 origin, std::uint32_t width, std::span<const std::uint32_t> gids);
+RTYPE_PLUGIN_TILEMAP_API void setTiles(MapLayer& layer, glm::ivec2 origin, std::uint32_t width,
+                                       std::span<const std::uint32_t> gids);
 
 /// @brief A level made of tile and image layers on a grid, as Tiled saves an orthogonal map: what TilemapAssets loads
 /// and a TilemapLayer entity draws.
-class Tilemap {
+class RTYPE_PLUGIN_TILEMAP_API Tilemap {
   public:
     /// @param tileSize The grid's cell, in pixels.
     /// @param tilesets Ordered by firstGid.

@@ -19,16 +19,16 @@
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/exceptions/ParticleExceptions.hpp"
-#include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/particle/IParticleEffectLoader.hpp"
 #include "plugins/particle/ParticleEffect.hpp"
 #include "plugins/particle/ParticleEffectAssets.hpp"
+#include "rtype/contract/renderer/drawing/BlendMode.hpp"
+#include "rtype/contract/renderer/exceptions/ParticleExceptions.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
+using rtype::contract::renderer::BlendMode;
+using rtype::contract::renderer::exceptions::ParticleException;
 using rtype::core::asset::AssetId;
-using rtype::plugins::backend::exceptions::ParticleException;
-using rtype::plugins::backend::graphics::BlendMode;
 using rtype::plugins::particle::IParticleEffectLoader;
 using rtype::plugins::particle::ParticleEffect;
 using rtype::plugins::particle::ParticleEffectAssets;

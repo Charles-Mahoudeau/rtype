@@ -8,10 +8,12 @@
 #pragma once
 
 #include <memory>
+#include <span>
 #include <string_view>
 
 #include "core/config/Settings.hpp"
 #include "plugins/audio/AudioRegistry.hpp"
+#include "plugins/audio/Export.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -41,10 +43,10 @@ namespace rtype::plugins::audio {
 /// AudioSource, AudioListener and the events, and adds the TransformPlugin (nothing happens if it was added first).
 /// @code
 /// auto audio = std::make_unique<rtype::plugins::audio::AudioRegistry>();
-/// rtype::audio::miniaudio::registerAudio(*audio);
+/// rtype::audio::miniaudio::registerAudio(audio->devices);
 /// app.addPlugin(rtype::plugins::audio::AudioPlugin{std::move(audio), settings});
 /// @endcode
-class AudioPlugin : public ecs::Plugin {
+class RTYPE_PLUGIN_AUDIO_API AudioPlugin : public ecs::Plugin {
   public:
     static constexpr std::string_view kName = "rtype.audio";                   ///< The plugin's name.
     static constexpr std::string_view kCreateSystem = "rtype.audio.create";    ///< Startup: creates the device.
@@ -55,7 +57,7 @@ class AudioPlugin : public ecs::Plugin {
 
     /// @param registry The audio backends, registered by the executable.
     /// @param settings The configuration: `audio` and a section per backend.
-    AudioPlugin(std::unique_ptr<AudioRegistry> registry, core::config::Settings settings);
+    AudioPlugin(std::unique_ptr<plugins::audio::AudioRegistry> registry, core::config::Settings settings);
     ~AudioPlugin() override = default;
     AudioPlugin(const AudioPlugin& other) = delete;
     AudioPlugin& operator=(const AudioPlugin& other) = delete;
@@ -65,12 +67,15 @@ class AudioPlugin : public ecs::Plugin {
     /// @return "rtype.audio".
     [[nodiscard]] std::string_view getName() const noexcept override;
 
+    /// @return The TransformPlugin.
+    [[nodiscard]] std::span<const std::string_view> getDependencies() const noexcept override;
+
     /// @brief Registers the components and events, inserts the resources and adds the systems. Opens nothing: the
     /// device is created by the Startup system.
     void build(ecs::App& app) override;
 
   private:
-    std::unique_ptr<AudioRegistry> _registry;  ///< Handed to the Startup system by build().
-    core::config::Settings _settings;          ///< Handed to the Startup system by build().
+    std::unique_ptr<plugins::audio::AudioRegistry> _registry;  ///< Handed to the Startup system by build().
+    core::config::Settings _settings;                          ///< Handed to the Startup system by build().
 };
 }  // namespace rtype::plugins::audio

@@ -45,7 +45,7 @@ ResourceParam<T, A, H> SystemParam<ResourceParam<T, A, H>>::get(State& /*state*/
 
 template <Resource T, ResourceAccess A, ResourceThread H>
 void SystemParam<ResourceParam<T, A, H>>::addAccess(const State& state, SystemAccess& access) {
-    access.addResource(state, A == ResourceAccess::kWrite);
+    access.addResource(state, A != ResourceAccess::kRead, A == ResourceAccess::kAppend);
     if constexpr (H == ResourceThread::kMain) {
         access.requireMainThread();
     }

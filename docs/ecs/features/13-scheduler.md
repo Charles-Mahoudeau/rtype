@@ -233,6 +233,21 @@ and no ordering constraint links them. Nothing in the systems changes.
 - Used by: [App and plugins](14-app-and-plugins.md) (owns the `Schedules` and runs a frame until `AppExit`;
   the time plugin installs the frame clock).
 
+## Appending to a resource
+
+Two systems writing the same resource must be ordered, as their result could depend on who runs first. A queue that
+several plugins fill is the exception: the order of the additions does not matter, and ordering each plugin against the
+others would make them require each other. A system takes such a resource as a `ResAppend<T>`:
+
+```cpp
+void drawTexts(rtype::ecs::ResAppend<rtype::plugins::graphics::SpriteQueue> queue) { queue->push(layer, text); }
+```
+
+Two systems appending to it need no order. A system that reads it or writes it any other way still does, so the system
+that empties the queue stays ordered against every system that fills it, and forgetting that order is refused when the
+schedule is built. The scheduler cannot check what `->` is used for: a `ResAppend` must only add, and the result must
+not depend on the order of the additions.
+
 ## Pitfalls
 
 - **Gameplay in `Update`.** Anything that affects the simulation belongs in `FixedUpdate`; `Update` runs

@@ -6,8 +6,11 @@
 */
 
 #pragma once
+
 #include <stdexcept>
 #include <string>
+
+#include "rtype/platform/glfw/Export.hpp"
 
 namespace rtype::platform::glfw::exceptions {
 /// @brief Exception thrown when a GLFW window operation fails.
@@ -15,7 +18,7 @@ namespace rtype::platform::glfw::exceptions {
 /// This exception is thrown when an error occurs during the creation or management
 /// of a GLFW window. Its message is the given description, followed by the pending
 /// GLFW error (read with `glfwGetError()`) when there is one.
-class GLFWWindowException : public std::runtime_error {
+class RTYPE_PLATFORM_GLFW_API GLFWWindowException : public std::runtime_error {
   public:
     /// @param message Description of the failed operation.
     /// @note Consumes the pending GLFW error: throw it right after the failing GLFW call.

@@ -11,18 +11,19 @@
 #include <optional>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
-#include "plugins/audio/AudioTypes.hpp"
+#include "plugins/AssetIdReflection.hpp"      // IWYU pragma: keep
+#include "plugins/audio/AudioReflection.hpp"  // IWYU pragma: keep
+#include "rtype/contract/audiodevice/AudioTypes.hpp"
 #include "rtype/ecs/event/EventTraits.hpp"
 
 namespace rtype::plugins::audio {
 /// @brief A one-shot sound, fire and forget (a shot, an explosion). Dropped if its sound is not loaded by the time the
 /// audio plugin plays it: a late shot sound is worse than a missing one.
 struct PlaySound {
-    core::asset::AssetId sound;         ///< The sound to play, from AudioAssets::load().
-    Bus bus{Bus::kEffects};             ///< The bus it is mixed into.
-    float volume{1.0F};                 ///< Linear gain, 1 = unchanged.
-    float pitch{1.0F};                  ///< Playback speed, 1 = unchanged.
+    core::asset::AssetId sound;  ///< The sound to play, from AudioAssets::load().
+    contract::audiodevice::Bus bus{contract::audiodevice::Bus::kEffects};  ///< The bus it is mixed into.
+    float volume{1.0F};                                                    ///< Linear gain, 1 = unchanged.
+    float pitch{1.0F};                                                     ///< Playback speed, 1 = unchanged.
     std::optional<glm::vec2> position;  ///< World position to pan from; none: centred.
 };
 RTYPE_ECS_EVENT(PlaySound, "rtype.PlaySound");

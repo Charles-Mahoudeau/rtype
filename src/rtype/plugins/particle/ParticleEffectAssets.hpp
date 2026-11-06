@@ -17,6 +17,7 @@
 
 #include "core/asset/AssetId.hpp"
 #include "core/asset/AssetStore.hpp"
+#include "plugins/particle/Export.hpp"
 #include "plugins/particle/IParticleEffectLoader.hpp"
 #include "plugins/particle/ParticleEffect.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
@@ -27,7 +28,7 @@ namespace rtype::plugins::particle {
 /// built in C++ are added under a name, effect files are read by the loader registered for their extension, and
 /// ParticleEmitter components keep the id either gives.
 ///
-/// @details Every effect is checked (backend::graphics::validate()) before it is stored. A file that cannot be read,
+/// @details Every effect is checked (contract::renderer::validate()) before it is stored. A file that cannot be read,
 /// has no loader or describes an invalid effect is recorded as failed, with the reason, which is also printed: one
 /// broken effect does not stop the game. No loader is registered by default; until the Luau one exists, effects are
 /// built in C++.
@@ -38,7 +39,7 @@ namespace rtype::plugins::particle {
 /// sparks.texture = textures->load("assets/particles/spark.png");
 /// const rtype::core::asset::AssetId id = effects->add("sparks", std::move(sparks));
 /// @endcode
-class ParticleEffectAssets {
+class RTYPE_PLUGIN_PARTICLE_API ParticleEffectAssets {
   public:
     /// @brief One effect: its file (or the name it was added under), the effect (nothing if it failed) and why.
     using Entry = core::asset::AssetStore<ParticleEffect>::Entry;
@@ -68,7 +69,8 @@ class ParticleEffectAssets {
 
     /// @brief Adds an effect built in code, known by @p name.
     /// @return Its id (AssetId::fromPath(name)). Adding a name twice keeps the first effect.
-    /// @throws backend::exceptions::ParticleException If @p effect is invalid: a mistake in the code that built it.
+    /// @throws contract::renderer::exceptions::ParticleException If @p effect is invalid: a mistake in the code that
+    /// built it.
     /// @throws core::asset::exceptions::AssetLoadException If another name already has this id (a hash collision).
     core::asset::AssetId add(const std::string& name, ParticleEffect effect);
 

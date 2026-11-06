@@ -15,9 +15,9 @@
 #include "core/asset/AssetId.hpp"
 #include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
 #include "plugins/GlmReflection.hpp"      // IWYU pragma: keep
-#include "plugins/backend/graphics/BlendMode.hpp"
-#include "plugins/backend/graphics/Color.hpp"
 #include "plugins/text/TextLayout.hpp"
+#include "rtype/contract/renderer/drawing/BlendMode.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/type/Field.hpp"
 #include "rtype/ecs/type/FieldTypeOf.hpp"
@@ -42,15 +42,15 @@ namespace rtype::plugins::text {
 ///                                             .anchor = {0.5F, 0.5F}});
 /// @endcode
 struct TextRenderer {
-    std::string text;                      ///< UTF-8; `\n` starts a new line.
-    core::asset::AssetId font;             ///< From FontAssets::load().
-    float size = 32.0F;                    ///< The font size: world units per em, before the entity's scale.
-    backend::graphics::Color color{1.0F};  ///< Fills the glyphs: colour and transparency.
-    TextAlign align = TextAlign::kLeft;    ///< How the lines line up, for a text of several lines.
+    std::string text;                       ///< UTF-8; `\n` starts a new line.
+    core::asset::AssetId font;              ///< From FontAssets::load().
+    float size = 32.0F;                     ///< The font size: world units per em, before the entity's scale.
+    contract::renderer::Color color{1.0F};  ///< Fills the glyphs: colour and transparency.
+    TextAlign align = TextAlign::kLeft;     ///< How the lines line up, for a text of several lines.
     glm::vec2 anchor{0.0F};  ///< The point of the text on the entity's position: (0, 0) its top-left corner, (0.5, 0.5)
                              ///< its centre, (1, 1) its bottom-right corner. It is also the pivot of the rotation.
     std::int32_t layer{0};   ///< Draw order among the sprites: higher layers are drawn on top.
-    backend::graphics::BlendMode blend = backend::graphics::BlendMode::kAlpha;  ///< kAlpha or kAdditive.
+    contract::renderer::BlendMode blend = contract::renderer::BlendMode::kAlpha;  ///< kAlpha or kAdditive.
     core::asset::AssetId material;  ///< From MaterialAssets; the default material if empty or not created yet. Its
                                     ///< `instance uniform` values come from the entity's MaterialInstance.
 };

@@ -8,8 +8,10 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "rtype/ecs/app/App.hpp"
@@ -20,6 +22,46 @@
 #include "rtype/ecs/time/FixedTimestep.hpp"
 #include "rtype/ecs/time/TimePlugin.hpp"
 #include "rtype/scripting/ScriptHost.hpp"
+
+namespace rtype::test::commands {
+/// @brief A plain-data C++ component, with defaults of its own.
+struct Hull {
+    float armor{7.0F};
+    std::uint32_t plates{3};
+};
+RTYPE_ECS_COMPONENT(Hull, "test.Hull", armor, plates);
+
+/// @brief A replicated C++ component.
+struct Beacon {
+    std::uint32_t channel{0};
+};
+RTYPE_ECS_COMPONENT(Beacon, "test.Beacon", channel);
+
+/// @brief A C++ component that owns memory: a list and a text.
+struct Cargo {
+    std::vector<std::int32_t> items;
+    std::string label{"empty"};
+};
+RTYPE_ECS_COMPONENT(Cargo, "test.Cargo", items, label);
+
+/// @brief A value with no default: it must be given one.
+struct Sealed {
+    explicit Sealed(std::string seal) : seal{std::move(seal)} {}
+    ~Sealed() = default;
+    Sealed(const Sealed& other) = default;
+    Sealed& operator=(const Sealed& other) = default;
+    Sealed(Sealed&& other) noexcept = default;
+    Sealed& operator=(Sealed&& other) noexcept = default;
+
+    std::string seal;
+};
+
+/// @brief A C++ component that owns memory and has no default constructor.
+struct Crate {
+    Sealed sealed;
+};
+RTYPE_ECS_COMPONENT(Crate, "test.Crate");
+}  // namespace rtype::test::commands
 
 namespace {
 /// @brief An App whose every frame lasts one second, and a host on it with a few components declared, and one marked
@@ -462,4 +504,110 @@ TEST(ScriptLists, ReadsAndWritesATextOfAnyLength) {
     fixture.app.runFrame();
     EXPECT_EQ(fixture.run("assert(seen == 'hello' and refused == false)"), "");
     EXPECT_EQ(world.getComponents().get<Sign>(entity)->text, std::string(1000, 'a'));
+}
+
+TEST(ScriptCommands, AScriptSpawnsACxxComponentFromItsCxxDefaults) {
+    Fixture fixture;
+    static_cast<void>(fixture.app.getWorld().getComponents().registerType<rtype::test::commands::Hull>());
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Builder", {
+            phase = "Update",
+            query = { with = { "game.Marker" } },
+            run = function(ctx)
+                ctx.commands:spawn({ ["test.Hull"] = { plates = 5 } })
+            end,
+        })
+        engine.ecs.system("game.Inspector", {
+            phase = "PostUpdate",
+            query = { read = { "test.Hull" } },
+            run = function(ctx)
+                for entity, hull in ctx.query do
+                    seenArmor, seenPlates = hull.armor, hull.plates
+                end
+            end,
+        })
+    )"),
+              "");
+
+    fixture.app.runFrame();
+
+    EXPECT_EQ(fixture.run("assert(seenArmor == 7 and seenPlates == 5, tostring(seenArmor))"), "");
+}
+
+TEST(ScriptCommands, AClientSystemCannotAddAReplicatedCxxComponent) {
+    Fixture fixture;
+    static_cast<void>(fixture.app.getWorld().getComponents().registerType<rtype::test::commands::Beacon>(
+        {.replication = rtype::ecs::ReplicationMode::kEveryChange}));
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Lighter", {
+            phase = "Update",
+            side = "client",
+            query = { with = { "game.Marker" } },
+            run = function(ctx)
+                ctx.commands:spawn({ ["test.Beacon"] = { channel = 2 } })
+            end,
+        })
+    )"),
+              "");
+
+    testing::internal::CaptureStderr();
+    fixture.app.runFrame();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_NE(log.find("a client system cannot add 'test.Beacon'"), std::string::npos) << log;
+    EXPECT_EQ(fixture.app.getWorld().getEntityCount(), 1U);
+}
+
+TEST(ScriptCommands, AScriptSpawnsACxxComponentThatOwnsMemory) {
+    Fixture fixture;
+    static_cast<void>(fixture.app.getWorld().getComponents().registerType<rtype::test::commands::Cargo>());
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Loader", {
+            phase = "Update",
+            query = { with = { "game.Marker" } },
+            run = function(ctx)
+                -- Longer than a std::string keeps inline: the copy must own its own buffer.
+                ctx.commands:spawn({ ["test.Cargo"] = { items = { 4, 5, 6 }, label = string.rep("cargo ", 8) } })
+                ctx.commands:add(ctx.commands:spawn(), "test.Cargo")
+            end,
+        })
+        engine.ecs.system("game.Inspector", {
+            phase = "PostUpdate",
+            query = { read = { "test.Cargo" } },
+            run = function(ctx)
+                seen = {}
+                for _, cargo in ctx.query do
+                    seen[cargo.label] = #cargo.items
+                end
+            end,
+        })
+    )"),
+              "");
+
+    fixture.app.runFrame();
+
+    EXPECT_EQ(fixture.run(R"(assert(seen[string.rep("cargo ", 8)] == 3 and seen["empty"] == 0, "wrong cargo"))"), "");
+}
+
+TEST(ScriptCommands, ACxxComponentWithNoDefaultConstructorIsRefused) {
+    Fixture fixture;
+    static_cast<void>(fixture.app.getWorld().getComponents().registerType<rtype::test::commands::Crate>());
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Packer", {
+            phase = "Update",
+            query = { with = { "game.Marker" } },
+            run = function(ctx)
+                ctx.commands:spawn({ ["test.Crate"] = { } })
+            end,
+        })
+    )"),
+              "");
+
+    testing::internal::CaptureStderr();
+    fixture.app.runFrame();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_NE(log.find("cannot add 'test.Crate': it has no default constructor to start from"), std::string::npos)
+        << log;
+    EXPECT_EQ(fixture.app.getWorld().getEntityCount(), 1U);
 }

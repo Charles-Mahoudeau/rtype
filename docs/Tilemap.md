@@ -2,8 +2,8 @@
 
 The tilemap plugin (`src/rtype/plugins/tilemap/`, `rtype::plugins::tilemap`) draws levels made in
 [Tiled](https://www.mapeditor.org/) and parallax backgrounds. It knows nothing of the renderer: it pushes the sprites
-of the tiles the camera shows to the backend's `SpriteQueue`, which the `BackendPlugin` draws with the sprite entities.
-The `BackendPlugin` adds it.
+of the tiles the camera shows to the backend's `SpriteQueue`, which the `GraphicsPlugin` draws with the sprite entities.
+The game adds it, after `GraphicsPlugin`, which it requires.
 
 ## Loading a map
 
@@ -41,7 +41,7 @@ Object layers are skipped. Image and tileset paths are relative to the file that
 
 Tile layers are stored in **chunks** of 16x16 cells, only where there are tiles. Each frame, the Render system
 `rtype.Tilemap.Draw` skips the chunks outside the `VisibleArea` (what the camera shows, recorded by the
-`BackendPlugin`) and pushes one sprite per tile of the others: a level of any length costs the tiles on screen. All the
+`GraphicsPlugin`) and pushes one sprite per tile of the others: a level of any length costs the tiles on screen. All the
 tiles of a tileset share its texture, so they are drawn in one batch per layer.
 
 An image layer is one sprite. Repeated, it is still one sprite: its source rectangle spans as many copies as the view
@@ -59,6 +59,12 @@ needs, and the texture, asked for with `TextureDesc::repeat`, tiles them.
 
 It works on any entity, a sprite as well as a tilemap layer. It is a visual effect: it runs on the client only, after
 gameplay and the PostUpdate systems, so physics and audio see the entity at its `Transform`.
+
+## From scripts
+
+The TilemapPlugin registers two [engine calls](ecs/features/19-luau-bridge.md#engine-calls):
+`rtype.tilemap.load { path }` returns the map's id, and `rtype.tilemap.spawn { map, position, scale, firstDrawLayer }`
+spawns its layers (`spawnTilemap()`) and returns how many it spawned.
 
 ## In the repository
 

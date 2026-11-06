@@ -27,13 +27,12 @@
 #include "rtype/engine/CommandLine.hpp"
 #include "rtype/engine/EngineConfig.hpp"
 #include "rtype/engine/Exceptions.hpp"
+#include "rtype/engine/GamePlugins.hpp"
+#include "rtype/engine/NetworkInput.hpp"
 #include "rtype/engine/scripting/SettingsLoader.hpp"
 #include "rtype/network/NetworkSettings.hpp"
 #include "rtype/network/io/Address.hpp"
-#include "rtype/plugins/audio/AudioPlugin.hpp"
-#include "rtype/plugins/audio/AudioRegistry.hpp"
-#include "rtype/plugins/backend/BackendPlugin.hpp"
-#include "rtype/plugins/backend/BackendRegistry.hpp"
+#include "rtype/plugins/transform/TransformPlugin.hpp"
 #include "rtype/replication/ReplicationPlugin.hpp"
 #include "rtype/replication/ReplicationSettings.hpp"
 #include "rtype/replication/client/ClientPlugin.hpp"
@@ -166,6 +165,7 @@ void Engine::build() {
     _settings = loadSettings(_gameDirectory, _config.mode, _commandLine);
     // Checked before anything is built, so a wrong address fails before a window opens; added last, see the class.
     std::unique_ptr<ecs::Plugin> networkPlugin = makeNetworkPlugin(_config.mode, _settings);
+    const GamePlugins gamePlugins = GamePlugins::fromSettings(_settings, _config.mode);
     _app = std::make_unique<ecs::App>(_config.mode);
 
     ecs::App& app = *_app;
@@ -173,22 +173,14 @@ void Engine::build() {
     const bool server = runsServer(_config.mode);
 
     app.addPlugins(ecs::MinimalPlugins{});
-    if (client) {
-        auto backends = std::make_unique<plugins::backend::BackendRegistry>();
-        auto audio = std::make_unique<plugins::audio::AudioRegistry>();
-
-        if (_config.registerBackends) {
-            _config.registerBackends(*backends);
-        }
-        if (_config.registerAudio) {
-            _config.registerAudio(*audio);
-        }
-        app.addPlugin(plugins::backend::BackendPlugin{std::move(backends), _settings});
-        app.addPlugin(plugins::audio::AudioPlugin{std::move(audio), _settings});
+    app.addPlugin(plugins::transform::TransformPlugin{});
+    if (_config.addPlugins) {
+        _config.addPlugins(app, _settings);
     }
     if (_config.mode != ecs::RunMode::kStandalone) {
         app.addPlugin(replication::ReplicationPlugin{});
     }
+    gamePlugins.addTo(app);
     if (_config.setup) {
         _config.setup(*this);
     }
@@ -198,6 +190,9 @@ void Engine::build() {
     }});
     if (networkPlugin) {
         app.addPlugin(std::move(networkPlugin));
+    }
+    if (_config.mode == ecs::RunMode::kClient) {
+        addNetworkInput(app);
     }
 }
 }  // namespace rtype::engine

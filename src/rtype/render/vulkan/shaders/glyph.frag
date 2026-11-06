@@ -6,7 +6,7 @@
 */
 
 // The default shader of glyphs, fragment stage (their vertex stage is sprite.vert): the shaders ABI
-// (plugins/backend/graphics/shaders/) with no game code, the stage game shaders are assembled in for kGlyph.
+// (contract/renderer/shaders/) with no game code, the stage game shaders are assembled in for kGlyph.
 #version 450
 #extension GL_GOOGLE_include_directive : require
 

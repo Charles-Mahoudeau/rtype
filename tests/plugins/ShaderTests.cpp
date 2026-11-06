@@ -12,18 +12,18 @@
 #include <stdexcept>
 #include <vector>
 
-#include "plugins/backend/graphics/Particle.hpp"
-#include "plugins/backend/graphics/Shader.hpp"
-#include "plugins/backend/graphics/Sprite.hpp"
-#include "plugins/backend/graphics/Text.hpp"
+#include "rtype/contract/renderer/drawing/Sprite.hpp"
+#include "rtype/contract/renderer/drawing/Text.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
-using rtype::plugins::backend::graphics::CompiledShader;
-using rtype::plugins::backend::graphics::MaterialId;
-using rtype::plugins::backend::graphics::ShaderTarget;
-using rtype::plugins::backend::graphics::ShaderValue;
-using rtype::plugins::backend::graphics::ShaderValueType;
-using rtype::plugins::backend::graphics::ShaderVariant;
-using rtype::plugins::backend::graphics::validate;
+using rtype::contract::renderer::CompiledShader;
+using rtype::contract::renderer::MaterialId;
+using rtype::contract::renderer::ShaderTarget;
+using rtype::contract::renderer::ShaderValue;
+using rtype::contract::renderer::ShaderValueType;
+using rtype::contract::renderer::ShaderVariant;
+using rtype::contract::renderer::validate;
 
 namespace {
 /// @return A valid shader "flash" for sprites, with a vec4 tint in its material and a float flash per instance.
@@ -92,9 +92,9 @@ TEST(Shader, RejectsTextureSlotsPastTheLimitOrShared) {
 }
 
 TEST(Shader, DrawingsUseTheDefaultMaterialByDefault) {
-    EXPECT_EQ(rtype::plugins::backend::graphics::Sprite{}.material, MaterialId{});
-    EXPECT_EQ(rtype::plugins::backend::graphics::Text{}.material, MaterialId{});
-    EXPECT_EQ(rtype::plugins::backend::graphics::ParticleDraw{}.material, MaterialId{});
-    EXPECT_EQ(rtype::plugins::backend::graphics::Sprite{}.instanceValues.size() * sizeof(float) * 4,
-              std::size_t{rtype::plugins::backend::graphics::kShaderInstanceBytes});
+    EXPECT_EQ(rtype::contract::renderer::Sprite{}.material, MaterialId{});
+    EXPECT_EQ(rtype::contract::renderer::Text{}.material, MaterialId{});
+    EXPECT_EQ(rtype::contract::renderer::ParticleDraw{}.material, MaterialId{});
+    EXPECT_EQ(rtype::contract::renderer::Sprite{}.instanceValues.size() * sizeof(float) * 4,
+              std::size_t{rtype::contract::renderer::kShaderInstanceBytes});
 }

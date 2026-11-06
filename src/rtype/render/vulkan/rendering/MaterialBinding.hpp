@@ -10,8 +10,8 @@
 #include <functional>
 #include <vulkan/vulkan_raii.hpp>
 
-#include "plugins/backend/graphics/Shader.hpp"
 #include "render/vulkan/pipeline/GraphicsPipeline.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::render::vulkan::rendering {
 
@@ -23,7 +23,6 @@ struct MaterialBinding {
 };
 
 /// @brief Finds what a game material is drawn with this frame for a target, or a null pipeline if it cannot be drawn.
-using MaterialFinder =
-    std::function<MaterialBinding(plugins::backend::graphics::MaterialId, plugins::backend::graphics::ShaderTarget)>;
+using MaterialFinder = std::function<MaterialBinding(contract::renderer::MaterialId, contract::renderer::ShaderTarget)>;
 
 }  // namespace rtype::render::vulkan::rendering

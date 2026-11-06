@@ -29,9 +29,7 @@ else
                  {alias = "glslang", configs = {tools = true, spirv_tools = true, default_resource_limits = true}})
 end
 
--- Copies a binary to the repository root after it is built, where the Epitech subject expects r-type_client and
--- r-type_server. The copy finds the project's shared libraries where they were built: through a relative rpath on
--- Linux and macOS, and, on Windows (no rpath), through copies of the DLLs of the build folder next to it.
+-- Copies a binary to the repository root after it is built
 rule("rtype.copy_to_root")
     on_load(function (target)
         if not target:is_plat("windows") then
@@ -41,7 +39,13 @@ rule("rtype.copy_to_root")
     after_build(function (target)
         os.cp(target:targetfile(), os.projectdir())
         if target:is_plat("windows") then
-            os.cp(path.join(target:targetdir(), "*.dll"), os.projectdir())
+            -- No rpath there, so its DLLs go next to it. Only those it depends on: the others may still be linking, and
+            -- Windows refuses to read a file being written.
+            for _, dep in ipairs(target:orderdeps()) do
+                if dep:kind() == "shared" then
+                    os.cp(dep:targetfile(), os.projectdir())
+                end
+            end
         end
     end)
 rule_end()
@@ -52,6 +56,7 @@ includes("src/rtype/scripting")
 includes("src/rtype/network")
 includes("src/rtype/replication")
 includes("src/rtype/engine")
+includes("src/rtype/contract")
 includes("src/rtype/plugins")
 includes("src/rtype/interop")
 includes("src/rtype/platform/glfw")
@@ -64,7 +69,7 @@ includes("src/rtype/server")
 target("rtype")
     set_kind("phony")
     set_default(true)
-    add_deps("core", "ecs", "network", "replication", "engine", "plugins", "platform-glfw", "luau", "render-vulkan", "audio-miniaudio",
+    add_deps("core", "ecs", "network", "replication", "engine", "platform-glfw", "luau", "render-vulkan", "audio-miniaudio",
              "r-type_client", "r-type_server")
 
 
