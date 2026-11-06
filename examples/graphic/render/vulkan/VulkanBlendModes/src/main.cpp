@@ -38,18 +38,22 @@
 #include "core/asset/AssetId.hpp"
 #include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
-#include "plugins/backend/BackendPlugin.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/BackendResources.hpp"
-#include "plugins/backend/graphics/BlendMode.hpp"
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/IRenderer.hpp"
-#include "plugins/backend/graphics/Shape.hpp"
-#include "plugins/backend/graphics/SpriteRenderer.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
-#include "plugins/backend/graphics/TextureAssets.hpp"
+#include "plugins/graphics/BackendRegistry.hpp"
+#include "plugins/graphics/GraphicsPlugin.hpp"
+#include "plugins/graphics/GraphicsResources.hpp"
+#include "plugins/graphics/TextureAssets.hpp"
+#include "plugins/input/InputPlugin.hpp"
+#include "plugins/shader/ShaderPlugin.hpp"
+#include "plugins/sprite/SpriteDrawPlugin.hpp"
+#include "plugins/sprite/SpritePlugin.hpp"
+#include "plugins/sprite/SpriteRenderer.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "render/vulkan/Registration.hpp"
+#include "rtype/contract/renderer/IRenderer.hpp"
+#include "rtype/contract/renderer/drawing/BlendMode.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Shape.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/app/MinimalPlugins.hpp"
@@ -63,9 +67,11 @@
 #include "rtype/ecs/time/Time.hpp"
 
 using namespace rtype;
-using namespace rtype::plugins::backend;
+using namespace rtype::contract::renderer;
+using namespace rtype::plugins::graphics;
+using namespace rtype::plugins::sprite;
 using rtype::core::asset::AssetId;
-using namespace rtype::plugins::backend::graphics;
+using namespace rtype::contract::renderer;
 using rtype::plugins::transform::Transform;
 
 namespace {
@@ -228,18 +234,23 @@ int main(int argc, char** argv) {
             }
         }
         auto registry = std::make_unique<BackendRegistry>();
-        rtype::platform::glfw::registerPlatform(*registry);
-        render::vulkan::registerRenderer(*registry);
+        rtype::platform::glfw::registerPlatform(registry->platforms);
+        render::vulkan::registerRenderer(registry->renderers);
 
         ecs::App app;
-        app.addPlugins(ecs::MinimalPlugins{}).addPlugin(BackendPlugin{std::move(registry), makeSettings(validate)});
+        app.addPlugins(ecs::MinimalPlugins{})
+            .addPlugin(rtype::plugins::input::InputPlugin{})
+            .addPlugin(GraphicsPlugin{std::move(registry), makeSettings(validate)})
+            .addPlugin(rtype::plugins::shader::ShaderPlugin{})
+            .addPlugin(rtype::plugins::sprite::SpritePlugin{})
+            .addPlugin(rtype::plugins::sprite::SpriteDrawPlugin{});
         app.insertResource(ClearColor{.value = kClear});
         app.insertResource(lifetime);
         app.addSystem(ecs::Phase::kStartup, "example.spawnScene", &spawnScene);
         app.addSystem(ecs::Phase::kUpdate, "example.slideShots", &slideShots);
         app.addSystem(ecs::Phase::kRender, "example.drawCircles", &drawCircles)
-            .after(std::string{BackendPlugin::kSpritesSystem})
-            .before(std::string{BackendPlugin::kEndFrameSystem});
+            .after(std::string{GraphicsPlugin::kSpritesSystem})
+            .before(std::string{GraphicsPlugin::kEndFrameSystem});
         return app.run();
     } catch (const std::exception& error) {
         std::cerr << "VulkanBlendModes: " << error.what() << '\n';

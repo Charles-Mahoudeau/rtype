@@ -12,14 +12,14 @@
 
 #include "core/asset/AssetId.hpp"
 #include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
-#include "plugins/backend/graphics/Particle.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/type/Field.hpp"
 #include "rtype/ecs/type/FieldTypeOf.hpp"
 
 /// @brief A ParticleSimulation field is reflected as its underlying std::uint8_t.
 template <>
-struct rtype::ecs::FieldTypeOf<rtype::plugins::backend::graphics::ParticleSimulation>
+struct rtype::ecs::FieldTypeOf<rtype::contract::renderer::ParticleSimulation>
     : std::integral_constant<rtype::ecs::FieldType, rtype::ecs::FieldType::kU8> {};
 
 namespace rtype::plugins::particle {
@@ -30,8 +30,9 @@ struct ParticleEmitter {
     std::int32_t layer{0};           ///< Draw order among the sprites.
     float rateScale{1.0F};           ///< Multiplies the effect's rate: more smoke as a ship gets damaged.
     bool overrideSimulation{false};  ///< true: simulation replaces the effect's choice.
-    backend::graphics::ParticleSimulation simulation{backend::graphics::ParticleSimulation::kAuto};  ///< If overridden.
-    std::uint32_t seed{0};          ///< 0: picked when it starts.
+    contract::renderer::ParticleSimulation simulation{
+        contract::renderer::ParticleSimulation::kAuto};  ///< If overridden.
+    std::uint32_t seed{0};                               ///< 0: picked when it starts.
     core::asset::AssetId material;  ///< Replaces the effect's material if set. Its `instance uniform` values come
                                     ///< from the entity's MaterialInstance, shared by the emitter's particles.
 };

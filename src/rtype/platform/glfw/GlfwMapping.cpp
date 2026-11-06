@@ -12,15 +12,15 @@
 #include <array>
 #include <cstddef>
 
-#include "plugins/backend/input/Key.hpp"
+#include "rtype/contract/platform/input/Key.hpp"
 
 namespace rtype::platform::glfw {
 
-using plugins::backend::input::GamepadAxis;
-using plugins::backend::input::GamepadButton;
-using plugins::backend::input::Key;
-using plugins::backend::input::Mods;
-using plugins::backend::input::MouseButton;
+using contract::platform::input::GamepadAxis;
+using contract::platform::input::GamepadButton;
+using contract::platform::input::Key;
+using contract::platform::input::Mods;
+using contract::platform::input::MouseButton;
 
 namespace {
 

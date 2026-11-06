@@ -29,26 +29,32 @@
 #include "core/asset/AssetId.hpp"
 #include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
-#include "plugins/backend/BackendPlugin.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/BackendResources.hpp"
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/Shader.hpp"
-#include "plugins/backend/graphics/Shape.hpp"
-#include "plugins/backend/graphics/SpriteRenderer.hpp"
-#include "plugins/backend/graphics/TextureAssets.hpp"
+#include "plugins/graphics/BackendRegistry.hpp"
+#include "plugins/graphics/GraphicsPlugin.hpp"
+#include "plugins/graphics/GraphicsResources.hpp"
+#include "plugins/graphics/TextureAssets.hpp"
+#include "plugins/input/InputPlugin.hpp"
 #include "plugins/particle/ParticleEffect.hpp"
 #include "plugins/particle/ParticleEffectAssets.hpp"
 #include "plugins/particle/ParticleEmitter.hpp"
+#include "plugins/particle/ParticlePlugin.hpp"
 #include "plugins/shader/Material.hpp"
 #include "plugins/shader/MaterialAssets.hpp"
 #include "plugins/shader/MaterialInstance.hpp"
 #include "plugins/shader/ShaderAssets.hpp"
 #include "plugins/shader/ShaderHandles.hpp"
+#include "plugins/shader/ShaderPlugin.hpp"
+#include "plugins/sprite/SpriteDrawPlugin.hpp"
+#include "plugins/sprite/SpritePlugin.hpp"
+#include "plugins/sprite/SpriteRenderer.hpp"
 #include "plugins/text/FontAssets.hpp"
+#include "plugins/text/TextPlugin.hpp"
 #include "plugins/text/TextRenderer.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "render/vulkan/Registration.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Shape.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/MinimalPlugins.hpp"
 #include "rtype/ecs/command/Commands.hpp"
@@ -57,7 +63,9 @@
 #include "rtype/ecs/system/Side.hpp"
 
 using namespace rtype;
-using namespace rtype::plugins::backend;
+using namespace rtype::contract::renderer;
+using namespace rtype::plugins::graphics;
+using namespace rtype::plugins::sprite;
 using namespace rtype::plugins::particle;
 using namespace rtype::plugins::shader;
 using namespace rtype::plugins::text;
@@ -67,7 +75,7 @@ using rtype::plugins::transform::Transform;
 namespace {
 constexpr float kWidth = 960.0F;
 constexpr float kHeight = 540.0F;
-constexpr graphics::Color kClear{0.05F, 0.05F, 0.08F, 1.0F};
+constexpr rtype::contract::renderer::Color kClear{0.05F, 0.05F, 0.08F, 1.0F};
 constexpr glm::vec2 kScale{4.0F};
 
 // Startup: loads and compiles the shaders, builds the materials and spawns the ships, the text and the particles.
@@ -88,7 +96,7 @@ void spawnShips(ecs::ResMut<TextureAssets> textures, ecs::ResMut<ShaderAssets> s
     commands.spawn().add(Transform{.position = {kWidth * 0.5F, kHeight / 2.0F}, .scale = kScale}).add(waved);
     SpriteRenderer flashed = ship;
     flashed.material = flashing;
-    const graphics::CompiledShader* compiled = shaders->get(flash);
+    const rtype::contract::renderer::CompiledShader* compiled = shaders->get(flash);
     if (compiled == nullptr) {
         std::cerr << "shader: " << shaders->getEntry(flash)->error << '\n';
         return;
@@ -128,13 +136,13 @@ void drawShapes(ecs::NonSendMut<Backend> backend, ecs::Res<ShaderAssets> shaders
     if (backend->renderer == nullptr) {
         return;
     }
-    graphics::Shape bar{.kind = graphics::ShapeKind::kRect,
-                        .position = {kWidth * 0.2F, kHeight * 0.88F},
-                        .size = {220.0F, 44.0F},
-                        .cornerRadius = 12.0F,
-                        .fillColor = {0.9F, 0.5F, 0.2F, 1.0F},
-                        .outlineColor = {1.0F, 1.0F, 1.0F, 1.0F},
-                        .outlineThickness = 3.0F};
+    rtype::contract::renderer::Shape bar{.kind = rtype::contract::renderer::ShapeKind::kRect,
+                                         .position = {kWidth * 0.2F, kHeight * 0.88F},
+                                         .size = {220.0F, 44.0F},
+                                         .cornerRadius = 12.0F,
+                                         .fillColor = {0.9F, 0.5F, 0.2F, 1.0F},
+                                         .outlineColor = {1.0F, 1.0F, 1.0F, 1.0F},
+                                         .outlineThickness = 3.0F};
     backend->renderer->draw(bar);
     if (const ShaderHandles::Material* waving = handles->getMaterial(AssetId::fromPath("example.waving"))) {
         bar.position.x = kWidth * 0.5F;
@@ -142,16 +150,17 @@ void drawShapes(ecs::NonSendMut<Backend> backend, ecs::Res<ShaderAssets> shaders
         bar.instanceValues = waving->instanceDefaults;
         backend->renderer->draw(bar);
     }
-    const graphics::CompiledShader* flash = shaders->get(AssetId::fromPath("assets/shaders/flash.glsl"));
+    const rtype::contract::renderer::CompiledShader* flash =
+        shaders->get(AssetId::fromPath("assets/shaders/flash.glsl"));
     const ShaderHandles::Material* flashing = handles->getMaterial(AssetId::fromPath("example.flashing"));
     if (flash != nullptr && flashing != nullptr) {
-        backend->renderer->draw(
-            graphics::Shape{.kind = graphics::ShapeKind::kCircle,
-                            .position = {kWidth * 0.8F, kHeight * 0.92F},
-                            .radius = 28.0F,
-                            .fillColor = {0.2F, 0.5F, 0.9F, 1.0F},
-                            .material = flashing->material,
-                            .instanceValues = MaterialInstance::of(*flash).set(*flash, "amount", 0.5F).values});
+        backend->renderer->draw(rtype::contract::renderer::Shape{
+            .kind = rtype::contract::renderer::ShapeKind::kCircle,
+            .position = {kWidth * 0.8F, kHeight * 0.92F},
+            .radius = 28.0F,
+            .fillColor = {0.2F, 0.5F, 0.9F, 1.0F},
+            .material = flashing->material,
+            .instanceValues = MaterialInstance::of(*flash).set(*flash, "amount", 0.5F).values});
     }
 }
 
@@ -170,16 +179,23 @@ core::config::Settings makeSettings() {
 int main() {
     try {
         auto registry = std::make_unique<BackendRegistry>();
-        rtype::platform::glfw::registerPlatform(*registry);
-        render::vulkan::registerRenderer(*registry);
+        rtype::platform::glfw::registerPlatform(registry->platforms);
+        render::vulkan::registerRenderer(registry->renderers);
 
         ecs::App app;
-        app.addPlugins(ecs::MinimalPlugins{}).addPlugin(BackendPlugin{std::move(registry), makeSettings()});
+        app.addPlugins(ecs::MinimalPlugins{})
+            .addPlugin(rtype::plugins::input::InputPlugin{})
+            .addPlugin(GraphicsPlugin{std::move(registry), makeSettings()})
+            .addPlugin(rtype::plugins::shader::ShaderPlugin{})
+            .addPlugin(rtype::plugins::sprite::SpritePlugin{})
+            .addPlugin(rtype::plugins::sprite::SpriteDrawPlugin{})
+            .addPlugin(rtype::plugins::text::TextPlugin{})
+            .addPlugin(rtype::plugins::particle::ParticlePlugin{});
         app.insertResource(ClearColor{.value = kClear});
         app.addSystem(ecs::Phase::kStartup, "example.spawnShips", &spawnShips);
         app.addSystem(ecs::Phase::kRender, "example.drawShapes", &drawShapes)
-            .after(std::string{BackendPlugin::kSpritesSystem})
-            .before(std::string{BackendPlugin::kEndFrameSystem})
+            .after(std::string{GraphicsPlugin::kSpritesSystem})
+            .before(std::string{GraphicsPlugin::kEndFrameSystem})
             .setSide(ecs::Side::kClient);
         return app.run();
     } catch (const std::exception& error) {

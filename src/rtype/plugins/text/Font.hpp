@@ -13,8 +13,9 @@
 #include <unordered_map>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
-#include "plugins/backend/math/Rect.hpp"
+#include "plugins/text/Export.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 
 namespace rtype::plugins::text {
 
@@ -22,8 +23,8 @@ namespace rtype::plugins::text {
 struct Glyph {
     float advance = 0.0F;  ///< How far the pen moves after it, in ems.
     /// Where it is drawn, in ems from the pen on the baseline, Y down: its top is negative. Empty for a blank (space).
-    backend::math::Rect plane;
-    backend::math::Rect atlas;  ///< Where it is in the atlas image, in pixels. Empty for a blank.
+    contract::renderer::math::Rect plane;
+    contract::renderer::math::Rect atlas;  ///< Where it is in the atlas image, in pixels. Empty for a blank.
 
     /// @return Whether it draws nothing (a space): it only moves the pen.
     [[nodiscard]] bool isBlank() const noexcept { return plane.getWidth() <= 0.0F || plane.getHeight() <= 0.0F; }
@@ -33,7 +34,7 @@ struct Glyph {
 /// offline by msdf-atlas-gen. Every length is in ems (the font size), Y down, from the baseline.
 ///
 /// @details Built by detail::parseFontJson() from msdf-atlas-gen's JSON, or in code. layoutText() places its glyphs.
-class Font {
+class RTYPE_PLUGIN_TEXT_API Font {
   public:
     /// @brief The vertical metrics of the font, in ems from the baseline, Y down.
     struct Metrics {
@@ -46,7 +47,7 @@ class Font {
     /// @param textureDesc Its size, and how it is sampled: linear filtering and TextureEncoding::kLinear, for the
     /// distances to be read as they are.
     /// @param distanceRange The width of the distance field around the edges, in atlas pixels.
-    Font(std::string texturePath, const backend::graphics::TextureDesc& textureDesc, float distanceRange,
+    Font(std::string texturePath, const contract::renderer::TextureDesc& textureDesc, float distanceRange,
          const Metrics& metrics);
     ~Font() = default;
     Font(const Font& other) = default;
@@ -59,7 +60,7 @@ class Font {
     /// @return The id of the atlas image in TextureAssets.
     [[nodiscard]] core::asset::AssetId getTexture() const noexcept { return _texture; }
     /// @return How the atlas image is sampled, and its size.
-    [[nodiscard]] const backend::graphics::TextureDesc& getTextureDesc() const noexcept { return _textureDesc; }
+    [[nodiscard]] const contract::renderer::TextureDesc& getTextureDesc() const noexcept { return _textureDesc; }
     /// @return The width of the distance field, in atlas pixels.
     [[nodiscard]] float getDistanceRange() const noexcept { return _distanceRange; }
     /// @return The vertical metrics.
@@ -85,7 +86,7 @@ class Font {
 
     std::string _texturePath;                           ///< The atlas image.
     core::asset::AssetId _texture;                      ///< AssetId::fromPath(_texturePath).
-    backend::graphics::TextureDesc _textureDesc;        ///< Its size and sampling.
+    contract::renderer::TextureDesc _textureDesc;       ///< Its size and sampling.
     float _distanceRange;                               ///< In atlas pixels.
     Metrics _metrics;                                   ///< Vertical metrics.
     std::unordered_map<char32_t, Glyph> _glyphs;        ///< By codepoint.

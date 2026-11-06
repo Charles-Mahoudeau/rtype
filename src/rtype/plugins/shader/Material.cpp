@@ -20,14 +20,14 @@
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/shader/exceptions/ShaderExceptions.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::plugins::shader {
 
 namespace {
 
-using backend::graphics::ShaderValueType;
+using contract::renderer::ShaderValueType;
 
 /// @return The ShaderValueType a MaterialValue holds.
 ShaderValueType typeOf(const MaterialValue& value) {
@@ -83,10 +83,11 @@ Material& Material::setTexture(const std::string& name, core::asset::AssetId tex
     return *this;
 }
 
-std::vector<std::byte> packMaterialValues(const backend::graphics::CompiledShader& shader, const Material& material) {
+std::vector<std::byte> packMaterialValues(const contract::renderer::CompiledShader& shader, const Material& material) {
     std::vector<std::byte> block = shader.materialDefaults;
     for (const Material::Value& set : material.values) {
-        const auto declared = std::ranges::find(shader.materialValues, set.name, &backend::graphics::ShaderValue::name);
+        const auto declared =
+            std::ranges::find(shader.materialValues, set.name, &contract::renderer::ShaderValue::name);
         if (declared == shader.materialValues.end()) {
             throw exceptions::ShaderException{
                 std::format("Material of '{}': the shader has no uniform '{}'", shader.name, set.name)};
@@ -100,10 +101,10 @@ std::vector<std::byte> packMaterialValues(const backend::graphics::CompiledShade
     return block;
 }
 
-void writeInstanceValue(const backend::graphics::CompiledShader& shader,
-                        backend::graphics::ShaderInstanceValues& values, const std::string& name,
+void writeInstanceValue(const contract::renderer::CompiledShader& shader,
+                        contract::renderer::ShaderInstanceValues& values, const std::string& name,
                         const MaterialValue& value) {
-    const auto declared = std::ranges::find(shader.instanceValues, name, &backend::graphics::ShaderValue::name);
+    const auto declared = std::ranges::find(shader.instanceValues, name, &contract::renderer::ShaderValue::name);
     if (declared == shader.instanceValues.end()) {
         throw exceptions::ShaderException{
             std::format("Instance of '{}': the shader has no instance uniform '{}'", shader.name, name)};
@@ -115,11 +116,11 @@ void writeInstanceValue(const backend::graphics::CompiledShader& shader,
     writeValue(std::as_writable_bytes(std::span{values}), declared->offset, value);
 }
 
-std::array<core::asset::AssetId, backend::graphics::kShaderMaxTextures> resolveMaterialTextures(
-    const backend::graphics::CompiledShader& shader, const Material& material) {
-    std::array<core::asset::AssetId, backend::graphics::kShaderMaxTextures> slots{};
+std::array<core::asset::AssetId, contract::renderer::kShaderMaxTextures> resolveMaterialTextures(
+    const contract::renderer::CompiledShader& shader, const Material& material) {
+    std::array<core::asset::AssetId, contract::renderer::kShaderMaxTextures> slots{};
     for (const Material::Texture& set : material.textures) {
-        const auto declared = std::ranges::find(shader.textures, set.name, &backend::graphics::ShaderTexture::name);
+        const auto declared = std::ranges::find(shader.textures, set.name, &contract::renderer::ShaderTexture::name);
         if (declared == shader.textures.end()) {
             throw exceptions::ShaderException{
                 std::format("Material of '{}': the shader has no texture '{}'", shader.name, set.name)};

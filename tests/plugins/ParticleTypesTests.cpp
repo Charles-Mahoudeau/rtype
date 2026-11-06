@@ -9,9 +9,9 @@
 
 #include <string_view>
 
-#include "plugins/backend/graphics/Particle.hpp"
 #include "plugins/particle/ParticleEmitter.hpp"
 #include "plugins/particle/ParticleEvents.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/event/EventTraits.hpp"
 #include "rtype/ecs/type/Field.hpp"

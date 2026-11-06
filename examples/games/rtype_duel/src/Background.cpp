@@ -13,7 +13,7 @@
 #include <random>
 
 #include "Constants.hpp"
-#include "plugins/backend/graphics/SpriteRenderer.hpp"
+#include "plugins/sprite/SpriteRenderer.hpp"
 #include "plugins/tilemap/SpawnTilemap.hpp"
 
 using namespace rtype;
@@ -31,7 +31,7 @@ void spawnBackground(ecs::ResMut<plugins::tilemap::TilemapAssets> maps, ecs::Com
                                            .firstDrawLayer = kBackgroundDrawLayer}));
 }
 
-void loadPlanets(ecs::ResMut<plugins::backend::TextureAssets> textures, ecs::ResMut<BackgroundPlanets> planets) {
+void loadPlanets(ecs::ResMut<plugins::graphics::TextureAssets> textures, ecs::ResMut<BackgroundPlanets> planets) {
     for (std::size_t index = 0; index < kPlanetImages.size(); ++index) {
         planets->images.at(index) = textures->load(kPlanetImages.at(index));
     }
@@ -56,9 +56,9 @@ void spawnPlanets(ecs::Commands& commands, ecs::ResMut<Randomness> randomness, e
         .add(plugins::transform::Transform{
             .position = {kViewWidth, std::uniform_real_distribution<float>{0.0F, kViewHeight - size.y}(engine)},
             .scale = glm::vec2{scale}})
-        .add(plugins::backend::SpriteRenderer{.texture = planets.get().images.at(index),
-                                              .source = {glm::vec2{0.0F}, kPlanetSizes.at(index)},
-                                              .layer = kPlanetDrawLayer})
+        .add(plugins::sprite::SpriteRenderer{.texture = planets.get().images.at(index),
+                                             .source = {glm::vec2{0.0F}, kPlanetSizes.at(index)},
+                                             .layer = kPlanetDrawLayer})
         .add(plugins::tilemap::Parallax{.scroll = {-speed, 0.0F}})
         .add(BackgroundPlanet{.width = size.x});
 }

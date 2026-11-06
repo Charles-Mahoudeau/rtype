@@ -11,10 +11,10 @@
 
 #include "core/asset/AssetId.hpp"
 #include "plugins/AssetIdReflection.hpp"
-#include "plugins/backend/graphics/BlendMode.hpp"
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/SpriteRenderer.hpp"
-#include "plugins/backend/math/Rect.hpp"
+#include "plugins/sprite/SpriteRenderer.hpp"
+#include "rtype/contract/renderer/drawing/BlendMode.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/type/Field.hpp"
@@ -22,20 +22,20 @@
 #include "rtype/ecs/world/World.hpp"
 
 static_assert(rtype::ecs::FieldTypeOf<rtype::core::asset::AssetId>::value == rtype::ecs::FieldType::kAssetId);
-static_assert(rtype::ecs::Component<rtype::plugins::backend::SpriteRenderer>);
+static_assert(rtype::ecs::Component<rtype::plugins::sprite::SpriteRenderer>);
 
 TEST(SpriteRenderer, HasNeutralDefaults) {
-    const rtype::plugins::backend::SpriteRenderer sprite{};
+    const rtype::plugins::sprite::SpriteRenderer sprite{};
     EXPECT_EQ(sprite.texture, rtype::core::asset::AssetId{});
-    EXPECT_EQ(sprite.color, rtype::plugins::backend::graphics::Color{1.0F});
+    EXPECT_EQ(sprite.color, rtype::contract::renderer::Color{1.0F});
     EXPECT_EQ(sprite.origin, glm::vec2{0.0F});
     EXPECT_EQ(sprite.layer, 0);
-    EXPECT_EQ(sprite.blend, rtype::plugins::backend::graphics::BlendMode::kAlpha);
+    EXPECT_EQ(sprite.blend, rtype::contract::renderer::BlendMode::kAlpha);
     EXPECT_EQ(sprite.material, rtype::core::asset::AssetId{});
 }
 
 TEST(SpriteRenderer, ReflectsEveryFieldButTheSource) {
-    using Traits = rtype::ecs::ComponentTraits<rtype::plugins::backend::SpriteRenderer>;
+    using Traits = rtype::ecs::ComponentTraits<rtype::plugins::sprite::SpriteRenderer>;
     EXPECT_EQ(Traits::kName, "rtype.SpriteRenderer");
     ASSERT_EQ(Traits::kFields.size(), 6U);
     EXPECT_EQ(Traits::kFields[0].name, "texture");
@@ -55,11 +55,11 @@ TEST(SpriteRenderer, ReflectsEveryFieldButTheSource) {
 TEST(SpriteRenderer, IsStoredOnAnEntity) {
     rtype::ecs::World world;
     const rtype::ecs::Entity ship = world.spawn();
-    world.getComponents().add(ship, rtype::plugins::backend::SpriteRenderer{
+    world.getComponents().add(ship, rtype::plugins::sprite::SpriteRenderer{
                                         .texture = rtype::core::asset::AssetId::fromPath("ship.png"),
-                                        .source = rtype::plugins::backend::math::Rect{{0.0F, 0.0F}, {32.0F, 16.0F}},
+                                        .source = rtype::contract::renderer::math::Rect{{0.0F, 0.0F}, {32.0F, 16.0F}},
                                         .layer = 10});
-    const auto* sprite = world.getComponents().get<rtype::plugins::backend::SpriteRenderer>(ship);
+    const auto* sprite = world.getComponents().get<rtype::plugins::sprite::SpriteRenderer>(ship);
     ASSERT_NE(sprite, nullptr);
     EXPECT_EQ(sprite->texture, rtype::core::asset::AssetId::fromPath("ship.png"));
     EXPECT_FLOAT_EQ(sprite->source.getWidth(), 32.0F);

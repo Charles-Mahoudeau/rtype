@@ -31,11 +31,11 @@
 #include <utility>
 #include <vector>
 
-#include "plugins/backend/event/Event.hpp"
-#include "plugins/backend/input/Key.hpp"
-#include "plugins/backend/platform/WindowConfig.hpp"
+#include "rtype/contract/platform/WindowConfig.hpp"
+#include "rtype/contract/platform/event/Event.hpp"
+#include "rtype/contract/platform/input/Key.hpp"
 
-using namespace rtype::plugins::backend;
+using namespace rtype::contract::platform;
 
 namespace {
 
@@ -153,7 +153,7 @@ void SdlPlatform::setSize(glm::uvec2 size) {
     SDL_SetWindowSize(_window, static_cast<int>(size.x), static_cast<int>(size.y));
 }
 
-void SdlPlatform::init(const platform::WindowConfig& config) {
+void SdlPlatform::init(const WindowConfig& config) {
     if (_sdlInitialized) {
         throw std::runtime_error("SdlPlatform::init() called twice");
     }

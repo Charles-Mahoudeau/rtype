@@ -11,10 +11,10 @@
 #include <cstddef>
 #include <vulkan/vulkan_raii.hpp>
 
-#include "plugins/backend/graphics/Texture.hpp"
 #include "render/vulkan/Export.hpp"
 #include "render/vulkan/core/Device.hpp"
 #include "render/vulkan/core/PhysicalDevice.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
 
 namespace rtype::render::vulkan::texture {
 
@@ -41,14 +41,14 @@ class RTYPE_RENDER_VULKAN_API SamplerCache {
     SamplerCache& operator=(SamplerCache&&) = delete;
 
     /// @return The sampler that reads with @p filter, tiling the texture if @p repeat, clamping to its edges otherwise.
-    [[nodiscard]] const vk::raii::Sampler& get(plugins::backend::graphics::TextureFilter filter, bool repeat) const;
+    [[nodiscard]] const vk::raii::Sampler& get(contract::renderer::TextureFilter filter, bool repeat) const;
 
   private:
     /// @brief Number of samplers: two filters, two edge modes.
     static constexpr std::size_t kSamplerCount = 4;
 
     /// @return The index of the sampler for @p filter and @p repeat in _samplers.
-    [[nodiscard]] static std::size_t indexOf(plugins::backend::graphics::TextureFilter filter, bool repeat);
+    [[nodiscard]] static std::size_t indexOf(contract::renderer::TextureFilter filter, bool repeat);
 
     std::array<vk::raii::Sampler, kSamplerCount> _samplers;  ///< Indexed by indexOf().
 };

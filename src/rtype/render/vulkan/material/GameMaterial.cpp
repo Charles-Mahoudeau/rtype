@@ -13,20 +13,20 @@
 #include <optional>
 #include <vulkan/vulkan_raii.hpp>
 
-#include "plugins/backend/graphics/Shader.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
 #include "render/vulkan/core/Device.hpp"
 #include "render/vulkan/descriptor/DescriptorAllocator.hpp"
 #include "render/vulkan/descriptor/DescriptorSetLayout.hpp"
 #include "render/vulkan/descriptor/DescriptorWriter.hpp"
 #include "render/vulkan/memory/Allocator.hpp"
 #include "render/vulkan/memory/Buffer.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::render::vulkan::material {
 
 GameMaterial::GameMaterial(const memory::Allocator& allocator, descriptor::DescriptorAllocator& descriptors,
                            const descriptor::DescriptorSetLayout& layout, std::uint32_t materialSize,
-                           const plugins::backend::graphics::MaterialDesc& desc, std::size_t framesInFlight)
+                           const contract::renderer::MaterialDesc& desc, std::size_t framesInFlight)
     : _shader{desc.shader}, _values{desc.values}, _textures{desc.textures} {
     _frames.reserve(framesInFlight);
     for (std::size_t frame = 0; frame < framesInFlight; ++frame) {
@@ -41,15 +41,14 @@ GameMaterial::GameMaterial(const memory::Allocator& allocator, descriptor::Descr
     }
 }
 
-void GameMaterial::update(const plugins::backend::graphics::MaterialDesc& desc) {
+void GameMaterial::update(const contract::renderer::MaterialDesc& desc) {
     _values = desc.values;
     _textures = desc.textures;
     ++_version;
 }
 
 vk::DescriptorSet GameMaterial::prepare(const core::Device& device, std::size_t frameIndex,
-                                        const TextureFinder& findTexture,
-                                        plugins::backend::graphics::TextureId fallback) {
+                                        const TextureFinder& findTexture, contract::renderer::TextureId fallback) {
     Frame& frame = _frames.at(frameIndex);
     descriptor::DescriptorWriter writer;
     bool written = false;
@@ -64,9 +63,9 @@ vk::DescriptorSet GameMaterial::prepare(const core::Device& device, std::size_t 
         frame.version = _version;
     }
     for (std::size_t slot = 0; slot < _textures.size(); ++slot) {
-        plugins::backend::graphics::TextureId texture = _textures.at(slot);
+        contract::renderer::TextureId texture = _textures.at(slot);
         std::optional<TextureBinding> binding =
-            texture == plugins::backend::graphics::TextureId{} ? std::nullopt : findTexture(texture);
+            texture == contract::renderer::TextureId{} ? std::nullopt : findTexture(texture);
         if (!binding) {
             texture = fallback;
             binding = findTexture(fallback);

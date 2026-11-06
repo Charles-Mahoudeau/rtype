@@ -12,11 +12,11 @@
 #include <utility>
 
 #include "Constants.hpp"
-#include "plugins/backend/graphics/BlendMode.hpp"
-#include "plugins/backend/graphics/IRenderer.hpp"
-#include "plugins/backend/graphics/Shape.hpp"
-#include "plugins/backend/math/Rect.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
+#include "rtype/contract/renderer/IRenderer.hpp"
+#include "rtype/contract/renderer/drawing/BlendMode.hpp"
+#include "rtype/contract/renderer/drawing/Shape.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 
 using namespace rtype;
 
@@ -35,7 +35,7 @@ void loadAtlases(ecs::ResMut<plugins::sprite::AtlasAssets> atlases, ecs::ResMut<
     plugins::sprite::SpriteAtlas laser{kLaserSheet};
     for (const float x : {108.0F, 189.0F, 271.0F, 352.0F}) {
         laser.addFrame(std::format("{}", laser.getFrames().size()),
-                       plugins::backend::math::Rect{{x, 151.0F}, {80.0F, 16.0F}});
+                       contract::renderer::math::Rect{{x, 151.0F}, {80.0F, 16.0F}});
     }
     laser.addAnimation("right", {0, 1}, 0.08F);
     laser.addAnimation("left", {2, 3}, 0.08F);
@@ -50,19 +50,19 @@ void loadAtlases(ecs::ResMut<plugins::sprite::AtlasAssets> atlases, ecs::ResMut<
 }
 
 void dressEntities(ecs::Commands& commands, ecs::Res<GameAtlases> game,
-                   ecs::Query<const Ship, ecs::Without<plugins::backend::SpriteRenderer>> ships,
-                   ecs::Query<const Laser, ecs::Without<plugins::backend::SpriteRenderer>> lasers) {
+                   ecs::Query<const Ship, ecs::Without<plugins::sprite::SpriteRenderer>> ships,
+                   ecs::Query<const Laser, ecs::Without<plugins::sprite::SpriteRenderer>> lasers) {
     for (auto [entity, ship] : ships) {
         commands.entity(entity)
             .add(plugins::transform::Transform{.position = ship.position})
-            .add(plugins::backend::SpriteRenderer{.layer = 1})
+            .add(plugins::sprite::SpriteRenderer{.layer = 1})
             .add(plugins::sprite::SpriteAnimator{.atlas = ship.player == 0 ? game->leftShip : game->rightShip,
                                                  .animation = plugins::sprite::animationId("fly")});
     }
     for (auto [entity, laser] : lasers) {
         commands.entity(entity)
             .add(plugins::transform::Transform{.position = laser.position})
-            .add(plugins::backend::SpriteRenderer{.layer = 2})
+            .add(plugins::sprite::SpriteRenderer{.layer = 2})
             .add(plugins::sprite::SpriteAnimator{
                 .atlas = game->laser,
                 .animation = plugins::sprite::animationId(laser.shooter == 0 ? "right" : "left")});
@@ -77,7 +77,7 @@ void placeObstacles(ecs::Commands& commands,
 }
 
 void drawObstacles(
-    ecs::NonSendMut<plugins::backend::Backend> backend,
+    ecs::NonSendMut<plugins::graphics::Backend> backend,
     ecs::Query<const plugins::physics::Collider, const plugins::transform::GlobalTransform, ecs::With<Obstacle>>
         obstacles) {
     if (backend->renderer == nullptr) {
@@ -85,16 +85,15 @@ void drawObstacles(
     }
     for (auto [entity, collider, transform] : obstacles) {
         const bool round = collider.shape == plugins::physics::ShapeType::kCircle;
-        backend->renderer->draw(
-            plugins::backend::graphics::Shape{.kind = round ? plugins::backend::graphics::ShapeKind::kCircle
-                                                            : plugins::backend::graphics::ShapeKind::kRect,
-                                              .position = transform.position + collider.offset,
-                                              .size = collider.size,
-                                              .radius = collider.radius,
-                                              .cornerRadius = 6.0F,
-                                              .fillColor = kObstacleFill,
-                                              .outlineColor = kObstacleOutline,
-                                              .outlineThickness = 2.0F});
+        backend->renderer->draw(contract::renderer::Shape{
+            .kind = round ? contract::renderer::ShapeKind::kCircle : contract::renderer::ShapeKind::kRect,
+            .position = transform.position + collider.offset,
+            .size = collider.size,
+            .radius = collider.radius,
+            .cornerRadius = 6.0F,
+            .fillColor = kObstacleFill,
+            .outlineColor = kObstacleOutline,
+            .outlineThickness = 2.0F});
     }
 }
 
@@ -112,7 +111,7 @@ void followLasers(ecs::Query<plugins::transform::Transform, const Laser> lasers)
 
 void explodeLoser(ecs::Commands& commands, ecs::Res<GameAtlases> game,
                   ecs::Query<const Winner, ecs::Added<Winner>> winners,
-                  ecs::Query<const Ship, plugins::backend::SpriteRenderer> ships) {
+                  ecs::Query<const Ship, plugins::sprite::SpriteRenderer> ships) {
     for (auto [entity, winner] : winners) {
         for (auto [shipEntity, ship, sprite] : ships) {
             if (ship.player == winner.player) {
@@ -121,8 +120,7 @@ void explodeLoser(ecs::Commands& commands, ecs::Res<GameAtlases> game,
             sprite->color.w = 0.0F;  // Its alpha: the ship is gone.
             commands.spawn()
                 .add(plugins::transform::Transform{.position = ship.position, .scale = glm::vec2{kExplosionScale}})
-                .add(plugins::backend::SpriteRenderer{.layer = 3,
-                                                      .blend = plugins::backend::graphics::BlendMode::kAdditive})
+                .add(plugins::sprite::SpriteRenderer{.layer = 3, .blend = contract::renderer::BlendMode::kAdditive})
                 .add(plugins::sprite::SpriteAnimator{.atlas = game->explosion,
                                                      .animation = plugins::sprite::animationId("explode")})
                 .add(Explosion{});

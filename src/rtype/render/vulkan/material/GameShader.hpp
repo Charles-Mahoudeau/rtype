@@ -13,14 +13,14 @@
 #include <string>
 #include <vulkan/vulkan_raii.hpp>
 
-#include "plugins/backend/graphics/Shader.hpp"
 #include "render/vulkan/Export.hpp"
 #include "render/vulkan/core/Device.hpp"
 #include "render/vulkan/pipeline/GraphicsPipeline.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::render::vulkan::material {
 
-/// @brief A game shader, behind a plugins::backend::graphics::ShaderId: the modules of each target it serves, and the
+/// @brief A game shader, behind a contract::renderer::ShaderId: the modules of each target it serves, and the
 /// pipeline each one is drawn with, built the first time it is drawn.
 ///
 /// @details A pipeline is built for one colour format: drawn into another one (a swapchain recreated in another
@@ -39,10 +39,10 @@ class RTYPE_RENDER_VULKAN_API GameShader {
                                                            const vk::raii::PipelineCache* cache);
 
     /// @brief Creates the modules of every variant of @p shader.
-    /// @throws std::invalid_argument If @p shader is invalid (plugins::backend::graphics::validate()).
+    /// @throws std::invalid_argument If @p shader is invalid (contract::renderer::validate()).
     /// @throws exceptions::ShaderException If a stage is not SPIR-V.
     /// @throws vk::SystemError If a module cannot be created.
-    GameShader(const core::Device& device, const plugins::backend::graphics::CompiledShader& shader);
+    GameShader(const core::Device& device, const contract::renderer::CompiledShader& shader);
     ~GameShader() = default;
     GameShader(const GameShader&) = delete;
     GameShader& operator=(const GameShader&) = delete;
@@ -57,17 +57,14 @@ class RTYPE_RENDER_VULKAN_API GameShader {
     [[nodiscard]] bool hasInstanceValues() const noexcept { return _instanceValues; }
 
     /// @return Whether it serves @p target.
-    [[nodiscard]] bool serves(plugins::backend::graphics::ShaderTarget target) const noexcept;
+    [[nodiscard]] bool serves(contract::renderer::ShaderTarget target) const noexcept;
 
     /// @return The pipeline drawing @p target into @p colorFormat, built by @p build the first time (or after a format
     /// change), or nullptr if the shader does not serve @p target.
     /// @throws vk::SystemError If the pipeline cannot be built.
-    [[nodiscard]] const pipeline::GraphicsPipeline* getPipeline(plugins::backend::graphics::ShaderTarget target,
-                                                                const core::Device& device,
-                                                                const pipeline::PipelineLayout& layout,
-                                                                vk::Format colorFormat,
-                                                                const vk::raii::PipelineCache* cache,
-                                                                PipelineBuilder build);
+    [[nodiscard]] const pipeline::GraphicsPipeline* getPipeline(
+        contract::renderer::ShaderTarget target, const core::Device& device, const pipeline::PipelineLayout& layout,
+        vk::Format colorFormat, const vk::raii::PipelineCache* cache, PipelineBuilder build);
 
   private:
     /// @brief What the shader draws one target with.
@@ -78,10 +75,10 @@ class RTYPE_RENDER_VULKAN_API GameShader {
         vk::Format format{vk::Format::eUndefined};        ///< The colour format `built` draws into.
     };
 
-    std::string _name;                                                              ///< For messages.
-    std::uint32_t _materialSize{0};                                                 ///< Its material block.
-    bool _instanceValues{false};                                                    ///< It has `instance uniform`s.
-    std::array<Variant, plugins::backend::graphics::kShaderTargetCount> _variants;  ///< By ShaderTarget.
+    std::string _name;                                                      ///< For messages.
+    std::uint32_t _materialSize{0};                                         ///< Its material block.
+    bool _instanceValues{false};                                            ///< It has `instance uniform`s.
+    std::array<Variant, contract::renderer::kShaderTargetCount> _variants;  ///< By ShaderTarget.
 };
 
 }  // namespace rtype::render::vulkan::material

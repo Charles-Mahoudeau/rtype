@@ -14,19 +14,19 @@
 
 #include "SdlPlatform.hpp"
 #include "core/config/Settings.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/event/Event.hpp"
-#include "plugins/backend/input/Key.hpp"
-#include "plugins/backend/platform/IPlatform.hpp"
+#include "plugins/graphics/BackendRegistry.hpp"
 #include "render/vulkan/Registration.hpp"
+#include "rtype/contract/platform/IPlatform.hpp"
+#include "rtype/contract/platform/event/Event.hpp"
+#include "rtype/contract/platform/input/Key.hpp"
 
-using namespace rtype::plugins::backend::event;
+using namespace rtype::contract::platform::event;
 using example::SdlPlatform;
+using rtype::contract::platform::IPlatform;
+using rtype::contract::platform::input::Key;
 using rtype::core::config::Settings;
-using rtype::plugins::backend::Backend;
-using rtype::plugins::backend::BackendRegistry;
-using rtype::plugins::backend::input::Key;
-using rtype::plugins::backend::platform::IPlatform;
+using rtype::plugins::graphics::Backend;
+using rtype::plugins::graphics::BackendRegistry;
 
 /// @warning macOS: brew install molten-vk vulkan-loader (+ vulkan-validationlayers in debug builds)
 
@@ -36,8 +36,8 @@ int main() {
         /// registers "sdl" (SdlPlatform, written here). The factory receives the "sdl" section of the config; this
         /// platform has no setting, so it only rejects unknown keys.
         BackendRegistry registry;
-        rtype::render::vulkan::registerRenderer(registry);
-        registry.addPlatform("sdl", [](const Settings& settings) -> std::unique_ptr<IPlatform> {
+        rtype::render::vulkan::registerRenderer(registry.renderers);
+        registry.platforms.add("sdl", [](const Settings& settings) -> std::unique_ptr<IPlatform> {
             settings.checkKeys({}, "sdl");
             return std::make_unique<SdlPlatform>();
         });

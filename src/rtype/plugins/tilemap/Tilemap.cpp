@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-#include "plugins/backend/math/Rect.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 
 namespace rtype::plugins::tilemap {
 
@@ -46,11 +46,11 @@ const TileChunk* findChunk(const MapLayer& layer, glm::ivec2 origin) {
 }
 }  // namespace
 
-backend::math::Rect Tileset::getSource(std::uint32_t localId) const {
+contract::renderer::math::Rect Tileset::getSource(std::uint32_t localId) const {
     const std::uint32_t perRow = std::max(columns, 1U);
     const glm::uvec2 cell{localId % perRow, localId / perRow};
     const glm::uvec2 corner = glm::uvec2{margin} + (cell * (tileSize + glm::uvec2{spacing}));
-    return backend::math::Rect{glm::vec2{corner}, glm::vec2{tileSize}};
+    return contract::renderer::math::Rect{glm::vec2{corner}, glm::vec2{tileSize}};
 }
 
 std::uint32_t MapLayer::getTile(glm::ivec2 cell) const {

@@ -18,21 +18,21 @@
 #include <vulkan/vulkan_raii.hpp>
 
 #include "Blend.hpp"
-#include "plugins/backend/graphics/BlendMode.hpp"
-#include "plugins/backend/graphics/Shape.hpp"
+#include "rtype/contract/renderer/drawing/BlendMode.hpp"
+#include "rtype/contract/renderer/drawing/Shape.hpp"
 
 namespace rtype::render::vulkan::rendering {
 
-ShapeInstance ShapeInstance::fromShape(const plugins::backend::graphics::Shape& shape) noexcept {
-    using plugins::backend::graphics::ShapeKind;
+ShapeInstance ShapeInstance::fromShape(const contract::renderer::Shape& shape) noexcept {
+    using contract::renderer::ShapeKind;
     const float radius = std::max(shape.radius, 0.0F);
     ShapeInstance instance{
         .center = shape.position,
         .rotation = shape.rotation,
         .radius = radius,
         .outlineThickness = std::max(shape.outlineThickness, 0.0F),
-        .blend = static_cast<std::uint8_t>(
-            shape.blend == plugins::backend::graphics::BlendMode::kAdditive ? kBlendAdditive : kBlendAlpha),
+        .blend = static_cast<std::uint8_t>(shape.blend == contract::renderer::BlendMode::kAdditive ? kBlendAdditive
+                                                                                                   : kBlendAlpha),
         .fillColor = shape.fillColor,
         .outlineColor = shape.outlineColor,
     };

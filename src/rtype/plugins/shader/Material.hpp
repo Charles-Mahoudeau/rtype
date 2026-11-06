@@ -18,7 +18,8 @@
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/graphics/Shader.hpp"
+#include "plugins/shader/Export.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::plugins::shader {
 
@@ -31,7 +32,7 @@ using MaterialValue = std::variant<float, glm::vec2, glm::vec3, glm::vec4, std::
 /// rtype::plugins::shader::Material hit{.shader = shaders->load("assets/shaders/flash.glsl")};
 /// hit.set("tint", glm::vec4{1.0F, 0.2F, 0.2F, 1.0F}).setTexture("noise", textures->load("assets/noise.png"));
 /// @endcode
-struct Material {
+struct RTYPE_PLUGIN_SHADER_API Material {
     /// @brief One value set by name.
     struct Value {
         std::string name;     ///< As declared in the shader.
@@ -61,19 +62,19 @@ struct Material {
 /// written at its offset. CompiledShader::materialSize bytes.
 /// @throws exceptions::ShaderException If a value has no `uniform` of this name in the shader (an `instance uniform`
 /// is set per drawing, not in a material) or is not of its type.
-[[nodiscard]] std::vector<std::byte> packMaterialValues(const backend::graphics::CompiledShader& shader,
-                                                        const Material& material);
+[[nodiscard]] RTYPE_PLUGIN_SHADER_API std::vector<std::byte> packMaterialValues(
+    const contract::renderer::CompiledShader& shader, const Material& material);
 
 /// @brief Writes @p value at the place of @p shader's `instance uniform` @p name in @p values.
 /// @throws exceptions::ShaderException If @p shader has no `instance uniform` of this name (a `uniform` is set in a
 /// material) or @p value is not of its type.
-void writeInstanceValue(const backend::graphics::CompiledShader& shader,
-                        backend::graphics::ShaderInstanceValues& values, const std::string& name,
-                        const MaterialValue& value);
+RTYPE_PLUGIN_SHADER_API void writeInstanceValue(const contract::renderer::CompiledShader& shader,
+                                                contract::renderer::ShaderInstanceValues& values,
+                                                const std::string& name, const MaterialValue& value);
 
 /// @return The textures of @p material for @p shader, by slot; an unset slot keeps a default AssetId.
 /// @throws exceptions::ShaderException If a texture has no `uniform sampler2D` of this name in the shader.
-[[nodiscard]] std::array<core::asset::AssetId, backend::graphics::kShaderMaxTextures> resolveMaterialTextures(
-    const backend::graphics::CompiledShader& shader, const Material& material);
+[[nodiscard]] RTYPE_PLUGIN_SHADER_API std::array<core::asset::AssetId, contract::renderer::kShaderMaxTextures>
+resolveMaterialTextures(const contract::renderer::CompiledShader& shader, const Material& material);
 
 }  // namespace rtype::plugins::shader

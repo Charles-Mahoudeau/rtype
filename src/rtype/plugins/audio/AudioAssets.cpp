@@ -21,20 +21,21 @@
 
 #include "core/asset/AssetFiles.hpp"
 #include "core/asset/AssetId.hpp"
-#include "plugins/audio/AudioTypes.hpp"
-#include "plugins/audio/IAudioDevice.hpp"
-#include "plugins/audio/exceptions/AudioExceptions.hpp"
+#include "rtype/contract/audiodevice/AudioTypes.hpp"
+#include "rtype/contract/audiodevice/IAudioDevice.hpp"
+#include "rtype/contract/audiodevice/exceptions/AudioExceptions.hpp"
 
 namespace rtype::plugins::audio {
 
 std::size_t AudioAssets::getCount() const noexcept { return _entries.size(); }
 
-core::asset::AssetId AudioAssets::load(const std::filesystem::path& path, const SoundDesc& desc) {
+core::asset::AssetId AudioAssets::load(const std::filesystem::path& path,
+                                       const contract::audiodevice::SoundDesc& desc) {
     return request(core::asset::normalizePath(path), {}, desc);
 }
 
 core::asset::AssetId AudioAssets::load(const std::string& name, std::span<const std::byte> encoded,
-                                       const SoundDesc& desc) {
+                                       const contract::audiodevice::SoundDesc& desc) {
     return request(core::asset::normalizePath(name), {encoded.begin(), encoded.end()}, desc);
 }
 
@@ -43,7 +44,7 @@ const AudioAssets::Entry* AudioAssets::get(core::asset::AssetId id) const {
     return found != _entries.end() ? &found->second : nullptr;
 }
 
-std::optional<SoundId> AudioAssets::getSound(core::asset::AssetId id) const {
+std::optional<contract::audiodevice::SoundId> AudioAssets::getSound(core::asset::AssetId id) const {
     const Entry* entry = get(id);
     return entry != nullptr && entry->state == SoundState::kLoaded ? std::optional{entry->sound} : std::nullopt;
 }
@@ -63,7 +64,7 @@ bool AudioAssets::unload(core::asset::AssetId id) {
 
 const std::vector<core::asset::AssetId>& AudioAssets::getQueued() const noexcept { return _queued; }
 
-void AudioAssets::setLoaded(core::asset::AssetId id, SoundId sound) {
+void AudioAssets::setLoaded(core::asset::AssetId id, contract::audiodevice::SoundId sound) {
     if (Entry* entry = dequeue(id)) {
         entry->state = SoundState::kLoaded;
         entry->sound = sound;
@@ -79,13 +80,14 @@ void AudioAssets::setFailed(core::asset::AssetId id, std::string error) {
     }
 }
 
-std::vector<SoundId> AudioAssets::takeUnloaded() { return std::exchange(_unloaded, {}); }
+std::vector<contract::audiodevice::SoundId> AudioAssets::takeUnloaded() { return std::exchange(_unloaded, {}); }
 
-core::asset::AssetId AudioAssets::request(std::string path, std::vector<std::byte> encoded, const SoundDesc& desc) {
+core::asset::AssetId AudioAssets::request(std::string path, std::vector<std::byte> encoded,
+                                          const contract::audiodevice::SoundDesc& desc) {
     const core::asset::AssetId id = core::asset::AssetId::fromPath(path);
     if (const Entry* known = get(id)) {
         if (known->path != path) {
-            throw exceptions::AudioLoadException{
+            throw contract::audiodevice::exceptions::AudioLoadException{
                 std::format("Sound '{}' has the same id as '{}': rename one of them", path, known->path)};
         }
         return id;
@@ -104,16 +106,16 @@ AudioAssets::Entry* AudioAssets::dequeue(core::asset::AssetId id) {
     return &_entries.at(id);
 }
 
-void updateSounds(AudioAssets& assets, IAudioDevice& device) {
-    for (const SoundId sound : assets.takeUnloaded()) {
+void updateSounds(AudioAssets& assets, contract::audiodevice::IAudioDevice& device) {
+    for (const contract::audiodevice::SoundId sound : assets.takeUnloaded()) {
         device.destroySound(sound);
     }
     const std::vector<core::asset::AssetId> queued = assets.getQueued();
     for (const core::asset::AssetId id : queued) {
         const AudioAssets::Entry& entry = *assets.get(id);
         try {
-            const SoundId sound = entry.encoded.empty()
-                                      ? device.createSound(std::filesystem::path{entry.path}, entry.desc)
+            const contract::audiodevice::SoundId sound =
+                entry.encoded.empty() ? device.createSound(std::filesystem::path{entry.path}, entry.desc)
                                       : device.createSound(entry.encoded, entry.desc);
             assets.setLoaded(id, sound);
         } catch (const std::exception& error) {

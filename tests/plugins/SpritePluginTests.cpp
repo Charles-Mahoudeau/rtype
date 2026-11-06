@@ -10,13 +10,13 @@
 #include <glm/ext/vector_float2.hpp>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/graphics/SpriteRenderer.hpp"
-#include "plugins/backend/graphics/TextureAssets.hpp"
+#include "plugins/graphics/TextureAssets.hpp"
 #include "plugins/sprite/AnimationEvents.hpp"
 #include "plugins/sprite/AtlasAssets.hpp"
 #include "plugins/sprite/SpriteAnimator.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
 #include "plugins/sprite/SpritePlugin.hpp"
+#include "plugins/sprite/SpriteRenderer.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
@@ -27,11 +27,11 @@
 #include "rtype/ecs/world/World.hpp"
 
 using rtype::core::asset::AssetId;
-using rtype::plugins::backend::SpriteRenderer;
 using rtype::plugins::sprite::AnimationDirection;
 using rtype::plugins::sprite::animationId;
 using rtype::plugins::sprite::SpriteAnimator;
 using rtype::plugins::sprite::SpriteAtlas;
+using rtype::plugins::sprite::SpriteRenderer;
 
 namespace {
 /// @brief An App with the SpritePlugin, an atlas of four 10x10 frames, and frames of 0.25 seconds.
@@ -83,7 +83,7 @@ TEST(SpriteAnimator, ReflectsEveryField) {
 TEST(SpritePlugin, InsertsTheAtlasAndTextureAssets) {
     SpriteApp app;
     EXPECT_TRUE(app.world().getResources().has<rtype::plugins::sprite::AtlasAssets>());
-    EXPECT_TRUE(app.world().getResources().has<rtype::plugins::backend::TextureAssets>());
+    EXPECT_TRUE(app.world().getResources().has<rtype::plugins::graphics::TextureAssets>());
 }
 
 TEST(SpritePlugin, ShowsTheFrameOfTheAnimationTime) {
@@ -139,7 +139,7 @@ TEST(SpritePlugin, HandsTheAtlasTexturesToTextureAssets) {
     SpriteApp app;
     app.postUpdate();
     const auto* entry =
-        app.world().getResources().get<rtype::plugins::backend::TextureAssets>()->get(AssetId::fromPath("sheet.png"));
+        app.world().getResources().get<rtype::plugins::graphics::TextureAssets>()->get(AssetId::fromPath("sheet.png"));
     ASSERT_NE(entry, nullptr);
     EXPECT_EQ(entry->path, "sheet.png");
 }

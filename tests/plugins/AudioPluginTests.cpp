@@ -21,10 +21,10 @@
 #include "plugins/audio/AudioPlugin.hpp"
 #include "plugins/audio/AudioResources.hpp"
 #include "plugins/audio/AudioSource.hpp"
-#include "plugins/audio/AudioTypes.hpp"
 #include "plugins/audio/AudioVolumes.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
+#include "rtype/contract/audiodevice/AudioTypes.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
@@ -51,7 +51,7 @@ class AudioApp {
     [[nodiscard]] rtype::test::plugins::FakeAudioState& state() noexcept { return *_state; }
 
     /// @return The id of a sound asked for under @p path, loaded at the next frame.
-    rtype::core::asset::AssetId load(const std::string& path, rtype::plugins::audio::SoundDesc desc = {}) {
+    rtype::core::asset::AssetId load(const std::string& path, rtype::contract::audiodevice::SoundDesc desc = {}) {
         return world().getResources().getMut<rtype::plugins::audio::AudioAssets>()->load(path, desc);
     }
 
@@ -106,8 +106,8 @@ TEST(AudioPlugin, CreatesTheDeviceWithTheVolumesOfTheConfig) {
     app.app().runFrame();
     EXPECT_NE(app.world().getResources().get<rtype::plugins::audio::Audio>()->device, nullptr);
     EXPECT_FLOAT_EQ(app.state().masterVolume, 0.5F);
-    EXPECT_FLOAT_EQ(app.state().busVolumes.at(rtype::plugins::audio::Bus::kMusic), 0.25F);
-    EXPECT_FLOAT_EQ(app.state().busVolumes.at(rtype::plugins::audio::Bus::kEffects), 1.0F);
+    EXPECT_FLOAT_EQ(app.state().busVolumes.at(rtype::contract::audiodevice::Bus::kMusic), 0.25F);
+    EXPECT_FLOAT_EQ(app.state().busVolumes.at(rtype::contract::audiodevice::Bus::kEffects), 1.0F);
     EXPECT_FLOAT_EQ(app.world().getResources().get<rtype::plugins::audio::AudioVolumes>()->master, 0.5F);
 }
 
@@ -130,7 +130,7 @@ TEST(AudioPlugin, AppliesTheVolumesWhenTheyChange) {
     app.app().runFrame();
     app.world().getResources().getMut<rtype::plugins::audio::AudioVolumes>()->effects = 0.3F;
     app.app().runFrame();
-    EXPECT_FLOAT_EQ(app.state().busVolumes.at(rtype::plugins::audio::Bus::kEffects), 0.3F);
+    EXPECT_FLOAT_EQ(app.state().busVolumes.at(rtype::contract::audiodevice::Bus::kEffects), 0.3F);
 }
 
 TEST(AudioPlugin, LoadsAndPlaysASoundAskedForInTheSameFrame) {
@@ -139,8 +139,8 @@ TEST(AudioPlugin, LoadsAndPlaysASoundAskedForInTheSameFrame) {
     app.send(rtype::plugins::audio::PlaySound{.sound = shot, .volume = 0.8F, .pitch = 1.2F});
     app.app().runFrame();
     ASSERT_EQ(app.state().plays.size(), 1U);
-    EXPECT_EQ(app.state().plays[0].sound, (rtype::plugins::audio::SoundId{.value = 1}));
-    EXPECT_EQ(app.state().plays[0].params.bus, rtype::plugins::audio::Bus::kEffects);
+    EXPECT_EQ(app.state().plays[0].sound, (rtype::contract::audiodevice::SoundId{.value = 1}));
+    EXPECT_EQ(app.state().plays[0].params.bus, rtype::contract::audiodevice::Bus::kEffects);
     EXPECT_FLOAT_EQ(app.state().plays[0].params.volume, 0.8F);
     EXPECT_FLOAT_EQ(app.state().plays[0].params.pitch, 1.2F);
     EXPECT_FALSE(app.state().plays[0].params.loop);
@@ -183,7 +183,7 @@ TEST(AudioPlugin, PlaysTheMusicLoopingOnTheMusicBus) {
     app.send(rtype::plugins::audio::PlayMusic{.sound = music, .crossfade = 2.0F});
     app.app().runFrame();
     ASSERT_EQ(app.state().plays.size(), 1U);
-    EXPECT_EQ(app.state().plays[0].params.bus, rtype::plugins::audio::Bus::kMusic);
+    EXPECT_EQ(app.state().plays[0].params.bus, rtype::contract::audiodevice::Bus::kMusic);
     EXPECT_TRUE(app.state().plays[0].params.loop);
     EXPECT_FLOAT_EQ(app.state().plays[0].params.fadeIn, 2.0F);
 }
@@ -299,7 +299,7 @@ TEST(AudioPlugin, RestartsASourceWhoseSoundChanged) {
     ASSERT_EQ(app.state().plays.size(), 2U);
     ASSERT_EQ(app.state().stops.size(), 1U);
     EXPECT_EQ(app.state().stops[0].first, app.state().plays[0].voice);
-    EXPECT_EQ(app.state().plays[1].sound, (rtype::plugins::audio::SoundId{.value = 2}));
+    EXPECT_EQ(app.state().plays[1].sound, (rtype::contract::audiodevice::SoundId{.value = 2}));
 }
 
 TEST(AudioPlugin, StopsASourceWhenItsComponentIsRemoved) {

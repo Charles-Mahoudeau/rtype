@@ -13,10 +13,10 @@
 #include <glm/geometric.hpp>
 #include <vector>
 
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/Shape.hpp"
 #include "plugins/physics/Collider.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Shape.hpp"
 
 namespace rtype::plugins::physics::debug {
 namespace {
@@ -35,16 +35,16 @@ glm::vec2 rotate(glm::vec2 local, float rotation) noexcept {
 }
 }  // namespace
 
-backend::graphics::Shape debugColliderShape(const Collider& collider, const transform::GlobalTransform& transform,
-                                            backend::graphics::Color color, float thickness) noexcept {
-    using backend::graphics::ShapeKind;
+contract::renderer::Shape debugColliderShape(const Collider& collider, const transform::GlobalTransform& transform,
+                                             contract::renderer::Color color, float thickness) noexcept {
+    using contract::renderer::ShapeKind;
     if (collider.sensor) {
         color.w *= kSensorOpacity;
     }
-    backend::graphics::Shape shape{
+    contract::renderer::Shape shape{
         .position = transform.position + rotate(collider.offset, transform.rotation),
         .rotation = transform.rotation,
-        .fillColor = backend::graphics::Color{0.0F},
+        .fillColor = contract::renderer::Color{0.0F},
         .outlineColor = color,
         .outlineThickness = thickness,
     };
@@ -66,10 +66,10 @@ backend::graphics::Shape debugColliderShape(const Collider& collider, const tran
     return shape;
 }
 
-std::vector<backend::graphics::Shape> debugVelocityArrow(glm::vec2 from, glm::vec2 velocity, float scale,
-                                                         backend::graphics::Color color, float thickness) {
-    using backend::graphics::Shape;
-    using backend::graphics::ShapeKind;
+std::vector<contract::renderer::Shape> debugVelocityArrow(glm::vec2 from, glm::vec2 velocity, float scale,
+                                                          contract::renderer::Color color, float thickness) {
+    using contract::renderer::Shape;
+    using contract::renderer::ShapeKind;
     const glm::vec2 travel = velocity * scale;
     const float length = glm::length(travel);
     if (!(length >= kMinArrowLength)) {

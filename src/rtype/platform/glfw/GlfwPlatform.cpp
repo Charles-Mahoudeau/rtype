@@ -19,8 +19,8 @@
 #include <vector>
 
 #include "exceptions/WindowExceptions.hpp"
-#include "plugins/backend/event/Event.hpp"
-#include "plugins/backend/platform/WindowConfig.hpp"
+#include "rtype/contract/platform/WindowConfig.hpp"
+#include "rtype/contract/platform/event/Event.hpp"
 
 namespace rtype::platform::glfw {
 
@@ -55,7 +55,7 @@ void GlfwPlatform::setSize(glm::uvec2 size) {
 /// - `GLFW_CLIENT_API = GLFW_NO_API`: by default GLFW creates an OpenGL context with the window. The renderer
 ///   brings its own graphics API instead, and attaches to the window (Vulkan: through IVulkanSurfaceSource).
 /// - `GLFW_RESIZABLE`: from the config. A resizable window makes the renderer rebuild its swapchain on resize.
-void GlfwPlatform::init(const plugins::backend::platform::WindowConfig& config) {
+void GlfwPlatform::init(const contract::platform::WindowConfig& config) {
     if (_glfwInitialized) {
         throw exceptions::GLFWWindowException("GlfwPlatform::init() called twice");
     }
@@ -84,7 +84,7 @@ void GlfwPlatform::init(const plugins::backend::platform::WindowConfig& config) 
     registerCallbacks();
 }
 
-std::vector<plugins::backend::Event> GlfwPlatform::pollEvents() {
+std::vector<contract::platform::Event> GlfwPlatform::pollEvents() {
     if (_window == nullptr) {
         return {};
     }
@@ -94,7 +94,7 @@ std::vector<plugins::backend::Event> GlfwPlatform::pollEvents() {
     return std::exchange(_events, {});
 }
 
-std::vector<plugins::backend::Event> GlfwPlatform::waitEvents() {
+std::vector<contract::platform::Event> GlfwPlatform::waitEvents() {
     if (_window == nullptr) {
         return {};
     }

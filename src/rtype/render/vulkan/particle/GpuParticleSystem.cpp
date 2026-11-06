@@ -17,14 +17,14 @@
 #include <vulkan/vulkan_raii.hpp>
 
 #include "GpuParticleData.hpp"
-#include "plugins/backend/graphics/Particle.hpp"
-#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "render/vulkan/descriptor/DescriptorAllocator.hpp"
 #include "render/vulkan/descriptor/DescriptorSetLayout.hpp"
 #include "render/vulkan/descriptor/DescriptorWriter.hpp"
 #include "render/vulkan/memory/Allocator.hpp"
 #include "render/vulkan/memory/Buffer.hpp"
 #include "render/vulkan/memory/Uploader.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 
 namespace rtype::render::vulkan::particle {
 
@@ -39,8 +39,8 @@ memory::Buffer makeBuffer(const memory::Allocator& allocator, vk::DeviceSize siz
 }
 
 /// @return The capacity of @p desc, checked first: the constructor's first step, before any buffer is created.
-std::uint32_t validatedCapacity(const plugins::backend::graphics::ParticleSystemDesc& desc) {
-    plugins::backend::graphics::validate(desc);
+std::uint32_t validatedCapacity(const contract::renderer::ParticleSystemDesc& desc) {
+    contract::renderer::validate(desc);
     return desc.capacity;
 }
 
@@ -49,7 +49,7 @@ std::uint32_t validatedCapacity(const plugins::backend::graphics::ParticleSystem
 GpuParticleSystem::GpuParticleSystem(const core::Device& device, const memory::Allocator& allocator,
                                      memory::Uploader& uploader, descriptor::DescriptorAllocator& descriptors,
                                      const descriptor::DescriptorSetLayout& setLayout,
-                                     const plugins::backend::graphics::ParticleSystemDesc& desc)
+                                     const contract::renderer::ParticleSystemDesc& desc)
     : _capacity{validatedCapacity(desc)},
       _sortCount{desc.sortByAge ? std::bit_ceil(_capacity) : 0},
       _params{makeBuffer(allocator, sizeof(GpuParticleParams),
@@ -64,8 +64,7 @@ GpuParticleSystem::GpuParticleSystem(const core::Device& device, const memory::A
                            vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst |
                                vk::BufferUsageFlagBits::eTransferSrc)},
       _instances{makeBuffer(
-          allocator,
-          vk::DeviceSize{std::max(_capacity, _sortCount)} * sizeof(plugins::backend::graphics::ParticleInstance),
+          allocator, vk::DeviceSize{std::max(_capacity, _sortCount)} * sizeof(contract::renderer::ParticleInstance),
           vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eVertexBuffer)},
       _indirect{makeBuffer(allocator, sizeof(vk::DrawIndirectCommand),
                            vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eIndirectBuffer |

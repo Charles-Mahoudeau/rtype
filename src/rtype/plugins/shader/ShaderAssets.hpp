@@ -15,7 +15,8 @@
 
 #include "core/asset/AssetId.hpp"
 #include "core/asset/AssetStore.hpp"
-#include "plugins/backend/graphics/Shader.hpp"
+#include "plugins/shader/Export.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
 namespace rtype::plugins::shader {
@@ -29,10 +30,10 @@ namespace rtype::plugins::shader {
 /// @code
 /// const rtype::core::asset::AssetId flash = shaders->load("assets/shaders/flash.glsl");
 /// @endcode
-class ShaderAssets {
+class RTYPE_PLUGIN_SHADER_API ShaderAssets {
   public:
     /// @brief One shader: its file (or the name it was added under), its compiled form (nothing if it failed) and why.
-    using Entry = core::asset::AssetStore<backend::graphics::CompiledShader>::Entry;
+    using Entry = core::asset::AssetStore<contract::renderer::CompiledShader>::Entry;
 
     ShaderAssets() = default;
     ~ShaderAssets() = default;
@@ -55,7 +56,7 @@ class ShaderAssets {
     core::asset::AssetId add(const std::string& name, std::string_view source);
 
     /// @return The shader @p id names, compiled, or nullptr if it is unknown or failed.
-    [[nodiscard]] const backend::graphics::CompiledShader* get(core::asset::AssetId id) const;
+    [[nodiscard]] const contract::renderer::CompiledShader* get(core::asset::AssetId id) const;
 
     /// @return The entry of @p id, compiled or failed, or nullptr if it is unknown.
     [[nodiscard]] const Entry* getEntry(core::asset::AssetId id) const;
@@ -71,7 +72,7 @@ class ShaderAssets {
     [[nodiscard]] std::vector<core::asset::AssetId> takeUnloaded();
 
   private:
-    core::asset::AssetStore<backend::graphics::CompiledShader> _shaders{"Shader"};  ///< Every shader, by id.
+    core::asset::AssetStore<contract::renderer::CompiledShader> _shaders{"Shader"};  ///< Every shader, by id.
     std::vector<core::asset::AssetId> _added;     ///< Compiled since the last takeAdded().
     std::vector<core::asset::AssetId> _unloaded;  ///< Unloaded since the last takeUnloaded().
 };

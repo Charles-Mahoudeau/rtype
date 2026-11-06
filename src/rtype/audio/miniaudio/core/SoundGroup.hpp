@@ -10,11 +10,12 @@
 #include <miniaudio.h>
 
 #include "audio/miniaudio/core/Engine.hpp"
+#include "rtype/audio/miniaudio/Export.hpp"
 
 namespace rtype::audio::miniaudio::core {
 /// @brief Owns a ma_sound_group: a bus that mixes the sounds attached to it, with its own volume, attached to an
 /// engine's output.
-class SoundGroup {
+class RTYPE_AUDIO_MINIAUDIO_API SoundGroup {
   public:
     /// @param engine The engine whose output the group plays into; must outlive the group.
     /// @throws exceptions::MiniaudioException If the group cannot be created.

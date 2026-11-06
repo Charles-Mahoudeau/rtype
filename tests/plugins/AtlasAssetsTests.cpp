@@ -20,9 +20,9 @@
 #include "TestImages.hpp"
 #include "core/asset/AssetId.hpp"
 #include "core/asset/exceptions/AssetExceptions.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/sprite/AtlasAssets.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
 using rtype::core::asset::AssetId;

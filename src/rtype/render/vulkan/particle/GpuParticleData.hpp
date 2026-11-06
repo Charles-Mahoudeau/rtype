@@ -12,11 +12,11 @@
 #include <cstdint>
 #include <glm/ext/vector_float2.hpp>
 
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/Particle.hpp"
-#include "plugins/backend/graphics/ParticleCurve.hpp"
-#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "render/vulkan/Export.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/particle/ParticleCurve.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 
 /// @brief The data of a GPU particle system as its compute shaders read it: the CPU side of
 /// shaders/include/ParticleSystem.glsl, which must match it field by field (std430 layout). Change both files together;
@@ -35,43 +35,43 @@ inline constexpr std::uint32_t kIndirectBinding = 6;   ///< The VkDrawIndirectCo
 inline constexpr std::uint32_t kBindingCount = 7;      ///< Number of bindings.
 /// @}
 
-/// @brief How a system spawns its particles: the alternative of backend::graphics::EmitterShape.
+/// @brief How a system spawns its particles: the alternative of contract::renderer::EmitterShape.
 /// @{
 inline constexpr std::uint32_t kShapePoint = 0;
 inline constexpr std::uint32_t kShapeCircle = 1;
 inline constexpr std::uint32_t kShapeRect = 2;
 /// @}
 
-static_assert(static_cast<std::uint32_t>(plugins::backend::graphics::ParticleSpace::kWorld) == 0 &&
-                  static_cast<std::uint32_t>(plugins::backend::graphics::ParticleSpace::kLocal) == 1,
-              "graphics::ParticleSpace must keep the values of ParticleSystem.glsl");
+static_assert(static_cast<std::uint32_t>(contract::renderer::ParticleSpace::kWorld) == 0 &&
+                  static_cast<std::uint32_t>(contract::renderer::ParticleSpace::kLocal) == 1,
+              "contract::renderer::ParticleSpace must keep the values of ParticleSystem.glsl");
 
 /// @brief A ParticleSystemDesc as the compute shaders read it, with its curves baked: one storage buffer per system,
 /// written once at creation. 1648 bytes.
 struct GpuParticleParams {
-    plugins::backend::graphics::Color color{1.0F};              ///< Offset 0.
-    glm::vec2 gravity{0.0F};                                    ///< Offset 16.
-    glm::vec2 lifetime{1.0F};                                   ///< (min, max). Offset 24.
-    glm::vec2 speed{0.0F};                                      ///< (min, max). Offset 32.
-    glm::vec2 angle{0.0F};                                      ///< (min, max). Offset 40.
-    glm::vec2 rotation{0.0F};                                   ///< (min, max). Offset 48.
-    glm::vec2 angularVelocity{0.0F};                            ///< (min, max). Offset 56.
-    glm::vec2 size{1.0F};                                       ///< (min, max). Offset 64.
-    glm::vec2 shapeSize{0.0F};                                  ///< Rect: its size; circle: (radius, 0). Offset 72.
-    float drag = 0.0F;                                          ///< Offset 80.
-    std::uint32_t shape = kShapePoint;                          ///< kShapePoint, kShapeCircle or kShapeRect. Offset 84.
-    std::uint32_t edgeOnly = 0;                                 ///< Circle: 1 to spawn on the circle only. Offset 88.
-    std::uint32_t space = 0;                                    ///< graphics::ParticleSpace. Offset 92.
-    std::uint32_t capacity = 0;                                 ///< Most particles alive at once. Offset 96.
-    std::array<std::uint32_t, 3> padding{};                     ///< Aligns colorOverLife to 16 bytes, as std430 does.
-    plugins::backend::graphics::BakedGradient colorOverLife{};  ///< Offset 112.
-    plugins::backend::graphics::BakedCurve sizeOverLife{};      ///< Offset 1136.
-    plugins::backend::graphics::BakedCurve speedOverLife{};     ///< Offset 1392.
+    contract::renderer::Color color{1.0F};              ///< Offset 0.
+    glm::vec2 gravity{0.0F};                            ///< Offset 16.
+    glm::vec2 lifetime{1.0F};                           ///< (min, max). Offset 24.
+    glm::vec2 speed{0.0F};                              ///< (min, max). Offset 32.
+    glm::vec2 angle{0.0F};                              ///< (min, max). Offset 40.
+    glm::vec2 rotation{0.0F};                           ///< (min, max). Offset 48.
+    glm::vec2 angularVelocity{0.0F};                    ///< (min, max). Offset 56.
+    glm::vec2 size{1.0F};                               ///< (min, max). Offset 64.
+    glm::vec2 shapeSize{0.0F};                          ///< Rect: its size; circle: (radius, 0). Offset 72.
+    float drag = 0.0F;                                  ///< Offset 80.
+    std::uint32_t shape = kShapePoint;                  ///< kShapePoint, kShapeCircle or kShapeRect. Offset 84.
+    std::uint32_t edgeOnly = 0;                         ///< Circle: 1 to spawn on the circle only. Offset 88.
+    std::uint32_t space = 0;                            ///< contract::renderer::ParticleSpace. Offset 92.
+    std::uint32_t capacity = 0;                         ///< Most particles alive at once. Offset 96.
+    std::array<std::uint32_t, 3> padding{};             ///< Aligns colorOverLife to 16 bytes, as std430 does.
+    contract::renderer::BakedGradient colorOverLife{};  ///< Offset 112.
+    contract::renderer::BakedCurve sizeOverLife{};      ///< Offset 1136.
+    contract::renderer::BakedCurve speedOverLife{};     ///< Offset 1392.
 
     /// @return @p desc as the compute shaders read it, its curves baked.
-    /// @throws plugins::backend::exceptions::ParticleException If a curve of @p desc is invalid.
+    /// @throws contract::renderer::exceptions::ParticleException If a curve of @p desc is invalid.
     [[nodiscard]] RTYPE_RENDER_VULKAN_API static GpuParticleParams fromDesc(
-        const plugins::backend::graphics::ParticleSystemDesc& desc);
+        const contract::renderer::ParticleSystemDesc& desc);
 };
 static_assert(offsetof(GpuParticleParams, gravity) == 16 && offsetof(GpuParticleParams, lifetime) == 24 &&
                   offsetof(GpuParticleParams, shapeSize) == 72 && offsetof(GpuParticleParams, drag) == 80 &&
@@ -107,15 +107,15 @@ static_assert(offsetof(GpuParticleCounters, alive) == 4 && sizeof(GpuParticleCou
 /// @brief The push constants of the particle compute shaders: the frame's emission, and which alive list is read
 /// (the other is written). 40 bytes.
 struct GpuParticlePush {
-    plugins::backend::graphics::ParticleEmission emission;  ///< Offset 0.
-    std::uint32_t current = 0;                              ///< Alive list read this frame: 0 or 1. Offset 36.
+    contract::renderer::ParticleEmission emission;  ///< Offset 0.
+    std::uint32_t current = 0;                      ///< Alive list read this frame: 0 or 1. Offset 36.
 };
-static_assert(offsetof(plugins::backend::graphics::ParticleEmission, scale) == 8 &&
-                  offsetof(plugins::backend::graphics::ParticleEmission, rotation) == 16 &&
-                  offsetof(plugins::backend::graphics::ParticleEmission, deltaTime) == 20 &&
-                  offsetof(plugins::backend::graphics::ParticleEmission, seed) == 24 &&
-                  offsetof(plugins::backend::graphics::ParticleEmission, firstParticle) == 28 &&
-                  offsetof(plugins::backend::graphics::ParticleEmission, spawnCount) == 32 &&
+static_assert(offsetof(contract::renderer::ParticleEmission, scale) == 8 &&
+                  offsetof(contract::renderer::ParticleEmission, rotation) == 16 &&
+                  offsetof(contract::renderer::ParticleEmission, deltaTime) == 20 &&
+                  offsetof(contract::renderer::ParticleEmission, seed) == 24 &&
+                  offsetof(contract::renderer::ParticleEmission, firstParticle) == 28 &&
+                  offsetof(contract::renderer::ParticleEmission, spawnCount) == 32 &&
                   offsetof(GpuParticlePush, current) == 36 && sizeof(GpuParticlePush) == 40,
               "GpuParticlePush must match the push constants of ParticleSystem.glsl");
 

@@ -9,16 +9,16 @@
 
 #include <string>
 
-#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/shader/Material.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::plugins::shader {
 
-MaterialInstance MaterialInstance::of(const backend::graphics::CompiledShader& shader) {
+MaterialInstance MaterialInstance::of(const contract::renderer::CompiledShader& shader) {
     return MaterialInstance{.values = shader.instanceDefaults};
 }
 
-MaterialInstance& MaterialInstance::set(const backend::graphics::CompiledShader& shader, const std::string& name,
+MaterialInstance& MaterialInstance::set(const contract::renderer::CompiledShader& shader, const std::string& name,
                                         const MaterialValue& value) {
     writeInstanceValue(shader, values, name, value);
     return *this;

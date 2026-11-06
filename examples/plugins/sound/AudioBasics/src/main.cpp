@@ -40,10 +40,10 @@
 #include "plugins/audio/AudioPlugin.hpp"
 #include "plugins/audio/AudioRegistry.hpp"
 #include "plugins/audio/AudioSource.hpp"
-#include "plugins/audio/AudioTypes.hpp"
 #include "plugins/audio/AudioVolumes.hpp"
-#include "plugins/audio/IAudioDevice.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "rtype/contract/audiodevice/AudioTypes.hpp"
+#include "rtype/contract/audiodevice/IAudioDevice.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/MinimalPlugins.hpp"
 #include "rtype/ecs/command/Commands.hpp"
@@ -58,6 +58,7 @@
 #include "rtype/ecs/system/ResourceParam.hpp"
 
 using namespace rtype;
+using namespace rtype::contract::audiodevice;
 using namespace rtype::plugins::audio;
 using rtype::core::asset::AssetId;
 using rtype::plugins::transform::Transform;
@@ -232,10 +233,9 @@ constexpr std::chrono::milliseconds kHeardStep{1500};
 void run(const std::string& backend) {
     // The executable fills the registry: the real backends through their register function, and here the "log" device.
     auto registry = std::make_unique<AudioRegistry>();
-    audio::miniaudio::registerAudio(*registry);
-    registry->add(
-        "log",
-        [](const core::config::Settings& section, const AudioConfig& /*config*/) -> std::unique_ptr<IAudioDevice> {
+    audio::miniaudio::registerAudio(registry->devices);
+    registry->devices.add(
+        "log", [](const core::config::Settings& section, std::uint32_t /*maxVoices*/) -> std::unique_ptr<IAudioDevice> {
             section.checkKeys({}, "log");
             return std::make_unique<LogAudioDevice>();
         });

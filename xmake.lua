@@ -52,6 +52,7 @@ includes("src/rtype/scripting")
 includes("src/rtype/network")
 includes("src/rtype/replication")
 includes("src/rtype/engine")
+includes("src/rtype/contract")
 includes("src/rtype/plugins")
 includes("src/rtype/interop")
 includes("src/rtype/platform/glfw")
@@ -64,7 +65,7 @@ includes("src/rtype/server")
 target("rtype")
     set_kind("phony")
     set_default(true)
-    add_deps("core", "ecs", "network", "replication", "engine", "plugins", "platform-glfw", "luau", "render-vulkan", "audio-miniaudio",
+    add_deps("core", "ecs", "network", "replication", "engine", "platform-glfw", "luau", "render-vulkan", "audio-miniaudio",
              "r-type_client", "r-type_server")
 
 

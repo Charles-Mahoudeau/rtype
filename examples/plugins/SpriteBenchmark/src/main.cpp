@@ -39,16 +39,20 @@
 #include "core/asset/AssetId.hpp"
 #include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
-#include "plugins/backend/BackendPlugin.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/BackendResources.hpp"
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/SpriteRenderer.hpp"
+#include "plugins/graphics/BackendRegistry.hpp"
+#include "plugins/graphics/GraphicsPlugin.hpp"
+#include "plugins/graphics/GraphicsResources.hpp"
+#include "plugins/input/InputPlugin.hpp"
+#include "plugins/shader/ShaderPlugin.hpp"
 #include "plugins/sprite/AtlasAssets.hpp"
 #include "plugins/sprite/SpriteAnimator.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
+#include "plugins/sprite/SpriteDrawPlugin.hpp"
+#include "plugins/sprite/SpritePlugin.hpp"
+#include "plugins/sprite/SpriteRenderer.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "render/vulkan/Registration.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/app/MinimalPlugins.hpp"
@@ -62,7 +66,9 @@
 #include "rtype/ecs/time/Time.hpp"
 
 using namespace rtype;
-using namespace rtype::plugins::backend;
+using namespace rtype::contract::renderer;
+using namespace rtype::plugins::graphics;
+using namespace rtype::plugins::sprite;
 using rtype::core::asset::AssetId;
 using namespace rtype::plugins::sprite;
 using rtype::plugins::transform::Transform;
@@ -70,7 +76,7 @@ using rtype::plugins::transform::Transform;
 namespace {
 constexpr float kWidth = 1280.0F;
 constexpr float kHeight = 720.0F;
-constexpr graphics::Color kClear{0.02F, 0.02F, 0.04F, 1.0F};
+constexpr rtype::contract::renderer::Color kClear{0.02F, 0.02F, 0.04F, 1.0F};
 
 // The atlas: six 63x48 frames, 2 pixels apart, played at 12 frames per second.
 constexpr glm::vec2 kFrameSize{63.0F, 48.0F};
@@ -216,11 +222,16 @@ int main(int argc, char** argv) {
     try {
         const Options options = parseOptions({argv, static_cast<std::size_t>(argc)});
         auto registry = std::make_unique<BackendRegistry>();
-        rtype::platform::glfw::registerPlatform(*registry);
-        render::vulkan::registerRenderer(*registry);
+        rtype::platform::glfw::registerPlatform(registry->platforms);
+        render::vulkan::registerRenderer(registry->renderers);
 
         ecs::App app;
-        app.addPlugins(ecs::MinimalPlugins{}).addPlugin(BackendPlugin{std::move(registry), makeSettings(options)});
+        app.addPlugins(ecs::MinimalPlugins{})
+            .addPlugin(rtype::plugins::input::InputPlugin{})
+            .addPlugin(GraphicsPlugin{std::move(registry), makeSettings(options)})
+            .addPlugin(rtype::plugins::shader::ShaderPlugin{})
+            .addPlugin(rtype::plugins::sprite::SpritePlugin{})
+            .addPlugin(rtype::plugins::sprite::SpriteDrawPlugin{});
         app.insertResource(ClearColor{.value = kClear});
         app.insertResource(Measure{.count = options.count, .seconds = options.seconds});
         app.addSystem(ecs::Phase::kStartup, "example.spawnSprites", &spawnSprites);

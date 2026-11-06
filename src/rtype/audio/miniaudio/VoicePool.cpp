@@ -16,14 +16,14 @@
 #include <utility>
 
 #include "audio/miniaudio/core/Sound.hpp"
-#include "plugins/audio/AudioTypes.hpp"
+#include "rtype/contract/audiodevice/AudioTypes.hpp"
 
 namespace rtype::audio::miniaudio {
 
 VoicePool::VoicePool(std::uint32_t maxVoices) : _maxVoices{maxVoices} {}
 
-plugins::audio::VoiceId VoicePool::add(std::unique_ptr<core::Sound> voice, plugins::audio::SoundId sound,
-                                       plugins::audio::Bus bus) {
+contract::audiodevice::VoiceId VoicePool::add(std::unique_ptr<core::Sound> voice, contract::audiodevice::SoundId sound,
+                                              contract::audiodevice::Bus bus) {
     const std::optional<std::size_t> index = takeSlot();
     if (!index || ma_sound_start(voice->get()) != MA_SUCCESS) {
         return {};
@@ -37,17 +37,17 @@ plugins::audio::VoiceId VoicePool::add(std::unique_ptr<core::Sound> voice, plugi
     return {.index = static_cast<std::uint32_t>(*index), .generation = slot.generation};
 }
 
-core::Sound* VoicePool::find(plugins::audio::VoiceId voice) noexcept {
+core::Sound* VoicePool::find(contract::audiodevice::VoiceId voice) noexcept {
     const Slot* slot = findSlot(voice);
     return slot != nullptr && !slot->stopping ? slot->voice.get() : nullptr;
 }
 
-bool VoicePool::isPlaying(plugins::audio::VoiceId voice) const noexcept {
+bool VoicePool::isPlaying(contract::audiodevice::VoiceId voice) const noexcept {
     const Slot* slot = findSlot(voice);
     return slot != nullptr && !slot->stopping && ma_sound_at_end(slot->voice->get()) == MA_FALSE;
 }
 
-void VoicePool::stop(plugins::audio::VoiceId voice, float fadeOut) {
+void VoicePool::stop(contract::audiodevice::VoiceId voice, float fadeOut) {
     Slot* slot = findSlot(voice);
     if (slot == nullptr || slot->stopping) {
         return;
@@ -61,7 +61,7 @@ void VoicePool::stop(plugins::audio::VoiceId voice, float fadeOut) {
     }
 }
 
-void VoicePool::stopSound(plugins::audio::SoundId sound) noexcept {
+void VoicePool::stopSound(contract::audiodevice::SoundId sound) noexcept {
     for (Slot& slot : _slots) {
         if (slot.voice && slot.sound == sound) {
             slot.voice.reset();
@@ -88,7 +88,7 @@ void VoicePool::update() noexcept {
     }
 }
 
-VoicePool::Slot* VoicePool::findSlot(plugins::audio::VoiceId voice) noexcept {
+VoicePool::Slot* VoicePool::findSlot(contract::audiodevice::VoiceId voice) noexcept {
     if (voice.index >= _slots.size()) {
         return nullptr;
     }
@@ -96,7 +96,7 @@ VoicePool::Slot* VoicePool::findSlot(plugins::audio::VoiceId voice) noexcept {
     return slot.voice && slot.generation == voice.generation ? &slot : nullptr;
 }
 
-const VoicePool::Slot* VoicePool::findSlot(plugins::audio::VoiceId voice) const noexcept {
+const VoicePool::Slot* VoicePool::findSlot(contract::audiodevice::VoiceId voice) const noexcept {
     if (voice.index >= _slots.size()) {
         return nullptr;
     }
@@ -111,7 +111,7 @@ std::optional<std::size_t> VoicePool::takeSlot() {
         if (!slot.voice) {
             return index;
         }
-        if (slot.bus != plugins::audio::Bus::kMusic &&
+        if (slot.bus != contract::audiodevice::Bus::kMusic &&
             (!oldestEffect || slot.startedAt < _slots.at(*oldestEffect).startedAt)) {
             oldestEffect = index;
         }

@@ -21,14 +21,14 @@
 #include "ShaderLayout.hpp"
 #include "SpriteBatch.hpp"
 #include "glyph.frag.h"
-#include "plugins/backend/graphics/CameraView.hpp"
-#include "plugins/backend/graphics/Shader.hpp"
 #include "render/vulkan/core/Device.hpp"
 #include "render/vulkan/memory/Allocator.hpp"
 #include "render/vulkan/memory/Buffer.hpp"
 #include "render/vulkan/pipeline/GraphicsPipeline.hpp"
 #include "render/vulkan/pipeline/PipelineLayout.hpp"
 #include "render/vulkan/pipeline/ShaderCache.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
+#include "rtype/contract/renderer/view/CameraView.hpp"
 #include "sprite.frag.h"
 #include "sprite.vert.h"
 
@@ -44,7 +44,7 @@ constexpr std::uint32_t kValuesBinding = 1;
 /// @brief First location of the instance values: four vec4, after the SpriteInstance's seven attributes.
 constexpr std::uint32_t kValuesLocation = 7;
 /// @brief Bytes of one instance's values: four vec4.
-constexpr std::size_t kValuesSize = sizeof(plugins::backend::graphics::ShaderInstanceValues);
+constexpr std::size_t kValuesSize = sizeof(contract::renderer::ShaderInstanceValues);
 
 /// @return A pipeline of the default shader: sprite.vert and @p fragment (sprite.frag or glyph.frag).
 pipeline::GraphicsPipeline createPipeline(const core::Device& device, const vk::raii::ShaderModule& fragment,
@@ -89,7 +89,7 @@ pipeline::GraphicsPipeline SpritePass::createMaterialPipeline(
     }
     if (instanceValues) {
         bindings.emplace_back(kValuesBinding, static_cast<std::uint32_t>(kValuesSize), vk::VertexInputRate::eInstance);
-        for (std::uint32_t vector = 0; vector < plugins::backend::graphics::ShaderInstanceValues{}.size(); ++vector) {
+        for (std::uint32_t vector = 0; vector < contract::renderer::ShaderInstanceValues{}.size(); ++vector) {
             attributes.emplace_back(kValuesLocation + vector, kValuesBinding, vk::Format::eR32G32B32A32Sfloat,
                                     vector * static_cast<std::uint32_t>(sizeof(glm::vec4)));
         }
@@ -110,7 +110,7 @@ void SpritePass::upload(std::size_t frameIndex, const SpriteBatch& batch) {
     }
     reserve(_buffers.at(frameIndex), instances.size(), sizeof(SpriteInstance), "Sprite instances")
         .write(std::as_bytes(instances));
-    const std::span<const plugins::backend::graphics::ShaderInstanceValues> values = batch.getInstanceValues();
+    const std::span<const contract::renderer::ShaderInstanceValues> values = batch.getInstanceValues();
     if (!values.empty()) {
         reserve(_values.at(frameIndex), values.size(), kValuesSize, "Sprite instance values")
             .write(std::as_bytes(values));
@@ -118,9 +118,8 @@ void SpritePass::upload(std::size_t frameIndex, const SpriteBatch& batch) {
 }
 
 void SpritePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
-                        std::span<const SpriteBatch::Batch> batches,
-                        const plugins::backend::graphics::Viewport& viewport, const TextureSetFinder& findTextureSet,
-                        const MaterialFinder& findMaterial) {
+                        std::span<const SpriteBatch::Batch> batches, const contract::renderer::Viewport& viewport,
+                        const TextureSetFinder& findTextureSet, const MaterialFinder& findMaterial) {
     const std::optional<memory::Buffer>& buffer = _buffers.at(frameIndex);
     if (batches.empty() || !buffer || viewport.size.x <= 0.0F || viewport.size.y <= 0.0F) {
         return;
@@ -141,14 +140,14 @@ void SpritePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_
         if (!set) {
             continue;
         }
-        MaterialBinding material = range.material != plugins::backend::graphics::MaterialId{}
+        MaterialBinding material = range.material != contract::renderer::MaterialId{}
                                        ? findMaterial(range.material, range.target)
                                        : MaterialBinding{};
         if (material.instanceValues && !values) {
             material = MaterialBinding{};
         }
         const pipeline::GraphicsPipeline& fallback =
-            range.target == plugins::backend::graphics::ShaderTarget::kGlyph ? _glyphPipeline : _pipeline;
+            range.target == contract::renderer::ShaderTarget::kGlyph ? _glyphPipeline : _pipeline;
         const pipeline::GraphicsPipeline& drawn = material.pipeline != nullptr ? *material.pipeline : fallback;
         if (bound != &drawn) {
             drawn.bind(commandBuffer);

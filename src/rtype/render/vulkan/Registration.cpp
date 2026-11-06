@@ -19,8 +19,8 @@
 #include "VulkanRenderer.hpp"
 #include "core/config/Settings.hpp"
 #include "core/config/exceptions/ConfigExceptions.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/graphics/IRenderer.hpp"
+#include "rtype/contract/renderer/IRenderer.hpp"
+#include "rtype/contract/renderer/RendererRegistry.hpp"
 
 namespace rtype::render::vulkan {
 
@@ -132,12 +132,11 @@ VulkanRenderer::Config toConfig(const rtype::core::config::Settings& settings) {
 
 }  // namespace
 
-void registerRenderer(plugins::backend::BackendRegistry& registry) {
-    registry.addRenderer(
-        "vulkan",
-        [](const rtype::core::config::Settings& settings) -> std::unique_ptr<plugins::backend::graphics::IRenderer> {
-            return std::make_unique<VulkanRenderer>(toConfig(settings));
-        });
+void registerRenderer(contract::renderer::RendererRegistry& registry) {
+    registry.add("vulkan",
+                 [](const rtype::core::config::Settings& settings) -> std::unique_ptr<contract::renderer::IRenderer> {
+                     return std::make_unique<VulkanRenderer>(toConfig(settings));
+                 });
 }
 
 }  // namespace rtype::render::vulkan

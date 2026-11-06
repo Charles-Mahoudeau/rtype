@@ -15,18 +15,19 @@
 #include "core/config/Settings.hpp"
 #include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
 #include "plugins/audio/AudioEvents.hpp"
+#include "plugins/audio/AudioReflection.hpp"  // IWYU pragma: keep
 #include "plugins/audio/AudioRegistry.hpp"
-#include "plugins/audio/AudioTypes.hpp"
 #include "plugins/audio/AudioVolumes.hpp"
-#include "plugins/audio/IAudioDevice.hpp"
+#include "rtype/contract/audiodevice/AudioTypes.hpp"
+#include "rtype/contract/audiodevice/IAudioDevice.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
 namespace rtype::plugins::audio {
 /// @brief The voice an AudioSource plays, kept by the audio plugin.
 struct SourceVoice {
-    VoiceId voice;               ///< Stale once a one-shot source ended.
-    core::asset::AssetId sound;  ///< The sound it was started with: another one restarts the voice.
+    contract::audiodevice::VoiceId voice;  ///< Stale once a one-shot source ended.
+    core::asset::AssetId sound;            ///< The sound it was started with: another one restarts the voice.
 };
 
 /// @brief The started audio device and what the audio plugin plays on it, as the main-thread resource "rtype.Audio":
@@ -41,20 +42,20 @@ struct Audio {
     Audio(Audio&& other) noexcept = default;
     Audio& operator=(Audio&& other) noexcept = default;
 
-    std::unique_ptr<IAudioDevice> device;                  ///< The backend the config names.
-    float panDistance{400.0F};                             ///< From AudioConfig.
-    std::unordered_map<ecs::Entity, SourceVoice> sources;  ///< The voice of each AudioSource that started.
-    VoiceId music;                                         ///< The current music track.
-    std::optional<PlayMusic> pendingMusic;                 ///< A PlayMusic waiting for its sound to load.
-    std::optional<AudioVolumes> appliedVolumes;            ///< The volumes the device has; none before the first.
+    std::unique_ptr<contract::audiodevice::IAudioDevice> device;  ///< The backend the config names.
+    float panDistance{400.0F};                                    ///< From AudioConfig.
+    std::unordered_map<ecs::Entity, SourceVoice> sources;         ///< The voice of each AudioSource that started.
+    contract::audiodevice::VoiceId music;                         ///< The current music track.
+    std::optional<PlayMusic> pendingMusic;                        ///< A PlayMusic waiting for its sound to load.
+    std::optional<plugins::audio::AudioVolumes> appliedVolumes;  ///< The volumes the device has; none before the first.
 };
 RTYPE_ECS_RESOURCE(Audio, "rtype.Audio");
 
 /// @brief What the Startup system needs to create the device: the registered backends, and the configuration naming
 /// the one to start. Inserted by AudioPlugin::build(), which opens nothing itself.
 struct AudioSetup {
-    std::unique_ptr<AudioRegistry> registry;  ///< The backends by name.
-    core::config::Settings settings;          ///< `audio`, and a section per backend.
+    std::unique_ptr<plugins::audio::AudioRegistry> registry;  ///< The backends by name.
+    core::config::Settings settings;                          ///< `audio`, and a section per backend.
 };
 RTYPE_ECS_RESOURCE(AudioSetup, "rtype.AudioSetup");
 }  // namespace rtype::plugins::audio

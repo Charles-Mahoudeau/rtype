@@ -11,6 +11,7 @@
 #include <unordered_map>
 
 #include "Transform.hpp"
+#include "plugins/transform/Export.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
 
@@ -24,7 +25,7 @@ namespace rtype::plugins::transform {
 /// }
 /// const rtype::plugins::transform::GlobalTransform turret = poses.of(entity);
 /// @endcode
-class WorldPoses {
+class RTYPE_PLUGIN_TRANSFORM_API WorldPoses {
   public:
     WorldPoses() = default;
     ~WorldPoses() = default;

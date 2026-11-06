@@ -15,7 +15,8 @@
 #include <string>
 #include <vector>
 
-#include "plugins/backend/math/Rect.hpp"
+#include "plugins/sprite/Export.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 
 namespace rtype::plugins::sprite::detail {
 
@@ -23,8 +24,8 @@ namespace rtype::plugins::sprite::detail {
 struct PackedImages {
     /// @brief Where one image went.
     struct Placement {
-        std::string name;            ///< The image file's stem.
-        backend::math::Rect source;  ///< Its rectangle in the packed image, in pixels.
+        std::string name;                       ///< The image file's stem.
+        contract::renderer::math::Rect source;  ///< Its rectangle in the packed image, in pixels.
     };
 
     glm::uvec2 size{0};                 ///< Of the packed image, in pixels.
@@ -40,6 +41,7 @@ inline constexpr std::uint32_t kMaxPackedSize = 4096;
 /// never bleeds one into its neighbour.
 /// @throws exceptions::AtlasException If there is no image, one cannot be decoded, two share a stem, or they do not fit
 /// in kMaxPackedSize x kMaxPackedSize.
-[[nodiscard]] PackedImages packImages(std::span<const std::filesystem::path> images, std::uint32_t padding);
+[[nodiscard]] RTYPE_PLUGIN_SPRITE_API PackedImages packImages(std::span<const std::filesystem::path> images,
+                                                              std::uint32_t padding);
 
 }  // namespace rtype::plugins::sprite::detail

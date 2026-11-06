@@ -20,6 +20,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "plugins/physics/Export.hpp"
+
 namespace rtype::plugins::physics::detail {
 
 /// @brief Records the contacts Jolt reports during a step, as one start and one end per pair of bodies.
@@ -29,7 +31,7 @@ namespace rtype::plugins::physics::detail {
 /// bodies counts them and only reports its first and last. A pair whose body is destroyed is forgotten without an end.
 /// Jolt also removes the contacts of a body that falls asleep, and adds them back when it wakes up, while the bodies
 /// still touch: the end of a pair is only decided by settle(), after the step, which keeps a sleeping pair silently.
-class ContactCollector final : public JPH::ContactListener {
+class RTYPE_PLUGIN_PHYSICS_API ContactCollector final : public JPH::ContactListener {
   public:
     /// @brief A contact that started or ended during the step, as Jolt reported it.
     struct ContactEvent {

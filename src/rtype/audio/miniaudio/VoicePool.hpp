@@ -14,7 +14,8 @@
 #include <vector>
 
 #include "audio/miniaudio/core/Sound.hpp"
-#include "plugins/audio/AudioTypes.hpp"
+#include "rtype/audio/miniaudio/Export.hpp"
+#include "rtype/contract/audiodevice/AudioTypes.hpp"
 
 namespace rtype::audio::miniaudio {
 /// @brief The voices playing: a table of slots, each holding one core::Sound, handed out as generational VoiceIds.
@@ -22,7 +23,7 @@ namespace rtype::audio::miniaudio {
 /// after its voice ended never controls the next one: every call on a stale id does nothing. Ended voices are reclaimed
 /// by update(), on the main thread: no callback comes from miniaudio's audio thread. Beyond maxVoices, the oldest
 /// effect is stolen; music never is.
-class VoicePool {
+class RTYPE_AUDIO_MINIAUDIO_API VoicePool {
   public:
     /// @param maxVoices Voices playing at once, from AudioConfig.
     explicit VoicePool(std::uint32_t maxVoices);
@@ -37,20 +38,20 @@ class VoicePool {
     /// @param sound The sound it plays, for stopSound().
     /// @param bus Its bus: a music voice is never stolen.
     /// @return Its id, or a stale id if every slot holds music, or if it cannot start.
-    plugins::audio::VoiceId add(std::unique_ptr<core::Sound> voice, plugins::audio::SoundId sound,
-                                plugins::audio::Bus bus);
+    contract::audiodevice::VoiceId add(std::unique_ptr<core::Sound> voice, contract::audiodevice::SoundId sound,
+                                       contract::audiodevice::Bus bus);
 
     /// @return The sound of the voice @p voice names, or nullptr if it is stale (ended, stopped, never handed out).
-    [[nodiscard]] core::Sound* find(plugins::audio::VoiceId voice) noexcept;
+    [[nodiscard]] core::Sound* find(contract::audiodevice::VoiceId voice) noexcept;
 
     /// @return False once the voice has ended or been stopped, even while it fades out.
-    [[nodiscard]] bool isPlaying(plugins::audio::VoiceId voice) const noexcept;
+    [[nodiscard]] bool isPlaying(contract::audiodevice::VoiceId voice) const noexcept;
 
     /// @brief Stops the voice: at once, or fading out over @p fadeOut seconds, its slot being reclaimed by update().
-    void stop(plugins::audio::VoiceId voice, float fadeOut);
+    void stop(contract::audiodevice::VoiceId voice, float fadeOut);
 
     /// @brief Stops and frees every voice playing @p sound, before the sound itself is destroyed.
-    void stopSound(plugins::audio::SoundId sound) noexcept;
+    void stopSound(contract::audiodevice::SoundId sound) noexcept;
 
     /// @brief Frees every voice.
     void clear() noexcept;
@@ -61,19 +62,19 @@ class VoicePool {
   private:
     /// @brief One slot of the table.
     struct Slot {
-        std::uint32_t generation{0};         ///< Of the voice in the slot; 0 is never handed out.
-        plugins::audio::SoundId sound;       ///< The sound it plays.
-        plugins::audio::Bus bus{};           ///< Music is never stolen.
-        std::uint64_t startedAt{0};          ///< Start order, to steal the oldest effect.
-        bool stopping{false};                ///< Fading out after stop(): no longer playing for the plugin.
-        std::unique_ptr<core::Sound> voice;  ///< The voice; null when the slot is free.
+        std::uint32_t generation{0};           ///< Of the voice in the slot; 0 is never handed out.
+        contract::audiodevice::SoundId sound;  ///< The sound it plays.
+        contract::audiodevice::Bus bus{};      ///< Music is never stolen.
+        std::uint64_t startedAt{0};            ///< Start order, to steal the oldest effect.
+        bool stopping{false};                  ///< Fading out after stop(): no longer playing for the plugin.
+        std::unique_ptr<core::Sound> voice;    ///< The voice; null when the slot is free.
     };
 
     /// @return The slot @p voice names, or nullptr if it is stale.
-    [[nodiscard]] Slot* findSlot(plugins::audio::VoiceId voice) noexcept;
+    [[nodiscard]] Slot* findSlot(contract::audiodevice::VoiceId voice) noexcept;
 
     /// @return The slot @p voice names, or nullptr if it is stale.
-    [[nodiscard]] const Slot* findSlot(plugins::audio::VoiceId voice) const noexcept;
+    [[nodiscard]] const Slot* findSlot(contract::audiodevice::VoiceId voice) const noexcept;
 
     /// @return The index of a free slot, a new one, or the oldest effect's (freed); nothing if every slot is music.
     [[nodiscard]] std::optional<std::size_t> takeSlot();

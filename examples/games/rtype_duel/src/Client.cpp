@@ -30,8 +30,8 @@
 #include "platform/glfw/Registration.hpp"
 #include "plugins/audio/AudioPlugin.hpp"
 #include "plugins/audio/AudioRegistry.hpp"
-#include "plugins/backend/BackendPlugin.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
+#include "plugins/graphics/BackendRegistry.hpp"
+#include "plugins/graphics/GraphicsPlugin.hpp"
 #include "plugins/physics/debug/PhysicsDebugPlugin.hpp"
 #include "plugins/physics/debug/PhysicsDebugSettings.hpp"
 #include "render/vulkan/Registration.hpp"
@@ -83,7 +83,7 @@ void setupClient(engine::Engine& engine) {
     app.addSystem(ecs::Phase::kUpdate, "game.dressEntities", &dressEntities).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kUpdate, "game.placeObstacles", &placeObstacles).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kRender, "game.drawObstacles", &drawObstacles)
-        .after(std::string{plugins::backend::BackendPlugin::kSpritesSystem})
+        .after(std::string{plugins::graphics::GraphicsPlugin::kSpritesSystem})
         .before(std::string{plugins::physics::debug::PhysicsDebugPlugin::kDrawSystem})
         .setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kUpdate, "game.followShips", &followShips).setSide(ecs::Side::kClient);

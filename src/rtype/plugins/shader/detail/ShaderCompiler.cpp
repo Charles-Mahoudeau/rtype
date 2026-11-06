@@ -20,10 +20,10 @@
 #include <string_view>
 #include <vector>
 
-#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/shader/detail/ShaderAssembler.hpp"
 #include "plugins/shader/detail/ShaderParser.hpp"
 #include "plugins/shader/exceptions/ShaderExceptions.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::plugins::shader::detail {
 
@@ -71,15 +71,15 @@ EShLanguage toGlslang(ShaderStage stage) noexcept {
 }
 
 /// @return The name of @p target, for messages.
-std::string_view nameOf(backend::graphics::ShaderTarget target) noexcept {
+std::string_view nameOf(contract::renderer::ShaderTarget target) noexcept {
     switch (target) {
-        case backend::graphics::ShaderTarget::kGlyph:
+        case contract::renderer::ShaderTarget::kGlyph:
             return "glyph";
-        case backend::graphics::ShaderTarget::kParticle:
+        case contract::renderer::ShaderTarget::kParticle:
             return "particle";
-        case backend::graphics::ShaderTarget::kShape:
+        case contract::renderer::ShaderTarget::kShape:
             return "shape";
-        case backend::graphics::ShaderTarget::kSprite:
+        case contract::renderer::ShaderTarget::kSprite:
             break;
     }
     return "sprite";
@@ -116,27 +116,27 @@ std::vector<std::uint32_t> compileStage(std::string_view glsl, ShaderStage stage
     return {spirv.begin(), spirv.end()};
 }
 
-backend::graphics::CompiledShader compileShader(std::string_view source, std::string_view name,
-                                                std::span<const backend::graphics::ShaderTarget> targets) {
+contract::renderer::CompiledShader compileShader(std::string_view source, std::string_view name,
+                                                 std::span<const contract::renderer::ShaderTarget> targets) {
     const ParsedShader parsed = parseShader(source, name);
-    backend::graphics::CompiledShader shader{.name = std::string{name},
-                                             .materialSize = parsed.materialSize,
-                                             .materialDefaults = parsed.materialDefaults,
-                                             .instanceDefaults = parsed.instanceDefaults,
-                                             .textures = parsed.textures};
+    contract::renderer::CompiledShader shader{.name = std::string{name},
+                                              .materialSize = parsed.materialSize,
+                                              .materialDefaults = parsed.materialDefaults,
+                                              .instanceDefaults = parsed.instanceDefaults,
+                                              .textures = parsed.textures};
     for (const DeclaredValue& declared : parsed.materialValues) {
         shader.materialValues.push_back(declared.value);
     }
     for (const DeclaredValue& declared : parsed.instanceValues) {
         shader.instanceValues.push_back(declared.value);
     }
-    for (const backend::graphics::ShaderTarget target : targets) {
+    for (const contract::renderer::ShaderTarget target : targets) {
         const auto compile = [&](ShaderStage stage) {
             const std::string what = std::format("Shader '{}' ({} {})", name, nameOf(target),
                                                  stage == ShaderStage::kVertex ? "vertex" : "fragment");
             return compileStage(assembleShader(parsed, target, stage), stage, what);
         };
-        shader.variants.push_back(backend::graphics::ShaderVariant{
+        shader.variants.push_back(contract::renderer::ShaderVariant{
             .target = target, .vertex = compile(ShaderStage::kVertex), .fragment = compile(ShaderStage::kFragment)});
     }
     return shader;

@@ -11,17 +11,16 @@
 
 #include "GlfwPlatform.hpp"
 #include "core/config/Settings.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/platform/IPlatform.hpp"
+#include "rtype/contract/platform/IPlatform.hpp"
+#include "rtype/contract/platform/PlatformRegistry.hpp"
 
 namespace rtype::platform::glfw {
 
-void registerPlatform(plugins::backend::BackendRegistry& registry) {
-    registry.addPlatform(
-        "glfw", [](const core::config::Settings& settings) -> std::unique_ptr<plugins::backend::platform::IPlatform> {
-            settings.checkKeys({}, "glfw");
-            return std::make_unique<GlfwPlatform>();
-        });
+void registerPlatform(contract::platform::PlatformRegistry& registry) {
+    registry.add("glfw", [](const core::config::Settings& settings) -> std::unique_ptr<contract::platform::IPlatform> {
+        settings.checkKeys({}, "glfw");
+        return std::make_unique<GlfwPlatform>();
+    });
 }
 
 }  // namespace rtype::platform::glfw

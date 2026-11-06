@@ -12,8 +12,8 @@
 #include <cstdint>
 #include <limits>
 
-#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "plugins/particle/ParticleSystems.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 
 namespace rtype::plugins::particle {
 namespace {
@@ -24,14 +24,14 @@ namespace {
 constexpr float kRateTolerance = 1e-3F;
 
 /// @return The particles the bursts of @p desc emit at the moments in [@p start, @p end).
-std::uint64_t countBursts(const backend::graphics::ParticleSystemDesc& desc, float start, float end) {
+std::uint64_t countBursts(const contract::renderer::ParticleSystemDesc& desc, float start, float end) {
     const float duration = desc.duration;
     const auto firstCycle = desc.loop ? static_cast<std::uint64_t>(std::floor(start / duration)) : 0U;
     const auto lastCycle = desc.loop ? static_cast<std::uint64_t>(std::floor(end / duration)) : 0U;
     std::uint64_t count = 0;
     for (std::uint64_t cycle = firstCycle; cycle <= lastCycle; ++cycle) {
         const float cycleStart = static_cast<float>(cycle) * duration;
-        for (const backend::graphics::ParticleBurst& burst : desc.bursts) {
+        for (const contract::renderer::ParticleBurst& burst : desc.bursts) {
             for (std::uint32_t i = 0; i < burst.cycles; ++i) {
                 const float local = burst.time + (static_cast<float>(i) * burst.interval);
                 if (local >= duration) {
@@ -49,7 +49,7 @@ std::uint64_t countBursts(const backend::graphics::ParticleSystemDesc& desc, flo
 
 }  // namespace
 
-std::uint32_t computeSpawnCount(const backend::graphics::ParticleSystemDesc& desc, float rateScale, float deltaTime,
+std::uint32_t computeSpawnCount(const contract::renderer::ParticleSystemDesc& desc, float rateScale, float deltaTime,
                                 EmitterState& state) {
     const float start = state.time;
     const float end = start + std::max(deltaTime, 0.0F);
@@ -65,7 +65,7 @@ std::uint32_t computeSpawnCount(const backend::graphics::ParticleSystemDesc& des
     return static_cast<std::uint32_t>(std::min<std::uint64_t>(count, std::numeric_limits<std::uint32_t>::max()));
 }
 
-bool isEmissionOver(const backend::graphics::ParticleSystemDesc& desc, float time) noexcept {
+bool isEmissionOver(const contract::renderer::ParticleSystemDesc& desc, float time) noexcept {
     return !desc.loop && time >= desc.duration;
 }
 

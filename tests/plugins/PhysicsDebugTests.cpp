@@ -15,11 +15,7 @@
 #include <vector>
 
 #include "FakeBackend.hpp"
-#include "plugins/backend/BackendPlugin.hpp"
-#include "plugins/backend/event/Event.hpp"
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/Shape.hpp"
-#include "plugins/backend/input/Key.hpp"
+#include "plugins/graphics/GraphicsPlugin.hpp"
 #include "plugins/physics/Collider.hpp"
 #include "plugins/physics/PhysicsHandle.hpp"
 #include "plugins/physics/PhysicsPlugin.hpp"
@@ -31,6 +27,10 @@
 #include "plugins/physics/debug/PhysicsDebugSettings.hpp"
 #include "plugins/physics/debug/PhysicsDebugShapes.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "rtype/contract/platform/event/Event.hpp"
+#include "rtype/contract/platform/input/Key.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Shape.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/change/Mut.hpp"
 #include "rtype/ecs/component/Components.hpp"
@@ -39,10 +39,10 @@
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/time/Time.hpp"
 
+using rtype::contract::renderer::Color;
+using rtype::contract::renderer::Shape;
+using rtype::contract::renderer::ShapeKind;
 using rtype::ecs::Entity;
-using rtype::plugins::backend::graphics::Color;
-using rtype::plugins::backend::graphics::Shape;
-using rtype::plugins::backend::graphics::ShapeKind;
 using rtype::plugins::physics::Collider;
 using rtype::plugins::physics::ShapeType;
 using rtype::plugins::physics::Velocity;
@@ -56,15 +56,15 @@ namespace {
 constexpr float kTolerance = 1e-4F;
 constexpr Color kRed{1.0F, 0.0F, 0.0F, 1.0F};
 
-/// @brief A client App with the BackendPlugin over the fake renderer and the PhysicsDebugPlugin.
+/// @brief A client App with the GraphicsPlugin over the fake renderer and the PhysicsDebugPlugin.
 struct DebugApp {
     std::shared_ptr<rtype::test::plugins::FakeBackendState> state =
         std::make_shared<rtype::test::plugins::FakeBackendState>();  ///< Drives the fakes, records the shapes.
     rtype::ecs::App app{rtype::ecs::RunMode::kClient};               ///< The App under test.
 
     DebugApp() {
-        app.addPlugin(rtype::plugins::backend::BackendPlugin{rtype::test::plugins::makeFakeRegistry(state),
-                                                             rtype::test::plugins::makeFakeSettings()});
+        rtype::test::plugins::addDrawingPlugins(app, rtype::test::plugins::makeFakeRegistry(state),
+                                                rtype::test::plugins::makeFakeSettings());
         app.addPlugin(PhysicsDebugPlugin{});
     }
 
@@ -200,20 +200,23 @@ TEST(PhysicsDebugPlugin, TheToggleKeyFlipsTheDrawing) {
     ASSERT_EQ(fixture.frame().size(), 1U);
 
     fixture.state->frames.push_back(
-        {rtype::plugins::backend::event::KeyPressed{.key = rtype::plugins::backend::input::Key::kF3}});
+        {rtype::contract::platform::event::KeyPressed{.key = rtype::contract::platform::input::Key::kF3}});
     EXPECT_TRUE(fixture.frame().empty());  // F3: off.
 
-    fixture.state->frames.push_back(
-        {rtype::plugins::backend::event::KeyPressed{.key = rtype::plugins::backend::input::Key::kF3, .repeat = true}});
+    fixture.state->frames.push_back({rtype::contract::platform::event::KeyPressed{
+        .key = rtype::contract::platform::input::Key::kF3, .repeat = true}});
     EXPECT_TRUE(fixture.frame().empty());  // An auto-repeat does not flip it back.
 
     fixture.state->frames.push_back(
-        {rtype::plugins::backend::event::KeyPressed{.key = rtype::plugins::backend::input::Key::kF3}});
+        {rtype::contract::platform::event::KeyPressed{.key = rtype::contract::platform::input::Key::kF3}});
     EXPECT_EQ(fixture.frame().size(), 1U);  // F3 again: on.
 }
 
 TEST(PhysicsDebugPlugin, AddingPhysicsDebugNeverRebuildsTheBody) {
     rtype::ecs::App app;
+    rtype::test::plugins::addDrawingPlugins(
+        app, rtype::test::plugins::makeFakeRegistry(std::make_shared<rtype::test::plugins::FakeBackendState>()),
+        rtype::test::plugins::makeFakeSettings());
     app.addPlugin(rtype::plugins::physics::PhysicsPlugin{rtype::plugins::physics::PhysicsSettings{
         .maxBodies = 8, .maxBodyPairs = 8, .maxContactConstraints = 8, .tempAllocatorBytes = 1024 * 1024}});
     app.addPlugin(PhysicsDebugPlugin{});

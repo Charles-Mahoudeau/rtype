@@ -30,10 +30,7 @@
 #include "rtype/engine/scripting/SettingsLoader.hpp"
 #include "rtype/network/NetworkSettings.hpp"
 #include "rtype/network/io/Address.hpp"
-#include "rtype/plugins/audio/AudioPlugin.hpp"
-#include "rtype/plugins/audio/AudioRegistry.hpp"
-#include "rtype/plugins/backend/BackendPlugin.hpp"
-#include "rtype/plugins/backend/BackendRegistry.hpp"
+#include "rtype/plugins/transform/TransformPlugin.hpp"
 #include "rtype/replication/ReplicationPlugin.hpp"
 #include "rtype/replication/ReplicationSettings.hpp"
 #include "rtype/replication/client/ClientPlugin.hpp"
@@ -173,18 +170,9 @@ void Engine::build() {
     const bool server = runsServer(_config.mode);
 
     app.addPlugins(ecs::MinimalPlugins{});
-    if (client) {
-        auto backends = std::make_unique<plugins::backend::BackendRegistry>();
-        auto audio = std::make_unique<plugins::audio::AudioRegistry>();
-
-        if (_config.registerBackends) {
-            _config.registerBackends(*backends);
-        }
-        if (_config.registerAudio) {
-            _config.registerAudio(*audio);
-        }
-        app.addPlugin(plugins::backend::BackendPlugin{std::move(backends), _settings});
-        app.addPlugin(plugins::audio::AudioPlugin{std::move(audio), _settings});
+    app.addPlugin(plugins::transform::TransformPlugin{});
+    if (_config.addPlugins) {
+        _config.addPlugins(app, _settings);
     }
     if (_config.mode != ecs::RunMode::kStandalone) {
         app.addPlugin(replication::ReplicationPlugin{});

@@ -20,10 +20,10 @@
 
 #include "core/asset/AssetFiles.hpp"
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/exceptions/ParticleExceptions.hpp"
-#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "plugins/particle/IParticleEffectLoader.hpp"
 #include "plugins/particle/ParticleEffect.hpp"
+#include "rtype/contract/renderer/exceptions/ParticleExceptions.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 
 namespace rtype::plugins::particle {
 
@@ -68,9 +68,9 @@ core::asset::AssetId ParticleEffectAssets::load(const std::filesystem::path& pat
               [&loader](std::string_view text, const std::filesystem::path& file) {
                   ParticleEffect effect = loader.load(text, file);
                   try {
-                      backend::graphics::validate(effect.desc);
-                  } catch (const backend::exceptions::ParticleException& error) {
-                      throw backend::exceptions::ParticleException{
+                      contract::renderer::validate(effect.desc);
+                  } catch (const contract::renderer::exceptions::ParticleException& error) {
+                      throw contract::renderer::exceptions::ParticleException{
                           std::format("ParticleEffect '{}': {}", core::asset::normalizePath(file), error.what())};
                   }
                   return effect;
@@ -79,7 +79,7 @@ core::asset::AssetId ParticleEffectAssets::load(const std::filesystem::path& pat
 }
 
 core::asset::AssetId ParticleEffectAssets::add(const std::string& name, ParticleEffect effect) {
-    backend::graphics::validate(effect.desc);
+    contract::renderer::validate(effect.desc);
     return _effects.add(name, std::move(effect)).id;
 }
 

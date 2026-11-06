@@ -16,8 +16,9 @@
 
 #include "core/asset/AssetId.hpp"
 #include "core/asset/AssetStore.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
+#include "plugins/sprite/Export.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
 namespace rtype::plugins::sprite {
@@ -35,12 +36,12 @@ namespace rtype::plugins::sprite {
 ///     const rtype::core::asset::AssetId ship = atlases->load("assets/ship.json");
 ///     commands.spawn()
 ///         .add(rtype::plugins::transform::Transform{.position = {100.0F, 300.0F}})
-///         .add(rtype::plugins::backend::SpriteRenderer{})
+///         .add(rtype::plugins::sprite::SpriteRenderer{})
 ///         .add(rtype::plugins::sprite::SpriteAnimator{.atlas = ship,
 ///                                                     .animation = rtype::plugins::sprite::animationId("idle")});
 /// }
 /// @endcode
-class AtlasAssets {
+class RTYPE_PLUGIN_SPRITE_API AtlasAssets {
   public:
     /// @brief One atlas: its file (or the name it was added or packed under), the atlas (nothing if it could not be
     /// built) and why it could not be.
@@ -48,9 +49,9 @@ class AtlasAssets {
 
     /// @brief A texture an atlas needs, for TextureAssets.
     struct TextureRequest {
-        std::string path;                     ///< The image file, or the name of the pixels.
-        backend::graphics::TextureDesc desc;  ///< Filter and repeat mode; the size of the pixels.
-        std::vector<std::byte> pixels;        ///< RGBA pixels of a packed atlas; empty for an image file.
+        std::string path;                      ///< The image file, or the name of the pixels.
+        contract::renderer::TextureDesc desc;  ///< Filter and repeat mode; the size of the pixels.
+        std::vector<std::byte> pixels;         ///< RGBA pixels of a packed atlas; empty for an image file.
     };
 
     AtlasAssets() = default;
@@ -68,7 +69,7 @@ class AtlasAssets {
     /// @param desc How the image is sampled.
     /// @return Its id (AssetId::fromPath()), at once, even if it failed. Asking twice gives the first one.
     /// @throws core::asset::exceptions::AssetLoadException If another path already has this id (a hash collision).
-    core::asset::AssetId load(const std::filesystem::path& path, const backend::graphics::TextureDesc& desc = {});
+    core::asset::AssetId load(const std::filesystem::path& path, const contract::renderer::TextureDesc& desc = {});
 
     /// @brief Adds an atlas built in code (SpriteAtlas::grid(), addFrame(), addAnimation()), known by @p name.
     /// @return Its id (AssetId::fromPath(name)). Adding a name twice keeps the first atlas.
@@ -82,7 +83,7 @@ class AtlasAssets {
     /// @return Its id (AssetId::fromPath(name)), at once, even if it failed. Packing a name twice keeps the first.
     /// @throws core::asset::exceptions::AssetLoadException If another name already has this id (a hash collision).
     core::asset::AssetId pack(const std::string& name, std::span<const std::filesystem::path> images,
-                              std::uint32_t padding = 1, const backend::graphics::TextureDesc& desc = {});
+                              std::uint32_t padding = 1, const contract::renderer::TextureDesc& desc = {});
 
     /// @return The atlas @p id names, or nullptr if it is unknown or failed.
     [[nodiscard]] const SpriteAtlas* get(core::asset::AssetId id) const;

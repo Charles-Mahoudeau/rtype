@@ -5,7 +5,7 @@
 ** shape
 */
 
-// The default shader of shapes, fragment stage: the shaders ABI (plugins/backend/graphics/shaders/) with no game code,
+// The default shader of shapes, fragment stage: the shaders ABI (contract/renderer/shaders/) with no game code,
 // the stage game shaders are assembled in for kShape.
 #version 450
 #extension GL_GOOGLE_include_directive : require

@@ -15,15 +15,14 @@
 #include <vulkan/vulkan_raii.hpp>
 
 #include "Blend.hpp"
-#include "plugins/backend/graphics/Shader.hpp"
-#include "plugins/backend/graphics/Sprite.hpp"
-#include "plugins/backend/graphics/Text.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
+#include "rtype/contract/renderer/drawing/Sprite.hpp"
+#include "rtype/contract/renderer/drawing/Text.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::render::vulkan::rendering {
 
-SpriteInstance SpriteInstance::fromSprite(const plugins::backend::graphics::Sprite& sprite,
-                                          glm::uvec2 textureSize) noexcept {
+SpriteInstance SpriteInstance::fromSprite(const contract::renderer::Sprite& sprite, glm::uvec2 textureSize) noexcept {
     const glm::vec2 sourcePosition{sprite.source.getX(), sprite.source.getY()};
     const glm::vec2 sourceSize{sprite.source.getWidth(), sprite.source.getHeight()};
     const glm::vec2 texture{textureSize};
@@ -40,9 +39,8 @@ SpriteInstance SpriteInstance::fromSprite(const plugins::backend::graphics::Spri
     };
 }
 
-SpriteInstance SpriteInstance::fromGlyph(const plugins::backend::graphics::Text& text,
-                                         const plugins::backend::graphics::GlyphQuad& glyph,
-                                         glm::uvec2 textureSize) noexcept {
+SpriteInstance SpriteInstance::fromGlyph(const contract::renderer::Text& text,
+                                         const contract::renderer::GlyphQuad& glyph, glm::uvec2 textureSize) noexcept {
     const glm::vec2 sourcePosition{glyph.source.getX(), glyph.source.getY()};
     const glm::vec2 sourceSize{glyph.source.getWidth(), glyph.source.getHeight()};
     const glm::vec2 boundsPosition{glyph.bounds.getX(), glyph.bounds.getY()};
@@ -79,35 +77,34 @@ std::array<vk::VertexInputAttributeDescription, 7> SpriteInstance::getAttributes
     };
 }
 
-void SpriteBatch::add(plugins::backend::graphics::TextureId texture, const SpriteInstance& instance) {
-    extend(texture, {}, plugins::backend::graphics::ShaderTarget::kSprite);
+void SpriteBatch::add(contract::renderer::TextureId texture, const SpriteInstance& instance) {
+    extend(texture, {}, contract::renderer::ShaderTarget::kSprite);
     _instances.push_back(instance);
     ++_batches.back().instanceCount;
 }
 
-void SpriteBatch::add(plugins::backend::graphics::TextureId texture, plugins::backend::graphics::MaterialId material,
-                      const SpriteInstance& instance, const plugins::backend::graphics::ShaderInstanceValues& values) {
-    extend(texture, material, plugins::backend::graphics::ShaderTarget::kSprite);
+void SpriteBatch::add(contract::renderer::TextureId texture, contract::renderer::MaterialId material,
+                      const SpriteInstance& instance, const contract::renderer::ShaderInstanceValues& values) {
+    extend(texture, material, contract::renderer::ShaderTarget::kSprite);
     _instances.push_back(instance);
-    if (material != plugins::backend::graphics::MaterialId{}) {
+    if (material != contract::renderer::MaterialId{}) {
         _values.push_back(values);
     }
     ++_batches.back().instanceCount;
 }
 
-void SpriteBatch::addGlyph(plugins::backend::graphics::TextureId texture,
-                           plugins::backend::graphics::MaterialId material, const SpriteInstance& glyph,
-                           const plugins::backend::graphics::ShaderInstanceValues& values) {
-    extend(texture, material, plugins::backend::graphics::ShaderTarget::kGlyph);
+void SpriteBatch::addGlyph(contract::renderer::TextureId texture, contract::renderer::MaterialId material,
+                           const SpriteInstance& glyph, const contract::renderer::ShaderInstanceValues& values) {
+    extend(texture, material, contract::renderer::ShaderTarget::kGlyph);
     _instances.push_back(glyph);
-    if (material != plugins::backend::graphics::MaterialId{}) {
+    if (material != contract::renderer::MaterialId{}) {
         _values.push_back(values);
     }
     ++_batches.back().instanceCount;
 }
 
-void SpriteBatch::extend(plugins::backend::graphics::TextureId texture, plugins::backend::graphics::MaterialId material,
-                         plugins::backend::graphics::ShaderTarget target) {
+void SpriteBatch::extend(contract::renderer::TextureId texture, contract::renderer::MaterialId material,
+                         contract::renderer::ShaderTarget target) {
     if (_batches.empty() || _split || _batches.back().texture != texture || _batches.back().material != material ||
         _batches.back().target != target) {
         _split = false;

@@ -10,16 +10,16 @@
 #include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_float4.hpp>
 
-#include "plugins/backend/exceptions/ParticleExceptions.hpp"
-#include "plugins/backend/graphics/Particle.hpp"
-#include "plugins/backend/graphics/ParticleCurve.hpp"
-#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "render/vulkan/particle/GpuParticleData.hpp"
+#include "rtype/contract/renderer/exceptions/ParticleExceptions.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/particle/ParticleCurve.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 
-using rtype::plugins::backend::graphics::CircleShape;
-using rtype::plugins::backend::graphics::ParticleSpace;
-using rtype::plugins::backend::graphics::ParticleSystemDesc;
-using rtype::plugins::backend::graphics::RectShape;
+using rtype::contract::renderer::CircleShape;
+using rtype::contract::renderer::ParticleSpace;
+using rtype::contract::renderer::ParticleSystemDesc;
+using rtype::contract::renderer::RectShape;
 using rtype::render::vulkan::particle::GpuParticleParams;
 
 TEST(GpuParticleParams, CopiesTheRangesAndForces) {
@@ -63,7 +63,7 @@ TEST(GpuParticleParams, BakesTheCurves) {
     ParticleSystemDesc desc;
     desc.sizeOverLife.keys = {{.t = 0.0F, .value = 2.0F}, {.t = 1.0F, .value = 0.0F}};
     const GpuParticleParams params = GpuParticleParams::fromDesc(desc);
-    EXPECT_EQ(params.sizeOverLife, rtype::plugins::backend::graphics::bakeCurve(desc.sizeOverLife));
+    EXPECT_EQ(params.sizeOverLife, rtype::contract::renderer::bakeCurve(desc.sizeOverLife));
     EXPECT_FLOAT_EQ(params.speedOverLife.front(), 1.0F);
     EXPECT_EQ(params.colorOverLife.back(), (glm::vec4{1.0F}));
 }
@@ -72,5 +72,5 @@ TEST(GpuParticleParams, ThrowsOnAnInvalidCurve) {
     ParticleSystemDesc desc;
     desc.sizeOverLife.keys = {{.t = 2.0F, .value = 1.0F}};
     EXPECT_THROW(static_cast<void>(GpuParticleParams::fromDesc(desc)),
-                 rtype::plugins::backend::exceptions::ParticleException);
+                 rtype::contract::renderer::exceptions::ParticleException);
 }

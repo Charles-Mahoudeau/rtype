@@ -5,7 +5,7 @@
 ** ParticleRandom
 */
 
-// The random numbers of a particle: the GPU side of plugins/backend/graphics/ParticleRandom.hpp, which must match it
+// The random numbers of a particle: the GPU side of rtype/contract/renderer/particle/ParticleRandom.hpp, which must match it
 // value by value so the CPU and GPU simulations draw the same numbers. Change both files together.
 //
 // Use it from a shader with:

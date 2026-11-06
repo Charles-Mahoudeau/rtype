@@ -13,9 +13,10 @@
 #include <span>
 #include <vector>
 
-#include "plugins/backend/graphics/Particle.hpp"
-#include "plugins/backend/graphics/ParticleCurve.hpp"
-#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
+#include "plugins/particle/Export.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/particle/ParticleCurve.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 
 namespace rtype::plugins::particle {
 
@@ -36,11 +37,12 @@ namespace rtype::plugins::particle {
 ///
 /// With ParticleSpace::kLocal, particles keep their position relative to the emitter, and follow it when it moves (not
 /// when it turns); with kWorld, they stay where they were emitted.
-class CpuSimulation {
+class RTYPE_PLUGIN_PARTICLE_API CpuSimulation {
   public:
     /// @brief Bakes the curves of @p desc, and reserves its capacity.
-    /// @throws backend::exceptions::ParticleException If @p desc is invalid (backend::graphics::validate()).
-    explicit CpuSimulation(backend::graphics::ParticleSystemDesc desc);
+    /// @throws contract::renderer::exceptions::ParticleException If @p desc is invalid
+    /// (contract::renderer::validate()).
+    explicit CpuSimulation(contract::renderer::ParticleSystemDesc desc);
     ~CpuSimulation() = default;
     CpuSimulation(const CpuSimulation& other) = default;
     CpuSimulation& operator=(const CpuSimulation& other) = default;
@@ -48,7 +50,7 @@ class CpuSimulation {
     CpuSimulation& operator=(CpuSimulation&& other) noexcept = default;
 
     /// @return The live particles, as they are drawn: valid until the next step() or clear().
-    [[nodiscard]] std::span<const backend::graphics::ParticleInstance> getInstances() const noexcept;
+    [[nodiscard]] std::span<const contract::renderer::ParticleInstance> getInstances() const noexcept;
 
     /// @return The number of live particles.
     [[nodiscard]] std::size_t getCount() const noexcept;
@@ -57,7 +59,7 @@ class CpuSimulation {
     [[nodiscard]] std::uint32_t getCapacity() const noexcept;
 
     /// @brief Advances by one frame: emits, ages, kills and moves the particles, as the class describes.
-    void step(const backend::graphics::ParticleEmission& emission);
+    void step(const contract::renderer::ParticleEmission& emission);
 
     /// @brief Kills every particle at once.
     void clear() noexcept;
@@ -75,10 +77,10 @@ class CpuSimulation {
     };
 
     /// @brief Emits @p emission.spawnCount particles, as many as the capacity leaves room for.
-    void emit(const backend::graphics::ParticleEmission& emission);
+    void emit(const contract::renderer::ParticleEmission& emission);
 
     /// @return Particle @p index of the emitter, born at the emitter of @p emission.
-    [[nodiscard]] Particle spawn(const backend::graphics::ParticleEmission& emission, std::uint32_t index) const;
+    [[nodiscard]] Particle spawn(const contract::renderer::ParticleEmission& emission, std::uint32_t index) const;
 
     /// @return Where particle @p index spawns in the shape, relative to the emitter, before its scale and rotation.
     [[nodiscard]] glm::vec2 pickShapeOffset(std::uint32_t seed, std::uint32_t index) const;
@@ -89,12 +91,12 @@ class CpuSimulation {
     /// @brief Rewrites the drawn instances from the particles, placed at @p emitterPosition for kLocal.
     void writeInstances(glm::vec2 emitterPosition);
 
-    backend::graphics::ParticleSystemDesc _desc;                  ///< What is simulated.
-    backend::graphics::BakedGradient _colorOverLife{};            ///< _desc.colorOverLife, baked.
-    backend::graphics::BakedCurve _sizeOverLife{};                ///< _desc.sizeOverLife, baked.
-    backend::graphics::BakedCurve _speedOverLife{};               ///< _desc.speedOverLife, baked.
-    std::vector<Particle> _particles;                             ///< The live particles, packed.
-    std::vector<backend::graphics::ParticleInstance> _instances;  ///< _particles as drawn, in the same order.
+    contract::renderer::ParticleSystemDesc _desc;                  ///< What is simulated.
+    contract::renderer::BakedGradient _colorOverLife{};            ///< _desc.colorOverLife, baked.
+    contract::renderer::BakedCurve _sizeOverLife{};                ///< _desc.sizeOverLife, baked.
+    contract::renderer::BakedCurve _speedOverLife{};               ///< _desc.speedOverLife, baked.
+    std::vector<Particle> _particles;                              ///< The live particles, packed.
+    std::vector<contract::renderer::ParticleInstance> _instances;  ///< _particles as drawn, in the same order.
 };
 
 }  // namespace rtype::plugins::particle

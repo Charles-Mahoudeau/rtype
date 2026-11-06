@@ -13,11 +13,11 @@
 #include <glm/ext/vector_uint2.hpp>
 
 #include "Blend.hpp"
-#include "plugins/backend/graphics/Particle.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
 
 namespace rtype::render::vulkan::rendering {
 
-ParticleConstants ParticleConstants::fromDraw(const plugins::backend::graphics::ParticleDraw& particles,
+ParticleConstants ParticleConstants::fromDraw(const contract::renderer::ParticleDraw& particles,
                                               glm::uvec2 textureSize) noexcept {
     ParticleConstants constants{.blend = toShaderBlend(particles.blend),
                                 .alignment = static_cast<std::uint32_t>(particles.alignment),

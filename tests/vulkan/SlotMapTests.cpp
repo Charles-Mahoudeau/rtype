@@ -11,12 +11,12 @@
 #include <optional>
 #include <string>
 
-#include "plugins/backend/graphics/Texture.hpp"
 #include "render/vulkan/core/SlotMap.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
 
 namespace {
 
-using TextureId = rtype::plugins::backend::graphics::TextureId;
+using TextureId = rtype::contract::renderer::TextureId;
 using Map = rtype::render::vulkan::core::SlotMap<TextureId, std::string>;
 
 }  // namespace

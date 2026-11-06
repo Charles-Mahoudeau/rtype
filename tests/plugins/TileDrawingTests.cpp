@@ -14,17 +14,17 @@
 #include <numbers>
 #include <optional>
 
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/Sprite.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
-#include "plugins/backend/graphics/VisibleArea.hpp"
+#include "plugins/graphics/VisibleArea.hpp"
 #include "plugins/tilemap/Tilemap.hpp"
 #include "plugins/tilemap/detail/TileDrawing.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Sprite.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
 
-using rtype::plugins::backend::graphics::Color;
-using rtype::plugins::backend::graphics::Sprite;
-using rtype::plugins::backend::graphics::TextureId;
-using rtype::plugins::backend::graphics::VisibleArea;
+using rtype::contract::renderer::Color;
+using rtype::contract::renderer::Sprite;
+using rtype::contract::renderer::TextureId;
+using rtype::plugins::graphics::VisibleArea;
 using rtype::plugins::tilemap::kFlipDiagonal;
 using rtype::plugins::tilemap::kFlipHorizontal;
 using rtype::plugins::tilemap::kFlipVertical;

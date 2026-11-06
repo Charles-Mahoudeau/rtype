@@ -25,9 +25,9 @@
 #include <utility>
 #include <vector>
 
-#include "plugins/backend/graphics/ImageDecoding.hpp"
-#include "plugins/backend/math/Rect.hpp"
+#include "plugins/graphics/ImageDecoding.hpp"
 #include "plugins/sprite/exceptions/SpriteExceptions.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 
 namespace rtype::plugins::sprite::detail {
 
@@ -40,15 +40,15 @@ constexpr std::uint32_t kMinPackedSize = 64;
 
 /// @brief One decoded image.
 struct Decoded {
-    std::string name;             ///< The file's stem.
-    backend::DecodedImage image;  ///< Its pixels.
+    std::string name;              ///< The file's stem.
+    graphics::DecodedImage image;  ///< Its pixels.
 };
 
 /// @return The RGBA pixels of the image file at @p path.
 /// @throws core::asset::exceptions::AssetLoadException If it cannot be read or decoded.
 Decoded decode(const std::filesystem::path& path) {
     return Decoded{.name = path.stem().string(),
-                   .image = backend::decodeImage(path.generic_string(), backend::readFile(path))};
+                   .image = graphics::decodeImage(path.generic_string(), graphics::readFile(path))};
 }
 
 /// @return Where each image goes in a @p size image, @p padding pixels apart, or nothing if they do not all fit.
@@ -96,7 +96,7 @@ PackedImages packImages(std::span<const std::filesystem::path> images, std::uint
             // stbrp_pack_rects() gives the rectangles back in the order they were given: the images' order.
             for (const stbrp_rect& rect : *rects) {
                 const Decoded& decodedImage = decoded.at(static_cast<std::size_t>(rect.id));
-                const backend::DecodedImage& image = decodedImage.image;
+                const graphics::DecodedImage& image = decodedImage.image;
                 const glm::uvec2 corner{static_cast<std::uint32_t>(rect.x), static_cast<std::uint32_t>(rect.y)};
                 const std::size_t rowBytes = image.size.x * kChannels;
                 const std::span<const std::byte> source{image.pixels};
@@ -106,9 +106,9 @@ PackedImages packImages(std::span<const std::filesystem::path> images, std::uint
                         ((static_cast<std::size_t>(corner.y + row) * size.x) + corner.x) * kChannels;
                     std::ranges::copy(line, std::next(packed.pixels.begin(), static_cast<std::ptrdiff_t>(offset)));
                 }
-                packed.placements.push_back(
-                    PackedImages::Placement{.name = decodedImage.name,
-                                            .source = backend::math::Rect{glm::vec2{corner}, glm::vec2{image.size}}});
+                packed.placements.push_back(PackedImages::Placement{
+                    .name = decodedImage.name,
+                    .source = contract::renderer::math::Rect{glm::vec2{corner}, glm::vec2{image.size}}});
             }
             return packed;
         }

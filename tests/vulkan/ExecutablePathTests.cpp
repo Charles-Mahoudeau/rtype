@@ -9,17 +9,17 @@
 
 #include <filesystem>
 
-#include "plugins/backend/system/ExecutablePath.hpp"
+#include "core/system/ExecutablePath.hpp"
 
 TEST(ExecutablePath, IsThisTestBinary) {
-    const std::filesystem::path path = rtype::plugins::backend::system::getExecutablePath();
+    const std::filesystem::path path = rtype::core::system::getExecutablePath();
     EXPECT_TRUE(path.is_absolute());
     EXPECT_TRUE(std::filesystem::is_regular_file(path));
     EXPECT_EQ(path.stem(), "vulkan-tests");  // .exe on Windows.
 }
 
 TEST(ExecutablePath, DirectoryContainsIt) {
-    const std::filesystem::path directory = rtype::plugins::backend::system::getExecutableDirectory();
+    const std::filesystem::path directory = rtype::core::system::getExecutableDirectory();
     EXPECT_TRUE(std::filesystem::is_directory(directory));
-    EXPECT_EQ(directory, rtype::plugins::backend::system::getExecutablePath().parent_path());
+    EXPECT_EQ(directory, rtype::core::system::getExecutablePath().parent_path());
 }

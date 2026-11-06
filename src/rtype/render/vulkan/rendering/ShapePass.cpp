@@ -21,14 +21,14 @@
 #include "ShaderLayout.hpp"
 #include "ShapeBatch.hpp"
 #include "ShapeInstance.hpp"
-#include "plugins/backend/graphics/CameraView.hpp"
-#include "plugins/backend/graphics/Shader.hpp"
 #include "render/vulkan/core/Device.hpp"
 #include "render/vulkan/memory/Allocator.hpp"
 #include "render/vulkan/memory/Buffer.hpp"
 #include "render/vulkan/pipeline/GraphicsPipeline.hpp"
 #include "render/vulkan/pipeline/PipelineLayout.hpp"
 #include "render/vulkan/pipeline/ShaderCache.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
+#include "rtype/contract/renderer/view/CameraView.hpp"
 #include "shape.frag.h"
 #include "shape.vert.h"
 
@@ -44,7 +44,7 @@ constexpr std::uint32_t kValuesBinding = 1;
 /// @brief First location of the instance values: four vec4, after the ShapeInstance's eight attributes.
 constexpr std::uint32_t kValuesLocation = 8;
 /// @brief Bytes of one instance's values: four vec4.
-constexpr std::size_t kValuesSize = sizeof(plugins::backend::graphics::ShaderInstanceValues);
+constexpr std::size_t kValuesSize = sizeof(contract::renderer::ShaderInstanceValues);
 
 /// @return The shape pipeline.
 pipeline::GraphicsPipeline createPipeline(const core::Device& device, pipeline::ShaderCache& shaders,
@@ -85,7 +85,7 @@ pipeline::GraphicsPipeline ShapePass::createMaterialPipeline(
     }
     if (instanceValues) {
         bindings.emplace_back(kValuesBinding, static_cast<std::uint32_t>(kValuesSize), vk::VertexInputRate::eInstance);
-        for (std::uint32_t vector = 0; vector < plugins::backend::graphics::ShaderInstanceValues{}.size(); ++vector) {
+        for (std::uint32_t vector = 0; vector < contract::renderer::ShaderInstanceValues{}.size(); ++vector) {
             attributes.emplace_back(kValuesLocation + vector, kValuesBinding, vk::Format::eR32G32B32A32Sfloat,
                                     vector * static_cast<std::uint32_t>(sizeof(glm::vec4)));
         }
@@ -100,7 +100,7 @@ pipeline::GraphicsPipeline ShapePass::createMaterialPipeline(
 }
 
 void ShapePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex, const ShapeBatch& shapes,
-                       const plugins::backend::graphics::Viewport& viewport, vk::DescriptorSet textureSet,
+                       const contract::renderer::Viewport& viewport, vk::DescriptorSet textureSet,
                        const MaterialFinder& findMaterial) {
     const std::span<const ShapeInstance> instances = shapes.getInstances();
     if (instances.empty() || viewport.size.x <= 0.0F || viewport.size.y <= 0.0F) {
@@ -109,7 +109,7 @@ void ShapePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_t
     memory::Buffer& buffer =
         reserve(_buffers.at(frameIndex), instances.size(), sizeof(ShapeInstance), "Shape instances");
     buffer.write(std::as_bytes(instances));
-    const std::span<const plugins::backend::graphics::ShaderInstanceValues> instanceValues = shapes.getInstanceValues();
+    const std::span<const contract::renderer::ShaderInstanceValues> instanceValues = shapes.getInstanceValues();
     if (!instanceValues.empty()) {
         reserve(_values.at(frameIndex), instanceValues.size(), kValuesSize, "Shape instance values")
             .write(std::as_bytes(instanceValues));
@@ -126,8 +126,8 @@ void ShapePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_t
     const pipeline::GraphicsPipeline* bound = &_pipeline;
     bool instancesFromStart = false;
     for (const ShapeBatch::Batch& range : shapes.getBatches()) {
-        MaterialBinding material = range.material != plugins::backend::graphics::MaterialId{} && textureSet
-                                       ? findMaterial(range.material, plugins::backend::graphics::ShaderTarget::kShape)
+        MaterialBinding material = range.material != contract::renderer::MaterialId{} && textureSet
+                                       ? findMaterial(range.material, contract::renderer::ShaderTarget::kShape)
                                        : MaterialBinding{};
         if (material.instanceValues && !values) {
             material = MaterialBinding{};

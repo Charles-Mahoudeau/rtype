@@ -13,6 +13,7 @@
 
 #include "core/asset/AssetId.hpp"
 #include "core/asset/AssetStore.hpp"
+#include "plugins/shader/Export.hpp"
 #include "plugins/shader/Material.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
@@ -28,7 +29,7 @@ namespace rtype::plugins::shader {
 /// rtype::plugins::shader::Material hit{.shader = shaders->load("assets/shaders/flash.glsl")};
 /// const rtype::core::asset::AssetId material = materials->add("enemy_hit", hit.set("tint", glm::vec4{1.0F}));
 /// @endcode
-class MaterialAssets {
+class RTYPE_PLUGIN_SHADER_API MaterialAssets {
   public:
     /// @brief One material: the name it was added under, and the material.
     using Entry = core::asset::AssetStore<Material>::Entry;

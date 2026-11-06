@@ -13,16 +13,16 @@
 
 #include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/event/Event.hpp"
-#include "plugins/backend/input/Key.hpp"
+#include "plugins/graphics/BackendRegistry.hpp"
 #include "render/vulkan/Registration.hpp"
+#include "rtype/contract/platform/event/Event.hpp"
+#include "rtype/contract/platform/input/Key.hpp"
 
-using namespace rtype::plugins::backend::event;
+using namespace rtype::contract::platform::event;
+using rtype::contract::platform::input::Key;
 using rtype::core::config::Settings;
-using rtype::plugins::backend::Backend;
-using rtype::plugins::backend::BackendRegistry;
-using rtype::plugins::backend::input::Key;
+using rtype::plugins::graphics::Backend;
+using rtype::plugins::graphics::BackendRegistry;
 
 /// @warning FOR MACOS ONLY: brew install molten-vk vulkan-loader (+ vulkan-validationlayers in debug builds)
 
@@ -31,8 +31,8 @@ int main() {
         /// @note 1. Register the backends. Each module adds its own under a name: "glfw" for the platform module,
         /// "vulkan" for the renderer module. The code never names a backend class.
         BackendRegistry registry;
-        rtype::platform::glfw::registerPlatform(registry);
-        rtype::render::vulkan::registerRenderer(registry);
+        rtype::platform::glfw::registerPlatform(registry.platforms);
+        rtype::render::vulkan::registerRenderer(registry.renderers);
 
         /// @note 2. The config picks the pair and sets them up. "window" is for every platform; "vulkan" only for
         /// the vulkan renderer (see rtype::render::vulkan::registerRenderer). Filled in code here; a config file later.

@@ -10,10 +10,12 @@
 #include <stdexcept>
 #include <string>
 
+#include "core/Export.hpp"
+
 namespace rtype::plugins::text::exceptions {
 /// @brief Exception thrown when a font cannot be loaded: its metrics file cannot be read or parsed, or it is not an
 /// MSDF atlas.
-class FontException : public std::runtime_error {
+class RTYPE_HEADER_ONLY_API FontException : public std::runtime_error {
   public:
     explicit FontException(const std::string& message) : std::runtime_error{message} {}
     ~FontException() override = default;

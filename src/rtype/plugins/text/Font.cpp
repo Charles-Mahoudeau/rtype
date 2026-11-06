@@ -12,7 +12,7 @@
 #include <utility>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
 
 namespace rtype::plugins::text {
 
@@ -21,7 +21,7 @@ namespace {
 constexpr std::uint32_t kCodepointBits = 32;
 }  // namespace
 
-Font::Font(std::string texturePath, const backend::graphics::TextureDesc& textureDesc, float distanceRange,
+Font::Font(std::string texturePath, const contract::renderer::TextureDesc& textureDesc, float distanceRange,
            const Metrics& metrics)
     : _texturePath{std::move(texturePath)},
       _texture{core::asset::AssetId::fromPath(_texturePath)},

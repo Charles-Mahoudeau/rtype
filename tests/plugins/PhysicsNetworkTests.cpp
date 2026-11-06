@@ -9,8 +9,10 @@
 
 #include <cstdint>
 #include <glm/ext/vector_float2.hpp>
+#include <memory>
 #include <optional>
 
+#include "FakeBackend.hpp"
 #include "plugins/physics/Collider.hpp"
 #include "plugins/physics/MoveAndSlide.hpp"
 #include "plugins/physics/PhysicsHandle.hpp"
@@ -144,10 +146,17 @@ TEST(PhysicsNetwork, TheInternalComponentsAreNot) {
 }
 
 TEST(PhysicsNetwork, TheDebugPluginRegistersColliderTheSameWayInEitherOrder) {
+    const auto addGraphics = [](rtype::ecs::App& app) {
+        rtype::test::plugins::addDrawingPlugins(
+            app, rtype::test::plugins::makeFakeRegistry(std::make_shared<rtype::test::plugins::FakeBackendState>()),
+            rtype::test::plugins::makeFakeSettings());
+    };
     rtype::ecs::App debugFirst;
+    addGraphics(debugFirst);
     debugFirst.addPlugin(PhysicsDebugPlugin{});
     EXPECT_NO_THROW(debugFirst.addPlugin(PhysicsPlugin{smallSettings()}));
     rtype::ecs::App physicsFirst;
+    addGraphics(physicsFirst);
     physicsFirst.addPlugin(PhysicsPlugin{smallSettings()});
     EXPECT_NO_THROW(physicsFirst.addPlugin(PhysicsDebugPlugin{}));
 }

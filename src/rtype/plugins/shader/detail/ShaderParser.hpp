@@ -13,28 +13,29 @@
 #include <string_view>
 #include <vector>
 
-#include "plugins/backend/graphics/Shader.hpp"
+#include "plugins/shader/Export.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::plugins::shader::detail {
 
 /// @brief One value a shader declares, laid out in its block, with its default value.
 struct DeclaredValue {
-    backend::graphics::ShaderValue value;  ///< Name, type and offset in its block.
-    std::uint32_t line{0};                 ///< Line of the declaration in the shader, from 1.
+    contract::renderer::ShaderValue value;  ///< Name, type and offset in its block.
+    std::uint32_t line{0};                  ///< Line of the declaration in the shader, from 1.
 };
 
 /// @brief A shader's source once its declarations are read: what the engine generates around it, and the GLSL the
 /// game wrote, the declarations blanked out.
 struct ParsedShader {
-    std::string name;                                            ///< For messages: its file, or its name.
-    std::vector<DeclaredValue> materialValues;                   ///< `uniform` values, in declaration order.
-    std::uint32_t materialSize{0};                               ///< Bytes of the material block, a multiple of 16.
-    std::vector<std::byte> materialDefaults;                     ///< The material block filled with the defaults.
-    std::vector<DeclaredValue> instanceValues;                   ///< `instance uniform` values, in declaration order.
-    backend::graphics::ShaderInstanceValues instanceDefaults{};  ///< The instance values' defaults.
-    std::vector<backend::graphics::ShaderTexture> textures;      ///< `uniform sampler2D`, slots in declaration order.
-    bool hasVertex{false};                                       ///< Whether it defines `void vertex()`.
-    bool hasFragment{false};                                     ///< Whether it defines `void fragment()`.
+    std::string name;                                             ///< For messages: its file, or its name.
+    std::vector<DeclaredValue> materialValues;                    ///< `uniform` values, in declaration order.
+    std::uint32_t materialSize{0};                                ///< Bytes of the material block, a multiple of 16.
+    std::vector<std::byte> materialDefaults;                      ///< The material block filled with the defaults.
+    std::vector<DeclaredValue> instanceValues;                    ///< `instance uniform` values, in declaration order.
+    contract::renderer::ShaderInstanceValues instanceDefaults{};  ///< The instance values' defaults.
+    std::vector<contract::renderer::ShaderTexture> textures;      ///< `uniform sampler2D`, slots in declaration order.
+    bool hasVertex{false};                                        ///< Whether it defines `void vertex()`.
+    bool hasFragment{false};                                      ///< Whether it defines `void fragment()`.
     std::string body;  ///< The source, every declaration line left empty, so line numbers stay the game's.
 };
 
@@ -51,6 +52,6 @@ struct ParsedShader {
 /// @throws exceptions::ShaderException Naming the shader and the line: an unknown type, a declaration it cannot read
 /// (an array, a block, several on a line), a name declared twice or reserved by the engine, a default it cannot read,
 /// instance values past kShaderInstanceBytes, too many textures, or neither vertex() nor fragment().
-[[nodiscard]] ParsedShader parseShader(std::string_view source, std::string_view name);
+[[nodiscard]] RTYPE_PLUGIN_SHADER_API ParsedShader parseShader(std::string_view source, std::string_view name);
 
 }  // namespace rtype::plugins::shader::detail

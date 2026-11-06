@@ -26,9 +26,9 @@
 
 #include "core/asset/AssetFiles.hpp"
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/graphics/Color.hpp"
 #include "plugins/tilemap/Tilemap.hpp"
 #include "plugins/tilemap/exceptions/TilemapExceptions.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
 
 namespace rtype::plugins::tilemap::detail {
 
@@ -40,17 +40,17 @@ constexpr float kChannelMax = 255.0F;
 
 /// @brief What a group passes on to the layers it holds.
 struct Inherited {
-    std::string prefix;                   ///< "group/" for each enclosing group.
-    glm::vec2 offset{0.0F};               ///< Added.
-    glm::vec2 parallax{1.0F};             ///< Multiplied.
-    glm::vec2 scroll{0.0F};               ///< Added.
-    float opacity = 1.0F;                 ///< Multiplied.
-    backend::graphics::Color tint{1.0F};  ///< Multiplied.
-    bool visible = true;                  ///< All must be visible.
+    std::string prefix;                    ///< "group/" for each enclosing group.
+    glm::vec2 offset{0.0F};                ///< Added.
+    glm::vec2 parallax{1.0F};              ///< Multiplied.
+    glm::vec2 scroll{0.0F};                ///< Added.
+    float opacity = 1.0F;                  ///< Multiplied.
+    contract::renderer::Color tint{1.0F};  ///< Multiplied.
+    bool visible = true;                   ///< All must be visible.
 };
 
 /// @return The colour of Tiled's "#RRGGBB" or "#AARRGGBB" @p text.
-backend::graphics::Color readColor(const std::string& text) {
+contract::renderer::Color readColor(const std::string& text) {
     const std::string_view digits = text.starts_with('#') ? std::string_view{text}.substr(1) : std::string_view{text};
     if (digits.size() != 6 && digits.size() != 8) {
         throw exceptions::TilemapException{std::format("'{}' is not a colour", text)};

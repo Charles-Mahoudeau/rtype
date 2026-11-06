@@ -8,8 +8,9 @@
 #pragma once
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
-#include "plugins/audio/AudioTypes.hpp"
+#include "plugins/AssetIdReflection.hpp"      // IWYU pragma: keep
+#include "plugins/audio/AudioReflection.hpp"  // IWYU pragma: keep
+#include "rtype/contract/audiodevice/AudioTypes.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 
 namespace rtype::plugins::audio {
@@ -25,11 +26,11 @@ namespace rtype::plugins::audio {
 /// @endcode
 struct AudioSource {
     core::asset::AssetId sound;  ///< The sound to play, from AudioAssets::load().
-    Bus bus{Bus::kEffects};      ///< The bus it is mixed into.
-    float volume{1.0F};          ///< Linear gain, 1 = unchanged.
-    float pitch{1.0F};           ///< Playback speed, 1 = unchanged.
-    bool loop{false};            ///< Plays until removed, instead of once.
-    bool spatial{true};          ///< Panned from its GlobalTransform; false, or no GlobalTransform: centred.
+    contract::audiodevice::Bus bus{contract::audiodevice::Bus::kEffects};  ///< The bus it is mixed into.
+    float volume{1.0F};                                                    ///< Linear gain, 1 = unchanged.
+    float pitch{1.0F};                                                     ///< Playback speed, 1 = unchanged.
+    bool loop{false};                                                      ///< Plays until removed, instead of once.
+    bool spatial{true};  ///< Panned from its GlobalTransform; false, or no GlobalTransform: centred.
 };
 RTYPE_ECS_COMPONENT(AudioSource, "rtype.AudioSource", sound, bus, volume, pitch, loop, spatial);
 }  // namespace rtype::plugins::audio

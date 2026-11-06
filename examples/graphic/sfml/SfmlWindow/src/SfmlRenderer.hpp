@@ -17,16 +17,16 @@
 #include <span>
 #include <vector>
 
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/IRenderer.hpp"
-#include "plugins/backend/graphics/Particle.hpp"
-#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
-#include "plugins/backend/graphics/Shape.hpp"
-#include "plugins/backend/graphics/Sprite.hpp"
-#include "plugins/backend/graphics/Text.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
-#include "plugins/backend/graphics/View.hpp"
-#include "plugins/backend/platform/IPlatform.hpp"
+#include "rtype/contract/platform/IPlatform.hpp"
+#include "rtype/contract/renderer/IRenderer.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Shape.hpp"
+#include "rtype/contract/renderer/drawing/Sprite.hpp"
+#include "rtype/contract/renderer/drawing/Text.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
+#include "rtype/contract/renderer/view/View.hpp"
 
 namespace example {
 
@@ -38,7 +38,7 @@ namespace example {
 ///
 /// Textures live in a table of slots: a TextureId is a slot index plus the slot's generation, bumped each time the
 /// slot is freed, so a TextureId used after destroy() is detected instead of reaching the next texture of the slot.
-class SfmlRenderer final : public rtype::plugins::backend::graphics::IRenderer {
+class SfmlRenderer final : public rtype::contract::renderer::IRenderer {
   public:
     SfmlRenderer() = default;
     ~SfmlRenderer() override = default;
@@ -47,42 +47,43 @@ class SfmlRenderer final : public rtype::plugins::backend::graphics::IRenderer {
     SfmlRenderer(SfmlRenderer&&) = delete;
     SfmlRenderer& operator=(SfmlRenderer&&) = delete;
 
-    /// @throws rtype::plugins::backend::exceptions::UnsupportedFeatureException If the platform is not an SfmlPlatform.
-    void init(rtype::plugins::backend::platform::IPlatform& platform) override;
+    /// @throws rtype::contract::platform::exceptions::UnsupportedFeatureException If the platform is not an
+    /// SfmlPlatform.
+    void init(rtype::contract::platform::IPlatform& platform) override;
     void resize(glm::uvec2 framebufferSize) override;
 
     /// @throws std::invalid_argument If pixels does not hold size.x * size.y RGBA pixels.
-    [[nodiscard]] rtype::plugins::backend::graphics::TextureId createTexture(
-        const rtype::plugins::backend::graphics::TextureDesc& desc, std::span<const std::byte> pixels) override;
-    void destroy(rtype::plugins::backend::graphics::TextureId texture) override;
+    [[nodiscard]] rtype::contract::renderer::TextureId createTexture(const rtype::contract::renderer::TextureDesc& desc,
+                                                                     std::span<const std::byte> pixels) override;
+    void destroy(rtype::contract::renderer::TextureId texture) override;
 
     /// @brief Clears the window, and resets the view to window pixels (origin at the top-left corner).
-    void beginFrame(const rtype::plugins::backend::graphics::Color& clearColor) override;
+    void beginFrame(const rtype::contract::renderer::Color& clearColor) override;
     void endFrame() override;
 
-    void setView(const rtype::plugins::backend::graphics::View& view) override;
+    void setView(const rtype::contract::renderer::View& view) override;
     /// @throws std::invalid_argument If the sprite's texture was destroyed.
-    void draw(const rtype::plugins::backend::graphics::Sprite& sprite) override;
+    void draw(const rtype::contract::renderer::Sprite& sprite) override;
     /// @brief Draws a rectangle, circle, capsule or line with SFML's shapes; SFML has no rounded rectangle, so
     /// cornerRadius is ignored.
-    void draw(const rtype::plugins::backend::graphics::Shape& shape) override;
+    void draw(const rtype::contract::renderer::Shape& shape) override;
     /// @brief Draws the glyphs of a text in one vertex array, through a small MSDF fragment shader; nothing if the
     /// graphics driver has no shaders (the raw distances would show as coloured blocks).
     /// @throws std::invalid_argument If the text's texture was destroyed.
-    void draw(const rtype::plugins::backend::graphics::Text& text) override;
+    void draw(const rtype::contract::renderer::Text& text) override;
 
     /// @brief SFML has no compute shaders: particles run on the CPU (supportsGpuParticles() is false).
-    /// @throws rtype::plugins::backend::exceptions::UnsupportedFeatureException Always.
-    [[nodiscard]] rtype::plugins::backend::graphics::ParticleSystemId createParticleSystem(
-        const rtype::plugins::backend::graphics::ParticleSystemDesc& desc) override;
+    /// @throws rtype::contract::platform::exceptions::UnsupportedFeatureException Always.
+    [[nodiscard]] rtype::contract::renderer::ParticleSystemId createParticleSystem(
+        const rtype::contract::renderer::ParticleSystemDesc& desc) override;
     /// @brief Does nothing: no particle system can be created.
-    void destroy(rtype::plugins::backend::graphics::ParticleSystemId system) override;
+    void destroy(rtype::contract::renderer::ParticleSystemId system) override;
     /// @throws std::invalid_argument Always: no particle system can be created.
-    void simulate(rtype::plugins::backend::graphics::ParticleSystemId system,
-                  const rtype::plugins::backend::graphics::ParticleEmission& emission) override;
+    void simulate(rtype::contract::renderer::ParticleSystemId system,
+                  const rtype::contract::renderer::ParticleEmission& emission) override;
     /// @brief Not implemented yet: the example draws no particles.
-    /// @throws rtype::plugins::backend::exceptions::UnsupportedFeatureException Always.
-    void draw(const rtype::plugins::backend::graphics::ParticleDraw& particles) override;
+    /// @throws rtype::contract::platform::exceptions::UnsupportedFeatureException Always.
+    void draw(const rtype::contract::renderer::ParticleDraw& particles) override;
 
   private:
     /// @brief A place for one texture; reused after destroy() with a higher generation.
@@ -92,7 +93,7 @@ class SfmlRenderer final : public rtype::plugins::backend::graphics::IRenderer {
     };
 
     /// @return The texture a TextureId refers to, or null if it was destroyed (or never existed).
-    [[nodiscard]] const sf::Texture* find(rtype::plugins::backend::graphics::TextureId texture) const;
+    [[nodiscard]] const sf::Texture* find(rtype::contract::renderer::TextureId texture) const;
 
     /// @return The MSDF shader, compiled on first use, or null if shaders are not available.
     [[nodiscard]] sf::Shader* msdfShader();

@@ -31,27 +31,33 @@
 #include "core/asset/AssetId.hpp"
 #include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
-#include "plugins/backend/BackendPlugin.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/BackendResources.hpp"
-#include "plugins/backend/event/Event.hpp"
-#include "plugins/backend/graphics/BlendMode.hpp"
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/Particle.hpp"
-#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
-#include "plugins/backend/graphics/SpriteRenderer.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
-#include "plugins/backend/graphics/TextureAssets.hpp"
-#include "plugins/backend/input/Key.hpp"
+#include "plugins/graphics/BackendRegistry.hpp"
+#include "plugins/graphics/GraphicsPlugin.hpp"
+#include "plugins/graphics/GraphicsResources.hpp"
+#include "plugins/graphics/TextureAssets.hpp"
 #include "plugins/input/InputEvents.hpp"  // IWYU pragma: keep
+#include "plugins/input/InputPlugin.hpp"
 #include "plugins/particle/ParticleEffect.hpp"
 #include "plugins/particle/ParticleEffectAssets.hpp"
 #include "plugins/particle/ParticleEmitter.hpp"
 #include "plugins/particle/ParticleEvents.hpp"
+#include "plugins/particle/ParticlePlugin.hpp"
+#include "plugins/shader/ShaderPlugin.hpp"
+#include "plugins/sprite/SpriteDrawPlugin.hpp"
+#include "plugins/sprite/SpritePlugin.hpp"
+#include "plugins/sprite/SpriteRenderer.hpp"
 #include "plugins/text/FontAssets.hpp"
+#include "plugins/text/TextPlugin.hpp"
 #include "plugins/text/TextRenderer.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "render/vulkan/Registration.hpp"
+#include "rtype/contract/platform/event/Event.hpp"
+#include "rtype/contract/platform/input/Key.hpp"
+#include "rtype/contract/renderer/drawing/BlendMode.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/MinimalPlugins.hpp"
 #include "rtype/ecs/command/Commands.hpp"
@@ -66,10 +72,10 @@
 
 using namespace rtype;
 using namespace rtype::plugins::particle;
+using rtype::contract::renderer::BlendMode;
+using rtype::contract::renderer::Color;
 using rtype::core::asset::AssetId;
-using rtype::plugins::backend::SpriteRenderer;
-using rtype::plugins::backend::graphics::BlendMode;
-using rtype::plugins::backend::graphics::Color;
+using rtype::plugins::sprite::SpriteRenderer;
 using rtype::plugins::text::FontAssets;
 using rtype::plugins::text::TextRenderer;
 using rtype::plugins::transform::Transform;
@@ -98,7 +104,7 @@ RTYPE_ECS_RESOURCE(Mouse, "example.Mouse");
 
 // Where the fountain and the trail are simulated, switched by Space.
 struct Mode {
-    plugins::backend::graphics::ParticleSimulation simulation = plugins::backend::graphics::ParticleSimulation::kGpu;
+    contract::renderer::ParticleSimulation simulation = contract::renderer::ParticleSimulation::kGpu;
 };
 RTYPE_ECS_RESOURCE(Mode, "example.Mode");
 
@@ -115,9 +121,9 @@ struct Hud {};
 RTYPE_ECS_COMPONENT(Hud, "example.Hud");
 
 // The text of the HUD for @p simulation.
-std::string describe(plugins::backend::graphics::ParticleSimulation simulation) {
-    return simulation == plugins::backend::graphics::ParticleSimulation::kGpu ? "GPU simulation (Space: CPU)"
-                                                                              : "CPU simulation (Space: GPU)";
+std::string describe(contract::renderer::ParticleSimulation simulation) {
+    return simulation == contract::renderer::ParticleSimulation::kGpu ? "GPU simulation (Space: CPU)"
+                                                                      : "CPU simulation (Space: GPU)";
 }
 
 // Spawns the fountain (layer 1, between the panels) and the trail (layer 3, on top), simulated as @p mode says.
@@ -222,7 +228,7 @@ ParticleEffect makeExplosion(AssetId dot) {
     effect.desc.speed = {.min = 60.0F, .max = 420.0F};
     effect.desc.size = {.min = 6.0F, .max = 10.0F};
     effect.desc.drag = 3.0F;
-    effect.alignment = plugins::backend::graphics::ParticleAlignment::kVelocity;
+    effect.alignment = contract::renderer::ParticleAlignment::kVelocity;
     effect.stretch = 0.06F;
     effect.desc.colorOverLife.keys = {{.t = 0.0F, .value = {1.0F, 1.0F, 0.8F, 1.0F}},
                                       {.t = 0.3F, .value = {1.0F, 0.6F, 0.2F, 1.0F}},
@@ -239,26 +245,25 @@ ParticleEffect makeTrail(AssetId dot) {
     effect.desc.lifetime = {.min = 0.4F, .max = 0.7F};
     effect.desc.speed = {.min = 0.0F, .max = 25.0F};
     effect.desc.size = {.min = 10.0F, .max = 14.0F};
-    effect.desc.shape = plugins::backend::graphics::CircleShape{.radius = 4.0F};
+    effect.desc.shape = contract::renderer::CircleShape{.radius = 4.0F};
     effect.desc.color = {0.3F, 0.8F, 1.0F, 1.0F};
     effect.desc.sizeOverLife.keys = {{.t = 0.0F, .value = 1.0F}, {.t = 1.0F, .value = 0.0F}};
     return effect;
 }
 
 // Startup: the dot and a white texel, the effects, the two panels around the fountain, the fountain and the trail.
-void spawnScene(ecs::ResMut<plugins::backend::TextureAssets> textures, ecs::ResMut<ParticleEffectAssets> effects,
+void spawnScene(ecs::ResMut<plugins::graphics::TextureAssets> textures, ecs::ResMut<ParticleEffectAssets> effects,
                 ecs::ResMut<FontAssets> fonts, ecs::ResMut<Assets> assets, ecs::Res<Mode> mode,
                 ecs::Commands& commands) {
     const std::vector<std::byte> dotPixels = makeDot();
     const AssetId dot = textures->loadPixels(
-        "example.dot", dotPixels,
-        {.size = {kDotSize, kDotSize}, .filter = plugins::backend::graphics::TextureFilter::kLinear});
+        "example.dot", dotPixels, {.size = {kDotSize, kDotSize}, .filter = contract::renderer::TextureFilter::kLinear});
     const std::vector<std::byte> white(4, std::byte{255});
     const AssetId texel = textures->loadPixels("example.white", white, {.size = {1, 1}});
     const std::vector<std::byte> ringPixels = makeRings();
     const AssetId rings = textures->loadPixels(
         "example.rings", ringPixels,
-        {.size = {kDotSize * kRingFrames, kDotSize}, .filter = plugins::backend::graphics::TextureFilter::kLinear});
+        {.size = {kDotSize * kRingFrames, kDotSize}, .filter = contract::renderer::TextureFilter::kLinear});
     // Layer 1, left of the panels: rings animated by a flipbook.
     commands.spawn()
         .add(Transform{.position = {kWindow.x * 0.15F, kWindow.y * 0.8F}})
@@ -291,20 +296,20 @@ void spawnScene(ecs::ResMut<plugins::backend::TextureAssets> textures, ecs::ResM
 }
 
 // Update: on Space, switches the mode, respawns the fountain and the trail in it, and shows it.
-void switchSimulation(ecs::EventReader<plugins::backend::event::KeyPressed> keys, ecs::ResMut<Mode> mode,
+void switchSimulation(ecs::EventReader<contract::platform::event::KeyPressed> keys, ecs::ResMut<Mode> mode,
                       ecs::Res<Assets> assets, ecs::Res<Mouse> mouse,
                       ecs::Query<const Transform, ecs::With<Switched>> switched,
                       ecs::Query<TextRenderer, ecs::With<Hud>> huds, ecs::Commands& commands) {
     bool pressed = false;
-    for (const plugins::backend::event::KeyPressed& key : keys) {
-        pressed = pressed || (key.key == plugins::backend::input::Key::kSpace && !key.repeat);
+    for (const contract::platform::event::KeyPressed& key : keys) {
+        pressed = pressed || (key.key == contract::platform::input::Key::kSpace && !key.repeat);
     }
     if (!pressed) {
         return;
     }
-    mode->simulation = mode->simulation == plugins::backend::graphics::ParticleSimulation::kGpu
-                           ? plugins::backend::graphics::ParticleSimulation::kCpu
-                           : plugins::backend::graphics::ParticleSimulation::kGpu;
+    mode->simulation = mode->simulation == contract::renderer::ParticleSimulation::kGpu
+                           ? contract::renderer::ParticleSimulation::kCpu
+                           : contract::renderer::ParticleSimulation::kGpu;
     for (auto [entity, transform] : switched) {
         commands.despawn(entity);
     }
@@ -315,18 +320,18 @@ void switchSimulation(ecs::EventReader<plugins::backend::event::KeyPressed> keys
 }
 
 // Update: keeps the mouse position, moves the trail to it, and spawns an explosion where the left button is pressed.
-void followMouse(ecs::EventReader<plugins::backend::event::MouseMoved> moves,
-                 ecs::EventReader<plugins::backend::event::MouseButtonPressed> presses, ecs::ResMut<Mouse> mouse,
+void followMouse(ecs::EventReader<contract::platform::event::MouseMoved> moves,
+                 ecs::EventReader<contract::platform::event::MouseButtonPressed> presses, ecs::ResMut<Mouse> mouse,
                  ecs::Res<Assets> assets, ecs::Query<Transform, ecs::With<Trail>> trails,
                  ecs::EventWriter<SpawnParticles> spawns) {
-    for (const plugins::backend::event::MouseMoved& move : moves) {
+    for (const contract::platform::event::MouseMoved& move : moves) {
         mouse->position = move.position;
     }
     for (auto [entity, transform] : trails) {
         transform->position = mouse->position;
     }
-    for (const plugins::backend::event::MouseButtonPressed& press : presses) {
-        if (press.button == plugins::backend::input::MouseButton::kLeft) {
+    for (const contract::platform::event::MouseButtonPressed& press : presses) {
+        if (press.button == contract::platform::input::MouseButton::kLeft) {
             spawns.send(SpawnParticles{.effect = assets->explosion, .position = mouse->position, .layer = 3});
         }
     }
@@ -352,14 +357,20 @@ int main(int argc, char** argv) {
     try {
         const std::span<char*> args{argv, static_cast<std::size_t>(argc)};
         const bool validation = args.size() > 1 && std::string_view{args.back()} == "--validation";
-        auto registry = std::make_unique<plugins::backend::BackendRegistry>();
-        rtype::platform::glfw::registerPlatform(*registry);
-        render::vulkan::registerRenderer(*registry);
+        auto registry = std::make_unique<plugins::graphics::BackendRegistry>();
+        rtype::platform::glfw::registerPlatform(registry->platforms);
+        render::vulkan::registerRenderer(registry->renderers);
 
         ecs::App app;
         app.addPlugins(ecs::MinimalPlugins{})
-            .addPlugin(plugins::backend::BackendPlugin{std::move(registry), makeSettings(validation)});
-        app.insertResource(plugins::backend::ClearColor{.value = kClear});
+            .addPlugin(rtype::plugins::input::InputPlugin{})
+            .addPlugin(plugins::graphics::GraphicsPlugin{std::move(registry), makeSettings(validation)})
+            .addPlugin(rtype::plugins::shader::ShaderPlugin{})
+            .addPlugin(rtype::plugins::sprite::SpritePlugin{})
+            .addPlugin(rtype::plugins::sprite::SpriteDrawPlugin{})
+            .addPlugin(rtype::plugins::text::TextPlugin{})
+            .addPlugin(rtype::plugins::particle::ParticlePlugin{});
+        app.insertResource(plugins::graphics::ClearColor{.value = kClear});
         app.insertResource(Assets{});
         app.insertResource(Mouse{});
         app.insertResource(Mode{});

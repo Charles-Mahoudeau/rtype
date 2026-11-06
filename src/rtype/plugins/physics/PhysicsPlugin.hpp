@@ -9,6 +9,7 @@
 
 #include <string_view>
 
+#include "plugins/physics/Export.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
@@ -43,7 +44,7 @@ namespace rtype::plugins::physics {
 /// app.addPlugins(rtype::ecs::MinimalPlugins{})
 ///     .addPlugin(rtype::plugins::physics::PhysicsPlugin{{.gravity = {0.0F, 980.0F}}});
 /// @endcode
-class PhysicsPlugin : public ecs::Plugin {
+class RTYPE_PLUGIN_PHYSICS_API PhysicsPlugin : public ecs::Plugin {
   public:
     static constexpr std::string_view kName = "rtype.Physics";                         ///< The plugin's name.
     static constexpr std::string_view kSyncBodiesSystem = "rtype.Physics.SyncBodies";  ///< Creates and destroys bodies.

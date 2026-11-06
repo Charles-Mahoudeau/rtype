@@ -27,15 +27,18 @@
 #include "core/asset/AssetId.hpp"
 #include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
-#include "plugins/backend/BackendPlugin.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/BackendResources.hpp"
-#include "plugins/backend/graphics/Color.hpp"
+#include "plugins/graphics/BackendRegistry.hpp"
+#include "plugins/graphics/GraphicsPlugin.hpp"
+#include "plugins/graphics/GraphicsResources.hpp"
+#include "plugins/input/InputPlugin.hpp"
+#include "plugins/shader/ShaderPlugin.hpp"
 #include "plugins/text/FontAssets.hpp"
 #include "plugins/text/TextLayout.hpp"
+#include "plugins/text/TextPlugin.hpp"
 #include "plugins/text/TextRenderer.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "render/vulkan/Registration.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/MinimalPlugins.hpp"
 #include "rtype/ecs/command/Commands.hpp"
@@ -52,7 +55,7 @@ using rtype::plugins::transform::Transform;
 
 namespace {
 constexpr glm::vec2 kWindow{1280.0F, 900.0F};
-constexpr plugins::backend::graphics::Color kClear{0.05F, 0.05F, 0.09F, 1.0F};
+constexpr contract::renderer::Color kClear{0.05F, 0.05F, 0.09F, 1.0F};
 constexpr const char* kFont = "assets/fonts/orbitron.json";
 constexpr std::array<float, 8> kSizes{12.0F, 16.0F, 24.0F, 32.0F, 48.0F, 72.0F, 120.0F, 200.0F};
 constexpr float kMargin = 24.0F;
@@ -118,14 +121,17 @@ int main(int argc, char** argv) {
     try {
         const std::span<char*> args{argv, static_cast<std::size_t>(argc)};
         const bool validation = args.size() > 1 && std::string_view{args.back()} == "--validation";
-        auto registry = std::make_unique<plugins::backend::BackendRegistry>();
-        rtype::platform::glfw::registerPlatform(*registry);
-        render::vulkan::registerRenderer(*registry);
+        auto registry = std::make_unique<plugins::graphics::BackendRegistry>();
+        rtype::platform::glfw::registerPlatform(registry->platforms);
+        render::vulkan::registerRenderer(registry->renderers);
 
         ecs::App app;
         app.addPlugins(ecs::MinimalPlugins{})
-            .addPlugin(plugins::backend::BackendPlugin{std::move(registry), makeSettings(validation)});
-        app.insertResource(plugins::backend::ClearColor{.value = kClear});
+            .addPlugin(rtype::plugins::input::InputPlugin{})
+            .addPlugin(plugins::graphics::GraphicsPlugin{std::move(registry), makeSettings(validation)})
+            .addPlugin(rtype::plugins::shader::ShaderPlugin{})
+            .addPlugin(rtype::plugins::text::TextPlugin{});
+        app.insertResource(plugins::graphics::ClearColor{.value = kClear});
         static_cast<void>(app.getWorld().getComponents().registerType<Zoom>());
         app.addSystem(ecs::Phase::kStartup, "example.spawnTexts", &spawnTexts);
         app.addSystem(ecs::Phase::kUpdate, "example.zoomText", &zoomText);

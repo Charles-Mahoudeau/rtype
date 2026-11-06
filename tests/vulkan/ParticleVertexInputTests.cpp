@@ -10,10 +10,10 @@
 #include <cstddef>
 #include <vulkan/vulkan_raii.hpp>
 
-#include "plugins/backend/graphics/Particle.hpp"
 #include "render/vulkan/rendering/ParticleVertexInput.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
 
-using rtype::plugins::backend::graphics::ParticleInstance;
+using rtype::contract::renderer::ParticleInstance;
 
 TEST(ParticleVertexInput, OneInstancePerParticle) {
     const auto bindings = rtype::render::vulkan::rendering::getParticleBindings(2);

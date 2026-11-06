@@ -14,8 +14,9 @@
 
 #include "core/asset/AssetId.hpp"
 #include "core/asset/AssetStore.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
+#include "plugins/text/Export.hpp"
 #include "plugins/text/Font.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
 namespace rtype::plugins::text {
@@ -35,7 +36,7 @@ namespace rtype::plugins::text {
 ///                                                 .size = 64.0F, .anchor = {0.5F, 0.5F}});
 /// }
 /// @endcode
-class FontAssets {
+class RTYPE_PLUGIN_TEXT_API FontAssets {
   public:
     /// @brief One font: its file (or the name it was added under), the font (nothing if it could not be read) and why
     /// it could not be.
@@ -43,8 +44,8 @@ class FontAssets {
 
     /// @brief An atlas image a font needs, for TextureAssets.
     struct TextureRequest {
-        std::string path;                     ///< The image file.
-        backend::graphics::TextureDesc desc;  ///< Linear filtering and encoding.
+        std::string path;                      ///< The image file.
+        contract::renderer::TextureDesc desc;  ///< Linear filtering and encoding.
     };
 
     FontAssets() = default;

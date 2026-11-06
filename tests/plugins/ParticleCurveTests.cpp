@@ -11,20 +11,20 @@
 #include <cstddef>
 #include <limits>
 
-#include "plugins/backend/exceptions/ParticleExceptions.hpp"
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/ParticleCurve.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/exceptions/ParticleExceptions.hpp"
+#include "rtype/contract/renderer/particle/ParticleCurve.hpp"
 
 namespace {
-using rtype::plugins::backend::exceptions::ParticleException;
-using rtype::plugins::backend::graphics::bakeCurve;
-using rtype::plugins::backend::graphics::BakedCurve;
-using rtype::plugins::backend::graphics::bakeGradient;
-using rtype::plugins::backend::graphics::Color;
-using rtype::plugins::backend::graphics::Curve;
-using rtype::plugins::backend::graphics::Gradient;
-using rtype::plugins::backend::graphics::kParticleCurveSamples;
-using rtype::plugins::backend::graphics::sampleBaked;
+using rtype::contract::renderer::bakeCurve;
+using rtype::contract::renderer::BakedCurve;
+using rtype::contract::renderer::bakeGradient;
+using rtype::contract::renderer::Color;
+using rtype::contract::renderer::Curve;
+using rtype::contract::renderer::Gradient;
+using rtype::contract::renderer::kParticleCurveSamples;
+using rtype::contract::renderer::sampleBaked;
+using rtype::contract::renderer::exceptions::ParticleException;
 
 constexpr float kTolerance = 1e-5F;
 

@@ -21,18 +21,12 @@
 #include "audio/miniaudio/core/Sound.hpp"
 #include "audio/miniaudio/core/SoundGroup.hpp"
 #include "audio/miniaudio/exceptions/MiniaudioException.hpp"
-#include "plugins/audio/AudioConfig.hpp"
-#include "plugins/audio/AudioTypes.hpp"
+#include "rtype/contract/audiodevice/AudioTypes.hpp"
 
 namespace rtype::audio::miniaudio {
 
-MiniaudioDevice::MiniaudioDevice(const plugins::audio::AudioConfig& config, const MiniaudioConfig& miniaudio)
-    : _engine{miniaudio}, _buses{core::SoundGroup{_engine}, core::SoundGroup{_engine}}, _voices{config.maxVoices} {
-    const auto& volumes = config.volume;
-    _engine.setVolume(volumes.master);
-    groupOf(plugins::audio::Bus::kMusic).setVolume(volumes.music);
-    groupOf(plugins::audio::Bus::kEffects).setVolume(volumes.effects);
-
+MiniaudioDevice::MiniaudioDevice(std::uint32_t maxVoices, const MiniaudioConfig& miniaudio)
+    : _engine{miniaudio}, _buses{core::SoundGroup{_engine}, core::SoundGroup{_engine}}, _voices{maxVoices} {
     // TODO: set world panDistance
 }
 
@@ -43,18 +37,18 @@ MiniaudioDevice::~MiniaudioDevice() {
     }
 }
 
-plugins::audio::SoundId MiniaudioDevice::createSound(std::span<const std::byte> encoded,
-                                                     const plugins::audio::SoundDesc& desc) {
+contract::audiodevice::SoundId MiniaudioDevice::createSound(std::span<const std::byte> encoded,
+                                                            const contract::audiodevice::SoundDesc& desc) {
     return addSound(LoadedSound{
         .name = std::format("rtype:sound:{}", _nextSound), .desc = desc, .encoded = {encoded.begin(), encoded.end()}});
 }
 
-plugins::audio::SoundId MiniaudioDevice::createSound(const std::filesystem::path& path,
-                                                     const plugins::audio::SoundDesc& desc) {
+contract::audiodevice::SoundId MiniaudioDevice::createSound(const std::filesystem::path& path,
+                                                            const contract::audiodevice::SoundDesc& desc) {
     return addSound(LoadedSound{.name = path.string(), .desc = desc});
 }
 
-void MiniaudioDevice::destroySound(plugins::audio::SoundId sound) {
+void MiniaudioDevice::destroySound(contract::audiodevice::SoundId sound) {
     const auto found = _sounds.find(sound.value);
     if (found == _sounds.end()) {
         return;
@@ -64,7 +58,8 @@ void MiniaudioDevice::destroySound(plugins::audio::SoundId sound) {
     _sounds.erase(found);
 }
 
-plugins::audio::VoiceId MiniaudioDevice::play(plugins::audio::SoundId sound, const plugins::audio::PlayParams& params) {
+contract::audiodevice::VoiceId MiniaudioDevice::play(contract::audiodevice::SoundId sound,
+                                                     const contract::audiodevice::PlayParams& params) {
     const auto found = _sounds.find(sound.value);
     if (found == _sounds.end()) {
         return {};
@@ -91,48 +86,48 @@ plugins::audio::VoiceId MiniaudioDevice::play(plugins::audio::SoundId sound, con
     return _voices.add(std::move(voice), sound, params.bus);
 }
 
-void MiniaudioDevice::stop(plugins::audio::VoiceId voice, float fadeOut) { _voices.stop(voice, fadeOut); }
+void MiniaudioDevice::stop(contract::audiodevice::VoiceId voice, float fadeOut) { _voices.stop(voice, fadeOut); }
 
-void MiniaudioDevice::setPaused(plugins::audio::VoiceId voice, bool paused) {
+void MiniaudioDevice::setPaused(contract::audiodevice::VoiceId voice, bool paused) {
     if (core::Sound* found = _voices.find(voice)) {
         static_cast<void>(paused ? ma_sound_stop(found->get()) : ma_sound_start(found->get()));
     }
 }
 
-void MiniaudioDevice::setVolume(plugins::audio::VoiceId voice, float volume) {
+void MiniaudioDevice::setVolume(contract::audiodevice::VoiceId voice, float volume) {
     if (core::Sound* found = _voices.find(voice)) {
         ma_sound_set_volume(found->get(), volume);
     }
 }
 
-void MiniaudioDevice::setPitch(plugins::audio::VoiceId voice, float pitch) {
+void MiniaudioDevice::setPitch(contract::audiodevice::VoiceId voice, float pitch) {
     if (core::Sound* found = _voices.find(voice)) {
         ma_sound_set_pitch(found->get(), pitch);
     }
 }
 
-void MiniaudioDevice::setPan(plugins::audio::VoiceId voice, float pan) {
+void MiniaudioDevice::setPan(contract::audiodevice::VoiceId voice, float pan) {
     if (core::Sound* found = _voices.find(voice)) {
         ma_sound_set_pan(found->get(), pan);
     }
 }
 
-bool MiniaudioDevice::isPlaying(plugins::audio::VoiceId voice) const { return _voices.isPlaying(voice); }
+bool MiniaudioDevice::isPlaying(contract::audiodevice::VoiceId voice) const { return _voices.isPlaying(voice); }
 
 void MiniaudioDevice::setMasterVolume(float volume) { _engine.setVolume(volume); }
 
-void MiniaudioDevice::setBusVolume(plugins::audio::Bus bus, float volume) { groupOf(bus).setVolume(volume); }
+void MiniaudioDevice::setBusVolume(contract::audiodevice::Bus bus, float volume) { groupOf(bus).setVolume(volume); }
 
 void MiniaudioDevice::update() { _voices.update(); }
 
-core::SoundGroup& MiniaudioDevice::groupOf(plugins::audio::Bus bus) {
+core::SoundGroup& MiniaudioDevice::groupOf(contract::audiodevice::Bus bus) {
     if (static_cast<std::size_t>(bus) >= _buses.size()) {
         throw std::out_of_range{"Bus index out of range"};
     }
     return _buses.at(static_cast<std::size_t>(bus));
 }
 
-plugins::audio::SoundId MiniaudioDevice::addSound(LoadedSound sound) {
+contract::audiodevice::SoundId MiniaudioDevice::addSound(LoadedSound sound) {
     ma_resource_manager* resources = ma_engine_get_resource_manager(_engine.get());
     if (!sound.encoded.empty()) {
         const ma_result result = ma_resource_manager_register_encoded_data(resources, sound.name.c_str(),
@@ -147,7 +142,7 @@ plugins::audio::SoundId MiniaudioDevice::addSound(LoadedSound sound) {
         releaseSound(sound);
         throw;
     }
-    const plugins::audio::SoundId id{.value = _nextSound++};
+    const contract::audiodevice::SoundId id{.value = _nextSound++};
     _sounds.emplace(id.value, std::move(sound));
     return id;
 }
@@ -161,7 +156,7 @@ void MiniaudioDevice::releaseSound(LoadedSound& sound) noexcept {
     }
 }
 
-ma_uint32 MiniaudioDevice::flagsOf(const plugins::audio::SoundDesc& desc) noexcept {
+ma_uint32 MiniaudioDevice::flagsOf(const contract::audiodevice::SoundDesc& desc) noexcept {
     return (desc.stream ? MA_SOUND_FLAG_STREAM : MA_SOUND_FLAG_DECODE) | MA_SOUND_FLAG_NO_SPATIALIZATION;
 }
 }  // namespace rtype::audio::miniaudio

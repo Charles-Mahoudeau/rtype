@@ -16,16 +16,17 @@
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
-#include "plugins/backend/math/Rect.hpp"
+#include "plugins/sprite/Export.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 
 namespace rtype::plugins::sprite {
 
 /// @brief One image of an atlas: a part of its texture, and the point the sprite is placed and turned around.
 struct AtlasFrame {
-    std::string name;            ///< Unique in its atlas: "ship 0", "explosion_3", a packed file's stem...
-    backend::math::Rect source;  ///< Where it is in the texture, in pixels.
-    glm::vec2 origin{0.0F};      ///< Pivot, in pixels from the top-left of source (SpriteRenderer::origin).
+    std::string name;                       ///< Unique in its atlas: "ship 0", "explosion_3", a packed file's stem...
+    contract::renderer::math::Rect source;  ///< Where it is in the texture, in pixels.
+    glm::vec2 origin{0.0F};                 ///< Pivot, in pixels from the top-left of source (SpriteRenderer::origin).
 };
 
 /// @brief The order an animation plays its frames in, as Aseprite's tag directions.
@@ -36,7 +37,7 @@ enum class AnimationDirection : std::uint8_t {
 };
 
 /// @brief A sequence of frames of an atlas, each shown for its own duration.
-struct SpriteAnimation {
+struct RTYPE_PLUGIN_SPRITE_API SpriteAnimation {
     /// @brief The frame an animation shows at a time.
     struct Sample {
         std::uint32_t frame = 0;  ///< Index in the atlas' frames.
@@ -68,12 +69,12 @@ struct SpriteAnimation {
 ///     rtype::plugins::sprite::SpriteAtlas::grid("assets/r-typesheet26.gif", {63.0F, 48.0F}, 6, {2.0F, 0.0F});
 /// enemy.addAnimation("fly", {0, 1, 2, 3, 4, 5}, 0.08F);
 /// @endcode
-class SpriteAtlas {
+class RTYPE_PLUGIN_SPRITE_API SpriteAtlas {
   public:
     /// @param texturePath The image of the atlas, loaded through TextureAssets; for a packed atlas, the name its
     /// pixels are given under.
     /// @param desc How the texture is sampled; its size is ignored.
-    explicit SpriteAtlas(std::string texturePath, const backend::graphics::TextureDesc& desc = {});
+    explicit SpriteAtlas(std::string texturePath, const contract::renderer::TextureDesc& desc = {});
     SpriteAtlas() = default;
     ~SpriteAtlas() = default;
     SpriteAtlas(const SpriteAtlas& other) = default;
@@ -91,14 +92,14 @@ class SpriteAtlas {
     [[nodiscard]] static SpriteAtlas grid(std::string texturePath, glm::vec2 frameSize, std::uint32_t count,
                                           glm::vec2 spacing = glm::vec2{0.0F}, std::uint32_t columns = 0,
                                           glm::vec2 offset = glm::vec2{0.0F},
-                                          const backend::graphics::TextureDesc& desc = {});
+                                          const contract::renderer::TextureDesc& desc = {});
 
     /// @return The image of the atlas, or the name of its packed pixels.
     [[nodiscard]] const std::string& getTexturePath() const noexcept { return _texturePath; }
     /// @return The id the texture has in TextureAssets: AssetId::fromPath(getTexturePath()).
     [[nodiscard]] core::asset::AssetId getTexture() const noexcept { return _texture; }
     /// @return How the texture is sampled.
-    [[nodiscard]] const backend::graphics::TextureDesc& getTextureDesc() const noexcept { return _textureDesc; }
+    [[nodiscard]] const contract::renderer::TextureDesc& getTextureDesc() const noexcept { return _textureDesc; }
     /// @return The frames, in the order they were added.
     [[nodiscard]] const std::vector<AtlasFrame>& getFrames() const noexcept { return _frames; }
     /// @return The animations, by animationId() of their name.
@@ -110,7 +111,7 @@ class SpriteAtlas {
     /// @param origin Its pivot, in pixels from the top-left of @p source; nothing: its centre.
     /// @return This atlas, to chain calls.
     /// @throws exceptions::AtlasException If a frame already has this name.
-    SpriteAtlas& addFrame(std::string name, const backend::math::Rect& source,
+    SpriteAtlas& addFrame(std::string name, const contract::renderer::math::Rect& source,
                           std::optional<glm::vec2> origin = std::nullopt);
 
     /// @brief Adds an animation whose frames all last @p frameDuration seconds.
@@ -135,13 +136,13 @@ class SpriteAtlas {
   private:
     std::string _texturePath;                                               ///< The image, or the packed pixels' name.
     core::asset::AssetId _texture;                                          ///< AssetId::fromPath(_texturePath).
-    backend::graphics::TextureDesc _textureDesc;                            ///< How the texture is sampled.
+    contract::renderer::TextureDesc _textureDesc;                           ///< How the texture is sampled.
     std::vector<AtlasFrame> _frames;                                        ///< In the order they were added.
     std::unordered_map<std::string, std::uint32_t> _frameIndices;           ///< Index of each frame, by name.
     std::unordered_map<core::asset::AssetId, SpriteAnimation> _animations;  ///< By animationId() of their name.
 };
 
 /// @return The id of the animation named @p name, as SpriteAnimator::animation keeps it: the same in every process.
-[[nodiscard]] core::asset::AssetId animationId(std::string_view name);
+[[nodiscard]] RTYPE_PLUGIN_SPRITE_API core::asset::AssetId animationId(std::string_view name);
 
 }  // namespace rtype::plugins::sprite

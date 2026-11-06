@@ -7,12 +7,13 @@
 
 #pragma once
 
-#include "plugins/audio/AudioRegistry.hpp"
+#include "rtype/audio/miniaudio/Export.hpp"
+#include "rtype/contract/audiodevice/AudioDeviceRegistry.hpp"
 
 namespace rtype::audio::miniaudio {
 
 /// @brief Registers the audio backends of this module: "miniaudio" (MiniaudioDevice), configured by the `miniaudio`
 /// section (MiniaudioConfig).
-void registerAudio(plugins::audio::AudioRegistry& registry);
+RTYPE_AUDIO_MINIAUDIO_API void registerAudio(contract::audiodevice::AudioDeviceRegistry& registry);
 
 }  // namespace rtype::audio::miniaudio

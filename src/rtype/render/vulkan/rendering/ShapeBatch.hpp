@@ -12,8 +12,8 @@
 #include <vector>
 
 #include "ShapeInstance.hpp"
-#include "plugins/backend/graphics/Shader.hpp"
 #include "render/vulkan/Export.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::render::vulkan::rendering {
 
@@ -27,9 +27,9 @@ class RTYPE_RENDER_VULKAN_API ShapeBatch {
   public:
     /// @brief Consecutive instances sharing a material.
     struct Batch {
-        plugins::backend::graphics::MaterialId material;  ///< Its game material; the default one if 0.
-        std::uint32_t firstInstance = 0;                  ///< Index of its first instance in getInstances().
-        std::uint32_t instanceCount = 0;                  ///< Number of instances.
+        contract::renderer::MaterialId material;  ///< Its game material; the default one if 0.
+        std::uint32_t firstInstance = 0;          ///< Index of its first instance in getInstances().
+        std::uint32_t instanceCount = 0;          ///< Number of instances.
         std::uint32_t firstValues =
             0;  ///< Index of its first instance's values in getInstanceValues(), with a material.
     };
@@ -44,7 +44,7 @@ class RTYPE_RENDER_VULKAN_API ShapeBatch {
     /// @return The instances added since clear(), in draw order.
     [[nodiscard]] std::span<const ShapeInstance> getInstances() const noexcept { return _instances; }
     /// @return The instance values of the shapes drawn with a game material, in draw order.
-    [[nodiscard]] std::span<const plugins::backend::graphics::ShaderInstanceValues> getInstanceValues() const noexcept {
+    [[nodiscard]] std::span<const contract::renderer::ShaderInstanceValues> getInstanceValues() const noexcept {
         return _values;
     }
     /// @return The batches, in draw order.
@@ -54,18 +54,18 @@ class RTYPE_RENDER_VULKAN_API ShapeBatch {
     /// one has the default material too, or starts a new one.
     void add(const ShapeInstance& instance);
     /// @brief Adds @p instance, drawn with the game material @p material with its @p values, as add().
-    void add(plugins::backend::graphics::MaterialId material, const ShapeInstance& instance,
-             const plugins::backend::graphics::ShaderInstanceValues& values);
+    void add(contract::renderer::MaterialId material, const ShapeInstance& instance,
+             const contract::renderer::ShaderInstanceValues& values);
     /// @brief Forgets every instance and batch, keeping the memory for the next frame.
     void clear() noexcept;
 
   private:
     /// @brief Starts a new batch unless the last one has @p material.
-    void extend(plugins::backend::graphics::MaterialId material);
+    void extend(contract::renderer::MaterialId material);
 
-    std::vector<ShapeInstance> _instances;                                  ///< In draw order.
-    std::vector<plugins::backend::graphics::ShaderInstanceValues> _values;  ///< Of the material shapes, in order.
-    std::vector<Batch> _batches;                                            ///< In draw order.
+    std::vector<ShapeInstance> _instances;                          ///< In draw order.
+    std::vector<contract::renderer::ShaderInstanceValues> _values;  ///< Of the material shapes, in order.
+    std::vector<Batch> _batches;                                    ///< In draw order.
 };
 
 }  // namespace rtype::render::vulkan::rendering

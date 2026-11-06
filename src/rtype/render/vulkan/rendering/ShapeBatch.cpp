@@ -10,7 +10,7 @@
 #include <cstdint>
 
 #include "ShapeInstance.hpp"
-#include "plugins/backend/graphics/Shader.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::render::vulkan::rendering {
 
@@ -20,11 +20,11 @@ void ShapeBatch::add(const ShapeInstance& instance) {
     ++_batches.back().instanceCount;
 }
 
-void ShapeBatch::add(plugins::backend::graphics::MaterialId material, const ShapeInstance& instance,
-                     const plugins::backend::graphics::ShaderInstanceValues& values) {
+void ShapeBatch::add(contract::renderer::MaterialId material, const ShapeInstance& instance,
+                     const contract::renderer::ShaderInstanceValues& values) {
     extend(material);
     _instances.push_back(instance);
-    if (material != plugins::backend::graphics::MaterialId{}) {
+    if (material != contract::renderer::MaterialId{}) {
         _values.push_back(values);
     }
     ++_batches.back().instanceCount;
@@ -36,7 +36,7 @@ void ShapeBatch::clear() noexcept {
     _batches.clear();
 }
 
-void ShapeBatch::extend(plugins::backend::graphics::MaterialId material) {
+void ShapeBatch::extend(contract::renderer::MaterialId material) {
     if (_batches.empty() || _batches.back().material != material) {
         _batches.push_back(Batch{.material = material,
                                  .firstInstance = static_cast<std::uint32_t>(_instances.size()),

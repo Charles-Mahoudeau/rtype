@@ -12,7 +12,7 @@
 
 #include "GlfwMapping.hpp"
 #include "GlfwPlatform.hpp"
-#include "plugins/backend/event/Event.hpp"
+#include "rtype/contract/platform/event/Event.hpp"
 
 namespace rtype::platform::glfw {
 
@@ -38,16 +38,16 @@ GlfwPlatform& GlfwPlatform::fromHandle(GLFWwindow* handle) {
 }
 
 void GlfwPlatform::onClose(GLFWwindow* handle) {
-    fromHandle(handle)._events.emplace_back(plugins::backend::event::Closed{});
+    fromHandle(handle)._events.emplace_back(contract::platform::event::Closed{});
 }
 
 void GlfwPlatform::onFramebufferResize(GLFWwindow* handle, int width, int height) {
-    fromHandle(handle)._events.emplace_back(plugins::backend::event::Resized{
+    fromHandle(handle)._events.emplace_back(contract::platform::event::Resized{
         .width = static_cast<std::uint16_t>(width), .height = static_cast<std::uint16_t>(height)});
 }
 
 void GlfwPlatform::onFocus(GLFWwindow* handle, int focused) {
-    fromHandle(handle)._events.emplace_back(plugins::backend::event::FocusChanged{.focused = focused == GLFW_TRUE});
+    fromHandle(handle)._events.emplace_back(contract::platform::event::FocusChanged{.focused = focused == GLFW_TRUE});
 }
 
 void GlfwPlatform::onKey(GLFWwindow* handle, int key, int /*scancode*/, int action, int mods) {
@@ -55,15 +55,15 @@ void GlfwPlatform::onKey(GLFWwindow* handle, int key, int /*scancode*/, int acti
     const auto engineKey = glfw::fromGlfwKey(key);
     const auto engineMods = glfw::fromGlfwMods(mods);
     if (action == GLFW_RELEASE) {
-        self._events.emplace_back(plugins::backend::event::KeyReleased{.key = engineKey, .mods = engineMods});
+        self._events.emplace_back(contract::platform::event::KeyReleased{.key = engineKey, .mods = engineMods});
     } else {
-        self._events.emplace_back(
-            plugins::backend::event::KeyPressed{.key = engineKey, .mods = engineMods, .repeat = action == GLFW_REPEAT});
+        self._events.emplace_back(contract::platform::event::KeyPressed{
+            .key = engineKey, .mods = engineMods, .repeat = action == GLFW_REPEAT});
     }
 }
 
 void GlfwPlatform::onChar(GLFWwindow* handle, unsigned int codepoint) {
-    fromHandle(handle)._events.emplace_back(plugins::backend::event::TextEntered{.codepoint = codepoint});
+    fromHandle(handle)._events.emplace_back(contract::platform::event::TextEntered{.codepoint = codepoint});
 }
 
 void GlfwPlatform::onCursorPos(GLFWwindow* handle, double x, double y) {
@@ -72,7 +72,7 @@ void GlfwPlatform::onCursorPos(GLFWwindow* handle, double x, double y) {
     const glm::vec2 delta = self._hasCursorPosition ? position - self._cursorPosition : glm::vec2{0.0F};
     self._cursorPosition = position;
     self._hasCursorPosition = true;
-    self._events.emplace_back(plugins::backend::event::MouseMoved{.position = position, .delta = delta});
+    self._events.emplace_back(contract::platform::event::MouseMoved{.position = position, .delta = delta});
 }
 
 void GlfwPlatform::onMouseButton(GLFWwindow* handle, int button, int action, int mods) {
@@ -81,16 +81,16 @@ void GlfwPlatform::onMouseButton(GLFWwindow* handle, int button, int action, int
     const auto engineMods = glfw::fromGlfwMods(mods);
     if (action == GLFW_RELEASE) {
         self._events.emplace_back(
-            plugins::backend::event::MouseButtonReleased{.button = engineButton, .mods = engineMods});
+            contract::platform::event::MouseButtonReleased{.button = engineButton, .mods = engineMods});
     } else {
         self._events.emplace_back(
-            plugins::backend::event::MouseButtonPressed{.button = engineButton, .mods = engineMods});
+            contract::platform::event::MouseButtonPressed{.button = engineButton, .mods = engineMods});
     }
 }
 
 void GlfwPlatform::onScroll(GLFWwindow* handle, double xoffset, double yoffset) {
     fromHandle(handle)._events.emplace_back(
-        plugins::backend::event::MouseScrolled{.offset = {static_cast<float>(xoffset), static_cast<float>(yoffset)}});
+        contract::platform::event::MouseScrolled{.offset = {static_cast<float>(xoffset), static_cast<float>(yoffset)}});
 }
 
 }  // namespace rtype::platform::glfw

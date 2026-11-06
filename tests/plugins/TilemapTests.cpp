@@ -57,7 +57,7 @@ TEST(Tilemap, DropsAChunkOnceItsTilesAreCleared) {
 
 TEST(Tilemap, FindsATileInItsImageWithMarginAndSpacing) {
     const Tileset tileset{.tileSize = {16, 16}, .columns = 3, .spacing = 2, .margin = 1};
-    const rtype::plugins::backend::math::Rect source = tileset.getSource(4);  // Second column, second row.
+    const rtype::contract::renderer::math::Rect source = tileset.getSource(4);  // Second column, second row.
     EXPECT_FLOAT_EQ(source.getX(), 19.0F);
     EXPECT_FLOAT_EQ(source.getY(), 19.0F);
     EXPECT_FLOAT_EQ(source.getWidth(), 16.0F);
