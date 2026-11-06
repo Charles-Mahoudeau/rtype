@@ -72,7 +72,7 @@ class String {
     constexpr void assign(std::string_view text) noexcept {
         std::size_t length = std::min(text.size(), kCapacity);
         // A UTF-8 continuation byte is 0b10xxxxxx: step back to the start of the character that does not fit.
-        while (length < text.size() && length > 0 && (static_cast<std::uint8_t>(text[length]) & 0xC0U) == 0x80U) {
+        while (length < text.size() && length > 0 && (static_cast<std::uint8_t>(text.at(length)) & 0xC0U) == 0x80U) {
             --length;
         }
         _bytes = {};

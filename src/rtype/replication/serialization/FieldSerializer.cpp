@@ -213,7 +213,7 @@ bool readValue(network::bytes::ByteReader& reader, ecs::FieldType type, std::spa
             if (!reader.isValid()) {
                 return false;
             }
-            bytes[0] = static_cast<std::byte>(length);
+            bytes.front() = static_cast<std::byte>(length);
             std::ranges::copy(text, bytes.begin() + 1);
             return true;
         }

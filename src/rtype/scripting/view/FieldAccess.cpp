@@ -336,7 +336,7 @@ Result<void> writeField(const std::string_view component, const ecs::FieldInfo& 
         }
         // A text longer than ecs::String::kCapacity is cut, as everywhere else.
         const ecs::String converted{*text};
-        std::memcpy(bytes.data() + field.offset, &converted, sizeof(ecs::String));
+        std::memcpy(bytes.subspan(field.offset).data(), &converted, sizeof(ecs::String));
         return {};
     }
     const auto* number = value.tryAs<double>();
