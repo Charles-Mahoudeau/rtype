@@ -120,21 +120,20 @@ if (const ShaderHandles::Material* material = handles->getMaterial(hit)) {
 `material` field of a `SpriteRenderer`. On a server, which has no ShaderPlugin, both forms only give the id.
 
 ```lua
-local flash = engine.assets.shader("assets/shaders/flash.glsl")
+local flash = engine.assets.shader("shaders/flash.glsl")
 local hit = engine.assets.material({
     name = "enemy_hit",
     shader = flash,
     values = { amount = 0.8, tint = { x = 1, y = 0.2, z = 0.2, w = 1 } },
-    textures = { noise = engine.assets.texture("assets/noise.png") },
+    textures = { noise = engine.assets.texture("noise.png") },
 })
 ```
 
 ### Where the files are
 
-A game built by the `Engine` gives `ShaderPlugin{settings}` its directory: a shader's path is relative to the **game
-directory**, so `assets/shaders/flash.glsl` is `<game>/assets/shaders/flash.glsl`. Without settings (`ShaderPlugin{}`, as
-the examples that have no `Engine`), it is relative to the working directory. Only shaders work this way for now:
-textures, fonts and sounds are still relative to the working directory.
+In a game, a shader's path starts in the game's assets, as every asset's does (`engine/design.md`, *Assets*):
+`shaders/flash.glsl` is `<game>/assets/shaders/flash.glsl`. In a program without an `Engine`, as most examples, it is
+relative to the working directory.
 
 ## Hot reload
 
