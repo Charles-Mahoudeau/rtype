@@ -30,6 +30,7 @@ constexpr std::size_t getValueWireSize(const ecs::FieldType type) noexcept {
         case ecs::FieldType::kBool:
         case ecs::FieldType::kI8:
         case ecs::FieldType::kU8:
+        case ecs::FieldType::kText:
             return 1;
         case ecs::FieldType::kI16:
         case ecs::FieldType::kU16:
@@ -103,6 +104,7 @@ void writeValue(network::bytes::ByteWriter& writer, ecs::FieldType type, std::sp
             writer.writeI64(load<std::int64_t>(bytes));
             break;
         case ecs::FieldType::kU8:
+        case ecs::FieldType::kText:
             writer.writeU8(load<std::uint8_t>(bytes));
             break;
         case ecs::FieldType::kU16:
@@ -174,6 +176,7 @@ bool readValue(network::bytes::ByteReader& reader, ecs::FieldType type, std::spa
             store(bytes, reader.readI64());
             return true;
         case ecs::FieldType::kU8:
+        case ecs::FieldType::kText:
             store(bytes, reader.readU8());
             return true;
         case ecs::FieldType::kU16:

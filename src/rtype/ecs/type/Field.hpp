@@ -7,7 +7,9 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <span>
 #include <string>
 
 namespace rtype::ecs {
@@ -30,6 +32,7 @@ enum class FieldType : std::uint8_t {
     kVec4,     ///< Four floats (glm layout).
     kEntity,   ///< An Entity: remapped by the network, cleared when its target is released.
     kAssetId,  ///< A stable 64-bit asset identifier, the same in every process.
+    kText,     ///< One byte of a `std::string` field: such a field is a list of them, read as one text.
     kString,   ///< An ecs::String: a length (`u8`) and 255 bytes of UTF-8, 256 bytes in all.
 };
 
@@ -45,6 +48,7 @@ struct FieldLayout {
         case FieldType::kBool:
         case FieldType::kI8:
         case FieldType::kU8:
+        case FieldType::kText:
             return {.size = 1, .alignment = 1};
         case FieldType::kI16:
         case FieldType::kU16:
@@ -71,11 +75,22 @@ struct FieldLayout {
     return {.size = 0, .alignment = 1};  // Unreachable: every FieldType is handled above.
 }
 
+/// @brief How to reach the values of a list field, a `std::vector` of plain data: they live outside the value, and
+/// their number changes. `offset` and `count` of its FieldInfo then describe the vector itself, and `type` its values.
+struct ListAccess {
+    std::uint32_t size;                                                 ///< Bytes taken by the vector inside the value.
+    std::uint32_t alignment;                                            ///< Required alignment of the vector.
+    std::span<const std::byte> (*elements)(const void* list) noexcept;  ///< The values, one after the other.
+    void (*assign)(void* list, std::span<const std::byte> elements);    ///< Replaces the values.
+    void (*erase)(void* list, std::span<const std::byte> value) noexcept;  ///< Removes the values equal to one.
+};
+
 /// @brief One reflected field of a component or a resource.
 struct FieldInfo {
     std::string name;                  ///< Field name, unique within its type.
     FieldType type{FieldType::kBool};  ///< Type of each value.
     std::uint32_t offset{0};           ///< Byte offset of the first value inside the type's value.
     std::uint32_t count{1};            ///< Number of values: 1 for a scalar, N for a fixed array.
+    const ListAccess* list{nullptr};   ///< How to reach the values of a list field; null for any other field.
 };
 }  // namespace rtype::ecs

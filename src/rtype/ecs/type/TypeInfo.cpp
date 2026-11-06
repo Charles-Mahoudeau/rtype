@@ -59,7 +59,9 @@ struct FieldSpan {
         if (field.count == 0) {
             return invalid(kind, info.name, std::format("field '{}' has a count of 0", field.name));
         }
-        const FieldLayout layout = getFieldLayout(field.type);
+        const FieldLayout layout = field.list != nullptr
+                                       ? FieldLayout{.size = field.list->size, .alignment = field.list->alignment}
+                                       : getFieldLayout(field.type);
         if (field.offset % layout.alignment != 0) {
             return invalid(kind, info.name,
                            std::format("field '{}' at offset {} is not aligned to {} bytes", field.name, field.offset,

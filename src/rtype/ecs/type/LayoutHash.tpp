@@ -32,6 +32,9 @@ constexpr std::uint64_t hashLayout(std::string_view name, std::size_t size, std:
         hash = core::hash::hashInteger(hash, static_cast<std::uint64_t>(field.type));
         hash = core::hash::hashInteger(hash, field.offset);
         hash = core::hash::hashInteger(hash, field.count);
+        if (field.list != nullptr) {
+            hash = core::hash::hashInteger(hash, field.list->size);
+        }
     }
     return hash;
 }

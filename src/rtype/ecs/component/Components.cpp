@@ -137,6 +137,34 @@ void Components::removeAll(Entity entity) noexcept {
     }
 }
 
+namespace {
+/// @brief Takes @p entity out of a list field of @p value: a list loses it, instead of keeping a null entity.
+/// @return Whether the list held it.
+bool eraseFromList(const FieldInfo& field, std::span<std::byte> value, Entity entity) noexcept {
+    void* list = value.subspan(field.offset).data();
+    const std::size_t before = field.list->elements(list).size();
+    field.list->erase(list, std::as_bytes(std::span{&entity, 1}));
+    return field.list->elements(list).size() != before;
+}
+
+/// @brief Replaces @p entity by the null entity in an entity field of @p value.
+/// @return Whether the field held it.
+bool clearField(const FieldInfo& field, std::span<std::byte> value, Entity entity) noexcept {
+    bool cleared = false;
+    for (std::uint32_t element = 0; element < field.count; ++element) {
+        const std::span<std::byte> bytes = value.subspan(field.offset + (element * sizeof(Entity)), sizeof(Entity));
+        Entity held;
+        std::memcpy(&held, bytes.data(), sizeof(Entity));
+        if (held == entity) {
+            const Entity null;
+            std::memcpy(bytes.data(), &null, sizeof(Entity));
+            cleared = true;
+        }
+    }
+    return cleared;
+}
+}  // namespace
+
 void Components::clearReferencesTo(Entity entity) noexcept {
     for (storage::SparseSetStorage& pool : _pools) {
         for (const FieldInfo& field : pool.getInfo().type.fields) {
@@ -145,18 +173,8 @@ void Components::clearReferencesTo(Entity entity) noexcept {
             }
             for (std::size_t position = 0; position < pool.getSize(); ++position) {
                 const std::span<std::byte> value = pool.at(position);
-                bool cleared = false;
-                for (std::uint32_t element = 0; element < field.count; ++element) {
-                    const std::span<std::byte> bytes =
-                        value.subspan(field.offset + (element * sizeof(Entity)), sizeof(Entity));
-                    Entity held;
-                    std::memcpy(&held, bytes.data(), sizeof(Entity));
-                    if (held == entity) {
-                        const Entity null;
-                        std::memcpy(bytes.data(), &null, sizeof(Entity));
-                        cleared = true;
-                    }
-                }
+                const bool cleared =
+                    field.list != nullptr ? eraseFromList(field, value, entity) : clearField(field, value, entity);
                 if (cleared) {
                     *std::next(pool.getChangedTicks().begin(), static_cast<std::ptrdiff_t>(position)) = getChangeTick();
                 }
