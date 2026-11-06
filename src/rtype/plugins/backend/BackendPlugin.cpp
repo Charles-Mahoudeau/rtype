@@ -33,6 +33,8 @@
 #include "plugins/backend/event/PlatformEvent.hpp"
 #include "plugins/backend/graphics/Camera.hpp"
 #include "plugins/backend/graphics/CameraView.hpp"
+#include "plugins/backend/graphics/MaterialInstance.hpp"
+#include "plugins/backend/graphics/Materials.hpp"
 #include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/backend/graphics/Sprite.hpp"
 #include "plugins/backend/graphics/SpriteQueue.hpp"
@@ -43,8 +45,6 @@
 #include "plugins/backend/graphics/VisibleArea.hpp"
 #include "plugins/input/InputPlugin.hpp"
 #include "plugins/particle/ParticlePlugin.hpp"
-#include "plugins/shader/MaterialInstance.hpp"
-#include "plugins/shader/ShaderHandles.hpp"
 #include "plugins/shader/ShaderPlugin.hpp"
 #include "plugins/sprite/SpritePlugin.hpp"
 #include "plugins/text/TextPlugin.hpp"
@@ -187,12 +187,12 @@ void applyCamera(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::ResMut
 }
 
 /// @brief Render: draws the sprites whose texture is loaded and the queued sprites and texts (SpriteQueue), by layer
-/// then by texture. A sprite whose material is created is drawn with it, and with its MaterialInstance's values or else
-/// its shader's defaults.
+/// then by texture. A sprite whose material is ready (Materials) is drawn with it, and with its MaterialInstance's
+/// values or else its shader's defaults.
 void drawSprites(
     ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<TextureAssets> textures,
-    ecs::Res<shader::ShaderHandles> handles, ecs::ResMut<graphics::SpriteQueue> queue,
-    ecs::Query<const transform::GlobalTransform, const SpriteRenderer, ecs::Optional<const shader::MaterialInstance>>
+    ecs::Res<graphics::Materials> materials, ecs::ResMut<graphics::SpriteQueue> queue,
+    ecs::Query<const transform::GlobalTransform, const SpriteRenderer, ecs::Optional<const graphics::MaterialInstance>>
         sprites) {
     plugins::backend::Backend& started = *backend;
     std::vector<graphics::SpriteQueue::Item> queued = queue->take();
@@ -213,7 +213,7 @@ void drawSprites(
                                .rotation = global.rotation,
                                .color = sprite.color,
                                .blend = sprite.blend};
-        if (const shader::ShaderHandles::Material* material = handles->getMaterial(sprite.material)) {
+        if (const graphics::Materials::Entry* material = materials->find(sprite.material)) {
             drawn.material = material->material;
             drawn.instanceValues = instance != nullptr ? instance->values : material->instanceDefaults;
         }
@@ -286,6 +286,7 @@ void BackendPlugin::build(ecs::App& app) {
     resources.insertIfAbsent<TextureAssets>();
     resources.insertIfAbsent<graphics::SpriteQueue>();
     resources.insertIfAbsent<graphics::VisibleArea>();
+    resources.insertIfAbsent<graphics::Materials>();
     static_cast<void>(app.getWorld().getComponents().registerType<SpriteRenderer>());
     static_cast<void>(app.getWorld().getComponents().registerType<graphics::Camera>());
 
