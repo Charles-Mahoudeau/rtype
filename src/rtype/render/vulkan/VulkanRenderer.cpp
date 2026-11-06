@@ -15,6 +15,7 @@
 #include <exception>
 #include <filesystem>
 #include <format>
+#include <glm/common.hpp>
 #include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
 #include <iostream>
@@ -26,6 +27,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -61,10 +63,12 @@
 #include "rtype/contract/platform/IPlatform.hpp"
 #include "rtype/contract/platform/exceptions/PlatformExceptions.hpp"
 #include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Overlay.hpp"
 #include "rtype/contract/renderer/drawing/Shape.hpp"
 #include "rtype/contract/renderer/drawing/Sprite.hpp"
 #include "rtype/contract/renderer/drawing/Text.hpp"
 #include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 #include "rtype/contract/renderer/particle/Particle.hpp"
 #include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 #include "rtype/contract/renderer/shaders/CompiledShader.hpp"

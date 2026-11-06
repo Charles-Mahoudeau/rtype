@@ -41,6 +41,7 @@
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/contract/platform/event/Event.hpp"
+#include "rtype/contract/renderer/drawing/Overlay.hpp"
 #include "rtype/contract/renderer/drawing/Texture.hpp"
 #include "rtype/contract/renderer/view/CameraView.hpp"
 #include "rtype/contract/renderer/view/View.hpp"
