@@ -7,10 +7,12 @@
 
 #pragma once
 
+#include <optional>
 #include <span>
 #include <string_view>
 
 #include "plugins/physics/debug/Export.hpp"
+#include "plugins/physics/debug/PhysicsDebugSettings.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -43,6 +45,8 @@ class RTYPE_PLUGIN_PHYSICS_DEBUG_API PhysicsDebugPlugin : public ecs::Plugin {
     static constexpr std::string_view kToggleSystem = "rtype.PhysicsDebug.Toggle";  ///< Flips enabled on the key.
     static constexpr std::string_view kDrawSystem = "rtype.PhysicsDebug.Draw";      ///< Draws the outlines and arrows.
 
+    /// @param settings What it inserts, replacing the default ones.
+    explicit PhysicsDebugPlugin(PhysicsDebugSettings settings);
     PhysicsDebugPlugin() = default;
     ~PhysicsDebugPlugin() override = default;
     PhysicsDebugPlugin(const PhysicsDebugPlugin& other) = default;
@@ -60,6 +64,9 @@ class RTYPE_PLUGIN_PHYSICS_DEBUG_API PhysicsDebugPlugin : public ecs::Plugin {
 
     /// @brief Registers the components and events it reads, inserts the settings, and adds the client systems.
     void build(ecs::App& app) override;
+
+  private:
+    std::optional<PhysicsDebugSettings> _settings;  ///< What it inserts; nothing: the App's, or the default ones.
 };
 
 }  // namespace rtype::plugins::physics::debug

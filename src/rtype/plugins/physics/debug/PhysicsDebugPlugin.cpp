@@ -98,13 +98,19 @@ std::span<const std::string_view> PhysicsDebugPlugin::getDependencies() const no
     return kDependencies;
 }
 
+PhysicsDebugPlugin::PhysicsDebugPlugin(PhysicsDebugSettings settings) : _settings{settings} {}
+
 void PhysicsDebugPlugin::build(ecs::App& app) {
     static_cast<void>(app.getWorld().getComponents().registerType<Collider>(kColliderOptions));
     static_cast<void>(app.getWorld().getComponents().registerType<Velocity>());
     static_cast<void>(app.getWorld().getComponents().registerType<PhysicsDebug>());
     static_cast<void>(app.getWorld().getEvents().registerType<contract::platform::event::KeyPressed>());
     ecs::Resources& resources = app.getWorld().getResources();
-    resources.insertIfAbsent<PhysicsDebugSettings>();
+    if (_settings) {
+        resources.insert(*_settings);
+    } else {
+        resources.insertIfAbsent<PhysicsDebugSettings>();
+    }
     app.addSystem(ecs::Phase::kUpdate, std::string{kToggleSystem}, &toggleDebug).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kRender, std::string{kDrawSystem}, &drawDebug)
         .after(std::string{shape::ShapePlugin::kDrawSystem})
