@@ -233,7 +233,9 @@ TEST(Schedule, RejectsATargetOutsideTheSchedule) {
     World world;
     Schedule schedule{world, RunMode::kStandalone, Phase::kUpdate};
     schedule.addSystem("rtype.collision", &noop).after("rtype.movment");
-    expectBuildError(schedule, {"'rtype.collision' runs after 'rtype.movment', which is not a system of phase Update"});
+    expectBuildError(
+        schedule,
+        {"'rtype.collision' runs after 'rtype.movment', which is neither a system nor a set of phase Update"});
 }
 
 TEST(Schedule, RejectsTwoSystemsWithTheSameName) {

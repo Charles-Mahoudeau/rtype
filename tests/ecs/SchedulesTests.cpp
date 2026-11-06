@@ -135,8 +135,9 @@ TEST(Schedules, RejectsATargetInAnotherPhase) {
     Schedules schedules{world, RunMode::kStandalone};
     schedules.addSystem(Phase::kPreUpdate, "rtype.input", &noop);
     schedules.addSystem(Phase::kFixedUpdate, "rtype.movement", &noop).before("rtype.input");
-    expectScheduleError([&] { schedules.build(); },
-                        "'rtype.movement' runs before 'rtype.input', which is not a system of phase FixedUpdate");
+    expectScheduleError(
+        [&] { schedules.build(); },
+        "'rtype.movement' runs before 'rtype.input', which is neither a system nor a set of phase FixedUpdate");
 }
 
 TEST(Schedules, AcceptsConflictingSystemsOfDifferentPhases) {

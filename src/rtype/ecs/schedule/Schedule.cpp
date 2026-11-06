@@ -68,14 +68,22 @@ namespace {
     return joined;
 }
 
-/// @return The cycle's systems as `'a' -> 'b' -> 'a'`.
-/// @param cycle Numbers of the systems, the first repeated at the end (DependencyGraph::findCycle()).
-/// @param names The system of each number.
-[[nodiscard]] std::string describeCycle(std::span<const std::size_t> cycle, std::span<const std::string_view> names) {
+/// @return The cycle's systems and sets as `'a' -> set 'effects' -> 'a'`.
+/// @param cycle Numbers of the nodes, the first repeated at the end (DependencyGraph::findCycle()).
+/// @param shown Each node as messages show it.
+/// @param systemCount The number of systems: the nodes after them are sets, a start then an end each, shown once when
+/// the cycle crosses a set from its start to its end.
+[[nodiscard]] std::string describeCycle(std::span<const std::size_t> cycle, std::span<const std::string> shown,
+                                        std::size_t systemCount) {
     std::string description;
+    std::optional<std::size_t> previous;
     for (const std::size_t number : cycle) {
-        description += std::format("{}'{}'", description.empty() ? "" : " -> ",
-                                   *std::next(names.begin(), static_cast<std::ptrdiff_t>(number)));
+        const bool setEnd = number >= systemCount && (number - systemCount) % 2 == 1;
+        if (!(setEnd && previous == number - 1)) {
+            description += std::format("{}{}", description.empty() ? "" : " -> ",
+                                       *std::next(shown.begin(), static_cast<std::ptrdiff_t>(number)));
+        }
+        previous = number;
     }
     return description;
 }
@@ -92,6 +100,13 @@ Schedule::SystemConfig& Schedule::SystemConfig::after(std::string name) {
 
 Schedule::SystemConfig& Schedule::SystemConfig::before(std::string name) {
     _schedule->_entries.at(_index).before.push_back(std::move(name));
+    _schedule->_built = false;
+    return *this;
+}
+
+Schedule::SystemConfig& Schedule::SystemConfig::inSet(std::string set) {
+    static_cast<void>(_schedule->_sets.try_emplace(set));
+    _schedule->_entries.at(_index).sets.push_back(std::move(set));
     _schedule->_built = false;
     return *this;
 }
@@ -123,6 +138,20 @@ void Schedule::checkClientWrites(const System& system) const {
     }
 }
 
+Schedule::SetConfig::SetConfig(Schedule& schedule, std::string name) : _schedule{&schedule}, _name{std::move(name)} {}
+
+Schedule::SetConfig& Schedule::SetConfig::after(std::string name) {
+    _schedule->_sets.at(_name).after.push_back(std::move(name));
+    _schedule->_built = false;
+    return *this;
+}
+
+Schedule::SetConfig& Schedule::SetConfig::before(std::string name) {
+    _schedule->_sets.at(_name).before.push_back(std::move(name));
+    _schedule->_built = false;
+    return *this;
+}
+
 Schedule::Schedule(World& world, RunMode mode, Phase phase) noexcept : _world{&world}, _mode{mode}, _phase{phase} {}
 
 RunMode Schedule::getRunMode() const noexcept { return _mode; }
@@ -152,26 +181,37 @@ const System* Schedule::findSystem(std::string_view name) const noexcept {
     return found == _entries.end() ? nullptr : &found->system;
 }
 
+bool Schedule::containsSet(std::string_view name) const noexcept { return _sets.contains(name); }
+
+Schedule::SetConfig Schedule::configureSet(std::string name) {
+    static_cast<void>(_sets.try_emplace(name));
+    _built = false;
+    return SetConfig{*this, std::move(name)};
+}
+
 Schedule::SystemConfig Schedule::addSystem(System system) {
     if (contains(system.getName())) {
         throw exceptions::ScheduleException{std::format("Two systems of phase {} are named '{}': names must be unique",
                                                         toString(_phase), system.getName())};
     }
-    _entries.push_back(Entry{.system = std::move(system), .after = {}, .before = {}});
+    _entries.push_back(Entry{.system = std::move(system), .after = {}, .before = {}, .sets = {}});
     _built = false;
     return SystemConfig{*this, _entries.size() - 1};
 }
 
 void Schedule::build() {
     _built = false;
-    const std::vector<std::string_view> names = getNames();
-    const detail::DependencyGraph graph = makeGraph();
-    std::optional<std::vector<std::size_t>> order = graph.sort(names);
+    checkSetNames();
+    const Graph graph = makeGraph();
+    const std::vector<std::string_view> nodeNames{graph.names.begin(), graph.names.end()};
+    std::optional<std::vector<std::size_t>> order = graph.graph.sort(nodeNames);
     if (!order) {
-        throw exceptions::ScheduleException{std::format("The before / after constraints of phase {} form a cycle: {}",
-                                                        toString(_phase), describeCycle(graph.findCycle(), names))};
+        throw exceptions::ScheduleException{
+            std::format("The before / after constraints of phase {} form a cycle: {}", toString(_phase),
+                        describeCycle(graph.graph.findCycle(), graph.shown, _entries.size()))};
     }
-    checkAmbiguities(names, graph);
+    checkAmbiguities(getNames(), graph.graph);
+    std::erase_if(*order, [&](std::size_t node) { return node >= _entries.size(); });  // a set's nodes do not run
     _order = std::move(*order);
     _writtenEvents = collectWrittenEvents();
     _built = true;
@@ -204,34 +244,80 @@ std::vector<std::string_view> Schedule::getNames() const {
     return names;
 }
 
-detail::DependencyGraph Schedule::makeGraph() const {
+Schedule::Graph Schedule::makeGraph() const {
     NameIndex names;
     for (std::size_t position = 0; position < _entries.size(); ++position) {
         names.emplace(_entries.at(position).system.getName(), position);
     }
-    detail::DependencyGraph graph{_entries.size()};
+    Graph graph{.graph = detail::DependencyGraph{_entries.size() + (2 * _sets.size())}, .names = {}, .shown = {}};
+    for (const Entry& entry : _entries) {
+        graph.names.emplace_back(entry.system.getName());
+        graph.shown.push_back(std::format("'{}'", entry.system.getName()));
+    }
+    for (const auto& [name, set] : _sets) {
+        // The control character keeps a set's nodes from sharing a name with a system in the sort.
+        graph.names.push_back(std::format("\x1F{}:start", name));
+        graph.names.push_back(std::format("\x1F{}:end", name));
+        graph.shown.push_back(std::format("set '{}'", name));
+        graph.shown.push_back(std::format("set '{}'", name));
+    }
+    for (const auto& [name, set] : _sets) {
+        const std::size_t start = getSetStart(name);
+        const std::string owner = std::format("Set '{}'", name);
+        graph.graph.addEdge(start, start + 1);  // keeps the order through an empty set
+        for (const std::string& target : set.after) {
+            graph.graph.addEdge(resolve(names, owner, "after", target), start);
+        }
+        for (const std::string& target : set.before) {
+            graph.graph.addEdge(start + 1, resolve(names, owner, "before", target));
+        }
+    }
     for (std::size_t position = 0; position < _entries.size(); ++position) {
         const Entry& entry = _entries.at(position);
+        const std::string owner = std::format("System '{}'", entry.system.getName());
+        for (const std::string& set : entry.sets) {
+            const std::size_t start = getSetStart(set);
+            graph.graph.addEdge(start, position);
+            graph.graph.addEdge(position, start + 1);
+        }
         for (const std::string& target : entry.after) {
-            graph.addEdge(resolve(names, entry, "after", target), position);
+            graph.graph.addEdge(resolve(names, owner, "after", target), position);
         }
         for (const std::string& target : entry.before) {
-            graph.addEdge(position, resolve(names, entry, "before", target));
+            graph.graph.addEdge(position, resolve(names, owner, "before", target));
         }
     }
     return graph;
 }
 
-std::size_t Schedule::resolve(const NameIndex& names, const Entry& entry, std::string_view relation,
+std::size_t Schedule::resolve(const NameIndex& names, std::string_view owner, std::string_view relation,
                               const std::string& target) const {
-    const auto found = names.find(target);
-    if (found == names.end()) {
-        throw exceptions::ScheduleException{
-            std::format("System '{}' runs {} '{}', which is not a system of phase {}: only systems of one phase can "
-                        "be ordered",
-                        entry.system.getName(), relation, target, toString(_phase))};
+    if (const auto system = names.find(target); system != names.end()) {
+        return system->second;
     }
-    return found->second;
+    if (_sets.contains(target)) {
+        const std::size_t start = getSetStart(target);
+        return relation == "after" ? start + 1 : start;  // after a set: after its end; before it: before its start
+    }
+    throw exceptions::ScheduleException{
+        std::format("{} runs {} '{}', which is neither a system nor a set of phase {}: only systems and sets of one "
+                    "phase can be ordered",
+                    owner, relation, target, toString(_phase))};
+}
+
+std::size_t Schedule::getSetStart(std::string_view name) const {
+    const auto set = _sets.find(name);
+    return _entries.size() + (2 * static_cast<std::size_t>(std::distance(_sets.begin(), set)));
+}
+
+void Schedule::checkSetNames() const {
+    for (const auto& [name, set] : _sets) {
+        if (contains(name)) {
+            throw exceptions::ScheduleException{
+                std::format("Phase {} has a system and a set both named '{}': systems and sets share their names",
+                            toString(_phase), name)};
+        }
+    }
 }
 
 void Schedule::checkAmbiguities(const std::vector<std::string_view>& names,
