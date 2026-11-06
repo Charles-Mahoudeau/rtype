@@ -2,7 +2,7 @@
 
 A game shader is a small GLSL file: a `fragment()` function, a `vertex()` function, or both, written in a dialect the
 engine defines. The game never writes a pipeline or a binding. The shader plugin (`src/rtype/plugins/shader/`,
-`rtype::plugins::shader`) compiles the file and hands the result to the renderer. The `BackendPlugin` adds it.
+`rtype::plugins::shader`) compiles the file and hands the result to the renderer. The game adds it, after `GraphicsPlugin`, which it requires.
 
 ## Writing a shader
 
@@ -135,7 +135,7 @@ devices, 48 of which are taken.
 ## The contract with the backends
 
 The shader plugin is one producer of shaders among others. A renderer knows nothing of it, and only sees two things,
-both in `plugins/backend/graphics/`:
+both in `contract/renderer/`:
 
 - **`CompiledShader`** (`Shader.hpp`): plain data. The SPIR-V of each target, and what reflection found: the values, the
   textures, their offsets and defaults. `IRenderer::createShader()` takes it, and `createMaterial()` a shader, the bytes

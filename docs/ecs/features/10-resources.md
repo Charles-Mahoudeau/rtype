@@ -99,10 +99,10 @@ system's signature tells the scheduler what it reads, writes, and whether it nee
 ```c++
 app.insertResource(Time{.fixedDelta = 1.F / 60.F});
 app.insertResource(std::move(settings));               // Ethan's core::config::Settings
-app.insertNonSendResource(std::move(backend));         // Ethan's plugins::backend::Backend
+app.insertNonSendResource(std::move(backend));         // Ethan's plugins::graphics::Backend
 
 void tick(rtype::ecs::ResMut<Time> time);
-void drawSprites(/* queries... */ rtype::ecs::NonSendMut<rtype::plugins::backend::Backend> backend);
+void drawSprites(/* queries... */ rtype::ecs::NonSendMut<rtype::plugins::graphics::Backend> backend);
 ```
 
 | Parameter | Access | Thread |
@@ -125,9 +125,9 @@ this changes nothing at runtime; it is there so a parallel scheduler later knows
 |---|---|---|
 | `Time` | `TimePlugin` (every App has one) | `Res` |
 | `Settings` | core (from the config file) | `Res` |
-| `Backend` (platform + renderer) | `BackendPlugin` | `NonSend` |
+| `Backend` (platform + renderer) | `GraphicsPlugin` | `NonSend` |
 | `Input` | `InputPlugin` | `Res` |
-| `TextureAssets` (`AssetId` → texture, load queue) | `BackendPlugin` | `ResMut` to load, `Res` to look up |
+| `TextureAssets` (`AssetId` → texture, load queue) | `GraphicsPlugin` | `ResMut` to load, `Res` to look up |
 | Sound assets | an audio plugin (later, once an audio library is chosen) | `Res` |
 | `ServerState` / `ClientState` | `ServerPlugin` / `ClientPlugin` | `Res` |
 | `State<T>` | `app.state<T>()` (see [Scheduler](13-scheduler.md)) | `Res` |
@@ -156,7 +156,9 @@ replicated resource is sent like a component of a hidden singleton entity.
 - **Turning everything into a resource.** Per-player data (score per player) belongs on the player's
   entity, not in a resource map; otherwise queries, replication and despawning do not see it.
 - **Hidden ordering.** Two systems writing the same resource must be ordered explicitly; the scheduler
-  rejects ambiguous orders (see [Scheduler](13-scheduler.md)).
+  rejects ambiguous orders (see [Scheduler](13-scheduler.md)). The exception is `ResAppend<T>`, for a resource
+  systems only add to: two appending systems need no order, but each is still ordered against whatever reads or
+  writes it. Use it only when the order of the additions cannot change the result.
 - **Missing resource.** `require<T>()` throws `MissingResourceException` naming the resource
   ("Resource 'rtype.Time' is not in the world: insert it (or add the plugin that does) before using it");
   with #120, a system asking for `Res<T>` reports it the same way. `get<T>()` returns `nullptr` for

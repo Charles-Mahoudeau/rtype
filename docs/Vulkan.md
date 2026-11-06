@@ -43,9 +43,9 @@ The engine does not create `VulkanRenderer` itself: the `render-vulkan` target r
 the configuration picks it (see [`Backend.md`](Backend.md)):
 
 ```cpp
-rtype::plugins::backend::BackendRegistry registry;
-rtype::platform::glfw::registerPlatform(registry);   // "glfw"
-rtype::render::vulkan::registerRenderer(registry);  // "vulkan"
+rtype::plugins::graphics::BackendRegistry registry;
+rtype::platform::glfw::registerPlatform(registry.platforms);   // "glfw"
+rtype::render::vulkan::registerRenderer(registry.renderers);  // "vulkan"
 
 rtype::core::config::Settings config;
 config.set("platform", "glfw");
@@ -53,7 +53,7 @@ config.set("renderer", "vulkan");
 config.set("vulkan.layers", std::vector<std::string>{"VK_LAYER_KHRONOS_validation"});  // debug builds
 config.set("vulkan.debugging", true);
 
-const rtype::plugins::backend::Backend backend = registry.createBackend(config);
+const rtype::plugins::graphics::Backend backend = registry.createBackend(config);
 ```
 
 The `vulkan` settings fill a `VulkanRenderer::Config`: `engineName`, `layers`, `extraExtensions`, `debugging` (the
@@ -82,7 +82,7 @@ On macOS, `Instance` also enables `VK_KHR_portability_enumeration`, which Molten
 
 ## Textures
 
-`createTexture()` takes RGBA8 pixels (decoded by the [`TextureAssets`](../src/rtype/plugins/backend/graphics/TextureAssets.hpp) resource) and
+`createTexture()` takes RGBA8 pixels (decoded by the [`TextureAssets`](../src/rtype/plugins/graphics/TextureAssets.hpp) resource) and
 returns a `TextureId`:
 
 1. A `memory::Image`: a `VkImage` from VMA (device local, one mip level), `R8G8B8A8_SRGB`, usage
@@ -136,7 +136,7 @@ so a header that stops compiling fails the build.
 
 `setView()` sets the frame's view (a `graphics::View`: position, rotation, projection); the last one set before
 `endFrame()` applies to the whole frame, and without one the frame shows the view from the world's origin at its top-left corner. `graphics::CameraView` (in
-`plugins/backend/graphics/`, so games use the same math to convert the mouse to world coordinates) turns it into what
+`contract/renderer/`, so games use the same math to convert the mouse to world coordinates) turns it into what
 the frame shows:
 
 - **Virtual resolution**: `Config::virtualResolution` (setting `vulkan.virtualResolution = { 1920, 1080 }`) is the
@@ -156,8 +156,8 @@ size and origin scaled, rotation, UV rect from the source and the texture size, 
 batch to `rendering::SpritePass`, which copies the instances into the frame's instance buffer (one per frame in
 flight, doubled when too small) and records, for each batch, the texture's set and one instanced draw of a 6-vertex
 quad (`shaders/sprite.vert` builds it from `gl_VertexIndex`; `sprite.frag` multiplies the texture by the colour).
-Both are the default shader: they include the shaders ABI of the backend contract
-(`src/rtype/plugins/backend/graphics/shaders/`) with no game code, so built-in and game sprites are drawn by the same
+Both are the default shader: they include the shaders ABI of the renderer contract
+(`src/rtype/contract/renderer/shaders/`) with no game code, so built-in and game sprites are drawn by the same
 code, and the renderer depends on no plugin for it.
 Only consecutive sprites merge, so the draw order is kept: sort by layer, then by texture within a layer, for fewer
 draw calls. A debug build with the validation layer draws 10,000 sprites in about 8 ms a frame on an Apple M-series

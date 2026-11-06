@@ -1,7 +1,7 @@
 # Audio Design
 
 This document describes the audio of the R-Type engine as planned: an ECS plugin, `AudioPlugin`, that plays sounds
-through a swappable audio backend chosen by the configuration, the same way `BackendPlugin` starts the platform and
+through a swappable audio backend chosen by the configuration, the same way `GraphicsPlugin` starts the platform and
 the renderer a config names. The first backend is [miniaudio](https://miniaud.io), chosen in
 [`../benchmarks/audio.md`](../benchmarks/audio.md); a silent `"null"` backend ships with the plugin, and FMOD can be
 added later without touching gameplay code.
@@ -49,6 +49,10 @@ behind a contract implemented by its own target (as rendering). This design take
 - **FMOD stays possible.** Its SDK is closed and cannot be built in CI, so it can only ever be an optional target; a
   registry is what lets an optional target plug in without `#ifdef`s in the plugin.
 
+The contract keeps what a backend sees: `IAudioDevice`, `AudioTypes`, `AudioDeviceRegistry` (`contract/audiodevice/`), with a
+factory that receives its section and `maxVoices`. `AudioRegistry`, `AudioConfig`, `AudioVolumes` and `NullAudioDevice` are in
+`plugins/audio/`, where the choice of the device and its fallback are made.
+
 The cost is small because the pattern already exists: `AudioRegistry` mirrors `BackendRegistry`, and
 `audio-miniaudio` mirrors `platform-glfw`.
 
@@ -59,11 +63,9 @@ its own config section, so a game can have a window without sound, or sound with
 ## 3. Where it lives
 
 ```
-src/rtype/plugins/audio/            namespace rtype::plugins::audio   (target plugins)
+src/rtype/plugins/audio/            namespace rtype::plugins::audio   (target plugin-audio)
 ├── AudioPlugin.hpp/.cpp            the plugin: registers, inserts the resources, adds the systems
 ├── AudioRegistry.hpp/.cpp          backends by name; "null" is always registered
-├── IAudioDevice.hpp                the contract every backend implements
-├── AudioTypes.hpp                  SoundId, VoiceId, Bus, SoundDesc, PlayParams
 ├── AudioConfig.hpp/.cpp            the common `audio` section, typed and checked
 ├── AudioAssets.hpp/.cpp            the sounds by AssetId (resource)
 ├── AudioVolumes.hpp                master and bus volumes (resource)
@@ -76,7 +78,7 @@ src/rtype/plugins/audio/            namespace rtype::plugins::audio   (target pl
 
 src/rtype/audio/miniaudio/          namespace rtype::audio::miniaudio  (target audio-miniaudio)
 ├── MiniaudioDevice.hpp/.cpp        IAudioDevice on ma_engine, ma_sound, ma_sound_group
-├── Registration.hpp/.cpp           registerAudio(AudioRegistry&) → "miniaudio"
+├── Registration.hpp/.cpp           registerAudio(AudioDeviceRegistry&) → "miniaudio"
 ├── exceptions/                     MiniaudioException
 └── xmake.lua                       add_requires("miniaudio")
 
@@ -99,7 +101,7 @@ src/rtype/audio/fmod/               later, same shape, behind an xmake option (s
 
 ## 4. Configuration
 
-The plugin reads the same `core::config::Settings` as the backend plugin: a common `audio` section, plus one section per
+The plugin reads the same `core::config::Settings` as the graphics plugin: a common `audio` section, plus one section per
 backend named after it, handed to that backend's factory only (as `vulkan = { ... }` is to the Vulkan renderer).
 
 ```lua
@@ -249,9 +251,9 @@ the renderers (`docs/Backend.md`), so a backend that lacks them still fits:
 class AudioRegistry {
   public:
     /// @param section The backend's own section (`miniaudio`...), to check and read.
-    /// @param config The common `audio` section, already typed.
+    /// @param maxVoices Voices playing at once.
     using Factory = std::function<std::unique_ptr<IAudioDevice>(const core::config::Settings& section,
-                                                                const AudioConfig& config)>;
+                                                                std::uint32_t maxVoices)>;
 
     /// @brief Registers "null".
     AudioRegistry();
@@ -278,7 +280,7 @@ The executable fills it, next to the backend registry:
 
 ```cpp
 auto audio = std::make_unique<rtype::plugins::audio::AudioRegistry>();
-rtype::audio::miniaudio::registerAudio(*audio);
+rtype::audio::miniaudio::registerAudio(audio->devices);
 app.addPlugin(rtype::plugins::audio::AudioPlugin{std::move(audio), settings});
 ```
 
@@ -363,7 +365,7 @@ with `SoundDesc{.stream = true}`.
 
 ### Systems
 
-All are client systems (`setSide(ecs::Side::kClient)`), as the backend plugin's are.
+All are client systems (`setSide(ecs::Side::kClient)`), as the graphics plugin's are.
 
 | Phase | Name | What it does |
 |---|---|---|
@@ -451,7 +453,7 @@ Settled:
 
 1. **`Settings`** moved, with `SettingsException`, to `core/config/` (`rtype::core::config`), in the `core` library,
    which depends on no other target. It was first in `core/config/`, but it is not a plugin.
-   `BackendException` stays in `plugins/backend/exceptions/BackendExceptions.hpp`.
+   `BackendException` stays in `rtype/contract/platform/exceptions/BackendExceptions.hpp`.
 2. **`AssetId`** moved to `core/asset/` (`rtype::core::asset`).
 3. **Buses** are a fixed enum (music, effects) for now.
 4. **A device that cannot open** falls back to `"null"` with a warning, unless `audio.required` is true. A mistake in
