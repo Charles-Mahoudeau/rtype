@@ -23,6 +23,8 @@
 #include "plugins/backend/Names.hpp"
 #include "plugins/backend/graphics/BlendMode.hpp"
 #include "plugins/backend/graphics/IRenderer.hpp"
+#include "plugins/backend/graphics/MaterialInstance.hpp"
+#include "plugins/backend/graphics/Materials.hpp"
 #include "plugins/backend/graphics/Particle.hpp"
 #include "plugins/backend/graphics/ParticleSystemDesc.hpp"
 #include "plugins/backend/graphics/SpriteQueue.hpp"
@@ -35,8 +37,6 @@
 #include "plugins/particle/ParticleEvents.hpp"
 #include "plugins/particle/ParticleSpawn.hpp"
 #include "plugins/particle/ParticleSystems.hpp"
-#include "plugins/shader/MaterialInstance.hpp"
-#include "plugins/shader/ShaderHandles.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -231,12 +231,13 @@ void updateEmitters(
 }
 
 /// @brief Render, client: simulates the GPU systems and pushes every emitter to the SpriteQueue. An emitter whose
-/// material (its own, or else its effect's) is created is drawn with it, and with its MaterialInstance's values or
-/// else its shader's defaults.
-void drawEmitters(ecs::NonSendMut<backend::Backend> backend, ecs::Res<ParticleEffectAssets> effects,
-                  ecs::Res<backend::TextureAssets> textures, ecs::Res<shader::ShaderHandles> handles,
-                  ecs::ResMut<ParticleSystems> systems, ecs::ResMut<backend::graphics::SpriteQueue> queue,
-                  ecs::Query<const ParticleEmitter, ecs::Optional<const shader::MaterialInstance>> emitters) {
+/// material (its own, or else its effect's) is ready (Materials) is drawn with it, and with its MaterialInstance's
+/// values or else its shader's defaults.
+void drawEmitters(
+    ecs::NonSendMut<backend::Backend> backend, ecs::Res<ParticleEffectAssets> effects,
+    ecs::Res<backend::TextureAssets> textures, ecs::Res<backend::graphics::Materials> materials,
+    ecs::ResMut<ParticleSystems> systems, ecs::ResMut<backend::graphics::SpriteQueue> queue,
+    ecs::Query<const ParticleEmitter, ecs::Optional<const backend::graphics::MaterialInstance>> emitters) {
     backend::graphics::IRenderer* renderer = getRenderer(*backend);
     const bool framed = renderer != nullptr && backend->platform->getFramebufferSize().x != 0 &&
                         backend->platform->getFramebufferSize().y != 0;
@@ -269,7 +270,7 @@ void drawEmitters(ecs::NonSendMut<backend::Backend> backend, ecs::Res<ParticleEf
         draw.flipbook = effect->flipbook;
         const core::asset::AssetId named =
             emitter.material != core::asset::AssetId{} ? emitter.material : effect->material;
-        if (const shader::ShaderHandles::Material* material = handles->getMaterial(named)) {
+        if (const backend::graphics::Materials::Entry* material = materials->find(named)) {
             draw.material = material->material;
             draw.instanceValues = instance != nullptr ? instance->values : material->instanceDefaults;
         }
@@ -287,6 +288,7 @@ void ParticlePlugin::build(ecs::App& app) {
     resources.insertIfAbsent<ParticleSystems>();
     resources.insertIfAbsent<backend::TextureAssets>();
     resources.insertIfAbsent<backend::graphics::SpriteQueue>();
+    resources.insertIfAbsent<backend::graphics::Materials>();
     static_cast<void>(app.getWorld().getComponents().registerType<ParticleEmitter>());
     static_cast<void>(app.getWorld().getComponents().registerType<ParticleOneShot>());
     static_cast<void>(app.getWorld().getEvents().registerType<SpawnParticles>());
