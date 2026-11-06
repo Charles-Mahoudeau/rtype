@@ -9,38 +9,15 @@
 
 #include <cstdint>
 #include <glm/ext/vector_float2.hpp>
-#include <type_traits>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
-#include "plugins/GlmReflection.hpp"      // IWYU pragma: keep
+#include "plugins/AssetIdReflection.hpp"   // IWYU pragma: keep
+#include "plugins/GlmReflection.hpp"       // IWYU pragma: keep
+#include "plugins/GraphicsReflection.hpp"  // IWYU pragma: keep
 #include "rtype/contract/renderer/drawing/BlendMode.hpp"
 #include "rtype/contract/renderer/drawing/Color.hpp"
 #include "rtype/contract/renderer/math/Rect.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
-#include "rtype/ecs/type/Field.hpp"
-#include "rtype/ecs/type/FieldTypeOf.hpp"
-
-// The ECS reflects scalars only: a BlendMode field is reflected as its underlying byte. The specialization must sit
-// outside the backend namespace, in one that encloses rtype::ecs, and here rather than in BlendMode.hpp, which the
-// renderers include without the ECS.
-/// @brief A contract::renderer::BlendMode field is reflected as kU8.
-template <>
-struct rtype::ecs::FieldTypeOf<rtype::contract::renderer::BlendMode>
-    : std::integral_constant<rtype::ecs::FieldType, rtype::ecs::FieldType::kU8> {};
-static_assert(sizeof(rtype::contract::renderer::BlendMode) == 1, "BlendMode must match FieldType::kU8");
-
-/// @brief A contract::renderer::math::Rect field is reflected as kVec4: x and y are its position, z and w its width and
-/// height.
-template <>
-struct rtype::ecs::FieldTypeOf<rtype::contract::renderer::math::Rect>
-    : std::integral_constant<rtype::ecs::FieldType, rtype::ecs::FieldType::kVec4> {};
-static_assert(sizeof(rtype::contract::renderer::math::Rect) == 16 &&
-                  alignof(rtype::contract::renderer::math::Rect) == 4,
-              "Rect must match FieldType::kVec4");
-static_assert(std::is_standard_layout_v<rtype::contract::renderer::math::Rect> &&
-                  std::is_trivially_copyable_v<rtype::contract::renderer::math::Rect>,
-              "Rect must be four floats in a row: x, y, width, height");
 
 namespace rtype::plugins::sprite {
 /// @brief Draws an entity as a part of a texture: the component a render system will turn into a
