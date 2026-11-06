@@ -47,11 +47,12 @@ constexpr std::array kFieldTypes{
     FieldTypeName{.name = "u64", .type = ecs::FieldType::kU64},
     FieldTypeName{.name = "f32", .type = ecs::FieldType::kF32},
     FieldTypeName{.name = "f64", .type = ecs::FieldType::kF64},
+    FieldTypeName{.name = "vec2", .type = ecs::FieldType::kVec2},
+    FieldTypeName{.name = "vec3", .type = ecs::FieldType::kVec3},
+    FieldTypeName{.name = "vec4", .type = ecs::FieldType::kVec4},
     FieldTypeName{.name = "entity", .type = ecs::FieldType::kEntity},
+    FieldTypeName{.name = "assetId", .type = ecs::FieldType::kAssetId},
 };
-
-/// @brief Types of the ECS that scripts cannot declare yet.
-constexpr std::array<std::string_view, 4> kUnsupportedTypes{"vec2", "vec3", "vec4", "assetId"};
 
 /// @brief What the reader works on: the component's name, for the messages, and its table.
 struct Source {
@@ -92,9 +93,6 @@ struct Source {
     // NOLINTNEXTLINE(readability-qualified-auto)
     if (const auto found = std::ranges::find(kFieldTypes, *name, &FieldTypeName::name); found != kFieldTypes.end()) {
         return found->type;
-    }
-    if (std::ranges::find(kUnsupportedTypes, *name) != kUnsupportedTypes.end()) {
-        return invalid(component, std::format("field '{}': type '{}' is not supported by scripts yet", field, *name));
     }
     return invalid(component, std::format("field '{}' has an unknown type '{}'", field, *name));
 }

@@ -70,11 +70,19 @@ needs no class machinery. The method form can be sugar on top later.
 
 Supported in the first version:
 
-- **Field types**: `bool`, `i8`..`i64`, `u8`..`u64`, `f32`, `f64`, `entity` (every `ecs::FieldType` except the vectors
-  and `AssetId`). `vec2`/`vec3`/`vec4` and `assetId` are SCR-01.
-- **Query terms**: `read`, `write`, `optionalRead`, `optionalWrite`, `with`, `without` (all exist in `QueryBuilder`).
-  `added`/`changed` are SCR-02.
+- **Field types**: `bool`, `i8`..`i64`, `u8`..`u64`, `f32`, `f64`, `entity`, and, since SCR-01, `vec2`, `vec3`, `vec4`
+  and `assetId` (every `ecs::FieldType`). A `vec3` reads as a Luau `vector` and writes from one or from a table; the
+  Luau build has three-wide vectors only, so `vec2` and `vec4` read and write as tables `{x=, y=}` / `{x=, y=, z=, w=}`
+  with every key present. An `assetId` writes from a path string (hashed to its `AssetId`) or an `AssetId`, and reads as
+  an opaque `AssetId` userdata (`==`, `tostring`).
+- **Query terms**: `read`, `write`, `optionalRead`, `optionalWrite`, `with`, `without` (all exist in `QueryBuilder`)
+  and, since SCR-02, `added` and `changed`. Those two only filter, like `with`: they give no view, so a script that
+  needs the value lists the component under `read` as well.
 - **Phases**: all of `ecs::Phase`.
+- **Plugins**: since SCR-03, `engine.ecs.plugin(name, {build, plugins})` declares a Luau plugin and
+  `engine.ecs.addPlugin(name)` adds it. Adding one first adds the plugins it lists, then calls `build(app)`, where
+  `app` has `component`, `system` and `addPlugin` (it only lives during the build). A plugin is built once; an unknown
+  name, a cycle (`a -> b -> a`) or a name declared twice is an error.
 - **`ctx`**: `query` (iteration), `commands` (`spawn`, `despawn`, `add`), `fixedDelta`, `delta`.
 - Scripts can read components declared in C++ (they are in the registry), as long as their fields use the types above.
 
@@ -248,7 +256,7 @@ Each task is one issue and one pull request. Ids `LUA-xx`. Tests go in `tests/sc
 **Done when**
 
 - [ ] A script system is listed in the scheduler under its name, with the access set of its terms.
-- [ ] An unknown component name is refused when the script loads.
+- [x] An unknown component name is refused when the script loads.
 
 #### LUA-06: Running a system
 
@@ -394,12 +402,13 @@ Ids follow the order the tasks are best done in. Weights are set when the issues
 **What to build**
 
 - Read `added` and `changed` in the query declaration and call `QueryBuilder::added` / `changed`.
-- Define which view each term gives (`added` and `changed` terms are read terms: a read-only view).
+- Define which view each term gives: none, `added` and `changed` are filters like `with`; the value comes from a
+  `read` or `write` term on the same component.
 
 **Done when**
 
-- [ ] A system with `added = { "game.Shield" }` runs once for an entity, not on the next tick.
-- [ ] A system with `changed` runs after a write and not otherwise.
+- [x] A system with `added = { "game.Shield" }` runs once for an entity, not on the next tick.
+- [x] A system with `changed` runs after a write and not otherwise.
 - [ ] An unknown component name is refused when the script loads.
 
 #### SCR-03: `engine.ecs.plugin`
@@ -420,9 +429,9 @@ Ids follow the order the tasks are best done in. Weights are set when the issues
 
 **Done when**
 
-- [ ] A plugin adds a component and a system through `build(app)`.
-- [ ] A plugin that lists another one adds it first, once.
-- [ ] A cycle is refused with the plugin names.
+- [x] A plugin adds a component and a system through `build(app)`.
+- [x] A plugin that lists another one adds it first, once.
+- [x] A cycle is refused with the plugin names.
 
 #### SCR-04: `ctx.events` and `ctx.resources`
 
@@ -436,18 +445,23 @@ Ids follow the order the tasks are best done in. Weights are set when the issues
 **What to build**
 
 - `ecs`: let a `ScriptCallable` receive the world's resources and events, and declare which ones the system reads or
-  writes, so the access set stays truthful for the scheduler. This is the open design point: it is not done yet.
+  writes, so the access set stays truthful for the scheduler. Done as the `DynamicResources` and `DynamicEvents`
+  parameters (`docs/ecs/features/12-systems.md`), configured with a `ResourceList` and an `EventList`; the script
+  declares them with `resources = { read, write }` and `events = { read, send }`.
 - `ctx.resources["rtype.Input"]`: a `ComponentView` over the resource bytes (read-only unless declared as written),
   with the same generation check as component views.
+- A system that only uses resources and events may declare an empty `query`: it has no query, and `ctx.query` ends
+  at once.
 - `ctx.events.send("game.Explosion", {...})` and `for event in ctx.events.read("rtype.Collision")`.
 - Resources that are not plain data (main-thread, non-standard-layout) are refused with an error, not skipped.
 
 **Done when**
 
-- [ ] A script reads `rtype.Time` or `rtype.Input` in a test.
-- [ ] A script sends an event that a C++ system reads, and the reverse.
-- [ ] Writing a resource declared as read raises an error.
-- [ ] The scheduler sees the resource and event access of a script system.
+- [x] A script reads `rtype.Time` in a test. (`rtype.Input` holds maps, so it is refused as not plain data: it
+  needs a dedicated engine call, see SCR-10.)
+- [x] A script sends an event that a C++ system reads, and the reverse.
+- [x] Writing a resource declared as read raises an error.
+- [x] The scheduler sees the resource and event access of a script system.
 
 #### SCR-05: `ctx.time` as a table
 
