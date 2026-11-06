@@ -60,6 +60,21 @@ rule("rtype.plugin_library")
     end)
 rule_end()
 
+-- Makes a target a game's own plugin library: a folder `<game>/plugins/<name>/`, with its xmake.lua and its sources, built
+-- into `<game>/plugins/`, where the Engine finds it. Nothing of the engine changes for it. A game's xmake.lua (or the
+-- root's scan of `game/plugins/`) includes that file.
+rule("rtype.game_plugin")
+    on_load(function (target)
+        -- The library stays in the game: it links the engine's libraries through their folder.
+        local folder = path.directory(target:scriptdir())
+        target:set("targetdir", folder)
+        if not target:is_plat("windows") then
+            local build = path.join(os.projectdir(), "build", target:plat(), target:arch(), get_config("mode") or "release")
+            target:add("rpathdirs", path.join("@loader_path", path.relative(build, folder)))
+        end
+    end)
+rule_end()
+
 -- Copies a binary to the repository root after it is built
 rule("rtype.copy_to_root")
     on_load(function (target)
@@ -88,6 +103,11 @@ rule("rtype.copy_to_root")
         end
     end)
 rule_end()
+
+-- The game's own plugins, if the repository has a game.
+for _, file in ipairs(os.files(path.join(os.scriptdir(), "game", "plugins", "*", "xmake.lua"))) do
+    includes(file)
+end
 
 includes("src/rtype/core")
 includes("src/rtype/ecs")

@@ -17,3 +17,7 @@ compile_commands.json
 /r-type_server.exe
 /*.dll
 /plugins
+# Plugin libraries built into a game
+**/game/plugins/*.so
+**/game/plugins/*.dylib
+**/game/plugins/*.dll
