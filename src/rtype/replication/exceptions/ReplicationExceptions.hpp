@@ -26,8 +26,8 @@ class RTYPE_REPLICATION_API ManifestException : public std::runtime_error {
     ManifestException& operator=(ManifestException&& other) noexcept = default;
 };
 
-/// @brief Thrown when an input action cannot be declared: a local setup error (a name already taken, an invalid name,
-/// a declaration after the layout was frozen).
+/// @brief Thrown when an input action cannot be declared or read: a local setup error (a name already taken, an invalid
+/// name, a declaration after the layout was frozen, an unknown action, an entity without a PlayerInput).
 class RTYPE_REPLICATION_API InputLayoutException : public std::runtime_error {
   public:
     /// @param message What is wrong, naming the action.

@@ -22,6 +22,7 @@
 #include "plugins/physics/Collider.hpp"
 #include "plugins/physics/CollisionEvents.hpp"
 #include "plugins/physics/ComponentOptions.hpp"
+#include "plugins/physics/PhysicsCalls.hpp"
 #include "plugins/physics/PhysicsHandle.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "plugins/physics/PhysicsWorld.hpp"
@@ -327,6 +328,7 @@ void PhysicsPlugin::build(ecs::App& app) {
         .after(std::string{kStepSystem});
     app.addSystem(ecs::Phase::kFixedUpdate, std::string{kEventsSystem}, &sendContactEvents)
         .after(std::string{kSyncFromPhysicsSystem});
+    addPhysicsCalls(app);
 }
 
 }  // namespace rtype::plugins::physics

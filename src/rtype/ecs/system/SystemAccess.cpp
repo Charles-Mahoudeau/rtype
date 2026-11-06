@@ -30,6 +30,19 @@ void SystemAccess::addEvent(TypeId id, bool write) { add(_events, id, write); }
 
 void SystemAccess::requireMainThread() noexcept { _mainThread = true; }
 
+void SystemAccess::merge(const SystemAccess& other) {
+    for (const TypeAccess& access : other._components) {
+        add(_components, access.id, access.write);
+    }
+    for (const TypeAccess& access : other._resources) {
+        add(_resources, access.id, access.write, access.append);
+    }
+    for (const TypeAccess& access : other._events) {
+        add(_events, access.id, access.write);
+    }
+    _mainThread = _mainThread || other._mainThread;
+}
+
 void SystemAccess::add(std::vector<TypeAccess>& accesses, TypeId id, bool write, bool append) {
     const auto known = std::ranges::find(accesses, id, &TypeAccess::id);
     if (known != accesses.end()) {

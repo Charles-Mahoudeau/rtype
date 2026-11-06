@@ -63,6 +63,9 @@ class RTYPE_PLUGIN_INPUT_API Input {
     /// @throws InputException If no action has this name.
     [[nodiscard]] const InputAction& getAction(const std::string& name) const;
 
+    /// @return The action of this name, or nullptr if there is none.
+    [[nodiscard]] const InputAction* findAction(const std::string& name) const;
+
     /// @brief Deletes an action by name.
     /// @throws InputException If no action has this name.
     void removeAction(const std::string& name);

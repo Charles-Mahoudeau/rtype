@@ -51,6 +51,19 @@ half, is the
 signed distance to the edge, scaled from atlas pixels to screen pixels (`fwidth`) so the edge is about one screen pixel
 wide at any size. The atlas is created `R8G8B8A8_UNORM`: an sRGB image would bend the distances.
 
+## From scripts
+
+The TextPlugin registers the [engine call](ecs/features/19-luau-bridge.md#engine-calls) `rtype.text.loadFont { path }`,
+which returns the font's id for a `TextRenderer`. Scripts spawn texts like any component, the `text` field as a Luau
+string (`engine.assets.font` in a setup gives the same id):
+
+```lua
+ctx.commands:spawn({
+	["rtype.Transform"] = { position = { x = 400, y = 12 } },
+	["rtype.TextRenderer"] = { text = "Player 1", font = Duel.assets.font, size = 22, anchor = { x = 0.5, y = 0 } },
+})
+```
+
 ## Making a font
 
 Fonts are generated offline with [msdf-atlas-gen](https://github.com/Chlumsky/msdf-atlas-gen) (`brew install

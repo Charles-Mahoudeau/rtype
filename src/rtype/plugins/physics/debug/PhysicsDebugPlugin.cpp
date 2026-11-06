@@ -23,6 +23,7 @@
 #include "plugins/physics/debug/PhysicsDebug.hpp"
 #include "plugins/physics/debug/PhysicsDebugSettings.hpp"
 #include "plugins/physics/debug/PhysicsDebugShapes.hpp"
+#include "plugins/shape/ShapePlugin.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/contract/platform/event/Event.hpp"
@@ -91,8 +92,9 @@ void drawDebug(
 std::string_view PhysicsDebugPlugin::getName() const noexcept { return kName; }
 
 std::span<const std::string_view> PhysicsDebugPlugin::getDependencies() const noexcept {
-    static constexpr std::array<std::string_view, 3> kDependencies{
-        graphics::GraphicsPlugin::kName, input::InputPlugin::kName, transform::TransformPlugin::kName};
+    static constexpr std::array<std::string_view, 4> kDependencies{graphics::GraphicsPlugin::kName,
+                                                                   input::InputPlugin::kName, shape::ShapePlugin::kName,
+                                                                   transform::TransformPlugin::kName};
     return kDependencies;
 }
 
@@ -105,7 +107,7 @@ void PhysicsDebugPlugin::build(ecs::App& app) {
     resources.insertIfAbsent<PhysicsDebugSettings>();
     app.addSystem(ecs::Phase::kUpdate, std::string{kToggleSystem}, &toggleDebug).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kRender, std::string{kDrawSystem}, &drawDebug)
-        .after(std::string{graphics::GraphicsPlugin::kSpritesSystem})
+        .after(std::string{shape::ShapePlugin::kDrawSystem})
         .before(std::string{graphics::GraphicsPlugin::kEndFrameSystem})
         .setSide(ecs::Side::kClient);
 }

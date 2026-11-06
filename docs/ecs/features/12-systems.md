@@ -69,6 +69,7 @@ system.getAccess();       // what it reads and writes, for the scheduler
 | `DynamicQueries` (configured with a `QueryList`) | the built queries | a view with the system's `lastRun` | every component of every query, read or write |
 | `DynamicResources` (configured with a `ResourceList`) | the checked list | the bytes of each listed resource | each resource, read or write as listed |
 | `DynamicEvents` (configured with an `EventList`) | the checked list, one `EventCursor` per event | `read(i)` and `send(i, bytes)` per listed event | each event, read or (when sent) written |
+| `DynamicCalls` (configured with a `CallList`) | a body of each listed [engine call](#engine-calls) | `invoke(i, arguments, result)` per listed call | the access of every listed call |
 
 Deduction is done once by templates over the function's parameter types (`SystemParam<P>`): each parameter
 type knows what the system keeps for it, how to build it from the world, and what access it adds. Taking
@@ -155,6 +156,44 @@ app.addSystem(rtype::ecs::Phase::kFixedUpdate, "game.ShieldRegen", rtype::ecs::S
 It must take explicit parameter types (no `auto`) and return void; it is moved into the system, so a
 move-only handle works. Never put game state in the captures: that is still components and resources.
 
+### Engine calls
+
+Some of what a script needs is not data but a **call**: `AtlasAssets::load()`, `InputLayout::add()`, a physics
+query. Those resources hold maps and queues, so a script cannot get their bytes. An engine call is a named function a
+plugin registers on the App for scripts; `ecs` keeps its description, so it stays free of any script language:
+
+```c++
+struct LoadSound {
+    rtype::core::asset::AssetId path;
+    bool stream = false;
+};
+RTYPE_ECS_CALL_DATA(LoadSound, "rtype.audio.LoadSound", path, stream);   // arguments and results: plain data
+struct Loaded {
+    rtype::core::asset::AssetId id;
+};
+RTYPE_ECS_CALL_DATA(Loaded, "rtype.audio.Loaded", id);
+
+app.addCall("rtype.audio.loadSound", [](rtype::ecs::ResMut<AudioAssets> sounds, const LoadSound& args) {
+    return Loaded{.id = sounds->load(args.path, {.stream = args.stream})};
+});
+```
+
+- The function is a function or a lambda without captures. Its parameters are system parameters that need no
+  configuration (`Res`, `ResMut`, `NonSend`, `NonSendMut`, `Query`, `Commands&`, `EventReader`, `EventWriter`),
+  then optionally `const Args&`; it returns void or call data. They give the call's **access**, as a system's
+  parameters give its own (`CallInfo::access`).
+- Arguments and results are declared with `RTYPE_ECS_CALL_DATA` (trivially copyable, standard-layout,
+  default-constructible), so their description is a `TypeInfo`: a script runtime builds them from their defaults and
+  the fields a script names, with the conversions it already has for components.
+- The world keeps them in its `Calls` (`world.getCalls()`), by id and by name; a name taken twice throws a
+  `CallException`.
+- `Calls::invoke(world, id, arguments, result)` calls one outside any system (while scripts load): its parameters are
+  built as for a first run, its commands are applied right after it, and the change tick moves forward.
+- A system that calls some at each run lists them in a `CallList` and takes `DynamicCalls`. It gets a body of each
+  call of its own (so an `EventReader` of a call keeps a cursor per system), and the calls' access is merged into
+  its own: a call that writes a resource makes the system a writer of it, and a call that uses a main-thread resource
+  puts the system on the main thread.
+
 ### Parameters from other libraries
 
 The list above is what the ECS provides, not a closed set. `SystemParam` is chosen by the compiler when a system is
@@ -224,7 +263,8 @@ end
 return ShieldRegen
 ```
 
-`ctx` gives the query results, `ctx.time`, `ctx.commands`, `ctx.events` and `ctx.resources`. Because a
+`ctx` gives the query results, `ctx.time`, `ctx.commands`, `ctx.events`, `ctx.resources` and `ctx.call` (the
+[engine calls](#engine-calls) the table lists under `calls`). Because a
 script cannot be inspected like a C++ signature, its access is **declared** in the table, and the bridge
 refuses writes to anything declared as read-only. On the C++ side the bridge adds a
 [`ScriptCallable`](#script-callables) whose parameters are a `DynamicQueries` (the table's `query`, as a

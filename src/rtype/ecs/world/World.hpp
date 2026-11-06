@@ -11,6 +11,7 @@
 #include <memory>
 
 #include "rtype/ecs/Export.hpp"
+#include "rtype/ecs/call/Calls.hpp"
 #include "rtype/ecs/change/Tick.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/component/Components.hpp"
@@ -57,6 +58,10 @@ class RTYPE_ECS_API World {
     /// @return The events of this world: their registry and queues.
     [[nodiscard]] Events& getEvents() noexcept;
     [[nodiscard]] const Events& getEvents() const noexcept;
+
+    /// @return The engine calls of this world: the functions plugins give to scripts.
+    [[nodiscard]] Calls& getCalls() noexcept;
+    [[nodiscard]] const Calls& getCalls() const noexcept;
 
     /// @return The world's change tick, stamped on every component added or replaced.
     [[nodiscard]] Tick getChangeTick() const noexcept;

@@ -73,6 +73,8 @@ core::asset::AssetId AtlasAssets::pack(const std::string& name, std::span<const 
 
 const SpriteAtlas* AtlasAssets::get(core::asset::AssetId id) const { return _atlases.get(id); }
 
+SpriteAtlas* AtlasAssets::edit(core::asset::AssetId id) { return _atlases.get(id); }
+
 const AtlasAssets::Entry* AtlasAssets::getEntry(core::asset::AssetId id) const { return _atlases.getEntry(id); }
 
 bool AtlasAssets::unload(core::asset::AssetId id) { return _atlases.unload(id); }

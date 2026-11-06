@@ -22,6 +22,7 @@
 #include "core/asset/AssetId.hpp"
 #include "core/config/Settings.hpp"
 #include "plugins/audio/AudioAssets.hpp"
+#include "plugins/audio/AudioCalls.hpp"
 #include "plugins/audio/AudioConfig.hpp"
 #include "plugins/audio/AudioEvents.hpp"
 #include "plugins/audio/AudioListener.hpp"
@@ -252,6 +253,7 @@ void AudioPlugin::build(ecs::App& app) {
     resources.insertIfAbsent<plugins::audio::AudioVolumes>();
     static_cast<void>(app.getWorld().getComponents().registerType<AudioSource>());
     static_cast<void>(app.getWorld().getComponents().registerType<AudioListener>());
+    addAudioCalls(app);
 
     app.addSystem(ecs::Phase::kStartup, std::string{kCreateSystem}, &createDevice).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kSoundsSystem}, &loadSounds).setSide(ecs::Side::kClient);

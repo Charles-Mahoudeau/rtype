@@ -7,9 +7,11 @@
 
 #pragma once
 
+#include "core/config/Settings.hpp"
 #include "rtype/contract/platform/input/Key.hpp"
 #include "rtype/contract/renderer/drawing/Color.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
+#include "rtype/plugins/physics/debug/Export.hpp"
 
 namespace rtype::plugins::physics::debug {
 
@@ -28,6 +30,13 @@ struct PhysicsDebugSettings {
     contract::renderer::Color color{0.2F, 1.0F, 0.4F, 1.0F};  ///< For entities drawn by drawAll alone.
     float outlineThickness = 1.5F;                            ///< Of outlines and arrows, in world units.
     float velocityScale = 0.1F;  ///< Seconds of travel an arrow shows: a speed of 300 draws a 30 units long arrow.
+
+    /// @brief Reads the keys `enabled`, `drawAll`, `outlineThickness` and `velocityScale`; the missing ones, and the
+    /// toggle key and the color, keep their default.
+    /// @param settings The `physicsDebug` section.
+    /// @throws core::config::exceptions::SettingsException If a key is unknown, has the wrong type or an invalid value.
+    [[nodiscard]] RTYPE_PLUGIN_PHYSICS_DEBUG_API static PhysicsDebugSettings fromSettings(
+        const core::config::Settings& settings);
 };
 RTYPE_ECS_RESOURCE(PhysicsDebugSettings, "rtype.PhysicsDebugSettings");
 

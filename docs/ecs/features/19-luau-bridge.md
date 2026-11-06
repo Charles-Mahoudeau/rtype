@@ -119,6 +119,105 @@ system made from a [`ScriptCallable`](12-systems.md#script-callables): a lambda 
 whose `DynamicQueries` parameter declares the access to the scheduler. `shield` is a **view** over the component bytes, valid only
 during `run`; writing a field stamps the changed tick.
 
+### Engine calls
+
+What a plugin does through a C++ API rather than through plain data (load an atlas, bind an input action, play a
+sound) is an [engine call](12-systems.md#engine-calls): a named C++ function registered with `App::addCall()`.
+Scripts make it by name, with a table of argument fields converted as component fields are (an `assetId` takes a
+path):
+
+```luau
+local total = engine.call("game.addPoints", { points = 3 })   -- while the script loads
+
+engine.ecs.system("game.Scorer", {
+    query = { read = { "game.Ship" } },
+    calls = { "game.addPoints" },                              -- declared, like resources and events
+    run = function(ctx)
+        for entity, ship in ctx.query do
+            ctx.call("game.addPoints", { points = 1 })
+        end
+    end,
+})
+```
+
+Missing argument fields keep their defaults. A result of one field is returned as that value, a result of several as
+a table, and a call that returns nothing returns no value. A system's declared calls add their access to its own, so
+the scheduler sees what they read and write, and runs it on the main thread when one of them needs it. Calling a call
+the system did not declare raises a Luau error. An unknown call, a wrong argument or a call that throws raises an error
+naming the call. An unknown call in `calls` is refused when the script loads, unless the system does not run in that
+`App`'s mode: a client system may list a call only the client plugins register.
+
+The engine's plugins register these calls, on the side they are added on (the backend plugin and the plugins it
+adds run on clients):
+
+| Plugin | Calls |
+|---|---|
+| Sprite | `rtype.sprite.loadAtlas`, `rtype.sprite.createAtlas`, `rtype.sprite.addFrame`, `rtype.sprite.addAnimation` ([Sprites](../../Sprites.md#from-scripts)) |
+| Backend | `rtype.backend.loadTexture` |
+| Text | `rtype.text.loadFont` ([Text](../../Text.md#from-scripts)) |
+| Tilemap | `rtype.tilemap.load`, `rtype.tilemap.spawn` ([Tilemaps](../../Tilemap.md#from-scripts)) |
+| Audio | `rtype.audio.loadSound`, `rtype.audio.playSound` ([Audio](../../audio/design.md#from-scripts)) |
+| Input | `rtype.input.addAction`, `rtype.input.bind`, `rtype.input.bindAxis`, `rtype.input.bindVector`, `rtype.input.read` ([Input](../../Input.md#from-scripts)) |
+| Physics | `rtype.physics.raycast`, `rtype.physics.shapeCast`, `rtype.physics.overlap`, `rtype.physics.moveAndSlide`, `rtype.physics.applyForce`, `rtype.physics.applyImpulse`, `rtype.physics.applyTorque`, `rtype.physics.setGravity` ([Physics](../../physics/design.md#from-scripts)) |
+| Replication | `rtype.replication.addInput`, `rtype.replication.readInput`, `rtype.replication.localClient` (clients) ([Replication](20-replication.md)) |
+
+### Setup forms
+
+The setup every game writes (its assets and its input actions) has declarative forms under `engine.assets` and
+`engine.input` (`scripting/setup/`), which make those calls from one table:
+
+```luau
+local ship = engine.assets.atlas({
+    name = "game.ship", texture = "assets/ship.png", linear = false,
+    grid = { frameSize = { x = 48, y = 48 }, count = 5, spacing = { x = 17, y = 0 } },
+    animations = { fly = { frames = { 0, 1, 2, 3, 4 }, frameDuration = 0.08, direction = "pingPong" } },
+})
+local laser = engine.assets.atlas({
+    texture = "assets/laser.png",
+    frames = { { name = "shot", position = { x = 108, y = 151 }, size = { x = 80, y = 16 } } },
+})
+local explosion = engine.assets.atlas({
+    path = "assets/explosion.json", animations = { boom = { first = 0, plays = 1 } },
+})
+local planet = engine.assets.texture("assets/planet.png", { linear = true, wrap = true })
+local shot = engine.assets.sound("assets/shot.ogg", { stream = false })
+local font = engine.assets.font("assets/fonts/main.json")
+local level = engine.assets.tilemap("assets/level.tmj")
+
+engine.input.action("move", "vector2", {
+    bind = { { up = "W", down = "S", left = "A", right = "D" }, { x = "GamepadLeftX", y = "GamepadLeftY" } },
+})
+engine.input.action("steer", "axis", {
+    bind = { { negative = "Left", positive = "Right" }, { control = "GamepadLeftX", scale = 1 } },
+})
+engine.input.action("fire", "button", { bind = { "Space", "GamepadSouth" } })
+```
+
+| Form | Calls | Returns |
+|---|---|---|
+| `engine.assets.texture(path, {linear, wrap})` | `rtype.backend.loadTexture` | the texture's `AssetId` |
+| `engine.assets.sound(path, {stream})` | `rtype.audio.loadSound` | the sound's `AssetId` |
+| `engine.assets.font(path)` | `rtype.text.loadFont` | the font's `AssetId` |
+| `engine.assets.tilemap(path)` | `rtype.tilemap.load` | the map's `AssetId` |
+| `engine.assets.atlas{path \| texture, name, linear, grid, frames, animations}` | `rtype.sprite.loadAtlas` (a `path`) or `rtype.sprite.createAtlas` (a `texture`, named after it unless `name` is given), then `rtype.sprite.addFrame` per frame and `rtype.sprite.addAnimation` per animation, by name | the atlas's `AssetId` |
+| `engine.input.action(name, type, {bind})` | `rtype.input.addAction` (`type`: `"button"` by default, `"axis"` or `"vector2"`), then one bind call per binding, in order | nothing |
+
+- An atlas's `grid` takes `frameSize` and `count` (both needed), `spacing`, `columns` and `offset`; a frame takes a
+  `position` and a `size`, and an optional `name` (its index otherwise) and `origin` (its centre otherwise). `grid`,
+  `frames` and `name` make an atlas from a `texture`, not from a `path`.
+- An animation's `frames` lists frame indices (from 0, as `rtype.sprite.addFrame` returns them) that follow each other,
+  `{0, 1, 2}`, since an animation is a range of frames; `first` and `count` say the same (`count` 0 or absent: up to the
+  last frame). It also takes `frameDuration`, `direction` and `plays` (0: forever).
+- A binding is a control name (`rtype.input.bind`), `{control, scale}` (`rtype.input.bind` with a scale),
+  `{negative, positive}` (`rtype.input.bindAxis`), `{up, down, left, right}` or `{x, y}` (`rtype.input.bindVector`).
+
+A form checks its whole table on every side: an unknown key, a value of the wrong type or a binding of no known shape
+is a Luau error naming the form and the part of it (`engine.assets.atlas: frame 2: 'size': missing 'y'`). Then, when
+the App does not have its calls (the plugin is not in this process: on a dedicated server, the backend plugin and the
+plugins it adds are not), it skips them and returns the id the asset would have, the hash of its path or name, so the
+same script loads on the server and the clients. What only a plugin knows, such as a control name or an animation
+direction, is checked where the plugin runs, and a call's error is prefixed with the form's name.
+
 ### Plugins
 
 ```luau
@@ -142,19 +241,33 @@ gives the bridge every file it must watch for hot reload.
 
 ### Input actions from Luau
 
-Gameplay reads `PlayerInput`, which is filled from Ethan's named `InputAction`s. A Luau plugin declares
-those actions and their default bindings:
+Gameplay reads `PlayerInput`, which is filled from Ethan's named `InputAction`s. A script declares those actions and
+their default bindings with `engine.input.action` (see [Setup forms](#setup-forms)):
 
 ```luau
-app:inputAction("move", "vector2", {
-    keys = { up = "W", down = "S", left = "A", right = "D" },
-    gamepad = "LeftStick",
-})
-app:inputAction("fire", "button", { key = "Space", gamepad = "South" })
+engine.input.action("move", "vector2", { bind = { { up = "W", down = "S", left = "A", right = "D" } } })
+engine.input.action("fire", "button", { bind = { "Space", "GamepadSouth" } })
 ```
 
-The bridge forwards them to `Input::addAction()` / `InputAction::bind...()` on clients, and lists them
-in the network manifest so the server knows the layout of `PlayerInput`.
+The form forwards them to `Input::addAction()` / `InputAction::bind...()` on clients, and, where the replication
+plugin is added, declares them in the network `InputLayout` on both sides (`rtype.replication.addInput`), which the
+manifest checks. On a client run by the `Engine`, a system (`rtype.engine.networkInput`) copies each of them from
+`Input` into the `PlayerInput` sent to the server; a server script reads it by name with
+`rtype.replication.readInput`:
+
+```luau
+engine.ecs.system("game.Ships", {
+    phase = "FixedUpdate",
+    query = { write = { "rtype.Transform" }, with = { "net.PlayerInput" } },
+    calls = { "rtype.replication.readInput" },
+    run = function(ctx)
+        for ship, transform in ctx.query do
+            local move = ctx.call("rtype.replication.readInput", { entity = ship, action = "move" }).vector
+            transform.position = { x = transform.position.x + move.x * 4, y = transform.position.y - move.y * 4 }
+        end
+    end,
+})
+```
 
 ### Rules of the boundary
 
@@ -172,6 +285,19 @@ in the network manifest so the server knows the layout of `PlayerInput`.
 Luau plugins load on the **server and the clients** (both need layouts, prefabs and input actions).
 System sides decide what runs where: `server` (gameplay, default), `client` (presentation), `both`
 (identical simulation such as bullet motion). In standalone mode both sides run in one App.
+
+A system is declared on both sides, whatever its side, and only its engine calls may be missing on the side it does not
+run on: its components, resources and events must exist there, and the systems it is ordered against too. A script that
+names what only one side has (the sprites, the audio, `net.applyInputs`) declares it on that side only, returning early
+on the other once its components are declared, as `examples/games/rtype_duel/game/scripts/` does:
+
+```luau
+engine.ecs.component("game.Explosion", { fields = {}, presence = "clientOnly" }) -- on both sides
+if not engine.isClient then
+    return
+end
+engine.ecs.system("game.RemoveExplosions", { side = "client", ... })
+```
 
 ## Connections
 

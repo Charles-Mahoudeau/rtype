@@ -9,26 +9,15 @@
 
 #include <cstdint>
 #include <glm/ext/vector_float2.hpp>
-#include <type_traits>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
-#include "plugins/GlmReflection.hpp"      // IWYU pragma: keep
+#include "plugins/AssetIdReflection.hpp"   // IWYU pragma: keep
+#include "plugins/GlmReflection.hpp"       // IWYU pragma: keep
+#include "plugins/GraphicsReflection.hpp"  // IWYU pragma: keep
 #include "rtype/contract/renderer/drawing/BlendMode.hpp"
 #include "rtype/contract/renderer/drawing/Color.hpp"
 #include "rtype/contract/renderer/math/Rect.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
-#include "rtype/ecs/type/Field.hpp"
-#include "rtype/ecs/type/FieldTypeOf.hpp"
-
-// The ECS reflects scalars only: a BlendMode field is reflected as its underlying byte. The specialization must sit
-// outside the backend namespace, in one that encloses rtype::ecs, and here rather than in BlendMode.hpp, which the
-// renderers include without the ECS.
-/// @brief A contract::renderer::BlendMode field is reflected as kU8.
-template <>
-struct rtype::ecs::FieldTypeOf<rtype::contract::renderer::BlendMode>
-    : std::integral_constant<rtype::ecs::FieldType, rtype::ecs::FieldType::kU8> {};
-static_assert(sizeof(rtype::contract::renderer::BlendMode) == 1, "BlendMode must match FieldType::kU8");
 
 namespace rtype::plugins::sprite {
 /// @brief Draws an entity as a part of a texture: the component a render system will turn into a
@@ -36,8 +25,8 @@ namespace rtype::plugins::sprite {
 ///
 /// @details Only what to draw: where (position, scale, rotation) comes from the entity's GlobalTransform. The texture
 /// is referred to by its AssetId, the same in every process, which TextureAssets::load() returns at once; the
-/// GraphicsPlugin's Render system draws the entity once the texture is loaded, sorted by layer. Every field but
-/// `source` is reflected (Luau, network).
+/// GraphicsPlugin's Render system draws the entity once the texture is loaded, sorted by layer. Its fields are
+/// reflected (Luau, network): `source` as a vec4, its position in x and y, its width and height in z and w.
 /// @code
 /// commands.spawn()
 ///     .add(rtype::plugins::transform::Transform{.position = {100.0F, 300.0F}})
@@ -55,5 +44,5 @@ struct SpriteRenderer {
     core::asset::AssetId
         material;  ///< Its material, from MaterialAssets::add(); the default one if unset or not ready.
 };
-RTYPE_ECS_COMPONENT(SpriteRenderer, "rtype.SpriteRenderer", texture, color, origin, layer, blend, material);
+RTYPE_ECS_COMPONENT(SpriteRenderer, "rtype.SpriteRenderer", texture, source, color, origin, layer, blend, material);
 }  // namespace rtype::plugins::sprite

@@ -32,9 +32,9 @@ are added.
   kind and defining `RTYPE_ECS_STATIC` publicly (see `Export.hpp`).
     - Files are grouped in one folder per feature (`entity/`, `type/` (the core shared by every kind of ECS
       data: fields, hooks, descriptions, registry), `component/`, `resource/`, `event/`, `storage/`, `change/`
-      (change ticks), `world/`, `command/` (deferred structural changes), `hierarchy/` (`Parent`, `Children`), `query/`, `system/`,
-      `schedule/`, `time/`,
-      `app/` (the App and its plugins)), included as `rtype/ecs/<feature>/<File>.hpp`.
+      (change ticks), `world/`, `command/` (deferred structural changes), `hierarchy/` (`Parent`, `Children`), `query/`,
+      `system/`, `call/` (engine calls: named functions plugins give to scripts), `schedule/`, `time/`, `app/` (the App
+      and its plugins)), included as `rtype/ecs/<feature>/<File>.hpp`.
     - Exception to the namespace rule: the types users write every day stay in the flat `rtype::ecs`
       namespace whatever their folder (`rtype/ecs/entity/Entity.hpp` declares `rtype::ecs::Entity`).
       Only internal parts get a sub-namespace, named after their folder: `rtype::ecs::storage`,
@@ -52,17 +52,22 @@ are added.
   knows both the ECS and the network; it turns a `World` into messages and back (`rtype::replication`).
   Exported symbols are marked `RTYPE_REPLICATION_API`. Feature folders and sub-namespaces as in `network`:
   `component/`, `event/`, `serialization/`, `manifest/`, `input/`, `snapshot/`, `server/`, `client/`,
-  `packet/`, `exceptions/`.
+  `packet/`, `exceptions/`. `input/InputCalls.hpp` holds its engine calls (`rtype.replication.addInput`, `readInput`),
+  `client/ClientCalls.hpp` the client's (`rtype.replication.localClient`), both registered by `ReplicationPlugin`.
 - `src/rtype/engine/` — `engine` target, shared library (`rtype-engine`): `Engine` runs a game directory (`game/` by
   default, `--game <dir>`): it reads its `project.luau` through Luau (`scripting/SettingsLoader`, which also exposes
   the command line as `engine.args`), builds the `App` with the program's plugins, `EngineConfig::addPlugins`, and the engine's (transform, replication,
   scripting, server or client) in a fixed order, calls the game's native `EngineConfig::setup`, runs it, and builds it
-  again on `requestReload()`. `EngineConfig` holds the mode, the command line and these functions; `CommandLine` parses the `--name value` flags. Exported symbols are marked `RTYPE_ENGINE_API`.
+  again on `requestReload()`. `GamePlugins` reads the generic plugins `project.luau` lists under `plugins`
+  (`transform`, `physics`, `physicsDebug`) and their sections, added after the replication plugin. On clients,
+  `NetworkInput` fills the `PlayerInput` sent to the server from the `Input` actions. `EngineConfig` holds
+  the mode, the command line and these functions; `CommandLine` parses the `--name value` flags. Exported symbols are marked `RTYPE_ENGINE_API`.
   Design in `docs/engine/design.md`.
 - `src/rtype/client/`, `src/rtype/server/` — the generic executables `r-type_client` and `r-type_server`: a `main` that
   lists its plugins and backends (client only) and runs an `Engine` on `game/`. The build copies them to the repository root
-  (rule `rtype.copy_to_root`). Games whose gameplay is still C++ (`rtype_duel`, `ethan_game(bestoftheworld)`) keep
-  their own `main` and give it to the `Engine` as `EngineConfig::setup`.
+  (rule `rtype.copy_to_root`). Games whose gameplay is still C++ (`ethan_game(bestoftheworld)`) keep their own `main`
+  and give it to the `Engine` as `EngineConfig::setup`. `rtype_duel` is written in Luau (`game/scripts/`); its own `main`
+  only picks the side from its first argument.
 - `src/rtype/contract/` — the contracts, one shared library per interface (`contract-platform`, `contract-renderer`,
   `contract-audiodevice`, `rtype-contract-<name>`): what the implementations fulfil and the plugins use, with the
   vocabulary they speak, included as `rtype/contract/<name>/<File>.hpp`, namespace `rtype::contract::<name>`, exported
@@ -85,7 +90,9 @@ are added.
 - `src/rtype/plugins/` — the engine, as ECS plugins: one shared library per plugin (`plugin-<name>`,
   `rtype-plugin-<name>`), one folder each, included as `plugins/<name>/<File>.hpp`, namespace `rtype::plugins::<name>`,
   exported symbols marked `RTYPE_PLUGIN_<NAME>_API`. Each plugin keeps its own code and declares its own components,
-  resources and events (`RTYPE_ECS_*`). A plugin names what it requires in `getDependencies()`; the program adds it
+  resources and events (`RTYPE_ECS_*`). A plugin scripts drive registers its engine calls in `<Name>Calls.hpp`
+  (`add<Name>Calls()`, called from its `build()`), named `rtype.<plugin>.<verb>`, with their argument and result structs
+  (`RTYPE_ECS_CALL_DATA`). A plugin names what it requires in `getDependencies()`; the program adds it
   first, and no plugin adds another one. See `docs/Plugins.md`.
     - `plugins/graphics/` (`rtype::plugins::graphics`) — `GraphicsPlugin`: starts the platform and the renderer from a
       `BackendRegistry` the executable fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the
@@ -94,7 +101,8 @@ are added.
       `TextureAssets` resource (the textures by `AssetId`, queued by `load()` and decoded with stb), the `SpriteQueue`
       resource (what the frame draws) and the `VisibleArea` resource (what the frame shows). It requires the
       `InputPlugin` and the `TransformPlugin`.
-    - `plugins/input/` (`rtype::plugins::input`) — `InputPlugin`: `Control`, `Input`, `InputAction`, `ButtonStates`,
+    - `plugins/input/` (`rtype::plugins::input`) — `InputPlugin`: `Control` (named with text by `controlFromName()`,
+      `ControlNames.hpp`, over `contract/platform/input/KeyNames.hpp`), `Input`, `InputAction`, `ButtonStates`,
       the `rtype.Input` resource, fed by a `PreUpdate` system from the `PlatformEvent`s in order, and the typed input
       events (`InputEvents.hpp`) for gameplay code. It knows nothing of the graphics plugin, which requires it.
     - `plugins/transform/` (`rtype::plugins::transform`) — `TransformPlugin`: the `Transform` component gameplay writes,
@@ -105,12 +113,16 @@ are added.
     - `plugins/physics/` (`rtype::plugins::physics`) — `PhysicsPlugin`: 2D physics on Jolt (`Collider`, `RigidBody`,
       `Velocity`, the `PhysicsWorld` resource, collision events, scene queries, `moveAndSlide`), simulated on the server
       side, with query-only bodies on clients. Jolt is a private package: only `.cpp` files and `detail/` include it.
-      The debug view is in `physics/debug/` (`rtype::plugins::physics::debug`), its own library `plugin-physics-debug`. Design in
+      The debug view is in `physics/debug/` (`rtype::plugins::physics::debug`), its own library `plugin-physics-debug`, the engine calls in `PhysicsCalls.hpp`. Design in
       `docs/physics/design.md`.
     - `plugins/audio/` (`rtype::plugins::audio`) — `AudioPlugin`: `AudioRegistry` (starts the device the settings name,
       `"null"` always registered, as `NullAudioDevice`), `AudioConfig`, `AudioVolumes`, the `AudioAssets` resource (sounds by `AssetId`, opened
       and decoded by the device), the `AudioSource` and `AudioListener` components and the `PlaySound` / `PlayMusic` /
       `StopMusic` events, played by client-side PostUpdate systems. `AudioReflection.hpp` reflects the contract's `Bus`. Design in `docs/audio/design.md`.
+    - `plugins/shape/` (`rtype::plugins::shape`) — `ShapePlugin`: the `ShapeRenderer` component (a `Shape` filled and/or
+      outlined at its entity's `GlobalTransform`) and the client Render system that draws them over the sprites, by layer.
+      `plugins/GraphicsReflection.hpp` reflects the renderer contract's `BlendMode` and `Rect` as ECS fields. It requires
+      the `GraphicsPlugin` and the `TransformPlugin`.
     - `plugins/sprite/` (`rtype::plugins::sprite`) — `SpritePlugin`: the `SpriteRenderer` component, sprite atlases and
       animations; it requires no plugin, so a server adds it alone. `SpriteDrawPlugin` pushes the sprite entities to the
       `SpriteQueue` on a client. `SpriteAtlas`
@@ -173,7 +185,12 @@ are added.
   touch ECS data with: the `ComponentView` usertype (reads and writes a component's fields in place, checked against a
   `ViewScope` generation), the `Entity` usertype (`registerViewTypes()`) and the field conversions (`readField()`,
   `writeField()`, `fillFromTable()`). `system/` holds `SystemDeclaration`, its reader and `registerSystem()`, which
-  turns a script system into a `ScriptCallable` on the App. `ScriptHost` owns the Luau runtime and the `engine` global
+  turns a script system into a `ScriptCallable` on the App. `call/` holds `callEngine()`, which makes an `ecs` engine
+  call from a script's table of argument fields and turns its result into Luau values, for `engine.call` and for
+  `ctx.call` (a system's declared `calls`). `setup/` (`rtype::scripting::setup`) holds the setup forms built on those
+  calls: `engine.assets` (`AssetForms`: `texture`, `sound`, `font`, `tilemap`, `atlas`) and `engine.input`
+  (`InputForms`: `action`), read with `FormTable` (known keys, typed values, errors naming the form) and called through
+  `SetupCalls`, which skips a call the App does not have and gives the asset's id instead. `ScriptHost` owns the Luau runtime and the `engine` global
   (constant flags `isClient`, `isServer`, `isDebug`, `engine.ecs.component`, read by `component/DeclarationReader.hpp`,
   and `engine.ecs.system`, read by `system/SystemDeclarationReader.hpp`); a system declares the `resources` and `events` it uses, given to scripts by `ctx.resources` and `ctx.events` (plain-data ones only), through the `ecs` `DynamicResources` and `DynamicEvents` parameters; it knows no `Plugin`. The host and
   the App may be destroyed in either order. `plugin/` holds `ScriptingPlugin`, the `ecs::Plugin` that owns a
@@ -249,7 +266,8 @@ The project uses `xmake` with the `clang` toolchain and C++23.
 - Run the generic executables (copied to the repository root by the build): `./r-type_server` and `./r-type_client`,
   on `game/` or `--game <dir>`; other flags go to `project.luau` as `engine.args`
 - Run the duel game (example): `xmake f -y --rtype_duel=y`, then `xmake run rtype_duel server [--port <port>]` and
-  `xmake run rtype_duel client [--host <host>] [--port <port>]`
+  `xmake run rtype_duel client [--host <host>] [--port <port>]` (or the generic executables, with
+  `--game examples/games/rtype_duel/game`)
 - Enable examples, then rebuild: `xmake f --AllExamples=y` enables every discovered example. For
   now `--AllVulkanExamples=y`, `--AllLuauExamples=y` and `--AllEcsExamples=y` behave the same way (the
   root `xmake.lua` does not filter by category yet), so each also enables every discovered example. To

@@ -14,16 +14,19 @@
 #include <vector>
 
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/call/Calls.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/event/EventCursor.hpp"
 #include "rtype/ecs/event/EventInfo.hpp"
 #include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/exceptions/TypeExceptions.hpp"
+#include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/type/Field.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/type/TypeTraits.hpp"
 #include "rtype/replication/ReplicationPlugin.hpp"
+#include "rtype/replication/client/ClientCalls.hpp"
 #include "rtype/replication/component/NetworkId.hpp"
 #include "rtype/replication/component/Owner.hpp"
 #include "rtype/replication/component/PlayerInput.hpp"
@@ -40,6 +43,7 @@ using rtype::ecs::EventInfo;
 using rtype::ecs::FieldType;
 using rtype::ecs::Presence;
 using rtype::ecs::ReplicationMode;
+using rtype::ecs::RunMode;
 using rtype::ecs::TypeTraits;
 using rtype::replication::ReplicationPlugin;
 using rtype::replication::component::kMaxInputAxes;
@@ -255,4 +259,15 @@ TEST(ReplicationPlugin, InsertsAnEmptyInputLayout) {
     app.addPlugin(ReplicationPlugin{});
 
     EXPECT_TRUE(app.getWorld().getResources().has<rtype::replication::input::InputLayout>());
+}
+
+TEST(ReplicationPlugin, RegistersTheClientCallsOnTheClientSideOnly) {
+    for (const RunMode mode : {RunMode::kServer, RunMode::kClient, RunMode::kStandalone}) {
+        App app{mode};
+        app.addPlugin(ReplicationPlugin{});
+
+        const bool client = mode != RunMode::kServer;
+        EXPECT_EQ(app.getWorld().getCalls().findByName(rtype::replication::client::kLocalClientCall) != nullptr,
+                  client);
+    }
 }

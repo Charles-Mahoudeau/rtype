@@ -181,6 +181,11 @@ const InputAction& Input::getAction(const std::string& name) const {
     return it->second;
 }
 
+const InputAction* Input::findAction(const std::string& name) const {
+    const auto found = _actions.find(name);
+    return found == _actions.end() ? nullptr : &found->second;
+}
+
 glm::vec2 Input::getMousePosition() const noexcept { return _mousePosition; }
 
 bool Input::isGamepadConnected() const noexcept { return _gamepadConnected; }

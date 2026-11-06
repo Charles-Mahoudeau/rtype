@@ -51,6 +51,10 @@ plugin("shader", {"plugin-graphics"})
     add_rules("utils.bin2c", {extensions = {".glsl"}})
     add_files("../contract/renderer/shaders/*.glsl")
 
+plugin("shape", {"plugin-graphics", "plugin-transform"})
+    add_files("shape/**.cpp")
+    add_headerfiles("shape/**.hpp", "shape/**.tpp")
+
 plugin("sprite", {"plugin-graphics", "plugin-shader", "plugin-transform"})
     add_files("sprite/**.cpp")
     add_headerfiles("sprite/**.hpp", "sprite/**.tpp")
@@ -84,6 +88,6 @@ plugin("physics", {"plugin-transform"})
     -- The physics engine. Private: only physics .cpp files and physics/detail/ include Jolt.
     add_packages("joltphysics")
 
-plugin("physics-debug", {"plugin-physics", "plugin-graphics", "plugin-input", "plugin-transform"})
+plugin("physics-debug", {"plugin-physics", "plugin-graphics", "plugin-input", "plugin-shape", "plugin-transform"})
     add_files("physics/debug/**.cpp")
     add_headerfiles("physics/debug/**.hpp")

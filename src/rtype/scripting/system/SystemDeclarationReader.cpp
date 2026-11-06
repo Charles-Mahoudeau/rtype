@@ -255,7 +255,19 @@ struct Options {
     std::vector<EventDeclaration> events;
     std::vector<std::string> after;
     std::vector<std::string> before;
+    std::vector<std::string> calls;
 };
+
+/// @return The list of names an option fills (`after`, `before` or `calls`), or null for any other option.
+[[nodiscard]] std::vector<std::string>* nameListOf(const std::string_view option, Options& options) noexcept {
+    if (option == "after") {
+        return &options.after;
+    }
+    if (option == "before") {
+        return &options.before;
+    }
+    return option == "calls" ? &options.calls : nullptr;
+}
 
 /// @brief Reads one option of the declaration table into `options`.
 [[nodiscard]] Result<void> readOption(const std::string_view system, const std::string& option,
@@ -290,12 +302,12 @@ struct Options {
             return tl::unexpected{std::move(events.error())};
         }
         options.events = std::move(*events);
-    } else if (option == "after" || option == "before") {
+    } else if (auto* const list = nameListOf(option, options); list != nullptr) {
         auto names = readNames(system, value, option);
         if (!names) {
             return tl::unexpected{std::move(names.error())};
         }
-        (option == "after" ? options.after : options.before) = std::move(*names);
+        *list = std::move(*names);
     } else if (option == "run") {
         const auto* function = value.tryAs<luau::FunctionRef>();
         if (function == nullptr) {
@@ -304,7 +316,7 @@ struct Options {
         options.run = *function;
     } else {
         return invalid(system, std::format("unknown option '{}' (expected 'phase', 'side', 'query', 'resources', "
-                                           "'events', 'after', 'before' or 'run')",
+                                           "'events', 'calls', 'after', 'before' or 'run')",
                                            option));
     }
     return {};
@@ -339,6 +351,7 @@ Result<SystemDeclaration> readSystemDeclaration(std::string name, const luau::Ta
         .terms = std::move(*options.terms),
         .resources = std::move(options.resources),
         .events = std::move(options.events),
+        .calls = std::move(options.calls),
         .after = std::move(options.after),
         .before = std::move(options.before),
         .run = std::move(*options.run),

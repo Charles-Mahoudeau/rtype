@@ -25,7 +25,8 @@ namespace rtype::scripting::system {
 /// the entities, like `with`: they give no view, so a script that needs the value lists the component under `read` too.
 /// `resources` holds lists of resource names under `read` and `write` (a name in both is written), and `events` lists
 /// of event names under `read` and `send` (a name in both is read and sent): they declare what `ctx.resources` and
-/// `ctx.events` give the system, and what the scheduler sees of it. Nothing is guessed: another key, a missing `phase`,
+/// `ctx.events` give the system, and what the scheduler sees of it. `calls` lists the engine calls `ctx.call` may make;
+/// their access is added to the system's. Nothing is guessed: another key, a missing `phase`,
 /// `query` or `run`, an unknown phase or side, or a list with anything but strings is an error.
 /// @param name Name of the system, "game.ShieldRegen".
 /// @param spec The declaration table.

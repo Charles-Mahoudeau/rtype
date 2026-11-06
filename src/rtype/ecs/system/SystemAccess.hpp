@@ -64,6 +64,10 @@ class RTYPE_ECS_API SystemAccess {
     /// @brief Records that the system must run on the main thread.
     void requireMainThread() noexcept;
 
+    /// @brief Records everything `other` reads and writes, and its main-thread need: what an engine call adds to the
+    /// system that uses it.
+    void merge(const SystemAccess& other);
+
   private:
     /// @brief Adds the type to `accesses`, or upgrades its entry to a write.
     static void add(std::vector<TypeAccess>& accesses, TypeId id, bool write, bool append = false);

@@ -54,12 +54,13 @@ end
 |------------|------|-----------|-----------|
 | `r-type_server` (`src/rtype/server/`) | `kServer` | nothing (headless) | `game/` only |
 | `r-type_client` (`src/rtype/client/`) | `kClient` | GLFW, Vulkan, miniaudio | `game/` only |
-| `rtype_duel` (example) | `server` or `client`, the first argument | as the client, on the client side | `setupServer` / `setupClient` |
+| `rtype_duel` (example) | `server` or `client`, the first argument | as the client, on the client side | its `game/` only (Luau) |
 | `ethan_game(bestoftheworld)` (example) | `kStandalone` | as the client | `setup` |
 
-Once a game can be written entirely in Luau (SCR-10 in `../scripting/plan.md`), the two generic executables run it, and
-a game no longer needs its own `main`. `rtype_duel` and `ethan_game` show the step in between: their gameplay is still
-C++, given to the `Engine` as `EngineConfig::setup`. `rtype_duel` also shows that one binary can run both sides.
+A game written entirely in Luau (SCR-10 in `../scripting/plan.md`) needs no `main` of its own: the two generic
+executables run it (`./r-type_server --game examples/games/rtype_duel/game`). `rtype_duel` is one: its `main` only picks
+the side from its first argument, to show that one binary can run both sides, and registers the client's backends.
+`ethan_game` shows the step before: its gameplay is still C++, given to the `Engine` as `EngineConfig::setup`.
 
 The build copies `r-type_client` and `r-type_server` to the repository root (rule `rtype.copy_to_root` in the root
 `xmake.lua`). The copies find the project's shared libraries in the build folder through a relative rpath on Linux and
@@ -74,9 +75,11 @@ macOS. On Windows, the rule copies the build folder's DLLs next to them.
 | 3 | `MinimalPlugins`, `TransformPlugin` | always | time, the schedule and the positions, which every game has |
 | 4 | `EngineConfig::addPlugins` | if given | the plugins of the program, with the settings: a client adds its window and what it draws |
 | 5 | `ReplicationPlugin` | network modes (`kClient`, `kServer`) | registers `Owner`, `PlayerInput`, the connection events and `InputLayout`, so the setup can declare its inputs |
-| 6 | `EngineConfig::setup` | if given | the game's native components, resources, systems and plugins |
-| 7 | `ScriptingPlugin`, on `<game>/scripts` | always | the scripts can use what the setup registered |
-| 8 | `ServerPlugin` or `ClientPlugin` | network modes | **last**: it reads every replicated component when it is built, the game's and the scripts' |
+| 6 | the generic plugins listed under `plugins` (`GamePlugins`) | if listed | the setup and the scripts can use their components and calls |
+| 7 | `EngineConfig::setup` | if given | the game's native components, resources, systems and plugins |
+| 8 | `ScriptingPlugin`, on `<game>/scripts` | always | the scripts can use what the setup registered |
+| 9 | `ServerPlugin` or `ClientPlugin` | network modes | **last**: it reads every replicated component when it is built, the game's and the scripts' |
+| 10 | `rtype.engine.networkInput` (`addNetworkInput()`) | `kClient` | fills the `PlayerInput` sent to the server from the `Input` actions named like the `InputLayout` ones, so a game needs no input code of its own |
 
 The network reads the `network` section of the settings and refuses unknown keys:
 
@@ -86,6 +89,29 @@ The network reads the `network` section of the settings and refuses unknown keys
 | `network.host` | client | `"127.0.0.1"` | must resolve to an address |
 
 `addPlugins` runs again on every build, so it creates what the plugins own, such as their registries, each time.
+
+### Generic plugins
+
+The plugins every game may want but the engine does not add by itself are named in `project.luau`, so two games differ
+by data, not by an executable. `GamePlugins::fromSettings()` reads the list and the sections of the plugins, and refuses
+an unknown name, before the `App` is built, as the network settings are checked:
+
+```lua
+engine.settings.plugins = { "physics", "physicsDebug" }
+engine.settings.physics.gravity = { 0, 0 }
+engine.settings.physicsDebug.drawAll = true
+```
+
+| Name | Plugin | Side | Section |
+|------|--------|------|---------|
+| `transform` | `TransformPlugin` | both | none |
+| `physics` | `PhysicsPlugin` | both | `physics`: `gravity`, `unitsPerMeter`, `maxBodies`, `maxBodyPairs`, `maxContactConstraints`, `tempAllocatorBytes` |
+| `physicsDebug` | `PhysicsDebugPlugin` | client (skipped on a server) | `physicsDebug`: `enabled`, `drawAll`, `outlineThickness`, `velocityScale` |
+
+The `physics` and `physicsDebug` sections are checked on every side, listed or not, so a typo fails everywhere; an
+unknown key is an error, as in `network`. The plugins the program adds in `EngineConfig::addPlugins` and the ones
+they require need no name. `physicsDebug` draws after the `ShapePlugin`, which it requires, so a client that lists it
+adds the `ShapePlugin` in `addPlugins`.
 
 ## Reloading
 

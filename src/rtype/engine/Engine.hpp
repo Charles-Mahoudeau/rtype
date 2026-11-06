@@ -29,9 +29,11 @@ namespace rtype::engine {
 /// 2. the plugins of the program, EngineConfig::addPlugins, with the settings: a client adds its window and what it
 ///    draws there, so the Engine names no backend and a server links none;
 /// 3. on a network side (client and server modes), the replication plugin;
-/// 4. the game's native code, EngineConfig::setup;
-/// 5. the scripting plugin, which runs the game's scripts;
-/// 6. the network plugin, server or client, last because it reads every replicated component when it is built.
+/// 4. the generic plugins the settings list under `plugins`, such as the physics (see GamePlugins);
+/// 5. the game's native code, EngineConfig::setup;
+/// 6. the scripting plugin, which runs the game's scripts;
+/// 7. the network plugin, server or client, last because it reads every replicated component when it is built;
+/// 8. on a client, the system that fills the input sent to the server from the input actions (see addNetworkInput()).
 ///
 /// The network reads the `network` section of the settings: `port` on both sides (4242 by default; 0 lets a server
 /// pick a free one) and `host` on a client ("127.0.0.1" by default).
@@ -51,8 +53,9 @@ class RTYPE_ENGINE_API Engine {
 
     /// @brief Reads the command line and the project settings, then builds the App.
     /// @param config What to run; kept to build the App again on a reload.
-    /// @throws exceptions::RuntimeError If the command line is invalid, the game has no `project.luau`, or the
-    /// network settings are invalid.
+    /// @throws exceptions::RuntimeError If the command line is invalid, the game has no `project.luau`, the network
+    /// settings are invalid, or `plugins` names an unknown plugin.
+    /// @throws core::config::exceptions::SettingsException If the settings of a plugin are invalid.
     /// @throws luau::exceptions::RuntimeError If `project.luau` fails.
     /// @throws std::exception What a plugin, a script or EngineConfig::setup throws while the App is built.
     explicit Engine(EngineConfig config);

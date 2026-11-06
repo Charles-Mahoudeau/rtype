@@ -298,7 +298,9 @@ Each task is one issue and one pull request. Ids `LUA-xx`. Tests go in `tests/sc
 
 **What to build**
 
-- `commands:spawn({ ["game.Shield"] = { strength = 10 }, ... })`: returns the reserved `Entity`.
+- `commands:spawn({ ["game.Shield"] = { strength = 10 }, ... })`: returns the reserved `Entity`. (Since SCR-10 a
+  component may also be a C++ one, such as `rtype.Collider`, built from its C++ defaults; one that owns memory, such as
+  `rtype.TextRenderer`, is constructed, filled and copied into the command buffer.)
 - `commands:add(entity, "game.Shield", {...})`.
 - `commands:despawn(entity)`, which despawns its children too.
 - `commands:setParent(child, parent)` and `commands:removeParent(child)`.
@@ -668,8 +670,13 @@ Not startable, for the same reason as SCR-08.
 | Blocked by | SCR-04 (resources), SCR-06 (a setup runs on a side); the design point below needs a team decision first               |
 
 **Goal.** A game's own setup is written in Luau: the executable only registers backends and adds the generic plugins,
-and everything specific to the game (assets, inputs, spawns, rules) lives in `game/scripts/`. Today `rtype_duel` still
-needs C++ for these (`GameAtlases`, `GameSounds`, `declareInputs`, `registerGame`).
+and everything specific to the game (assets, inputs, spawns, rules) lives in `game/scripts/`. `rtype_duel` needed C++
+for these (`GameAtlases`, `GameSounds`, `declareInputs`, `registerGame`).
+*Done:* `rtype_duel` is written in Luau (`examples/games/rtype_duel/game/scripts/`: `arena.luau` shared, `server/`,
+`client/`), and `r-type_server` / `r-type_client` run it with `--game`. What it needed on the way: the backend plugin
+draws a `ShapeRenderer` component (its obstacles) and reflects `SpriteRenderer::source` (its planets), and the
+replication plugin registers `rtype.replication.localClient` on clients (who won), and `ctx.commands` builds the C++
+components that own memory, such as the `rtype.TextRenderer` of its texts (the players' names, the winner).
 
 **Why M2 alone is not enough.** SCR-04 gives scripts the *bytes* of a plain-data resource. The setup of the duel is
 *calls*: `AtlasAssets::load()` / `grid()`, `TextureAssets::load()`, `FontAssets`, `AudioAssets`, `InputLayout::add()`,
@@ -683,16 +690,43 @@ their bytes would be wrong anyway.
   `luau` (dependency rules). `scripting` exposes each call under `engine`, converting arguments with the SCR-01
   conversions (an `assetId` takes a path). A call runs where it is declared (`side`, SCR-06) and on the thread that
   owns the resource.
+  *Done:* `App::addCall(name, function)` registers a C++ function whose parameters are system parameters and an
+  optional `const Args&`, `Args` and its result being plain-data structs declared with `RTYPE_ECS_CALL_DATA` (so the
+  signature is a `TypeInfo` of `FieldType`s). Scripts call it with `engine.call(name, { field = value })` while they
+  load, and with `ctx.call(name, {...})` in a system that lists it under `calls = {...}`; the system takes the call's
+  access (and its main-thread need), so the scheduler orders it like any other. A call the system does not list is a
+  Luau error; an unknown call is refused when the script loads, unless the system does not run in that `App`'s mode.
+  The asset, input and audio plugins register their calls (`rtype.sprite.createAtlas`, `rtype.input.bindVector`,
+  `rtype.audio.playSound`...; see the list in `docs/ecs/features/19-luau-bridge.md`). Controls are named with text
+  (`plugins/input/ControlNames.hpp`).
 - **Declarative forms for the common setup**, written in `scripting` on top of the calls, so scripts do not juggle
   handles: `engine.input.action("move", "vector2")`, `engine.assets.atlas{ path = ..., grid = {...}, animations =
   {...} }`, `engine.assets.sound(path)`, `engine.assets.font(path)`. Each one registers on both sides when the same
   files load on both, and does nothing on the side that does not need it.
+  *Done:* `engine.assets.texture`, `sound`, `font`, `tilemap` and `atlas`, and `engine.input.action` with a `bind`
+  list (`scripting/setup/`, see "Setup forms" in `docs/ecs/features/19-luau-bridge.md`). A form checks its table on
+  every side, skips its calls where the plugin is absent and returns the asset's id all the same.
 - **Plugin settings in `project.luau`.** `PhysicsSettings` (gravity) and the list of generic plugins to add are read
   from the project settings, so two games differ by data, not by an executable.
+  *Done:* `engine.settings.plugins` lists `"transform"`, `"physics"` and `"physicsDebug"` (`engine/GamePlugins`), and
+  the `physics` and `physicsDebug` sections set their settings (`PhysicsSettings::fromSettings()`,
+  `PhysicsDebugSettings::fromSettings()`); see "Generic plugins" in `docs/engine/design.md`.
 - **Physics.** Expose `Collider`, `RigidBody` and `Velocity` (SCR-01 covers their enums), the collision events
   (SCR-04) and the scene queries as engine calls.
+  *Done:* `ctx.commands` spawns and adds the plain-data C++ components of the world (`rtype.Collider`,
+  `rtype.Transform`...) from their C++ defaults, not only script ones, with the same client rule (and, since the
+  duel's texts, those that own memory, such as `rtype.TextRenderer`). The physics plugin
+  registers `rtype.physics.raycast`, `shapeCast`, `overlap` (a count and one entity: call data holds no list),
+  `moveAndSlide` (an entity's `Collider`), `applyForce`, `applyImpulse`, `applyTorque` and `setGravity`
+  (`plugins/physics/PhysicsCalls.hpp`, see "From scripts" in `docs/physics/design.md`); velocity and position are
+  component writes.
 - Replication components (`Owner`, `PlayerInput`) and `ClientConnected`: readable and writable like any component and
   event; check their layouts are plain data.
+  *Done:* they are plain data; the `axes` array of `PlayerInput` is not script-readable, so the replication plugin
+  registers `rtype.replication.readInput` (`{held, pressed, released, axis, vector}` of an action, by name) and
+  `rtype.replication.addInput`, which `engine.input.action` makes on both sides so the network `InputLayout` comes
+  from the scripts. On clients the `Engine` adds `rtype.engine.networkInput` (`engine/NetworkInput`), which fills the
+  sent `PlayerInput` from the `Input` actions of the same names, so a game needs no `ClientState::setInput` of its own.
 
 **Open point for the team (blocks the start).** Bound calls (above) or only declarative forms? The first is general and
 costs a registry in `ecs`; the second is smaller and cannot express a call nobody wrote a form for. The draft assumes
@@ -700,11 +734,11 @@ both: the registry for the plugins, forms for the setup everybody writes.
 
 **Done when**
 
-- [ ] A script loads an atlas, a sound and a font, and sets inputs, without C++ code in the game.
-- [ ] A game's server and client scripts spawn ships and lasers with colliders, and a collision event reaches a script.
-- [ ] `plugins` and `ecs` still include nothing of `luau`.
-- [ ] `rtype_duel`'s `src/` holds the generic executable only; its rules are in `game/scripts/`.
-- [ ] An unknown engine call, or a wrong argument type, is an error naming the call and the script.
+- [x] A script loads an atlas, a sound and a font, and sets inputs, without C++ code in the game.
+- [x] A game's server and client scripts spawn ships and lasers with colliders, and a collision event reaches a script.
+- [x] `plugins` and `ecs` still include nothing of `luau`.
+- [x] `rtype_duel`'s `src/` holds the generic executable only; its rules are in `game/scripts/`.
+- [x] An unknown engine call, or a wrong argument type, is an error naming the call and the script.
 
 #### Existing issue not in this list
 

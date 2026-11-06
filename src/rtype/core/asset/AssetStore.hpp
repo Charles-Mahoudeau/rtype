@@ -57,6 +57,9 @@ class AssetStore {
     /// @return The asset @p id names, or nullptr if it is unknown or failed.
     [[nodiscard]] const T* get(AssetId id) const;
 
+    /// @return The asset @p id names, to change it in place, or nullptr if it is unknown or failed.
+    [[nodiscard]] T* get(AssetId id);
+
     /// @return The entry of @p id, read or failed, or nullptr if it is unknown.
     [[nodiscard]] const Entry* getEntry(AssetId id) const;
 

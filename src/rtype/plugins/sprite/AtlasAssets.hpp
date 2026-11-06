@@ -88,6 +88,12 @@ class RTYPE_PLUGIN_SPRITE_API AtlasAssets {
     /// @return The atlas @p id names, or nullptr if it is unknown or failed.
     [[nodiscard]] const SpriteAtlas* get(core::asset::AssetId id) const;
 
+    /// @brief Gives the atlas @p id names to add frames and animations to it after add() (as the
+    /// `rtype.sprite.addFrame` and `rtype.sprite.addAnimation` engine calls do). Its texture was requested when it was
+    /// added: replacing the whole atlas does not request another one.
+    /// @return The atlas, or nullptr if it is unknown or failed.
+    [[nodiscard]] SpriteAtlas* edit(core::asset::AssetId id);
+
     /// @return The entry of @p id, built or failed, or nullptr if it is unknown.
     [[nodiscard]] const Entry* getEntry(core::asset::AssetId id) const;
 

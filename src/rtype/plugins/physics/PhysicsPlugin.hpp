@@ -40,7 +40,8 @@ namespace rtype::plugins::physics {
 ///   of the dynamic ones to their Velocity;
 /// - "rtype.Physics.Events" sends the contacts of the step: CollisionStarted / CollisionEnded between solid colliders,
 ///   TriggerEntered / TriggerExited for sensors (CollisionEvents.hpp), registered by the plugin.
-/// Other systems order themselves around these names. Needs the time plugin (MinimalPlugins) for Time.
+/// Other systems order themselves around these names. Needs the time plugin (MinimalPlugins) for Time. It also
+/// registers the physics engine calls for scripts (addPhysicsCalls(), PhysicsCalls.hpp).
 /// @code
 /// app.addPlugins(rtype::ecs::MinimalPlugins{})
 ///     .addPlugin(rtype::plugins::physics::PhysicsPlugin{{.gravity = {0.0F, 980.0F}}});

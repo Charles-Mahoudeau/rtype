@@ -26,7 +26,8 @@ namespace rtype::plugins::physics::debug {
 /// does all the drawing, from the components (Collider, GlobalTransform, Velocity), so it shows exactly where sprites
 /// are drawn and needs no physics body. Its systems run on the client side (so also in standalone):
 /// - "rtype.PhysicsDebug.Toggle", in Update: flips PhysicsDebugSettings::enabled on the toggle key;
-/// - "rtype.PhysicsDebug.Draw", in Render after the sprites: draws the outlines and arrows as shapes (shapes are
+/// - "rtype.PhysicsDebug.Draw", in Render after the sprites and the ShapeRenderers: draws the outlines and arrows as
+/// shapes (shapes are
 ///   overlays, drawn on top of the sprites).
 /// It draws through the GraphicsPlugin's renderer, so add it to clients with a window only; the headless server never
 /// does. Registers PhysicsDebug, and inserts PhysicsDebugSettings if the App has none.
@@ -52,8 +53,9 @@ class RTYPE_PLUGIN_PHYSICS_DEBUG_API PhysicsDebugPlugin : public ecs::Plugin {
     /// @return "rtype.PhysicsDebug".
     [[nodiscard]] std::string_view getName() const noexcept override;
 
-    /// @return The GraphicsPlugin, which it draws through, the InputPlugin, for its key, and the TransformPlugin. Not
-    /// the PhysicsPlugin: it only reads Collider, which it registers itself, so it also shows what a client receives.
+    /// @return The GraphicsPlugin, which it draws through, the InputPlugin, for its key, the ShapePlugin, which it
+    /// draws after, and the TransformPlugin. Not the PhysicsPlugin: it only reads Collider, which it registers itself,
+    /// so it also shows what a client receives.
     [[nodiscard]] std::span<const std::string_view> getDependencies() const noexcept override;
 
     /// @brief Registers the components and events it reads, inserts the settings, and adds the client systems.

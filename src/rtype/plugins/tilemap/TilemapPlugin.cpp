@@ -29,6 +29,7 @@
 #include "plugins/tilemap/Parallax.hpp"
 #include "plugins/tilemap/Tilemap.hpp"
 #include "plugins/tilemap/TilemapAssets.hpp"
+#include "plugins/tilemap/TilemapCalls.hpp"
 #include "plugins/tilemap/TilemapLayer.hpp"
 #include "plugins/tilemap/detail/TileDrawing.hpp"
 #include "plugins/transform/Transform.hpp"
@@ -174,6 +175,7 @@ void TilemapPlugin::build(ecs::App& app) {
     resources.insertIfAbsent<graphics::VisibleArea>();
     static_cast<void>(app.getWorld().getComponents().registerType<TilemapLayer>());
     static_cast<void>(app.getWorld().getComponents().registerType<Parallax>());
+    addTilemapCalls(app);
     app.addSystem(ecs::Phase::kRender, std::string{kParallaxSystem}, &applyParallax)
         .before(std::string{graphics::GraphicsPlugin::kCameraSystem})
         .setSide(ecs::Side::kClient);

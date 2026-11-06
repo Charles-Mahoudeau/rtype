@@ -62,7 +62,14 @@ ECS stays single-threaded.
 | Event | `ClientConnected` / `ClientDisconnected` | For the game to spawn or remove ships |
 
 `ReplicationPlugin` (`"rtype.replication"`) registers the components and events above and inserts the `InputLayout`
-resource; `ServerPlugin` and `ClientPlugin` both add it, and a standalone game can add it alone. The network I/O
+resource; `ServerPlugin` and `ClientPlugin` both add it, and a standalone game can add it alone. It also registers the
+[engine calls](19-luau-bridge.md#engine-calls) of the inputs (`input/InputCalls.hpp`): `rtype.replication.addInput`
+(`{name, kind}`, kind `"button"`, `"axis"` or `"vector2"`), which `engine.input.action` makes on both sides, and
+`rtype.replication.readInput` (`{entity, action}`), which gives a server script `{held, pressed, released, axis,
+vector}` from an entity's `PlayerInput`, and, in an App that runs the client side, `rtype.replication.localClient`
+(`client/ClientCalls.hpp`), which gives a client script `{connected, client}`: its id once the server gave it one, to
+tell its own entities (their `Owner`) from the others'. It is registered here rather than by `ClientPlugin`, which the
+`Engine` adds after the scripts load. The network I/O
 (binding the socket, connecting, building the manifest) happens in `Startup` systems, once every plugin was built. The
 server reads replicated components by id through a `SystemParam` of `replication`
 ([Parameters from other libraries](12-systems.md#parameters-from-other-libraries): `ReplicatedRead`, one
@@ -89,7 +96,7 @@ through `Commands`, applied after the phase, so `ClientPlugin` has no such const
 |---|---|---|
 | PreUpdate | `net.receive` | Apply snapshots: spawn / despawn / write, through `NetworkId → Entity` |
 | Update | `net.interpolate` | Display the state at (latest server tick − ~100 ms) |
-| PostUpdate | `net.collectInput` | Input actions → `PlayerInput`. Written by the game or the engine glue, not by `ClientPlugin`: `replication` never includes `plugins`, so the system that reads `plugins::input::Input` lives where both are linked; it calls `ClientState::setInput` |
+| PostUpdate | `rtype.engine.networkInput` | Input actions → `PlayerInput`. Not in `ClientPlugin`: `replication` never includes `plugins`, so the `Engine` adds it (`engine/NetworkInput`), reading each `InputLayout` action from the `plugins::input::Input` action of the same name; it calls `ClientState::setInput`. A game outside the `Engine` writes its own |
 | PostUpdate | `net.sendInput` | Send the last 3 inputs (redundancy against loss) |
 | Render | drawing | |
 
@@ -133,8 +140,8 @@ on one screen, everyone sees everything), traffic stays small.
 
 ### Inputs up
 
-`PlayerInput` holds the game's named actions (declared by the Luau plugin with `app:inputAction`, see
-[Luau bridge](19-luau-bridge.md)), in manifest order: one bit per button action, a quantized vector per
+`PlayerInput` holds the game's named actions (declared by scripts with `engine.input.action`, see
+[Luau bridge](19-luau-bridge.md#input-actions-from-luau)), in manifest order: one bit per button action, a quantized vector per
 axis action. Clients send the last three inputs in every packet, so one lost packet costs nothing. The
 server keeps a small input buffer per client and applies the input of the current tick (repeating the
 last one if it is missing).

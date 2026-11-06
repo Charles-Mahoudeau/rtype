@@ -60,6 +60,12 @@ needs, and the texture, asked for with `TextureDesc::repeat`, tiles them.
 It works on any entity, a sprite as well as a tilemap layer. It is a visual effect: it runs on the client only, after
 gameplay and the PostUpdate systems, so physics and audio see the entity at its `Transform`.
 
+## From scripts
+
+The TilemapPlugin registers two [engine calls](ecs/features/19-luau-bridge.md#engine-calls):
+`rtype.tilemap.load { path }` returns the map's id, and `rtype.tilemap.spawn { map, position, scale, firstDrawLayer }`
+spawns its layers (`spawnTilemap()`) and returns how many it spawned.
+
 ## In the repository
 
 - `assets/levels/space.tmj`: a 200x10 level over the space background of `assets/backgrounds/space/` (CC0, by

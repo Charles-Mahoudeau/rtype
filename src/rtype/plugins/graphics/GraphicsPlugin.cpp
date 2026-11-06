@@ -30,6 +30,7 @@
 #include "plugins/graphics/GraphicsResources.hpp"
 #include "plugins/graphics/SpriteQueue.hpp"
 #include "plugins/graphics/TextureAssets.hpp"
+#include "plugins/graphics/TextureCalls.hpp"
 #include "plugins/graphics/VisibleArea.hpp"
 #include "plugins/graphics/WindowEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputEvents.hpp"      // IWYU pragma: keep
@@ -248,6 +249,7 @@ void GraphicsPlugin::build(ecs::App& app) {
     resources.insertIfAbsent<graphics::SpriteQueue>();
     resources.insertIfAbsent<graphics::VisibleArea>();
     static_cast<void>(app.getWorld().getComponents().registerType<graphics::Camera>());
+    addTextureCalls(app);
 
     app.addSystem(ecs::Phase::kStartup, std::string{kCreateSystem}, &createBackend).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kPreUpdate, std::string{kEventsSystem}, &forwardEvents)
