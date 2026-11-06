@@ -299,7 +299,8 @@ Each task is one issue and one pull request. Ids `LUA-xx`. Tests go in `tests/sc
 **What to build**
 
 - `commands:spawn({ ["game.Shield"] = { strength = 10 }, ... })`: returns the reserved `Entity`. (Since SCR-10 a
-  component may also be a plain-data C++ one, such as `rtype.Collider`, built from its C++ defaults.)
+  component may also be a C++ one, such as `rtype.Collider`, built from its C++ defaults; one that owns memory, such as
+  `rtype.TextRenderer`, is constructed, filled and copied into the command buffer.)
 - `commands:add(entity, "game.Shield", {...})`.
 - `commands:despawn(entity)`, which despawns its children too.
 - `commands:setParent(child, parent)` and `commands:removeParent(child)`.
@@ -674,8 +675,8 @@ for these (`GameAtlases`, `GameSounds`, `declareInputs`, `registerGame`).
 *Done:* `rtype_duel` is written in Luau (`examples/games/rtype_duel/game/scripts/`: `arena.luau` shared, `server/`,
 `client/`), and `r-type_server` / `r-type_client` run it with `--game`. What it needed on the way: the backend plugin
 draws a `ShapeRenderer` component (its obstacles) and reflects `SpriteRenderer::source` (its planets), and the
-replication plugin registers `rtype.replication.localClient` on clients (who won). Its texts (the players' names, the
-winner) wait for string fields in script commands; until then a client prints the winner.
+replication plugin registers `rtype.replication.localClient` on clients (who won), and `ctx.commands` builds the C++
+components that own memory, such as the `rtype.TextRenderer` of its texts (the players' names, the winner).
 
 **Why M2 alone is not enough.** SCR-04 gives scripts the *bytes* of a plain-data resource. The setup of the duel is
 *calls*: `AtlasAssets::load()` / `grid()`, `TextureAssets::load()`, `FontAssets`, `AudioAssets`, `InputLayout::add()`,
@@ -713,7 +714,8 @@ their bytes would be wrong anyway.
 - **Physics.** Expose `Collider`, `RigidBody` and `Velocity` (SCR-01 covers their enums), the collision events
   (SCR-04) and the scene queries as engine calls.
   *Done:* `ctx.commands` spawns and adds the plain-data C++ components of the world (`rtype.Collider`,
-  `rtype.Transform`...) from their C++ defaults, not only script ones, with the same client rule. The physics plugin
+  `rtype.Transform`...) from their C++ defaults, not only script ones, with the same client rule (and, since the
+  duel's texts, those that own memory, such as `rtype.TextRenderer`). The physics plugin
   registers `rtype.physics.raycast`, `shapeCast`, `overlap` (a count and one entity: call data holds no list),
   `moveAndSlide` (an entity's `Collider`), `applyForce`, `applyImpulse`, `applyTorque` and `setGravity`
   (`plugins/physics/PhysicsCalls.hpp`, see "From scripts" in `docs/physics/design.md`); velocity and position are
