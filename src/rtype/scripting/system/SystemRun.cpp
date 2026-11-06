@@ -294,6 +294,7 @@ class EventsContext {
     auto recorder = runtime.usertype<commands::ScriptCommands>().create(commands::ScriptCommands{
         .commands = &commands,
         .layouts = system.runtime->components,
+        .clientSide = system.clientSide,
         .scope = system.scope,
         .generation = system.scope->generation,
     });

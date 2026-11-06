@@ -7,11 +7,13 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "rtype/ecs/query/QueryTerm.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
+#include "rtype/ecs/system/Side.hpp"
 #include "rtype/luau/FunctionRef.hpp"
 
 namespace rtype::scripting::system {
@@ -38,6 +40,7 @@ struct EventDeclaration {
 struct SystemDeclaration {
     std::string name;                            ///< Name of the system, unique: "game.ShieldRegen".
     ecs::Phase phase;                            ///< Phase the system runs in.
+    std::optional<ecs::Side> side;               ///< Where it runs; empty for the ECS default (the server).
     std::vector<TermDeclaration> terms;          ///< Terms of its query, in the fixed order of readSystemDeclaration().
     std::vector<ResourceDeclaration> resources;  ///< Resources it uses, one entry per name.
     std::vector<EventDeclaration> events;        ///< Event types it uses, one entry per name.

@@ -5,6 +5,7 @@
 ** ScheduleTests
 */
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -27,6 +28,7 @@
 #include "rtype/ecs/system/EventWriter.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/system/Side.hpp"
+#include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/world/World.hpp"
 
 namespace rtype::test::schedule {
@@ -62,6 +64,11 @@ struct Health {
     int value;
 };
 RTYPE_ECS_COMPONENT(Health, "test.schedule.Health", value);
+
+struct Glow {
+    float intensity;
+};
+RTYPE_ECS_COMPONENT(Glow, "test.schedule.Glow", intensity);
 
 struct Score {
     int value;
@@ -121,6 +128,8 @@ void countAfterPhase(Query<rtype::ecs::With<Marker>> markers, ResMut<SeenAfterPh
 
 void writeHealth(Query<rtype::test::schedule::Health> /*healths*/) {}
 void readHealth(Query<const rtype::test::schedule::Health> /*healths*/) {}
+void writeGlow(Query<rtype::test::schedule::Glow> /*glows*/) {}
+void readHealthWriteGlow(Query<const rtype::test::schedule::Health, rtype::test::schedule::Glow> /*both*/) {}
 void writeScore(ResMut<rtype::test::schedule::Score> /*score*/) {}
 void readScore(rtype::ecs::Res<rtype::test::schedule::Score> /*score*/) {}
 void sendHit(rtype::ecs::EventWriter<Hit> /*hits*/) {}
@@ -359,9 +368,57 @@ TEST(Schedule, AcceptsConflictingSystemsOnceOrdered) {
 TEST(Schedule, ChecksAmbiguitiesWhateverTheRunMode) {
     World world;
     Schedule schedule{world, RunMode::kServer, Phase::kUpdate};
-    schedule.addSystem("server", &writeHealth);
-    schedule.addSystem("client", &writeHealth).setSide(Side::kClient);  // never run on a server
-    expectBuildError(schedule, {"'client' and 'server'"});              // they do run together in standalone
+    world.getComponents().registerType<rtype::test::schedule::Glow>({.presence = rtype::ecs::Presence::kClientOnly});
+    schedule.addSystem("server", &writeGlow);
+    schedule.addSystem("client", &writeGlow).setSide(Side::kClient);  // never run on a server
+    expectBuildError(schedule, {"'client' and 'server'"});            // they do run together in standalone
+}
+
+TEST(Schedule, AcceptsAClientSystemThatWritesClientOnlyComponents) {
+    World world;
+    world.getComponents().registerType<rtype::test::schedule::Glow>({.presence = rtype::ecs::Presence::kClientOnly});
+    Schedule schedule{world, RunMode::kClient, Phase::kUpdate};
+    schedule.addSystem("glow", &readHealthWriteGlow).setSide(Side::kClient);  // reading a replicated one is fine
+    EXPECT_NO_THROW(schedule.build());
+}
+
+TEST(Schedule, RefusesAClientSystemThatWritesAReplicatedComponent) {
+    World world;
+    world.getComponents().registerType<rtype::test::schedule::Health>(
+        {.replication = rtype::ecs::ReplicationMode::kEveryChange});
+    Schedule schedule{world, RunMode::kClient, Phase::kUpdate};
+    auto config = schedule.addSystem("heal", &writeHealth);
+    try {
+        config.setSide(Side::kClient);
+        FAIL() << "expected a ScheduleException";
+    } catch (const ScheduleException& error) {
+        EXPECT_THAT(error.what(), testing::HasSubstr("'heal'"));
+        EXPECT_THAT(error.what(), testing::HasSubstr("test.schedule.Health"));
+        EXPECT_THAT(error.what(), testing::HasSubstr("replicated"));
+    }
+    EXPECT_EQ(schedule.findSystem("heal")->getSide(), Side::kServer);  // the side is left as it was
+}
+
+TEST(Schedule, RefusesAClientSystemThatWritesAServerOnlyComponent) {
+    World world;
+    world.getComponents().registerType<rtype::test::schedule::Health>({.presence = rtype::ecs::Presence::kServerOnly});
+    Schedule schedule{world, RunMode::kClient, Phase::kUpdate};
+    EXPECT_THROW(schedule.addSystem("heal", &writeHealth).setSide(Side::kClient), ScheduleException);
+}
+
+TEST(Schedule, AcceptsAClientSystemThatWritesALocalComponent) {
+    World world;  // Health is on both sides but never replicated: nothing overwrites it
+    Schedule schedule{world, RunMode::kClient, Phase::kUpdate};
+    EXPECT_NO_THROW(schedule.addSystem("heal", &writeHealth).setSide(Side::kClient));
+}
+
+TEST(Schedule, AcceptsAServerOrBothSystemThatWritesAReplicatedComponent) {
+    World world;
+    world.getComponents().registerType<rtype::test::schedule::Health>(
+        {.replication = rtype::ecs::ReplicationMode::kEveryChange});
+    Schedule schedule{world, RunMode::kStandalone, Phase::kUpdate};
+    EXPECT_NO_THROW(schedule.addSystem("server", &writeHealth).setSide(Side::kServer));
+    EXPECT_NO_THROW(schedule.addSystem("both", &writeHealth).setSide(Side::kBoth));
 }
 
 TEST(Schedule, ListsTheEventsItsSystemsWrite) {

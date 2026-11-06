@@ -18,6 +18,9 @@
 #include <utility>
 #include <vector>
 
+#include "rtype/ecs/component/ComponentInfo.hpp"
+#include "rtype/ecs/component/ComponentRegistry.hpp"
+#include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/event/EventInfo.hpp"
 #include "rtype/ecs/exceptions/ScheduleException.hpp"
 #include "rtype/ecs/schedule/DependencyGraph.hpp"
@@ -93,10 +96,31 @@ Schedule::SystemConfig& Schedule::SystemConfig::before(std::string name) {
     return *this;
 }
 
-Schedule::SystemConfig& Schedule::SystemConfig::setSide(Side side) noexcept {
-    std::next(_schedule->_entries.begin(), static_cast<std::ptrdiff_t>(_index))->system.setSide(side);
+Schedule::SystemConfig& Schedule::SystemConfig::setSide(Side side) {
+    System& system = std::next(_schedule->_entries.begin(), static_cast<std::ptrdiff_t>(_index))->system;
+    if (side == Side::kClient) {
+        _schedule->checkClientWrites(system);
+    }
+    system.setSide(side);
     _schedule->_built = false;  // the side decides which events the schedule writes in this mode
     return *this;
+}
+
+void Schedule::checkClientWrites(const System& system) const {
+    const ComponentRegistry& registry = _world->getComponents().getRegistry();
+    for (const TypeAccess& access : system.getAccess().getComponents()) {
+        const ComponentInfo* info = registry.findById(access.id);
+        if (!access.write || info == nullptr) {
+            continue;
+        }
+        const bool replicated = info->type.replication != ReplicationMode::kNone;
+        if (replicated || info->type.presence == Presence::kServerOnly) {
+            throw exceptions::ScheduleException{std::format(
+                "System '{}' of phase {} runs on clients but writes component '{}', which is {}", system.getName(),
+                toString(_phase), info->type.name,
+                replicated ? "replicated: the server would overwrite it" : "server-only: clients do not have it")};
+        }
+    }
 }
 
 Schedule::Schedule(World& world, RunMode mode, Phase phase) noexcept : _world{&world}, _mode{mode}, _phase{phase} {}

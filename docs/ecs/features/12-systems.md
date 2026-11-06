@@ -235,7 +235,7 @@ refuses writes to anything declared as read-only. On the C++ side the bridge add
 | Side | Runs on | May write |
 |---|---|---|
 | `server` (default) | the server (and standalone) | anything: this is authoritative gameplay |
-| `client` | clients (and standalone) | only `kClientOnly` components; anything else would be overwritten by replication |
+| `client` | clients (and standalone) | only components that are neither replicated nor server-only (`kClientOnly`, or a local one such as `GlobalTransform`); a replicated component would be overwritten by replication and a server-only one does not exist there (`SystemConfig::setSide()` throws a `ScheduleException` for a replicated or server-only one; a local, never-replicated component such as `GlobalTransform` is accepted) |
 | `both` | everywhere | components that are simulated identically on both sides (bullet motion for `kSpawnOnly` entities) |
 
 In standalone mode (single player), the App runs server and client systems in one world, so the same
