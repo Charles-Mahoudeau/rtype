@@ -45,14 +45,19 @@ TEST(Parent, IsClearedWhenItsTargetIsDespawned) {
     EXPECT_EQ(world.getComponents().get<Parent>(child)->entity, Entity{});
 }
 
-TEST(Children, IsNotReflected) { EXPECT_TRUE(rtype::ecs::TypeTraits<Children>::kFields.empty()); }
+TEST(Children, ReflectsItsEntitiesAsAList) {
+    const auto& fields = rtype::ecs::TypeTraits<Children>::kFields;
+    ASSERT_EQ(fields.size(), 1U);
+    EXPECT_EQ(fields.front().type, rtype::ecs::FieldType::kEntity);
+    EXPECT_NE(fields.front().list, nullptr);
+}
 
 TEST(Children, KeepsItsEntitiesWhenThePoolMovesThem) {
     World world;
     const Entity first = world.spawn();
     const Entity second = world.spawn();
     const Entity child = world.spawn();
-    world.getComponents().add(first, Children{.entities = {child}});
+    world.getComponents().add(first, Children{.entities = {world.spawn()}});
     world.getComponents().add(second, Children{.entities = {child, child}});
     EXPECT_TRUE(world.despawn(first));  // swap-and-pop: second moves into the hole
     ASSERT_NE(world.getComponents().get<Children>(second), nullptr);

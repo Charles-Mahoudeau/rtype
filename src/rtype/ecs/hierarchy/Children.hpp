@@ -14,9 +14,9 @@
 
 namespace rtype::ecs {
 /// @brief This entity's children, in the order they were attached. Kept by the World: read it, never write it.
-/// Not reflected nor replicated: each side rebuilds it from Parent.
+/// Not replicated: each side rebuilds it from Parent.
 struct Children {
     std::vector<Entity> entities;  ///< The children.
 };
-RTYPE_ECS_COMPONENT(Children, "rtype.Children");
+RTYPE_ECS_COMPONENT(Children, "rtype.Children", entities);
 }  // namespace rtype::ecs

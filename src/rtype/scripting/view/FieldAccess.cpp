@@ -23,6 +23,7 @@
 #include <string_view>
 #include <tl/expected.hpp>
 #include <utility>
+#include <vector>
 
 #include "core/asset/AssetId.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
@@ -241,10 +242,9 @@ Result<void> writeAssetId(const std::string_view component, const ecs::FieldInfo
     store<std::uint64_t>(bytes, field, id->value);
     return {};
 }
-}  // namespace
 
-Result<luau::Value> readField(const std::string_view component, const ecs::FieldInfo& field,
-                              const std::span<const std::byte> bytes, const FieldReadContext& context) {
+Result<luau::Value> readScalar(const std::string_view component, const ecs::FieldInfo& field,
+                               const std::span<const std::byte> bytes, const FieldReadContext& context) {
     if (auto supported = checkSupported(component, field, bytes); !supported) {
         return tl::unexpected{supported.error()};
     }
@@ -293,8 +293,8 @@ Result<luau::Value> readField(const std::string_view component, const ecs::Field
     return tl::unexpected{fieldError(component, field, "this field type is not supported")};
 }
 
-Result<void> writeField(const std::string_view component, const ecs::FieldInfo& field, const std::span<std::byte> bytes,
-                        const luau::Value& value) {
+Result<void> writeScalar(const std::string_view component, const ecs::FieldInfo& field,
+                         const std::span<std::byte> bytes, const luau::Value& value) {
     if (auto supported = checkSupported(component, field, bytes); !supported) {
         return supported;
     }
@@ -356,6 +356,90 @@ Result<void> writeField(const std::string_view component, const ecs::FieldInfo& 
             break;
     }
     return tl::unexpected{fieldError(component, field, "this field type is not supported")};
+}
+
+/// @return The field of one value of the list @p field, at the start of its bytes.
+ecs::FieldInfo elementOf(const ecs::FieldInfo& field) { return ecs::FieldInfo{.name = field.name, .type = field.type}; }
+
+/// @return Nothing when @p bytes hold the vector of a list field, or the error saying why not.
+Result<void> checkList(const std::string_view component, const ecs::FieldInfo& field,
+                       const std::span<const std::byte> bytes) {
+    if (field.list->size > bytes.size() || field.offset > bytes.size() - field.list->size) {
+        return tl::unexpected{fieldError(component, field, "the field is out of the component's bytes")};
+    }
+    return {};
+}
+
+/// @return The values of a list field, as a Luau table: a copy, not a view of the component.
+Result<luau::Value> readList(const std::string_view component, const ecs::FieldInfo& field,
+                             const std::span<const std::byte> bytes, const FieldReadContext& context) {
+    if (auto checked = checkList(component, field, bytes); !checked) {
+        return tl::unexpected{checked.error()};
+    }
+    if (context.runtime == nullptr) {
+        return tl::unexpected{fieldError(component, field, "no runtime to build a table with")};
+    }
+    const std::span<const std::byte> values = field.list->elements(bytes.subspan(field.offset).data());
+    const std::size_t size = ecs::getFieldLayout(field.type).size;
+    auto table = luau::Table::create(*context.runtime, static_cast<int>(values.size() / size), 0);
+    if (!table) {
+        return tl::unexpected{fieldError(component, field, table.error().message())};
+    }
+    const ecs::FieldInfo element = elementOf(field);
+    for (std::size_t index = 0; index < values.size() / size; ++index) {
+        auto value = readScalar(component, element, values.subspan(index * size, size), context);
+        if (!value) {
+            return value;
+        }
+        if (auto set = table->setAt(index + 1, *value); !set) {
+            return tl::unexpected{fieldError(component, field, set.error().message())};
+        }
+    }
+    return luau::Value{std::move(*table)};
+}
+
+/// @brief Replaces the values of a list field by those of a Luau array, each checked as a field of its type.
+Result<void> writeList(const std::string_view component, const ecs::FieldInfo& field, const std::span<std::byte> bytes,
+                       const luau::Value& value) {
+    if (auto checked = checkList(component, field, bytes); !checked) {
+        return checked;
+    }
+    const auto* table = value.tryAs<luau::Table>();
+    if (table == nullptr) {
+        return tl::unexpected{fieldError(component, field, "expected a table of values")};
+    }
+    auto entries = table->entries();
+    if (!entries) {
+        return tl::unexpected{fieldError(component, field, entries.error().message())};
+    }
+    const std::size_t size = ecs::getFieldLayout(field.type).size;
+    std::vector<std::byte> values(entries->size() * size);
+    const ecs::FieldInfo element = elementOf(field);
+    for (std::size_t index = 0; index < entries->size(); ++index) {
+        auto item = table->getAt(index + 1);
+        if (!item || item->tryAs<luau::Value::Nil>() != nullptr) {
+            return tl::unexpected{fieldError(component, field, "expected an array, without holes or named keys")};
+        }
+        if (auto written = writeScalar(component, element, std::span{values}.subspan(index * size, size), *item);
+            !written) {
+            return written;
+        }
+    }
+    field.list->assign(bytes.subspan(field.offset).data(), values);
+    return {};
+}
+}  // namespace
+
+Result<luau::Value> readField(const std::string_view component, const ecs::FieldInfo& field,
+                              const std::span<const std::byte> bytes, const FieldReadContext& context) {
+    return field.list != nullptr ? readList(component, field, bytes, context)
+                                 : readScalar(component, field, bytes, context);
+}
+
+Result<void> writeField(const std::string_view component, const ecs::FieldInfo& field, const std::span<std::byte> bytes,
+                        const luau::Value& value) {
+    return field.list != nullptr ? writeList(component, field, bytes, value)
+                                 : writeScalar(component, field, bytes, value);
 }
 
 Result<void> fillFromTable(const ecs::TypeInfo& type, const luau::Table& table, const std::span<std::byte> bytes) {

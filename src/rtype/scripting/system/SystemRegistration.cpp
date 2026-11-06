@@ -24,6 +24,8 @@
 #include "rtype/ecs/event/EventInfo.hpp"
 #include "rtype/ecs/event/Events.hpp"
 #include "rtype/ecs/exceptions/ScheduleException.hpp"
+#include "rtype/ecs/hierarchy/Children.hpp"
+#include "rtype/ecs/hierarchy/Parent.hpp"
 #include "rtype/ecs/query/QueryBuilder.hpp"
 #include "rtype/ecs/query/QueryTerm.hpp"
 #include "rtype/ecs/resource/ResourceInfo.hpp"
@@ -36,6 +38,7 @@
 #include "rtype/ecs/system/ScriptCallable.hpp"
 #include "rtype/ecs/time/Time.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
+#include "rtype/ecs/type/TypeTraits.hpp"
 #include "rtype/scripting/ErrorKind.hpp"
 #include "rtype/scripting/Result.hpp"
 #include "rtype/scripting/view/ViewScope.hpp"
@@ -85,6 +88,12 @@ void addTerm(ecs::QueryBuilder& builder, const ecs::TermKind kind, const ecs::Co
         if (!id) {
             return fail(ErrorKind::kInvalidDeclaration,
                         std::format("System '{}': unknown component '{}'", declaration.name, component));
+        }
+        if (ecs::isWriteTerm(kind) &&
+            (component == ecs::TypeTraits<ecs::Parent>::kName || component == ecs::TypeTraits<ecs::Children>::kName)) {
+            return fail(ErrorKind::kInvalidDeclaration,
+                        std::format("System '{}': '{}' cannot be written: use commands:setParent()", declaration.name,
+                                    component));
         }
         addTerm(builder, kind, *id);
     }

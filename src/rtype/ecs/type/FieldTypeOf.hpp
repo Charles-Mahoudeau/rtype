@@ -15,6 +15,7 @@
 
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/type/Field.hpp"
+#include "rtype/ecs/type/FieldList.hpp"
 
 namespace rtype::ecs {
 /// @brief Maps a C++ type to the FieldType it is reflected as, in `value`. Empty for unsupported types.
@@ -64,18 +65,12 @@ concept HasFieldType = requires {
 };
 
 namespace detail {
-/// @brief Splits a field's declared type into the type of one value and the number of values.
-template <typename T>
-struct FieldElement {
-    using Type = T;                             ///< Type of one value.
-    static constexpr std::uint32_t kCount = 1;  ///< Number of values.
-};
-
 /// @brief A `std::array` field: `std::array<float, 4>` is 4 values of `float`. C arrays are not supported.
 template <typename T, std::size_t N>
 struct FieldElement<std::array<T, N>> {
     using Type = T;
     static constexpr auto kCount = static_cast<std::uint32_t>(N);
+    static constexpr const ListAccess* kList = nullptr;
 };
 }  // namespace detail
 }  // namespace rtype::ecs
