@@ -36,7 +36,7 @@ rule("rtype.plugin_library")
     on_load(function (target)
         if not target:is_plat("windows") then
             -- Opened through the folder, it finds what it links one level up.
-            target:add("rpathdirs", "@loader_path/..")
+            target:add("rpathdirs", "@loader_path/..", "@loader_path/../..")
         end
     end)
     after_build(function (target)
@@ -96,6 +96,11 @@ includes("src/rtype/render/vulkan")
 includes("src/rtype/audio/miniaudio")
 includes("src/rtype/client")
 includes("src/rtype/server")
+
+-- Every backend library, for what loads them without linking them.
+target("backend-libraries")
+    set_kind("phony")
+    add_deps("platform-glfw", "render-vulkan", "audio-miniaudio")
 
 target("rtype")
     set_kind("phony")
