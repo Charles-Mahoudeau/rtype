@@ -34,12 +34,13 @@
 
 namespace rtype::ecs {
 namespace {
-/// @return The first type both lists use, one of them writing it; nothing if there is none.
+/// @return The first type both lists use, one of them writing it and not both only appending to it; nothing if there
+/// is none.
 [[nodiscard]] std::optional<TypeId> findSharedWrite(std::span<const TypeAccess> first,
                                                     std::span<const TypeAccess> second) {
     for (const TypeAccess& access : first) {
         const auto other = std::ranges::find(second, access.id, &TypeAccess::id);
-        if (other != second.end() && (access.write || other->write)) {
+        if (other != second.end() && (access.write || other->write) && !(access.append && other->append)) {
             return access.id;
         }
     }
