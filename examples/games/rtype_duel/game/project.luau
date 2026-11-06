@@ -7,6 +7,12 @@ if engine.isClient then
 	engine.settings.network.host = engine.args.host or "127.0.0.1"
 end
 
+-- A top-down arena: the physics without gravity, and F3 outlines every collider (hidden at first).
+engine.settings.plugins = { "physics", "physicsDebug" }
+engine.settings.physics.gravity = { 0, 0 }
+engine.settings.physicsDebug.enabled = false
+engine.settings.physicsDebug.drawAll = true
+
 if engine.isClient then
 	engine.settings.platform = "glfw"
 	engine.settings.renderer = "vulkan"
