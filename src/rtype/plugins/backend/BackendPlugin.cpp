@@ -27,6 +27,7 @@
 #include "core/config/Settings.hpp"
 #include "plugins/backend/BackendRegistry.hpp"
 #include "plugins/backend/BackendResources.hpp"
+#include "plugins/backend/Names.hpp"
 #include "plugins/backend/WindowEvents.hpp"  // IWYU pragma: keep
 #include "plugins/backend/event/Event.hpp"
 #include "plugins/backend/event/PlatformEvent.hpp"
@@ -290,7 +291,7 @@ void BackendPlugin::build(ecs::App& app) {
 
     app.addSystem(ecs::Phase::kStartup, std::string{kCreateSystem}, &createBackend).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kPreUpdate, std::string{kEventsSystem}, &forwardEvents)
-        .before(std::string{plugins::input::InputPlugin::kUpdateSystem})
+        .before(std::string{names::kInputUpdate})
         .setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kRender, std::string{kTexturesSystem}, &loadTextures).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kRender, std::string{kBeginFrameSystem}, &beginFrame)

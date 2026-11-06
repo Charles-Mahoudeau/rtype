@@ -38,7 +38,7 @@ class InputPlugin : public ecs::Plugin {
     static constexpr std::string_view kName = backend::names::kInput;  ///< The plugin's name.
     /// @brief The PreUpdate system feeding the platform's events to Input. Producers of those events order their
     /// systems before it.
-    static constexpr std::string_view kUpdateSystem = "rtype.Input.Update";
+    static constexpr std::string_view kUpdateSystem = backend::names::kInputUpdate;
 
     InputPlugin() = default;
     ~InputPlugin() override = default;

@@ -38,6 +38,7 @@ constexpr std::string_view kBackendBeginFrame = "rtype.backend.beginFrame";  ///
 constexpr std::string_view kBackendCamera = "rtype.backend.camera";          ///< Render: applies the camera.
 constexpr std::string_view kBackendSprites = "rtype.backend.sprites";        ///< Render: draws the sprites.
 constexpr std::string_view kBackendEndFrame = "rtype.backend.endFrame";      ///< Render: shows the frame.
+constexpr std::string_view kInputUpdate = "rtype.Input.Update";              ///< PreUpdate: feeds the events to Input.
 constexpr std::string_view kTransformPropagate = "rtype.Transform.Propagate";  ///< PostUpdate: updates GlobalTransform.
 constexpr std::string_view kTilemapTextures = "rtype.Tilemap.Textures";        ///< Render: queues the map images.
 constexpr std::string_view kTilemapDraw = "rtype.Tilemap.Draw";                ///< Render: draws the layers.
