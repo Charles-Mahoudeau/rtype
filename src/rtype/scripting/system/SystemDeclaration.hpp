@@ -44,6 +44,7 @@ struct SystemDeclaration {
     std::vector<TermDeclaration> terms;          ///< Terms of its query, in the fixed order of readSystemDeclaration().
     std::vector<ResourceDeclaration> resources;  ///< Resources it uses, one entry per name.
     std::vector<EventDeclaration> events;        ///< Event types it uses, one entry per name.
+    std::vector<std::string> calls;              ///< Engine calls `ctx.call` may make, in the order written.
     std::vector<std::string> after;              ///< Names of the systems it runs after.
     std::vector<std::string> before;             ///< Names of the systems it runs before.
     luau::FunctionRef run;                       ///< The `run` function of the declaration.
