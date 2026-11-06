@@ -13,7 +13,7 @@ The design builds on what already exists in the repository:
   `Result<T>` / `Error`, `generateTypes()`, handles, and the gtest setup in `tests/`.
 
 > Snippets omit the Epitech header, the rule-of-five members and most `[[nodiscard]]`/`noexcept` for
-> brevity. The real code follows every rule in `CLAUDE.md`.
+> brevity. The real code follows every rule in `docs/CodeStyle.md`.
 
 **Feature docs:** each part of the ECS has its own concept doc in [`features/`](features/README.md).
 
@@ -852,7 +852,7 @@ namespace rtype::ecs {
 class RTYPE_ECS_API Plugin {
   public:
     virtual ~Plugin() = default;
-    // copy/move deleted, see CLAUDE.md
+    // copy/move deleted, see docs/CodeStyle.md
 
     [[nodiscard]] virtual std::string_view getName() const noexcept = 0;
     virtual void build(App& app) = 0;

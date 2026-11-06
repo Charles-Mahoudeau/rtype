@@ -25,7 +25,7 @@ code away.
 > structures show one way to meet the task; the developer may choose another, as long as the task's behaviour, the
 > wire format of [`design.md`](design.md) and [5](#5-values-fixed-by-this-spec), and the acceptance criteria are
 > met, and the reviewer agrees. Snippets omit the Epitech header, the rule-of-five members and most
-> `[[nodiscard]]`/`noexcept`; the real code follows every rule in `CLAUDE.md`.
+> `[[nodiscard]]`/`noexcept`; the real code follows every rule in `docs/CodeStyle.md`.
 
 ## Contents
 

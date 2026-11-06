@@ -58,7 +58,7 @@ body:
         - [ ] Builds with `xmake` on Linux, Windows and macOS
         - [ ] Unit tests in `tests/ecs/` cover the success and failure paths
         - [ ] Passes `clang-format` and `clang-tidy`
-        - [ ] Follows the conventions in `CLAUDE.md` (rule of five, `.tpp` for templates, `RTYPE_ECS_API` exports)
+        - [ ] Follows the conventions in `docs/CodeStyle.md` (rule of five, `.tpp` for templates, `RTYPE_ECS_API` exports)
     validations:
       required: true
 
