@@ -22,6 +22,7 @@
 #include "plugins/input/InputPlugin.hpp"
 #include "plugins/particle/ParticlePlugin.hpp"
 #include "plugins/shader/ShaderPlugin.hpp"
+#include "plugins/shape/ShapePlugin.hpp"
 #include "plugins/sprite/SpriteDrawPlugin.hpp"
 #include "plugins/sprite/SpritePlugin.hpp"
 #include "plugins/text/TextPlugin.hpp"
@@ -249,6 +250,7 @@ inline void addDrawingPlugins(rtype::ecs::App& app, std::unique_ptr<rtype::plugi
     app.addPlugin(rtype::plugins::shader::ShaderPlugin{});
     app.addPlugin(rtype::plugins::sprite::SpritePlugin{});
     app.addPlugin(rtype::plugins::sprite::SpriteDrawPlugin{});
+    app.addPlugin(rtype::plugins::shape::ShapePlugin{});
     app.addPlugin(rtype::plugins::tilemap::TilemapPlugin{});
     app.addPlugin(rtype::plugins::text::TextPlugin{});
     app.addPlugin(rtype::plugins::particle::ParticlePlugin{});
