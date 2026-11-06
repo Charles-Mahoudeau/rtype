@@ -83,7 +83,7 @@ class RTYPE_SCRIPTING_API ScriptHost {
     /// @param name Name of a component a script declared.
     /// @return Its layout, with the default value a field left out of `Commands::add` or `spawn` takes, or null if no
     /// script declared it. Valid while the host lives.
-    [[nodiscard]] const component::ComponentLayout* findComponent(std::string_view name) const noexcept;
+    [[nodiscard]] const component::ComponentLayout* findComponent(std::string_view name) const;
 
   private:
     /// @brief Compiles a script and runs it, once, without loading the forms first.
@@ -94,7 +94,7 @@ class RTYPE_SCRIPTING_API ScriptHost {
 
     /// @param app The App scripts declare their ECS data on.
     /// @param runtime The runtime of the scripts.
-    ScriptHost(ecs::App& app, luau::Runtime runtime) noexcept;
+    ScriptHost(ecs::App& app, luau::Runtime runtime);
 
     /// @brief Builds `engine` and its `ecs` library, and makes it a global.
     [[nodiscard]] luau::Result<> installEngine(Options options);

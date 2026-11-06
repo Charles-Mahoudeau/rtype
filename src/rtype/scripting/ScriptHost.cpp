@@ -84,7 +84,7 @@ luau::Result<std::unique_ptr<ScriptHost>> ScriptHost::create(ecs::App& app, cons
     return host;
 }
 
-ScriptHost::ScriptHost(ecs::App& app, luau::Runtime runtime) noexcept
+ScriptHost::ScriptHost(ecs::App& app, luau::Runtime runtime)
     : _app{app}, _runtime{std::move(runtime)}, _handle{std::make_shared<system::RuntimeHandle>()} {
     _handle->runtime = &_runtime;
     _handle->components = &_components;
@@ -118,7 +118,7 @@ luau::Result<> ScriptHost::loadForms() const {
     return {};
 }
 
-const component::ComponentLayout* ScriptHost::findComponent(const std::string_view name) const noexcept {
+const component::ComponentLayout* ScriptHost::findComponent(const std::string_view name) const {
     // The map is keyed by std::string and has no transparent lookup.
     const auto found = _components.find(std::string{name});
     return found == _components.end() ? nullptr : &found->second;

@@ -27,7 +27,6 @@
 #include <span>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "rtype/engine/plugin/PluginSignature.hpp"
