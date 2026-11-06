@@ -166,8 +166,9 @@ int Engine::run() {
 void Engine::registerLibraries() {
     const std::filesystem::path plugins = core::system::getExecutableDirectory() / kPluginsDirectory;
     _loader.load(plugins);
-    // A server has no window and no sound: it does not even load what opens them.
-    if (runsClient(_config.mode)) {
+    // Only a client whose game opens a window or plays sound loads what does it: a server never does.
+    if (runsClient(_config.mode) &&
+        (_settings.has("platform") || _settings.has("renderer") || _settings.has("audio.backend"))) {
         _loader.load(plugins / kBackendsDirectory);
     }
     _loader.load(_gameDirectory / kPluginsDirectory);

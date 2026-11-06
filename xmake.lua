@@ -39,6 +39,14 @@ rule("rtype.plugin_library")
             target:add("rpathdirs", "@loader_path/..", "@loader_path/../..")
         end
     end)
+    before_link(function (target)
+        -- Linked by the executable, a package's libraries were found through it; opened alone, the library needs them.
+        if target:is_plat("linux") then
+            for _, dirs in ipairs(target:get_from("linkdirs", "package::*") or {}) do
+                target:add("rpathdirs", dirs)
+            end
+        end
+    end)
     after_build(function (target)
         local folder = path.join(target:targetdir(), target:extraconf("rules", "rtype.plugin_library", "folder") or "plugins")
         local file = path.join(folder, path.filename(target:targetfile()))
