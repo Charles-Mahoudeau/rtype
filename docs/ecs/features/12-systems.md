@@ -118,7 +118,8 @@ void run(rtype::ecs::DynamicResources resources, rtype::ecs::DynamicEvents event
     std::span<const std::byte> time = resources.get(0);          // empty while the resource has no value
     std::span<std::byte> score = resources.getMut(1);            // empty unless declared write
     for (std::span<const std::byte> bytes : events.read(0)) {}   // each event once, like an EventReader
-    events.send(1, bytes);                                       // false unless declared send, or a wrong size
+    std::array<std::byte, sizeof(Explosion)> explosion{};        // a value of the event registered as explosionId
+    events.send(1, explosion);                                   // false unless declared send, or a wrong size
 }
 
 app.addSystem(rtype::ecs::Phase::kUpdate, "game.run", &run,
@@ -132,6 +133,8 @@ app.addSystem(rtype::ecs::Phase::kUpdate, "game.run", &run,
 - The access set gets each resource as read or written, and each event as read, or written when it is sent
   (an event listed as both read and sent is written), so the scheduler orders the system as for `Res`,
   `ResMut`, `EventReader` and `EventWriter`.
+- An event listed twice shares one cursor, so each event is read once whichever index reads it, and an event
+  declared neither read nor sent is left out of the access set.
 - A resource declared read refuses `getMut()`, and an event declared only read or only sent refuses the
   other operation: the system does nothing it did not declare.
 

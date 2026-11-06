@@ -7,6 +7,7 @@
 
 #include "DynamicEvents.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <format>
@@ -40,7 +41,10 @@ RawEventRange DynamicEvents::read(const std::size_t index) const noexcept {
     if (!use.read) {
         return {};
     }
-    return _events->read(use.id, *std::next(_cursors.begin(), static_cast<std::ptrdiff_t>(index)));
+    // Uses of the same event share the cursor of the first one, so an event is consumed once whichever index reads it.
+    const auto first = std::ranges::find(_uses, use.id, &EventUse::id);
+    const auto cursor = std::distance(_uses.begin(), first);
+    return _events->read(use.id, *std::next(_cursors.begin(), cursor));
 }
 
 bool DynamicEvents::send(const std::size_t index, const std::span<const std::byte> value) const {
@@ -67,6 +71,9 @@ DynamicEvents SystemParam<DynamicEvents>::get(State& state, const SystemContext&
 
 void SystemParam<DynamicEvents>::addAccess(const State& state, SystemAccess& access) {
     for (const EventUse& use : state.uses) {
+        if (!use.read && !use.send) {
+            continue;  // an event the system neither reads nor sends is not accessed
+        }
         access.addEvent(use.id, use.send);
     }
 }
