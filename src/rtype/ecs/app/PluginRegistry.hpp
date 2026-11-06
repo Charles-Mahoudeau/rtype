@@ -61,11 +61,22 @@ class RTYPE_ECS_API PluginRegistry {
     /// @return Whether a factory is registered under this name.
     [[nodiscard]] bool has(std::string_view name) const noexcept;
 
+    /// @brief Registers Luau source a script host runs before the game's scripts: the setup forms of a plugin, such as
+    /// `engine.assets.texture`. A plugin library registers them even if its plugin is not added, so a server that has
+    /// no window still gets the id of a texture.
+    /// @param name What the source is known by; a name registered twice keeps the first source.
+    /// @param source The Luau source.
+    void addScriptForms(std::string name, std::string_view source);
+
+    /// @return The sources of addScriptForms(), by name.
+    [[nodiscard]] const std::map<std::string, std::string, std::less<>>& getScriptForms() const noexcept;
+
     /// @return A new plugin built by the factory registered under @p name, or null if none is.
     [[nodiscard]] std::unique_ptr<Plugin> create(std::string_view name) const;
 
   private:
     core::config::Settings _settings;                        ///< What the factories read.
     std::map<std::string, Factory, std::less<>> _factories;  ///< Factories by plugin name.
+    std::map<std::string, std::string, std::less<>> _forms;  ///< Setup forms of the plugins, by name.
 };
 }  // namespace rtype::ecs

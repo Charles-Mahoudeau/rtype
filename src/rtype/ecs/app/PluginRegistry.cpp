@@ -8,6 +8,8 @@
 #include "PluginRegistry.hpp"
 
 #include <cassert>
+#include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -38,6 +40,14 @@ void PluginRegistry::add(std::string name, DefaultFactory factory) {
     assert(factory != nullptr);
     add(std::move(name),
         Factory{[factory = std::move(factory)](const core::config::Settings& /*settings*/) { return factory(); }});
+}
+
+void PluginRegistry::addScriptForms(std::string name, const std::string_view source) {
+    _forms.try_emplace(std::move(name), source);
+}
+
+const std::map<std::string, std::string, std::less<>>& PluginRegistry::getScriptForms() const noexcept {
+    return _forms;
 }
 
 bool PluginRegistry::has(std::string_view name) const noexcept { return _factories.contains(name); }
