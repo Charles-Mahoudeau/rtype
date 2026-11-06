@@ -253,6 +253,20 @@ TEST(AudioPlugin, PansASourceFromItsPositionInTheFrameItSpawns) {
     EXPECT_FLOAT_EQ(app.state().plays[0].params.pan, -0.5F);
 }
 
+TEST(AudioPlugin, WaitsForTheWorldPositionOfANewChildBeforePanningIt) {
+    AudioApp app;
+    app.spawnListener(0.0F);
+    const rtype::ecs::Entity parent = app.world().spawn();
+    app.world().getComponents().add(parent, rtype::plugins::transform::Transform{.position = {400.0F, 0.0F}});
+    const rtype::ecs::Entity child = app.spawnSource({.sound = app.load("engine.ogg"), .loop = true}, -200.0F);
+    EXPECT_TRUE(app.world().setParent(child, parent));
+    app.app().runFrame();
+    ASSERT_EQ(app.state().plays.size(), 1U);
+    EXPECT_FLOAT_EQ(app.state().plays[0].params.pan, 0.0F);  // its Transform alone would say -0.5
+    app.app().runFrame();
+    EXPECT_FLOAT_EQ(app.state().pans.at(0), 0.5F);
+}
+
 TEST(AudioPlugin, FollowsAMovingSource) {
     AudioApp app;
     app.spawnListener(0.0F);
