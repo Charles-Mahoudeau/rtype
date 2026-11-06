@@ -24,6 +24,7 @@
 #include "plugins/shader/ShaderPlugin.hpp"
 #include "plugins/text/Font.hpp"
 #include "plugins/text/FontAssets.hpp"
+#include "plugins/text/TextCalls.hpp"
 #include "plugins/text/TextLayout.hpp"
 #include "plugins/text/TextRenderer.hpp"
 #include "plugins/transform/Transform.hpp"
@@ -104,6 +105,7 @@ void TextPlugin::build(ecs::App& app) {
     resources.insertIfAbsent<graphics::TextureAssets>();
     resources.insertIfAbsent<graphics::SpriteQueue>();
     static_cast<void>(app.getWorld().getComponents().registerType<TextRenderer>());
+    addTextCalls(app);
     app.addSystem(ecs::Phase::kRender, std::string{kTexturesSystem}, &queueFontTextures)
         .before(std::string{graphics::GraphicsPlugin::kTexturesSystem})
         .setSide(ecs::Side::kClient);
