@@ -100,8 +100,8 @@ class RTYPE_ECS_API World {
     /// @brief Makes every entity reserved since the last flush alive, except the ones cancelled in between.
     void flushReserved();
 
-    /// @brief Destroys an entity: removes it from every pool (destroying its values), clears the entity fields of
-    /// other components that pointed to it, then frees its index.
+    /// @brief Destroys an entity and its descendants: removes each from every pool (destroying its values), clears the
+    /// entity fields of other components that pointed to it, then frees its index. A parent loses it from its Children.
     /// @details Every handle to it becomes stale, and its index can be reused under a new generation. A cleared field
     /// reads as the null entity and its value is marked changed. Clearing looks at every value of the components
     /// that have entity fields, so its cost grows with them, not with the whole world.
@@ -109,10 +109,23 @@ class RTYPE_ECS_API World {
     /// @return False, doing nothing, if the entity is neither alive nor reserved.
     bool despawn(Entity entity) noexcept;
 
+    /// @brief Makes `child` a child of `parent`, moving it from its previous parent if it has one, and keeps
+    /// both entities' Children in sync.
+    /// @return False, doing nothing, if an entity is not alive, if they are the same entity, or if `parent`
+    /// is a descendant of `child`, which would make a cycle.
+    bool setParent(Entity child, Entity parent);
+
+    /// @brief Makes `child` a root: removes its Parent and takes it out of its parent's Children.
+    /// @return False, doing nothing, if it has no parent.
+    bool removeParent(Entity child);
+
     /// @return Whether the entity was spawned in this world and not despawned since.
     [[nodiscard]] bool isAlive(Entity entity) const noexcept;
 
   private:
+    /// @brief Destroys one alive entity, without its children.
+    void destroyEntity(Entity entity) noexcept;
+
     /// @brief Everything the world owns, on the heap so that its address survives moves. A moved-from world has none:
     /// it can only be destroyed or assigned to.
     std::unique_ptr<detail::WorldState> _state{std::make_unique<detail::WorldState>()};
