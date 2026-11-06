@@ -30,14 +30,26 @@ struct rtype::ecs::FieldTypeOf<rtype::contract::renderer::BlendMode>
     : std::integral_constant<rtype::ecs::FieldType, rtype::ecs::FieldType::kU8> {};
 static_assert(sizeof(rtype::contract::renderer::BlendMode) == 1, "BlendMode must match FieldType::kU8");
 
+/// @brief A contract::renderer::math::Rect field is reflected as kVec4: x and y are its position, z and w its width and
+/// height.
+template <>
+struct rtype::ecs::FieldTypeOf<rtype::contract::renderer::math::Rect>
+    : std::integral_constant<rtype::ecs::FieldType, rtype::ecs::FieldType::kVec4> {};
+static_assert(sizeof(rtype::contract::renderer::math::Rect) == 16 &&
+                  alignof(rtype::contract::renderer::math::Rect) == 4,
+              "Rect must match FieldType::kVec4");
+static_assert(std::is_standard_layout_v<rtype::contract::renderer::math::Rect> &&
+                  std::is_trivially_copyable_v<rtype::contract::renderer::math::Rect>,
+              "Rect must be four floats in a row: x, y, width, height");
+
 namespace rtype::plugins::sprite {
 /// @brief Draws an entity as a part of a texture: the component a render system will turn into a
 /// contract::renderer::Sprite.
 ///
 /// @details Only what to draw: where (position, scale, rotation) comes from the entity's GlobalTransform. The texture
 /// is referred to by its AssetId, the same in every process, which TextureAssets::load() returns at once; the
-/// GraphicsPlugin's Render system draws the entity once the texture is loaded, sorted by layer. Every field but
-/// `source` is reflected (Luau, network).
+/// GraphicsPlugin's Render system draws the entity once the texture is loaded, sorted by layer. Its fields are
+/// reflected (Luau, network): `source` as a vec4, its position in x and y, its width and height in z and w.
 /// @code
 /// commands.spawn()
 ///     .add(rtype::plugins::transform::Transform{.position = {100.0F, 300.0F}})
@@ -55,5 +67,5 @@ struct SpriteRenderer {
     core::asset::AssetId
         material;  ///< Its material, from MaterialAssets::add(); the default one if unset or not ready.
 };
-RTYPE_ECS_COMPONENT(SpriteRenderer, "rtype.SpriteRenderer", texture, color, origin, layer, blend, material);
+RTYPE_ECS_COMPONENT(SpriteRenderer, "rtype.SpriteRenderer", texture, source, color, origin, layer, blend, material);
 }  // namespace rtype::plugins::sprite
