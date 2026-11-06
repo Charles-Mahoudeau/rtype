@@ -52,13 +52,14 @@ are added.
   knows both the ECS and the network; it turns a `World` into messages and back (`rtype::replication`).
   Exported symbols are marked `RTYPE_REPLICATION_API`. Feature folders and sub-namespaces as in `network`:
   `component/`, `event/`, `serialization/`, `manifest/`, `input/`, `snapshot/`, `server/`, `client/`,
-  `packet/`, `exceptions/`.
+  `packet/`, `exceptions/`. `input/InputCalls.hpp` holds its engine calls (`rtype.replication.addInput`, `readInput`).
 - `src/rtype/engine/` — `engine` target, shared library (`rtype-engine`): `Engine` runs a game directory (`game/` by
   default, `--game <dir>`): it reads its `project.luau` through Luau (`scripting/SettingsLoader`, which also exposes
   the command line as `engine.args`), builds the `App` with the program's plugins, `EngineConfig::addPlugins`, and the engine's (transform, replication,
   scripting, server or client) in a fixed order, calls the game's native `EngineConfig::setup`, runs it, and builds it
   again on `requestReload()`. `GamePlugins` reads the generic plugins `project.luau` lists under `plugins`
-  (`transform`, `physics`, `physicsDebug`) and their sections, added after the replication plugin. `EngineConfig` holds
+  (`transform`, `physics`, `physicsDebug`) and their sections, added after the replication plugin. On clients,
+  `NetworkInput` fills the `PlayerInput` sent to the server from the `Input` actions. `EngineConfig` holds
   the mode, the command line and these functions; `CommandLine` parses the `--name value` flags. Exported symbols are marked `RTYPE_ENGINE_API`.
   Design in `docs/engine/design.md`.
 - `src/rtype/client/`, `src/rtype/server/` — the generic executables `r-type_client` and `r-type_server`: a `main` that
@@ -110,7 +111,7 @@ are added.
     - `plugins/physics/` (`rtype::plugins::physics`) — `PhysicsPlugin`: 2D physics on Jolt (`Collider`, `RigidBody`,
       `Velocity`, the `PhysicsWorld` resource, collision events, scene queries, `moveAndSlide`), simulated on the server
       side, with query-only bodies on clients. Jolt is a private package: only `.cpp` files and `detail/` include it.
-      The debug view is in `physics/debug/` (`rtype::plugins::physics::debug`), its own library `plugin-physics-debug`. Design in
+      The debug view is in `physics/debug/` (`rtype::plugins::physics::debug`), its own library `plugin-physics-debug`, the engine calls in `PhysicsCalls.hpp`. Design in
       `docs/physics/design.md`.
     - `plugins/audio/` (`rtype::plugins::audio`) — `AudioPlugin`: `AudioRegistry` (starts the device the settings name,
       `"null"` always registered, as `NullAudioDevice`), `AudioConfig`, `AudioVolumes`, the `AudioAssets` resource (sounds by `AssetId`, opened

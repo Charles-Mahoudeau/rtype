@@ -158,6 +158,8 @@ adds run on clients):
 | Tilemap | `rtype.tilemap.load`, `rtype.tilemap.spawn` ([Tilemaps](../../Tilemap.md#from-scripts)) |
 | Audio | `rtype.audio.loadSound`, `rtype.audio.playSound` ([Audio](../../audio/design.md#from-scripts)) |
 | Input | `rtype.input.addAction`, `rtype.input.bind`, `rtype.input.bindAxis`, `rtype.input.bindVector`, `rtype.input.read` ([Input](../../Input.md#from-scripts)) |
+| Physics | `rtype.physics.raycast`, `rtype.physics.shapeCast`, `rtype.physics.overlap`, `rtype.physics.moveAndSlide`, `rtype.physics.applyForce`, `rtype.physics.applyImpulse`, `rtype.physics.applyTorque`, `rtype.physics.setGravity` ([Physics](../../physics/design.md#from-scripts)) |
+| Replication | `rtype.replication.addInput`, `rtype.replication.readInput` ([Replication](20-replication.md)) |
 
 ### Setup forms
 
@@ -247,8 +249,25 @@ engine.input.action("move", "vector2", { bind = { { up = "W", down = "S", left =
 engine.input.action("fire", "button", { bind = { "Space", "GamepadSouth" } })
 ```
 
-The form forwards them to `Input::addAction()` / `InputAction::bind...()` on clients. Listing them in the network
-manifest, so the server knows the layout of `PlayerInput`, is still to do.
+The form forwards them to `Input::addAction()` / `InputAction::bind...()` on clients, and, where the replication
+plugin is added, declares them in the network `InputLayout` on both sides (`rtype.replication.addInput`), which the
+manifest checks. On a client run by the `Engine`, a system (`rtype.engine.networkInput`) copies each of them from
+`Input` into the `PlayerInput` sent to the server; a server script reads it by name with
+`rtype.replication.readInput`:
+
+```luau
+engine.ecs.system("game.Ships", {
+    phase = "FixedUpdate",
+    query = { write = { "rtype.Transform" }, with = { "net.PlayerInput" } },
+    calls = { "rtype.replication.readInput" },
+    run = function(ctx)
+        for ship, transform in ctx.query do
+            local move = ctx.call("rtype.replication.readInput", { entity = ship, action = "move" }).vector
+            transform.position = { x = transform.position.x + move.x * 4, y = transform.position.y - move.y * 4 }
+        end
+    end,
+})
+```
 
 ### Rules of the boundary
 

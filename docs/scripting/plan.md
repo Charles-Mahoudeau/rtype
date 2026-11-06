@@ -298,7 +298,8 @@ Each task is one issue and one pull request. Ids `LUA-xx`. Tests go in `tests/sc
 
 **What to build**
 
-- `commands:spawn({ ["game.Shield"] = { strength = 10 }, ... })`: returns the reserved `Entity`.
+- `commands:spawn({ ["game.Shield"] = { strength = 10 }, ... })`: returns the reserved `Entity`. (Since SCR-10 a
+  component may also be a plain-data C++ one, such as `rtype.Collider`, built from its C++ defaults.)
 - `commands:add(entity, "game.Shield", {...})`.
 - `commands:despawn(entity)`, which despawns its children too.
 - `commands:setParent(child, parent)` and `commands:removeParent(child)`.
@@ -706,8 +707,19 @@ their bytes would be wrong anyway.
   `PhysicsDebugSettings::fromSettings()`); see "Generic plugins" in `docs/engine/design.md`.
 - **Physics.** Expose `Collider`, `RigidBody` and `Velocity` (SCR-01 covers their enums), the collision events
   (SCR-04) and the scene queries as engine calls.
+  *Done:* `ctx.commands` spawns and adds the plain-data C++ components of the world (`rtype.Collider`,
+  `rtype.Transform`...) from their C++ defaults, not only script ones, with the same client rule. The physics plugin
+  registers `rtype.physics.raycast`, `shapeCast`, `overlap` (a count and one entity: call data holds no list),
+  `moveAndSlide` (an entity's `Collider`), `applyForce`, `applyImpulse`, `applyTorque` and `setGravity`
+  (`plugins/physics/PhysicsCalls.hpp`, see "From scripts" in `docs/physics/design.md`); velocity and position are
+  component writes.
 - Replication components (`Owner`, `PlayerInput`) and `ClientConnected`: readable and writable like any component and
   event; check their layouts are plain data.
+  *Done:* they are plain data; the `axes` array of `PlayerInput` is not script-readable, so the replication plugin
+  registers `rtype.replication.readInput` (`{held, pressed, released, axis, vector}` of an action, by name) and
+  `rtype.replication.addInput`, which `engine.input.action` makes on both sides so the network `InputLayout` comes
+  from the scripts. On clients the `Engine` adds `rtype.engine.networkInput` (`engine/NetworkInput`), which fills the
+  sent `PlayerInput` from the `Input` actions of the same names, so a game needs no `ClientState::setInput` of its own.
 
 **Open point for the team (blocks the start).** Bound calls (above) or only declarative forms? The first is general and
 costs a registry in `ecs`; the second is smaller and cannot express a call nobody wrote a form for. The draft assumes
@@ -716,7 +728,7 @@ both: the registry for the plugins, forms for the setup everybody writes.
 **Done when**
 
 - [ ] A script loads an atlas, a sound and a font, and sets inputs, without C++ code in the game.
-- [ ] A game's server and client scripts spawn ships and lasers with colliders, and a collision event reaches a script.
+- [x] A game's server and client scripts spawn ships and lasers with colliders, and a collision event reaches a script.
 - [ ] `plugins` and `ecs` still include nothing of `luau`.
 - [ ] `rtype_duel`'s `src/` holds the generic executable only; its rules are in `game/scripts/`.
 - [x] An unknown engine call, or a wrong argument type, is an error naming the call and the script.

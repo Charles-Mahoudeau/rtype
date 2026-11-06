@@ -213,6 +213,43 @@ transform->position = moveAndSlide(*world, ship, collider, transform->position, 
 
 Queries and `moveAndSlide` sweep shapes without rotation.
 
+### From scripts
+
+The components (`rtype.Collider`, `rtype.RigidBody`, `rtype.Velocity`, with their enums as numbers: `shape` 0 box, 1
+circle, 2 capsule) are plain data: scripts query them and spawn them with `ctx.commands`, and read the contact events
+(`rtype.CollisionStarted`...) declared under `events`. A body's velocity and position are set by writing its
+`Velocity` and `Transform`. The rest is [engine calls](../ecs/features/19-luau-bridge.md#engine-calls) the plugin
+registers (`PhysicsCalls.hpp`), on every side:
+
+| Call | Arguments | Result |
+|---|---|---|
+| `rtype.physics.raycast` | `origin`, `direction`, `maxDistance`, `mask`, `ignore`, `includeSensors` | `{hit, entity, point, normal, distance}` |
+| `rtype.physics.shapeCast` | the shape fields of a `Collider` (`shape`, `size`, `radius`, `halfHeight`, `offset`), `from`, `direction`, `maxDistance`, the filter | as `raycast` |
+| `rtype.physics.overlap` | the shape fields, `at`, the filter | `{count, first}`: call data holds no list |
+| `rtype.physics.moveAndSlide` | `entity` (its `Collider` is the shape, its mask the filter), `from`, `delta`, `skin`, `maxSlides` | the position it ends at |
+| `rtype.physics.applyForce`, `applyImpulse` | `entity`, `value` | nothing |
+| `rtype.physics.applyTorque` | `entity`, `torque` | nothing |
+| `rtype.physics.setGravity` | `gravity` | nothing |
+
+A null `ignore` (the default) skips no entity. `raycastAll` has no call yet, for the same reason as `overlap`.
+
+```luau
+engine.ecs.system("game.Ships", {
+    phase = "FixedUpdate",
+    query = { write = { "rtype.Transform" }, with = { "game.Ship" } },
+    calls = { "rtype.physics.moveAndSlide" },
+    after = { "rtype.Physics.SyncBodies" },
+    before = { "rtype.Physics.SyncToPhysics" },
+    run = function(ctx)
+        for ship, transform in ctx.query do
+            transform.position = ctx.call("rtype.physics.moveAndSlide", {
+                entity = ship, from = transform.position, delta = { x = 4, y = 0 },
+            })
+        end
+    end,
+})
+```
+
 ## 10. Network modes and prediction
 
 ```

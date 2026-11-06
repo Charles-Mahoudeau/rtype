@@ -78,6 +78,7 @@ macOS. On Windows, the rule copies the build folder's DLLs next to them.
 | 7 | `EngineConfig::setup` | if given | the game's native components, resources, systems and plugins |
 | 8 | `ScriptingPlugin`, on `<game>/scripts` | always | the scripts can use what the setup registered |
 | 9 | `ServerPlugin` or `ClientPlugin` | network modes | **last**: it reads every replicated component when it is built, the game's and the scripts' |
+| 10 | `rtype.engine.networkInput` (`addNetworkInput()`) | `kClient` | fills the `PlayerInput` sent to the server from the `Input` actions named like the `InputLayout` ones, so a game needs no input code of its own |
 
 The network reads the `network` section of the settings and refuses unknown keys:
 
