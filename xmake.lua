@@ -29,6 +29,29 @@ else
                  {alias = "glslang", configs = {tools = true, spirv_tools = true, default_resource_limits = true}})
 end
 
+-- Makes a shared library a plugin library: it appears in the `plugins` folder next to the executables (or the folder
+-- `rtype.plugin_folder` names), where the Engine finds it. The folder links to the library rather than holding a second
+-- file, which would load twice; on Windows, where SharedLibrary shares the modules of the same name, it is a copy.
+rule("rtype.plugin_library")
+    on_load(function (target)
+        if not target:is_plat("windows") then
+            -- Opened through the folder, it finds what it links one level up.
+            target:add("rpathdirs", "@loader_path/..")
+        end
+    end)
+    after_build(function (target)
+        local folder = path.join(target:targetdir(), target:extraconf("rules", "rtype.plugin_library", "folder") or "plugins")
+        local file = path.join(folder, path.filename(target:targetfile()))
+        os.mkdir(folder)
+        os.tryrm(file)
+        if target:is_plat("windows") then
+            os.cp(target:targetfile(), file)
+        else
+            os.ln(path.absolute(target:targetfile()), file)
+        end
+    end)
+rule_end()
+
 -- Copies a binary to the repository root after it is built
 rule("rtype.copy_to_root")
     on_load(function (target)
@@ -38,6 +61,14 @@ rule("rtype.copy_to_root")
     end)
     after_build(function (target)
         os.cp(target:targetfile(), os.projectdir())
+        -- The plugin libraries, where the Engine looks for them: next to the executable.
+        local plugins = path.join(os.projectdir(), "plugins")
+        os.tryrm(plugins)
+        if target:is_plat("windows") then
+            os.cp(path.join(target:targetdir(), "plugins"), plugins)
+        else
+            os.ln(path.absolute(path.join(target:targetdir(), "plugins")), plugins)
+        end
         if target:is_plat("windows") then
             -- No rpath there, so its DLLs go next to it. Only those it depends on: the others may still be linking, and
             -- Windows refuses to read a file being written.

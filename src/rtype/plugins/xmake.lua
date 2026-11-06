@@ -24,6 +24,7 @@ local function plugin(name, deps)
         add_packages("glm", {public = true})
         -- Plain x/y/z/w members instead of unions (cppcoreguidelines-pro-type-union-access).
         add_defines("GLM_FORCE_XYZW_ONLY", {public = true})
+        add_rules("rtype.plugin_library")
 end
 
 plugin("transform", {})
@@ -91,3 +92,10 @@ plugin("physics", {"plugin-transform"})
 plugin("physics-debug", {"plugin-physics", "plugin-graphics", "plugin-input", "plugin-shape", "plugin-transform"})
     add_files("physics/debug/**.cpp")
     add_headerfiles("physics/debug/**.hpp")
+
+-- Every plugin library, for what loads them without linking them: the executables build after it.
+target("plugin-libraries")
+    set_kind("phony")
+    add_deps("plugin-audio", "plugin-graphics", "plugin-input", "plugin-particle", "plugin-physics",
+             "plugin-physics-debug", "plugin-shader", "plugin-shape", "plugin-sprite", "plugin-text", "plugin-tilemap",
+             "plugin-transform")
