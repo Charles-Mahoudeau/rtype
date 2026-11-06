@@ -12,3 +12,7 @@ target("engine")
     add_headerfiles("**.hpp")
     add_defines("RTYPE_ENGINE_BUILD", {public = false})
     add_includedirs("$(projectdir)/src", {public = true})
+    -- dlopen() is in libdl on older Linux systems.
+    if is_plat("linux") then
+        add_syslinks("dl")
+    end
