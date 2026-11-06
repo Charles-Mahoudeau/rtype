@@ -4,5 +4,8 @@ target("r-type_client")
     set_kind("binary")
     add_deps("engine", "platform-glfw", "render-vulkan", "audio-miniaudio", "plugin-input", "plugin-graphics",
              "plugin-shader", "plugin-sprite", "plugin-tilemap", "plugin-text", "plugin-particle", "plugin-audio")
+    -- Not linked: built after the server, so that the two never copy the DLLs they share to the root at once, which
+    -- Windows refuses (rtype.copy_to_root).
+    add_deps("r-type_server")
     add_files("**.cpp")
     add_rules("rtype.copy_to_root")
