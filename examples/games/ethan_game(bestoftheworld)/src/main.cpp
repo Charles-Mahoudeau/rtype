@@ -103,13 +103,11 @@ float randomSoundSpeed() {
 // Startup: loads the image and the sound, and spawns the splash screen.
 void spawnSplash(ecs::ResMut<plugins::graphics::TextureAssets> textures,
                  ecs::ResMut<plugins::audio::AudioAssets> sounds, ecs::ResMut<Jingle> jingle, ecs::Commands& commands) {
-    const std::string game{kGame};
-    jingle->sound = sounds->load(game + "/assets/wafprout.mp3");
+    jingle->sound = sounds->load("wafprout.mp3");
     commands.spawn()
         .add(plugins::transform::Transform{.position = {kWidth / 2.0F, kHeight / 2.0F}, .scale = glm::vec2{0.0F}})
-        .add(plugins::sprite::SpriteRenderer{.texture = textures->load(game + "/assets/luau.png"),
-                                             .source = {{0.0F, 0.0F}, kImageSize},
-                                             .origin = kImageSize / 2.0F})
+        .add(plugins::sprite::SpriteRenderer{
+            .texture = textures->load("luau.png"), .source = {{0.0F, 0.0F}, kImageSize}, .origin = kImageSize / 2.0F})
         .add(Splash{});
 }
 
