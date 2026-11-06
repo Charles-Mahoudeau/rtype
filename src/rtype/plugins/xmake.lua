@@ -51,6 +51,10 @@ plugin("shader", {"plugin-graphics"})
     add_rules("utils.bin2c", {extensions = {".glsl"}})
     add_files("../contract/renderer/shaders/*.glsl")
 
+plugin("shape", {"plugin-graphics", "plugin-transform"})
+    add_files("shape/**.cpp")
+    add_headerfiles("shape/**.hpp", "shape/**.tpp")
+
 plugin("sprite", {"plugin-graphics", "plugin-shader", "plugin-transform"})
     add_files("sprite/**.cpp")
     add_headerfiles("sprite/**.hpp", "sprite/**.tpp")
