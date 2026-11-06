@@ -30,6 +30,7 @@
 #include "plugins/tilemap/TilemapAssets.hpp"
 #include "plugins/tilemap/TilemapPlugin.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "render/vulkan/Registration.hpp"
 #include "rtype/contract/renderer/drawing/Color.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -96,6 +97,7 @@ int main() {
 
         ecs::App app;
         app.addPlugins(ecs::MinimalPlugins{})
+            .addPlugin(rtype::plugins::transform::TransformPlugin{})
             .addPlugin(rtype::plugins::input::InputPlugin{})
             .addPlugin(GraphicsPlugin{std::move(registry), makeSettings()})
             .addPlugin(rtype::plugins::tilemap::TilemapPlugin{});

@@ -32,6 +32,7 @@
 #include "plugins/graphics/GraphicsPlugin.hpp"
 #include "plugins/graphics/GraphicsResources.hpp"
 #include "plugins/input/InputPlugin.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "render/vulkan/Registration.hpp"
 #include "rtype/contract/renderer/IRenderer.hpp"
 #include "rtype/contract/renderer/drawing/Color.hpp"
@@ -187,6 +188,7 @@ int main(int argc, char** argv) {
 
         ecs::App app;
         app.addPlugins(ecs::MinimalPlugins{})
+            .addPlugin(rtype::plugins::transform::TransformPlugin{})
             .addPlugin(rtype::plugins::input::InputPlugin{})
             .addPlugin(plugins::graphics::GraphicsPlugin{std::move(registry), makeSettings(validate)});
         app.insertResource(plugins::graphics::ClearColor{.value = kClear});

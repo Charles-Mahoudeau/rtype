@@ -43,13 +43,14 @@ namespace rtype::plugins::graphics {
 /// - Render "rtype.graphics.sprites", after the camera: draws what the plugins pushed to the SpriteQueue resource
 ///   before it, sorted by layer (higher on top), then by texture within a layer (fewer batches), and empties the queue.
 /// It also inserts the TextureAssets (the textures by AssetId), SpriteQueue and VisibleArea resources. It requires the
-/// InputPlugin, as its events system runs before the InputPlugin's, and adds the TransformPlugin, which every game has.
-/// It adds no other plugin: the game lists what it draws (SpriteDrawPlugin, TilemapPlugin, TextPlugin, ParticlePlugin,
+/// InputPlugin, as its events system runs before the InputPlugin's, and the TransformPlugin, for the cameras.
+/// It adds no plugin: the game lists what it draws (SpriteDrawPlugin, TilemapPlugin, TextPlugin, ParticlePlugin,
 /// ShaderPlugin), and they know this plugin to run between its systems.
 /// @code
 /// auto registry = std::make_unique<rtype::plugins::graphics::BackendRegistry>();
 /// rtype::platform::glfw::registerPlatform(registry->platforms);
 /// rtype::render::vulkan::registerRenderer(registry->renderers);
+/// app.addPlugin(rtype::plugins::transform::TransformPlugin{});
 /// app.addPlugin(rtype::plugins::input::InputPlugin{});
 /// app.addPlugin(rtype::plugins::graphics::GraphicsPlugin{std::move(registry), settings});
 /// @endcode
@@ -76,7 +77,7 @@ class RTYPE_PLUGIN_GRAPHICS_API GraphicsPlugin : public ecs::Plugin {
     /// @return "rtype.graphics".
     [[nodiscard]] std::string_view getName() const noexcept override;
 
-    /// @return The InputPlugin, which reads the events this plugin sends.
+    /// @return The InputPlugin, which reads the events this plugin sends, and the TransformPlugin.
     [[nodiscard]] std::span<const std::string_view> getDependencies() const noexcept override;
 
     /// @brief Registers the window and input events, inserts the resources and adds the systems. Opens nothing: the

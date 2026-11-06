@@ -8,10 +8,12 @@
 #include "plugins/audio/AudioPlugin.hpp"
 
 #include <algorithm>
+#include <array>
 #include <glm/ext/vector_float2.hpp>
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -232,8 +234,12 @@ AudioPlugin::AudioPlugin(std::unique_ptr<plugins::audio::AudioRegistry> registry
 
 std::string_view AudioPlugin::getName() const noexcept { return kName; }
 
+std::span<const std::string_view> AudioPlugin::getDependencies() const noexcept {
+    static constexpr std::array<std::string_view, 1> kDependencies{transform::TransformPlugin::kName};
+    return kDependencies;
+}
+
 void AudioPlugin::build(ecs::App& app) {
-    app.addPlugin(plugins::transform::TransformPlugin{});
     ecs::Events& events = app.getWorld().getEvents();
     static_cast<void>(events.registerType<PlaySound>());
     static_cast<void>(events.registerType<PlayMusic>());

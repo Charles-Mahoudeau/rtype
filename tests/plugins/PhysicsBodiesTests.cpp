@@ -23,6 +23,7 @@
 #include "plugins/physics/RigidBody.hpp"
 #include "plugins/physics/exceptions/PhysicsExceptions.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
@@ -58,6 +59,7 @@ struct PhysicsApp {
     rtype::ecs::App app;  ///< The App under test.
 
     explicit PhysicsApp(PhysicsSettings settings = smallSettings()) {
+        app.addPlugin(rtype::plugins::transform::TransformPlugin{});
         app.addPlugin(PhysicsPlugin{settings});
         app.getWorld().getResources().insert(rtype::ecs::Time{.fixedDelta = kFixedDelta});
     }

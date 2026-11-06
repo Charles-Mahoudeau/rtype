@@ -161,12 +161,12 @@ void drawTilemaps(ecs::Res<TilemapAssets> maps, ecs::Res<graphics::TextureAssets
 std::string_view TilemapPlugin::getName() const noexcept { return kName; }
 
 std::span<const std::string_view> TilemapPlugin::getDependencies() const noexcept {
-    static constexpr std::array<std::string_view, 1> kDependencies{graphics::GraphicsPlugin::kName};
+    static constexpr std::array<std::string_view, 2> kDependencies{graphics::GraphicsPlugin::kName,
+                                                                   transform::TransformPlugin::kName};
     return kDependencies;
 }
 
 void TilemapPlugin::build(ecs::App& app) {
-    app.addPlugin(transform::TransformPlugin{});
     ecs::Resources& resources = app.getWorld().getResources();
     resources.insertIfAbsent<TilemapAssets>();
     resources.insertIfAbsent<graphics::TextureAssets>();

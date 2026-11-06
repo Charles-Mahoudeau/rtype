@@ -18,6 +18,7 @@
 #include "plugins/physics/Velocity.hpp"
 #include "plugins/transform/Reparent.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/Components.hpp"
@@ -47,6 +48,7 @@ struct HierarchyApp {
     rtype::ecs::App app;  ///< The App under test.
 
     explicit HierarchyApp(RunMode mode = RunMode::kStandalone) : app{mode} {
+        app.addPlugin(rtype::plugins::transform::TransformPlugin{});
         app.addPlugin(PhysicsPlugin{PhysicsSettings{.gravity = {0.0F, 0.0F},
                                                     .unitsPerMeter = 100.0F,
                                                     .maxBodies = 16,

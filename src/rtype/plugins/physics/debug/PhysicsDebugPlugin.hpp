@@ -31,7 +31,8 @@ namespace rtype::plugins::physics::debug {
 /// It draws through the GraphicsPlugin's renderer, so add it to clients with a window only; the headless server never
 /// does. Registers PhysicsDebug, and inserts PhysicsDebugSettings if the App has none.
 /// @code
-/// app.addPlugin(rtype::plugins::input::InputPlugin{})
+/// app.addPlugin(rtype::plugins::transform::TransformPlugin{})
+///     .addPlugin(rtype::plugins::input::InputPlugin{})
 ///     .addPlugin(rtype::plugins::graphics::GraphicsPlugin{std::move(registry), settings})
 ///     .addPlugin(rtype::plugins::physics::debug::PhysicsDebugPlugin{});
 /// @endcode
@@ -51,8 +52,8 @@ class RTYPE_PLUGIN_PHYSICS_DEBUG_API PhysicsDebugPlugin : public ecs::Plugin {
     /// @return "rtype.PhysicsDebug".
     [[nodiscard]] std::string_view getName() const noexcept override;
 
-    /// @return The GraphicsPlugin, which it draws through, and the InputPlugin, for its key. Not the PhysicsPlugin: it
-    /// only reads Collider, which it registers itself, so it also shows what a client receives.
+    /// @return The GraphicsPlugin, which it draws through, the InputPlugin, for its key, and the TransformPlugin. Not
+    /// the PhysicsPlugin: it only reads Collider, which it registers itself, so it also shows what a client receives.
     [[nodiscard]] std::span<const std::string_view> getDependencies() const noexcept override;
 
     /// @brief Registers the components and events it reads, inserts the settings, and adds the client systems.

@@ -86,22 +86,22 @@ are added.
   `rtype-plugin-<name>`), one folder each, included as `plugins/<name>/<File>.hpp`, namespace `rtype::plugins::<name>`,
   exported symbols marked `RTYPE_PLUGIN_<NAME>_API`. Each plugin keeps its own code and declares its own components,
   resources and events (`RTYPE_ECS_*`). A plugin names what it requires in `getDependencies()`; the program adds it
-  first, and no plugin adds another one but the `TransformPlugin`, which every game has. See `docs/Plugins.md`.
+  first, and no plugin adds another one. See `docs/Plugins.md`.
     - `plugins/graphics/` (`rtype::plugins::graphics`) — `GraphicsPlugin`: starts the platform and the renderer from a
       `BackendRegistry` the executable fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the
       window events and the PreUpdate / Render systems that poll the window, frame the drawing and draw the `SpriteQueue`
       by layer. Also the `Camera` component (projection and priority, placed by its entity's `Transform`), the
       `TextureAssets` resource (the textures by `AssetId`, queued by `load()` and decoded with stb), the `SpriteQueue`
       resource (what the frame draws) and the `VisibleArea` resource (what the frame shows). It requires the
-      `InputPlugin`.
+      `InputPlugin` and the `TransformPlugin`.
     - `plugins/input/` (`rtype::plugins::input`) — `InputPlugin`: `Control`, `Input`, `InputAction`, `ButtonStates`,
       the `rtype.Input` resource, fed by a `PreUpdate` system from the `PlatformEvent`s in order, and the typed input
       events (`InputEvents.hpp`) for gameplay code. It knows nothing of the graphics plugin, which requires it.
     - `plugins/transform/` (`rtype::plugins::transform`) — `TransformPlugin`: the `Transform` component gameplay writes,
       relative to the entity's parent, and the `GlobalTransform` rendering reads, computed from it in `PostUpdate` on
       every side. `TransformMath.hpp` (`combine`, `toLocal`), `WorldPoses` (world poses for what runs before `PostUpdate`,
-      such as the physics) and `Reparent.hpp` (`detachInPlace`, `attachInPlace`). Every game has it: the `Engine` adds
-      it, and so does each plugin that uses it.
+      such as the physics) and `Reparent.hpp` (`detachInPlace`, `attachInPlace`). The `Engine` adds it, and the plugins that use it
+      require it.
     - `plugins/physics/` (`rtype::plugins::physics`) — `PhysicsPlugin`: 2D physics on Jolt (`Collider`, `RigidBody`,
       `Velocity`, the `PhysicsWorld` resource, collision events, scene queries, `moveAndSlide`), simulated on the server
       side, with query-only bodies on clients. Jolt is a private package: only `.cpp` files and `detail/` include it.

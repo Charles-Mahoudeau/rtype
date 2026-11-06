@@ -26,7 +26,7 @@ namespace rtype::plugins::sprite {
 /// "rtype.graphics.sprites": pushes every entity with a GlobalTransform and a SpriteRenderer whose texture is loaded to
 /// the SpriteQueue. A SpriteRenderer's material is used once the ShaderPlugin created it (ShaderHandles), the default
 /// material until then, with the entity's MaterialInstance values if it has some. It requires the SpritePlugin, the
-/// GraphicsPlugin and the ShaderPlugin.
+/// GraphicsPlugin, the ShaderPlugin and the TransformPlugin.
 class RTYPE_PLUGIN_SPRITE_API SpriteDrawPlugin : public ecs::Plugin {
   public:
     static constexpr std::string_view kName = "rtype.SpriteDraw";         ///< The plugin's name.
@@ -42,7 +42,7 @@ class RTYPE_PLUGIN_SPRITE_API SpriteDrawPlugin : public ecs::Plugin {
     /// @return "rtype.SpriteDraw".
     [[nodiscard]] std::string_view getName() const noexcept override;
 
-    /// @return The SpritePlugin, the GraphicsPlugin and the ShaderPlugin.
+    /// @return The SpritePlugin, the GraphicsPlugin, the ShaderPlugin and the TransformPlugin.
     [[nodiscard]] std::span<const std::string_view> getDependencies() const noexcept override;
 
     /// @brief Adds the draw system.

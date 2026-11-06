@@ -308,6 +308,7 @@ TEST(GraphicsPlugin, DoesNotRunOnADedicatedServer) {
 TEST(GraphicsPlugin, FeedsInput) {
     auto state = std::make_shared<rtype::test::plugins::FakeBackendState>();
     rtype::ecs::App app{rtype::ecs::RunMode::kClient};
+    app.addPlugin(rtype::plugins::transform::TransformPlugin{});
     app.addPlugin(rtype::plugins::input::InputPlugin{});
     app.addPlugin(rtype::plugins::graphics::GraphicsPlugin{rtype::test::plugins::makeFakeRegistry(state),
                                                            rtype::test::plugins::makeFakeSettings()});

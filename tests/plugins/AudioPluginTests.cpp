@@ -37,6 +37,7 @@ class AudioApp {
     explicit AudioApp(rtype::core::config::Settings settings = rtype::test::plugins::makeFakeAudioSettings(),
                       rtype::ecs::RunMode mode = rtype::ecs::RunMode::kClient)
         : _state{std::make_shared<rtype::test::plugins::FakeAudioState>()}, _app{mode} {
+        _app.addPlugin(rtype::plugins::transform::TransformPlugin{});
         _app.addPlugin(rtype::plugins::audio::AudioPlugin{rtype::test::plugins::makeFakeAudioRegistry(_state),
                                                           std::move(settings)});
     }

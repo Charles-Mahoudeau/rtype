@@ -18,6 +18,7 @@
 #include "plugins/physics/PhysicsWorld.hpp"
 #include "plugins/physics/RigidBody.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
@@ -71,6 +72,7 @@ struct PhysicsApp {
     rtype::ecs::App app;  ///< The App under test.
 
     explicit PhysicsApp(glm::vec2 gravity = {0.0F, 0.0F}) {
+        app.addPlugin(rtype::plugins::transform::TransformPlugin{});
         app.addPlugin(PhysicsPlugin{settingsWith(gravity)});
         app.getWorld().getResources().insert(rtype::ecs::Time{.fixedDelta = kFixedDelta});
         app.getWorld().getResources().insert(ChangedTransforms{});

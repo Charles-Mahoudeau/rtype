@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <span>
 #include <string_view>
 
 #include "plugins/physics/Export.hpp"
@@ -64,6 +65,9 @@ class RTYPE_PLUGIN_PHYSICS_API PhysicsPlugin : public ecs::Plugin {
 
     /// @return "rtype.Physics".
     [[nodiscard]] std::string_view getName() const noexcept override;
+
+    /// @return The TransformPlugin.
+    [[nodiscard]] std::span<const std::string_view> getDependencies() const noexcept override;
 
     /// @brief Registers the components, inserts the PhysicsWorld and adds the FixedUpdate step system.
     /// @throws exceptions::PhysicsException When the settings are invalid.

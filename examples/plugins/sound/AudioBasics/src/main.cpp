@@ -42,6 +42,7 @@
 #include "plugins/audio/AudioSource.hpp"
 #include "plugins/audio/AudioVolumes.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/contract/audiodevice/AudioTypes.hpp"
 #include "rtype/contract/audiodevice/IAudioDevice.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -245,7 +246,9 @@ void run(const std::string& backend) {
     settings.set("audio.volume.music", 0.8);
 
     ecs::App app{ecs::RunMode::kStandalone};
-    app.addPlugins(ecs::MinimalPlugins{}).addPlugin(AudioPlugin{std::move(registry), std::move(settings)});
+    app.addPlugins(ecs::MinimalPlugins{})
+        .addPlugin(rtype::plugins::transform::TransformPlugin{})
+        .addPlugin(AudioPlugin{std::move(registry), std::move(settings)});
     app.getWorld().getResources().insert(GameSounds{});
     app.getWorld().getResources().insert(Script{});
     app.addSystem(ecs::Phase::kStartup, "example.setup", &setup);

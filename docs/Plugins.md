@@ -30,21 +30,22 @@ and the materials are in `plugin-shader`.
 |---|---|---|
 | `transform` | `Transform`, `GlobalTransform` | |
 | `input` | `Input`, actions, `PlatformEvent` and the input events | |
-| `graphics` | Starts the window and the renderer, frames, `Camera`, `TextureAssets`, `SpriteQueue` | `input` |
+| `graphics` | Starts the window and the renderer, frames, `Camera`, `TextureAssets`, `SpriteQueue` | `input`, `transform` |
 | `shader` | The shader language, `Material`, `MaterialInstance` | `graphics` |
 | `sprite` | `SpritePlugin`: `SpriteRenderer`, atlases, animations | |
-| `sprite` | `SpriteDrawPlugin`: draws the sprites | `SpritePlugin`, `graphics`, `shader` |
-| `tilemap` | Tiled maps, parallax | `graphics` |
-| `text` | MSDF fonts, `TextRenderer` | `graphics`, `shader` |
-| `particle` | Emitters and effects | `graphics`, `shader` |
-| `audio` | `AudioSource`, `PlaySound`, `AudioVolumes` | |
-| `physics` | Jolt, `Collider`, `RigidBody` | |
-| `physics-debug` | Draws the colliders | `graphics`, `input` |
+| `sprite` | `SpriteDrawPlugin`: draws the sprites | `SpritePlugin`, `graphics`, `shader`, `transform` |
+| `tilemap` | Tiled maps, parallax | `graphics`, `transform` |
+| `text` | MSDF fonts, `TextRenderer` | `graphics`, `shader`, `transform` |
+| `particle` | Emitters and effects | `graphics`, `shader`, `transform` |
+| `audio` | `AudioSource`, `PlaySound`, `AudioVolumes` | `transform` |
+| `physics` | Jolt, `Collider`, `RigidBody` | `transform` |
+| `physics-debug` | Draws the colliders | `graphics`, `input`, `transform` |
 
 A plugin states what it requires in `getDependencies()`. The `App` refuses a plugin whose requirement was not added
 first, naming both, so a program adds a plugin after the ones it requires:
 
 ```cpp
+app.addPlugin(rtype::plugins::transform::TransformPlugin{});
 app.addPlugin(rtype::plugins::input::InputPlugin{});
 app.addPlugin(rtype::plugins::graphics::GraphicsPlugin{std::move(backends), settings});
 app.addPlugin(rtype::plugins::shader::ShaderPlugin{});
@@ -53,12 +54,10 @@ app.addPlugin(rtype::plugins::text::TextPlugin{});
 
 ### What every game has
 
-These need nothing from a program:
-
 - `Parent` and `Children` are components of `ecs`, kept by the `World`.
 - `TimePlugin`: `App::runFrame()` adds it if it is missing.
-- `TransformPlugin`: the `Engine` adds it, and so does each plugin that uses it, from its `build()`. Adding a plugin
-  twice does nothing, so `TransformPlugin` is not in `getDependencies()`.
+- `TransformPlugin`: the `Engine` adds it. It is a plugin like any other: the plugins that use it name it in
+  `getDependencies()`, so a program on a bare `App` adds it first.
 
 ### Drawing without knowing each other
 

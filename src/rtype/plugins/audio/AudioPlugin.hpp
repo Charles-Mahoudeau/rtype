@@ -8,6 +8,7 @@
 #pragma once
 
 #include <memory>
+#include <span>
 #include <string_view>
 
 #include "core/config/Settings.hpp"
@@ -65,6 +66,9 @@ class RTYPE_PLUGIN_AUDIO_API AudioPlugin : public ecs::Plugin {
 
     /// @return "rtype.audio".
     [[nodiscard]] std::string_view getName() const noexcept override;
+
+    /// @return The TransformPlugin.
+    [[nodiscard]] std::span<const std::string_view> getDependencies() const noexcept override;
 
     /// @brief Registers the components and events, inserts the resources and adds the systems. Opens nothing: the
     /// device is created by the Startup system.

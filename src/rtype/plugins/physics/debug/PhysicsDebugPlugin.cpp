@@ -91,13 +91,12 @@ void drawDebug(
 std::string_view PhysicsDebugPlugin::getName() const noexcept { return kName; }
 
 std::span<const std::string_view> PhysicsDebugPlugin::getDependencies() const noexcept {
-    static constexpr std::array<std::string_view, 2> kDependencies{graphics::GraphicsPlugin::kName,
-                                                                   input::InputPlugin::kName};
+    static constexpr std::array<std::string_view, 3> kDependencies{
+        graphics::GraphicsPlugin::kName, input::InputPlugin::kName, transform::TransformPlugin::kName};
     return kDependencies;
 }
 
 void PhysicsDebugPlugin::build(ecs::App& app) {
-    app.addPlugin(transform::TransformPlugin{});
     static_cast<void>(app.getWorld().getComponents().registerType<Collider>(kColliderOptions));
     static_cast<void>(app.getWorld().getComponents().registerType<Velocity>());
     static_cast<void>(app.getWorld().getComponents().registerType<PhysicsDebug>());

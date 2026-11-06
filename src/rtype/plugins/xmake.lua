@@ -1,6 +1,6 @@
 -- Plugins: the engine as ECS plugins, one shared library per plugin (rtype-plugin-<name>). Each one keeps its own code
--- and declares its own components, resources and events. It links the plugins whose code it uses, and names them in
--- getDependencies(), but for the TransformPlugin, which every game has: the plugins that need it add it themselves.
+-- and declares its own components, resources and events. It links the plugins whose code it uses, and names the ones
+-- it requires in getDependencies(): no plugin adds another.
 
 -- Keep debug_renderer at its default: that option does not reach Jolt's CMake (the library is always built with
 -- JPH_DEBUG_RENDERER), and a define that differs from the library's makes JPH::RegisterTypes() abort.

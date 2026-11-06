@@ -93,13 +93,12 @@ void drawTexts(
 std::string_view TextPlugin::getName() const noexcept { return kName; }
 
 std::span<const std::string_view> TextPlugin::getDependencies() const noexcept {
-    static constexpr std::array<std::string_view, 2> kDependencies{graphics::GraphicsPlugin::kName,
-                                                                   shader::ShaderPlugin::kName};
+    static constexpr std::array<std::string_view, 3> kDependencies{
+        graphics::GraphicsPlugin::kName, shader::ShaderPlugin::kName, transform::TransformPlugin::kName};
     return kDependencies;
 }
 
 void TextPlugin::build(ecs::App& app) {
-    app.addPlugin(transform::TransformPlugin{});
     ecs::Resources& resources = app.getWorld().getResources();
     resources.insertIfAbsent<FontAssets>();
     resources.insertIfAbsent<graphics::TextureAssets>();

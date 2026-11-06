@@ -37,6 +37,7 @@ using rtype::plugins::sprite::SpritePlugin;
 
 /// @brief Adds what every plugin that draws needs, and nothing else.
 void addGraphics(App& app) {
+    app.addPlugin(rtype::plugins::transform::TransformPlugin{});
     app.addPlugin(InputPlugin{});
     app.addPlugin(GraphicsPlugin{
         rtype::test::plugins::makeFakeRegistry(std::make_shared<rtype::test::plugins::FakeBackendState>()),
@@ -51,10 +52,9 @@ TEST(PluginDependencies, TheGraphicsPluginRequiresTheInputPlugin) {
                  PluginException);
 }
 
-TEST(PluginDependencies, TheGraphicsPluginAddsOnlyTheTransformPlugin) {
+TEST(PluginDependencies, TheGraphicsPluginAddsNoPlugin) {
     App app{RunMode::kClient};
     addGraphics(app);
-    EXPECT_TRUE(app.hasPlugin(rtype::plugins::transform::TransformPlugin::kName));
     EXPECT_FALSE(app.hasPlugin(ShaderPlugin::kName));
     EXPECT_FALSE(app.hasPlugin(SpritePlugin::kName));
     EXPECT_FALSE(app.hasPlugin(rtype::plugins::tilemap::TilemapPlugin::kName));
@@ -120,8 +120,13 @@ TEST(PluginDependencies, TheSpritePluginRunsAloneOnAServer) {
 
 TEST(PluginDependencies, ThePhysicsPluginRunsWithoutAnythingThatDraws) {
     App app{RunMode::kServer};
+    app.addPlugin(rtype::plugins::transform::TransformPlugin{});
     app.addPlugin(rtype::plugins::physics::PhysicsPlugin{});
     EXPECT_NO_THROW(app.runFrame());
-    EXPECT_TRUE(app.hasPlugin(rtype::plugins::transform::TransformPlugin::kName));
+}
+
+TEST(PluginDependencies, ThePhysicsPluginRequiresTheTransformPlugin) {
+    App app{RunMode::kServer};
+    EXPECT_THROW(app.addPlugin(rtype::plugins::physics::PhysicsPlugin{}), PluginException);
 }
 }  // namespace

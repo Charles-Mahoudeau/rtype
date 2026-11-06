@@ -216,12 +216,12 @@ GraphicsPlugin::GraphicsPlugin(std::unique_ptr<plugins::graphics::BackendRegistr
 std::string_view GraphicsPlugin::getName() const noexcept { return kName; }
 
 std::span<const std::string_view> GraphicsPlugin::getDependencies() const noexcept {
-    static constexpr std::array<std::string_view, 1> kDependencies{input::InputPlugin::kName};
+    static constexpr std::array<std::string_view, 2> kDependencies{input::InputPlugin::kName,
+                                                                   transform::TransformPlugin::kName};
     return kDependencies;
 }
 
 void GraphicsPlugin::build(ecs::App& app) {
-    app.addPlugin(plugins::transform::TransformPlugin{});
     ecs::Events& events = app.getWorld().getEvents();
     registerEvent<plugins::input::PlatformEvent>(events);
     registerEvent<contract::platform::event::Closed>(events);

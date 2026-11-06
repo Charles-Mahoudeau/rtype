@@ -27,6 +27,7 @@
 #include "plugins/physics/debug/PhysicsDebugSettings.hpp"
 #include "plugins/physics/debug/PhysicsDebugShapes.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/contract/platform/event/Event.hpp"
 #include "rtype/contract/platform/input/Key.hpp"
 #include "rtype/contract/renderer/drawing/Color.hpp"
@@ -217,6 +218,7 @@ TEST(PhysicsDebugPlugin, AddingPhysicsDebugNeverRebuildsTheBody) {
     rtype::test::plugins::addDrawingPlugins(
         app, rtype::test::plugins::makeFakeRegistry(std::make_shared<rtype::test::plugins::FakeBackendState>()),
         rtype::test::plugins::makeFakeSettings());
+    app.addPlugin(rtype::plugins::transform::TransformPlugin{});
     app.addPlugin(rtype::plugins::physics::PhysicsPlugin{rtype::plugins::physics::PhysicsSettings{
         .maxBodies = 8, .maxBodyPairs = 8, .maxContactConstraints = 8, .tempAllocatorBytes = 1024 * 1024}});
     app.addPlugin(PhysicsDebugPlugin{});

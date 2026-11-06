@@ -48,6 +48,7 @@
 #include "plugins/sprite/SpritePlugin.hpp"
 #include "plugins/sprite/SpriteRenderer.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "render/vulkan/Registration.hpp"
 #include "rtype/contract/renderer/IRenderer.hpp"
 #include "rtype/contract/renderer/drawing/BlendMode.hpp"
@@ -239,6 +240,7 @@ int main(int argc, char** argv) {
 
         ecs::App app;
         app.addPlugins(ecs::MinimalPlugins{})
+            .addPlugin(rtype::plugins::transform::TransformPlugin{})
             .addPlugin(rtype::plugins::input::InputPlugin{})
             .addPlugin(GraphicsPlugin{std::move(registry), makeSettings(validate)})
             .addPlugin(rtype::plugins::shader::ShaderPlugin{})

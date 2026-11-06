@@ -19,6 +19,7 @@
 #include "plugins/physics/Velocity.hpp"
 #include "plugins/physics/exceptions/PhysicsExceptions.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
@@ -55,6 +56,7 @@ struct PhysicsApp {
     rtype::ecs::App app;  ///< The App under test.
 
     PhysicsApp() {
+        app.addPlugin(rtype::plugins::transform::TransformPlugin{});
         app.addPlugin(PhysicsPlugin{PhysicsSettings{.unitsPerMeter = 100.0F,
                                                     .maxBodies = 16,
                                                     .maxBodyPairs = 16,

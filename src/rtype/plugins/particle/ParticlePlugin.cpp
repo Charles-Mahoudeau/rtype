@@ -284,13 +284,12 @@ void drawEmitters(ecs::NonSendMut<plugins::graphics::Backend> backend, ecs::Res<
 std::string_view ParticlePlugin::getName() const noexcept { return kName; }
 
 std::span<const std::string_view> ParticlePlugin::getDependencies() const noexcept {
-    static constexpr std::array<std::string_view, 2> kDependencies{graphics::GraphicsPlugin::kName,
-                                                                   shader::ShaderPlugin::kName};
+    static constexpr std::array<std::string_view, 3> kDependencies{
+        graphics::GraphicsPlugin::kName, shader::ShaderPlugin::kName, transform::TransformPlugin::kName};
     return kDependencies;
 }
 
 void ParticlePlugin::build(ecs::App& app) {
-    app.addPlugin(transform::TransformPlugin{});
     ecs::Resources& resources = app.getWorld().getResources();
     resources.insertIfAbsent<ParticleEffectAssets>();
     resources.insertIfAbsent<ParticleSystems>();

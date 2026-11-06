@@ -68,13 +68,13 @@ void drawEntities(
 std::string_view SpriteDrawPlugin::getName() const noexcept { return kName; }
 
 std::span<const std::string_view> SpriteDrawPlugin::getDependencies() const noexcept {
-    static constexpr std::array<std::string_view, 3> kDependencies{SpritePlugin::kName, graphics::GraphicsPlugin::kName,
-                                                                   shader::ShaderPlugin::kName};
+    static constexpr std::array<std::string_view, 4> kDependencies{SpritePlugin::kName, graphics::GraphicsPlugin::kName,
+                                                                   shader::ShaderPlugin::kName,
+                                                                   transform::TransformPlugin::kName};
     return kDependencies;
 }
 
 void SpriteDrawPlugin::build(ecs::App& app) {
-    app.addPlugin(transform::TransformPlugin{});
     app.addSystem(ecs::Phase::kRender, std::string{kDrawSystem}, &drawEntities)
         .after(std::string{graphics::GraphicsPlugin::kCameraSystem})
         .before(std::string{graphics::GraphicsPlugin::kSpritesSystem})

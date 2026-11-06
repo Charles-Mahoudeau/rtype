@@ -50,6 +50,7 @@
 #include "plugins/text/TextPlugin.hpp"
 #include "plugins/text/TextRenderer.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "render/vulkan/Registration.hpp"
 #include "rtype/contract/platform/event/Event.hpp"
 #include "rtype/contract/platform/input/Key.hpp"
@@ -363,6 +364,7 @@ int main(int argc, char** argv) {
 
         ecs::App app;
         app.addPlugins(ecs::MinimalPlugins{})
+            .addPlugin(rtype::plugins::transform::TransformPlugin{})
             .addPlugin(rtype::plugins::input::InputPlugin{})
             .addPlugin(plugins::graphics::GraphicsPlugin{std::move(registry), makeSettings(validation)})
             .addPlugin(rtype::plugins::shader::ShaderPlugin{})

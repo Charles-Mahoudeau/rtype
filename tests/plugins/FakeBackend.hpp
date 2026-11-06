@@ -26,6 +26,7 @@
 #include "plugins/sprite/SpritePlugin.hpp"
 #include "plugins/text/TextPlugin.hpp"
 #include "plugins/tilemap/TilemapPlugin.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/contract/platform/IPlatform.hpp"
 #include "rtype/contract/platform/WindowConfig.hpp"
 #include "rtype/contract/platform/event/Event.hpp"
@@ -242,6 +243,7 @@ inline rtype::core::config::Settings makeFakeSettings() {
 /// @brief Adds the GraphicsPlugin and every plugin that draws, as a client does.
 inline void addDrawingPlugins(rtype::ecs::App& app, std::unique_ptr<rtype::plugins::graphics::BackendRegistry> registry,
                               rtype::core::config::Settings settings) {
+    app.addPlugin(rtype::plugins::transform::TransformPlugin{});
     app.addPlugin(rtype::plugins::input::InputPlugin{});
     app.addPlugin(rtype::plugins::graphics::GraphicsPlugin{std::move(registry), std::move(settings)});
     app.addPlugin(rtype::plugins::shader::ShaderPlugin{});
