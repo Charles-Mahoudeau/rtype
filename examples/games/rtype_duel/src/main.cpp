@@ -41,9 +41,10 @@
 // ships slide along them. The server simulates everything with the physics plugin and replicates Ship, Laser,
 // Obstacle and Winner (the physics replicates Collider and RigidBody); the clients send their inputs and draw what
 // they receive, animated by the sprite plugin, over a space background whose layers scroll at their own speed (a
-// Tiled map), where a planet passes now and then; a ship that is hit explodes. F3 shows the colliders. One shot in
-// ten misfires: the server fires nothing and replicates a Misfire instead. The clients play a looping music, and a
-// sound for every laser and misfire, panned where it happened, with a random pitch and volume.
+// Tiled map), where a planet passes now and then; a ship that is hit explodes. Each player's name is written at the
+// top of their half, and the winner in the middle (MSDF text). F3 shows the colliders. One shot in ten misfires: the
+// server fires nothing and replicates a Misfire instead. The clients play a looping music, and a sound for every laser
+// and misfire, panned where it happened, with a random pitch and volume.
 //
 // The whole game is in game/: project.luau sets the engine up, and the scripts of game/scripts/ hold the rules, the
 // shared ones in arena.luau, the server's in server/ and the clients' in client/. This executable only picks the side

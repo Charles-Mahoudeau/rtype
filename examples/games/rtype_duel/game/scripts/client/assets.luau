@@ -39,6 +39,8 @@ Duel.assets = {
 		animations = { explode = { frames = { 0, 1, 2, 3, 4, 5 }, frameDuration = 0.07, plays = 1 } },
 	}),
 
+	font = engine.assets.font("assets/fonts/orbitron.json"),
+
 	music = engine.assets.sound("assets/maint.ogg", { stream = true }),
 	laserSound = engine.assets.sound("assets/laser.mp3"),
 	misfireSound = engine.assets.sound("assets/laser-no.mp3"),

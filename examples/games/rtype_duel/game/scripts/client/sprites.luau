@@ -72,35 +72,15 @@ engine.ecs.system("game.FollowLasers", {
 
 -- The player who just won, read by game.ExplodeLoser; nil while nobody did.
 local newWinner: number? = nil
--- The ships' players by their client's id, filled by game.TrackOwners.
-local playerOf: { [number]: number } = {}
 
--- Update: notices the Winner the server spawns, and says who won until the HUD's texts do.
-engine.ecs.system("game.AnnounceWinner", {
+-- Update: notices the Winner the server spawns, for game.ExplodeLoser.
+engine.ecs.system("game.NoticeWinner", {
 	phase = "Update",
 	side = "client",
 	query = { read = { "game.Winner" }, added = { "game.Winner" } },
-	calls = { "rtype.replication.localClient" },
 	run = function(ctx)
 		for _, winner in ctx.query do
 			newWinner = winner.player
-			local me = ctx.call("rtype.replication.localClient", {})
-			local mine = me.connected and playerOf[me.client] == winner.player
-			print(`Player {winner.player + 1} wins! {if mine then "You win :)" else "You lose :("}`)
-		end
-	end,
-})
-
--- Update: the ships' players by client, for game.AnnounceWinner.
-engine.ecs.system("game.TrackOwners", {
-	phase = "Update",
-	side = "client",
-	query = { read = { "game.Ship", "net.Owner" } },
-	before = { "game.AnnounceWinner" },
-	run = function(ctx)
-		table.clear(playerOf)
-		for _, ship, owner in ctx.query do
-			playerOf[owner.client] = ship.player
 		end
 	end,
 })
@@ -110,7 +90,7 @@ engine.ecs.system("game.ExplodeLoser", {
 	phase = "Update",
 	side = "client",
 	query = { read = { "game.Ship" }, write = { "rtype.SpriteRenderer" } },
-	after = { "game.AnnounceWinner", "game.DressShips" },
+	after = { "game.NoticeWinner", "game.DressShips" },
 	run = function(ctx)
 		if newWinner == nil then
 			return
