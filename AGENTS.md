@@ -1,498 +1,152 @@
 # AGENTS.md
 
-This file provides guidance to AI agents when working with code in this repository.
+Instructions for AI agents (Claude Code, Codex) working in this repository. `CLAUDE.md` is a symlink to this file, and
+each folder with its own instructions has the same pair.
 
-## Project overview
+**Before working in a folder, read the `AGENTS.md` files on the path from the root to it** (for `src/rtype/ecs/`: this
+file, `src/AGENTS.md`, `src/rtype/ecs/AGENTS.md`). Codex loads only the files above its working directory, not those of
+the files it opens, so do it by hand.
 
-R-Type is an Epitech Tek3 project: a game engine with a Vulkan renderer and Luau scripting, built in
-C++23 with `xmake`. The codebase is an early scaffold, so expect the structure to grow as features
-are added.
+## What this is
 
-## Project structure
+R-Type is an Epitech Tek3 project: a game engine (C++23, `xmake`, clang) with a Vulkan renderer, Luau scripting,
+physics, audio and a replicated client/server network model. It does not contain a game; it runs one.
 
-- `src/rtype/core/` — `core` target, static library (`rtype-core`): what several modules share and that belongs to
-  none of them, one folder per feature, included as `core/<feature>/<File>.hpp`, namespace `rtype::core::<feature>`.
-  It depends on no other project target and keeps no global state. A class goes in only if two or more unrelated
-  modules need it; what only `plugins` needs stays in `plugins`.
-    - `core/asset/` (`rtype::core::asset`) — `AssetId`: the hash of an asset's path, the same in every process, which
-      components keep to name a texture or a sound. The ECS reflection of it (`kAssetId`) is in
-      `plugins/AssetIdReflection.hpp`. `AssetFiles.hpp` (`normalizePath`, `resolveAssetPath`, `readTextFile`) and `AssetStore<T>` (the assets
-      of a resource by id, with hash-collision checks) are shared by the asset resources of `plugins`, which throw
-      `AssetLoadException` (`asset/exceptions/`).
-    - `core/hash/` (`rtype::core::hash`) — `NameHash.hpp`: the FNV-1a 64-bit hash (`hashName`, `hashString`,
-      `hashInteger`), the same in every compiler and process.
-    - `core/config/` (`rtype::core::config`) — `Settings`: the flat configuration every plugin and backend reads
-      its own section of, and its `SettingsException` (`config/exceptions/`).
-    - `core/library/` (`rtype::core::library`) — `LibraryEntry.hpp`: the C entry point of a library the engine loads
-      (`RTYPE_LIBRARY`), its version and toolchain check (`checkLibrary`), and `LibraryRegistrar`, through which libraries
-      exchange their registries by name.
-    - `core/system/` (`rtype::core::system`) — `CacheDirectory.hpp`, `ExecutablePath.hpp`: where the system keeps a
-      user's cache and the running executable.
-- `src/rtype/ecs/` — `ecs` target, shared library (`rtype-ecs`): the Entity Component System and,
-  later, the App and its plugins (`rtype::ecs`). Design in `docs/ecs/design.md`. It depends on `core` only.
-  Exported classes and functions are marked `RTYPE_ECS_API`, and the library keeps no
-  global mutable state (state lives in the world), so it can also be built static by switching its
-  kind and defining `RTYPE_ECS_STATIC` publicly (see `Export.hpp`).
-    - Files are grouped in one folder per feature (`entity/`, `type/` (the core shared by every kind of ECS
-      data: fields, hooks, descriptions, registry), `component/`, `resource/`, `event/`, `storage/`, `change/`
-      (change ticks), `world/`, `command/` (deferred structural changes), `hierarchy/` (`Parent`, `Children`),
-      `actor/` (named templates of entities), `query/`, `system/`, `call/` (engine calls: named functions plugins give
-      to scripts), `schedule/`, `time/`, `app/` (the App and its plugins)), included as
-      `rtype/ecs/<feature>/<File>.hpp`.
-    - Exception to the namespace rule: the types users write every day stay in the flat `rtype::ecs`
-      namespace whatever their folder (`rtype/ecs/entity/Entity.hpp` declares `rtype::ecs::Entity`).
-      Only internal parts get a sub-namespace, named after their folder: `rtype::ecs::storage`,
-      `rtype::ecs::detail` (`detail/`), `rtype::ecs::exceptions` (`exceptions/`).
-- `src/rtype/network/` — `network` target, shared library (`rtype-network`): the transport, which moves bytes
-  between machines (sockets, connections, acks, reliability). It knows nothing about the ECS and depends on
-  Asio only, as a private package: no public header includes Asio, and only `.cpp` files of `io/` do.
-  Exported symbols are marked `RTYPE_NETWORK_API`. Design in `docs/network/design.md`, task plan in
-  `docs/network/implementation.md`.
-    - Namespaces mirror the folders (no flat-namespace exception as in `ecs`): `rtype::network` for the root
-      (`Types.hpp`, `NetworkSettings.hpp`, `RandomSource.hpp`), then one folder and sub-namespace per feature:
-      `protocol/` (`rtype::network::protocol`, wire constants, sequences, packets), `bytes/`, `connection/`,
-      `io/`, `server/`, `client/`, `exceptions/`. A folder is created only when a file goes in it.
-- `src/rtype/replication/` — `replication` target, shared library (`rtype-replication`): the only code that
-  knows both the ECS and the network; it turns a `World` into messages and back (`rtype::replication`).
-  Exported symbols are marked `RTYPE_REPLICATION_API`. Feature folders and sub-namespaces as in `network`:
-  `component/`, `event/`, `serialization/`, `manifest/`, `input/`, `snapshot/`, `server/`, `client/`,
-  `packet/`, `exceptions/`. `input/InputCalls.hpp` holds its engine calls (`rtype.replication.addInput`, `readInput`),
-  `client/ClientCalls.hpp` the client's (`rtype.replication.localClient`), both registered by `ReplicationPlugin`.
-- `src/rtype/engine/` — `engine` target, shared library (`rtype-engine`): `Engine` runs a game directory (`game/` by
-  default, `--game <dir>`): it reads its `project.luau` through Luau (`scripting/SettingsLoader`, which also exposes
-  the command line as `engine.args`), builds the `App` with the program's plugins, `EngineConfig::addPlugins`, and the engine's (transform, replication,
-  scripting, server or client) in a fixed order, calls the game's native `EngineConfig::setup`, runs it, and builds it
-  again on `requestReload()`. `plugin/` holds `SharedLibrary` and `PluginLoader`, which load the plugin libraries, and `PluginSignature`.
-  The plugins `project.luau` names under `plugins` are added after the replication plugin. On clients,
-  `NetworkInput` fills the `PlayerInput` sent to the server from the `Input` actions. `EngineConfig` holds
-  the mode, the command line and these functions; `CommandLine` parses the `--name value` flags. Exported symbols are marked `RTYPE_ENGINE_API`.
-  Design in `docs/engine/design.md`.
-- `src/rtype/tools/sign/` — `rtype-sign`: the keys and signatures of the game plugins (`docs/Plugins.md`).
-- `src/rtype/client/`, `src/rtype/server/` — the generic executables `r-type_client` and `r-type_server`: a `main` that
-  lists its plugins and backends (client only) and runs an `Engine` on `game/`. The build copies them to the repository root
-  (rule `rtype.copy_to_root`). Games whose gameplay is still C++ (`ethan_game(bestoftheworld)`) keep their own `main`
-  and give it to the `Engine` as `EngineConfig::setup`. `rtype_duel` is written in Luau (`game/scripts/`); its own `main`
-  only picks the side from its first argument.
-- `src/rtype/contract/` — the contracts, one shared library per interface (`contract-platform`, `contract-renderer`,
-  `contract-audiodevice`, `rtype-contract-<name>`): what the implementations fulfil and the plugins use, with the
-  vocabulary they speak, included as `rtype/contract/<name>/<File>.hpp`, namespace `rtype::contract::<name>`, exported
-  symbols marked `RTYPE_CONTRACT_<NAME>_API`. A contract knows no ECS and no plugin; the ECS declarations of its types
-  live in the plugin that uses them, reopening its namespace. See `docs/Plugins.md` and `docs/Backend.md`.
-    - `contract/platform/` — `IPlatform`, `PlatformRegistry` (platforms by name), `WindowConfig`, `event/` (the `Event` variant), `input/` (`Key`,
-      `MouseButton`...), `exceptions/`.
-    - `contract/renderer/` — `IRenderer` and `RendererRegistry` (renderers by name), then one folder per
-      theme. Exception to the namespace rule, as in `ecs`: these folders stay in the flat
-      `rtype::contract::renderer` (`rtype/contract/renderer/drawing/Sprite.hpp` declares
-      `rtype::contract::renderer::Sprite`); only `math/` and `exceptions/` get a sub-namespace.
-        - `drawing/` — `Sprite`, `Shape`, `Text` (a laid-out text: MSDF glyphs), `Texture`, `Color`, `BlendMode`.
-        - `view/` — `View` and `CameraView` (what a `View` shows: letterboxed viewport, view-projection, screen and
-          world conversions).
-        - `particle/` — the particle types: `Particle`, `ParticleSystemDesc`, `ParticleCurve`, `ParticleRandom`.
-        - `shaders/` — `CompiledShader` (the plain data of a game shader, with `MaterialDesc`) and the shaders ABI: the
-          GLSL every shader is assembled in and the backends' built-in shaders include.
-        - `math/`, `exceptions/`.
-    - `contract/audiodevice/` — `IAudioDevice`, `AudioTypes`, `AudioDeviceRegistry` (devices by name) and `exceptions/`.
-- `src/rtype/plugins/` — the engine, as ECS plugins: one shared library per plugin (`plugin-<name>`,
-  `rtype-plugin-<name>`), one folder each, included as `plugins/<name>/<File>.hpp`, namespace `rtype::plugins::<name>`,
-  exported symbols marked `RTYPE_PLUGIN_<NAME>_API`. Each plugin keeps its own code and declares its own components,
-  resources and events (`RTYPE_ECS_*`). A plugin scripts drive registers its engine calls in `<Name>Calls.hpp`
-  (`add<Name>Calls()`, called from its `build()`), named `rtype.<plugin>.<verb>`, with their argument and result structs
-  (`RTYPE_ECS_CALL_DATA`). A plugin names what it requires in `getDependencies()`; the program adds it
-  first, and no plugin adds another one. See `docs/Plugins.md`.
-    - `plugins/graphics/` (`rtype::plugins::graphics`) — `GraphicsPlugin`: starts the platform and the renderer from a
-      `BackendRegistry` the executable fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the
-      window events and the PreUpdate / Render systems that poll the window, frame the drawing and draw the `SpriteQueue`
-      by layer. Also the `Camera` component (projection and priority, placed by its entity's `Transform`), the
-      `TextureAssets` resource (the textures by `AssetId`, queued by `load()` and decoded with stb), the `SpriteQueue`
-      resource (what the frame draws) and the `VisibleArea` resource (what the frame shows). It requires the
-      `InputPlugin` and the `TransformPlugin`.
-    - `plugins/input/` (`rtype::plugins::input`) — `InputPlugin`: `Control` (named with text by `controlFromName()`,
-      `ControlNames.hpp`, over `contract/platform/input/KeyNames.hpp`), `Input`, `InputAction`, `ButtonStates`,
-      the `rtype.Input` resource, fed by a `PreUpdate` system from the `PlatformEvent`s in order, and the typed input
-      events (`InputEvents.hpp`) for gameplay code. It knows nothing of the graphics plugin, which requires it.
-    - `plugins/transform/` (`rtype::plugins::transform`) — `TransformPlugin`: the `Transform` component gameplay writes,
-      relative to the entity's parent, and the `GlobalTransform` rendering reads, computed from it in `PostUpdate` on
-      every side. `TransformMath.hpp` (`combine`, `toLocal`), `WorldPoses` (world poses for what runs before `PostUpdate`,
-      such as the physics) and `Reparent.hpp` (`detachInPlace`, `attachInPlace`). The `Engine` adds it, and the plugins that use it
-      require it.
-    - `plugins/physics/` (`rtype::plugins::physics`) — `PhysicsPlugin`: 2D physics on Jolt (`Collider`, `RigidBody`,
-      `Velocity`, the `PhysicsWorld` resource, collision events, scene queries, `moveAndSlide`), simulated on the server
-      side, with query-only bodies on clients. Jolt is a private package: only `.cpp` files and `detail/` include it.
-      The debug view is in `physics/debug/` (`rtype::plugins::physics::debug`), its own library `plugin-physics-debug`, the engine calls in `PhysicsCalls.hpp`. Design in
-      `docs/physics/design.md`.
-    - `plugins/audio/` (`rtype::plugins::audio`) — `AudioPlugin`: `AudioRegistry` (starts the device the settings name,
-      `"null"` always registered, as `NullAudioDevice`), `AudioConfig`, `AudioVolumes`, the `AudioAssets` resource (sounds by `AssetId`, opened
-      and decoded by the device), the `AudioSource` and `AudioListener` components and the `PlaySound` / `PlayMusic` /
-      `StopMusic` events, played by client-side PostUpdate systems. `AudioReflection.hpp` reflects the contract's `Bus`. Design in `docs/audio/design.md`.
-    - `plugins/shape/` (`rtype::plugins::shape`) — `ShapePlugin`: the `ShapeRenderer` component (a `Shape` filled and/or
-      outlined at its entity's `GlobalTransform`) and the client Render system that draws them over the sprites, by layer.
-      `plugins/GraphicsReflection.hpp` reflects the renderer contract's `BlendMode` and `Rect` as ECS fields. It requires
-      the `GraphicsPlugin` and the `TransformPlugin`.
-    - `plugins/sprite/` (`rtype::plugins::sprite`) — `SpritePlugin`: the `SpriteRenderer` component, sprite atlases and
-      animations; it requires no plugin, so a server adds it alone. `SpriteDrawPlugin` pushes the sprite entities to the
-      `SpriteQueue` on a client. `SpriteAtlas`
-      (named frames and `SpriteAnimation`s, built by `grid()` or in code), the `AtlasAssets` resource (atlases by
-      `AssetId`: Aseprite / TexturePacker JSON files read with nlohmann_json, or images packed at load time with
-      stb_rect_pack), the `SpriteAnimator` component and the `AnimationFinished` event. A PostUpdate system on every
-      side plays the animators into their `SpriteRenderer`, and a client one hands the atlases' textures to
-      `TextureAssets`. nlohmann_json is a private package: only `sprite/detail/` includes it. See `docs/Sprites.md`.
-    - `plugins/tilemap/` (`rtype::plugins::tilemap`) — `TilemapPlugin`: levels made in Tiled and parallax backgrounds.
-      `Tilemap` (tilesets, tile layers stored in 16x16 chunks, image layers), the `TilemapAssets` resource (maps by
-      `AssetId`, Tiled `.tmj` files and external `.tsj` tilesets read with nlohmann_json in `tilemap/detail/`),
-      `spawnTilemap()` (one `TilemapLayer` entity per layer) and the `Parallax` component. A client Render system moves
-      the `Parallax` entities before the camera, and another pushes the visible chunks' tiles to the
-      `SpriteQueue`. It requires the graphics plugin. See `docs/Tilemap.md`.
-    - `plugins/text/` (`rtype::plugins::text`) — `TextPlugin`: text from MSDF font atlases made offline by
-      msdf-atlas-gen (`assets/fonts/`). `Font` (glyph metrics and kerning), the `FontAssets` resource (fonts by
-      `AssetId`, msdf-atlas-gen JSON read with nlohmann_json in `text/detail/`, with the UTF-8 decoder),
-      `layoutText()` /
-      `measureText()` (`TextLayout.hpp`) and the `TextRenderer` component. A client Render system lays out each text and
-      pushes it to the `SpriteQueue` as a `contract::renderer::Text`, drawn by `IRenderer::draw(Text)` (Vulkan batches
-      its glyphs in the sprites' order, read by the default shader's glyph variant, `glyph.frag`). It requires the graphics and shader plugins. See `docs/Text.md`.
-    - `plugins/shader/` (`rtype::plugins::shader`) — `ShaderPlugin`: game shaders and materials. `ShaderAssets` (shaders
-      by `AssetId`, written in the engine's GLSL dialect), `MaterialAssets` (`Material`: a shader and its values),
-      the `MaterialInstance` component (an entity's own `instance uniform` values), `ShaderHandles`, which keeps the
-      renderer up to date, and `ShaderWatcher`, which reloads the shaders saved in `<game>/assets/shaders`
-      (`shader.hotReload`). `ShaderCalls.hpp` holds what `engine.assets.shader` and `material` call. `detail/` holds the parser, the assembler and the compiler. glslang is a private package: only
-      `shader/detail/ShaderCompiler.cpp` includes it. It requires the graphics plugin. See `docs/Shaders.md`.
-    - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
-    - `plugins/AssetIdReflection.hpp` — lets components reflect `core::asset::AssetId` fields (`kAssetId`).
-    - `plugins/AssetDirectory.hpp` — the `AssetDirectory` resource the `Engine` inserts: `<game>/assets`, where every
-      asset path starts and which it cannot leave (`core::asset::resolveAssetPath()`).
-- `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
-  `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
-  (`IVulkanSurfaceSource`). See `docs/Backend.md`.
-- `src/rtype/platform/<library>/` — one target per windowing backend, named `platform-<library>`.
-    - `platform/glfw/` — `platform-glfw` target, shared library (`rtype-platform-glfw`): `GlfwPlatform`,
-      the GLFW implementation of `IPlatform` and `IVulkanSurfaceSource` (`rtype::platform::glfw`,
-      exceptions in `platform/glfw/exceptions/`), registered as `"glfw"` by `registerPlatform()`
-      (`Registration.hpp`). The only module that includes GLFW: it translates every GLFW callback and the
-      gamepad state into `rtype::contract::platform::Event`s.
-- `src/rtype/render/<api>/` — one target per renderer, named `render-<api>`, implementing `contract-renderer`.
-    - `render/vulkan/` — `render-vulkan` target, shared library (`rtype-render-vulkan`): `VulkanRenderer`,
-      the Vulkan implementation of `IRenderer` (`rtype::render::vulkan`), registered as `"vulkan"` by
-      `registerRenderer()` (`Registration.hpp`). Shaders go in `shaders/` and are compiled to SPIR-V by
-      the `glsl.spirv` rule defined in its `xmake.lua`.
-- `src/rtype/audio/<library>/` — one target per audio backend, named `audio-<library>`.
-    - `audio/miniaudio/` — `audio-miniaudio` target, shared library (`rtype-audio-miniaudio`): `MiniaudioDevice`,
-      the miniaudio implementation of `IAudioDevice` (`rtype::audio::miniaudio`), configured by `MiniaudioConfig`
-      (its `miniaudio` settings section) and registered as `"miniaudio"` by `registerAudio()`
-      (`Registration.hpp`). `core/` (`rtype::audio::miniaudio::core`) holds the RAII wrappers of miniaudio's objects
-      (`Engine`, `SoundGroup`, one per bus, `Sound`), `VoicePool` the playing voices behind the generational
-      `VoiceId`s, `exceptions/` the `MiniaudioException`. miniaudio and stb are private packages: the only module that
-      includes `miniaudio.h`, and the executable sees `Registration.hpp` only. The implementation of miniaudio (and of
-      stb_vorbis, its OGG decoder) is compiled once, in `vendor/MiniaudioImplementation.cpp`, which clang-tidy skips
-      (`vendor/.clang-tidy`).
-- `src/rtype/luau/` — `luau` target, shared library (`rtype-luau`) for Luau scripting. Failures a correct program can
-  hit return
-  `Result<T>`; exceptions are only for API misuse (`docs/luau/error-handling.md`).
-- `src/rtype/scripting/` — `scripting` target, shared library (`rtype-scripting`): the Luau bridge, turning what scripts
-  declare into ECS data (`rtype::scripting`, exported symbols marked `RTYPE_SCRIPTING_API`). It has its own `Error` /
-  `Result`, like `luau`. `component/` holds `ComponentDeclaration` and `registerComponent()`, which computes the
-  deterministic layout of a script component and registers it. `view/` (`rtype::scripting::view`) holds what scripts
-  touch ECS data with: the `ComponentView` usertype (reads and writes a component's fields in place, checked against a
-  `ViewScope` generation), the `Entity` usertype (`registerViewTypes()`) and the field conversions (`readField()`,
-  `writeField()`, `fillFromTable()`). `system/` holds `SystemDeclaration`, its reader and `registerSystem()`, which
-  turns a script system into a `ScriptCallable` on the App. `call/` holds `callEngine()`, which makes an `ecs` engine
-  call from a script's table of argument fields and turns its result into Luau values, for `engine.call` and for
-  `ctx.call` (a system's declared `calls`). `setup/` (`rtype::scripting::setup`) holds the setup forms built on those
-  calls: each plugin brings its setup forms, in a `<Name>Forms.luau` file; `setup/FormsPrelude.luau` creates `engine.assets`, `engine.input` and the helpers of `engine.forms`.
-  `ScriptHost` owns the Luau runtime and the `engine` global
-  (constant flags `isClient`, `isServer`, `isDebug`, `engine.ecs.component`, read by `component/DeclarationReader.hpp`,
-  and `engine.ecs.system`, read by `system/SystemDeclarationReader.hpp`); a system declares the `resources` and `events` it uses, given to scripts by `ctx.resources` and `ctx.events` (plain-data ones only), through the `ecs` `DynamicResources` and `DynamicEvents` parameters; it knows no `Plugin`. The host and
-  the App may be destroyed in either order. `plugin/` holds `ScriptingPlugin`, the `ecs::Plugin` that owns a
-  `ScriptHost` and, from `build()`, runs every `.luau` file under its scripts directory (`game/scripts` by default) in
-  sorted path order; a missing directory loads nothing and warns on `std::cerr`. `exceptions/` holds
-  `ScriptLoadException`, thrown when a script cannot be loaded, since `build()` cannot return a `Result`. It links
-  `core`, `ecs` and `luau`. Design in `docs/luau/ecs-bridge-plan.md`.
-- `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
-- `examples/<category>/.../<Name>/` — standalone examples, each with its own `xmake.lua`, grouped in
-  folders of any depth (e.g. `examples/graphic/render/vulkan/VulkanInstance/`). Every `xmake.lua` under
-  `examples/` is an example named after its folder. They are only built when enabled (see Commands).
-- `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
-- `docs/` — design documentation (e.g. `docs/Plugins.md` for the libraries and their dependencies, `docs/ecs/features/17-hierarchy.md` for parents and children,
-  `docs/Input.md` for the event and input pipeline, `docs/physics/design.md`
-  for the physics, `docs/audio/design.md` for the audio, `docs/Sprites.md` for atlases and animations,
-  `docs/Tilemap.md` for tilemaps and parallax, `docs/Text.md` for MSDF text, `docs/Shaders.md` for game shaders,
-  `docs/engine/design.md` for the `Engine`, its build order and reloads).
-- `.github/` — CI workflow and issue templates.
-- `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
+There are two kinds of work, with different rules:
 
-Each module has its own `xmake.lua`, included from the root `xmake.lua`. Add new sources under the
-matching module: `plugin-*`, `contract-*`, `core`, `ecs`, `network`, `replication`, `engine`, `platform-glfw`, `render-vulkan`,
-`audio-miniaudio`, `luau`, `r-type_client` and `r-type_server` glob
-`**.cpp` in their own folder.
+- **Engine work** (C++, `src/`, `tests/`): read `src/AGENTS.md` and `docs/CodeStyle.md`.
+- **Game work** (Luau, `project.luau`, assets, under a `game/` folder): read `examples/games/AGENTS.md`. You never read
+  or change C++ for it; if the engine lacks something, file an engine issue.
 
-### Dependency rules
+## Module map
 
-Dependencies always point towards the contracts and `ecs`, never away from them:
+One line per module; the detail of each (classes, files) is in `docs/Modules.md`, and a module with its own
+`AGENTS.md` lists it.
+
+| Folder | Target | Responsibility |
+|---|---|---|
+| `src/rtype/core/` | `core` (static) | What several modules share and none owns: asset ids, hashes, settings, system paths |
+| `src/rtype/ecs/` | `ecs` | Entity Component System, the app and its plugin mechanism (`docs/ecs/design.md`) |
+| `src/rtype/network/` | `network` | The transport: bytes between machines. Knows no ECS (`docs/network/design.md`) |
+| `src/rtype/replication/` | `replication` | World to messages and back: the only code knowing both ECS and network |
+| `src/rtype/luau/` | `luau` | Luau runtime wrapper, free of the engine (`docs/luau/`) |
+| `src/rtype/scripting/` | `scripting` | The bridge turning what scripts declare into ECS data (`docs/scripting/plan.md`) |
+| `src/rtype/engine/` | `engine` | Runs a game folder: settings, plugins, scripting, replication, reloads (`docs/engine/design.md`) |
+| `src/rtype/contract/` | `contract-*` | One interface per kind of backend, with its vocabulary (`docs/Backend.md`) |
+| `src/rtype/platform/`, `render/`, `audio/` | `platform-*`, `render-*`, `audio-*` | Backends fulfilling a contract; each wraps one third-party library |
+| `src/rtype/interop/` | `interop-*` | What a renderer needs from a platform, per graphics API |
+| `src/rtype/plugins/` | `plugin-*` | The engine features as ECS plugins: transform, input, graphics, sprite, physics... (`docs/Plugins.md`) |
+| `src/rtype/client/`, `server/` | executables | The generic `r-type_client` and `r-type_server` |
+| `examples/` | per example | Standalone examples; `examples/games/` holds the games |
+| `tests/<module>/` | `<module>-tests` | GoogleTest, one folder per module |
+| `docs/` | | Design docs for engine developers |
+| `manual/` | | Game developer manual (Zensical site), published to GitHub Pages |
+
+## Architecture rules
+
+1. **Engine is not game.** A game is a folder (`project.luau`, `scripts/`, `assets/`) written only in Luau and run by
+   the generic client and server. The engine never names a game, contains no gameplay, and loads a game only through its
+   settings, scripts and assets.
+2. **The Luau API is the product.** An engine feature a game needs is not done until a script can use it, it is
+   documented in the manual (`manual/`) and a script test covers it.
+3. **Data over code.** Plugins, backends, window, network and physics are chosen in `project.luau`, never in a
+   game-specific `main`. The C++ games in `examples/games/` are the step before this, not a model.
+4. **Dependencies point inward** (see below). Contracts know no ECS, backends know only their contract, plugins know no
+   backend.
+5. **A plugin stands alone.** It owns its data, names the plugins it requires, never adds another, and the plugins form
+   a graph without cycles.
+6. **The server is authoritative.** Every piece of data says which side it lives on; a client never writes replicated
+   data; bytes from the network never crash, throw or assert.
+7. **A third-party library stays private** to the one module that wraps it.
+8. **No global state.** State lives in the world.
+9. **Errors.** A failure a correct program can hit is returned as a result; misuse throws; a script error never takes
+   the game down.
+10. **Portable.** Linux, macOS and Windows; Clang, Apple Clang and MSVC must compile it (GCC should).
+
+## Dependency rules
 
 ```
-core ←  ecs, contract-*
-contract-*  ←  platform-*, render-*, audio-*   ←  examples (executables load them)
-ecs, contract-*  ←  plugin-*                   ←  examples (executables load them)
-luau ←  scripting
-network  ←  replication
-ecs      ←  replication, scripting
-scripting, replication, plugin-transform  ←  engine  ←  executables, examples
+core <-  ecs, contract-*
+contract-*  <-  platform-*, render-*, audio-*   <-  executables, examples
+ecs, contract-*  <-  plugin-*                   <-  executables, examples
+luau <-  scripting
+network  <-  replication
+ecs      <-  replication, scripting
+scripting, replication, plugin-transform  <-  engine  <-  executables, examples
 ```
 
-- `core` depends on no other project target; `ecs` depends on `core` only. `core` is the only static library: it keeps
-  no global state, so a copy in each binary is harmless.
-- `network` depends on Asio only (private): never on the ECS, a plugin or any other project target. `replication`
-  depends on `ecs` and `network` and is the only module that knows both; the renderer, the platforms and `luau` never
-  include its headers.
-- A contract depends on `core` and glm only (`contract-renderer` also on `contract-platform`, as `IRenderer` takes an
-  `IPlatform`): never on the ECS or a
-  plugin. A type of the ECS never goes in a contract, and what a contract type needs from the ECS is declared in the
-  plugin that uses it.
-- The platforms, renderers and audio backends link their contract only: neither the ECS nor a plugin. An audio backend
-  never depends on a platform or a renderer, nor they on it. miniaudio never leaves `audio/miniaudio/`: no header
-  outside it includes `<miniaudio.h>`.
-- A plugin depends on `core`, `ecs`, glm, the contracts and plugins it uses, plus its own private packages (Jolt,
-  nlohmann_json, glslang, stb: no public header includes them). Never add a dependency on a `platform-*`, `render-*`,
-  `audio-*` or `luau` target to it. The plugins form a graph without cycles: `plugin-graphics` knows no plugin that
-  draws, and each of them is ordered against it only. A resource several plugins fill is taken as a `ResAppend`.
-- Modules exchange contract types only (`rtype::contract::platform::Event`, `rtype::contract::platform::input::Key`...).
-  GLFW never leaves `platform/glfw/`: no header outside it includes `<GLFW/glfw3.h>` or uses a `GLFW_*` code.
-- A platform module and a renderer module never depend on each other: what a renderer needs from a window that is
-  specific to its graphics API goes through the matching `interop-*` target, which both sides depend on (see
-  `docs/Backend.md`).
-- The executables link no plugin and no backend: the `Engine` loads those `project.luau` names from `plugins/` next to the
-  executable and `<game>/plugins/`. Each library exports one entry point (`RTYPE_PLUGIN_LIBRARY`, or `RTYPE_LIBRARY` for
-  a backend, which knows no ECS). See `docs/Plugins.md`.
-- `engine` links `core`, `ecs`, `luau`, `scripting`, `replication`, `plugin-transform` and `plugin-input`, and nothing depends on it but
-  the executables, the examples and its tests. It links no other plugin and no contract: it loads them, and a program can still add
-  its own through `EngineConfig::addPlugins`.
+- `core` depends on no project target; `ecs` on `core` only. `core` is the only static library and keeps no state.
+- `network` depends on Asio only (private); `replication` is the only module that knows ECS and network; renderers,
+  platforms and `luau` never include its headers.
+- A contract depends on `core` and glm only (the renderer contract also on the platform contract). No ECS type in a
+  contract.
+- Backends link their contract only. They never depend on each other; what a renderer needs from a window goes through
+  `interop-*`. A window library, miniaudio and the like never leave their backend folder.
+- A plugin depends on `core`, `ecs`, glm, the contracts and the plugins it requires, plus private packages. Never on a
+  `platform-*`, `render-*`, `audio-*` or `luau` target.
+- `engine` links `core`, `ecs`, `luau`, `scripting`, `replication` and `plugin-transform`, and nothing depends on it but
+  the executables, examples and its tests. A program adds the other plugins it uses.
 
 ## Commands
 
-The project uses `xmake` with the `clang` toolchain and C++23.
+`xmake` with the `clang` toolchain and C++23.
 
-- Configure: `xmake f -y` (add `-m release` for a release build)
-- Build everything: `xmake build -y`
-- Build one target: `xmake build engine`
-- Run the generic executables (copied to the repository root by the build): `./r-type_server` and `./r-type_client`,
-  on `game/` or `--game <dir>`; other flags go to `project.luau` as `engine.args`
-- Run the duel game (example): `xmake f -y --rtype_duel=y`, then `xmake run rtype_duel server [--port <port>]` and
-  `xmake run rtype_duel client [--host <host>] [--port <port>]` (or the generic executables, with
-  `--game examples/games/rtype_duel/game`)
-- Enable examples, then rebuild: `xmake f --AllExamples=y` enables every discovered example. For
-  now `--AllVulkanExamples=y`, `--AllLuauExamples=y` and `--AllEcsExamples=y` behave the same way (the
-  root `xmake.lua` does not filter by category yet), so each also enables every discovered example. To
-  enable a single example, use its folder name (e.g. `--BasicGLFWWindow=y`, `--EcsTypedQueries=y`); the ECS
-  examples are listed in `examples/ecs/README.md`.
-- Enable and run the tests (GoogleTest): `xmake f -y --Tests=y`, then `xmake build -y` and
-  `xmake test -v` (`-v` prints GoogleTest's output, needed to see which test failed). Run one
-  module's tests with `xmake test -v luau-tests/*`.
-- Generate `compile_commands.json` (needed by clang-tidy): `xmake project -k compile_commands`
-- Format: `clang-format -i <files>` (style in `.clang-format`)
-- Lint: `clang-tidy -p . <files>` (checks in `.clang-tidy`)
+- Configure: `xmake f -y` (`-m release` for release). Build all: `xmake build -y`. One target: `xmake build engine`.
+- Run (the build copies the executables to the repository root): `./r-type_server` and `./r-type_client`, on `game/` or
+  `--game <dir>`; other `--name value` flags reach `project.luau` as `engine.args`.
+- Duel example: `xmake f -y --rtype_duel=y`, then `xmake run rtype_duel server [--port <port>]` and
+  `xmake run rtype_duel client [--host <host>] [--port <port>]` (or the generic executables with
+  `--game examples/games/rtype_duel/game`).
+- Examples are opt-in: `xmake f --AllExamples=y`, or one by folder name (`--BasicGLFWWindow=y`, `--EcsTypedQueries=y`).
+  `--AllVulkanExamples=y`, `--AllLuauExamples=y`, `--AllEcsExamples=y` currently enable every example too.
+- Tests (GoogleTest, opt-in): `xmake f -y --Tests=y`, `xmake build -y`, `xmake test -v` (`-v` shows which test failed).
+  One module: `xmake test -v luau-tests/*`.
+- `compile_commands.json` (needed by clang-tidy): `xmake project -k compile_commands`.
+- Format: `clang-format -i <files>`. Lint: `clang-tidy -p . <files>`. Both on the changed files:
+  `.github/scripts/lint.sh <base>`.
+- The game manual: `uvx zensical build -f manual/mkdocs.yml`.
 
-Tests live in `tests/<module>/` (e.g. `tests/ecs/`, target `ecs-tests`, `tests/network/`, target
-`network-tests`, or `tests/luau/`, target `luau-tests`), one folder per module with its own `xmake.lua` included from
-`tests/xmake.lua`. They
-are opt-in (`--Tests=y`) and use GoogleTest; the shared `tests/main.cpp` provides `main`. The CI
-`build` job builds with `--Tests=y` (so the project and its tests) and runs `xmake test -v`.
-
-CI (`.github/workflows/ci.yml`) builds on Linux, macOS and Windows and, in parallel, runs `.github/scripts/lint.sh`,
-which checks the changed files with `clang-format` and `clang-tidy`. A change must build on all three platforms and pass
-both linters. In a stack of pull requests (`gh stack`), only the top pull request runs the checks, on the content of the
-whole stack (linted against the stack's base); the others skip them.
-
-## Code style
-
-Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against them:
-
-- Google-based style, 4-space indent, 120-column limit, newline at end of file.
-- clang-tidy checks: `bugprone`, `cppcoreguidelines`, `clang-analyzer`, `modernize`,
-  `performance`, `readability`, `misc`.
-- Match the existing conventions in `src/rtype/plugins/` and `src/rtype/platform/glfw/`:
-    - Files named in PascalCase after their class (`Window.hpp`, `Window.cpp`).
-    - Every source and header file starts with the Epitech header, with the current year, the
-      project name (`rtype`) and the file name without extension as the description:
-
-      ```cpp
-      /*
-      ** EPITECH PROJECT, 2026
-      ** rtype
-      ** File description:
-      ** Window
-      */
-      ```
-
-    - Headers use `#pragma once` as their include guard, placed right after the Epitech header —
-      never `#ifndef`/`#define`/`#endif` guards.
-    - Namespaces mirror the directory path under `src/rtype/` (`rtype::contract::platform::input`,
-      `rtype::platform::glfw`, `rtype::render::vulkan`). The ECS feature folders and those of `contract/renderer/` are the exceptions
-      (see Project structure).
-    - Private members prefixed with `_` (`_window`), documented with `///<` comments.
-    - Constants (`constexpr` / `static constexpr` variables) and enumerators are named `kName`
-      (`kGamepadAxisCount`, `Key::kEscape`, `GamepadButton::kSouth`). Enum types themselves keep
-      PascalCase (`GamepadButton`). Local `const` variables keep camelCase.
-    - Doxygen comments use the `///` style (not `/** ... */`), with `@brief` on public classes and
-      functions.
-    - `[[nodiscard]]` on getters, `noexcept` where applicable, copy/move explicitly deleted for
-      resource-owning classes (RAII).
-    - The rule of five is mandatory: every class explicitly declares its destructor, copy
-      constructor, copy assignment, move constructor and move assignment, each one `= default` or
-      `= delete` when there is nothing custom to write. Never rely on implicit special members.
-    - Class members follow the Google Style Guide declaration order: `public`, then `protected`,
-      then `private` sections (omit empty ones); within each section, in this order: types and type
-      aliases, static constants, factory functions, constructors, the destructor and the copy/move
-      special members, all other member functions (static and non-static), then data members.
-    - Within those groups, order members as follows:
-        1. Custom constructors first (parameterized, then default).
-        2. The rule of five in textbook order, right after the custom constructors: destructor, copy
-           constructor, copy assignment, move constructor, move assignment.
-        3. Accessors: getters, then setters, in the same order as the data members they expose.
-        4. Other member functions: public behavior in logical groups, static functions together.
-        5. Data members, in the same order as their accessors.
-    - Errors reported through exceptions derived from `std::runtime_error`, kept in an `exceptions/`
-      folder next to the code that throws them.
-- Exported symbols from shared libraries use the per-library `RTYPE_<LIB>_API` macro, named after the
-  target (`RTYPE_RENDER_VULKAN_API`, `RTYPE_PLUGIN_SHADER_API`; `__declspec(dllexport)` on Windows). A type with no
-  code of its own (an interface, an exception) takes `RTYPE_HEADER_ONLY_API` from `core/Export.hpp` instead.
-- Keep code portable across Linux, macOS and Windows.
-- Compiler compatibility: the project MUST compile with Clang, Apple Clang and MSVC, and SHOULD
-  compile with GCC. Avoid compiler-specific extensions and C++23 features that one of the MUST
-  compilers doesn't support yet; when a compiler-specific workaround is unavoidable, guard it
-  with the appropriate preprocessor check and keep the other compilers working.
-- New dependencies go through `add_requires` in the relevant target's `xmake.lua`. A package used
-  by several modules (glm, glfw) is declared once in the root `xmake.lua`.
-- C++ practices:
-    - Never use `using namespace` in `src/` (headers or sources) or in tests: always qualify names
-      explicitly. The only exception is `examples/`, where `using namespace` is allowed in `.cpp`
-      files to keep examples short and readable.
-    - Prefer the short form over the verbose one:
-        - Test a `std::optional` with its `bool` conversion: `if (opt)` / `if (!opt)`, not
-          `opt.has_value()`.
-        - Initialize with braces: `MyClass hello{arg1, arg2};` and `: _member{value}`, not
-          `MyClass hello(arg1, arg2);`. Braces reject narrowing conversions, so cast explicitly when
-          one is intended. Keep parentheses only where braces would call a different constructor
-          (`std::initializer_list` overloads, e.g. `std::vector<int> v(3, 0);` builds `{0, 0, 0}` while
-          `v{3, 0}` builds `{3, 0}`).
-        - Build strings with `std::format`: `std::format("Unknown setting '{}' in '{}'", key, context)`,
-          not `"Unknown setting '" + key + "' in '" + std::string(context) + "'"`. It takes `std::string_view`
-          and numbers directly (no `std::string(...)` or `std::to_string`). Use a raw string literal (`R"(...)"`) when
-          the text contains quotes. Appending in a loop (`result += ...`) stays as it is.
-    - Manage resources with RAII and smart pointers (`std::unique_ptr` by default,
-      `std::shared_ptr` only for genuinely shared ownership). No raw owning pointers, and no
-      `new`/`delete` or `malloc`/`free` outside code that wraps a C API.
-    - Headers use the `.hpp` extension and sources the `.cpp` extension.
-    - Template implementations go in a `.tpp` file next to the `.hpp` that declares them (e.g.
-      `Pool.hpp` and `Pool.tpp`), not inline in the `.hpp`. The `.hpp` only declares the template
-      and ends by including its `.tpp` (`#include "Pool.tpp"`); the `.tpp` carries the Epitech
-      header and `#pragma once`, and is never included from anywhere else.
-      A `.tpp` may, and should, `#include` the standard and project headers its code uses, instead of relying on
-      what its `.hpp` happens to include. Because it must never be included directly, right after `#pragma once` it has
-      a
-      check that fails when its `.hpp` is not the includer: the `.hpp` defines `RTYPE_<NAME>_INCLUDING_TPP` around the
-      include and the `.tpp` tests it.
-
-      ```cpp
-      // Pool.hpp
-      #define RTYPE_POOL_INCLUDING_TPP
-      #include "Pool.tpp"  // IWYU pragma: export
-      #undef RTYPE_POOL_INCLUDING_TPP
-  
-      // Pool.tpp (after the Epitech header)
-      #pragma once
-  
-      #ifndef RTYPE_POOL_INCLUDING_TPP
-      #error "Pool.tpp is an implementation detail of Pool.hpp: include Pool.hpp instead"
-      #endif
-  
-      #include <cassert>
-      #include <utility>
-      ```
-    - Include paths: avoid `#include "../MyInclude.hpp"` as much as possible (really). A sibling file (same
-      folder) is included by its bare name (`"Window.hpp"`); anything else in the engine is included from the
-      `src/` root as `"rtype/<module>/..."` (e.g. `"rtype/ecs/entity/Entity.hpp"`, `"rtype/contract/renderer/..."`),
-      never through a relative path going up the tree.
-    - Include order is handled by `clang-format`: run it instead of ordering includes by hand.
+CI (`.github/workflows/ci.yml`) builds on Linux, macOS and Windows and lints the changed files. In a stack of pull
+requests (`gh stack`), only the top one runs the checks, on the whole stack.
 
 ## Definition of done
 
-Before considering a task finished, verify it locally and report the result faithfully:
+Before calling a task finished, run the `verify` skill and report the result faithfully:
 
-1. `xmake build -y` succeeds.
-2. `clang-format` leaves the changed files unchanged (run `clang-format -i` on them).
-3. `clang-tidy` reports no new warnings on the changed files, when it is available (generate
-   `compile_commands.json` first).
+1. `xmake build -y` succeeds (with `--Tests=y`).
+2. `xmake test -v` passes, and new behavior has a test (C++ in `tests/<module>/`, Luau features also a script test).
+3. `clang-format` leaves the changed files unchanged and `clang-tidy` reports nothing new
+   (`.github/scripts/lint.sh <base>`).
+4. The docs of what changed are updated: the `docs/` page of the module, and for anything a script can use, the
+   `manual/` page.
 
-If a step can't be run or fails, say so instead of claiming the task is done. CI runs the same
-checks on every pull request.
+If a step cannot be run or fails, say so; never claim it done.
 
-## Asking questions
+## Autonomy
 
-Never act on assumptions. If a request, requirement or piece of context is vague, ambiguous,
-incomplete or unknown to you, or if you are unsure how to proceed, stop and ask the user
-clarifying questions before doing anything. Proceed only once the answers are clear.
+- **Free, never ask:** read, edit, build, test, lint, create local branches.
+- **Autonomous runs** (auto mode, or the prompt says so) may also commit, push feature branches, open **draft** pull
+  requests and create or edit issues, without asking.
+- **Interactive:** "why does X fail" means diagnose and propose a fix; "fix X" means fix it.
+- **Ask only for:** a real design fork the rules and docs do not settle (state the options and a recommendation);
+  anything destructive or hard to undo (merging, force-pushing a shared branch, deleting branches, issues or labels,
+  touching `main`, releases); anything outside this repository.
+- When you proceed on an assumption, write it in the pull request description.
 
-This applies to design choices, scope, naming, expected behavior and anything else that could
-change what you build. Do not fill gaps with guesses and do not work around missing details.
+## Git, pull requests, issues
 
-## Debugging
+- Commits: Conventional Commits `<type>(<scope>): <lowercase summary>` with `feat`, `fix`, `chore`, `style`,
+  `refactor`, `docs`, `test`; atomic, a body on every commit, files staged by path, tests in their own `test(...)`
+  commit. Details in the `commit-split` skill.
+- Branches `<type>/<area>/<name>` in kebab-case, merged into `main` by pull request. Never push to `main`, never merge.
+- Pull requests are drafts, from the template, one per issue, stacked with `gh stack` when they depend on each other
+  (`open-pr` skill).
+- Issues are titled `[Area] <summary>` (`[Area] <ID>: <summary>` for tasks of a plan). Priority, Size and Status live in
+  the project "R-Type" (number 8), not in labels; parents and blocked-by links are real GitHub relationships, not text
+  (`plan-issues` skill).
+- No `Co-Authored-By` or other AI attribution in commits or pull requests.
 
-When the user is trying to fix a bug — pasting an error or warning, asking why something isn't
-working, or similar — investigate first: find the root cause and work out a likely fix. Then
-explain the diagnosis and proposed fix to the user in detail (what's wrong, why, and what the fix
-would be).
+## Skills
 
-Do not apply the fix by default. Wait for the user to approve it before editing any code. Only
-proceed straight to fixing if the user's request already grants that approval up front (e.g. they
-explicitly ask you to fix it, not just diagnose it).
-
-## Git commits
-
-Never stage changes (`git add`) automatically. After finishing a task, ask the user whether they
-want the changes staged, and whether they'd like to go further from there (commit, open a draft
-PR, etc.) — don't assume staging is wanted just because the task is done.
-
-Never add a `Co-Authored-By` trailer (or any other AI co-author/attribution line) to commit
-messages or pull request descriptions in this repository. This overrides any default AI assistant
-attribution behavior.
-
-Commit messages follow Conventional Commits: `<type>(<optional scope>): <lowercase summary>`,
-with the types used in this repository's history: `feat`, `fix`, `chore`, `style`, `refactor`,
-`docs`, `test`. The scope is the affected area (e.g. `vulkan`, `window`, `ci`, `skills`).
-Example: `feat(vulkan): implement Window class for GLFW window management`.
-
-Branches are named `<type>/<area>/<name>` in kebab-case (e.g. `feat/vulkan/window`,
-`feat/skills/github-issues`) and are merged into `main` through pull requests.
-
-Never commit without being explicitly asked. Committing is never the default — not after finishing
-a task, running tests successfully, or being asked to implement or fix something. Always wait for
-explicit confirmation before running `git commit`, regardless of how the request was phrased.
-
-When you are asked to commit, make atomic and descriptive commits that follow the commit norm above:
-
-- Atomic: one logical change per commit, self-contained and building on its own. Tests go in their
-  own `test(...)` commit, separate from the `feat`/`fix` they cover. Never mix unrelated concerns (a feature, a
-  refactor, a formatting pass...) in one commit.
-- Split by file, not just by feature: before committing, list every changed or new file and ask
-  of each one "does this work and make sense on its own?". A file that does (a helper, a utility,
-  a type, an exception, a build-file change) gets its own commit, made *before* the commit of the
-  code that uses it, so that every commit builds and history reads bottom-up (dependency first,
-  consumer after). Example: a new `MapHelper.hpp` hash helper and the `Table` class that uses it
-  are two commits: `feat(luau): add transparent string hash helper`, then
-  `feat(luau): add Table class`. "Files added in the same session" or "files of the same
-  feature" is not a reason to group them.
-- Only group files in one commit when they cannot exist separately (e.g. a class's `.hpp` and its
-  `.cpp`, or a change and the call sites it forces to update).
-- Descriptive: a precise lowercase Conventional Commits subject saying what changed, plus a body (separated by a blank
-  line) explaining what was done and why. Every commit has a body.
-- If the pending changes cover several concerns, split them into several commits: propose the
-  split to the user and ask before staging each one, instead of lumping everything together.
-  Stage explicitly by path (`git add <files>`), never `git add -A` or `git add .`, so each commit
-  contains exactly the files planned for it.
-- Before the first commit, show the planned list of commits (subject and files of each) when there
-  is more than one, then run them in order.
-
-## Pull requests
-
-When asked to open a pull request, always create it as a draft (`gh pr create --draft`). If a PR
-template exists in the repository (e.g. `.github/PULL_REQUEST_TEMPLATE.md` or
-`.github/PULL_REQUEST_TEMPLATE/`), fill it out and use it as the PR description instead of the
-default summary/test-plan format.
+In `.agents/skills/` (`.claude/skills/` links to it): `verify`, `commit-split`, `open-pr`, `plan-issues`,
+`add-plugin`, `add-component`, `add-engine-call`, `luau-gameplay`.
