@@ -28,6 +28,7 @@
 #include "rtype/plugins/input/InputPlugin.hpp"
 #include "rtype/plugins/physics/PhysicsPlugin.hpp"
 #include "rtype/plugins/physics/debug/PhysicsDebugPlugin.hpp"
+#include "rtype/plugins/shape/ShapePlugin.hpp"
 #include "rtype/plugins/transform/TransformPlugin.hpp"
 
 namespace {
@@ -90,6 +91,7 @@ TEST(GamePlugins, AddsItsPluginsWithTheirSettings) {
     app.addPlugin(rtype::plugins::input::InputPlugin{});
     app.addPlugin(rtype::plugins::graphics::GraphicsPlugin{
         std::make_unique<rtype::plugins::graphics::BackendRegistry>(), rtype::core::config::Settings{}});
+    app.addPlugin(rtype::plugins::shape::ShapePlugin{});
 
     GamePlugins::fromSettings(settings, RunMode::kStandalone).addTo(app);
 

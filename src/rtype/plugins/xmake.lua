@@ -88,6 +88,6 @@ plugin("physics", {"plugin-transform"})
     -- The physics engine. Private: only physics .cpp files and physics/detail/ include Jolt.
     add_packages("joltphysics")
 
-plugin("physics-debug", {"plugin-physics", "plugin-graphics", "plugin-input", "plugin-transform"})
+plugin("physics-debug", {"plugin-physics", "plugin-graphics", "plugin-input", "plugin-shape", "plugin-transform"})
     add_files("physics/debug/**.cpp")
     add_headerfiles("physics/debug/**.hpp")
