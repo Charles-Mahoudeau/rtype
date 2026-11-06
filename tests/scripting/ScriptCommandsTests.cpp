@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "rtype/ecs/app/App.hpp"
@@ -36,11 +37,30 @@ struct Beacon {
 };
 RTYPE_ECS_COMPONENT(Beacon, "test.Beacon", channel);
 
-/// @brief A C++ component that owns memory: not plain data.
+/// @brief A C++ component that owns memory: a list and a text.
 struct Cargo {
     std::vector<std::int32_t> items;
+    std::string label{"empty"};
 };
-RTYPE_ECS_COMPONENT(Cargo, "test.Cargo");
+RTYPE_ECS_COMPONENT(Cargo, "test.Cargo", items, label);
+
+/// @brief A value with no default: it must be given one.
+struct Sealed {
+    explicit Sealed(std::string seal) : seal{std::move(seal)} {}
+    ~Sealed() = default;
+    Sealed(const Sealed& other) = default;
+    Sealed& operator=(const Sealed& other) = default;
+    Sealed(Sealed&& other) noexcept = default;
+    Sealed& operator=(Sealed&& other) noexcept = default;
+
+    std::string seal;
+};
+
+/// @brief A C++ component that owns memory and has no default constructor.
+struct Crate {
+    Sealed sealed;
+};
+RTYPE_ECS_COMPONENT(Crate, "test.Crate");
 }  // namespace rtype::test::commands
 
 namespace {
@@ -538,7 +558,7 @@ TEST(ScriptCommands, AClientSystemCannotAddAReplicatedCxxComponent) {
     EXPECT_EQ(fixture.app.getWorld().getEntityCount(), 1U);
 }
 
-TEST(ScriptCommands, ACxxComponentThatIsNotPlainDataIsRefused) {
+TEST(ScriptCommands, AScriptSpawnsACxxComponentThatOwnsMemory) {
     Fixture fixture;
     static_cast<void>(fixture.app.getWorld().getComponents().registerType<rtype::test::commands::Cargo>());
     ASSERT_EQ(fixture.run(R"(
@@ -546,7 +566,38 @@ TEST(ScriptCommands, ACxxComponentThatIsNotPlainDataIsRefused) {
             phase = "Update",
             query = { with = { "game.Marker" } },
             run = function(ctx)
-                ctx.commands:spawn({ ["test.Cargo"] = { } })
+                -- Longer than a std::string keeps inline: the copy must own its own buffer.
+                ctx.commands:spawn({ ["test.Cargo"] = { items = { 4, 5, 6 }, label = string.rep("cargo ", 8) } })
+                ctx.commands:add(ctx.commands:spawn(), "test.Cargo")
+            end,
+        })
+        engine.ecs.system("game.Inspector", {
+            phase = "PostUpdate",
+            query = { read = { "test.Cargo" } },
+            run = function(ctx)
+                seen = {}
+                for _, cargo in ctx.query do
+                    seen[cargo.label] = #cargo.items
+                end
+            end,
+        })
+    )"),
+              "");
+
+    fixture.app.runFrame();
+
+    EXPECT_EQ(fixture.run(R"(assert(seen[string.rep("cargo ", 8)] == 3 and seen["empty"] == 0, "wrong cargo"))"), "");
+}
+
+TEST(ScriptCommands, ACxxComponentWithNoDefaultConstructorIsRefused) {
+    Fixture fixture;
+    static_cast<void>(fixture.app.getWorld().getComponents().registerType<rtype::test::commands::Crate>());
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Packer", {
+            phase = "Update",
+            query = { with = { "game.Marker" } },
+            run = function(ctx)
+                ctx.commands:spawn({ ["test.Crate"] = { } })
             end,
         })
     )"),
@@ -556,6 +607,7 @@ TEST(ScriptCommands, ACxxComponentThatIsNotPlainDataIsRefused) {
     fixture.app.runFrame();
     const std::string log = testing::internal::GetCapturedStderr();
 
-    EXPECT_NE(log.find("cannot add 'test.Cargo': it is not plain data"), std::string::npos) << log;
+    EXPECT_NE(log.find("cannot add 'test.Crate': it has no default constructor to start from"), std::string::npos)
+        << log;
     EXPECT_EQ(fixture.app.getWorld().getEntityCount(), 1U);
 }
