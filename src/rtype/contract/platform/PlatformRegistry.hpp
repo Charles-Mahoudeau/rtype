@@ -19,6 +19,9 @@
 
 namespace rtype::contract::platform {
 
+/// @brief The name a PlatformRegistry is offered under to the libraries.
+inline constexpr std::string_view kPlatformRegistryService = "rtype.contract.platforms";
+
 /// @brief Platforms by name, so the configuration picks one instead of the code.
 ///
 /// @details Each module registers its implementations, then create() builds the one a config names. A factory receives

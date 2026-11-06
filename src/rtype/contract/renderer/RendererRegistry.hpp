@@ -19,6 +19,9 @@
 
 namespace rtype::contract::renderer {
 
+/// @brief The name a RendererRegistry is offered under to the libraries.
+inline constexpr std::string_view kRendererRegistryService = "rtype.contract.renderers";
+
 /// @brief Renderers by name, so the configuration picks one instead of the code.
 ///
 /// @details Each module registers its implementations, then create() builds the one a config names. A factory receives
