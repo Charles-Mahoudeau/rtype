@@ -2,17 +2,17 @@
 ** EPITECH PROJECT, 2026
 ** rtype
 ** File description:
-** PrefabException
+** ActorException
 */
 
-#include "PrefabException.hpp"
+#include "ActorException.hpp"
 
 #include <stdexcept>
 #include <string>
 
 namespace rtype::ecs::exceptions {
-PrefabException::PrefabException(const std::string& message) : std::runtime_error{message} {}
+ActorException::ActorException(const std::string& message) : std::runtime_error{message} {}
 
 // Defined here, not in the header: the library is the one place that emits the class's type information.
-PrefabException::~PrefabException() = default;
+ActorException::~ActorException() = default;
 }  // namespace rtype::ecs::exceptions

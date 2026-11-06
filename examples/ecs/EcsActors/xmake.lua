@@ -1,4 +1,4 @@
-target("EcsPrefabs")
+target("EcsActors")
     set_kind("binary")
     set_default(false)
     add_deps("ecs")

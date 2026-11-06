@@ -17,7 +17,7 @@
 
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/Components.hpp"
-#include "rtype/ecs/exceptions/PrefabException.hpp"
+#include "rtype/ecs/exceptions/ActorException.hpp"
 #include "rtype/ecs/hierarchy/Children.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
 #include "rtype/ecs/storage/ByteColumn.hpp"
@@ -46,14 +46,14 @@ std::span<const std::byte> ComponentValues::get(ComponentId id) const noexcept {
 void ComponentValues::set(const Components& components, ComponentId id, std::span<const std::byte> value) {
     const ComponentInfo* info = components.getRegistry().findById(id);
     if (info == nullptr) {
-        throw exceptions::PrefabException{std::format("Component id {} is not registered", id)};
+        throw exceptions::ActorException{std::format("Component id {} is not registered", id)};
     }
     if (info->type.name == TypeTraits<Parent>::kName || info->type.name == TypeTraits<Children>::kName) {
-        throw exceptions::PrefabException{std::format(
-            "Component '{}' cannot be a prefab value: a prefab's children set the hierarchy", info->type.name)};
+        throw exceptions::ActorException{std::format(
+            "Component '{}' cannot be an actor value: an actor's children set the hierarchy", info->type.name)};
     }
     if (value.size() != info->type.size) {
-        throw exceptions::PrefabException{
+        throw exceptions::ActorException{
             std::format("Component '{}' takes {} bytes, not {}", info->type.name, info->type.size, value.size())};
     }
     storage::ByteColumn column = makeColumn(*info);

@@ -5,7 +5,7 @@
 ** main
 */
 
-// Prefabs: named templates of entities. A prefab holds component values prepared once and child prefabs; spawning
+// Actors: named templates of entities. An actor holds component values prepared once and child actors; spawning
 // it copies them into new entities, the children parented to the root. Overrides are plain adds after the spawn.
 // Components of the other side of the network are left out, by the App's run mode.
 
@@ -14,15 +14,15 @@
 #include <iostream>
 #include <string_view>
 
+#include "rtype/ecs/actor/ActorConfig.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
-#include "rtype/ecs/exceptions/PrefabException.hpp"
+#include "rtype/ecs/exceptions/ActorException.hpp"
 #include "rtype/ecs/hierarchy/Children.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
-#include "rtype/ecs/prefab/PrefabConfig.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/world/World.hpp"
@@ -65,11 +65,11 @@ void describe(const World& world, std::string_view label, Entity entity) {
     std::cout << "\n";
 }
 
-/// @brief Registers the example's prefabs in the App: a turret, and a boss with two turrets.
-void addPrefabs(App& app) {
+/// @brief Registers the example's actors in the App: a turret, and a boss with two turrets.
+void addActors(App& app) {
     static_cast<void>(app.getWorld().getComponents().registerType<Brain>({.presence = Presence::kServerOnly}));
-    app.addPrefab("example.Turret").with(Position{.x = 0.F}).with(Health{.value = 5});
-    app.addPrefab("example.Boss")
+    app.addActor("example.Turret").with(Position{.x = 0.F}).with(Health{.value = 5});
+    app.addActor("example.Boss")
         .with(Position{.x = 0.F})
         .with(Health{.value = 50})
         .with(Brain{.state = 1})
@@ -80,7 +80,7 @@ void addPrefabs(App& app) {
 /// @brief Spawns a boss in the App's world and prints the tree.
 void spawnBoss(App& app, std::string_view side) {
     Commands commands{app.getWorld()};
-    const Entity boss = commands.spawnPrefab("example.Boss").add(Position{.x = 820.F}).getEntity();  // an override
+    const Entity boss = commands.spawnActor("example.Boss").add(Position{.x = 820.F}).getEntity();  // an override
     commands.flush();
     std::cout << std::format("== A boss spawned on the {} ==\n", side);
     describe(app.getWorld(), "boss", boss);
@@ -92,23 +92,23 @@ void spawnBoss(App& app, std::string_view side) {
 /// @brief Runs the example, printing each step.
 void run() {
     App server{RunMode::kServer};
-    addPrefabs(server);
+    addActors(server);
     spawnBoss(server, "server");
 
     std::cout << "\n";
     App client{RunMode::kClient};
-    addPrefabs(client);
+    addActors(client);
     spawnBoss(client, "client (no Brain: it is server-only)");
 
     std::cout << "\n== Mistakes are refused ==\n";
     try {
-        client.addPrefab("example.Loop").withChild("example.Loop");
-    } catch (const exceptions::PrefabException& error) {
+        client.addActor("example.Loop").withChild("example.Loop");
+    } catch (const exceptions::ActorException& error) {
         std::cout << std::format("  {}\n", error.what());
     }
     try {
-        static_cast<void>(client.getWorld().spawnPrefab("example.Missing"));
-    } catch (const exceptions::PrefabException& error) {
+        static_cast<void>(client.getWorld().spawnActor("example.Missing"));
+    } catch (const exceptions::ActorException& error) {
         std::cout << std::format("  {}\n", error.what());
     }
 }

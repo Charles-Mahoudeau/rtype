@@ -15,11 +15,11 @@
 #include <vector>
 
 #include "rtype/ecs/Export.hpp"
+#include "rtype/ecs/actor/ActorConfig.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 #include "rtype/ecs/app/PluginGroup.hpp"
 #include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/event/EventCursor.hpp"
-#include "rtype/ecs/prefab/PrefabConfig.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
@@ -92,12 +92,12 @@ class RTYPE_ECS_API App {
     template <typename Function, typename... Configs>
     Schedule::SystemConfig addSystem(Phase phase, std::string name, Function function, Configs... configs);
 
-    /// @brief Adds an empty prefab to the world (Prefabs::add()), to fill with the returned configuration.
+    /// @brief Adds an empty actor to the world (Actors::add()), to fill with the returned configuration.
     /// @code
-    /// app.addPrefab("game.Bullet").with(Transform{}).with(Velocity{.value = {600.F, 0.F}});
+    /// app.addActor("game.Bullet").with(Transform{}).with(Velocity{.value = {600.F, 0.F}});
     /// @endcode
-    /// @throws exceptions::PrefabException When the name is empty or already taken.
-    PrefabConfig addPrefab(std::string name);
+    /// @throws exceptions::ActorException When the name is empty or already taken.
+    ActorConfig addActor(std::string name);
 
     /// @brief Sets a resource of the world, replacing its value if any (Resources::insert()).
     template <Resource T>

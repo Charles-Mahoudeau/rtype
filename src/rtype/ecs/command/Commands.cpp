@@ -17,14 +17,14 @@
 #include <string_view>
 #include <utility>
 
+#include "rtype/ecs/actor/Actor.hpp"
+#include "rtype/ecs/actor/ActorSpawner.hpp"
+#include "rtype/ecs/actor/Actors.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
-#include "rtype/ecs/exceptions/PrefabException.hpp"
+#include "rtype/ecs/exceptions/ActorException.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
-#include "rtype/ecs/prefab/Prefab.hpp"
-#include "rtype/ecs/prefab/PrefabSpawner.hpp"
-#include "rtype/ecs/prefab/Prefabs.hpp"
 #include "rtype/ecs/storage/ByteColumn.hpp"
 #include "rtype/ecs/storage/ViewAs.hpp"
 #include "rtype/ecs/type/TypeTraits.hpp"
@@ -82,15 +82,15 @@ Commands::EntityCommands Commands::spawn() {
 }
 
 namespace {
-/// @brief Records each step of a prefab's spawn in a Commands buffer.
-class PrefabRecorder {
+/// @brief Records each step of an actor's spawn in a Commands buffer.
+class ActorRecorder {
   public:
-    explicit PrefabRecorder(Commands& commands) noexcept : _commands{&commands} {}
-    ~PrefabRecorder() = default;
-    PrefabRecorder(const PrefabRecorder& other) = delete;
-    PrefabRecorder& operator=(const PrefabRecorder& other) = delete;
-    PrefabRecorder(PrefabRecorder&& other) = delete;
-    PrefabRecorder& operator=(PrefabRecorder&& other) = delete;
+    explicit ActorRecorder(Commands& commands) noexcept : _commands{&commands} {}
+    ~ActorRecorder() = default;
+    ActorRecorder(const ActorRecorder& other) = delete;
+    ActorRecorder& operator=(const ActorRecorder& other) = delete;
+    ActorRecorder(ActorRecorder&& other) = delete;
+    ActorRecorder& operator=(ActorRecorder&& other) = delete;
 
     [[nodiscard]] Entity spawnEntity() { return _commands->spawn().getEntity(); }
     void addValue(Entity entity, ComponentId id, std::span<const std::byte> value) {
@@ -103,22 +103,21 @@ class PrefabRecorder {
 };
 }  // namespace
 
-Commands::EntityCommands Commands::spawnPrefab(PrefabId id) {
-    const Prefab* prefab = _world->getPrefabs().findById(id);
-    if (prefab == nullptr) {
-        throw exceptions::PrefabException{std::format("No prefab has the id {}", id)};
+Commands::EntityCommands Commands::spawnActor(ActorId id) {
+    const Actor* actor = _world->getActors().findById(id);
+    if (actor == nullptr) {
+        throw exceptions::ActorException{std::format("No actor has the id {}", id)};
     }
-    PrefabRecorder recorder{*this};
-    return entity(
-        detail::spawnPrefabTree(_world->getPrefabs(), _world->getComponents().getRegistry(), *prefab, recorder));
+    ActorRecorder recorder{*this};
+    return entity(detail::spawnActorTree(_world->getActors(), _world->getComponents().getRegistry(), *actor, recorder));
 }
 
-Commands::EntityCommands Commands::spawnPrefab(std::string_view name) {
-    const Prefab* prefab = _world->getPrefabs().findByName(name);
-    if (prefab == nullptr) {
-        throw exceptions::PrefabException{std::format("No prefab is named '{}'", name)};
+Commands::EntityCommands Commands::spawnActor(std::string_view name) {
+    const Actor* actor = _world->getActors().findByName(name);
+    if (actor == nullptr) {
+        throw exceptions::ActorException{std::format("No actor is named '{}'", name)};
     }
-    return spawnPrefab(prefab->getId());
+    return spawnActor(actor->getId());
 }
 
 Commands::EntityCommands Commands::entity(Entity entity) noexcept { return EntityCommands{*this, entity}; }

@@ -13,32 +13,32 @@
 #include <string_view>
 #include <vector>
 
+#include "rtype/ecs/actor/Actor.hpp"
+#include "rtype/ecs/actor/ActorSpawner.hpp"
+#include "rtype/ecs/actor/Actors.hpp"
 #include "rtype/ecs/change/Tick.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/detail/WorldState.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/event/Events.hpp"
-#include "rtype/ecs/exceptions/PrefabException.hpp"
+#include "rtype/ecs/exceptions/ActorException.hpp"
 #include "rtype/ecs/hierarchy/Children.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
-#include "rtype/ecs/prefab/Prefab.hpp"
-#include "rtype/ecs/prefab/PrefabSpawner.hpp"
-#include "rtype/ecs/prefab/Prefabs.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
 
 namespace rtype::ecs {
 
 namespace {
-/// @brief Applies each step of a prefab's spawn to a World at once.
-class PrefabBuilder {
+/// @brief Applies each step of an actor's spawn to a World at once.
+class ActorBuilder {
   public:
-    explicit PrefabBuilder(World& world) noexcept : _world{&world} {}
-    ~PrefabBuilder() = default;
-    PrefabBuilder(const PrefabBuilder& other) = delete;
-    PrefabBuilder& operator=(const PrefabBuilder& other) = delete;
-    PrefabBuilder(PrefabBuilder&& other) = delete;
-    PrefabBuilder& operator=(PrefabBuilder&& other) = delete;
+    explicit ActorBuilder(World& world) noexcept : _world{&world} {}
+    ~ActorBuilder() = default;
+    ActorBuilder(const ActorBuilder& other) = delete;
+    ActorBuilder& operator=(const ActorBuilder& other) = delete;
+    ActorBuilder(ActorBuilder&& other) = delete;
+    ActorBuilder& operator=(ActorBuilder&& other) = delete;
 
     /// @return The entities spawned so far, to despawn them if the spawn fails halfway.
     [[nodiscard]] const std::vector<Entity>& getSpawned() const noexcept { return _spawned; }
@@ -102,9 +102,9 @@ Events& World::getEvents() noexcept { return _state->events; }
 
 const Events& World::getEvents() const noexcept { return _state->events; }
 
-Prefabs& World::getPrefabs() noexcept { return _state->prefabs; }
+Actors& World::getActors() noexcept { return _state->actors; }
 
-const Prefabs& World::getPrefabs() const noexcept { return _state->prefabs; }
+const Actors& World::getActors() const noexcept { return _state->actors; }
 
 Tick World::getChangeTick() const noexcept { return _state->changeTick; }
 
@@ -130,14 +130,14 @@ Entity World::reserve() { return _state->entities.reserve(); }
 
 void World::flushReserved() { _state->entities.flushReserved(); }
 
-Entity World::spawnPrefab(PrefabId id) {
-    const Prefab* prefab = getPrefabs().findById(id);
-    if (prefab == nullptr) {
-        throw exceptions::PrefabException{std::format("No prefab has the id {}", id)};
+Entity World::spawnActor(ActorId id) {
+    const Actor* actor = getActors().findById(id);
+    if (actor == nullptr) {
+        throw exceptions::ActorException{std::format("No actor has the id {}", id)};
     }
-    PrefabBuilder builder{*this};
+    ActorBuilder builder{*this};
     try {
-        return detail::spawnPrefabTree(getPrefabs(), getComponents().getRegistry(), *prefab, builder);
+        return detail::spawnActorTree(getActors(), getComponents().getRegistry(), *actor, builder);
     } catch (...) {
         for (const Entity entity : builder.getSpawned()) {  // no half-built tree is left behind
             static_cast<void>(despawn(entity));
@@ -146,12 +146,12 @@ Entity World::spawnPrefab(PrefabId id) {
     }
 }
 
-Entity World::spawnPrefab(std::string_view name) {
-    const Prefab* prefab = getPrefabs().findByName(name);
-    if (prefab == nullptr) {
-        throw exceptions::PrefabException{std::format("No prefab is named '{}'", name)};
+Entity World::spawnActor(std::string_view name) {
+    const Actor* actor = getActors().findByName(name);
+    if (actor == nullptr) {
+        throw exceptions::ActorException{std::format("No actor is named '{}'", name)};
     }
-    return spawnPrefab(prefab->getId());
+    return spawnActor(actor->getId());
 }
 
 void World::destroyEntity(Entity entity) noexcept {

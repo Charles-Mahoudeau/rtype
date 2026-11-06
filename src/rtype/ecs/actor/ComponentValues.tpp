@@ -39,7 +39,7 @@ const T* ComponentValues::get(const Components& components) const noexcept {
 template <Component T>
 void ComponentValues::set(Components& components, T value) {
     static_assert(!std::same_as<T, Parent> && !std::same_as<T, Children>,
-                  "Parent and Children cannot be prefab values: a prefab's children set the hierarchy");
+                  "Parent and Children cannot be actor values: an actor's children set the hierarchy");
     const ComponentInfo* info = components.getRegistry().find<T>();
     if (info == nullptr) {
         info = components.getRegistry().findById(components.registerType<T>());

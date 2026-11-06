@@ -9,12 +9,12 @@
 
 #include <string_view>
 
+#include "rtype/ecs/actor/Actors.hpp"
 #include "rtype/ecs/change/Tick.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/EntityAllocator.hpp"
 #include "rtype/ecs/error/Result.hpp"
 #include "rtype/ecs/event/Events.hpp"
-#include "rtype/ecs/prefab/Prefabs.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
 #include "rtype/ecs/type/TypeTraits.hpp"
 
@@ -40,7 +40,7 @@ struct WorldState {
     Components components{*this};  ///< Component registry, pools and values.
     Resources resources{*this};    ///< Resource registry, slots and values.
     Events events{*this};          ///< Event registry and queues.
-    Prefabs prefabs;               ///< Named templates of entities.
+    Actors actors;                 ///< Named templates of entities.
     Tick changeTick{0};            ///< Current tick, stamped on every value added or written.
     Tick lastCheckTick{0};         ///< Change tick at the last World::checkChangeTicks().
 };

@@ -38,7 +38,7 @@ struct ComponentInfo {
 };
 
 /// @brief Checks that a component description is consistent: the rules of every type (validateType()), and a
-/// component must be copyable (prefabs and snapshots copy it).
+/// component must be copyable (actors and snapshots copy it).
 /// @return Nothing on success, or an ErrorKind::kInvalidType error naming the component and the problem.
 [[nodiscard]] RTYPE_ECS_API Result<void> validate(const ComponentInfo& info);
 }  // namespace rtype::ecs

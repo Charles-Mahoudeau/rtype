@@ -13,12 +13,12 @@
 #include <string>
 #include <vector>
 
+#include "rtype/ecs/actor/ComponentValues.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/component/Components.hpp"
-#include "rtype/ecs/exceptions/PrefabException.hpp"
+#include "rtype/ecs/exceptions/ActorException.hpp"
 #include "rtype/ecs/hierarchy/Children.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
-#include "rtype/ecs/prefab/ComponentValues.hpp"
 #include "rtype/ecs/world/World.hpp"
 
 namespace {
@@ -149,11 +149,11 @@ TEST(ComponentValues, RefusesAnUnknownIdOrBytesOfTheWrongSize) {
     const rtype::ecs::ComponentId id = world.getComponents().registerType<cv::Health>();
     rtype::ecs::ComponentValues values;
     const std::int64_t tooBig = 0;
-    EXPECT_THROW(values.set(world.getComponents(), 99, bytesOf(cv::Health{})), rtype::ecs::exceptions::PrefabException);
+    EXPECT_THROW(values.set(world.getComponents(), 99, bytesOf(cv::Health{})), rtype::ecs::exceptions::ActorException);
     try {
         values.set(world.getComponents(), id, bytesOf(tooBig));
-        FAIL() << "no PrefabException";
-    } catch (const rtype::ecs::exceptions::PrefabException& error) {
+        FAIL() << "no ActorException";
+    } catch (const rtype::ecs::exceptions::ActorException& error) {
         EXPECT_EQ(std::string{error.what()}, "Component 'test.values.Health' takes 4 bytes, not 8");
     }
     EXPECT_EQ(values.getCount(), 0U);
@@ -167,12 +167,12 @@ TEST(ComponentValues, RefusesTheHierarchyComponents) {
     rtype::ecs::ComponentValues values;
     try {
         values.set(world.getComponents(), parent, bytesOf(rtype::ecs::Parent{}));
-        FAIL() << "no PrefabException";
-    } catch (const rtype::ecs::exceptions::PrefabException& error) {
+        FAIL() << "no ActorException";
+    } catch (const rtype::ecs::exceptions::ActorException& error) {
         EXPECT_EQ(std::string{error.what()},
-                  "Component 'rtype.Parent' cannot be a prefab value: a prefab's children set the hierarchy");
+                  "Component 'rtype.Parent' cannot be an actor value: an actor's children set the hierarchy");
     }
     const rtype::ecs::Children list{};
-    EXPECT_THROW(values.set(world.getComponents(), children, bytesOf(list)), rtype::ecs::exceptions::PrefabException);
+    EXPECT_THROW(values.set(world.getComponents(), children, bytesOf(list)), rtype::ecs::exceptions::ActorException);
     EXPECT_EQ(values.getCount(), 0U);
 }
