@@ -206,15 +206,16 @@ const vk::raii::ShaderModule& vertex = shaders.get("sprite.vert", rtype_shader_s
 - A shader error fails the build with `file:line`. Editing a shader recompiles only that shader; editing a header in
   `shaders/include/` recompiles every shader.
 
-### Game shaders
+### Built-in shaders at runtime
 
-Shaders of the game are SPIR-V files loaded at runtime with `shaders.load("enemy.frag.spv")`. A relative path is
+The built-in shaders are SPIR-V files loaded at runtime with `shaders.load("sprite.frag.spv")`. A relative path is
 resolved against the `vulkan.shaderDirectory` setting (`"shaders"` by default), itself relative to the **executable's
 directory**, never to the working directory: the files are found the same way through `xmake run`, a terminal or a
 file manager. An absolute `shaderDirectory` is used as is. A missing file or a file that is not SPIR-V throws a
 `ShaderException` naming the full path.
 
-Compiling GLSL at runtime (hot reload of the game's shaders) is not implemented yet.
+The game's own shaders do not go through this folder: the shader plugin compiles them from the game directory, and
+reloads them when they are saved (`Shaders.md`).
 
 ### Specialization constants
 

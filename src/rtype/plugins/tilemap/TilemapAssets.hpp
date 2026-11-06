@@ -53,6 +53,10 @@ class RTYPE_PLUGIN_TILEMAP_API TilemapAssets {
     TilemapAssets(TilemapAssets&& other) noexcept = default;
     TilemapAssets& operator=(TilemapAssets&& other) noexcept = default;
 
+    /// @brief Sets where the files are read; a path that leaves it fails (core::asset::resolveAssetPath()).
+    /// @param directory The assets' directory; empty: the working directory, unchecked.
+    void setDirectory(std::filesystem::path directory);
+
     /// @return The number of maps known, built or failed.
     [[nodiscard]] std::size_t getCount() const noexcept;
 

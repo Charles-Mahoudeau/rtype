@@ -197,6 +197,8 @@ engine.input.action("fire", "button", { bind = { "Space", "GamepadSouth" } })
 |---|---|---|
 | `engine.assets.texture(path, {linear, wrap})` | `rtype.backend.loadTexture` | the texture's `AssetId` |
 | `engine.assets.sound(path, {stream})` | `rtype.audio.loadSound` | the sound's `AssetId` |
+| `engine.assets.shader(path)` | `rtype.shader.load` | the shader's `AssetId` |
+| `engine.assets.material({name, shader, values, textures})` | `rtype.shader.addMaterial`, then `rtype.shader.setMaterialValue` and `rtype.shader.setMaterialTexture` | the material's `AssetId` |
 | `engine.assets.font(path)` | `rtype.text.loadFont` | the font's `AssetId` |
 | `engine.assets.tilemap(path)` | `rtype.tilemap.load` | the map's `AssetId` |
 | `engine.assets.atlas{path \| texture, name, linear, grid, frames, animations}` | `rtype.sprite.loadAtlas` (a `path`) or `rtype.sprite.createAtlas` (a `texture`, named after it unless `name` is given), then `rtype.sprite.addFrame` per frame and `rtype.sprite.addAnimation` per animation, by name | the atlas's `AssetId` |

@@ -39,8 +39,13 @@ constexpr std::string_view kLoadAtlasCall = "rtype.sprite.loadAtlas";
 constexpr std::string_view kCreateAtlasCall = "rtype.sprite.createAtlas";
 constexpr std::string_view kAddFrameCall = "rtype.sprite.addFrame";
 constexpr std::string_view kAddAnimationCall = "rtype.sprite.addAnimation";
+constexpr std::string_view kLoadShaderCall = "rtype.shader.load";
+constexpr std::string_view kAddMaterialCall = "rtype.shader.addMaterial";
+constexpr std::string_view kSetMaterialValueCall = "rtype.shader.setMaterialValue";
+constexpr std::string_view kSetMaterialTextureCall = "rtype.shader.setMaterialTexture";
 
 constexpr std::string_view kAtlasForm = "engine.assets.atlas";
+constexpr std::string_view kMaterialForm = "engine.assets.material";
 
 constexpr std::array<std::string_view, 2> kTextureOptions{"linear", "wrap"};
 constexpr std::array<std::string_view, 1> kSoundOptions{"stream"};
@@ -52,6 +57,8 @@ constexpr std::array<std::string_view, 4> kFrameKeys{"name", "position", "size",
 constexpr std::array<std::string_view, 6> kAnimationKeys{
     "frames", "first", "count", "frameDuration", "direction", "plays",
 };
+constexpr std::array<std::string_view, 4> kMaterialKeys{"name", "shader", "values", "textures"};
+constexpr std::array<std::string_view, 4> kVectorKeys{"x", "y", "z", "w"};
 
 /// @brief A form that asks for one file: `texture(path, options)`.
 struct FileForm {
@@ -71,6 +78,7 @@ constexpr std::array kFileForms{
     FileForm{.function = "sound", .form = "engine.assets.sound", .call = kLoadSoundCall, .options = kSoundOptions},
     FileForm{.function = "font", .form = "engine.assets.font", .call = kLoadFontCall, .options = {}},
     FileForm{.function = "tilemap", .form = "engine.assets.tilemap", .call = kLoadTilemapCall, .options = {}},
+    FileForm{.function = "shader", .form = "engine.assets.shader", .call = kLoadShaderCall, .options = {}},
 };
 
 /// @brief The calls an atlas form makes, read and checked before any is made.
@@ -269,6 +277,75 @@ luau::ValuePack atlas(const SetupCalls& calls, const luau::CallContext& context)
     fillAtlas(calls, id, kAddAnimationCall, plan.animations);
     return result;
 }
+
+/// @return The fields of `rtype.shader.setMaterialValue` for the value @p value of the `uniform` @p name: a number, or
+/// a vector `{x, y}`, `{x, y, z}` or `{x, y, z, w}`.
+[[nodiscard]] CallFields readMaterialValue(const std::string& name, const luau::Value& value) {
+    CallFields fields{{"name", luau::Value{name}}};
+    if (const auto* number = value.tryAs<double>()) {
+        fields.emplace_back("x", luau::Value{*number});
+        return fields;
+    }
+    const FormTable vector{std::format("{}: value '{}'", kMaterialForm, name), value, kVectorKeys};
+    std::size_t size = 0;
+    for (const std::string_view key : kVectorKeys) {
+        const std::optional<double> component = vector.number(key);
+        if (!component) {
+            break;
+        }
+        fields.emplace_back(key, luau::Value{*component});
+        ++size;
+    }
+    if (size < 2 || size != vector.size()) {
+        vector.fail("expected a number, or a vector {x, y}, {x, y, z} or {x, y, z, w}");
+    }
+    fields.emplace_back("size", luau::Value{static_cast<double>(size)});
+    return fields;
+}
+
+/// @brief Makes the calls that fill a material: one per value or texture, with the material's id.
+void fillMaterial(const SetupCalls& calls, const luau::Value& material, const std::string_view call,
+                  const std::vector<CallFields>& items) {
+    for (const CallFields& item : items) {
+        CallFields fields{{"material", material}};
+        fields.insert(fields.end(), item.begin(), item.end());
+        static_cast<void>(calls.invoke(kMaterialForm, call, fields));
+    }
+}
+
+luau::ValuePack material(const SetupCalls& calls, const luau::CallContext& context) {
+    checkArgumentCount(kMaterialForm, context, 1);
+    const FormTable spec{std::string{kMaterialForm}, argumentAt(context, 0), kMaterialKeys};
+    const std::optional<std::string> name = spec.string("name");
+    const luau::Value* shader = spec.find("shader");
+    if (!name || name->empty() || shader == nullptr) {
+        spec.fail("expected a 'name' and a 'shader'");
+    }
+    std::vector<CallFields> values;
+    if (const luau::Value* table = spec.find("values")) {
+        for (const auto& [uniform, value] : readNamedEntries(std::format("{}: 'values'", kMaterialForm), *table)) {
+            values.push_back(readMaterialValue(uniform, value));
+        }
+    }
+    std::vector<CallFields> textures;
+    if (const luau::Value* table = spec.find("textures")) {
+        for (const auto& [uniform, texture] : readNamedEntries(std::format("{}: 'textures'", kMaterialForm), *table)) {
+            textures.push_back(CallFields{{"name", luau::Value{uniform}}, {"texture", texture}});
+        }
+    }
+    if (!calls.has(kAddMaterialCall)) {
+        return packOf(calls.assetId(*name));
+    }
+    luau::ValuePack result =
+        calls.invoke(kMaterialForm, kAddMaterialCall, CallFields{{"name", luau::Value{*name}}, {"shader", *shader}});
+    if (result.values().empty()) {
+        throw luau::exceptions::RuntimeError{std::format("{}: '{}' gave no material", kMaterialForm, kAddMaterialCall)};
+    }
+    const luau::Value& id = result.values().front();
+    fillMaterial(calls, id, kSetMaterialValueCall, values);
+    fillMaterial(calls, id, kSetMaterialTextureCall, textures);
+    return result;
+}
 }  // namespace
 
 luau::Library buildAssetForms(luau::Runtime& runtime, ecs::App& app) {
@@ -281,6 +358,9 @@ luau::Library buildAssetForms(luau::Runtime& runtime, ecs::App& app) {
         });
     }
     builder.function("atlas").setHandler([calls](const luau::CallContext& context) { return atlas(calls, context); });
+    builder.function("material").setHandler([calls](const luau::CallContext& context) {
+        return material(calls, context);
+    });
     return builder.build();
 }
 }  // namespace rtype::scripting::setup

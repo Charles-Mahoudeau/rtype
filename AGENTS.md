@@ -16,7 +16,7 @@ are added.
   modules need it; what only `plugins` needs stays in `plugins`.
     - `core/asset/` (`rtype::core::asset`) — `AssetId`: the hash of an asset's path, the same in every process, which
       components keep to name a texture or a sound. The ECS reflection of it (`kAssetId`) is in
-      `plugins/AssetIdReflection.hpp`. `AssetFiles.hpp` (`normalizePath`, `readTextFile`) and `AssetStore<T>` (the assets
+      `plugins/AssetIdReflection.hpp`. `AssetFiles.hpp` (`normalizePath`, `resolveAssetPath`, `readTextFile`) and `AssetStore<T>` (the assets
       of a resource by id, with hash-collision checks) are shared by the asset resources of `plugins`, which throw
       `AssetLoadException` (`asset/exceptions/`).
     - `core/hash/` (`rtype::core::hash`) — `NameHash.hpp`: the FNV-1a 64-bit hash (`hashName`, `hashString`,
@@ -147,11 +147,14 @@ are added.
       its glyphs in the sprites' order, read by the default shader's glyph variant, `glyph.frag`). It requires the graphics and shader plugins. See `docs/Text.md`.
     - `plugins/shader/` (`rtype::plugins::shader`) — `ShaderPlugin`: game shaders and materials. `ShaderAssets` (shaders
       by `AssetId`, written in the engine's GLSL dialect), `MaterialAssets` (`Material`: a shader and its values),
-      the `MaterialInstance` component (an entity's own `instance uniform` values) and `ShaderHandles`, which keeps the
-      renderer up to date. `detail/` holds the parser, the assembler and the compiler. glslang is a private package: only
+      the `MaterialInstance` component (an entity's own `instance uniform` values), `ShaderHandles`, which keeps the
+      renderer up to date, and `ShaderWatcher`, which reloads the shaders saved in `<game>/assets/shaders`
+      (`shader.hotReload`). `ShaderCalls.hpp` holds what `engine.assets.shader` and `material` call. `detail/` holds the parser, the assembler and the compiler. glslang is a private package: only
       `shader/detail/ShaderCompiler.cpp` includes it. It requires the graphics plugin. See `docs/Shaders.md`.
     - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
     - `plugins/AssetIdReflection.hpp` — lets components reflect `core::asset::AssetId` fields (`kAssetId`).
+    - `plugins/AssetDirectory.hpp` — the `AssetDirectory` resource the `Engine` inserts: `<game>/assets`, where every
+      asset path starts and which it cannot leave (`core::asset::resolveAssetPath()`).
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
   `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
   (`IVulkanSurfaceSource`). See `docs/Backend.md`.

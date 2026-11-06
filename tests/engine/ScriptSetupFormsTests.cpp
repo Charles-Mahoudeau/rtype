@@ -7,9 +7,14 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
+#include <filesystem>
+#include <format>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <utility>
+#include <variant>
 
 #include "core/asset/AssetId.hpp"
 #include "core/config/Settings.hpp"
@@ -19,6 +24,8 @@
 #include "plugins/input/InputAction.hpp"
 #include "plugins/input/InputPlugin.hpp"
 #include "plugins/input/PlatformEvent.hpp"
+#include "plugins/shader/MaterialAssets.hpp"
+#include "plugins/shader/ShaderAssets.hpp"
 #include "plugins/shader/ShaderPlugin.hpp"
 #include "plugins/sprite/AtlasAssets.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
@@ -180,4 +187,84 @@ TEST(ScriptSetupForms, FontAndTilemapFormsAskTheirPlugins) {
     EXPECT_NE(resources.require<rtype::plugins::tilemap::TilemapAssets>().getEntry(
                   rtype::core::asset::AssetId::fromPath("missing.tmj")),
               nullptr);
+}
+
+namespace {
+/// @brief Adds the plugins the shader forms use to @p script.
+void addShaderPlugins(ScriptApp& script) {
+    script.app.addPlugin(rtype::plugins::transform::TransformPlugin{});
+    script.app.addPlugin(rtype::plugins::input::InputPlugin{});
+    script.app.addPlugin(rtype::plugins::graphics::GraphicsPlugin{
+        std::make_unique<rtype::plugins::graphics::BackendRegistry>(), rtype::core::config::Settings{}});
+    script.app.addPlugin(rtype::plugins::shader::ShaderPlugin{});
+}
+}  // namespace
+
+TEST(ScriptSetupForms, ShaderAndMaterialFormsFillTheirAssets) {
+    ScriptApp script;
+    addShaderPlugins(script);
+    ASSERT_EQ(script.run(R"(
+        local flash = engine.assets.shader("missing.glsl")
+        local noise = engine.assets.texture("noise.png")
+        engine.assets.material({
+            name = "enemy_hit",
+            shader = flash,
+            values = { strength = 0.5, tint = { x = 1, y = 0.5, z = 0, w = 1 }, offset = { x = 2, y = 3 } },
+            textures = { noise = noise },
+        })
+    )"),
+              "");
+
+    const auto& resources = script.app.getWorld().getResources();
+    const rtype::core::asset::AssetId shader = rtype::core::asset::AssetId::fromPath("missing.glsl");
+    EXPECT_NE(resources.require<rtype::plugins::shader::ShaderAssets>().getEntry(shader), nullptr);
+    const rtype::plugins::shader::Material* material = resources.require<rtype::plugins::shader::MaterialAssets>().get(
+        rtype::core::asset::AssetId::fromPath("enemy_hit"));
+    ASSERT_NE(material, nullptr);
+    EXPECT_EQ(material->shader, shader);
+    EXPECT_EQ(material->values.size(), 3U);
+    ASSERT_EQ(material->textures.size(), 1U);
+    EXPECT_EQ(material->textures[0].texture, rtype::core::asset::AssetId::fromPath("noise.png"));
+}
+
+TEST(ScriptSetupForms, AMaterialFormGivesAnIntUniformAWholeNumber) {
+    const std::filesystem::path file = std::filesystem::temp_directory_path() / "rtype-setup-forms-frames.glsl";
+    std::ofstream{file, std::ios::binary} << "uniform int frames;\nvoid fragment() { COLOR.a *= float(frames); }\n";
+    ScriptApp script;
+    addShaderPlugins(script);
+    ASSERT_EQ(script.run(std::format(R"(
+        engine.assets.material({{
+            name = "animated", shader = engine.assets.shader("{}"), values = {{ frames = 4 }},
+        }})
+    )",
+                                     file.generic_string())),
+              "");
+    std::filesystem::remove(file);
+
+    const rtype::plugins::shader::Material* material =
+        script.app.getWorld().getResources().require<rtype::plugins::shader::MaterialAssets>().get(
+            rtype::core::asset::AssetId::fromPath("animated"));
+    ASSERT_NE(material, nullptr);
+    ASSERT_EQ(material->values.size(), 1U);
+    EXPECT_EQ(std::get<std::int32_t>(material->values[0].value), 4);
+}
+
+TEST(ScriptSetupForms, AMaterialFormChecksItsTable) {
+    ScriptApp script;
+    addShaderPlugins(script);
+    EXPECT_NE(script.run(R"(engine.assets.material({ name = "a" }))").find("expected a 'name' and a 'shader'"),
+              std::string::npos);
+    const std::string error = script.run(R"(
+        engine.assets.material({ name = "a", shader = engine.assets.shader("a.glsl"), values = { v = { x = 1 } } })
+    )");
+    EXPECT_NE(error.find("engine.assets.material: value 'v'"), std::string::npos) << error;
+}
+
+TEST(ScriptSetupForms, ShaderFormsGiveTheIdsWithoutThePlugin) {
+    ScriptApp script;
+    ASSERT_EQ(script.run(R"(
+        local flash = engine.assets.shader("flash.glsl")
+        engine.assets.material({ name = "enemy_hit", shader = flash, values = { strength = 0.5 } })
+    )"),
+              "");
 }

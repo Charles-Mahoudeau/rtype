@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "core/config/Settings.hpp"
+#include "plugins/AssetDirectory.hpp"
 #include "plugins/graphics/BackendRegistry.hpp"
 #include "plugins/graphics/Camera.hpp"
 #include "plugins/graphics/GraphicsResources.hpp"
@@ -246,6 +247,7 @@ void GraphicsPlugin::build(ecs::App& app) {
     resources.insertNonSend(plugins::graphics::Backend{});
     resources.insertIfAbsent<ClearColor>();
     resources.insertIfAbsent<TextureAssets>();
+    resources.getMut<TextureAssets>()->setDirectory(assetDirectoryOf(resources));
     resources.insertIfAbsent<graphics::SpriteQueue>();
     resources.insertIfAbsent<graphics::VisibleArea>();
     static_cast<void>(app.getWorld().getComponents().registerType<graphics::Camera>());

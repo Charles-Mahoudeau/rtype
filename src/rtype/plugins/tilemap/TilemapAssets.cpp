@@ -24,11 +24,16 @@
 
 namespace rtype::plugins::tilemap {
 
+void TilemapAssets::setDirectory(std::filesystem::path directory) { _maps.setDirectory(std::move(directory)); }
+
 std::size_t TilemapAssets::getCount() const noexcept { return _maps.getCount(); }
 
 core::asset::AssetId TilemapAssets::load(const std::filesystem::path& path) {
-    const auto stored = _maps.load(path, [](std::string_view text, const std::filesystem::path& file) {
-        return detail::parseTiledMap(text, file, &core::asset::readTextFile);
+    const auto readText = [this](const std::filesystem::path& file) {
+        return core::asset::readTextFile(core::asset::resolveAssetPath(_maps.getDirectory(), file));
+    };
+    const auto stored = _maps.load(path, [&readText](std::string_view text, const std::filesystem::path& file) {
+        return detail::parseTiledMap(text, file, readText);
     });
     if (stored.added != nullptr) {
         requestTextures(*stored.added);

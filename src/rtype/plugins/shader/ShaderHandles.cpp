@@ -39,6 +39,7 @@ void ShaderHandles::update(ShaderAssets& shaders, MaterialAssets& materials, con
     const std::vector<core::asset::AssetId> unloadedMaterials = materials.takeUnloaded();
     const std::vector<core::asset::AssetId> unloadedShaders = shaders.takeUnloaded();
     const std::vector<core::asset::AssetId> addedShaders = shaders.takeAdded();
+    const std::vector<core::asset::AssetId> reloadedShaders = shaders.takeReloaded();
     const std::vector<core::asset::AssetId> changedMaterials = materials.takeChanged();
     if (!renderer.supportsShaders()) {
         return;
@@ -46,6 +47,7 @@ void ShaderHandles::update(ShaderAssets& shaders, MaterialAssets& materials, con
     for (const core::asset::AssetId id : unloadedMaterials) {
         destroyMaterial(id, renderer);
         std::erase(_waiting, id);
+        _rejected.erase(id);
     }
     for (const core::asset::AssetId id : unloadedShaders) {
         destroyShader(id, renderer);
@@ -60,6 +62,9 @@ void ShaderHandles::update(ShaderAssets& shaders, MaterialAssets& materials, con
         } catch (const std::exception& error) {
             std::cerr << "[ShaderHandles] Shader '" << compiled->name << "': " << error.what() << '\n';
         }
+    }
+    for (const core::asset::AssetId id : reloadedShaders) {
+        replaceShader(id, shaders, renderer);
     }
     for (const core::asset::AssetId id : changedMaterials) {
         if (std::ranges::find(_waiting, id) == _waiting.end()) {
@@ -78,24 +83,56 @@ void ShaderHandles::destroyMaterial(core::asset::AssetId id, contract::renderer:
     }
 }
 
-void ShaderHandles::destroyShader(core::asset::AssetId id, contract::renderer::IRenderer& renderer) {
-    const auto found = _shaders.find(id);
-    if (found == _shaders.end()) {
-        return;
-    }
+void ShaderHandles::requeueMaterials(core::asset::AssetId id, contract::renderer::IRenderer& renderer) {
+    const auto wait = [this](core::asset::AssetId material) {
+        if (std::ranges::find(_waiting, material) == _waiting.end()) {
+            _waiting.push_back(material);
+        }
+    };
     for (auto material = _materials.begin(); material != _materials.end();) {
         if (material->second.shader != id) {
             ++material;
             continue;
         }
         renderer.destroy(material->second.material);
-        if (std::ranges::find(_waiting, material->first) == _waiting.end()) {
-            _waiting.push_back(material->first);
-        }
+        wait(material->first);
         material = _materials.erase(material);
     }
+    for (const auto& [material, shader] : _rejected) {
+        if (shader == id) {
+            wait(material);
+        }
+    }
+}
+
+void ShaderHandles::destroyShader(core::asset::AssetId id, contract::renderer::IRenderer& renderer) {
+    const auto found = _shaders.find(id);
+    if (found == _shaders.end()) {
+        return;
+    }
+    requeueMaterials(id, renderer);
     renderer.destroy(found->second);
     _shaders.erase(found);
+}
+
+void ShaderHandles::replaceShader(core::asset::AssetId id, const ShaderAssets& shaders,
+                                  contract::renderer::IRenderer& renderer) {
+    const contract::renderer::CompiledShader* compiled = shaders.get(id);
+    if (compiled == nullptr) {
+        return;
+    }
+    contract::renderer::ShaderId created;
+    try {
+        created = renderer.createShader(*compiled);
+    } catch (const std::exception& error) {
+        std::cerr << "[ShaderHandles] Shader '" << compiled->name << "': " << error.what() << '\n';
+        return;
+    }
+    requeueMaterials(id, renderer);
+    if (const auto found = _shaders.find(id); found != _shaders.end()) {
+        renderer.destroy(found->second);
+    }
+    _shaders.insert_or_assign(id, created);
 }
 
 bool ShaderHandles::createMaterial(core::asset::AssetId id, const ShaderAssets& shaders,
@@ -105,6 +142,7 @@ bool ShaderHandles::createMaterial(core::asset::AssetId id, const ShaderAssets& 
     if (material == nullptr) {
         return true;
     }
+    _rejected.erase(id);
     const auto shaderId = _shaders.find(material->shader);
     const contract::renderer::CompiledShader* compiled = shaders.get(material->shader);
     if (shaderId == _shaders.end() || compiled == nullptr) {
@@ -139,6 +177,7 @@ bool ShaderHandles::createMaterial(core::asset::AssetId id, const ShaderAssets& 
                                         .instanceDefaults = compiled->instanceDefaults});
     } catch (const std::exception& error) {
         std::cerr << "[ShaderHandles] Material '" << materials.getEntry(id)->path << "': " << error.what() << '\n';
+        _rejected.insert_or_assign(id, material->shader);
     }
     return true;
 }

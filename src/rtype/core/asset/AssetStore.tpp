@@ -25,6 +25,16 @@ template <typename T>
 AssetStore<T>::AssetStore(std::string kind) : _kind{std::move(kind)} {}
 
 template <typename T>
+void AssetStore<T>::setDirectory(std::filesystem::path directory) {
+    _directory = std::move(directory);
+}
+
+template <typename T>
+const std::filesystem::path& AssetStore<T>::getDirectory() const noexcept {
+    return _directory;
+}
+
+template <typename T>
 std::size_t AssetStore<T>::getCount() const noexcept {
     return _entries.size();
 }
@@ -58,7 +68,7 @@ auto AssetStore<T>::load(const std::filesystem::path& path, const Parse& parse) 
     }
     std::string text;
     try {
-        text = readTextFile(path);
+        text = readTextFile(resolveAssetPath(_directory, path));
     } catch (const exceptions::AssetLoadException& error) {
         fail(*id, name, std::format("{} '{}': {}", _kind, name, error.what()));
         return Stored{.id = *id};

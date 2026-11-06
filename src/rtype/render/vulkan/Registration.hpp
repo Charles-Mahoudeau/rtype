@@ -24,8 +24,8 @@ namespace rtype::render::vulkan {
 /// - `synchronizationValidation` (boolean, default true), `bestPractices` (boolean, default false): extra checks of
 ///   VK_LAYER_KHRONOS_validation, ignored when it is not in `layers`;
 /// - `presentMode` ("fifo", "mailbox" or "immediate", default "fifo"; FIFO when the surface does not support it);
-/// - `shaderDirectory` (string, default "shaders"): where the game's SPIR-V shaders are loaded from, relative to the
-///   executable's directory unless absolute.
+/// - `shaderDirectory` (string, default "shaders"): where the built-in SPIR-V shaders are loaded from, relative to the
+///   executable's directory unless absolute. The game's shaders are the shader plugin's (docs/Shaders.md).
 RTYPE_RENDER_VULKAN_API void registerRenderer(contract::renderer::RendererRegistry& registry);
 
 }  // namespace rtype::render::vulkan

@@ -29,6 +29,8 @@
 
 namespace rtype::plugins::sprite {
 
+void AtlasAssets::setDirectory(std::filesystem::path directory) { _atlases.setDirectory(std::move(directory)); }
+
 std::size_t AtlasAssets::getCount() const noexcept { return _atlases.getCount(); }
 
 core::asset::AssetId AtlasAssets::load(const std::filesystem::path& path, const contract::renderer::TextureDesc& desc) {
@@ -57,7 +59,12 @@ core::asset::AssetId AtlasAssets::pack(const std::string& name, std::span<const 
         return core::asset::AssetId::fromPath(path);
     }
     try {
-        detail::PackedImages packed = detail::packImages(images, padding);
+        std::vector<std::filesystem::path> files;
+        files.reserve(images.size());
+        for (const std::filesystem::path& image : images) {
+            files.push_back(core::asset::resolveAssetPath(_atlases.getDirectory(), image));
+        }
+        detail::PackedImages packed = detail::packImages(files, padding);
         contract::renderer::TextureDesc packedDesc = desc;
         packedDesc.size = packed.size;
         SpriteAtlas atlas{path, packedDesc};

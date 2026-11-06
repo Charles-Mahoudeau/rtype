@@ -32,7 +32,10 @@ class ShaderAssets;
 /// creates or updates the materials added or changed once their shader and textures are ready, and destroys what was
 /// unloaded. A material waits (and is drawn with the default material) while its shader is not created or a texture is
 /// still queued; one whose values do not match its shader, or whose texture failed, is reported once and stays so until
-/// it changes again. A texture unloaded while a material uses it must not be drawn: unload the material first.
+/// it changes again, or until its shader is reloaded. A shader reloaded is created again before the old one goes, and
+/// its materials with it, in the same update: drawings never fall back to the default material. If the renderer refuses
+/// the new shader, the old one stays. A texture unloaded while a material uses it must not be drawn: unload the
+/// material first.
 class RTYPE_PLUGIN_SHADER_API ShaderHandles {
   public:
     /// @brief A material created in the renderer.
@@ -65,9 +68,15 @@ class RTYPE_PLUGIN_SHADER_API ShaderHandles {
     /// @brief Destroys the material @p id was created as, if any, and forgets it.
     void destroyMaterial(core::asset::AssetId id, contract::renderer::IRenderer& renderer);
 
-    /// @brief Destroys the shader @p id was created as, and the materials created with it, which wait for a shader of
-    /// this id again.
+    /// @brief Destroys the materials created with the shader @p id, which wait for a shader of this id again, as do the
+    /// ones that were reported as wrong for it.
+    void requeueMaterials(core::asset::AssetId id, contract::renderer::IRenderer& renderer);
+
+    /// @brief Destroys the shader @p id was created as, and requeues its materials.
     void destroyShader(core::asset::AssetId id, contract::renderer::IRenderer& renderer);
+
+    /// @brief Creates the shader @p id again from its new code, then destroys the old one and requeues its materials.
+    void replaceShader(core::asset::AssetId id, const ShaderAssets& shaders, contract::renderer::IRenderer& renderer);
 
     /// @brief Creates or updates the waiting material @p id.
     /// @return Whether it is done waiting: created, updated, unknown, or reported as wrong.
@@ -77,6 +86,7 @@ class RTYPE_PLUGIN_SHADER_API ShaderHandles {
     std::unordered_map<core::asset::AssetId, contract::renderer::ShaderId> _shaders;  ///< Created shaders, by asset.
     std::unordered_map<core::asset::AssetId, Material> _materials;                    ///< Created materials, by asset.
     std::vector<core::asset::AssetId> _waiting;  ///< Materials to create or update, once their shader is ready.
+    std::unordered_map<core::asset::AssetId, core::asset::AssetId> _rejected;  ///< Reported materials: their shader.
 };
 RTYPE_ECS_RESOURCE(ShaderHandles, "rtype.ShaderHandles");
 

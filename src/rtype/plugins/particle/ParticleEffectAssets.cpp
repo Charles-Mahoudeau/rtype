@@ -27,6 +27,10 @@
 
 namespace rtype::plugins::particle {
 
+void ParticleEffectAssets::setDirectory(std::filesystem::path directory) {
+    _effects.setDirectory(std::move(directory));
+}
+
 std::size_t ParticleEffectAssets::getCount() const noexcept { return _effects.getCount(); }
 
 void ParticleEffectAssets::addLoader(std::string extension, std::unique_ptr<IParticleEffectLoader> loader) {

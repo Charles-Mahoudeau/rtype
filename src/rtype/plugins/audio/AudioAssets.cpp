@@ -27,6 +27,10 @@
 
 namespace rtype::plugins::audio {
 
+void AudioAssets::setDirectory(std::filesystem::path directory) { _directory = std::move(directory); }
+
+const std::filesystem::path& AudioAssets::getDirectory() const noexcept { return _directory; }
+
 std::size_t AudioAssets::getCount() const noexcept { return _entries.size(); }
 
 core::asset::AssetId AudioAssets::load(const std::filesystem::path& path,
@@ -115,8 +119,9 @@ void updateSounds(AudioAssets& assets, contract::audiodevice::IAudioDevice& devi
         const AudioAssets::Entry& entry = *assets.get(id);
         try {
             const contract::audiodevice::SoundId sound =
-                entry.encoded.empty() ? device.createSound(std::filesystem::path{entry.path}, entry.desc)
-                                      : device.createSound(entry.encoded, entry.desc);
+                entry.encoded.empty()
+                    ? device.createSound(core::asset::resolveAssetPath(assets.getDirectory(), entry.path), entry.desc)
+                    : device.createSound(entry.encoded, entry.desc);
             assets.setLoaded(id, sound);
         } catch (const std::exception& error) {
             std::cerr << "[AudioAssets] " << error.what() << '\n';

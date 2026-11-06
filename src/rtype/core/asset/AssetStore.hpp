@@ -51,6 +51,13 @@ class AssetStore {
     AssetStore(AssetStore&& other) noexcept = default;
     AssetStore& operator=(AssetStore&& other) noexcept = default;
 
+    /// @brief Sets where load() reads the files; a path that leaves it fails (resolveAssetPath()).
+    /// @param directory The assets' directory; empty: the working directory, unchecked.
+    void setDirectory(std::filesystem::path directory);
+
+    /// @return Where load() reads the files.
+    [[nodiscard]] const std::filesystem::path& getDirectory() const noexcept;
+
     /// @return The number of assets known, read or failed.
     [[nodiscard]] std::size_t getCount() const noexcept;
 
@@ -95,6 +102,7 @@ class AssetStore {
 
   private:
     std::string _kind;                            ///< "Atlas", "Tilemap", "Font"...
+    std::filesystem::path _directory;             ///< Where load() reads the files.
     std::unordered_map<AssetId, Entry> _entries;  ///< Every asset asked for, by id.
 };
 

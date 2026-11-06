@@ -61,6 +61,10 @@ class RTYPE_PLUGIN_SPRITE_API AtlasAssets {
     AtlasAssets(AtlasAssets&& other) noexcept = default;
     AtlasAssets& operator=(AtlasAssets&& other) noexcept = default;
 
+    /// @brief Sets where the files are read; a path that leaves it fails (core::asset::resolveAssetPath()).
+    /// @param directory The assets' directory; empty: the working directory, unchecked.
+    void setDirectory(std::filesystem::path directory);
+
     /// @return The number of atlases known, built or failed.
     [[nodiscard]] std::size_t getCount() const noexcept;
 

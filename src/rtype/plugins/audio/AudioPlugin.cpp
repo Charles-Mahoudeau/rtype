@@ -21,6 +21,7 @@
 
 #include "core/asset/AssetId.hpp"
 #include "core/config/Settings.hpp"
+#include "plugins/AssetDirectory.hpp"
 #include "plugins/audio/AudioAssets.hpp"
 #include "plugins/audio/AudioCalls.hpp"
 #include "plugins/audio/AudioConfig.hpp"
@@ -250,6 +251,7 @@ void AudioPlugin::build(ecs::App& app) {
     resources.insertNonSend(AudioSetup{.registry = std::move(_registry), .settings = std::move(_settings)});
     resources.insertNonSend(Audio{});
     resources.insertIfAbsent<AudioAssets>();
+    resources.getMut<AudioAssets>()->setDirectory(assetDirectoryOf(resources));
     resources.insertIfAbsent<plugins::audio::AudioVolumes>();
     static_cast<void>(app.getWorld().getComponents().registerType<AudioSource>());
     static_cast<void>(app.getWorld().getComponents().registerType<AudioListener>());

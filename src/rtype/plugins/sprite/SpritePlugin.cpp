@@ -12,6 +12,7 @@
 #include <string>
 #include <string_view>
 
+#include "plugins/AssetDirectory.hpp"
 #include "plugins/graphics/TextureAssets.hpp"
 #include "plugins/sprite/AnimationEvents.hpp"
 #include "plugins/sprite/AtlasAssets.hpp"
@@ -98,6 +99,7 @@ std::string_view SpritePlugin::getName() const noexcept { return kName; }
 void SpritePlugin::build(ecs::App& app) {
     ecs::Resources& resources = app.getWorld().getResources();
     resources.insertIfAbsent<AtlasAssets>();
+    resources.getMut<AtlasAssets>()->setDirectory(assetDirectoryOf(resources));
     resources.insertIfAbsent<graphics::TextureAssets>();
     static_cast<void>(app.getWorld().getComponents().registerType<SpriteRenderer>());
     static_cast<void>(app.getWorld().getComponents().registerType<SpriteAnimator>());

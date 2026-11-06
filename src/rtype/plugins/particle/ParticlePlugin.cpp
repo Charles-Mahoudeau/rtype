@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
+#include "plugins/AssetDirectory.hpp"
 #include "plugins/graphics/BackendRegistry.hpp"
 #include "plugins/graphics/GraphicsPlugin.hpp"
 #include "plugins/graphics/GraphicsResources.hpp"  // IWYU pragma: keep
@@ -292,6 +293,7 @@ std::span<const std::string_view> ParticlePlugin::getDependencies() const noexce
 void ParticlePlugin::build(ecs::App& app) {
     ecs::Resources& resources = app.getWorld().getResources();
     resources.insertIfAbsent<ParticleEffectAssets>();
+    resources.getMut<ParticleEffectAssets>()->setDirectory(assetDirectoryOf(resources));
     resources.insertIfAbsent<ParticleSystems>();
     resources.insertIfAbsent<graphics::TextureAssets>();
     resources.insertIfAbsent<graphics::SpriteQueue>();

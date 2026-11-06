@@ -16,6 +16,7 @@
 #include <string_view>
 #include <utility>
 
+#include "plugins/AssetDirectory.hpp"
 #include "plugins/graphics/GraphicsPlugin.hpp"
 #include "plugins/graphics/SpriteQueue.hpp"
 #include "plugins/graphics/TextureAssets.hpp"
@@ -102,6 +103,7 @@ std::span<const std::string_view> TextPlugin::getDependencies() const noexcept {
 void TextPlugin::build(ecs::App& app) {
     ecs::Resources& resources = app.getWorld().getResources();
     resources.insertIfAbsent<FontAssets>();
+    resources.getMut<FontAssets>()->setDirectory(assetDirectoryOf(resources));
     resources.insertIfAbsent<graphics::TextureAssets>();
     resources.insertIfAbsent<graphics::SpriteQueue>();
     static_cast<void>(app.getWorld().getComponents().registerType<TextRenderer>());

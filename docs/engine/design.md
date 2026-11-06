@@ -113,6 +113,21 @@ unknown key is an error, as in `network`. The plugins the program adds in `Engin
 they require need no name. `physicsDebug` draws after the `ShapePlugin`, which it requires, so a client that lists it
 adds the `ShapePlugin` in `addPlugins`.
 
+## Assets
+
+Everything a game loads is in `<game>/assets/`, and every path starts there: `engine.assets.texture("ship.png")` reads
+`<game>/assets/ship.png`, and the same goes for sounds, fonts, tilemaps, atlases, particle effects and shaders. An asset
+is named by this path, the same on every side.
+
+- **The directory is required on a client**, which refuses to start without it, before a window opens. A server can run
+  with `project.luau` and `scripts/` alone.
+- **A game cannot leave it.** `core::asset::resolveAssetPath()` refuses an absolute path, a path that goes above the
+  directory once normalized, and a link that points out of it. The asset is then recorded as failed, like a missing
+  file. A `../` that stays inside is fine: a Tiled map in `levels/` names `../backgrounds/a.png`.
+- **How the plugins know it.** The `Engine` inserts the `AssetDirectory` resource before it builds them, and each one
+  hands it to its asset resource. A program without an `Engine` has none: its paths are relative to the working
+  directory and nothing is checked.
+
 ## Reloading
 
 `Engine::requestReload()` asks `run()` to read the project again and build a new `App` from it. It is groundwork for

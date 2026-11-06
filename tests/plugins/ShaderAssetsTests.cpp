@@ -112,3 +112,65 @@ TEST(ShaderAssets, UnloadForgetsAShaderAndReportsIt) {
     EXPECT_EQ(shaders.takeUnloaded(), (std::vector<AssetId>{id}));
     EXPECT_FALSE(shaders.unload(id));
 }
+
+TEST(ShaderAssets, ReadsARelativePathFromItsDirectory) {
+    const TemporaryFile file{"tint.glsl", kTint};
+    ShaderAssets shaders;
+    shaders.setDirectory(file.getPath().parent_path());
+    const AssetId id = shaders.load("tint.glsl");
+    EXPECT_EQ(id, AssetId::fromPath("tint.glsl"));
+    EXPECT_NE(shaders.get(id), nullptr);
+}
+
+TEST(ShaderAssets, ReloadReplacesAShaderAndKeepsItsId) {
+    const TemporaryFile file{"tint.glsl", kTint};
+    ShaderAssets shaders;
+    const AssetId id = shaders.load(file.getPath());
+    static_cast<void>(shaders.takeAdded());
+    std::ofstream{file.getPath(), std::ios::binary} << "uniform float other;\nvoid fragment() { COLOR.a *= other; }\n";
+    EXPECT_TRUE(shaders.reload(id));
+    EXPECT_TRUE(shaders.reload(id));
+    ASSERT_NE(shaders.get(id), nullptr);
+    EXPECT_EQ(shaders.get(id)->materialValues.front().name, "other");
+    EXPECT_EQ(shaders.takeReloaded(), (std::vector<AssetId>{id}));
+    EXPECT_TRUE(shaders.takeAdded().empty());
+}
+
+TEST(ShaderAssets, ReloadKeepsTheLastVersionWhenTheFileIsBroken) {
+    const TemporaryFile file{"tint.glsl", kTint};
+    ShaderAssets shaders;
+    const AssetId id = shaders.load(file.getPath());
+    std::ofstream{file.getPath(), std::ios::binary} << kBroken;
+    EXPECT_FALSE(shaders.reload(id));
+    ASSERT_NE(shaders.get(id), nullptr);
+    EXPECT_EQ(shaders.get(id)->materialValues.front().name, "tint");
+    EXPECT_TRUE(shaders.takeReloaded().empty());
+}
+
+TEST(ShaderAssets, ReloadGivesAFailedShaderItsFirstVersion) {
+    const TemporaryFile file{"tint.glsl", kBroken};
+    ShaderAssets shaders;
+    const AssetId id = shaders.load(file.getPath());
+    ASSERT_EQ(shaders.get(id), nullptr);
+    std::ofstream{file.getPath(), std::ios::binary} << kTint;
+    EXPECT_TRUE(shaders.reload(id));
+    EXPECT_EQ(shaders.takeAdded(), (std::vector<AssetId>{id}));
+    EXPECT_TRUE(shaders.takeReloaded().empty());
+}
+
+TEST(ShaderAssets, ReloadSkipsAShaderWrittenInCode) {
+    ShaderAssets shaders;
+    const AssetId id = shaders.add("tint", kTint);
+    EXPECT_FALSE(shaders.reload(id));
+    EXPECT_FALSE(shaders.reload(AssetId::fromPath("unknown")));
+}
+
+TEST(ShaderAssets, RefusesAPathThatLeavesItsDirectory) {
+    const TemporaryFile file{"tint.glsl", kTint};
+    ShaderAssets shaders;
+    shaders.setDirectory(file.getPath().parent_path() / "assets");
+    const AssetId id = shaders.load("../tint.glsl");
+    EXPECT_EQ(shaders.get(id), nullptr);
+    ASSERT_NE(shaders.getEntry(id), nullptr);
+    EXPECT_TRUE(shaders.getEntry(id)->error.contains("outside the assets directory"));
+}
