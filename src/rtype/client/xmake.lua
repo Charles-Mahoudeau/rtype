@@ -1,11 +1,10 @@
--- r-type_client: the generic client. It registers the backends (GLFW, Vulkan, miniaudio) and lets the Engine run the
--- game directory; the binary is copied to the repository root after the build, as the subject asks.
+-- r-type_client: the generic client. It lets the Engine run the game directory, which loads the plugins and backends
+-- from their libraries; the binary is copied to the repository root after the build, as the subject asks.
 target("r-type_client")
     set_kind("binary")
-    add_deps("engine", "platform-glfw", "render-vulkan", "audio-miniaudio", "plugin-input", "plugin-graphics",
-             "plugin-shader", "plugin-sprite", "plugin-tilemap", "plugin-text", "plugin-particle", "plugin-audio")
-    -- Not linked: built after the server, so that the two never copy the DLLs they share to the root at once, which
-    -- Windows refuses (rtype.copy_to_root).
-    add_deps("r-type_server")
+    add_deps("engine")
+    -- Built first, not linked: the Engine loads them. The server too, so that the two never copy the DLLs they share to
+    -- the root at once, which Windows refuses (rtype.copy_to_root).
+    add_deps("plugin-libraries", "backend-libraries", "r-type_server", {inherit = false})
     add_files("**.cpp")
     add_rules("rtype.copy_to_root")

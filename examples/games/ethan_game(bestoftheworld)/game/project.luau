@@ -2,6 +2,10 @@ local GAME_WIDTH = 800
 local GAME_HEIGHT = 600
 
 if engine.isClient then
+	engine.settings.plugins = {
+		"rtype.Input", "rtype.graphics", "rtype.Shader", "rtype.Sprite", "rtype.SpriteDraw", "rtype.Tilemap",
+		"rtype.Text", "rtype.Particle", "rtype.audio",
+	}
 	engine.settings.platform = "glfw"
 	engine.settings.renderer = "vulkan"
 

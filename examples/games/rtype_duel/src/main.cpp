@@ -8,7 +8,6 @@
 #include <cstddef>
 #include <exception>
 #include <iostream>
-#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -16,22 +15,8 @@
 #include <vector>
 
 #include "audio/miniaudio/Registration.hpp"
-#include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
-#include "plugins/audio/AudioPlugin.hpp"
-#include "plugins/audio/AudioRegistry.hpp"
-#include "plugins/graphics/BackendRegistry.hpp"
-#include "plugins/graphics/GraphicsPlugin.hpp"
-#include "plugins/input/InputPlugin.hpp"
-#include "plugins/particle/ParticlePlugin.hpp"
-#include "plugins/shader/ShaderPlugin.hpp"
-#include "plugins/shape/ShapePlugin.hpp"
-#include "plugins/sprite/SpriteDrawPlugin.hpp"
-#include "plugins/sprite/SpritePlugin.hpp"
-#include "plugins/text/TextPlugin.hpp"
-#include "plugins/tilemap/TilemapPlugin.hpp"
 #include "render/vulkan/Registration.hpp"
-#include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/engine/Engine.hpp"
 #include "rtype/engine/EngineConfig.hpp"
@@ -60,26 +45,6 @@ namespace {
 
 constexpr std::string_view kGame = "examples/games/rtype_duel/game";  ///< From the repository root, xmake's rundir.
 
-/// @brief Adds the plugins of the client side, with the backends the settings can name: the only place that knows
-/// GLFW, Vulkan and miniaudio.
-void addClientPlugins(rtype::ecs::App& app, const rtype::core::config::Settings& settings) {
-    auto backends = std::make_unique<rtype::plugins::graphics::BackendRegistry>();
-    rtype::platform::glfw::registerPlatform(backends->platforms);
-    rtype::render::vulkan::registerRenderer(backends->renderers);
-    auto audio = std::make_unique<rtype::plugins::audio::AudioRegistry>();
-    rtype::audio::miniaudio::registerAudio(audio->devices);
-    app.addPlugin(rtype::plugins::input::InputPlugin{});
-    app.addPlugin(rtype::plugins::graphics::GraphicsPlugin{std::move(backends), settings});
-    app.addPlugin(rtype::plugins::shader::ShaderPlugin{settings});
-    app.addPlugin(rtype::plugins::sprite::SpritePlugin{});
-    app.addPlugin(rtype::plugins::sprite::SpriteDrawPlugin{});
-    app.addPlugin(rtype::plugins::shape::ShapePlugin{});
-    app.addPlugin(rtype::plugins::tilemap::TilemapPlugin{});
-    app.addPlugin(rtype::plugins::text::TextPlugin{});
-    app.addPlugin(rtype::plugins::particle::ParticlePlugin{});
-    app.addPlugin(rtype::plugins::audio::AudioPlugin{std::move(audio), settings});
-}
-
 /// @return What the Engine runs for @p mode ("server" or "client"), given the flags that follow it.
 rtype::engine::EngineConfig makeConfig(const std::string_view mode, std::vector<std::string> args) {
     if (mode == "server") {
@@ -89,7 +54,6 @@ rtype::engine::EngineConfig makeConfig(const std::string_view mode, std::vector<
         .mode = rtype::ecs::RunMode::kClient,
         .game = kGame,
         .args = std::move(args),
-        .addPlugins = &addClientPlugins,
     };
 }
 
