@@ -20,6 +20,7 @@
 #include "rtype/ecs/call/DynamicCalls.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
+#include "rtype/ecs/event/EventTraits.hpp"
 #include "rtype/ecs/exceptions/CallException.hpp"
 #include "rtype/ecs/exceptions/MissingResourceException.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
@@ -69,6 +70,14 @@ Total readScore(ecs::Res<Score> score) { return Total{.value = score->value}; }
 
 /// @brief Widens the main-thread window by one.
 void widen(ecs::NonSendMut<Window> window) { ++window->width; }
+
+struct Ping {
+    int value{0};
+};
+RTYPE_ECS_EVENT(Ping, "test.calls.Ping", value);
+
+/// @brief Reads the pings still queued and returns how many there are.
+Total countPings(ecs::EventReader<Ping> pings) { return Total{.value = static_cast<int>(pings.size())}; }
 
 /// @brief Spawns an entity with a Marker.
 void spawnMarker(ecs::Commands& commands) { commands.spawn().add(Marker{.value = 7}); }
@@ -169,6 +178,32 @@ TEST_F(CallsTest, InvokesACallWithItsArgumentsAndWritesItsResult) {
     app.getWorld().getCalls().invoke(app.getWorld(), id, arguments, result);
     EXPECT_EQ(app.getWorld().getResources().require<Score>().value, 16);
     EXPECT_EQ(valueOf<Total>(result).value, 16);
+}
+
+TEST_F(CallsTest, ReadsTheQueuedEventsAtEveryStandaloneInvocation) {
+    const CallId id = app.addCall("test.countPings", &rtype::test::calls::countPings);
+    app.getWorld().getEvents().send(rtype::test::calls::Ping{.value = 1});
+    for (int i = 0; i < 2; ++i) {
+        std::array<std::byte, sizeof(Total)> result{};
+        app.getWorld().getCalls().invoke(app.getWorld(), id, {}, result);
+        EXPECT_EQ(valueOf<Total>(result).value, 1);
+    }
+}
+
+TEST_F(CallsTest, SharesTheBodyOfACallListedTwice) {
+    const CallId id = app.addCall("test.countPings", &rtype::test::calls::countPings);
+    app.getWorld().getEvents().send(rtype::test::calls::Ping{.value = 1});
+    int total = 0;
+    ScriptCallable callable{[&total](const DynamicCalls calls) {
+        for (std::size_t i = 0; i < calls.getCount(); ++i) {
+            std::array<std::byte, sizeof(Total)> result{};
+            calls.invoke(i, {}, result);
+            total += valueOf<Total>(result).value;
+        }
+    }};
+    app.addSystem(Phase::kUpdate, "test.useCalls", std::move(callable), CallList{{id, id}});
+    app.runFrame();
+    EXPECT_EQ(total, 1);
 }
 
 TEST_F(CallsTest, AppliesTheCommandsOfACallRightAfterIt) {

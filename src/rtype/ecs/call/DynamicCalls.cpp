@@ -7,6 +7,7 @@
 
 #include "DynamicCalls.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <format>
@@ -24,8 +25,7 @@
 #include "rtype/ecs/world/World.hpp"
 
 namespace rtype::ecs {
-DynamicCalls::DynamicCalls(std::span<const CallInfo* const> infos,
-                           std::span<const std::unique_ptr<detail::CallBody>> bodies,
+DynamicCalls::DynamicCalls(std::span<const CallInfo* const> infos, std::span<detail::CallBody* const> bodies,
                            const SystemContext& context) noexcept
     : _infos{infos}, _bodies{bodies}, _context{context} {}
 
@@ -52,7 +52,13 @@ SystemParam<DynamicCalls>::State SystemParam<DynamicCalls>::init(World& world, C
             throw exceptions::CallException{std::format("A call of the system (id {}) is not registered", id)};
         }
         state.infos.push_back(info);
-        state.bodies.push_back(info->body->bind(world));
+        const auto shared = std::ranges::find(state.infos, info);
+        if (shared != std::prev(state.infos.end())) {
+            state.bodies.push_back(state.bodies.at(static_cast<std::size_t>(shared - state.infos.begin())));
+            continue;
+        }
+        state.owned.push_back(info->body->bind(world));
+        state.bodies.push_back(state.owned.back().get());
     }
     return state;
 }

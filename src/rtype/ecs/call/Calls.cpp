@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <format>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -59,6 +60,8 @@ CallId Calls::add(CallInfo info) {
         throw exceptions::CallException{std::format("Engine call '{}': every id is taken", info.name)};
     }
     info.id = id;
+    info.access = SystemAccess{};  // derived from the body, whatever the caller filled in
+    info.body->addAccess(info.access);
     _calls.push_back(std::move(info));
     _idsByHash.emplace(hash, id);
     return id;
@@ -86,7 +89,9 @@ void Calls::invoke(World& world, const CallId id, const std::span<const std::byt
     checkCallBytes(info, arguments, result);
     Commands commands{world};
     const Tick thisRun = world.getChangeTick();
-    info.body->invoke(
+    // A body of its own for each invocation: the parameters are built as for a first run (an EventReader starts at 0).
+    const std::unique_ptr<detail::CallBody> body = info.body->bind(world);
+    body->invoke(
         SystemContext{.world = &world, .commands = &commands, .lastRun = thisRun - kMaxChangeAge, .thisRun = thisRun},
         arguments, result);
     commands.flush();

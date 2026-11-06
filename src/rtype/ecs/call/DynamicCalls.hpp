@@ -28,10 +28,11 @@ struct CallList {
 /// @brief A system parameter that calls engine calls chosen when the system is added, by id: for the calls a script
 /// names.
 ///
-/// @details Configured with a CallList (see SystemParam): the system gets a body of its own for every call of the list,
-/// and its access set gets what each of them reads and writes, so the scheduler orders it as if it had the calls'
-/// parameters itself; a call that uses a main-thread resource puts the system on the main thread. A call made through
-/// it builds its parameters with the system's run (its ticks and its command buffer).
+/// @details Configured with a CallList (see SystemParam): the system gets a body of its own for every distinct call of
+/// the list (a call listed twice shares it), and its access set gets what each of them reads and writes, so the
+/// scheduler orders it as if it had the calls' parameters itself; a call that uses a main-thread resource puts the
+/// system on the main thread. A call made through it builds its parameters with the system's run (its ticks and its
+/// command buffer).
 /// @code
 /// void run(rtype::ecs::DynamicCalls calls) {
 ///     calls.invoke(0, arguments, result);
@@ -43,7 +44,7 @@ class RTYPE_ECS_API DynamicCalls {
     /// @param infos The calls of the system, in order; they must outlive the view.
     /// @param bodies The system's body of each call, in the same order; they must outlive the view.
     /// @param context The run the calls are made from.
-    DynamicCalls(std::span<const CallInfo* const> infos, std::span<const std::unique_ptr<detail::CallBody>> bodies,
+    DynamicCalls(std::span<const CallInfo* const> infos, std::span<detail::CallBody* const> bodies,
                  const SystemContext& context) noexcept;
 
     ~DynamicCalls() = default;
@@ -67,9 +68,9 @@ class RTYPE_ECS_API DynamicCalls {
     void invoke(std::size_t index, std::span<const std::byte> arguments, std::span<std::byte> result) const;
 
   private:
-    std::span<const CallInfo* const> _infos;                     ///< The system's calls.
-    std::span<const std::unique_ptr<detail::CallBody>> _bodies;  ///< The system's body of each call.
-    SystemContext _context;                                      ///< The run the calls are made from.
+    std::span<const CallInfo* const> _infos;     ///< The system's calls.
+    std::span<detail::CallBody* const> _bodies;  ///< The system's body of each call.
+    SystemContext _context;                      ///< The run the calls are made from.
 };
 
 /// @brief `DynamicCalls`: configured with a CallList; the system keeps a body of each call.
@@ -79,8 +80,9 @@ struct RTYPE_ECS_API SystemParam<DynamicCalls> {
 
     /// @brief The calls and the system's body of each.
     struct State {
-        std::vector<const CallInfo*> infos;                     ///< The calls, in order.
-        std::vector<std::unique_ptr<detail::CallBody>> bodies;  ///< The system's body of each call, in order.
+        std::vector<const CallInfo*> infos;                    ///< The calls, in order.
+        std::vector<std::unique_ptr<detail::CallBody>> owned;  ///< One body per distinct call.
+        std::vector<detail::CallBody*> bodies;  ///< The body of each call, in order; a call listed twice shares one.
     };
 
     /// @return The calls of `config`, each with a body of the system's own.
