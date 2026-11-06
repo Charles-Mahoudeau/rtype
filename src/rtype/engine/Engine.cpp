@@ -163,6 +163,7 @@ void Engine::build() {
     // The old App goes first: its window and its socket must be released before the new one opens them again.
     _app.reset();
     _settings = loadSettings(_gameDirectory, _config.mode, _commandLine);
+    _settings.set(std::string{kGameDirectorySetting}, _gameDirectory.string());
     // Checked before anything is built, so a wrong address fails before a window opens; added last, see the class.
     std::unique_ptr<ecs::Plugin> networkPlugin = makeNetworkPlugin(_config.mode, _settings);
     const GamePlugins gamePlugins = GamePlugins::fromSettings(_settings, _config.mode);
