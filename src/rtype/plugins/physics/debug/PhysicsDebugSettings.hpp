@@ -11,6 +11,7 @@
 #include "rtype/contract/platform/input/Key.hpp"
 #include "rtype/contract/renderer/drawing/Color.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
+#include "rtype/plugins/physics/debug/Export.hpp"
 
 namespace rtype::plugins::physics::debug {
 
@@ -34,7 +35,8 @@ struct PhysicsDebugSettings {
     /// toggle key and the color, keep their default.
     /// @param settings The `physicsDebug` section.
     /// @throws core::config::exceptions::SettingsException If a key is unknown, has the wrong type or an invalid value.
-    [[nodiscard]] static PhysicsDebugSettings fromSettings(const core::config::Settings& settings);
+    [[nodiscard]] RTYPE_PLUGIN_PHYSICS_DEBUG_API static PhysicsDebugSettings fromSettings(
+        const core::config::Settings& settings);
 };
 RTYPE_ECS_RESOURCE(PhysicsDebugSettings, "rtype.PhysicsDebugSettings");
 

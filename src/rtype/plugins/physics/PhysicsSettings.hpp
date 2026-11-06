@@ -12,6 +12,7 @@
 #include <glm/ext/vector_float2.hpp>
 
 #include "core/config/Settings.hpp"
+#include "rtype/plugins/physics/Export.hpp"
 
 namespace rtype::plugins::physics {
 
@@ -37,7 +38,7 @@ struct PhysicsSettings {
     /// @endcode
     /// @param settings The `physics` section.
     /// @throws core::config::exceptions::SettingsException If a key is unknown, has the wrong type or an invalid value.
-    [[nodiscard]] static PhysicsSettings fromSettings(const core::config::Settings& settings);
+    [[nodiscard]] RTYPE_PLUGIN_PHYSICS_API static PhysicsSettings fromSettings(const core::config::Settings& settings);
 };
 
 }  // namespace rtype::plugins::physics
