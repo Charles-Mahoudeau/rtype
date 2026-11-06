@@ -23,9 +23,9 @@ inline constexpr std::string_view kLoadTextureCall = "rtype.backend.loadTexture"
 struct LoadTextureArguments {
     ecs::String path;    ///< The image file.
     bool linear{false};  ///< Smooth sampling instead of sharp pixels.
-    bool repeat{false};  ///< Tiles the texture when a source rectangle goes past its edges.
+    bool wrap{false};  ///< Tiles the texture when a source rectangle goes past its edges (`repeat` is a Luau keyword).
 };
-RTYPE_ECS_CALL_DATA(LoadTextureArguments, "rtype.backend.LoadTextureArguments", path, linear, repeat);
+RTYPE_ECS_CALL_DATA(LoadTextureArguments, "rtype.backend.LoadTextureArguments", path, linear, wrap);
 
 /// @brief The result of `rtype.backend.loadTexture`.
 struct TextureResult {

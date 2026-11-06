@@ -79,10 +79,10 @@ struct AddAnimationArguments {
     std::uint32_t count{0};            ///< How many frames it has; 0: up to the atlas's last frame.
     float frameDuration{0.1F};         ///< Seconds per frame.
     ecs::String direction{"forward"};  ///< "forward", "reverse" or "pingPong".
-    std::uint32_t repeat{0};           ///< How many times it plays; 0: forever.
+    std::uint32_t plays{0};            ///< How many times it plays; 0: forever (`repeat` is a Luau keyword).
 };
 RTYPE_ECS_CALL_DATA(AddAnimationArguments, "rtype.sprite.AddAnimationArguments", atlas, name, first, count,
-                    frameDuration, direction, repeat);
+                    frameDuration, direction, plays);
 
 /// @brief Registers the sprite engine calls on @p app, for scripts: `rtype.sprite.loadAtlas`,
 /// `rtype.sprite.createAtlas`, `rtype.sprite.addFrame` and `rtype.sprite.addAnimation`, each on the

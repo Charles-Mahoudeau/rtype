@@ -21,7 +21,7 @@ TextureResult loadTexture(ecs::ResMut<TextureAssets> textures, const LoadTexture
     const contract::renderer::TextureDesc desc{
         .filter =
             arguments.linear ? contract::renderer::TextureFilter::kLinear : contract::renderer::TextureFilter::kNearest,
-        .repeat = arguments.repeat,
+        .repeat = arguments.wrap,
     };
     return TextureResult{.texture = textures->load(std::filesystem::path{arguments.path.view()}, desc)};
 }

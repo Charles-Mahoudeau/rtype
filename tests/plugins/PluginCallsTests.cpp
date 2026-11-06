@@ -237,7 +237,7 @@ TEST(SpriteCalls, AddFrameAndAddAnimationFillAnAtlas) {
                rtype::plugins::sprite::AddAnimationArguments{
                    .atlas = laser, .name = "both", .count = 2, .frameDuration = 0.08F, .direction = "pingPong"});
     call<void>(app, rtype::plugins::sprite::kAddAnimationCall,
-               rtype::plugins::sprite::AddAnimationArguments{.atlas = laser, .name = "rest", .first = 1, .repeat = 1});
+               rtype::plugins::sprite::AddAnimationArguments{.atlas = laser, .name = "rest", .first = 1, .plays = 1});
     const auto* both = atlasOf(app, laser).findAnimation(rtype::plugins::sprite::animationId("both"));
     ASSERT_NE(both, nullptr);
     EXPECT_EQ(both->frames, (std::vector<std::uint32_t>{0, 1}));
@@ -282,7 +282,7 @@ TEST(TextureCalls, LoadTextureAsksForTheImageWithItsSampling) {
                                                            rtype::test::plugins::makeFakeSettings()});
     const auto loaded = call<rtype::plugins::graphics::TextureResult>(
         app, rtype::plugins::graphics::kLoadTextureCall,
-        rtype::plugins::graphics::LoadTextureArguments{.path = "planet.png", .linear = true, .repeat = true});
+        rtype::plugins::graphics::LoadTextureArguments{.path = "planet.png", .linear = true, .wrap = true});
 
     EXPECT_EQ(loaded.texture, AssetId::fromPath("planet.png"));
     const auto* entry =

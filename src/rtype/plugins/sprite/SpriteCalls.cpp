@@ -107,7 +107,7 @@ void addAnimation(ecs::ResMut<AtlasAssets> atlases, const AddAnimationArguments&
         frames.push_back(arguments.first + index);
     }
     atlas.addAnimation(std::string{arguments.name.view()}, std::move(frames), arguments.frameDuration,
-                       requireDirection(arguments.direction), arguments.repeat);
+                       requireDirection(arguments.direction), arguments.plays);
 }
 }  // namespace
 
