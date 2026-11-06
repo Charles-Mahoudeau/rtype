@@ -9,19 +9,19 @@
 
 #include <limits>
 
-#include "plugins/backend/exceptions/ParticleExceptions.hpp"
-#include "plugins/backend/graphics/ParticleCurve.hpp"
-#include "plugins/backend/graphics/ParticleSystemDesc.hpp"
+#include "rtype/contract/renderer/exceptions/ParticleExceptions.hpp"
+#include "rtype/contract/renderer/particle/ParticleCurve.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 
 namespace {
-using rtype::plugins::backend::exceptions::ParticleException;
-using rtype::plugins::backend::graphics::CircleShape;
-using rtype::plugins::backend::graphics::Curve;
-using rtype::plugins::backend::graphics::ParticleBurst;
-using rtype::plugins::backend::graphics::ParticleSystemDesc;
-using rtype::plugins::backend::graphics::Range;
-using rtype::plugins::backend::graphics::RectShape;
-using rtype::plugins::backend::graphics::validate;
+using rtype::contract::renderer::CircleShape;
+using rtype::contract::renderer::Curve;
+using rtype::contract::renderer::ParticleBurst;
+using rtype::contract::renderer::ParticleSystemDesc;
+using rtype::contract::renderer::Range;
+using rtype::contract::renderer::RectShape;
+using rtype::contract::renderer::validate;
+using rtype::contract::renderer::exceptions::ParticleException;
 
 constexpr float kNaN = std::numeric_limits<float>::quiet_NaN();
 constexpr float kInfinity = std::numeric_limits<float>::infinity();

@@ -11,7 +11,7 @@
 #include <cmath>
 #include <cstdint>
 
-#include "plugins/backend/graphics/BlendMode.hpp"
+#include "rtype/contract/renderer/drawing/BlendMode.hpp"
 
 namespace rtype::render::vulkan::rendering {
 
@@ -20,7 +20,7 @@ namespace {
 constexpr float kMaxDistanceRange = 65535.0F;
 }  // namespace
 
-std::uint32_t toShaderMsdf(plugins::backend::graphics::BlendMode mode, float distanceRange) noexcept {
+std::uint32_t toShaderMsdf(contract::renderer::BlendMode mode, float distanceRange) noexcept {
     const float units = std::clamp(distanceRange * kDistanceRangeUnit, 0.0F, kMaxDistanceRange);
     return toShaderBlend(mode) | (static_cast<std::uint32_t>(std::lround(units)) << kDistanceRangeShift);
 }

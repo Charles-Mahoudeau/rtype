@@ -15,19 +15,19 @@
 #include <string_view>
 #include <vulkan/vulkan_raii.hpp>
 
-#include "plugins/backend/graphics/Shader.hpp"
 #include "render/vulkan/core/Device.hpp"
 #include "render/vulkan/pipeline/GraphicsPipeline.hpp"
 #include "render/vulkan/pipeline/PipelineLayout.hpp"
 #include "render/vulkan/pipeline/Spirv.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::render::vulkan::material {
 
 namespace {
 
 /// @brief What a target is called in the name of its pipeline, in ShaderTarget order.
-constexpr std::array<std::string_view, plugins::backend::graphics::kShaderTargetCount> kTargetNames{
-    "sprite", "glyph", "particle", "shape"};
+constexpr std::array<std::string_view, contract::renderer::kShaderTargetCount> kTargetNames{"sprite", "glyph",
+                                                                                            "particle", "shape"};
 
 /// @return A module named @p name for @p spirv, checked first.
 vk::raii::ShaderModule createModule(const core::Device& device, std::span<const std::uint32_t> spirv,
@@ -40,21 +40,21 @@ vk::raii::ShaderModule createModule(const core::Device& device, std::span<const 
 
 }  // namespace
 
-GameShader::GameShader(const core::Device& device, const plugins::backend::graphics::CompiledShader& shader)
+GameShader::GameShader(const core::Device& device, const contract::renderer::CompiledShader& shader)
     : _name{shader.name}, _materialSize{shader.materialSize}, _instanceValues{!shader.instanceValues.empty()} {
-    plugins::backend::graphics::validate(shader);
-    for (const plugins::backend::graphics::ShaderVariant& variant : shader.variants) {
+    contract::renderer::validate(shader);
+    for (const contract::renderer::ShaderVariant& variant : shader.variants) {
         Variant& created = _variants.at(static_cast<std::size_t>(variant.target));
         created.vertex = createModule(device, variant.vertex, std::format("{} (vertex)", shader.name));
         created.fragment = createModule(device, variant.fragment, std::format("{} (fragment)", shader.name));
     }
 }
 
-bool GameShader::serves(plugins::backend::graphics::ShaderTarget target) const noexcept {
+bool GameShader::serves(contract::renderer::ShaderTarget target) const noexcept {
     return *_variants.at(static_cast<std::size_t>(target)).vertex != nullptr;
 }
 
-const pipeline::GraphicsPipeline* GameShader::getPipeline(plugins::backend::graphics::ShaderTarget target,
+const pipeline::GraphicsPipeline* GameShader::getPipeline(contract::renderer::ShaderTarget target,
                                                           const core::Device& device,
                                                           const pipeline::PipelineLayout& layout,
                                                           vk::Format colorFormat, const vk::raii::PipelineCache* cache,

@@ -12,6 +12,7 @@
 
 #include "core/config/Settings.hpp"
 #include "plugins/audio/AudioVolumes.hpp"
+#include "plugins/audio/Export.hpp"
 
 namespace rtype::plugins::audio {
 /// @brief The settings every audio backend shares, read from the `audio` section of the config (fromSettings()). Each
@@ -25,7 +26,7 @@ namespace rtype::plugins::audio {
 ///     panDistance = 400,
 /// },
 /// @endcode
-struct AudioConfig {
+struct RTYPE_PLUGIN_AUDIO_API AudioConfig {
     std::string backend;          ///< The registered backend to create ("miniaudio", "null"...); empty if not chosen.
     bool required{false};         ///< If the device cannot open: false falls back to "null", true throws.
     std::uint32_t maxVoices{64};  ///< Voices playing at once; beyond that the backend steals one, or plays nothing.

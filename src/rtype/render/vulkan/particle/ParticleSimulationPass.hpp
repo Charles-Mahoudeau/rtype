@@ -11,13 +11,13 @@
 #include <vulkan/vulkan_raii.hpp>
 
 #include "GpuParticleSystem.hpp"
-#include "plugins/backend/graphics/Particle.hpp"
 #include "render/vulkan/Export.hpp"
 #include "render/vulkan/core/Device.hpp"
 #include "render/vulkan/descriptor/DescriptorSetLayout.hpp"
 #include "render/vulkan/pipeline/ComputePipeline.hpp"
 #include "render/vulkan/pipeline/PipelineLayout.hpp"
 #include "render/vulkan/pipeline/ShaderCache.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
 
 namespace rtype::render::vulkan::particle {
 
@@ -40,8 +40,8 @@ class RTYPE_RENDER_VULKAN_API ParticleSimulationPass {
   public:
     /// @brief One system to simulate this frame, with its emission.
     struct Job {
-        GpuParticleSystem* system = nullptr;                    ///< Not owned.
-        plugins::backend::graphics::ParticleEmission emission;  ///< What it emits and how far it moves.
+        GpuParticleSystem* system = nullptr;            ///< Not owned.
+        contract::renderer::ParticleEmission emission;  ///< What it emits and how far it moves.
     };
 
     /// @param shaders Gives the built-in particle compute shaders.

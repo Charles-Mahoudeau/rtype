@@ -18,10 +18,8 @@
 #include "FakeBackend.hpp"
 #include "TestImages.hpp"
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/BackendPlugin.hpp"
-#include "plugins/backend/graphics/BlendMode.hpp"
-#include "plugins/backend/graphics/Particle.hpp"
-#include "plugins/backend/graphics/TextureAssets.hpp"
+#include "plugins/graphics/GraphicsPlugin.hpp"
+#include "plugins/graphics/TextureAssets.hpp"
 #include "plugins/particle/CpuSimulation.hpp"
 #include "plugins/particle/ParticleEffect.hpp"
 #include "plugins/particle/ParticleEffectAssets.hpp"
@@ -33,6 +31,8 @@
 #include "plugins/shader/MaterialInstance.hpp"
 #include "plugins/shader/ShaderAssets.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "rtype/contract/renderer/drawing/BlendMode.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/event/EventCursor.hpp"
@@ -40,11 +40,11 @@
 #include "rtype/ecs/time/TimePlugin.hpp"
 #include "rtype/ecs/world/World.hpp"
 
+using rtype::contract::renderer::ParticleDraw;
+using rtype::contract::renderer::ParticleInstance;
+using rtype::contract::renderer::ParticleSimulation;
+using rtype::contract::renderer::ParticleSystemId;
 using rtype::core::asset::AssetId;
-using rtype::plugins::backend::graphics::ParticleDraw;
-using rtype::plugins::backend::graphics::ParticleInstance;
-using rtype::plugins::backend::graphics::ParticleSimulation;
-using rtype::plugins::backend::graphics::ParticleSystemId;
 using rtype::plugins::particle::ParticleEffect;
 using rtype::plugins::particle::ParticleEffectAssets;
 using rtype::plugins::particle::ParticleEmitter;
@@ -55,7 +55,7 @@ using rtype::plugins::particle::SpawnParticles;
 using rtype::plugins::transform::Transform;
 
 namespace {
-/// @brief An App with the BackendPlugin over the fake backend, 0.1 second per frame, the texture spark.png loaded and
+/// @brief An App with the GraphicsPlugin over the fake backend, 0.1 second per frame, the texture spark.png loaded and
 /// the effects "burst" (one burst of 8 particles living 0.25 seconds, once) and "stream" (10 particles per second,
 /// looping).
 class ParticleApp {
@@ -63,10 +63,10 @@ class ParticleApp {
     explicit ParticleApp(bool gpuParticles = false)
         : _state{std::make_shared<rtype::test::plugins::FakeBackendState>()}, _app{rtype::ecs::RunMode::kClient} {
         _state->gpuParticles = gpuParticles;
-        _app.addPlugin(rtype::plugins::backend::BackendPlugin{rtype::test::plugins::makeFakeRegistry(_state),
-                                                              rtype::test::plugins::makeFakeSettings()});
+        rtype::test::plugins::addDrawingPlugins(_app, rtype::test::plugins::makeFakeRegistry(_state),
+                                                rtype::test::plugins::makeFakeSettings());
         _app.addPlugin(rtype::ecs::TimePlugin::manual(std::chrono::milliseconds{100}));
-        _texture = world().getResources().getMut<rtype::plugins::backend::TextureAssets>()->load(
+        _texture = world().getResources().getMut<rtype::plugins::graphics::TextureAssets>()->load(
             "spark.png", rtype::test::plugins::twoPixelPng());
 
         ParticleEffect burst;
@@ -146,7 +146,7 @@ TEST(ParticlePlugin, DrawsAnEmitterWithItsMaterialAndInstanceValues) {
     static_cast<void>(app.drawFrame());
     const std::vector<ParticleDraw> draws = app.drawFrame();
     ASSERT_EQ(draws.size(), 1U);
-    EXPECT_NE(draws.at(0).material, rtype::plugins::backend::graphics::MaterialId{});
+    EXPECT_NE(draws.at(0).material, rtype::contract::renderer::MaterialId{});
     EXPECT_FLOAT_EQ(draws.at(0).instanceValues[0].x, 0.75F);
 }
 
@@ -160,7 +160,7 @@ TEST(ParticlePlugin, DrawsAnEmitterWithItsEffectsMaterialAndTheShadersDefaults) 
     static_cast<void>(app.drawFrame());
     const std::vector<ParticleDraw> draws = app.drawFrame();
     ASSERT_EQ(draws.size(), 1U);
-    EXPECT_NE(draws.at(0).material, rtype::plugins::backend::graphics::MaterialId{});
+    EXPECT_NE(draws.at(0).material, rtype::contract::renderer::MaterialId{});
     EXPECT_FLOAT_EQ(draws.at(0).instanceValues[0].x, 0.25F);
 }
 
@@ -170,10 +170,10 @@ TEST(ParticlePlugin, DrawsAnEmitterWithTheDefaultMaterialUntilItsIsCreated) {
     static_cast<void>(app.drawFrame());
     const std::vector<ParticleDraw> draws = app.drawFrame();
     ASSERT_EQ(draws.size(), 1U);
-    EXPECT_EQ(draws.at(0).material, rtype::plugins::backend::graphics::MaterialId{});
+    EXPECT_EQ(draws.at(0).material, rtype::contract::renderer::MaterialId{});
 }
 
-TEST(ParticlePlugin, ComesWithTheBackendPlugin) {
+TEST(ParticlePlugin, ComesWithTheGraphicsPlugin) {
     ParticleApp app;
     EXPECT_TRUE(app.app().hasPlugin(rtype::plugins::particle::ParticlePlugin::kName));
     EXPECT_TRUE(app.world().getResources().has<ParticleEffectAssets>());
@@ -196,8 +196,8 @@ TEST(ParticlePlugin, DrawsACpuEmitterAtItsLayer) {
 TEST(ParticlePlugin, DrawsWithTheLookOfTheEffect) {
     ParticleApp app;
     ParticleEffect sparks = *app.effects().get(app.stream());
-    sparks.blend = rtype::plugins::backend::graphics::BlendMode::kAlpha;
-    sparks.alignment = rtype::plugins::backend::graphics::ParticleAlignment::kVelocity;
+    sparks.blend = rtype::contract::renderer::BlendMode::kAlpha;
+    sparks.alignment = rtype::contract::renderer::ParticleAlignment::kVelocity;
     sparks.stretch = 0.1F;
     sparks.flipbook = {.columns = 4, .rows = 2, .cycles = 2.0F};
     const AssetId id = app.effects().add("sparks", std::move(sparks));
@@ -205,11 +205,11 @@ TEST(ParticlePlugin, DrawsWithTheLookOfTheEffect) {
     static_cast<void>(app.drawFrame());
     const auto draws = app.drawFrame();
     ASSERT_EQ(draws.size(), 1U);
-    EXPECT_EQ(draws.at(0).blend, rtype::plugins::backend::graphics::BlendMode::kAlpha);
-    EXPECT_EQ(draws.at(0).alignment, rtype::plugins::backend::graphics::ParticleAlignment::kVelocity);
+    EXPECT_EQ(draws.at(0).blend, rtype::contract::renderer::BlendMode::kAlpha);
+    EXPECT_EQ(draws.at(0).alignment, rtype::contract::renderer::ParticleAlignment::kVelocity);
     EXPECT_FLOAT_EQ(draws.at(0).stretch, 0.1F);
     EXPECT_EQ(draws.at(0).flipbook,
-              (rtype::plugins::backend::graphics::ParticleFlipbook{.columns = 4, .rows = 2, .cycles = 2.0F}));
+              (rtype::contract::renderer::ParticleFlipbook{.columns = 4, .rows = 2, .cycles = 2.0F}));
 }
 
 TEST(ParticlePlugin, EmitsTheRateOverTheFrames) {
@@ -320,7 +320,7 @@ TEST(ParticlePlugin, RunsOnTheGpuWhenTheRendererCan) {
 TEST(ParticlePlugin, SortsAlphaEffectsByAge) {
     ParticleApp app{true};
     ParticleEffect smoke = *app.effects().get(app.stream());
-    smoke.blend = rtype::plugins::backend::graphics::BlendMode::kAlpha;
+    smoke.blend = rtype::contract::renderer::BlendMode::kAlpha;
     const AssetId id = app.effects().add("smoke", std::move(smoke));
     static_cast<void>(app.spawnEmitter(ParticleEmitter{.effect = app.stream()}));
     static_cast<void>(app.spawnEmitter(ParticleEmitter{.effect = id}));

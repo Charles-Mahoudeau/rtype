@@ -66,8 +66,8 @@ rule_end()
 target("render-vulkan")
     set_kind("shared")
     set_basename("rtype-render-vulkan")
-    -- plugins for IRenderer (plugins/backend), interop-vulkan for IVulkanSurfaceSource (implemented by the platforms).
-    add_deps("core", "plugins", "interop-vulkan")
+    -- contract-renderer for IRenderer, interop-vulkan for IVulkanSurfaceSource (implemented by the platforms).
+    add_deps("core", "contract-renderer", "interop-vulkan")
     add_packages("vulkan-headers", "vulkan-memory-allocator", "vulkan-memory-allocator-hpp", "glm", "stb", "imgui")
     add_packages("vulkan-headers", {public = true})
     -- vk::raii::Context takes the linked vkGetInstanceProcAddr instead of dlopen()-ing its own loader. Public: it
@@ -99,9 +99,9 @@ target("render-vulkan")
     add_includedirs("../..", {public = true})
 
     add_rules("glsl.spirv")
-    -- The built-in draw shaders are the default shader: they include the shaders ABI of the backend
+    -- The built-in draw shaders are the default shader: they include the shaders ABI of the renderer
     -- contract, which game shaders are assembled in too.
-    set_values("glsl.includedirs", path.join(os.scriptdir(), "..", "..", "plugins", "backend", "graphics", "shaders"))
+    set_values("glsl.includedirs", path.join(os.scriptdir(), "..", "..", "contract", "renderer", "shaders"))
     if not is_plat("macosx") then
         add_packages("glslang")
     end

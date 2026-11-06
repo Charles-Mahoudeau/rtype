@@ -7,7 +7,7 @@ the CPU when the renderer cannot simulate it, so every backend can show every ef
 
 > Status: **design agreed, nothing implemented yet.** Snippets omit the Epitech header and most `[[nodiscard]]`/
 > `noexcept` for brevity. Names are relative to `rtype::plugins::particle` unless qualified; `graphics::` is
-> `rtype::plugins::backend::graphics`. Decisions and what is still open are in [Open questions](#14-open-questions).
+> `rtype::contract::renderer`. Decisions and what is still open are in [Open questions](#14-open-questions).
 
 ## Contents
 
@@ -71,7 +71,7 @@ The renderer never includes the ECS, so something must turn entities, transforms
 `IRenderer`: that is the plugin, as `TextPlugin` is for `IRenderer::draw(Text)`.
 
 ```
-src/rtype/plugins/backend/graphics/   namespace rtype::plugins::backend::graphics   (target plugins)
+src/rtype/contract/renderer/   namespace rtype::contract::renderer   (target contract-renderer)
 ├── Particle.hpp                      ParticleSystemId, ParticleSimulation, ParticleInstance, ParticleEmission,
 │                                     ParticleDraw
 ├── ParticleSystemDesc.hpp            the simulation half of an effect: shape, spawn, initial values, forces, curves
@@ -102,10 +102,10 @@ src/rtype/render/vulkan/particle/     namespace rtype::render::vulkan::particle 
 └── shaders: particle_emit.comp, particle_simulate.comp
 ```
 
-- **The contract types go in `plugins/backend/graphics/`,** next to `Sprite` and `Text`, never in `render/vulkan/`:
+- **The contract types go in `contract/renderer/`,** next to `Sprite` and `Text`, never in `render/vulkan/`:
   gameplay must not depend on Vulkan, and another backend must be able to implement them.
-- **`ParticlePlugin` is added by the `BackendPlugin`,** as the sprite, tilemap and text plugins are. Its client Render
-  system is ordered after `rtype.backend.camera` and before `rtype.backend.sprites`.
+- **`ParticlePlugin` is added by the game,** as the sprite, tilemap and text plugins are, and requires `GraphicsPlugin` and `ShaderPlugin`. Its client Render
+  system is ordered after `rtype.graphics.camera` and before `rtype.graphics.sprites`.
 - **Dependencies do not change:** `plugins` still knows nothing of Vulkan or Luau, `render-vulkan` still knows nothing
   of the ECS.
 
@@ -234,8 +234,8 @@ struct ParticleInstance {
   bursts, duration, play/stop), which gameplay controls: it stays on the CPU, in the plugin, so both paths spawn the same
   number of particles at the same frames.
 - **`draw(ParticleDraw)` goes through the `SpriteQueue`,** whose `Item` becomes `std::variant<Sprite, Text,
-  ParticleDraw>`. The backend plugin sorts it by layer with the sprites, so particles are drawn between the right
-  sprites. For CPU instances, the span must stay valid until `rtype.backend.sprites` has drawn the queue, in the same
+  ParticleDraw>`. The graphics plugin sorts it by layer with the sprites, so particles are drawn between the right
+  sprites. For CPU instances, the span must stay valid until `rtype.graphics.sprites` has drawn the queue, in the same
   frame: it points into the emitter's pool, which nothing changes between the plugin's Render system and that one. The
   renderer copies the instances in `draw()`, as it copies sprites.
 
@@ -298,8 +298,8 @@ struct ParticleOneShot {};
     - `PostUpdate` `rtype.Particle.Update`, after the transform plugin: start and sweep emitters (an emitter whose
       effect changed restarts), advance their clocks, compute each one's spawn count (`computeSpawnCount()`), run the
       CPU simulation of the CPU emitters, and send `ParticlesFinished`.
-    - `Render` `rtype.Particle.Draw`, after `rtype.backend.camera` and `rtype.Text.Draw`, before
-      `rtype.backend.sprites`: call `simulate()` for each GPU emitter, and push a `ParticleDraw` per emitter whose
+    - `Render` `rtype.Particle.Draw`, after `rtype.graphics.camera` and `rtype.Text.Draw`, before
+      `rtype.graphics.sprites`: call `simulate()` for each GPU emitter, and push a `ParticleDraw` per emitter whose
       texture is loaded to the `SpriteQueue`. Skipping the emitters outside the `VisibleArea` comes later.
 
 ## 8. The CPU simulation
@@ -444,7 +444,7 @@ Until then, effects are built in C++ with `ParticleEffectAssets::add()`.
 
 Each step builds and is tested on its own, in this order:
 
-1. **The contract and the CPU simulation:** the types of `plugins/backend/graphics/` (`Particle.hpp`,
+1. **The contract and the CPU simulation:** the types of `contract/renderer/` (`Particle.hpp`,
    `ParticleSystemDesc`, `ParticleCurve`, `ParticleRandom`), the `IRenderer` calls with their defaults, and
    `plugins/particle/` with `CpuSimulation`, `ParticleEffectAssets`, `ParticleEmitter`, `ParticleSystems` and the
    events, unit-tested (`tests/plugins/`). Effects in C++.
@@ -472,7 +472,7 @@ Settled:
 
 1. **Simulation on the GPU, in the renderer,** behind `IRenderer`; the plugin only links it to the world.
 2. **A thin plugin, `plugins/particle/`,** rather than putting the emitter in `backend/graphics/` and its systems in the
-   `BackendPlugin`.
+   `GraphicsPlugin`.
 3. **A CPU path, chosen per effect or emitter, and the fallback** of an effect that asks for the GPU on a renderer that
    cannot simulate it.
 4. **Effects in C++ first,** Luau later through a loader registered from outside `plugins`; the plugin is designed so

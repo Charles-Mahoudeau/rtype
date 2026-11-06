@@ -18,8 +18,8 @@
 
 #include "core/asset/AssetFiles.hpp"
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/shader/detail/ShaderCompiler.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::plugins::shader {
 
@@ -42,7 +42,7 @@ core::asset::AssetId ShaderAssets::add(const std::string& name, std::string_view
         return core::asset::AssetId::fromPath(normalized);
     }
     try {
-        backend::graphics::CompiledShader compiled = detail::compileShader(source, normalized);
+        contract::renderer::CompiledShader compiled = detail::compileShader(source, normalized);
         static_cast<void>(_shaders.store(*id, std::move(normalized), std::move(compiled)));
         _added.push_back(*id);
     } catch (const std::exception& error) {
@@ -51,7 +51,7 @@ core::asset::AssetId ShaderAssets::add(const std::string& name, std::string_view
     return *id;
 }
 
-const backend::graphics::CompiledShader* ShaderAssets::get(core::asset::AssetId id) const { return _shaders.get(id); }
+const contract::renderer::CompiledShader* ShaderAssets::get(core::asset::AssetId id) const { return _shaders.get(id); }
 
 const ShaderAssets::Entry* ShaderAssets::getEntry(core::asset::AssetId id) const { return _shaders.getEntry(id); }
 

@@ -16,28 +16,28 @@
 #include "FakeBackend.hpp"
 #include "TestImages.hpp"
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/BackendPlugin.hpp"
-#include "plugins/backend/graphics/SpriteRenderer.hpp"
-#include "plugins/backend/graphics/Text.hpp"
-#include "plugins/backend/graphics/TextureAssets.hpp"
-#include "plugins/backend/math/Rect.hpp"
+#include "plugins/graphics/GraphicsPlugin.hpp"
+#include "plugins/graphics/TextureAssets.hpp"
 #include "plugins/shader/MaterialAssets.hpp"
 #include "plugins/shader/MaterialInstance.hpp"
 #include "plugins/shader/ShaderAssets.hpp"
+#include "plugins/sprite/SpriteRenderer.hpp"
 #include "plugins/text/Font.hpp"
 #include "plugins/text/FontAssets.hpp"
 #include "plugins/text/TextLayout.hpp"
 #include "plugins/text/TextPlugin.hpp"
 #include "plugins/text/TextRenderer.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "rtype/contract/renderer/drawing/Text.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/time/TimePlugin.hpp"
 #include "rtype/ecs/world/World.hpp"
 
+using rtype::contract::renderer::math::Rect;
 using rtype::core::asset::AssetId;
-using rtype::plugins::backend::math::Rect;
 using rtype::plugins::text::Font;
 using rtype::plugins::text::FontAssets;
 using rtype::plugins::text::Glyph;
@@ -45,15 +45,15 @@ using rtype::plugins::text::TextRenderer;
 using rtype::plugins::transform::Transform;
 
 namespace {
-/// @brief An App with the BackendPlugin over the fake backend, and the font "ui": an 'A' one em high and half an em
+/// @brief An App with the GraphicsPlugin over the fake backend, and the font "ui": an 'A' one em high and half an em
 /// wide, the baseline one em down, lines 1.5 ems apart, its atlas font.png (2x1 pixels) loaded.
 class TextApp {
   public:
     TextApp() : _state{std::make_shared<rtype::test::plugins::FakeBackendState>()}, _app{rtype::ecs::RunMode::kClient} {
-        _app.addPlugin(rtype::plugins::backend::BackendPlugin{rtype::test::plugins::makeFakeRegistry(_state),
-                                                              rtype::test::plugins::makeFakeSettings()});
+        rtype::test::plugins::addDrawingPlugins(_app, rtype::test::plugins::makeFakeRegistry(_state),
+                                                rtype::test::plugins::makeFakeSettings());
         _app.addPlugin(rtype::ecs::TimePlugin::manual(std::chrono::seconds{1}));
-        static_cast<void>(world().getResources().getMut<rtype::plugins::backend::TextureAssets>()->load(
+        static_cast<void>(world().getResources().getMut<rtype::plugins::graphics::TextureAssets>()->load(
             "font.png", rtype::test::plugins::twoPixelPng()));
         Font font{"font.png", {}, 3.0F, Font::Metrics{.lineHeight = 1.5F, .ascender = -1.0F, .descender = 0.5F}};
         font.addGlyph(U'A', Glyph{.advance = 0.5F,
@@ -81,7 +81,7 @@ class TextApp {
     }
 
     /// @return The texts drawn by one more frame.
-    std::vector<rtype::plugins::backend::graphics::Text> drawFrame() {
+    std::vector<rtype::contract::renderer::Text> drawFrame() {
         _state->texts.clear();
         _state->drawOrder.clear();
         _app.runFrame();
@@ -95,7 +95,7 @@ class TextApp {
 };
 }  // namespace
 
-TEST(TextPlugin, ComesWithTheBackendPlugin) {
+TEST(TextPlugin, ComesWithTheGraphicsPlugin) {
     TextApp app;
     EXPECT_TRUE(app.app().hasPlugin(rtype::plugins::text::TextPlugin::kName));
     EXPECT_TRUE(app.world().getResources().has<FontAssets>());
@@ -109,7 +109,7 @@ TEST(TextPlugin, DrawsATextAtItsEntity) {
         TextRenderer{.text = "AA", .font = app.font(), .size = 10.0F, .color = {1.0F, 0.0F, 0.0F, 1.0F}}));
     const auto texts = app.drawFrame();
     ASSERT_EQ(texts.size(), 1U);
-    const rtype::plugins::backend::graphics::Text& text = texts.at(0);
+    const rtype::contract::renderer::Text& text = texts.at(0);
     EXPECT_EQ(text.position, (glm::vec2{100.0F, 50.0F}));
     EXPECT_EQ(text.glyphs.size(), 2U);
     EXPECT_FLOAT_EQ(text.glyphs.at(1).bounds.getX(), 5.0F);
@@ -129,12 +129,12 @@ TEST(TextPlugin, DrawsATextWithItsMaterialAndInstanceValues) {
         world.getResources().getMut<rtype::plugins::shader::MaterialAssets>()->add("hit", {.shader = shader});
     const rtype::ecs::Entity entity =
         app.spawnText({0.0F, 0.0F}, TextRenderer{.text = "A", .font = app.font(), .material = material});
-    const rtype::plugins::backend::graphics::CompiledShader& compiled = *shaders.get(shader);
+    const rtype::contract::renderer::CompiledShader& compiled = *shaders.get(shader);
     world.getComponents().add(entity,
                               rtype::plugins::shader::MaterialInstance::of(compiled).set(compiled, "flash", 0.75F));
     const auto texts = app.drawFrame();
     ASSERT_EQ(texts.size(), 1U);
-    EXPECT_NE(texts.at(0).material, rtype::plugins::backend::graphics::MaterialId{});
+    EXPECT_NE(texts.at(0).material, rtype::contract::renderer::MaterialId{});
     EXPECT_FLOAT_EQ(texts.at(0).instanceValues[0].x, 0.75F);
 }
 
@@ -145,7 +145,7 @@ TEST(TextPlugin, DrawsATextWithTheDefaultMaterialUntilItsIsCreated) {
         TextRenderer{.text = "A", .font = app.font(), .material = rtype::core::asset::AssetId::fromPath("hit")}));
     const auto texts = app.drawFrame();
     ASSERT_EQ(texts.size(), 1U);
-    EXPECT_EQ(texts.at(0).material, rtype::plugins::backend::graphics::MaterialId{});
+    EXPECT_EQ(texts.at(0).material, rtype::contract::renderer::MaterialId{});
 }
 
 TEST(TextPlugin, PivotsATextOnItsAnchor) {
@@ -170,7 +170,7 @@ TEST(TextPlugin, SortsTheTextsWithTheSpritesByLayer) {
     const rtype::ecs::Entity ship = app.world().spawn();
     app.world().getComponents().add(ship, Transform{});
     app.world().getComponents().add(
-        ship, rtype::plugins::backend::SpriteRenderer{.texture = AssetId::fromPath("font.png"), .layer = 5});
+        ship, rtype::plugins::sprite::SpriteRenderer{.texture = AssetId::fromPath("font.png"), .layer = 5});
     static_cast<void>(app.drawFrame());
     EXPECT_EQ(app.state().drawOrder, (std::vector<char>{'s', 't'}));  // The text, layer 10, on top.
 }

@@ -22,7 +22,7 @@ namespace rtype::plugins::sprite {
 /// @code
 /// commands.spawn()
 ///     .add(rtype::plugins::transform::Transform{.position = {100.0F, 300.0F}})
-///     .add(rtype::plugins::backend::SpriteRenderer{.layer = 5})
+///     .add(rtype::plugins::sprite::SpriteRenderer{.layer = 5})
 ///     .add(rtype::plugins::sprite::SpriteAnimator{.atlas = atlases->load("assets/ship.json"),
 ///                                                 .animation = rtype::plugins::sprite::animationId("idle")});
 /// @endcode

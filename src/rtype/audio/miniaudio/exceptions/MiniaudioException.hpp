@@ -12,12 +12,14 @@
 #include <stdexcept>
 #include <string>
 
+#include "rtype/audio/miniaudio/Export.hpp"
+
 namespace rtype::audio::miniaudio::exceptions {
 /// @brief Exception thrown when a miniaudio call fails: the device cannot open, a sound cannot be decoded...
 /// @details Its message is the given description, followed by miniaudio's description of the result and its code, e.g.
 /// "Failed to initialize the engine: No backend (code -203)". The AudioRegistry turns it into a fallback to
 /// the "null" backend when the device cannot open.
-class MiniaudioException : public std::runtime_error {
+class RTYPE_AUDIO_MINIAUDIO_API MiniaudioException : public std::runtime_error {
   public:
     /// @param message Description of the failed operation.
     /// @param result What the failing miniaudio call returned.

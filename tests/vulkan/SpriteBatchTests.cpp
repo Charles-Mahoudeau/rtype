@@ -13,36 +13,36 @@
 #include <glm/ext/vector_uint2.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
-#include "plugins/backend/graphics/BlendMode.hpp"
-#include "plugins/backend/graphics/Shader.hpp"
-#include "plugins/backend/graphics/Sprite.hpp"
-#include "plugins/backend/graphics/Text.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
-#include "plugins/backend/math/Rect.hpp"
 #include "render/vulkan/rendering/Blend.hpp"
 #include "render/vulkan/rendering/SpriteBatch.hpp"
+#include "rtype/contract/renderer/drawing/BlendMode.hpp"
+#include "rtype/contract/renderer/drawing/Sprite.hpp"
+#include "rtype/contract/renderer/drawing/Text.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace {
 using rtype::render::vulkan::rendering::SpriteBatch;
 using rtype::render::vulkan::rendering::SpriteInstance;
-using TextureId = rtype::plugins::backend::graphics::TextureId;
+using TextureId = rtype::contract::renderer::TextureId;
 
 constexpr TextureId kShips{.index = 0, .generation = 1};
 constexpr TextureId kEnemies{.index = 1, .generation = 1};
 }  // namespace
 
 TEST(SpriteInstance, TakesItsUvRectFromTheSourceAndTheTextureSize) {
-    const rtype::plugins::backend::graphics::Sprite sprite{
-        .texture = kShips, .source = rtype::plugins::backend::math::Rect{{32.0F, 0.0F}, {32.0F, 16.0F}}};
+    const rtype::contract::renderer::Sprite sprite{
+        .texture = kShips, .source = rtype::contract::renderer::math::Rect{{32.0F, 0.0F}, {32.0F, 16.0F}}};
     const SpriteInstance instance = SpriteInstance::fromSprite(sprite, {128, 64});
     EXPECT_EQ(instance.uvRect, (glm::vec4{0.25F, 0.0F, 0.5F, 0.25F}));
     EXPECT_EQ(instance.size, (glm::vec2{32.0F, 16.0F}));
 }
 
 TEST(SpriteInstance, ScalesItsSizeAndOrigin) {
-    const rtype::plugins::backend::graphics::Sprite sprite{
+    const rtype::contract::renderer::Sprite sprite{
         .texture = kShips,
-        .source = rtype::plugins::backend::math::Rect{{0.0F, 0.0F}, {10.0F, 20.0F}},
+        .source = rtype::contract::renderer::math::Rect{{0.0F, 0.0F}, {10.0F, 20.0F}},
         .position = {5.0F, 6.0F},
         .scale = {2.0F, -1.0F},
         .origin = {5.0F, 10.0F},
@@ -74,8 +74,8 @@ TEST(SpriteInstance, DescribesOnePerInstanceVertex) {
 }
 
 TEST(SpriteInstance, CarriesItsBlendModeAsTheShadersReadIt) {
-    using rtype::plugins::backend::graphics::BlendMode;
-    using rtype::plugins::backend::graphics::Sprite;
+    using rtype::contract::renderer::BlendMode;
+    using rtype::contract::renderer::Sprite;
     EXPECT_EQ(SpriteInstance::fromSprite(Sprite{}, {1, 1}).blend, rtype::render::vulkan::rendering::kBlendAlpha);
     EXPECT_EQ(SpriteInstance::fromSprite(Sprite{.blend = BlendMode::kAdditive}, {1, 1}).blend,
               rtype::render::vulkan::rendering::kBlendAdditive);
@@ -147,15 +147,15 @@ TEST(SpriteBatch, ClearForgetsASplit) {
 }
 
 TEST(SpriteInstance, PlacesAGlyphAroundTheOriginOfItsText) {
-    const rtype::plugins::backend::graphics::GlyphQuad glyph{
-        .source = rtype::plugins::backend::math::Rect{{16.0F, 0.0F}, {16.0F, 32.0F}},
-        .bounds = rtype::plugins::backend::math::Rect{{10.0F, 4.0F}, {8.0F, 16.0F}}};
-    const rtype::plugins::backend::graphics::Text text{.texture = kShips,
-                                                       .position = {100.0F, 50.0F},
-                                                       .scale = {2.0F, 2.0F},
-                                                       .origin = {5.0F, 5.0F},
-                                                       .rotation = 0.25F,
-                                                       .color = {0.0F, 1.0F, 0.0F, 1.0F}};
+    const rtype::contract::renderer::GlyphQuad glyph{
+        .source = rtype::contract::renderer::math::Rect{{16.0F, 0.0F}, {16.0F, 32.0F}},
+        .bounds = rtype::contract::renderer::math::Rect{{10.0F, 4.0F}, {8.0F, 16.0F}}};
+    const rtype::contract::renderer::Text text{.texture = kShips,
+                                               .position = {100.0F, 50.0F},
+                                               .scale = {2.0F, 2.0F},
+                                               .origin = {5.0F, 5.0F},
+                                               .rotation = 0.25F,
+                                               .color = {0.0F, 1.0F, 0.0F, 1.0F}};
     const SpriteInstance instance = SpriteInstance::fromGlyph(text, glyph, {64, 32});
     EXPECT_EQ(instance.position, (glm::vec2{100.0F, 50.0F}));
     EXPECT_EQ(instance.size, (glm::vec2{16.0F, 32.0F}));
@@ -171,22 +171,22 @@ TEST(SpriteInstance, PacksTheBlendModeAndTheDistanceRangeOfAGlyph) {
     using rtype::render::vulkan::rendering::kBlendMask;
     using rtype::render::vulkan::rendering::kDistanceRangeShift;
     using rtype::render::vulkan::rendering::toShaderMsdf;
-    const std::uint32_t packed = toShaderMsdf(rtype::plugins::backend::graphics::BlendMode::kAdditive, 4.5F);
+    const std::uint32_t packed = toShaderMsdf(rtype::contract::renderer::BlendMode::kAdditive, 4.5F);
     EXPECT_EQ(packed & kBlendMask, kBlendAdditive);
     EXPECT_EQ(packed >> kDistanceRangeShift, 4U * 256U + 128U);  // 4.5 pixels, in 1/256 of a pixel.
-    EXPECT_EQ(toShaderMsdf(rtype::plugins::backend::graphics::BlendMode::kAlpha, 1000.0F) >> kDistanceRangeShift,
+    EXPECT_EQ(toShaderMsdf(rtype::contract::renderer::BlendMode::kAlpha, 1000.0F) >> kDistanceRangeShift,
               0xFFFFU);  // Clamped.
 }
 
 TEST(SpriteInstance, CarriesNoDistanceRangeForASprite) {
     const SpriteInstance instance =
-        SpriteInstance::fromSprite(rtype::plugins::backend::graphics::Sprite{.texture = kShips}, {1, 1});
+        SpriteInstance::fromSprite(rtype::contract::renderer::Sprite{.texture = kShips}, {1, 1});
     EXPECT_EQ(instance.blend >> rtype::render::vulkan::rendering::kDistanceRangeShift, 0U);
 }
 
 namespace {
-using MaterialId = rtype::plugins::backend::graphics::MaterialId;
-using ShaderInstanceValues = rtype::plugins::backend::graphics::ShaderInstanceValues;
+using MaterialId = rtype::contract::renderer::MaterialId;
+using ShaderInstanceValues = rtype::contract::renderer::ShaderInstanceValues;
 
 constexpr MaterialId kGlow{.index = 0, .generation = 1};
 constexpr MaterialId kFlash{.index = 1, .generation = 1};
@@ -232,7 +232,7 @@ TEST(SpriteBatch, TakesTheDefaultMaterialWithoutValues) {
 }
 
 TEST(SpriteBatch, KeepsTheValuesOfEachGlyphOfAMaterial) {
-    using rtype::plugins::backend::graphics::ShaderTarget;
+    using rtype::contract::renderer::ShaderTarget;
     constexpr MaterialId kMaterial{1};
     SpriteBatch batch;
     batch.addGlyph(kShips, MaterialId{}, {}, {});
@@ -246,7 +246,7 @@ TEST(SpriteBatch, KeepsTheValuesOfEachGlyphOfAMaterial) {
 }
 
 TEST(SpriteBatch, NeverMergesGlyphsWithSpritesOfTheirTexture) {
-    using rtype::plugins::backend::graphics::ShaderTarget;
+    using rtype::contract::renderer::ShaderTarget;
     SpriteBatch batch;
     batch.add(kShips, {});
     batch.addGlyph(kShips, MaterialId{}, {}, {});

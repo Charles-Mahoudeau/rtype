@@ -8,7 +8,7 @@
 #pragma once
 
 #include "plugins/GlmReflection.hpp"  // IWYU pragma: keep
-#include "plugins/backend/graphics/Color.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 
 namespace rtype::plugins::physics::debug {
@@ -25,9 +25,9 @@ namespace rtype::plugins::physics::debug {
 ///     .add(rtype::plugins::physics::debug::PhysicsDebug{});
 /// @endcode
 struct PhysicsDebug {
-    bool shape = true;                                       ///< Draws the Collider's outline.
-    bool velocity = true;                                    ///< Draws the Velocity as an arrow.
-    backend::graphics::Color color{0.2F, 1.0F, 0.4F, 1.0F};  ///< The outline's and arrow's colour.
+    bool shape = true;                                        ///< Draws the Collider's outline.
+    bool velocity = true;                                     ///< Draws the Velocity as an arrow.
+    contract::renderer::Color color{0.2F, 1.0F, 0.4F, 1.0F};  ///< The outline's and arrow's colour.
 };
 RTYPE_ECS_COMPONENT(PhysicsDebug, "rtype.PhysicsDebug", shape, velocity, color);
 

@@ -9,6 +9,7 @@
 
 #include <string_view>
 
+#include "plugins/input/Export.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -20,8 +21,8 @@ namespace rtype::plugins::input {
 ///
 /// @details Inserts Input, registers the PlatformEvent ECS event and adds a PreUpdate client system,
 /// "rtype.Input.Update", that feeds the frame's platform events to Input, in the order they happened, then calls
-/// Input::update(). The events come from the BackendPlugin, which adds this plugin and runs before it; the InputPlugin
-/// never talks to a window and knows nothing of the backend plugin, so it also runs with events sent by hand (tests,
+/// Input::update(). The events come from the GraphicsPlugin, which adds this plugin and runs before it; the InputPlugin
+/// never talks to a window and knows nothing of the graphics plugin, so it also runs with events sent by hand (tests,
 /// replays). Actions are declared on the resource, then read by the gameplay systems:
 /// @code
 /// app.addPlugin(rtype::plugins::input::InputPlugin{});
@@ -32,7 +33,7 @@ namespace rtype::plugins::input {
 ///     if (input->getAction("fire").isPressed()) { ... }
 /// }
 /// @endcode
-class InputPlugin : public ecs::Plugin {
+class RTYPE_PLUGIN_INPUT_API InputPlugin : public ecs::Plugin {
   public:
     static constexpr std::string_view kName = "rtype.Input";  ///< The plugin's name.
     /// @brief The PreUpdate system feeding the platform's events to Input. Producers of those events order their

@@ -9,12 +9,12 @@
 
 #include "Components.hpp"
 #include "Resources.hpp"
-#include "plugins/backend/BackendResources.hpp"
-#include "plugins/backend/graphics/SpriteRenderer.hpp"
+#include "plugins/graphics/GraphicsResources.hpp"
 #include "plugins/physics/Collider.hpp"
 #include "plugins/sprite/AnimationEvents.hpp"
 #include "plugins/sprite/AtlasAssets.hpp"
 #include "plugins/sprite/SpriteAnimator.hpp"
+#include "plugins/sprite/SpriteRenderer.hpp"
 #include "plugins/transform/Transform.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/query/Query.hpp"
@@ -31,8 +31,8 @@ void loadAtlases(rtype::ecs::ResMut<rtype::plugins::sprite::AtlasAssets> atlases
 
 /// @brief Update: gives the ships and lasers the server created a Transform, a sprite and an animation.
 void dressEntities(rtype::ecs::Commands& commands, rtype::ecs::Res<GameAtlases> game,
-                   rtype::ecs::Query<const Ship, rtype::ecs::Without<rtype::plugins::backend::SpriteRenderer>> ships,
-                   rtype::ecs::Query<const Laser, rtype::ecs::Without<rtype::plugins::backend::SpriteRenderer>> lasers);
+                   rtype::ecs::Query<const Ship, rtype::ecs::Without<rtype::plugins::sprite::SpriteRenderer>> ships,
+                   rtype::ecs::Query<const Laser, rtype::ecs::Without<rtype::plugins::sprite::SpriteRenderer>> lasers);
 
 /// @brief Update: places the obstacles the server created, which the physics debug view and drawObstacles() read.
 void placeObstacles(
@@ -40,7 +40,7 @@ void placeObstacles(
     rtype::ecs::Query<const Obstacle, rtype::ecs::Without<rtype::plugins::transform::Transform>> obstacles);
 
 /// @brief Render, after the sprites: draws each obstacle as its collider's shape, filled.
-void drawObstacles(rtype::ecs::NonSendMut<rtype::plugins::backend::Backend> backend,
+void drawObstacles(rtype::ecs::NonSendMut<rtype::plugins::graphics::Backend> backend,
                    rtype::ecs::Query<const rtype::plugins::physics::Collider,
                                      const rtype::plugins::transform::GlobalTransform, rtype::ecs::With<Obstacle>>
                        obstacles);
@@ -55,7 +55,7 @@ void followLasers(rtype::ecs::Query<rtype::plugins::transform::Transform, const 
 /// an explosion where it was.
 void explodeLoser(rtype::ecs::Commands& commands, rtype::ecs::Res<GameAtlases> game,
                   rtype::ecs::Query<const Winner, rtype::ecs::Added<Winner>> winners,
-                  rtype::ecs::Query<const Ship, rtype::plugins::backend::SpriteRenderer> ships);
+                  rtype::ecs::Query<const Ship, rtype::plugins::sprite::SpriteRenderer> ships);
 
 /// @brief Update: removes the explosions whose animation ended.
 void removeExplosions(

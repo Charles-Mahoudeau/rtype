@@ -11,16 +11,16 @@
 #include <glm/ext/vector_float4.hpp>
 #include <glm/ext/vector_uint2.hpp>
 
-#include "plugins/backend/graphics/BlendMode.hpp"
-#include "plugins/backend/graphics/Particle.hpp"
-#include "plugins/backend/math/Rect.hpp"
 #include "render/vulkan/rendering/Blend.hpp"
 #include "render/vulkan/rendering/ParticleConstants.hpp"
+#include "rtype/contract/renderer/drawing/BlendMode.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
 
-using rtype::plugins::backend::graphics::BlendMode;
-using rtype::plugins::backend::graphics::ParticleAlignment;
-using rtype::plugins::backend::graphics::ParticleDraw;
-using rtype::plugins::backend::math::Rect;
+using rtype::contract::renderer::BlendMode;
+using rtype::contract::renderer::ParticleAlignment;
+using rtype::contract::renderer::ParticleDraw;
+using rtype::contract::renderer::math::Rect;
 using rtype::render::vulkan::rendering::ParticleConstants;
 
 TEST(ParticleConstants, AnEmptySourceShowsTheWholeTexture) {

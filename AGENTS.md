@@ -23,6 +23,8 @@ are added.
       `hashInteger`), the same in every compiler and process.
     - `core/config/` (`rtype::core::config`) — `Settings`: the flat configuration every plugin and backend reads
       its own section of, and its `SettingsException` (`config/exceptions/`).
+    - `core/system/` (`rtype::core::system`) — `CacheDirectory.hpp`, `ExecutablePath.hpp`: where the system keeps a
+      user's cache and the running executable.
 - `src/rtype/ecs/` — `ecs` target, shared library (`rtype-ecs`): the Entity Component System and,
   later, the App and its plugins (`rtype::ecs`). Design in `docs/ecs/design.md`. It depends on `core` only.
   Exported classes and functions are marked `RTYPE_ECS_API`, and the library keeps no
@@ -53,96 +55,106 @@ are added.
   `packet/`, `exceptions/`.
 - `src/rtype/engine/` — `engine` target, shared library (`rtype-engine`): `Engine` runs a game directory (`game/` by
   default, `--game <dir>`): it reads its `project.luau` through Luau (`scripting/SettingsLoader`, which also exposes
-  the command line as `engine.args`), builds the `App` with the engine's plugins (backend, audio, replication,
+  the command line as `engine.args`), builds the `App` with the program's plugins, `EngineConfig::addPlugins`, and the engine's (transform, replication,
   scripting, server or client) in a fixed order, calls the game's native `EngineConfig::setup`, runs it, and builds it
-  again on `requestReload()`. `EngineConfig` holds the mode, the command line and the functions that fill the backend
-  and audio registries; `CommandLine` parses the `--name value` flags. Exported symbols are marked `RTYPE_ENGINE_API`.
+  again on `requestReload()`. `EngineConfig` holds the mode, the command line and these functions; `CommandLine` parses the `--name value` flags. Exported symbols are marked `RTYPE_ENGINE_API`.
   Design in `docs/engine/design.md`.
 - `src/rtype/client/`, `src/rtype/server/` — the generic executables `r-type_client` and `r-type_server`: a `main` that
-  registers the backends (client only) and runs an `Engine` on `game/`. The build copies them to the repository root
+  lists its plugins and backends (client only) and runs an `Engine` on `game/`. The build copies them to the repository root
   (rule `rtype.copy_to_root`). Games whose gameplay is still C++ (`rtype_duel`, `ethan_game(bestoftheworld)`) keep
   their own `main` and give it to the `Engine` as `EngineConfig::setup`.
-- `src/rtype/plugins/` — `plugins` target, static library (`rtype-plugins`): the engine, as ECS plugins, one folder
-  per plugin, included as `plugins/<name>/<File>.hpp`, namespace `rtype::plugins::<name>`. Each plugin keeps its own
-  code and declares its own components, resources and events (`RTYPE_ECS_*`). `Export.hpp` holds
-  `RTYPE_PLUGINS_API`, which keeps the RTTI of the backend interfaces visible across binaries.
-    - `plugins/backend/` (`rtype::plugins::backend`) — the contracts the backends implement and the vocabulary they
-      speak, in sub-folders whose namespaces follow them: `platform/` (`IPlatform`, `WindowConfig`), `graphics/`
-      (`IRenderer`, `Sprite`, `Text` (a laid-out text: MSDF glyphs), `Texture`, `View`, `Shader` (`CompiledShader`,
-      the plain data of a game shader) and `shaders/` (the shaders ABI: the GLSL every shader is assembled in and the
-      backends' built-in shaders include)..., the `Camera` (projection and
-      priority, placed by its entity's `Transform`) and `SpriteRenderer` components, `CameraView` (what a `View`
-      shows: letterboxed viewport, view-projection, screen and world conversions), and the `TextureAssets` resource:
-      the textures by `AssetId`, queued by `load()` and decoded with stb by the backend plugin, the `SpriteQueue`
-      resource (sprites and texts that are not sprite entities, drawn with them) and the `VisibleArea` resource (what
-      the frame shows)),
-      `event/` (the `Event` variant), `input/` (`Key`, `MouseButton`...), `exceptions/`, `math/`, `system/`; plus
-      `BackendRegistry` and `BackendPlugin`, which starts the platform and the renderer from a registry the executable
-      fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the window events and the
-      PreUpdate / Render systems that poll the window, frame the drawing and draw the sprites by layer.
+- `src/rtype/contract/` — the contracts, one shared library per interface (`contract-platform`, `contract-renderer`,
+  `contract-audiodevice`, `rtype-contract-<name>`): what the implementations fulfil and the plugins use, with the
+  vocabulary they speak, included as `rtype/contract/<name>/<File>.hpp`, namespace `rtype::contract::<name>`, exported
+  symbols marked `RTYPE_CONTRACT_<NAME>_API`. A contract knows no ECS and no plugin; the ECS declarations of its types
+  live in the plugin that uses them, reopening its namespace. See `docs/Plugins.md` and `docs/Backend.md`.
+    - `contract/platform/` — `IPlatform`, `PlatformRegistry` (platforms by name), `WindowConfig`, `event/` (the `Event` variant), `input/` (`Key`,
+      `MouseButton`...), `exceptions/`.
+    - `contract/renderer/` — `IRenderer` and `RendererRegistry` (renderers by name), then one folder per
+      theme. Exception to the namespace rule, as in `ecs`: these folders stay in the flat
+      `rtype::contract::renderer` (`rtype/contract/renderer/drawing/Sprite.hpp` declares
+      `rtype::contract::renderer::Sprite`); only `math/` and `exceptions/` get a sub-namespace.
+        - `drawing/` — `Sprite`, `Shape`, `Text` (a laid-out text: MSDF glyphs), `Texture`, `Color`, `BlendMode`.
+        - `view/` — `View` and `CameraView` (what a `View` shows: letterboxed viewport, view-projection, screen and
+          world conversions).
+        - `particle/` — the particle types: `Particle`, `ParticleSystemDesc`, `ParticleCurve`, `ParticleRandom`.
+        - `shaders/` — `CompiledShader` (the plain data of a game shader, with `MaterialDesc`) and the shaders ABI: the
+          GLSL every shader is assembled in and the backends' built-in shaders include.
+        - `math/`, `exceptions/`.
+    - `contract/audiodevice/` — `IAudioDevice`, `AudioTypes`, `AudioDeviceRegistry` (devices by name) and `exceptions/`.
+- `src/rtype/plugins/` — the engine, as ECS plugins: one shared library per plugin (`plugin-<name>`,
+  `rtype-plugin-<name>`), one folder each, included as `plugins/<name>/<File>.hpp`, namespace `rtype::plugins::<name>`,
+  exported symbols marked `RTYPE_PLUGIN_<NAME>_API`. Each plugin keeps its own code and declares its own components,
+  resources and events (`RTYPE_ECS_*`). A plugin names what it requires in `getDependencies()`; the program adds it
+  first, and no plugin adds another one. See `docs/Plugins.md`.
+    - `plugins/graphics/` (`rtype::plugins::graphics`) — `GraphicsPlugin`: starts the platform and the renderer from a
+      `BackendRegistry` the executable fills (so it depends on no backend), with the `rtype.Backend` main-thread resource, the
+      window events and the PreUpdate / Render systems that poll the window, frame the drawing and draw the `SpriteQueue`
+      by layer. Also the `Camera` component (projection and priority, placed by its entity's `Transform`), the
+      `TextureAssets` resource (the textures by `AssetId`, queued by `load()` and decoded with stb), the `SpriteQueue`
+      resource (what the frame draws) and the `VisibleArea` resource (what the frame shows). It requires the
+      `InputPlugin` and the `TransformPlugin`.
     - `plugins/input/` (`rtype::plugins::input`) — `InputPlugin`: `Control`, `Input`, `InputAction`, `ButtonStates`,
       the `rtype.Input` resource, fed by a `PreUpdate` system from the `PlatformEvent`s in order, and the typed input
-      events (`InputEvents.hpp`) for gameplay code. It knows nothing of the backend plugin, which adds it.
+      events (`InputEvents.hpp`) for gameplay code. It knows nothing of the graphics plugin, which requires it.
     - `plugins/transform/` (`rtype::plugins::transform`) — `TransformPlugin`: the `Transform` component gameplay writes,
       relative to the entity's parent, and the `GlobalTransform` rendering reads, computed from it in `PostUpdate` on
       every side. `TransformMath.hpp` (`combine`, `toLocal`), `WorldPoses` (world poses for what runs before `PostUpdate`,
-      such as the physics) and `Reparent.hpp` (`detachInPlace`, `attachInPlace`). The backend plugin adds
-      it and draws each `SpriteRenderer` at its `GlobalTransform`.
+      such as the physics) and `Reparent.hpp` (`detachInPlace`, `attachInPlace`). The `Engine` adds it, and the plugins that use it
+      require it.
     - `plugins/physics/` (`rtype::plugins::physics`) — `PhysicsPlugin`: 2D physics on Jolt (`Collider`, `RigidBody`,
       `Velocity`, the `PhysicsWorld` resource, collision events, scene queries, `moveAndSlide`), simulated on the server
-      side, with query-only bodies on clients. Jolt is a private package of `plugins`: only `.cpp` files and `detail/`
-      include it. The debug view is in `physics/debug/` (`rtype::plugins::physics::debug`). Design in
+      side, with query-only bodies on clients. Jolt is a private package: only `.cpp` files and `detail/` include it.
+      The debug view is in `physics/debug/` (`rtype::plugins::physics::debug`), its own library `plugin-physics-debug`. Design in
       `docs/physics/design.md`.
-    - `plugins/audio/` (`rtype::plugins::audio`) — `AudioPlugin`: the `IAudioDevice` contract audio backends implement,
-      `AudioRegistry` (backends by name, `"null"` always registered, filled by the executable as the backend registry
-      is), the `AudioAssets` resource (sounds by `AssetId`, opened and decoded by the device), `AudioVolumes`, the
-      `AudioSource` and `AudioListener` components and the `PlaySound` / `PlayMusic` / `StopMusic` events, played by
-      client-side PostUpdate systems. Design in `docs/audio/design.md`.
-    - `plugins/sprite/` (`rtype::plugins::sprite`) — `SpritePlugin`: sprite atlases and animations. `SpriteAtlas`
+    - `plugins/audio/` (`rtype::plugins::audio`) — `AudioPlugin`: `AudioRegistry` (starts the device the settings name,
+      `"null"` always registered, as `NullAudioDevice`), `AudioConfig`, `AudioVolumes`, the `AudioAssets` resource (sounds by `AssetId`, opened
+      and decoded by the device), the `AudioSource` and `AudioListener` components and the `PlaySound` / `PlayMusic` /
+      `StopMusic` events, played by client-side PostUpdate systems. `AudioReflection.hpp` reflects the contract's `Bus`. Design in `docs/audio/design.md`.
+    - `plugins/sprite/` (`rtype::plugins::sprite`) — `SpritePlugin`: the `SpriteRenderer` component, sprite atlases and
+      animations; it requires no plugin, so a server adds it alone. `SpriteDrawPlugin` pushes the sprite entities to the
+      `SpriteQueue` on a client. `SpriteAtlas`
       (named frames and `SpriteAnimation`s, built by `grid()` or in code), the `AtlasAssets` resource (atlases by
       `AssetId`: Aseprite / TexturePacker JSON files read with nlohmann_json, or images packed at load time with
       stb_rect_pack), the `SpriteAnimator` component and the `AnimationFinished` event. A PostUpdate system on every
       side plays the animators into their `SpriteRenderer`, and a client one hands the atlases' textures to
-      `TextureAssets`. nlohmann_json is a private package of `plugins`: only `sprite/detail/` includes it. The backend
-      plugin adds it. See `docs/Sprites.md`.
+      `TextureAssets`. nlohmann_json is a private package: only `sprite/detail/` includes it. See `docs/Sprites.md`.
     - `plugins/tilemap/` (`rtype::plugins::tilemap`) — `TilemapPlugin`: levels made in Tiled and parallax backgrounds.
       `Tilemap` (tilesets, tile layers stored in 16x16 chunks, image layers), the `TilemapAssets` resource (maps by
       `AssetId`, Tiled `.tmj` files and external `.tsj` tilesets read with nlohmann_json in `tilemap/detail/`),
       `spawnTilemap()` (one `TilemapLayer` entity per layer) and the `Parallax` component. A client Render system moves
-      the `Parallax` entities before the camera, and another pushes the visible chunks' tiles to the backend's
-      `SpriteQueue`.
-      The backend plugin adds it; its Render systems are ordered against the backend plugin's. See `docs/Tilemap.md`.
+      the `Parallax` entities before the camera, and another pushes the visible chunks' tiles to the
+      `SpriteQueue`. It requires the graphics plugin. See `docs/Tilemap.md`.
     - `plugins/text/` (`rtype::plugins::text`) — `TextPlugin`: text from MSDF font atlases made offline by
       msdf-atlas-gen (`assets/fonts/`). `Font` (glyph metrics and kerning), the `FontAssets` resource (fonts by
       `AssetId`, msdf-atlas-gen JSON read with nlohmann_json in `text/detail/`, with the UTF-8 decoder),
       `layoutText()` /
       `measureText()` (`TextLayout.hpp`) and the `TextRenderer` component. A client Render system lays out each text and
-      pushes it to the backend's `SpriteQueue` as a `graphics::Text`, drawn by `IRenderer::draw(Text)` (Vulkan batches
-      its glyphs in the sprites' order, read by the default shader's glyph variant, `glyph.frag`). The backend plugin adds it, after the
-      tilemap plugin. See `docs/Text.md`.
+      pushes it to the `SpriteQueue` as a `contract::renderer::Text`, drawn by `IRenderer::draw(Text)` (Vulkan batches
+      its glyphs in the sprites' order, read by the default shader's glyph variant, `glyph.frag`). It requires the graphics and shader plugins. See `docs/Text.md`.
     - `plugins/shader/` (`rtype::plugins::shader`) — `ShaderPlugin`: game shaders and materials. `ShaderAssets` (shaders
       by `AssetId`, written in the engine's GLSL dialect), `MaterialAssets` (`Material`: a shader and its values),
       the `MaterialInstance` component (an entity's own `instance uniform` values) and `ShaderHandles`, which keeps the
-      renderer up to date. `detail/` holds the parser, the assembler and the compiler. glslang is a private package of
-      `plugins`: only `shader/detail/ShaderCompiler.cpp` includes it. The backend plugin adds it. See `docs/Shaders.md`.
+      renderer up to date. `detail/` holds the parser, the assembler and the compiler. glslang is a private package: only
+      `shader/detail/ShaderCompiler.cpp` includes it. It requires the graphics plugin. See `docs/Shaders.md`.
     - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
     - `plugins/AssetIdReflection.hpp` — lets components reflect `core::asset::AssetId` fields (`kAssetId`).
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
   `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
   (`IVulkanSurfaceSource`). See `docs/Backend.md`.
 - `src/rtype/platform/<library>/` — one target per windowing backend, named `platform-<library>`.
-    - `platform/glfw/` — `platform-glfw` target, static library (`rtype-platform-glfw`): `GlfwPlatform`,
+    - `platform/glfw/` — `platform-glfw` target, shared library (`rtype-platform-glfw`): `GlfwPlatform`,
       the GLFW implementation of `IPlatform` and `IVulkanSurfaceSource` (`rtype::platform::glfw`,
       exceptions in `platform/glfw/exceptions/`), registered as `"glfw"` by `registerPlatform()`
       (`Registration.hpp`). The only module that includes GLFW: it translates every GLFW callback and the
-      gamepad state into `rtype::plugins::backend::Event`s.
-- `src/rtype/render/<api>/` — one target per renderer, named `render-<api>`.
+      gamepad state into `rtype::contract::platform::Event`s.
+- `src/rtype/render/<api>/` — one target per renderer, named `render-<api>`, implementing `contract-renderer`.
     - `render/vulkan/` — `render-vulkan` target, shared library (`rtype-render-vulkan`): `VulkanRenderer`,
       the Vulkan implementation of `IRenderer` (`rtype::render::vulkan`), registered as `"vulkan"` by
       `registerRenderer()` (`Registration.hpp`). Shaders go in `shaders/` and are compiled to SPIR-V by
       the `glsl.spirv` rule defined in its `xmake.lua`.
 - `src/rtype/audio/<library>/` — one target per audio backend, named `audio-<library>`.
-    - `audio/miniaudio/` — `audio-miniaudio` target, static library (`rtype-audio-miniaudio`): `MiniaudioDevice`,
+    - `audio/miniaudio/` — `audio-miniaudio` target, shared library (`rtype-audio-miniaudio`): `MiniaudioDevice`,
       the miniaudio implementation of `IAudioDevice` (`rtype::audio::miniaudio`), configured by `MiniaudioConfig`
       (its `miniaudio` settings section) and registered as `"miniaudio"` by `registerAudio()`
       (`Registration.hpp`). `core/` (`rtype::audio::miniaudio::core`) holds the RAII wrappers of miniaudio's objects
@@ -174,7 +186,7 @@ are added.
   folders of any depth (e.g. `examples/graphic/render/vulkan/VulkanInstance/`). Every `xmake.lua` under
   `examples/` is an example named after its folder. They are only built when enabled (see Commands).
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
-- `docs/` — design documentation (e.g. `docs/ecs/features/17-hierarchy.md` for parents and children,
+- `docs/` — design documentation (e.g. `docs/Plugins.md` for the libraries and their dependencies, `docs/ecs/features/17-hierarchy.md` for parents and children,
   `docs/Input.md` for the event and input pipeline, `docs/physics/design.md`
   for the physics, `docs/audio/design.md` for the audio, `docs/Sprites.md` for atlases and animations,
   `docs/Tilemap.md` for tilemaps and parallax, `docs/Text.md` for MSDF text, `docs/Shaders.md` for game shaders,
@@ -183,50 +195,49 @@ are added.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
 
 Each module has its own `xmake.lua`, included from the root `xmake.lua`. Add new sources under the
-matching module: `plugins`, `core`, `ecs`, `network`, `replication`, `engine`, `platform-glfw`, `render-vulkan`,
+matching module: `plugin-*`, `contract-*`, `core`, `ecs`, `network`, `replication`, `engine`, `platform-glfw`, `render-vulkan`,
 `audio-miniaudio`, `luau`, `r-type_client` and `r-type_server` glob
 `**.cpp` in their own folder.
 
 ### Dependency rules
 
-Dependencies always point towards `ecs` and `plugins`, never away from them:
+Dependencies always point towards the contracts and `ecs`, never away from them:
 
 ```
-core ←  ecs, plugins, platform-*, render-*, audio-*, examples (rtype_duel)
-ecs  ←  plugins, interop-*  ←  platform-*, render-*  ←  executables, examples (rtype_duel)
-        plugins             ←  audio-*             ←  executables, examples (rtype_duel)
+core ←  ecs, contract-*
+contract-*  ←  platform-*, render-*, audio-*   ←  executables, examples
+ecs, contract-*  ←  plugin-*                   ←  executables, examples
 luau ←  scripting
 network  ←  replication
 ecs      ←  replication, scripting
-plugins, scripting, replication  ←  engine  ←  executables (r-type_client, r-type_server), examples (rtype_duel)
+scripting, replication, plugin-transform  ←  engine  ←  executables, examples
 ```
 
-- `core` depends on no other project target; `ecs` depends on `core` only. `core` never depends on `ecs`.
-- `network` depends on Asio only (private): never on the ECS, `plugins` or any other project target.
-  `replication` depends on `ecs` and `network` and is the only module that knows both; the renderer, the
-  platforms and `luau` never include its headers.
-- `plugins` depends on nothing but `core`, `ecs` and glm, plus Jolt (physics), nlohmann_json (sprite atlases, tilemaps,
-  fonts), glslang (shaders)
-  and stb (images) as private packages (no public header includes them). Never add a dependency on a `platform-*`,
-  `render-*`, `audio-*` or `luau` target to it: the platforms, renderers and audio backends implement its contracts
-  (`plugins/backend/`, `plugins/audio/`), so it would create a cycle. The executable fills the backend and audio
-  registries instead.
-- The platforms and renderers link `plugins` (and so the ECS) for the contracts, but never include ECS headers or
-  plugin code beyond `plugins/backend/`'s interfaces, types and shaders ABI (`plugins/backend/graphics/shaders/`). Likewise, the audio backends include nothing of
-  `plugins` but the contract of `plugins/audio/` (`IAudioDevice`, `AudioTypes`, `AudioConfig`, `AudioRegistry`) and
-  `core/config/`'s `Settings` (through `core`).
-- An audio backend never depends on a platform or a renderer, nor they on it. miniaudio never leaves
-  `audio/miniaudio/`: no header outside it includes `<miniaudio.h>`.
-- Modules exchange backend types only (`rtype::plugins::backend::Event`, `rtype::plugins::backend::input::Key`...).
-  GLFW never leaves `platform/glfw/`: no header outside it includes `<GLFW/glfw3.h>` or uses a
-  `GLFW_*` code.
-- A platform module and a renderer module never depend on each other: what a renderer needs from a
-  window that is specific to its graphics API goes through the matching `interop-*` target, which
-  both sides depend on (see `docs/Backend.md`).
-- `engine` links `core`, `ecs`, `plugins`, `luau`, `scripting` and `replication`, and nothing depends on it but the
-  executables, the examples and its tests. It never depends on a `platform-*`, `render-*` or `audio-*` target: the
-  executables register the backends through `EngineConfig`. Only the executables (`r-type_client`, `r-type_server`)
-  and the examples (such as `rtype_duel`) link everything together.
+- `core` depends on no other project target; `ecs` depends on `core` only. `core` is the only static library: it keeps
+  no global state, so a copy in each binary is harmless.
+- `network` depends on Asio only (private): never on the ECS, a plugin or any other project target. `replication`
+  depends on `ecs` and `network` and is the only module that knows both; the renderer, the platforms and `luau` never
+  include its headers.
+- A contract depends on `core` and glm only (`contract-renderer` also on `contract-platform`, as `IRenderer` takes an
+  `IPlatform`): never on the ECS or a
+  plugin. A type of the ECS never goes in a contract, and what a contract type needs from the ECS is declared in the
+  plugin that uses it.
+- The platforms, renderers and audio backends link their contract only: neither the ECS nor a plugin. An audio backend
+  never depends on a platform or a renderer, nor they on it. miniaudio never leaves `audio/miniaudio/`: no header
+  outside it includes `<miniaudio.h>`.
+- A plugin depends on `core`, `ecs`, glm, the contracts and plugins it uses, plus its own private packages (Jolt,
+  nlohmann_json, glslang, stb: no public header includes them). Never add a dependency on a `platform-*`, `render-*`,
+  `audio-*` or `luau` target to it. The plugins form a graph without cycles: `plugin-graphics` knows no plugin that
+  draws, and each of them is ordered against it only. A resource several plugins fill is taken as a `ResAppend`.
+- Modules exchange contract types only (`rtype::contract::platform::Event`, `rtype::contract::platform::input::Key`...).
+  GLFW never leaves `platform/glfw/`: no header outside it includes `<GLFW/glfw3.h>` or uses a `GLFW_*` code.
+- A platform module and a renderer module never depend on each other: what a renderer needs from a window that is
+  specific to its graphics API goes through the matching `interop-*` target, which both sides depend on (see
+  `docs/Backend.md`).
+- `engine` links `core`, `ecs`, `luau`, `scripting`, `replication` and `plugin-transform`, and nothing depends on it but
+  the executables, the examples and its tests. It links no other plugin and no contract: a program adds what it uses
+  through `EngineConfig::addPlugins`. Only the executables (`r-type_client`, `r-type_server`) and the examples (such as
+  `rtype_duel`) link everything together.
 
 ## Commands
 
@@ -285,9 +296,9 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
 
     - Headers use `#pragma once` as their include guard, placed right after the Epitech header —
       never `#ifndef`/`#define`/`#endif` guards.
-    - Namespaces mirror the directory path under `src/rtype/` (`rtype::plugins::backend::input`,
-      `rtype::platform::glfw`, `rtype::render::vulkan`). The ECS feature folders are the one exception (see
-      `src/rtype/ecs/` in Project structure).
+    - Namespaces mirror the directory path under `src/rtype/` (`rtype::contract::platform::input`,
+      `rtype::platform::glfw`, `rtype::render::vulkan`). The ECS feature folders and those of `contract/renderer/` are the exceptions
+      (see Project structure).
     - Private members prefixed with `_` (`_window`), documented with `///<` comments.
     - Constants (`constexpr` / `static constexpr` variables) and enumerators are named `kName`
       (`kGamepadAxisCount`, `Key::kEscape`, `GamepadButton::kSouth`). Enum types themselves keep
@@ -313,7 +324,8 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
     - Errors reported through exceptions derived from `std::runtime_error`, kept in an `exceptions/`
       folder next to the code that throws them.
 - Exported symbols from shared libraries use the per-library `RTYPE_<LIB>_API` macro, named after the
-  target (`RTYPE_RENDER_VULKAN_API`, `RTYPE_LUAU_API`; `__declspec(dllexport)` on Windows).
+  target (`RTYPE_RENDER_VULKAN_API`, `RTYPE_PLUGIN_SHADER_API`; `__declspec(dllexport)` on Windows). A type with no
+  code of its own (an interface, an exception) takes `RTYPE_HEADER_ONLY_API` from `core/Export.hpp` instead.
 - Keep code portable across Linux, macOS and Windows.
 - Compiler compatibility: the project MUST compile with Clang, Apple Clang and MSVC, and SHOULD
   compile with GCC. Avoid compiler-specific extensions and C++23 features that one of the MUST
@@ -369,7 +381,7 @@ Enforced by `.clang-format` and `.clang-tidy` — do not hand-format against the
       ```
     - Include paths: avoid `#include "../MyInclude.hpp"` as much as possible (really). A sibling file (same
       folder) is included by its bare name (`"Window.hpp"`); anything else in the engine is included from the
-      `src/` root as `"rtype/<module>/..."` (e.g. `"rtype/ecs/entity/Entity.hpp"`, `"rtype/plugins/backend/..."`),
+      `src/` root as `"rtype/<module>/..."` (e.g. `"rtype/ecs/entity/Entity.hpp"`, `"rtype/contract/renderer/..."`),
       never through a relative path going up the tree.
     - Include order is handled by `clang-format`: run it instead of ordering includes by hand.
 

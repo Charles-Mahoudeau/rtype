@@ -23,14 +23,14 @@
 #include <utility>
 #include <vector>
 
-#include "plugins/backend/graphics/Shader.hpp"
 #include "plugins/shader/exceptions/ShaderExceptions.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::plugins::shader::detail {
 
 namespace {
 
-using backend::graphics::ShaderValueType;
+using contract::renderer::ShaderValueType;
 
 /// @brief Names a shader cannot declare: the engine's built-ins (docs/Shaders.md).
 constexpr std::array<std::string_view, 5> kBuiltins{"VERTEX", "UV", "COLOR", "TEXTURE", "TIME"};
@@ -249,8 +249,8 @@ struct Parser {
         if (declaration.instance || declaration.defaultValue) {
             fail(shader.name, line, "a texture is a plain 'uniform sampler2D <name>;'");
         }
-        if (shader.textures.size() == backend::graphics::kShaderMaxTextures) {
-            fail(shader.name, line, std::format("more than {} textures", backend::graphics::kShaderMaxTextures));
+        if (shader.textures.size() == contract::renderer::kShaderMaxTextures) {
+            fail(shader.name, line, std::format("more than {} textures", contract::renderer::kShaderMaxTextures));
         }
         shader.textures.push_back(
             {.name = declaration.name, .slot = static_cast<std::uint32_t>(shader.textures.size())});
@@ -272,10 +272,10 @@ struct Parser {
         const DeclaredValue value{.value = {.name = declaration.name, .type = type->type, .offset = offset},
                                   .line = line};
         if (declaration.instance) {
-            if (cursor > backend::graphics::kShaderInstanceBytes) {
+            if (cursor > contract::renderer::kShaderInstanceBytes) {
                 fail(shader.name, line,
                      std::format("the instance values take more than {} bytes",
-                                 backend::graphics::kShaderInstanceBytes));
+                                 contract::renderer::kShaderInstanceBytes));
             }
             writeDefault(instanceBlock, offset, *type, numbers);
             shader.instanceValues.push_back(value);
@@ -309,7 +309,7 @@ struct Parser {
 
 ParsedShader parseShader(std::string_view source, std::string_view name) {
     Parser parser{.shader = {.name = std::string{name}},
-                  .instanceBlock = std::vector<std::byte>(backend::graphics::kShaderInstanceBytes)};
+                  .instanceBlock = std::vector<std::byte>(contract::renderer::kShaderInstanceBytes)};
     ParsedShader& shader = parser.shader;
     std::string code;
     bool inComment = false;

@@ -9,6 +9,7 @@
 
 #include <string_view>
 
+#include "plugins/transform/Export.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -29,7 +30,7 @@ namespace rtype::plugins::transform {
 ///   ignored: its child is treated as a root.
 /// Systems that move entities write Transform before PostUpdate; systems that read positions (rendering) read
 /// GlobalTransform after it.
-class TransformPlugin : public ecs::Plugin {
+class RTYPE_PLUGIN_TRANSFORM_API TransformPlugin : public ecs::Plugin {
   public:
     static constexpr std::string_view kName = "rtype.Transform";                       ///< The plugin's name.
     static constexpr std::string_view kInsertSystem = "rtype.Transform.Insert";        ///< Adds GlobalTransform.

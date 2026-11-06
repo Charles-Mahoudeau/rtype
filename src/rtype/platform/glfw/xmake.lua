@@ -1,8 +1,10 @@
 -- GLFW platform: the window and the input devices, through GLFW. The only module that includes GLFW.
 target("platform-glfw")
-    set_kind("static")
+    set_kind("shared")
     set_basename("rtype-platform-glfw")
-    add_deps("core", "plugins")
+    add_defines("RTYPE_PLATFORM_GLFW_BUILD", {public = false})
+    -- Public: Registration.hpp includes PlatformRegistry.
+    add_deps("core", "contract-platform", {public = true})
     add_packages("glfw")
     -- GlfwPlatform implements IVulkanSurfaceSource. Public: GlfwPlatform.hpp includes it.
     add_deps("interop-vulkan", {public = true})
@@ -10,5 +12,3 @@ target("platform-glfw")
     add_headerfiles("**.hpp")
     -- Headers are included as "platform/glfw/...".
     add_includedirs("../..", {public = true})
-    -- Linked into the shared modules.
-    add_cxflags("-fPIC", {tools = {"clang", "gcc"}})

@@ -10,17 +10,17 @@
 #include <variant>
 
 #include "platform/glfw/GlfwPlatform.hpp"
-#include "plugins/backend/event/Event.hpp"
-#include "plugins/backend/input/Key.hpp"
 #include "plugins/input/Control.hpp"
 #include "plugins/input/Input.hpp"
 #include "plugins/input/InputAction.hpp"
+#include "rtype/contract/platform/event/Event.hpp"
+#include "rtype/contract/platform/input/Key.hpp"
 
-using rtype::plugins::backend::input::GamepadAxis;
-using rtype::plugins::backend::input::GamepadButton;
-using rtype::plugins::backend::input::Key;
-using rtype::plugins::backend::input::MouseButton;
-using namespace rtype::plugins::backend::event;
+using rtype::contract::platform::input::GamepadAxis;
+using rtype::contract::platform::input::GamepadButton;
+using rtype::contract::platform::input::Key;
+using rtype::contract::platform::input::MouseButton;
+using namespace rtype::contract::platform::event;
 using rtype::plugins::input::ActionType;
 using rtype::plugins::input::Control;
 

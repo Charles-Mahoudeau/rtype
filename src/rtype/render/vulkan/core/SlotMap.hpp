@@ -30,7 +30,7 @@ concept SlotKey = requires(Key key) {
 /// new value. Generations start at 1, so a key with generation 0 (a default TextureId) never matches. Insertion, lookup
 /// and removal are O(1).
 /// @warning insert() may move the stored values: do not keep a pointer from find() across it.
-/// @tparam Key An aggregate of `index` and `generation` (plugins::backend::graphics::TextureId).
+/// @tparam Key An aggregate of `index` and `generation` (contract::renderer::TextureId).
 /// @tparam Value Move-constructible.
 template <SlotKey Key, class Value>
 class SlotMap {

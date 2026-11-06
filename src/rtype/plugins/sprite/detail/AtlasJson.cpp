@@ -23,10 +23,10 @@
 #include <vector>
 
 #include "core/asset/AssetFiles.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
-#include "plugins/backend/math/Rect.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
 #include "plugins/sprite/exceptions/SpriteExceptions.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 
 namespace rtype::plugins::sprite::detail {
 
@@ -49,10 +49,10 @@ glm::vec2 readSize(const Json& object) { return {object.at("w").get<float>(), ob
 
 /// @brief A frame as the file describes it, before it joins the atlas.
 struct ParsedFrame {
-    std::string name;            ///< Its key (JSON Hash) or its "filename" (JSON Array).
-    backend::math::Rect source;  ///< Where it is in the image.
-    glm::vec2 origin{0.0F};      ///< Its pivot, in pixels from the top-left of source.
-    float duration = 0.0F;       ///< Seconds.
+    std::string name;                       ///< Its key (JSON Hash) or its "filename" (JSON Array).
+    contract::renderer::math::Rect source;  ///< Where it is in the image.
+    glm::vec2 origin{0.0F};                 ///< Its pivot, in pixels from the top-left of source.
+    float duration = 0.0F;                  ///< Seconds.
 };
 
 /// @return The frame described by @p frame, named @p name.
@@ -64,7 +64,7 @@ ParsedFrame readFrame(std::string name, const Json& frame) {
     const glm::vec2 trim = frame.contains("spriteSourceSize") ? readPoint(frame.at("spriteSourceSize")) : glm::vec2{};
     const glm::vec2 pivot = frame.contains("pivot") ? readPoint(frame.at("pivot")) : glm::vec2{0.5F};
     return ParsedFrame{.name = std::move(name),
-                       .source = backend::math::Rect{readPoint(rect), size},
+                       .source = contract::renderer::math::Rect{readPoint(rect), size},
                        .origin = (pivot * untrimmed) - trim,
                        .duration = frame.value("duration", kDefaultDurationMs) / kMsPerSecond};
 }
@@ -135,7 +135,7 @@ SpriteAnimation readTag(const Json& tag, const std::vector<ParsedFrame>& frames)
 }  // namespace
 
 SpriteAtlas parseAtlasJson(std::string_view text, const std::filesystem::path& path,
-                           const backend::graphics::TextureDesc& desc) {
+                           const contract::renderer::TextureDesc& desc) {
     const std::string name = path.generic_string();
     try {
         const Json root = Json::parse(text);

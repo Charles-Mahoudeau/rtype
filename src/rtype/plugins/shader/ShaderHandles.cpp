@@ -16,14 +16,14 @@
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/graphics/IRenderer.hpp"
-#include "plugins/backend/graphics/Shader.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
-#include "plugins/backend/graphics/TextureAssets.hpp"
+#include "plugins/graphics/TextureAssets.hpp"
 #include "plugins/shader/Material.hpp"
 #include "plugins/shader/MaterialAssets.hpp"
 #include "plugins/shader/ShaderAssets.hpp"
 #include "plugins/shader/exceptions/ShaderExceptions.hpp"
+#include "rtype/contract/renderer/IRenderer.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::plugins::shader {
 
@@ -34,8 +34,8 @@ const ShaderHandles::Material* ShaderHandles::getMaterial(core::asset::AssetId i
 
 bool ShaderHandles::hasShader(core::asset::AssetId id) const { return _shaders.contains(id); }
 
-void ShaderHandles::update(ShaderAssets& shaders, MaterialAssets& materials, const backend::TextureAssets& textures,
-                           backend::graphics::IRenderer& renderer) {
+void ShaderHandles::update(ShaderAssets& shaders, MaterialAssets& materials, const graphics::TextureAssets& textures,
+                           contract::renderer::IRenderer& renderer) {
     const std::vector<core::asset::AssetId> unloadedMaterials = materials.takeUnloaded();
     const std::vector<core::asset::AssetId> unloadedShaders = shaders.takeUnloaded();
     const std::vector<core::asset::AssetId> addedShaders = shaders.takeAdded();
@@ -51,7 +51,7 @@ void ShaderHandles::update(ShaderAssets& shaders, MaterialAssets& materials, con
         destroyShader(id, renderer);
     }
     for (const core::asset::AssetId id : addedShaders) {
-        const backend::graphics::CompiledShader* compiled = shaders.get(id);
+        const contract::renderer::CompiledShader* compiled = shaders.get(id);
         if (compiled == nullptr || _shaders.contains(id)) {
             continue;
         }
@@ -70,7 +70,7 @@ void ShaderHandles::update(ShaderAssets& shaders, MaterialAssets& materials, con
                   [&](core::asset::AssetId id) { return createMaterial(id, shaders, materials, textures, renderer); });
 }
 
-void ShaderHandles::destroyMaterial(core::asset::AssetId id, backend::graphics::IRenderer& renderer) {
+void ShaderHandles::destroyMaterial(core::asset::AssetId id, contract::renderer::IRenderer& renderer) {
     const auto found = _materials.find(id);
     if (found != _materials.end()) {
         renderer.destroy(found->second.material);
@@ -78,7 +78,7 @@ void ShaderHandles::destroyMaterial(core::asset::AssetId id, backend::graphics::
     }
 }
 
-void ShaderHandles::destroyShader(core::asset::AssetId id, backend::graphics::IRenderer& renderer) {
+void ShaderHandles::destroyShader(core::asset::AssetId id, contract::renderer::IRenderer& renderer) {
     const auto found = _shaders.find(id);
     if (found == _shaders.end()) {
         return;
@@ -99,30 +99,30 @@ void ShaderHandles::destroyShader(core::asset::AssetId id, backend::graphics::IR
 }
 
 bool ShaderHandles::createMaterial(core::asset::AssetId id, const ShaderAssets& shaders,
-                                   const MaterialAssets& materials, const backend::TextureAssets& textures,
-                                   backend::graphics::IRenderer& renderer) {
+                                   const MaterialAssets& materials, const graphics::TextureAssets& textures,
+                                   contract::renderer::IRenderer& renderer) {
     const shader::Material* material = materials.get(id);
     if (material == nullptr) {
         return true;
     }
     const auto shaderId = _shaders.find(material->shader);
-    const backend::graphics::CompiledShader* compiled = shaders.get(material->shader);
+    const contract::renderer::CompiledShader* compiled = shaders.get(material->shader);
     if (shaderId == _shaders.end() || compiled == nullptr) {
         return false;
     }
     try {
-        backend::graphics::MaterialDesc desc{.shader = shaderId->second,
-                                             .values = packMaterialValues(*compiled, *material)};
+        contract::renderer::MaterialDesc desc{.shader = shaderId->second,
+                                              .values = packMaterialValues(*compiled, *material)};
         const auto slots = resolveMaterialTextures(*compiled, *material);
         for (std::size_t slot = 0; slot < slots.size(); ++slot) {
             if (slots.at(slot) == core::asset::AssetId{}) {
                 continue;
             }
-            const backend::TextureAssets::Entry* entry = textures.get(slots.at(slot));
-            if (entry != nullptr && entry->state == backend::AssetState::kQueued) {
+            const graphics::TextureAssets::Entry* entry = textures.get(slots.at(slot));
+            if (entry != nullptr && entry->state == graphics::AssetState::kQueued) {
                 return false;
             }
-            const std::optional<backend::graphics::TextureId> texture = textures.getTexture(slots.at(slot));
+            const std::optional<contract::renderer::TextureId> texture = textures.getTexture(slots.at(slot));
             if (!texture) {
                 throw exceptions::ShaderException{"one of its textures failed to load or was never asked for"};
             }

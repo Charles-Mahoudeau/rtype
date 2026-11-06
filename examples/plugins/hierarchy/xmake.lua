@@ -1,5 +1,5 @@
 target("hierarchy")
     set_kind("binary")
     set_default(false)
-    add_deps("plugins")
+    add_deps("plugin-physics", "plugin-transform")
     add_files("src/**.cpp")

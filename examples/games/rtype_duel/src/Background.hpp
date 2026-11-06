@@ -9,7 +9,7 @@
 
 #include "Components.hpp"
 #include "Resources.hpp"
-#include "plugins/backend/graphics/TextureAssets.hpp"
+#include "plugins/graphics/TextureAssets.hpp"
 #include "plugins/tilemap/Parallax.hpp"
 #include "plugins/tilemap/TilemapAssets.hpp"
 #include "plugins/transform/Transform.hpp"
@@ -26,7 +26,7 @@ namespace rtype_duel {
 void spawnBackground(rtype::ecs::ResMut<rtype::plugins::tilemap::TilemapAssets> maps, rtype::ecs::Commands& commands);
 
 /// @brief Startup: asks for the images of the planets that pass behind the arena; the first one comes soon after.
-void loadPlanets(rtype::ecs::ResMut<rtype::plugins::backend::TextureAssets> textures,
+void loadPlanets(rtype::ecs::ResMut<rtype::plugins::graphics::TextureAssets> textures,
                  rtype::ecs::ResMut<BackgroundPlanets> planets);
 
 /// @brief Update: now and then, sends a random planet across the background at a random height and distance, scrolling

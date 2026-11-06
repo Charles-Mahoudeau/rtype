@@ -2,7 +2,7 @@
 
 The sprite plugin (`src/rtype/plugins/sprite/`, `rtype::plugins::sprite`) cuts textures into named frames and plays
 animations made of them. It knows nothing of the renderer: it writes the `SpriteRenderer` of each animated entity, which
-the backend plugin draws as before. The `BackendPlugin` adds it; a server without a window adds `SpritePlugin` itself if
+the graphics plugin draws as before. The game adds `SpritePlugin`, and on a client `SpriteDrawPlugin`, which draws the entities and requires `SpritePlugin`, `GraphicsPlugin` and `ShaderPlugin`; a server adds `SpritePlugin` alone if
 it wants its animators to advance.
 
 ## Atlases

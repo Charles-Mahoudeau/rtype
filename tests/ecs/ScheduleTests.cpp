@@ -131,6 +131,7 @@ void readHealth(Query<const rtype::test::schedule::Health> /*healths*/) {}
 void writeGlow(Query<rtype::test::schedule::Glow> /*glows*/) {}
 void readHealthWriteGlow(Query<const rtype::test::schedule::Health, rtype::test::schedule::Glow> /*both*/) {}
 void writeScore(ResMut<rtype::test::schedule::Score> /*score*/) {}
+void appendScore(rtype::ecs::ResAppend<rtype::test::schedule::Score> /*score*/) {}
 void readScore(rtype::ecs::Res<rtype::test::schedule::Score> /*score*/) {}
 void sendHit(rtype::ecs::EventWriter<Hit> /*hits*/) {}
 void readHit(rtype::ecs::EventReader<Hit> /*hits*/) {}
@@ -352,6 +353,32 @@ TEST(Schedule, AcceptsReadersSharingData) {
     Schedule schedule{world, RunMode::kStandalone, Phase::kUpdate};
     schedule.addSystem("a", &readHealth);
     schedule.addSystem("b", &readHealth);
+    EXPECT_NO_THROW(schedule.build());
+}
+
+TEST(Schedule, AcceptsSystemsAppendingToAResource) {
+    World world;
+    Schedule schedule{world, RunMode::kStandalone, Phase::kUpdate};
+    schedule.addSystem("a", &appendScore);
+    schedule.addSystem("b", &appendScore);
+    EXPECT_NO_THROW(schedule.build());
+}
+
+TEST(Schedule, RefusesAnAppendUnorderedWithAWriteOrARead) {
+    World world;
+    Schedule schedule{world, RunMode::kStandalone, Phase::kUpdate};
+    schedule.addSystem("append", &appendScore);
+    schedule.addSystem("read", &readScore);
+    schedule.addSystem("write", &writeScore).after("read");
+    expectBuildError(schedule, {"'append' and 'read'", "'append' and 'write'"});
+}
+
+TEST(Schedule, AcceptsAppendsOrderedAgainstWhatEmptiesTheResource) {
+    World world;
+    Schedule schedule{world, RunMode::kStandalone, Phase::kUpdate};
+    schedule.addSystem("a", &appendScore).before("empty");
+    schedule.addSystem("b", &appendScore).before("empty");
+    schedule.addSystem("empty", &writeScore);
     EXPECT_NO_THROW(schedule.build());
 }
 

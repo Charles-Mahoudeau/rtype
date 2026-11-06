@@ -10,7 +10,7 @@
 //   animation added with addAnimation();
 // - on the right, a sheet described by a JSON file in Aseprite's format (assets/r-typesheet26.json), which names its
 //   frames and its animations (the "left" and "right" frame tags), loaded with AtlasAssets::load().
-// Each gets a SpriteAnimator; the sprite plugin, added by the backend plugin, plays it into its SpriteRenderer.
+// Each gets a SpriteAnimator; the sprite plugin, added by the program, plays it into its SpriteRenderer.
 //   xmake f --sprite=y && xmake run sprite
 
 #include <exception>
@@ -23,16 +23,21 @@
 #include "core/asset/AssetId.hpp"
 #include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
-#include "plugins/backend/BackendPlugin.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/BackendResources.hpp"
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/SpriteRenderer.hpp"
+#include "plugins/graphics/BackendRegistry.hpp"
+#include "plugins/graphics/GraphicsPlugin.hpp"
+#include "plugins/graphics/GraphicsResources.hpp"
+#include "plugins/input/InputPlugin.hpp"
+#include "plugins/shader/ShaderPlugin.hpp"
 #include "plugins/sprite/AtlasAssets.hpp"
 #include "plugins/sprite/SpriteAnimator.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
+#include "plugins/sprite/SpriteDrawPlugin.hpp"
+#include "plugins/sprite/SpritePlugin.hpp"
+#include "plugins/sprite/SpriteRenderer.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "render/vulkan/Registration.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/MinimalPlugins.hpp"
 #include "rtype/ecs/command/Commands.hpp"
@@ -40,7 +45,9 @@
 #include "rtype/ecs/system/ResourceParam.hpp"
 
 using namespace rtype;
-using namespace rtype::plugins::backend;
+using namespace rtype::contract::renderer;
+using namespace rtype::plugins::graphics;
+using namespace rtype::plugins::sprite;
 using rtype::core::asset::AssetId;
 using namespace rtype::plugins::sprite;
 using rtype::plugins::transform::Transform;
@@ -48,7 +55,7 @@ using rtype::plugins::transform::Transform;
 namespace {
 constexpr float kWidth = 960.0F;
 constexpr float kHeight = 540.0F;
-constexpr graphics::Color kClear{0.05F, 0.05F, 0.08F, 1.0F};
+constexpr rtype::contract::renderer::Color kClear{0.05F, 0.05F, 0.08F, 1.0F};
 constexpr glm::vec2 kScale{4.0F};  // The sheets are small: nearest filtering keeps their pixels sharp.
 
 // Startup: builds the two atlases and spawns a sprite playing each.
@@ -86,11 +93,17 @@ core::config::Settings makeSettings() {
 int main() {
     try {
         auto registry = std::make_unique<BackendRegistry>();
-        rtype::platform::glfw::registerPlatform(*registry);
-        render::vulkan::registerRenderer(*registry);
+        rtype::platform::glfw::registerPlatform(registry->platforms);
+        render::vulkan::registerRenderer(registry->renderers);
 
         ecs::App app;
-        app.addPlugins(ecs::MinimalPlugins{}).addPlugin(BackendPlugin{std::move(registry), makeSettings()});
+        app.addPlugins(ecs::MinimalPlugins{})
+            .addPlugin(rtype::plugins::transform::TransformPlugin{})
+            .addPlugin(rtype::plugins::input::InputPlugin{})
+            .addPlugin(GraphicsPlugin{std::move(registry), makeSettings()})
+            .addPlugin(rtype::plugins::shader::ShaderPlugin{})
+            .addPlugin(rtype::plugins::sprite::SpritePlugin{})
+            .addPlugin(rtype::plugins::sprite::SpriteDrawPlugin{});
         app.insertResource(ClearColor{.value = kClear});
         app.addSystem(ecs::Phase::kStartup, "example.spawnSprites", &spawnSprites);
         return app.run();

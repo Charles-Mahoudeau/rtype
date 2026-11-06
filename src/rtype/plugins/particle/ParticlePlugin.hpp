@@ -7,8 +7,10 @@
 
 #pragma once
 
+#include <span>
 #include <string_view>
 
+#include "plugins/particle/Export.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -29,11 +31,11 @@ namespace rtype::plugins::particle {
 ///   that asked for the GPU), stops the ones whose ParticleEmitter is gone, destroying their GPU system, counts what
 ///   each one spawns (computeSpawnCount()) and runs the CPU simulations. It sends ParticlesFinished once a one-shot
 ///   emitter is done, and despawns it if it has ParticleOneShot.
-/// - Render "rtype.Particle.Draw", after the BackendPlugin's camera and the TextPlugin's texts, before its sprites:
+/// - Render "rtype.Particle.Draw", after the GraphicsPlugin's camera and the TextPlugin's texts, before its sprites:
 ///   gives the GPU systems their emission (IRenderer::simulate()), then pushes each emitter whose texture is loaded to
 ///   the SpriteQueue as a ParticleDraw, sorted with the sprites by ParticleEmitter::layer.
-/// The BackendPlugin adds it, after the TextPlugin.
-class ParticlePlugin : public ecs::Plugin {
+/// It requires the GraphicsPlugin and the ShaderPlugin.
+class RTYPE_PLUGIN_PARTICLE_API ParticlePlugin : public ecs::Plugin {
   public:
     static constexpr std::string_view kName = "rtype.Particle";                 ///< The plugin's name.
     static constexpr std::string_view kSpawnSystem = "rtype.Particle.Spawn";    ///< Spawns the one-shot emitters.
@@ -49,6 +51,9 @@ class ParticlePlugin : public ecs::Plugin {
 
     /// @return "rtype.Particle".
     [[nodiscard]] std::string_view getName() const noexcept override;
+
+    /// @return The plugins this one needs.
+    [[nodiscard]] std::span<const std::string_view> getDependencies() const noexcept override;
 
     /// @brief Inserts the resources, registers the components and events, and adds the systems.
     void build(ecs::App& app) override;

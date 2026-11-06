@@ -19,12 +19,12 @@
 #include "FakeBackend.hpp"
 #include "TestImages.hpp"
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/BackendPlugin.hpp"
-#include "plugins/backend/graphics/Camera.hpp"
-#include "plugins/backend/graphics/SpriteQueue.hpp"
-#include "plugins/backend/graphics/SpriteRenderer.hpp"
-#include "plugins/backend/graphics/TextureAssets.hpp"
-#include "plugins/backend/graphics/VisibleArea.hpp"
+#include "plugins/graphics/Camera.hpp"
+#include "plugins/graphics/GraphicsPlugin.hpp"
+#include "plugins/graphics/SpriteQueue.hpp"
+#include "plugins/graphics/TextureAssets.hpp"
+#include "plugins/graphics/VisibleArea.hpp"
+#include "plugins/sprite/SpriteRenderer.hpp"
 #include "plugins/tilemap/Parallax.hpp"
 #include "plugins/tilemap/SpawnTilemap.hpp"
 #include "plugins/tilemap/Tilemap.hpp"
@@ -65,16 +65,16 @@ void spawnLevel(rtype::ecs::ResMut<TilemapAssets> maps, rtype::ecs::Commands& co
         commands, *maps, AssetId::fromPath(kLevel), rtype::plugins::tilemap::TilemapPlacement{.firstDrawLayer = 5}));
 }
 
-/// @brief An App with the BackendPlugin over the fake backend (an 800x600 window), frames of one second, and the
+/// @brief An App with the GraphicsPlugin over the fake backend (an 800x600 window), frames of one second, and the
 /// image tiles.png (2x1 pixels: a tileset of two 1x1 tiles) loaded.
 class TilemapApp {
   public:
     TilemapApp()
         : _state{std::make_shared<rtype::test::plugins::FakeBackendState>()}, _app{rtype::ecs::RunMode::kClient} {
-        _app.addPlugin(rtype::plugins::backend::BackendPlugin{rtype::test::plugins::makeFakeRegistry(_state),
-                                                              rtype::test::plugins::makeFakeSettings()});
+        rtype::test::plugins::addDrawingPlugins(_app, rtype::test::plugins::makeFakeRegistry(_state),
+                                                rtype::test::plugins::makeFakeSettings());
         _app.addPlugin(rtype::ecs::TimePlugin::manual(std::chrono::seconds{1}));
-        static_cast<void>(world().getResources().getMut<rtype::plugins::backend::TextureAssets>()->load(
+        static_cast<void>(world().getResources().getMut<rtype::plugins::graphics::TextureAssets>()->load(
             "tiles.png", rtype::test::plugins::twoPixelPng()));
     }
     ~TilemapApp() = default;
@@ -101,7 +101,7 @@ class TilemapApp {
     }
 
     /// @return The sprites drawn by one more frame.
-    std::vector<rtype::plugins::backend::graphics::Sprite> drawFrame() {
+    std::vector<rtype::contract::renderer::Sprite> drawFrame() {
         _state->sprites.clear();
         _app.runFrame();
         return _state->sprites;
@@ -134,12 +134,12 @@ std::vector<std::pair<rtype::ecs::Entity, TilemapLayer>> layersOf(rtype::ecs::Wo
 }
 }  // namespace
 
-TEST(TilemapPlugin, ComesWithTheBackendPlugin) {
+TEST(TilemapPlugin, ComesWithTheGraphicsPlugin) {
     TilemapApp app;
     EXPECT_TRUE(app.app().hasPlugin(rtype::plugins::tilemap::TilemapPlugin::kName));
     EXPECT_TRUE(app.world().getResources().has<TilemapAssets>());
-    EXPECT_TRUE(app.world().getResources().has<rtype::plugins::backend::graphics::SpriteQueue>());
-    EXPECT_TRUE(app.world().getResources().has<rtype::plugins::backend::graphics::VisibleArea>());
+    EXPECT_TRUE(app.world().getResources().has<rtype::plugins::graphics::SpriteQueue>());
+    EXPECT_TRUE(app.world().getResources().has<rtype::plugins::graphics::VisibleArea>());
     EXPECT_TRUE(app.world().getComponents().find("rtype.TilemapLayer"));
     EXPECT_TRUE(app.world().getComponents().find("rtype.Parallax"));
 }
@@ -196,7 +196,7 @@ TEST(TilemapPlugin, SortsTheTilesWithTheSpritesByLayer) {
     const rtype::ecs::Entity ship = app.world().spawn();
     app.world().getComponents().add(ship, Transform{.position = {300.0F, 300.0F}});
     app.world().getComponents().add(
-        ship, rtype::plugins::backend::SpriteRenderer{.texture = AssetId::fromPath("tiles.png"), .layer = 10});
+        ship, rtype::plugins::sprite::SpriteRenderer{.texture = AssetId::fromPath("tiles.png"), .layer = 10});
     const auto sprites = app.drawFrame();
     ASSERT_EQ(sprites.size(), 2U);
     EXPECT_EQ(sprites.at(1).position, (glm::vec2{300.0F, 300.0F}));  // Layer 10, on top of the tiles.
@@ -206,7 +206,7 @@ TEST(TilemapPlugin, MovesAParallaxEntityByTheCamera) {
     TilemapApp app;
     const rtype::ecs::Entity camera = app.world().spawn();
     app.world().getComponents().add(camera, Transform{.position = {400.0F, 300.0F}});
-    app.world().getComponents().add(camera, rtype::plugins::backend::graphics::Camera{});
+    app.world().getComponents().add(camera, rtype::plugins::graphics::Camera{});
     const rtype::ecs::Entity far = app.world().spawn();
     app.world().getComponents().add(far, Transform{.position = {10.0F, 0.0F}});
     app.world().getComponents().add(far, Parallax{.factor = {0.5F, 0.0F}, .origin = {0.0F, 100.0F}});
@@ -219,7 +219,7 @@ TEST(TilemapPlugin, MovesAParallaxChildFromWhereItsParentPutsIt) {
     TilemapApp app;
     const rtype::ecs::Entity camera = app.world().spawn();
     app.world().getComponents().add(camera, Transform{.position = {400.0F, 300.0F}});
-    app.world().getComponents().add(camera, rtype::plugins::backend::graphics::Camera{});
+    app.world().getComponents().add(camera, rtype::plugins::graphics::Camera{});
     const rtype::ecs::Entity parent = app.world().spawn();
     app.world().getComponents().add(parent, Transform{.position = {100.0F, 0.0F}});
     const rtype::ecs::Entity far = app.world().spawn();

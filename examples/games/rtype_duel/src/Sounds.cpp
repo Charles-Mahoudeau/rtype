@@ -10,7 +10,7 @@
 #include <random>
 
 #include "Constants.hpp"
-#include "plugins/audio/AudioTypes.hpp"
+#include "rtype/contract/audiodevice/AudioTypes.hpp"
 
 using namespace rtype;
 
@@ -18,7 +18,7 @@ namespace rtype_duel {
 
 void loadSounds(ecs::ResMut<plugins::audio::AudioAssets> sounds, ecs::ResMut<GameSounds> game,
                 ecs::EventWriter<plugins::audio::PlayMusic> music) {
-    game->music = sounds->load(kMusicSound, plugins::audio::SoundDesc{.stream = true});
+    game->music = sounds->load(kMusicSound, contract::audiodevice::SoundDesc{.stream = true});
     game->laser = sounds->load(kLaserSound);
     game->misfire = sounds->load(kMisfireSound);
     music.send(plugins::audio::PlayMusic{.sound = game->music, .crossfade = 1.0F});

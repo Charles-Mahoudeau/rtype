@@ -15,7 +15,7 @@
 #include <utility>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/graphics/ParticleRandom.hpp"
+#include "rtype/contract/renderer/particle/ParticleRandom.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 
 namespace rtype::plugins::particle {
@@ -55,7 +55,7 @@ std::optional<EmitterState> ParticleSystems::stop(ecs::Entity entity) {
     return state;
 }
 
-std::uint32_t ParticleSystems::pickSeed() noexcept { return backend::graphics::pcgHash(++_seedCount); }
+std::uint32_t ParticleSystems::pickSeed() noexcept { return contract::renderer::pcgHash(++_seedCount); }
 
 bool ParticleSystems::markFallbackReported(core::asset::AssetId effect) { return _fallbacks.insert(effect).second; }
 

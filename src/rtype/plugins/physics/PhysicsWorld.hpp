@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "plugins/physics/Collider.hpp"
+#include "plugins/physics/Export.hpp"
 #include "plugins/physics/PhysicsHandle.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "plugins/physics/QueryFilter.hpp"
@@ -40,7 +41,7 @@ class JoltRuntime;
 /// @code
 /// void stop(rtype::ecs::ResMut<rtype::plugins::physics::PhysicsWorld> world) { world->setGravity({0.0F, 0.0F}); }
 /// @endcode
-class PhysicsWorld {
+class RTYPE_PLUGIN_PHYSICS_API PhysicsWorld {
   public:
     /// @brief Where a body is, as a Transform sees it.
     struct BodyPose {

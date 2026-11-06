@@ -236,7 +236,7 @@ physics plugin too (so both sides register the same replicated components) plus 
 
 ## 11. Debug view
 
-`physics::debug::PhysicsDebugPlugin`, client side, after the `BackendPlugin`, draws collider outlines and velocity
+`physics::debug::PhysicsDebugPlugin`, client side, after the `GraphicsPlugin`, draws collider outlines and velocity
 arrows as `Shape`s (one `kRect` / `kCircle` / `kCapsule` per outline, three `kLine` per arrow), after the sprites:
 
 - **per entity**, with a `PhysicsDebug{shape, velocity, color}` component, like gizmos in Unity;

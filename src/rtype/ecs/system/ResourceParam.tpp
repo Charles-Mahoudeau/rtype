@@ -14,7 +14,7 @@ ResourceParam<T, A, H>::ResourceParam(Resources& resources, Tick lastRun, Tick t
 
 template <Resource T, ResourceAccess A, ResourceThread H>
 const T& ResourceParam<T, A, H>::get() const noexcept {
-    if constexpr (A == ResourceAccess::kWrite) {
+    if constexpr (kWrites) {
         return _value.get();
     } else {
         return *_value;
@@ -23,7 +23,7 @@ const T& ResourceParam<T, A, H>::get() const noexcept {
 
 template <Resource T, ResourceAccess A, ResourceThread H>
 typename ResourceParam<T, A, H>::Pointer ResourceParam<T, A, H>::operator->() noexcept {
-    if constexpr (A == ResourceAccess::kWrite) {
+    if constexpr (kWrites) {
         return _value.operator->();  // marks the value changed
     } else {
         return _value;
@@ -47,7 +47,7 @@ bool ResourceParam<T, A, H>::isChanged() const noexcept {
 
 template <Resource T, ResourceAccess A, ResourceThread H>
 typename ResourceParam<T, A, H>::Value ResourceParam<T, A, H>::fetch(Resources& resources) {
-    if constexpr (A == ResourceAccess::kWrite) {
+    if constexpr (kWrites) {
         return resources.requireMut<T>();  // throws MissingResourceException naming it
     } else {
         return &resources.require<T>();

@@ -11,12 +11,12 @@
 #include <glm/ext/vector_uint2.hpp>
 #include <numbers>
 
-#include "plugins/backend/graphics/CameraView.hpp"
-#include "plugins/backend/graphics/View.hpp"
+#include "rtype/contract/renderer/view/CameraView.hpp"
+#include "rtype/contract/renderer/view/View.hpp"
 
 namespace {
-using rtype::plugins::backend::graphics::CameraView;
-using rtype::plugins::backend::graphics::View;
+using rtype::contract::renderer::CameraView;
+using rtype::contract::renderer::View;
 
 constexpr float kTolerance = 1e-3F;
 
@@ -48,7 +48,7 @@ TEST(CameraView, centersTheCameraPosition) {
 
 TEST(CameraView, ZoomShowsTheWorldBigger) {
     const CameraView view{
-        View{.projection = rtype::plugins::backend::graphics::Orthographic{.zoom = 2.0F}}, {0.0F, 0.0F}, {800, 600}};
+        View{.projection = rtype::contract::renderer::Orthographic{.zoom = 2.0F}}, {0.0F, 0.0F}, {800, 600}};
     expectNear(view.worldToScreen({10.0F, 0.0F}), {420.0F, 300.0F});
 }
 
@@ -82,7 +82,7 @@ TEST(CameraView, RotatesClockwiseOnScreen) {
 TEST(CameraView, ScreenToWorldUndoesWorldToScreen) {
     const CameraView view{View{.position = {12.0F, -7.0F},
                                .rotation = 0.4F,
-                               .projection = rtype::plugins::backend::graphics::Orthographic{.zoom = 1.5F}},
+                               .projection = rtype::contract::renderer::Orthographic{.zoom = 1.5F}},
                           {1920.0F, 1080.0F},
                           {1280, 900}};
     expectNear(view.screenToWorld(view.worldToScreen({33.0F, 44.0F})), {33.0F, 44.0F});

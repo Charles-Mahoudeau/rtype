@@ -9,14 +9,14 @@
 
 #include <glm/ext/vector_float4.hpp>
 
-#include "plugins/backend/graphics/Shader.hpp"
 #include "render/vulkan/rendering/ShapeBatch.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 using rtype::render::vulkan::rendering::ShapeBatch;
 
 namespace {
-using MaterialId = rtype::plugins::backend::graphics::MaterialId;
-using ShaderInstanceValues = rtype::plugins::backend::graphics::ShaderInstanceValues;
+using MaterialId = rtype::contract::renderer::MaterialId;
+using ShaderInstanceValues = rtype::contract::renderer::ShaderInstanceValues;
 
 constexpr MaterialId kGlow{.index = 0, .generation = 1};
 constexpr MaterialId kFlash{.index = 1, .generation = 1};

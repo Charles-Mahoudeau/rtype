@@ -7,53 +7,45 @@
 
 #include "plugins/audio/AudioRegistry.hpp"
 
+#include <cstdint>
 #include <exception>
 #include <format>
 #include <iostream>
 #include <memory>
 #include <string>
-#include <utility>
-#include <vector>
 
 #include "core/config/Settings.hpp"
 #include "core/config/exceptions/ConfigExceptions.hpp"
 #include "plugins/audio/AudioConfig.hpp"
-#include "plugins/audio/IAudioDevice.hpp"
 #include "plugins/audio/NullAudioDevice.hpp"
-#include "plugins/audio/exceptions/AudioExceptions.hpp"
+#include "rtype/contract/audiodevice/AudioDeviceRegistry.hpp"
+#include "rtype/contract/audiodevice/IAudioDevice.hpp"
+#include "rtype/contract/audiodevice/exceptions/AudioExceptions.hpp"
 
 namespace rtype::plugins::audio {
 
+namespace exceptions = contract::audiodevice::exceptions;
+
 AudioRegistry::AudioRegistry() {
-    add("null", [](const core::config::Settings& section, const AudioConfig& config) -> std::unique_ptr<IAudioDevice> {
-        section.checkKeys({}, "null");
-        return std::make_unique<NullAudioDevice>(config.maxVoices);
-    });
+    devices.add("null",
+                [](const core::config::Settings& section,
+                   std::uint32_t maxVoices) -> std::unique_ptr<contract::audiodevice::IAudioDevice> {
+                    section.checkKeys({}, "null");
+                    return std::make_unique<NullAudioDevice>(maxVoices);
+                });
 }
 
-void AudioRegistry::add(std::string name, Factory factory) {
-    _factories.insert_or_assign(std::move(name), std::move(factory));
-}
-
-std::vector<std::string> AudioRegistry::getNames() const {
-    std::vector<std::string> names;
-    names.reserve(_factories.size());
-    for (const auto& [name, factory] : _factories) {
-        names.push_back(name);
-    }
-    return names;
-}
-
-std::unique_ptr<IAudioDevice> AudioRegistry::createDevice(const core::config::Settings& settings) const {
+std::unique_ptr<contract::audiodevice::IAudioDevice> AudioRegistry::createDevice(
+    const core::config::Settings& settings) const {
     const AudioConfig config = AudioConfig::fromSettings(settings.section("audio"));
     if (config.backend.empty()) {
         throw exceptions::AudioBackendException(
             R"(The config does not choose an audio backend ('audio.backend = "..."'))");
     }
-    const auto found = _factories.find(config.backend);
-    if (found == _factories.end()) {
+    const contract::audiodevice::AudioDeviceRegistry::Factory* factory = devices.find(config.backend);
+    if (factory == nullptr) {
         std::string available;
-        for (const std::string& known : getNames()) {
+        for (const std::string& known : devices.getNames()) {
             available += (available.empty() ? "" : ", ") + known;
         }
         throw exceptions::AudioBackendException(
@@ -61,7 +53,8 @@ std::unique_ptr<IAudioDevice> AudioRegistry::createDevice(const core::config::Se
     }
     std::string failure;
     try {
-        std::unique_ptr<IAudioDevice> device = found->second(settings.section(config.backend), config);
+        std::unique_ptr<contract::audiodevice::IAudioDevice> device =
+            (*factory)(settings.section(config.backend), config.maxVoices);
         if (device) {
             return device;
         }

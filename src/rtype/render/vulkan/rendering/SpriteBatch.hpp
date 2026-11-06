@@ -17,11 +17,11 @@
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
-#include "plugins/backend/graphics/Shader.hpp"
-#include "plugins/backend/graphics/Sprite.hpp"
-#include "plugins/backend/graphics/Text.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
 #include "render/vulkan/Export.hpp"
+#include "rtype/contract/renderer/drawing/Sprite.hpp"
+#include "rtype/contract/renderer/drawing/Text.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 
 namespace rtype::render::vulkan::rendering {
 
@@ -32,20 +32,21 @@ struct SpriteInstance {
     glm::vec2 size{0.0F};      ///< In world units: source size times scale. Location 1.
     glm::vec2 origin{0.0F};    ///< Pivot from the quad's top-left corner, in world units. Location 2.
     float rotation = 0.0F;     ///< In radians, clockwise on screen. Location 3.
-    std::uint32_t blend = 0;   ///< graphics::BlendMode, and a glyph's distance range (rendering/Blend.hpp). Location 6.
+    std::uint32_t blend =
+        0;  ///< contract::renderer::BlendMode, and a glyph's distance range (rendering/Blend.hpp). Location 6.
     glm::vec4 uvRect{0.0F, 0.0F, 1.0F, 1.0F};  ///< Part of the texture: (u0, v0, u1, v1), 0 to 1. Location 4.
     glm::vec4 color{1.0F};                     ///< Multiplies the texture. Location 5.
 
     /// @return The instance of @p sprite, drawn from a texture of @p textureSize pixels.
-    [[nodiscard]] RTYPE_RENDER_VULKAN_API static SpriteInstance fromSprite(
-        const plugins::backend::graphics::Sprite& sprite, glm::uvec2 textureSize) noexcept;
+    [[nodiscard]] RTYPE_RENDER_VULKAN_API static SpriteInstance fromSprite(const contract::renderer::Sprite& sprite,
+                                                                           glm::uvec2 textureSize) noexcept;
 
     /// @return The instance of @p glyph of @p text, drawn from its MSDF font atlas of @p textureSize pixels: placed by
     /// the text's position, scale, rotation and origin, its blend word holding the atlas' distance range
     /// (toShaderMsdf()), read as distances by the glyph shader.
-    [[nodiscard]] RTYPE_RENDER_VULKAN_API static SpriteInstance fromGlyph(
-        const plugins::backend::graphics::Text& text, const plugins::backend::graphics::GlyphQuad& glyph,
-        glm::uvec2 textureSize) noexcept;
+    [[nodiscard]] RTYPE_RENDER_VULKAN_API static SpriteInstance fromGlyph(const contract::renderer::Text& text,
+                                                                          const contract::renderer::GlyphQuad& glyph,
+                                                                          glm::uvec2 textureSize) noexcept;
 
     /// @return The binding of the instance buffer: one SpriteInstance per instance.
     [[nodiscard]] RTYPE_RENDER_VULKAN_API static std::array<vk::VertexInputBindingDescription, 1> getBindings(
@@ -68,10 +69,10 @@ class RTYPE_RENDER_VULKAN_API SpriteBatch {
   public:
     /// @brief Consecutive instances sharing a texture, a material and a target.
     struct Batch {
-        plugins::backend::graphics::TextureId texture;    ///< Bound for the whole batch.
-        plugins::backend::graphics::MaterialId material;  ///< Its game material; the default one if 0.
+        contract::renderer::TextureId texture;    ///< Bound for the whole batch.
+        contract::renderer::MaterialId material;  ///< Its game material; the default one if 0.
         /// What its instances are: kSprite, or kGlyph (the glyphs of a text).
-        plugins::backend::graphics::ShaderTarget target{plugins::backend::graphics::ShaderTarget::kSprite};
+        contract::renderer::ShaderTarget target{contract::renderer::ShaderTarget::kSprite};
         std::uint32_t firstInstance = 0;  ///< Index of its first instance in getInstances().
         std::uint32_t instanceCount = 0;  ///< Number of instances.
         std::uint32_t firstValues =
@@ -88,7 +89,7 @@ class RTYPE_RENDER_VULKAN_API SpriteBatch {
     /// @return The instances added since clear(), in draw order.
     [[nodiscard]] std::span<const SpriteInstance> getInstances() const noexcept { return _instances; }
     /// @return The instance values of the sprites drawn with a game material, in draw order.
-    [[nodiscard]] std::span<const plugins::backend::graphics::ShaderInstanceValues> getInstanceValues() const noexcept {
+    [[nodiscard]] std::span<const contract::renderer::ShaderInstanceValues> getInstanceValues() const noexcept {
         return _values;
     }
     /// @return The batches, in draw order.
@@ -96,15 +97,15 @@ class RTYPE_RENDER_VULKAN_API SpriteBatch {
 
     /// @brief Adds @p instance, drawn with @p texture and the default material, after the others: it extends the last
     /// batch if it shares its texture and material, or starts a new one.
-    void add(plugins::backend::graphics::TextureId texture, const SpriteInstance& instance);
+    void add(contract::renderer::TextureId texture, const SpriteInstance& instance);
 
     /// @brief Adds @p instance, drawn with @p texture and the game material @p material with its @p values, as add().
-    void add(plugins::backend::graphics::TextureId texture, plugins::backend::graphics::MaterialId material,
-             const SpriteInstance& instance, const plugins::backend::graphics::ShaderInstanceValues& values);
+    void add(contract::renderer::TextureId texture, contract::renderer::MaterialId material,
+             const SpriteInstance& instance, const contract::renderer::ShaderInstanceValues& values);
     /// @brief Adds @p glyph (SpriteInstance::fromGlyph()), drawn from the font atlas @p texture with the glyph variant
     /// of @p material (the default one if 0) and its @p values, as add(): glyphs and sprites never share a batch.
-    void addGlyph(plugins::backend::graphics::TextureId texture, plugins::backend::graphics::MaterialId material,
-                  const SpriteInstance& glyph, const plugins::backend::graphics::ShaderInstanceValues& values);
+    void addGlyph(contract::renderer::TextureId texture, contract::renderer::MaterialId material,
+                  const SpriteInstance& glyph, const contract::renderer::ShaderInstanceValues& values);
 
     /// @brief Makes the next add() start a new batch, even with the texture of the last one: something else (a
     /// particle draw) is drawn between the two.
@@ -115,13 +116,13 @@ class RTYPE_RENDER_VULKAN_API SpriteBatch {
 
   private:
     /// @brief Starts a new batch unless the last one shares @p texture, @p material and @p target and nothing split it.
-    void extend(plugins::backend::graphics::TextureId texture, plugins::backend::graphics::MaterialId material,
-                plugins::backend::graphics::ShaderTarget target);
+    void extend(contract::renderer::TextureId texture, contract::renderer::MaterialId material,
+                contract::renderer::ShaderTarget target);
 
-    std::vector<SpriteInstance> _instances;                                 ///< In draw order.
-    std::vector<plugins::backend::graphics::ShaderInstanceValues> _values;  ///< Of the material sprites, in order.
-    std::vector<Batch> _batches;                                            ///< In draw order.
-    bool _split = false;                                                    ///< The next add() starts a new batch.
+    std::vector<SpriteInstance> _instances;                         ///< In draw order.
+    std::vector<contract::renderer::ShaderInstanceValues> _values;  ///< Of the material sprites, in order.
+    std::vector<Batch> _batches;                                    ///< In draw order.
+    bool _split = false;                                            ///< The next add() starts a new batch.
 };
 
 }  // namespace rtype::render::vulkan::rendering

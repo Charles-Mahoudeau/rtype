@@ -65,7 +65,7 @@ known" are written as systems:
 
 ```c++
 void checkNewSprites(rtype::ecs::Query<const SpriteRenderer, rtype::ecs::Added<SpriteRenderer>> sprites,
-                     rtype::ecs::Res<rtype::plugins::backend::TextureAssets> textures) {
+                     rtype::ecs::Res<rtype::plugins::graphics::TextureAssets> textures) {
     for (auto [entity, sprite] : sprites) {
         if (textures->get(sprite.texture) == nullptr) {
             std::cerr << "A SpriteRenderer uses a texture nobody loaded\n";

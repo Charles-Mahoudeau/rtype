@@ -28,13 +28,15 @@
 
 #include "core/config/Settings.hpp"
 #include "platform/glfw/Registration.hpp"
-#include "plugins/backend/BackendPlugin.hpp"
-#include "plugins/backend/BackendRegistry.hpp"
-#include "plugins/backend/BackendResources.hpp"
-#include "plugins/backend/graphics/Color.hpp"
-#include "plugins/backend/graphics/IRenderer.hpp"
-#include "plugins/backend/graphics/Shape.hpp"
+#include "plugins/graphics/BackendRegistry.hpp"
+#include "plugins/graphics/GraphicsPlugin.hpp"
+#include "plugins/graphics/GraphicsResources.hpp"
+#include "plugins/input/InputPlugin.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "render/vulkan/Registration.hpp"
+#include "rtype/contract/renderer/IRenderer.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Shape.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/app/MinimalPlugins.hpp"
@@ -45,7 +47,7 @@
 #include "rtype/ecs/time/Time.hpp"
 
 using namespace rtype;
-using namespace rtype::plugins::backend::graphics;
+using namespace rtype::contract::renderer;
 
 namespace {
 constexpr double kWidth = 800.0;
@@ -67,7 +69,7 @@ struct Lifetime {
 RTYPE_ECS_RESOURCE(Lifetime, "example.Lifetime");
 
 // Render, after the sprites: draws the demo's shapes, turning with time.
-void drawShapes(ecs::NonSendMut<plugins::backend::Backend> backend, ecs::Res<ecs::Time> time,
+void drawShapes(ecs::NonSendMut<plugins::graphics::Backend> backend, ecs::Res<ecs::Time> time,
                 ecs::ResMut<Lifetime> lifetime, ecs::EventWriter<ecs::AppExit> exit) {
     lifetime->elapsed += time->delta;
     const std::optional<float> limit = lifetime.get().seconds;
@@ -180,18 +182,20 @@ int main(int argc, char** argv) {
         }
     }
     try {
-        auto registry = std::make_unique<plugins::backend::BackendRegistry>();
-        platform::glfw::registerPlatform(*registry);
-        render::vulkan::registerRenderer(*registry);
+        auto registry = std::make_unique<plugins::graphics::BackendRegistry>();
+        platform::glfw::registerPlatform(registry->platforms);
+        render::vulkan::registerRenderer(registry->renderers);
 
         ecs::App app;
         app.addPlugins(ecs::MinimalPlugins{})
-            .addPlugin(plugins::backend::BackendPlugin{std::move(registry), makeSettings(validate)});
-        app.insertResource(plugins::backend::ClearColor{.value = kClear});
+            .addPlugin(rtype::plugins::transform::TransformPlugin{})
+            .addPlugin(rtype::plugins::input::InputPlugin{})
+            .addPlugin(plugins::graphics::GraphicsPlugin{std::move(registry), makeSettings(validate)});
+        app.insertResource(plugins::graphics::ClearColor{.value = kClear});
         app.insertResource(lifetime);
         app.addSystem(ecs::Phase::kRender, "example.drawShapes", &drawShapes)
-            .after(std::string{plugins::backend::BackendPlugin::kSpritesSystem})
-            .before(std::string{plugins::backend::BackendPlugin::kEndFrameSystem});
+            .after(std::string{plugins::graphics::GraphicsPlugin::kSpritesSystem})
+            .before(std::string{plugins::graphics::GraphicsPlugin::kEndFrameSystem});
         return app.run();
     } catch (const std::exception& error) {
         std::cerr << "VulkanShapes: " << error.what() << '\n';

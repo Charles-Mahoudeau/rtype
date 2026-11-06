@@ -10,10 +10,12 @@
 #include <stdexcept>
 #include <string>
 
+#include "core/Export.hpp"
+
 namespace rtype::plugins::sprite::exceptions {
 /// @brief Exception thrown when a sprite atlas cannot be built: its file cannot be read or parsed, an image to pack
 /// cannot be decoded or does not fit, or an animation names a frame the atlas does not have.
-class AtlasException : public std::runtime_error {
+class RTYPE_HEADER_ONLY_API AtlasException : public std::runtime_error {
   public:
     explicit AtlasException(const std::string& message) : std::runtime_error{message} {}
     ~AtlasException() override = default;

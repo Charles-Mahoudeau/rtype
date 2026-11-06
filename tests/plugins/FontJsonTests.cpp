@@ -11,10 +11,10 @@
 #include <string_view>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
 #include "plugins/text/Font.hpp"
 #include "plugins/text/detail/FontJson.hpp"
 #include "plugins/text/exceptions/TextExceptions.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
 
 using rtype::plugins::text::Font;
 using rtype::plugins::text::Glyph;
@@ -64,8 +64,8 @@ TEST(FontJson, ReadsTheAtlasAndTheMetrics) {
     EXPECT_EQ(font.getTexturePath(), "assets/fonts/test.png");
     EXPECT_EQ(font.getTexture(), rtype::core::asset::AssetId::fromPath("assets/fonts/test.png"));
     EXPECT_EQ(font.getTextureDesc().size, (glm::uvec2{256, 128}));
-    EXPECT_EQ(font.getTextureDesc().filter, rtype::plugins::backend::graphics::TextureFilter::kLinear);
-    EXPECT_EQ(font.getTextureDesc().encoding, rtype::plugins::backend::graphics::TextureEncoding::kLinear);
+    EXPECT_EQ(font.getTextureDesc().filter, rtype::contract::renderer::TextureFilter::kLinear);
+    EXPECT_EQ(font.getTextureDesc().encoding, rtype::contract::renderer::TextureEncoding::kLinear);
     EXPECT_FLOAT_EQ(font.getDistanceRange(), 4.0F);
     EXPECT_FLOAT_EQ(font.getMetrics().lineHeight, 1.25F);
     EXPECT_FLOAT_EQ(font.getMetrics().ascender, -1.0F);

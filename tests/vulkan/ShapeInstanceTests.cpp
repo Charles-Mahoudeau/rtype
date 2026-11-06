@@ -13,14 +13,14 @@
 #include <glm/ext/vector_float4.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
-#include "plugins/backend/graphics/BlendMode.hpp"
-#include "plugins/backend/graphics/Shape.hpp"
 #include "render/vulkan/rendering/Blend.hpp"
 #include "render/vulkan/rendering/ShapeInstance.hpp"
+#include "rtype/contract/renderer/drawing/BlendMode.hpp"
+#include "rtype/contract/renderer/drawing/Shape.hpp"
 
 namespace {
-using rtype::plugins::backend::graphics::Shape;
-using rtype::plugins::backend::graphics::ShapeKind;
+using rtype::contract::renderer::Shape;
+using rtype::contract::renderer::ShapeKind;
 using rtype::render::vulkan::rendering::ShapeInstance;
 using rtype::render::vulkan::rendering::ShapeInstanceKind;
 
@@ -114,7 +114,7 @@ TEST(ShapeInstance, KeepsItsColoursAndOutline) {
 }
 
 TEST(ShapeInstance, BlendsOrAddsButNeverCutsOut) {
-    using rtype::plugins::backend::graphics::BlendMode;
+    using rtype::contract::renderer::BlendMode;
     EXPECT_EQ(ShapeInstance::fromShape(Shape{}).blend, rtype::render::vulkan::rendering::kBlendAlpha);
     EXPECT_EQ(ShapeInstance::fromShape(Shape{.blend = BlendMode::kAdditive}).blend,
               rtype::render::vulkan::rendering::kBlendAdditive);
@@ -125,7 +125,7 @@ TEST(ShapeInstance, BlendsOrAddsButNeverCutsOut) {
 
 TEST(ShapeInstance, KeepsThePaddingReadWithItsKindZero) {
     const ShapeInstance instance = ShapeInstance::fromShape(
-        Shape{.kind = ShapeKind::kCircle, .blend = rtype::plugins::backend::graphics::BlendMode::kAdditive});
+        Shape{.kind = ShapeKind::kCircle, .blend = rtype::contract::renderer::BlendMode::kAdditive});
     EXPECT_EQ(instance.padding, 0U);
 }
 

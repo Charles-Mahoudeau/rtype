@@ -25,9 +25,9 @@ namespace rtype::engine {
 /// @details A game is a directory (`game` by default, `--game <dir>` on the command line) holding `project.luau` (the
 /// settings, see scripting::SettingsLoader) and `scripts/` (the Luau files of scripting::ScriptingPlugin). Each build
 /// of the App adds, in this order:
-/// 1. the MinimalPlugins;
-/// 2. on the client side (client and standalone modes), the backend and audio plugins, from the settings and the
-///    registries EngineConfig fills;
+/// 1. the MinimalPlugins and the TransformPlugin, which every game has;
+/// 2. the plugins of the program, EngineConfig::addPlugins, with the settings: a client adds its window and what it
+///    draws there, so the Engine names no backend and a server links none;
 /// 3. on a network side (client and server modes), the replication plugin;
 /// 4. the game's native code, EngineConfig::setup;
 /// 5. the scripting plugin, which runs the game's scripts;

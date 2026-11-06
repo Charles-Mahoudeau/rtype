@@ -8,6 +8,7 @@
 #pragma once
 
 #include "Transform.hpp"
+#include "plugins/transform/Export.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 
@@ -17,9 +18,10 @@ namespace rtype::plugins::transform {
 /// @code
 /// rtype::plugins::transform::detachInPlace(commands, turret, global);  // the turret falls off the boss, where it was
 /// @endcode
-void detachInPlace(ecs::Commands& commands, ecs::Entity child, const GlobalTransform& global);
+RTYPE_PLUGIN_TRANSFORM_API void detachInPlace(ecs::Commands& commands, ecs::Entity child,
+                                              const GlobalTransform& global);
 
 /// @brief Records making @p child a child of @p parent without moving it, its Transform becoming relative to it.
-void attachInPlace(ecs::Commands& commands, ecs::Entity child, const GlobalTransform& global, ecs::Entity parent,
-                   const GlobalTransform& parentGlobal);
+RTYPE_PLUGIN_TRANSFORM_API void attachInPlace(ecs::Commands& commands, ecs::Entity child, const GlobalTransform& global,
+                                              ecs::Entity parent, const GlobalTransform& parentGlobal);
 }  // namespace rtype::plugins::transform

@@ -14,12 +14,12 @@
 #include "FakeBackend.hpp"
 #include "TestImages.hpp"
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/graphics/Shader.hpp"
-#include "plugins/backend/graphics/TextureAssets.hpp"
+#include "plugins/graphics/TextureAssets.hpp"
 #include "plugins/shader/Material.hpp"
 #include "plugins/shader/MaterialAssets.hpp"
 #include "plugins/shader/ShaderAssets.hpp"
 #include "plugins/shader/ShaderHandles.hpp"
+#include "rtype/contract/renderer/shaders/CompiledShader.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
 using rtype::core::asset::AssetId;
@@ -49,7 +49,7 @@ class ShaderHandlesTest : public ::testing::Test {
     rtype::test::plugins::FakeRenderer _renderer{_state};             ///< Records the calls.
     rtype::plugins::shader::ShaderAssets _shaders;                    ///< The game's shaders.
     rtype::plugins::shader::MaterialAssets _materials;                ///< The game's materials.
-    rtype::plugins::backend::TextureAssets _textures;                 ///< The game's textures.
+    rtype::plugins::graphics::TextureAssets _textures;                ///< The game's textures.
     ShaderHandles _handles;                                           ///< Under test.
 };
 }  // namespace
@@ -65,7 +65,7 @@ TEST_F(ShaderHandlesTest, CreatesTheShadersAndTheirMaterials) {
     EXPECT_EQ(_state->createdMaterials[0].values.size(), _shaders.get(shader)->materialSize);
     const ShaderHandles::Material* created = _handles.getMaterial(material);
     ASSERT_NE(created, nullptr);
-    EXPECT_NE(created->material, rtype::plugins::backend::graphics::MaterialId{});
+    EXPECT_NE(created->material, rtype::contract::renderer::MaterialId{});
     EXPECT_FLOAT_EQ(created->instanceDefaults[0].x, 0.5F);
 }
 
@@ -95,7 +95,7 @@ TEST_F(ShaderHandlesTest, AMaterialWaitsForItsTextures) {
         _materials.add("red", Material{.shader = _shaders.add("glow", kShader)}.setTexture("noise", noise));
     update();
     EXPECT_EQ(_handles.getMaterial(material), nullptr);
-    rtype::plugins::backend::updateTextures(_textures, _renderer);
+    rtype::plugins::graphics::updateTextures(_textures, _renderer);
     update();
     ASSERT_EQ(_state->createdMaterials.size(), 1U);
     EXPECT_EQ(_state->createdMaterials[0].textures[0], *_textures.getTexture(noise));

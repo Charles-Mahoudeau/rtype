@@ -1,19 +1,20 @@
 # Engine
 
 `rtype::engine::Engine` (`src/rtype/engine/`) runs a game. It reads the game's project settings, builds an `ecs::App`
-with the engine's plugins, runs it, and can build it again when the project changes. The executables do no wiring by
-hand: they register their backends and hand the rest to `Engine`.
+with the plugins the program lists, runs it, and can build it again when the project changes. The `Engine` names no
+backend: a program adds the plugins it uses through `EngineConfig::addPlugins`, so a server links nothing it does not
+use.
 
 ```cpp
 rtype::engine::Engine engine{{
     .mode = rtype::ecs::RunMode::kClient,
     .args = {args.begin() + 1, args.end()},
-    .registerBackends = [](rtype::plugins::backend::BackendRegistry& registry) {
-        rtype::platform::glfw::registerPlatform(registry);
-        rtype::render::vulkan::registerRenderer(registry);
-    },
-    .registerAudio = [](rtype::plugins::audio::AudioRegistry& registry) {
-        rtype::audio::miniaudio::registerAudio(registry);
+    .addPlugins = [](rtype::ecs::App& app, const rtype::core::config::Settings& settings) {
+        auto backends = std::make_unique<rtype::plugins::graphics::BackendRegistry>();
+        rtype::platform::glfw::registerPlatform(backends->platforms);
+        rtype::render::vulkan::registerRenderer(backends->renderers);
+        app.addPlugin(rtype::plugins::input::InputPlugin{});
+        app.addPlugin(rtype::plugins::graphics::GraphicsPlugin{std::move(backends), settings});
     },
 }};
 return engine.run();
@@ -70,8 +71,8 @@ macOS. On Windows, the rule copies the build folder's DLLs next to them.
 |---|------|------|----------|
 | 1 | `project.luau`, read with `isClient`, `isServer`, `isDebug` and `args` | always | everything below reads the settings |
 | 2 | the network settings, checked (`network.host`, `network.port`) | always | a wrong address fails before a window opens |
-| 3 | `MinimalPlugins` | always | time and the schedule |
-| 4 | `BackendPlugin`, `AudioPlugin` | client side (`kClient`, `kStandalone`) | from new registries filled by `registerBackends` / `registerAudio` |
+| 3 | `MinimalPlugins`, `TransformPlugin` | always | time, the schedule and the positions, which every game has |
+| 4 | `EngineConfig::addPlugins` | if given | the plugins of the program, with the settings: a client adds its window and what it draws |
 | 5 | `ReplicationPlugin` | network modes (`kClient`, `kServer`) | registers `Owner`, `PlayerInput`, the connection events and `InputLayout`, so the setup can declare its inputs |
 | 6 | `EngineConfig::setup` | if given | the game's native components, resources, systems and plugins |
 | 7 | `ScriptingPlugin`, on `<game>/scripts` | always | the scripts can use what the setup registered |
@@ -84,8 +85,7 @@ The network reads the `network` section of the settings and refuses unknown keys
 | `network.port` | both | 4242 | a whole number from 1 to 65535; 0 also on a server (the system picks a free port) |
 | `network.host` | client | `"127.0.0.1"` | must resolve to an address |
 
-The registries are filled again on every build: `BackendPlugin` and `AudioPlugin` own theirs, so `EngineConfig` holds
-the functions that fill them, never the registries themselves.
+`addPlugins` runs again on every build, so it creates what the plugins own, such as their registries, each time.
 
 ## Reloading
 

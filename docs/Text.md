@@ -3,7 +3,7 @@
 The text plugin (`src/rtype/plugins/text/`, `rtype::plugins::text`) draws text from **MSDF font atlases**, so it stays
 sharp from 12 to 200 pixels and beyond, rotated or scaled, from one small image per font. It lays the text out itself
 and hands the renderer the glyphs already placed (`IRenderer::draw(Text)`), which Vulkan batches with the sprites. The
-`BackendPlugin` adds it.
+The game adds it, after `GraphicsPlugin` and `ShaderPlugin`, which it requires.
 
 ## Drawing a text
 
@@ -40,7 +40,7 @@ right-aligned lines are placed in.
 ## Drawing
 
 Render "rtype.Text.Draw", on the client, between the backend's camera and its sprites, lays out every `TextRenderer`
-whose font and atlas are loaded and pushes a `graphics::Text` to the `SpriteQueue`: the `BackendPlugin` sorts it with
+whose font and atlas are loaded and pushes a `graphics::Text` to the `SpriteQueue`: the `GraphicsPlugin` sorts it with
 the sprites by layer and calls `IRenderer::draw(Text)`.
 
 In Vulkan, each glyph is one instance of the sprite batch, in the sprites' draw order, and consecutive glyphs of an

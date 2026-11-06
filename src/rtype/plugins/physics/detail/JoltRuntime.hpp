@@ -9,6 +9,8 @@
 
 #include <memory>
 
+#include "plugins/physics/Export.hpp"
+
 namespace JPH {
 class Factory;
 }  // namespace JPH
@@ -25,7 +27,7 @@ namespace rtype::plugins::physics::detail {
 /// const std::shared_ptr<const rtype::plugins::physics::detail::JoltRuntime> runtime =
 ///     rtype::plugins::physics::detail::JoltRuntime::acquire();
 /// @endcode
-class JoltRuntime {
+class RTYPE_PLUGIN_PHYSICS_API JoltRuntime {
   private:
     /// @brief Restricts construction to acquire(), which keeps Jolt set up at most once.
     struct Key {

@@ -7,8 +7,10 @@
 
 #pragma once
 
+#include <span>
 #include <string_view>
 
+#include "plugins/physics/Export.hpp"
 #include "plugins/physics/PhysicsSettings.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
@@ -43,7 +45,7 @@ namespace rtype::plugins::physics {
 /// app.addPlugins(rtype::ecs::MinimalPlugins{})
 ///     .addPlugin(rtype::plugins::physics::PhysicsPlugin{{.gravity = {0.0F, 980.0F}}});
 /// @endcode
-class PhysicsPlugin : public ecs::Plugin {
+class RTYPE_PLUGIN_PHYSICS_API PhysicsPlugin : public ecs::Plugin {
   public:
     static constexpr std::string_view kName = "rtype.Physics";                         ///< The plugin's name.
     static constexpr std::string_view kSyncBodiesSystem = "rtype.Physics.SyncBodies";  ///< Creates and destroys bodies.
@@ -63,6 +65,9 @@ class PhysicsPlugin : public ecs::Plugin {
 
     /// @return "rtype.Physics".
     [[nodiscard]] std::string_view getName() const noexcept override;
+
+    /// @return The TransformPlugin.
+    [[nodiscard]] std::span<const std::string_view> getDependencies() const noexcept override;
 
     /// @brief Registers the components, inserts the PhysicsWorld and adds the FixedUpdate step system.
     /// @throws exceptions::PhysicsException When the settings are invalid.

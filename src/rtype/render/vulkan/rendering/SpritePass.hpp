@@ -17,8 +17,6 @@
 
 #include "MaterialBinding.hpp"
 #include "SpriteBatch.hpp"
-#include "plugins/backend/graphics/CameraView.hpp"
-#include "plugins/backend/graphics/Texture.hpp"
 #include "render/vulkan/Export.hpp"
 #include "render/vulkan/core/Device.hpp"
 #include "render/vulkan/memory/Allocator.hpp"
@@ -26,11 +24,13 @@
 #include "render/vulkan/pipeline/GraphicsPipeline.hpp"
 #include "render/vulkan/pipeline/PipelineLayout.hpp"
 #include "render/vulkan/pipeline/ShaderCache.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/view/CameraView.hpp"
 
 namespace rtype::render::vulkan::rendering {
 
 /// @brief Draws a frame's SpriteBatch: one instanced draw of a unit quad per batch, with premultiplied alpha (each
-/// sprite's graphics::BlendMode is read per instance by the shaders, so it never splits a batch).
+/// sprite's contract::renderer::BlendMode is read per instance by the shaders, so it never splits a batch).
 ///
 /// @details Owns the pipelines of the default shader (on the shared layout): sprites (shaders/sprite.vert and
 /// sprite.frag) and glyphs (sprite.vert and glyph.frag). Per frame in flight, it owns an instance buffer and a buffer
@@ -46,7 +46,7 @@ namespace rtype::render::vulkan::rendering {
 class RTYPE_RENDER_VULKAN_API SpritePass {
   public:
     /// @brief Finds the descriptor set of a texture, or a null handle if it no longer exists.
-    using TextureSetFinder = std::function<vk::DescriptorSet(plugins::backend::graphics::TextureId)>;
+    using TextureSetFinder = std::function<vk::DescriptorSet(contract::renderer::TextureId)>;
 
     /// @param shaders Gives the built-in sprite and glyph shaders.
     /// @param layout The shared layout (ShaderLayout.hpp); must outlive the pass.
@@ -81,7 +81,7 @@ class RTYPE_RENDER_VULKAN_API SpritePass {
     /// a batch of glyphs of the default material with the glyph pipeline. The frame's set 0 must already be bound. A
     /// batch whose texture no longer exists is skipped. Does nothing before upload().
     void record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
-                std::span<const SpriteBatch::Batch> batches, const plugins::backend::graphics::Viewport& viewport,
+                std::span<const SpriteBatch::Batch> batches, const contract::renderer::Viewport& viewport,
                 const TextureSetFinder& findTextureSet, const MaterialFinder& findMaterial);
 
   private:

@@ -12,7 +12,7 @@
 #include <glm/ext/vector_float2.hpp>
 #include <string_view>
 
-#include "plugins/backend/graphics/Color.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
 
 namespace rtype_duel {
 
@@ -39,8 +39,8 @@ constexpr std::uint32_t kLaserLayer = 1U << 1;
 constexpr std::uint32_t kLeftShipLayer = 1U << 2;
 constexpr std::uint32_t kRightShipLayer = 1U << 3;
 
-constexpr rtype::plugins::backend::graphics::Color kObstacleFill{0.25F, 0.27F, 0.32F, 1.0F};
-constexpr rtype::plugins::backend::graphics::Color kObstacleOutline{0.55F, 0.6F, 0.7F, 1.0F};
+constexpr rtype::contract::renderer::Color kObstacleFill{0.25F, 0.27F, 0.32F, 1.0F};
+constexpr rtype::contract::renderer::Color kObstacleOutline{0.55F, 0.6F, 0.7F, 1.0F};
 
 constexpr std::string_view kMoveAction = "move";    ///< Up and down, a vector (only Y is used).
 constexpr std::string_view kShootAction = "shoot";  ///< The left mouse button.
@@ -70,9 +70,9 @@ constexpr const char* kFont = "assets/fonts/orbitron.json";
 constexpr std::int32_t kTextLayer = 10;  ///< Over every sprite.
 constexpr float kNameSize = 22.0F;       ///< The players' names, at the top of their half.
 constexpr float kNameTop = 12.0F;
-constexpr rtype::plugins::backend::graphics::Color kNameColor{1.0F, 1.0F, 1.0F, 0.85F};
+constexpr rtype::contract::renderer::Color kNameColor{1.0F, 1.0F, 1.0F, 0.85F};
 constexpr float kWinnerSize = 52.0F;  ///< The end of the game, in the middle of the arena.
-constexpr rtype::plugins::backend::graphics::Color kWinColor{1.0F, 0.85F, 0.3F, 1.0F};
-constexpr rtype::plugins::backend::graphics::Color kLoseColor{1.0F, 0.45F, 0.4F, 1.0F};
+constexpr rtype::contract::renderer::Color kWinColor{1.0F, 0.85F, 0.3F, 1.0F};
+constexpr rtype::contract::renderer::Color kLoseColor{1.0F, 0.45F, 0.4F, 1.0F};
 
 }  // namespace rtype_duel

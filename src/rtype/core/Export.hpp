@@ -17,3 +17,13 @@
 #else
 #define RTYPE_CORE_API __attribute__((visibility("default")))
 #endif
+
+/// @brief Gives a type with no code of its own (an interface, an exception) a default visibility, in any library.
+/// @details It exports nothing, as such a type has nothing to export, and a `__declspec(dllimport)` would ask for
+/// symbols no library defines. It only keeps its type information visible despite -fvisibility=hidden, for the same
+/// reason as RTYPE_CORE_API: a `dynamic_cast` or a `catch` in another binary must recognize it.
+#ifdef _WIN32
+#define RTYPE_HEADER_ONLY_API
+#else
+#define RTYPE_HEADER_ONLY_API __attribute__((visibility("default")))
+#endif

@@ -13,11 +13,11 @@
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/backend/math/Rect.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
 #include "plugins/sprite/exceptions/SpriteExceptions.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 
-using rtype::plugins::backend::math::Rect;
+using rtype::contract::renderer::math::Rect;
 using rtype::plugins::sprite::AnimationDirection;
 using rtype::plugins::sprite::SpriteAnimation;
 using rtype::plugins::sprite::SpriteAtlas;

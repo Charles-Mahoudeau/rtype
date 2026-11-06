@@ -10,11 +10,13 @@
 #include <stdexcept>
 #include <string>
 
+#include "core/Export.hpp"
+
 namespace rtype::plugins::tilemap::exceptions {
 /// @brief Exception thrown when a tilemap cannot be built: its Tiled file or one of its tilesets cannot be read or
 /// parsed, or uses something this plugin does not support (a non-orthogonal map, compressed tile data, an image
 /// collection tileset).
-class TilemapException : public std::runtime_error {
+class RTYPE_HEADER_ONLY_API TilemapException : public std::runtime_error {
   public:
     explicit TilemapException(const std::string& message) : std::runtime_error{message} {}
     ~TilemapException() override = default;

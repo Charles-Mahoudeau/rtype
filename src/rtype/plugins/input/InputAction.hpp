@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "plugins/input/Control.hpp"
+#include "plugins/input/Export.hpp"
 
 namespace rtype::plugins::input {
 
@@ -30,14 +31,14 @@ enum class ActionType : std::uint8_t {
 ///
 /// @code
 /// input.addAction("move", ActionType::kVector2)
-///     .bindVector(plugins::input::Control::key(plugins::backend::input::Key::kW),
-///     plugins::input::Control::key(plugins::backend::input::Key::kS),
-///     plugins::input::Control::key(plugins::backend::input::Key::kA),
-///     plugins::input::Control::key(plugins::backend::input::Key::kD))
-///     .bindVector(plugins::input::Control::gamepadAxis(plugins::backend::input::GamepadAxis::kLeftX),
-///     plugins::input::Control::gamepadAxis(plugins::backend::input::GamepadAxis::kLeftY));
+///     .bindVector(plugins::input::Control::key(contract::platform::input::Key::kW),
+///     plugins::input::Control::key(contract::platform::input::Key::kS),
+///     plugins::input::Control::key(contract::platform::input::Key::kA),
+///     plugins::input::Control::key(contract::platform::input::Key::kD))
+///     .bindVector(plugins::input::Control::gamepadAxis(contract::platform::input::GamepadAxis::kLeftX),
+///     plugins::input::Control::gamepadAxis(contract::platform::input::GamepadAxis::kLeftY));
 /// @endcode
-class InputAction {
+class RTYPE_PLUGIN_INPUT_API InputAction {
   public:
     explicit InputAction(ActionType type) noexcept;
 

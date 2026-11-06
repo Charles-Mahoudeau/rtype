@@ -51,6 +51,7 @@
 #include "plugins/physics/RigidBody.hpp"
 #include "plugins/physics/Velocity.hpp"
 #include "plugins/transform/Transform.hpp"
+#include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
@@ -160,6 +161,7 @@ void spawn(App& app, glm::vec2 position, const Collider& collider, const RigidBo
 // generator so every run builds the same room.
 std::unique_ptr<App> makeRoom(std::uint32_t bodies, std::uint32_t seed) {
     auto app = std::make_unique<App>(RunMode::kServer);
+    app->addPlugin(rtype::plugins::transform::TransformPlugin{});
     app->addPlugin(PhysicsPlugin{settingsFor(bodies)});
     app->insertResource(Time{.fixedDelta = kFixedDelta});
     app->insertResource(StepClock{});

@@ -14,8 +14,8 @@
 #include <glm/ext/vector_float4.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
-#include "plugins/backend/graphics/Shape.hpp"
 #include "render/vulkan/Export.hpp"
+#include "rtype/contract/renderer/drawing/Shape.hpp"
 
 namespace rtype::render::vulkan::rendering {
 
@@ -43,7 +43,7 @@ struct ShapeInstance {
 
     /// @return The instance that draws @p shape.
     [[nodiscard]] RTYPE_RENDER_VULKAN_API static ShapeInstance fromShape(
-        const plugins::backend::graphics::Shape& shape) noexcept;
+        const contract::renderer::Shape& shape) noexcept;
 
     /// @return The binding of the instance buffer: one ShapeInstance per instance.
     [[nodiscard]] RTYPE_RENDER_VULKAN_API static std::array<vk::VertexInputBindingDescription, 1> getBindings(

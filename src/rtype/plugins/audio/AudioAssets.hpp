@@ -17,8 +17,9 @@
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
-#include "plugins/audio/AudioTypes.hpp"
-#include "plugins/audio/IAudioDevice.hpp"
+#include "plugins/audio/Export.hpp"
+#include "rtype/contract/audiodevice/AudioTypes.hpp"
+#include "rtype/contract/audiodevice/IAudioDevice.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
 namespace rtype::plugins::audio {
@@ -44,14 +45,14 @@ enum class SoundState : std::uint8_t {
 ///     commands.spawn(rtype::plugins::audio::AudioSource{.sound = engine, .loop = true});
 /// }
 /// @endcode
-class AudioAssets {
+class RTYPE_PLUGIN_AUDIO_API AudioAssets {
   public:
     /// @brief One sound.
     struct Entry {
         std::string path;                       ///< Its path, or its name for a sound given in memory.
-        SoundDesc desc;                         ///< How it is loaded: decoded once, or streamed.
+        contract::audiodevice::SoundDesc desc;  ///< How it is loaded: decoded once, or streamed.
         SoundState state{SoundState::kQueued};  ///< Where it is in its loading.
-        SoundId sound;                          ///< The device's id, once loaded.
+        contract::audiodevice::SoundId sound;   ///< The device's id, once loaded.
         std::vector<std::byte> encoded;         ///< The file's bytes, for a sound given in memory; freed once loaded.
         std::string error;                      ///< Why it failed to load.
     };
@@ -70,19 +71,20 @@ class AudioAssets {
     /// @param desc How to load it. Ignored if the sound was already asked for: the first request wins.
     /// @return Its id (AssetId::fromPath()), at once: put it in components and events, the sound plays once loaded.
     /// @throws exceptions::AudioLoadException If another path already has this id (a hash collision).
-    core::asset::AssetId load(const std::filesystem::path& path, const SoundDesc& desc = {});
+    core::asset::AssetId load(const std::filesystem::path& path, const contract::audiodevice::SoundDesc& desc = {});
 
     /// @brief Asks for a sound already in memory (embedded, downloaded), known by @p name.
     /// @param encoded The sound file's bytes (OGG...), copied.
     /// @return Its id (AssetId::fromPath(name)).
     /// @throws exceptions::AudioLoadException If another name already has this id (a hash collision).
-    core::asset::AssetId load(const std::string& name, std::span<const std::byte> encoded, const SoundDesc& desc = {});
+    core::asset::AssetId load(const std::string& name, std::span<const std::byte> encoded,
+                              const contract::audiodevice::SoundDesc& desc = {});
 
     /// @return The sound @p id names, or nullptr if it was never asked for or was unloaded.
     [[nodiscard]] const Entry* get(core::asset::AssetId id) const;
 
     /// @return The device's id of the sound @p id names, or nothing if it is not loaded (yet).
-    [[nodiscard]] std::optional<SoundId> getSound(core::asset::AssetId id) const;
+    [[nodiscard]] std::optional<contract::audiodevice::SoundId> getSound(core::asset::AssetId id) const;
 
     /// @brief Forgets the sound @p id names; if it was loaded, the next updateSounds() destroys it, which stops its
     /// voices.
@@ -97,26 +99,27 @@ class AudioAssets {
 
     /// @brief Records that the queued sound @p id was created as @p sound, and frees its in-memory bytes. Does nothing
     /// if @p id is not queued.
-    void setLoaded(core::asset::AssetId id, SoundId sound);
+    void setLoaded(core::asset::AssetId id, contract::audiodevice::SoundId sound);
 
     /// @brief Records that the queued sound @p id could not be loaded, and why. Does nothing if @p id is not queued.
     void setFailed(core::asset::AssetId id, std::string error);
 
     /// @return The sounds unloaded since the last call, for the device to destroy.
-    [[nodiscard]] std::vector<SoundId> takeUnloaded();
+    [[nodiscard]] std::vector<contract::audiodevice::SoundId> takeUnloaded();
     /// @}
 
   private:
     /// @brief Records a queued sound, or returns the id of the one already asked for.
     /// @throws exceptions::AudioLoadException If another path already has the id.
-    core::asset::AssetId request(std::string path, std::vector<std::byte> encoded, const SoundDesc& desc);
+    core::asset::AssetId request(std::string path, std::vector<std::byte> encoded,
+                                 const contract::audiodevice::SoundDesc& desc);
 
     /// @return The queued entry @p id names, removed from the queue, or nullptr if it is not queued.
     Entry* dequeue(core::asset::AssetId id);
 
     std::unordered_map<core::asset::AssetId, Entry> _entries;  ///< Every sound asked for, by id.
     std::vector<core::asset::AssetId> _queued;                 ///< The queued sounds, in the order they were asked for.
-    std::vector<SoundId> _unloaded;                            ///< Sounds to destroy, from unload().
+    std::vector<contract::audiodevice::SoundId> _unloaded;     ///< Sounds to destroy, from unload().
 };
 RTYPE_ECS_RESOURCE(AudioAssets, "rtype.AudioAssets");
 
@@ -124,5 +127,5 @@ RTYPE_ECS_RESOURCE(AudioAssets, "rtype.AudioAssets");
 /// or from the bytes given to load(). Called by the audio plugin each frame, on the main thread.
 /// @details A sound the device cannot open or decode is marked SoundState::kFailed with the reason, which is also
 /// printed: one missing sound does not stop the game.
-void updateSounds(AudioAssets& assets, IAudioDevice& device);
+RTYPE_PLUGIN_AUDIO_API void updateSounds(AudioAssets& assets, contract::audiodevice::IAudioDevice& device);
 }  // namespace rtype::plugins::audio
