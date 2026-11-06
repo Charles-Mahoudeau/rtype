@@ -529,9 +529,13 @@ loader only warns on `std::cerr` when a `both` system writes a `serverOnly` comp
 - **Strings** (from SCR-01's `ecs::String`): replicated as a length and its bytes, with a size cap, in components
   (a `PlayerName` on each ship, set by the server from the client's connection data). `kEveryChange` resends the whole
   value, which suits a name set once and not a string rewritten every frame.
-- **`FieldSerializer` has no variable-length field yet.** Its switch handles fixed-width values only (numbers, vecs,
-  entity, asset id), so `kString` needs a case for a length-prefixed value, and the snapshot size budget
-  (`kMaxMessageSize` = 1000 bytes) must count it. The size cap is what keeps one string inside that budget.
+- **Done: strings on the wire.** `FieldSerializer` writes a `kString` as a `u8` length and its bytes, and a snapshot sends
+  a component with a string after its `u16` length, so the size budget (`kMaxMessageSize` = 1000 bytes) counts the
+  bytes actually written. The 255-byte cap of `ecs::String` keeps one string inside it.
+- **Done: the manifest accepts runtime components.** Checked in `replication/manifest/`: `registerType(ComponentInfo)`
+  computes the `layoutHash` and lists a replicated component like a C++ one, and the client's check names the
+  component that differs or is missing (a script one included). `tests/scripting/ScriptReplicationTests.cpp` runs a
+  server and a client on `game.Shield`.
 - **Events are not replicated; custom packets are the planned way across.** Checked in `replication/`: the only events
   are `ClientConnected` / `ClientDisconnected`, registered `kServerOnly` and raised from the local network
   notifications, and no code serializes an event. `EventInfo.hpp` and `ecs/features/11-events.md` say the same (the
@@ -611,9 +615,9 @@ this plan is A: it exists in the design, and it needs no change to the ECS rule.
 
 **Done when**
 
-- [ ] A server and a client load the same `game.Shield`, and a value changed on the server arrives on the client.
-- [ ] A client with a different layout is refused with a clear message.
-- [ ] A string component set on the server (a username) arrives on the client, and a string over the cap is refused or
+- [x] A server and a client load the same `game.Shield`, and a value changed on the server arrives on the client.
+- [x] A client with a different layout is refused with a clear message.
+- [x] A string component set on the server (a username) arrives on the client, and a string over the cap is refused or
   cut as documented.
 - [ ] A client sends its name after connecting, and the server puts the validated name in a component every client
   sees (option (b) above, or the option the team picks).
