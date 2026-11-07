@@ -10,10 +10,14 @@
 #include <array>
 #include <cstddef>
 #include <cstring>
+#include <optional>
 #include <span>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/call/CallBuffer.hpp"
 #include "rtype/ecs/call/CallInfo.hpp"
 #include "rtype/ecs/call/CallTraits.hpp"
 #include "rtype/ecs/call/Calls.hpp"
@@ -25,11 +29,14 @@
 #include "rtype/ecs/exceptions/MissingResourceException.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
+#include "rtype/ecs/storage/ViewAs.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/system/ScriptCallable.hpp"
 #include "rtype/ecs/system/System.hpp"
 #include "rtype/ecs/system/SystemAccess.hpp"
 #include "rtype/ecs/type/Field.hpp"
+#include "rtype/ecs/type/TypeInfo.hpp"
+#include "rtype/ecs/type/TypeTraits.hpp"
 #include "rtype/ecs/world/World.hpp"
 
 namespace rtype::test::calls {
@@ -81,6 +88,55 @@ Total countPings(ecs::EventReader<Ping> pings) { return Total{.value = static_ca
 
 /// @brief Spawns an entity with a Marker.
 void spawnMarker(ecs::Commands& commands) { commands.spawn().add(Marker{.value = 7}); }
+
+/// @brief Call data that owns memory: a text of any length and a list.
+struct Prompt {
+    std::string text;
+    std::vector<float> weights;
+    int repeat{1};
+};
+RTYPE_ECS_CALL_DATA(Prompt, "test.calls.Prompt", text, weights, repeat);
+
+/// @brief A result that owns memory.
+struct Answer {
+    std::string text;
+    float total{0.0F};
+};
+RTYPE_ECS_CALL_DATA(Answer, "test.calls.Answer", text, total);
+
+/// @brief Repeats the text and sums the weights.
+Answer answer(const Prompt& prompt) {
+    Answer result;
+    for (int index = 0; index < prompt.repeat; ++index) {
+        result.text += prompt.text;
+    }
+    for (const float weight : prompt.weights) {
+        result.total += weight;
+    }
+    return result;
+}
+
+/// @brief Counts its destruction in the int it points to, if any.
+struct Counted {
+    int* destroyed{nullptr};
+    Counted() = default;
+    ~Counted() {
+        if (destroyed != nullptr) {
+            ++*destroyed;
+        }
+    }
+    Counted(const Counted& other) = default;
+    Counted& operator=(const Counted& other) = default;
+    Counted(Counted&& other) noexcept = default;
+    Counted& operator=(Counted&& other) noexcept = default;
+};
+
+/// @brief Call data that says when it is destroyed.
+struct Tracked {
+    std::string text;
+    Counted counted;
+};
+RTYPE_ECS_CALL_DATA(Tracked, "test.calls.Tracked", text);
 }  // namespace rtype::test::calls
 
 namespace {
@@ -291,4 +347,63 @@ TEST(SystemAccessMergeTest, MergesEveryKindAndTheMainThreadNeed) {
     EXPECT_EQ(first.getResources().size(), 1U);
     EXPECT_EQ(first.getEvents().size(), 1U);
     EXPECT_TRUE(first.isMainThread());
+}
+
+// ---- call data that owns memory ----
+
+TEST_F(CallsTest, DescribesATextAndAListAsListFields) {
+    app.addCall("test.answer", &rtype::test::calls::answer);
+    const CallInfo& info = find("test.answer");
+    ASSERT_TRUE(info.arguments.has_value());
+    ASSERT_EQ(info.arguments->fields.size(), 3U);
+    EXPECT_EQ(info.arguments->fields.front().type, FieldType::kText);
+    EXPECT_NE(info.arguments->fields.front().list, nullptr);
+    EXPECT_NE(info.arguments->hooks.destruct, nullptr);
+    ASSERT_TRUE(info.result.has_value());
+    EXPECT_EQ(info.result->fields.front().type, FieldType::kText);
+}
+
+TEST_F(CallsTest, PassesALongTextAndAListBothWays) {
+    using rtype::test::calls::Answer;
+    using rtype::test::calls::Prompt;
+    const CallId id = app.addCall("test.answer", &rtype::test::calls::answer);
+    const CallInfo& info = find("test.answer");
+    const rtype::ecs::CallBuffer arguments{info.arguments};
+    const rtype::ecs::CallBuffer result{info.result};
+    auto* prompt = rtype::ecs::storage::viewAs<Prompt>(arguments.get());
+    EXPECT_EQ(prompt->repeat, 1);  // built from its defaults
+    prompt->text = std::string(5000, 'a');
+    prompt->weights = {1.0F, 2.5F};
+    prompt->repeat = 2;
+
+    app.getWorld().getCalls().invoke(app.getWorld(), id, arguments.get(), result.get());
+
+    const auto* answer = rtype::ecs::storage::viewAs<Answer>(std::span<const std::byte>{result.get()});
+    EXPECT_EQ(answer->text.size(), 10000U);
+    EXPECT_FLOAT_EQ(answer->total, 3.5F);
+    EXPECT_EQ(prompt->text.size(), 5000U);  // the arguments are read, not moved from
+}
+
+TEST_F(CallsTest, ABufferDestroysTheValueItBuilt) {
+    using rtype::test::calls::Tracked;
+    const std::optional<rtype::ecs::TypeInfo> type{rtype::ecs::TypeTraits<Tracked>::makeTypeInfo()};
+    int destroyed = 0;
+    {
+        const rtype::ecs::CallBuffer buffer{type};
+        auto* tracked = rtype::ecs::storage::viewAs<Tracked>(buffer.get());
+        tracked->counted.destroyed = &destroyed;
+        tracked->text = std::string(1000, 'x');
+    }
+    EXPECT_EQ(destroyed, 1);
+    const rtype::ecs::CallBuffer none{std::nullopt};
+    EXPECT_TRUE(none.get().empty());
+}
+
+TEST_F(CallsTest, RefusesMisalignedBytesForCallDataThatOwnsMemory) {
+    const CallId id = app.addCall("test.answer", &rtype::test::calls::answer);
+    const CallInfo& info = find("test.answer");
+    const rtype::ecs::CallBuffer result{info.result};
+    alignas(std::max_align_t) std::array<std::byte, sizeof(rtype::test::calls::Prompt) + 1> raw{};
+    const std::span<const std::byte> shifted{raw.data() + 1, sizeof(rtype::test::calls::Prompt)};
+    EXPECT_THROW(app.getWorld().getCalls().invoke(app.getWorld(), id, shifted, result.get()), CallException);
 }
