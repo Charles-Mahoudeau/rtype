@@ -49,6 +49,12 @@ class RTYPE_ECS_API Plugin {
     /// @brief Registers what the plugin brings into the App.
     virtual void build(App& app) = 0;
 
+    /// @brief Does what needs every plugin built first, once: reading data that names what other plugins registered
+    /// (the components scripts declare, for instance). Does nothing by default.
+    /// @details The App calls it on every plugin, in the order they were added, before its first frame
+    /// (App::finishPlugins()); a plugin added after that is finished right after its build().
+    virtual void finish(App& app);
+
   protected:
     Plugin() = default;
     Plugin(const Plugin& other) = default;
