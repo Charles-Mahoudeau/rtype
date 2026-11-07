@@ -28,6 +28,7 @@ your game never needs a program of its own.
   spawned from systems. See [Capsules](capsules.md), the [Capsule file format](capsule-format.md) and
   [Reading and writing capsule files](capsule-files.md).
 - **The user interface** is built from tables: menus, HUDs, buttons, sliders. See [User interface](ui.md).
+- **Web APIs** (an AI model, a leaderboard) are reached from the server with HTTPS requests. See [HTTP](http.md).
 - **Particle effects** (sparks, smoke, trails) are tables too. See [Particles](particles.md).
 
 ## Client and server
