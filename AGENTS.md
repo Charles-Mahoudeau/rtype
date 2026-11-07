@@ -9,8 +9,9 @@ the files it opens, so do it by hand.
 
 ## What this is
 
-R-Type is an Epitech Tek3 project: a game engine (C++23, `xmake`, clang) with a Vulkan renderer, Luau scripting,
-physics, audio and a replicated client/server network model. It does not contain a game; it runs one.
+R-Type is an Epitech Tek3 project: AYLO Engine (Another Yet Lightweight Optimized Engine), a game engine (C++23,
+`xmake`, clang) with a Vulkan renderer, Luau scripting, physics, audio and a replicated client/server network model. It
+does not contain a game; it runs one.
 
 There are two kinds of work, with different rules:
 

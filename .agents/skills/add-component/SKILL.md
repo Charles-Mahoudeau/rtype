@@ -1,6 +1,6 @@
 ---
 name: add-component
-description: Add a component, resource or event to an engine plugin of the R-Type engine so that C++, scripts, serialization and replication all see it. Use when asked to "add a component", "add a resource", "add an event", or to give a plugin new data.
+description: Add a component, resource or event to an engine plugin of the AYLO Engine so that C++, scripts, serialization and replication all see it. Use when asked to "add a component", "add a resource", "add an event", or to give a plugin new data.
 ---
 
 # Add a component, resource or event

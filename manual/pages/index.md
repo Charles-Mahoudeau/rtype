@@ -1,6 +1,6 @@
-# R-Type Engine Manual
+# AYLO Engine Manual
 
-The R-Type engine runs games written entirely in Luau. You do not need to know anything about the engine's C++ code to
+The AYLO Engine runs games written entirely in Luau. You do not need to know anything about the engine's C++ code to
 make one.
 
 ## A game is a folder

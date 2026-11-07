@@ -1,6 +1,6 @@
 ---
 name: luau-gameplay
-description: Write or change a game in Luau for the R-Type engine - project.luau, components, systems, engine calls, setup forms, assets - without touching C++. Use when asked to "make a game", "write gameplay", "add a system", "add a component in Luau", "change the game scripts", or when working in a game/ folder.
+description: Write or change a game in Luau for the AYLO Engine - project.luau, components, systems, engine calls, setup forms, assets - without touching C++. Use when asked to "make a game", "write gameplay", "add a system", "add a component in Luau", "change the game scripts", or when working in a game/ folder.
 ---
 
 # Write a game in Luau

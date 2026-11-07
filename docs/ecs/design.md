@@ -1,6 +1,6 @@
 # ECS Design Proposal
 
-This document proposes the Entity Component System of the R-Type engine. It explains each part of an
+This document proposes the Entity Component System of the AYLO Engine. It explains each part of an
 ECS, lists what existing ECSs do for that part, and picks what fits our requirements. Nothing here is
 implemented yet: every snippet is illustrative and open to discussion.
 
