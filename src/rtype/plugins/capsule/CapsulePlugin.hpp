@@ -19,6 +19,8 @@ class App;
 namespace rtype::plugins::capsule {
 /// @brief Gives the world its capsules: inserts the Capsules resource ("rtype.Capsules"), spawning on the App's side.
 /// @details Requires no plugin, so a server adds it alone. A game lists it in `project.luau` as "rtype.Capsule".
+/// Capsules are spawned, loaded (a switch: LoadedCapsule) and reloaded with CapsuleSpawn.hpp, each spawned root marked
+/// with a CapsuleInstance.
 class RTYPE_PLUGIN_CAPSULE_API CapsulePlugin : public ecs::Plugin {
   public:
     static constexpr std::string_view kName = "rtype.Capsule";  ///< The plugin's name.
@@ -33,7 +35,8 @@ class RTYPE_PLUGIN_CAPSULE_API CapsulePlugin : public ecs::Plugin {
     /// @return "rtype.Capsule".
     [[nodiscard]] std::string_view getName() const noexcept override;
 
-    /// @brief Inserts the Capsules resource if the world has none, and sets its run mode to the App's.
+    /// @brief Inserts the Capsules resource if the world has none and sets its run mode to the App's, inserts the
+    /// LoadedCapsule resource, and registers the CapsuleInstance component.
     void build(ecs::App& app) override;
 };
 }  // namespace rtype::plugins::capsule
