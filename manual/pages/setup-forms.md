@@ -37,6 +37,7 @@ Game.assets = {
 | `engine.assets.shader(path)` | shader id | written in the engine's GLSL dialect |
 | `engine.assets.material({ name, shader, values, textures })` | material id | a shader and its values |
 | `engine.assets.atlas({ path \| texture, name, linear, grid, frames, animations })` | atlas id | see below |
+| `engine.assets.particle({ name, ... })` | effect id | a particle effect, see [Particles](particles.md) |
 
 ### Atlases
 

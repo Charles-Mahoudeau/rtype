@@ -50,7 +50,7 @@ end
 | `rtype.Tilemap` | Tiled maps and parallax backgrounds | client |
 | `rtype.Text` | Text from font atlases | client |
 | `rtype.Ui`, see [User interface](ui.md) | Menus and HUDs: layout, buttons, sliders, text fields | client |
-| `rtype.Particle` | Particle emitters and effects | client |
+| `rtype.Particle`, see [Particles](particles.md) | Particle emitters and effects | client |
 | `rtype.audio` | Sounds, music and the listener | client |
 | `rtype.Physics`, see [Physics](physics.md) | 2D physics | both |
 | `rtype.PhysicsDebug` | Draws the colliders and velocities | client |
