@@ -9,7 +9,8 @@ The platforms (`src/rtype/platform/`) and audio backends (`src/rtype/audio/`) fo
   a window that is specific to its API comes through the matching `interop-*` target, which both sides depend on.
 - Vulkan and its helper libraries are private to this folder; the same goes for the window library in the platform
   backend and the audio library in the audio backend.
-- A backend registers itself by name through its registration function, which the executable calls.
+- A backend is a library the engine loads: it exports one `RTYPE_LIBRARY` entry point (`Library.cpp`) that fills the
+  registry of its contract by name. The executable links it not at all (`docs/Plugins.md#loading`).
 
 ## Invariants
 

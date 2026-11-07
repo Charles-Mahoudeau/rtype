@@ -19,6 +19,8 @@ systems on the app. Shared library `scripting`. This is the module that makes th
 - Anything a script can do is documented in `manual/` and covered by a script test. A new setup form or engine call
   without them is not done.
 - Engine calls from scripts go through the generic call mechanism of `ecs`; the bridge never special-cases a plugin.
+- The setup forms (`engine.assets`, `engine.input`...) belong to the plugins, which bring them as `<Name>Forms.luau`
+  files; this module holds only `setup/FormsPrelude.luau` (`engine.forms` helpers) and runs what the plugins register.
 
 ## Tests and docs
 

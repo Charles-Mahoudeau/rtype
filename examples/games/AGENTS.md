@@ -12,7 +12,8 @@ the assets of a `game/` folder. It is not for engine work (that is `src/`).
 - Learn the API from the game developer manual in `manual/`. Until it covers a topic, `docs/scripting/plan.md` and
   `docs/engine/design.md` hold the details, and `docs/luau/type-definitions.md` the Luau types. Never guess an API: if
   neither says it exists, it does not.
-- Choose plugins, window, renderer, audio, network and physics in `project.luau`, never by changing code.
+- Choose plugins (by name, such as `rtype.Physics`), window, renderer, audio, network and physics in `project.luau`,
+  never by changing code.
 - If the engine lacks something the game needs, do not work around it: file an engine issue (title
   `[Area] <summary>`, say which script wants what, with the Luau you would write) and tell the user. Use the
   `plan-issues` skill if several tasks are needed.
@@ -21,7 +22,8 @@ the assets of a `game/` folder. It is not for engine work (that is `src/`).
 
 - Use the `luau-gameplay` skill for the folder layout, components, systems, calls and setup forms.
 - Model your game on `examples/games/rtype_duel/game/` (scripts split by side: `server/`, `client/`, shared files at the
-  root).
+  root). `examples/games/plugin_demo/` shows a game with a native plugin of its own in `game/plugins/`: writing one is
+  engine work, not game work; ask for it in an engine issue.
 - Run it to see it work: build with `xmake build -y`, then run the server and the client (commands in the root file).
 - Keep every piece of data on the side it belongs to: the server owns gameplay, the client draws and sends inputs.
 
