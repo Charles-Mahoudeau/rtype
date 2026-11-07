@@ -7,7 +7,6 @@
 
 #include "NetworkInput.hpp"
 
-#include <cstddef>
 #include <exception>
 #include <format>
 #include <glm/ext/vector_float2.hpp>
@@ -26,6 +25,7 @@
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/system/Side.hpp"
 #include "rtype/ecs/type/String.hpp"
+#include "rtype/ecs/type/TypeTraits.hpp"
 #include "rtype/plugins/GlmReflection.hpp"  // IWYU pragma: keep
 #include "rtype/replication/client/ClientPlugin.hpp"
 #include "rtype/replication/client/ClientState.hpp"
@@ -34,6 +34,7 @@
 #include "rtype/replication/input/InputLayout.hpp"
 
 namespace rtype::engine {
+namespace {
 namespace input_call {
 /// @brief The arguments of `rtype.input.read`, as the Engine builds them. It names the same data as the input
 /// plugin's `ReadActionArguments`: addNetworkInput() checks that the plugin's layout is this one.
@@ -52,7 +53,6 @@ struct ActionState {
 RTYPE_ECS_CALL_DATA(ActionState, "rtype.input.ActionState", value, held, pressed, released);
 }  // namespace input_call
 
-namespace {
 /// @brief Reads one input action through the call at index 0 of @p calls.
 [[nodiscard]] std::optional<ActionReading> readThroughCall(const ecs::DynamicCalls& calls,
                                                            const std::string_view name) {
