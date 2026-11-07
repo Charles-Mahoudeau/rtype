@@ -1,3 +1,4 @@
 # GLSL stays LF on every platform: the shaders ABI (src/rtype/plugins/backend/graphics/shaders/) is embedded as chars,
 # and a CRLF checkout (Windows) would put carriage returns in the assembled GLSL.
 *.glsl text eol=lf
+*.bat text eol=crlf
