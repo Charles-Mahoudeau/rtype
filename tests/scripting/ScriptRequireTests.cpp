@@ -67,6 +67,7 @@ std::string buildError(const std::filesystem::path& directory) {
 TEST(ScriptRequire, ASiblingRequireReturnsTheValueOfTheModule) {
     const ScriptsDirectory scripts{"rtype-require-sibling"};
     scripts.write("a_config.luau", "return { name = 'Configured' }");
+    scripts.write("main.luau", R"(require("./b_user"))");
     scripts.write("b_user.luau", R"(
         local config = require("./a_config")
         engine.ecs.component("game." .. config.name, { fields = {} })
@@ -80,6 +81,7 @@ TEST(ScriptRequire, ASiblingRequireReturnsTheValueOfTheModule) {
 TEST(ScriptRequire, AScriptsAliasRequiresFromTheRootOfScripts) {
     const ScriptsDirectory scripts{"rtype-require-alias"};
     scripts.write("lib/util.luau", "return { name = 'FromUtil' }");
+    scripts.write("main.luau", R"(require("./ui/panel"))");
     scripts.write("ui/panel.luau", R"(
         local util = require("@scripts/lib/util")
         engine.ecs.component("game." .. util.name, { fields = {} })
@@ -102,52 +104,26 @@ TEST(ScriptRequire, AFolderWithAnInitFileIsRequiredByItsName) {
     EXPECT_TRUE(game.hasComponent("game.FromInit"));
 }
 
-TEST(ScriptRequire, AModuleRequiredAndAutoLoadedRunsOnce) {
+TEST(ScriptRequire, AModuleRequiredByTwoFilesRunsOnce) {
     const ScriptsDirectory scripts{"rtype-require-once"};
-    // Loaded last by the auto-loading, but required before by both users.
-    scripts.write("z_lib.luau", "Runs = (Runs or 0) + 1");
+    // A system name can only be declared once: a second run of z_lib would fail the build.
+    scripts.write("z_lib.luau", systemScript("game.Once"));
     scripts.write("a_user.luau", R"(require("./z_lib"))");
     scripts.write("b_user.luau", R"(require("./z_lib"))");
-    scripts.write("c_check.luau", R"(
-        assert(Runs == 1, "z_lib ran " .. tostring(Runs) .. " times")
-        engine.ecs.component("game.Checked", { fields = {} })
+    scripts.write("main.luau", R"(
+        require("./a_user")
+        require("./b_user")
     )");
 
     const Game game{scripts.path()};
 
-    EXPECT_TRUE(game.hasComponent("game.Checked"));
-}
-
-TEST(ScriptRequire, AFileRequiredByAnotherIsNotRunAgainWhenItsTurnComes) {
-    const ScriptsDirectory scripts{"rtype-require-skip"};
-    scripts.write("a_first.luau", R"(require("./b_second"); Order = (Order or "") .. "a")");
-    scripts.write("b_second.luau", R"(Order = (Order or "") .. "b")");
-    scripts.write("c_check.luau", R"(
-        assert(Order == "ba", "order was " .. tostring(Order))
-        engine.ecs.component("game.Ordered", { fields = {} })
-    )");
-
-    const Game game{scripts.path()};
-
-    EXPECT_TRUE(game.hasComponent("game.Ordered"));
-}
-
-TEST(ScriptRequire, GlobalsAreStillSharedAcrossFiles) {
-    const ScriptsDirectory scripts{"rtype-require-globals"};
-    scripts.write("a_sets.luau", "Duel = { rounds = 3 }");
-    scripts.write("b_reads.luau", R"(
-        assert(Duel.rounds == 3)
-        engine.ecs.component("game.Shared", { fields = {} })
-    )");
-
-    const Game game{scripts.path()};
-
-    EXPECT_TRUE(game.hasComponent("game.Shared"));
+    EXPECT_TRUE(game.hasSystem("game.Once"));
 }
 
 TEST(ScriptRequire, AReturnedTableIsFrozen) {
     const ScriptsDirectory scripts{"rtype-require-frozen"};
     scripts.write("a_lib.luau", "return { value = 1 }");
+    scripts.write("main.luau", R"(require("./b_user"))");
     scripts.write("b_user.luau", R"(
         local lib = require("./a_lib")
         assert(not pcall(function() lib.value = 2 end), "the table is not frozen")
@@ -161,6 +137,7 @@ TEST(ScriptRequire, AReturnedTableIsFrozen) {
 
 TEST(ScriptRequire, ErrorsNameTheScriptsChunk) {
     const ScriptsDirectory scripts{"rtype-require-chunk"};
+    scripts.write("main.luau", "require('./nested/bad')");
     scripts.write("nested/bad.luau", "\nerror('boom')");
 
     const std::string message = buildError(scripts.path());
@@ -170,17 +147,17 @@ TEST(ScriptRequire, ErrorsNameTheScriptsChunk) {
 
 TEST(ScriptRequire, ARequireErrorNamesTheRequiringFileAndLine) {
     const ScriptsDirectory scripts{"rtype-require-error"};
-    scripts.write("a.luau", "local x = 1\nlocal y = require('./missing')");
+    scripts.write("main.luau", "local x = 1\nlocal y = require('./missing')");
 
     const std::string message = buildError(scripts.path());
 
-    EXPECT_NE(message.find("Script 'scripts/a.luau' failed"), std::string::npos) << message;
-    EXPECT_NE(message.find("scripts/a.luau:2: require(\"./missing\")"), std::string::npos) << message;
+    EXPECT_NE(message.find("'scripts.main') failed"), std::string::npos) << message;
+    EXPECT_NE(message.find("scripts/main.luau:2: require(\"./missing\")"), std::string::npos) << message;
 }
 
 TEST(ScriptRequire, AModuleCannotRequireOutsideScripts) {
     const ScriptsDirectory scripts{"rtype-require-escape"};
-    scripts.write("a.luau", "require('../../outside')");
+    scripts.write("main.luau", "require('../../outside')");
 
     const std::string message = buildError(scripts.path());
 
@@ -190,6 +167,7 @@ TEST(ScriptRequire, AModuleCannotRequireOutsideScripts) {
 TEST(ScriptRequire, ADeclarationBelongsToTheModuleThatMadeIt) {
     const ScriptsDirectory scripts{"rtype-require-owner"};
     scripts.write("a_lib.luau", systemScript("game.FromLib"));
+    scripts.write("main.luau", "require('./b_main')");
     scripts.write("b_main.luau", "require('./a_lib')\n" + systemScript("game.FromMain"));
     Game game{scripts.path()};
     ASSERT_TRUE(game.hasSystem("game.FromLib"));
@@ -221,6 +199,7 @@ TEST(ScriptRequire, ReloadingAModuleGivesTheNewValueToLaterRequires) {
         "engine.ecs.system('game.Val' .. require('./a_lib').n, "
         "{ phase = 'FixedUpdate', query = {}, run = function(ctx) end })";
     scripts.write("b_user.luau", user);
+    scripts.write("main.luau", "require('./b_user')");
     Game game{scripts.path()};
     ASSERT_TRUE(game.hasSystem("game.Val1"));
 
@@ -238,6 +217,7 @@ TEST(ScriptRequire, AFailedReloadOfAModuleKeepsTheOldValue) {
         "engine.ecs.system('game.Val' .. require('./a_lib').n, "
         "{ phase = 'FixedUpdate', query = {}, run = function(ctx) end })";
     scripts.write("b_user.luau", user);
+    scripts.write("main.luau", "require('./b_user')");
     Game game{scripts.path()};
 
     const ReloadOutcome failed = game.host->reloadScript("scripts/a_lib.luau", "error('nope')");
@@ -248,12 +228,22 @@ TEST(ScriptRequire, AFailedReloadOfAModuleKeepsTheOldValue) {
     EXPECT_TRUE(game.hasSystem("game.Val1"));
 }
 
+TEST(ScriptRequire, AFileNobodyRequiresIsNeverRun) {
+    const ScriptsDirectory scripts{"rtype-require-unused"};
+    scripts.write("main.luau", systemScript("game.Main"));
+    scripts.write("unused.luau", "error('never run')");
+
+    const Game game{scripts.path()};
+
+    EXPECT_TRUE(game.hasSystem("game.Main"));
+}
+
 TEST(ScriptRequire, AHostWithoutAResolverRunsScriptsWithoutRequire) {
     rtype::ecs::App app;
     auto host = rtype::scripting::ScriptHost::create(app, {});
     ASSERT_TRUE(host);
 
-    EXPECT_TRUE((*host)->run("plain.luau", "Answer = 42"));
+    EXPECT_TRUE((*host)->run("plain.luau", "local answer = 42"));
     EXPECT_FALSE((*host)->run("needs.luau", "require('./x')"));
     EXPECT_FALSE((*host)->require("./x"));
 }

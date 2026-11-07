@@ -15,9 +15,11 @@
 #include <utility>
 
 #include "LocalHttpServer.hpp"
+#include "ScriptProbe.hpp"
 #include "plugins/http/HttpPlugin.hpp"
 #include "plugins/http/HttpSettings.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/scripting/ScriptHost.hpp"
 
 namespace {
@@ -35,6 +37,7 @@ struct HttpScripts {
         settings.allowHttp = true;
         settings.timeout = 5.0;
         app.addPlugin(rtype::plugins::http::HttpPlugin{settings});
+        app.getPluginRegistry().addScriptForms("test.Probe", rtype::tests::kProbeForms);
         auto created = rtype::scripting::ScriptHost::create(app, {.isClient = true, .isServer = true});
         EXPECT_TRUE(created) << (created ? "" : std::string{created.error().message()});
         host = std::move(*created);
@@ -46,12 +49,12 @@ struct HttpScripts {
         return result ? std::string{} : std::string{result.error().message()};
     }
 
-    /// @brief Runs frames until the script's global `done` is true, for a few seconds at most.
+    /// @brief Runs frames until the script's `probe.done` is true, for a few seconds at most.
     void runUntilDone() {
         const auto deadline = std::chrono::steady_clock::now() + 8s;
         while (std::chrono::steady_clock::now() < deadline) {
             app.runFrame();
-            if (run("assert(done)").empty()) {
+            if (run("assert(probe.done)").empty()) {
                 return;
             }
             std::this_thread::sleep_for(2ms);
@@ -71,7 +74,7 @@ TEST(ScriptHttp, ASystemSendsARequestAndReadsItsResponse) {
     const LocalHttpServer server{echo()};
     HttpScripts scripts;
     ASSERT_EQ(scripts.run(std::format(R"(
-        done = false
+        probe.done = false
         local sent = nil
         engine.ecs.system("game.Ask", {{
             phase = "Update",
@@ -93,7 +96,7 @@ TEST(ScriptHttp, ASystemSendsARequestAndReadsItsResponse) {
                     assert(response.status == 200 and response.ok, tostring(response.status))
                     assert(#response.body == 50000, tostring(#response.body))
                     assert(response.error == "")
-                    done = true
+                    probe.done = true
                 end
             end,
         }})
@@ -101,7 +104,7 @@ TEST(ScriptHttp, ASystemSendsARequestAndReadsItsResponse) {
                                       server.url("/echo"))),
               "");
     scripts.runUntilDone();
-    EXPECT_EQ(scripts.run("assert(done)"), "");
+    EXPECT_EQ(scripts.run("assert(probe.done)"), "");
     const auto received = server.getReceived();
     ASSERT_EQ(received.size(), 1U);
     EXPECT_NE(received[0].headers.find("X-Squad: miners"), std::string::npos);
@@ -112,7 +115,7 @@ TEST(ScriptHttp, AScriptCanSendWhileItLoadsAndUseTheRawCall) {
     const LocalHttpServer server{echo()};
     HttpScripts scripts;
     ASSERT_EQ(scripts.run(std::format(R"(
-        done = false
+        probe.done = false
         local first = engine.http.request(nil, {{ url = "{}" }})
         local second = engine.call("rtype.http.request", {{ url = "{}", headers = "X-Raw: yes" }})
         assert(first ~= second)
@@ -127,14 +130,14 @@ TEST(ScriptHttp, AScriptCanSendWhileItLoadsAndUseTheRawCall) {
                     assert(response.body == "ok")
                     seen += 1
                 end
-                done = seen == 2
+                probe.done = seen == 2
             end,
         }})
     )",
                                       server.url("/a"), server.url("/b"))),
               "");
     scripts.runUntilDone();
-    EXPECT_EQ(scripts.run("assert(done)"), "");
+    EXPECT_EQ(scripts.run("assert(probe.done)"), "");
 }
 
 TEST(ScriptHttp, MistakesAreLuauErrorsNamingThem) {
