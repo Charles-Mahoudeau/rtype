@@ -15,7 +15,7 @@
 #include "rtype/scripting/Export.hpp"
 #include "rtype/scripting/Result.hpp"
 
-namespace rtype::scripting {
+namespace rtype::scripting::modules {
 /// @brief A require string, parsed by the rules of the Luau require-by-string proposal. Pure text: it touches no file.
 ///
 /// @details The forms are `./a/b`, `../a/b` (`../` may repeat, only at the start) and `@alias/a/b` or `@alias`. The
@@ -40,4 +40,4 @@ struct RTYPE_SCRIPTING_API ScriptPath {
     /// @return Whether @p name is a valid alias name: one or more of `[a-zA-Z0-9_.-]`, and not `.` or `..`.
     [[nodiscard]] static bool isValidAliasName(std::string_view name) noexcept;
 };
-}  // namespace rtype::scripting
+}  // namespace rtype::scripting::modules

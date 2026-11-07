@@ -5,7 +5,7 @@
 ** ScriptResolver
 */
 
-#include "rtype/scripting/module/ScriptResolver.hpp"
+#include "rtype/scripting/modules/ScriptResolver.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -27,9 +27,9 @@
 #include "rtype/scripting/ErrorKind.hpp"
 #include "rtype/scripting/Result.hpp"
 #include "rtype/scripting/exceptions/ScriptLoadException.hpp"
-#include "rtype/scripting/module/ScriptPath.hpp"
+#include "rtype/scripting/modules/ScriptPath.hpp"
 
-namespace rtype::scripting {
+namespace rtype::scripting::modules {
 namespace {
 using Segments = std::vector<std::string>;
 
@@ -314,4 +314,4 @@ Result<luau::ModuleSource> ScriptResolver::load(const Segments& target) const {
     }
     return source;
 }
-}  // namespace rtype::scripting
+}  // namespace rtype::scripting::modules

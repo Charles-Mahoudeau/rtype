@@ -17,7 +17,7 @@
 #include "rtype/scripting/Export.hpp"
 #include "rtype/scripting/Result.hpp"
 
-namespace rtype::scripting {
+namespace rtype::scripting::modules {
 /// @brief Finds the file a `require` path names, inside a game's `scripts/` folder and nowhere else.
 ///
 /// @details Usable as the `luau::ModuleLoader::Resolver` (`operator()`). It parses the path with ScriptPath, resolves
@@ -68,4 +68,4 @@ class RTYPE_SCRIPTING_API ScriptResolver {
     std::filesystem::path _root;                               ///< The scripts folder.
     std::map<std::string, std::vector<std::string>> _aliases;  ///< Lowercase name -> target segments.
 };
-}  // namespace rtype::scripting
+}  // namespace rtype::scripting::modules

@@ -15,11 +15,11 @@
 #include "ScriptsDirectory.hpp"
 #include "rtype/scripting/ErrorKind.hpp"
 #include "rtype/scripting/exceptions/ScriptLoadException.hpp"
-#include "rtype/scripting/module/ScriptResolver.hpp"
+#include "rtype/scripting/modules/ScriptResolver.hpp"
 
 using rtype::scripting::ErrorKind;
-using rtype::scripting::ScriptResolver;
 using rtype::scripting::exceptions::ScriptLoadException;
+using rtype::scripting::modules::ScriptResolver;
 using rtype::tests::ScriptsDirectory;
 
 namespace {

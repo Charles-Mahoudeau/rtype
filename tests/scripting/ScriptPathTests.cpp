@@ -11,10 +11,10 @@
 #include <vector>
 
 #include "rtype/scripting/ErrorKind.hpp"
-#include "rtype/scripting/module/ScriptPath.hpp"
+#include "rtype/scripting/modules/ScriptPath.hpp"
 
 using rtype::scripting::ErrorKind;
-using rtype::scripting::ScriptPath;
+using rtype::scripting::modules::ScriptPath;
 
 namespace {
 using Segments = std::vector<std::string>;

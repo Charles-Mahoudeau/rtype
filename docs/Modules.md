@@ -235,7 +235,7 @@ architecture rules, and this file keeps the detail, which changes with every fea
   and `engine.ecs.system`, read by `system/SystemDeclarationReader.hpp`); a system declares the `resources` and `events` it uses, given to scripts by `ctx.resources` and `ctx.events` (plain-data ones only), through the `ecs` `DynamicResources` and `DynamicEvents` parameters; it knows no `Plugin`. The host and
   the App may be destroyed in either order. `plugin/` holds `ScriptingPlugin`, the `ecs::Plugin` that owns a
   `ScriptHost` and, from `build()`, runs every `.luau` file under its scripts directory (`game/scripts` by default) in
-  sorted path order; a missing directory loads nothing and warns on `std::cerr`. `module/` holds the `require` path logic, not used at runtime yet: `ScriptPath` (pure parser of a require string) and `ScriptResolver` (finds the file inside `scripts/`: aliases, `init.luau`, exact case, no escape; the `luau::ModuleLoader` callback; `docs/scripting/plan.md` D10). `exceptions/` holds
+  sorted path order; a missing directory loads nothing and warns on `std::cerr`. `modules/` (`rtype::scripting::modules`) holds the `require` path logic, not used at runtime yet: `ScriptPath` (pure parser of a require string) and `ScriptResolver` (finds the file inside `scripts/`: aliases, `init.luau`, exact case, no escape; the `luau::ModuleLoader` callback; `docs/scripting/plan.md` D10). `exceptions/` holds
   `ScriptLoadException`, thrown when a script cannot be loaded, since `build()` cannot return a `Result`. It links
   `core`, `ecs` and `luau`. Design in `docs/luau/ecs-bridge-plan.md`.
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.

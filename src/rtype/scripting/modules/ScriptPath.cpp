@@ -5,7 +5,7 @@
 ** ScriptPath
 */
 
-#include "rtype/scripting/module/ScriptPath.hpp"
+#include "rtype/scripting/modules/ScriptPath.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -20,7 +20,7 @@
 #include "rtype/scripting/ErrorKind.hpp"
 #include "rtype/scripting/Result.hpp"
 
-namespace rtype::scripting {
+namespace rtype::scripting::modules {
 namespace {
 [[nodiscard]] char lower(const char c) noexcept {
     return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -106,4 +106,4 @@ Result<ScriptPath> ScriptPath::parse(const std::string_view text) {
     path.segments = *std::move(segments);
     return path;
 }
-}  // namespace rtype::scripting
+}  // namespace rtype::scripting::modules
