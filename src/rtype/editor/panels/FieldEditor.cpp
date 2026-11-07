@@ -31,6 +31,7 @@
 #include "rtype/ecs/resource/Resources.hpp"
 #include "rtype/ecs/type/Field.hpp"
 #include "rtype/ecs/type/String.hpp"
+#include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/world/World.hpp"
 
 namespace rtype::editor::panels {
@@ -122,6 +123,8 @@ bool editAsset(ecs::World& world, const char* label, std::byte* value) {
 /// @param value Where the value is: the widget changes it in place.
 /// @return Whether the user changed it.
 bool editValue(ecs::World& world, const char* label, ecs::FieldType type, std::byte* value) {
+    // The widgets of ImGui take the typed pointer of the value; the scratch bytes are aligned for any field type.
+    // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
     switch (type) {
         case ecs::FieldType::kBool:
             return ImGui::Checkbox(label, reinterpret_cast<bool*>(value));
@@ -161,14 +164,16 @@ bool editValue(ecs::World& world, const char* label, ecs::FieldType type, std::b
         default:
             return editInteger(label, type, value);
     }
+    // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
 }
 
 /// @brief Shows a list field: a text as text, any other list as its length. Lists are not edited.
 void showList(const ecs::FieldInfo& field, std::span<const std::byte> value) {
-    const std::span<const std::byte> elements = field.list->elements(value.data() + field.offset);
+    const std::span<const std::byte> elements = field.list->elements(value.subspan(field.offset).data());
     if (field.type == ecs::FieldType::kText) {
-        line(std::format("{}: \"{}\"", field.name,
-                         std::string_view{reinterpret_cast<const char*>(elements.data()), elements.size()}));
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast): the bytes of a text are its characters.
+        const std::string_view text{reinterpret_cast<const char*>(elements.data()), elements.size()};
+        line(std::format("{}: \"{}\"", field.name, text));
         return;
     }
     line(std::format("{}: {} bytes of values", field.name, elements.size()));
@@ -176,7 +181,7 @@ void showList(const ecs::FieldInfo& field, std::span<const std::byte> value) {
 }  // namespace
 
 DefaultValue::DefaultValue(const ecs::TypeInfo& type)
-    : _type{&type}, _storage((type.size + sizeof(std::max_align_t) - 1) / sizeof(std::max_align_t) + 1) {
+    : _type{&type}, _storage(((type.size + sizeof(std::max_align_t) - 1) / sizeof(std::max_align_t)) + 1) {
     assert(type.alignment <= alignof(std::max_align_t));
     if (_type->hooks.construct != nullptr) {
         _type->hooks.construct(_storage.data());
@@ -210,12 +215,12 @@ bool editFields(ecs::World& world, const ecs::TypeInfo& type, std::span<std::byt
         const std::uint32_t size = ecs::getFieldLayout(field.type).size;
         for (std::uint32_t element = 0; element < field.count; ++element) {
             const std::string label = field.count > 1 ? std::format("{}[{}]", field.name, element) : field.name;
-            const std::size_t offset = field.offset + static_cast<std::size_t>(element) * size;
-            Scratch scratch{};
-            std::memcpy(scratch.data(), value.data() + offset, size);
+            const std::size_t offset = field.offset + (static_cast<std::size_t>(element) * size);
+            alignas(std::max_align_t) Scratch scratch{};
+            std::memcpy(scratch.data(), value.subspan(offset, size).data(), size);
             ImGui::PushID(static_cast<int>(offset));
             if (editValue(world, label.c_str(), field.type, scratch.data())) {
-                std::memcpy(value.data() + offset, scratch.data(), size);
+                std::memcpy(value.subspan(offset, size).data(), scratch.data(), size);
                 changed = true;
             }
             ImGui::PopID();
