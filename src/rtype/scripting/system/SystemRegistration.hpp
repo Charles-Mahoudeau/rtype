@@ -8,14 +8,31 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 
 #include "RuntimeHandle.hpp"
 #include "SystemDeclaration.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/schedule/Phase.hpp"
+#include "rtype/ecs/schedule/Schedule.hpp"
+#include "rtype/ecs/system/Side.hpp"
 #include "rtype/scripting/Export.hpp"
 #include "rtype/scripting/Result.hpp"
 
 namespace rtype::scripting::system {
+/// @brief A script system made but not added to the schedule yet.
+struct BuiltSystem {
+    ecs::Phase phase;                ///< The phase it runs in.
+    std::optional<ecs::Side> side;   ///< Where it runs, if the script said; not set on the system yet.
+    ecs::Schedule::SystemSpec spec;  ///< The system, with the systems it runs after and before.
+};
+
+/// @brief Makes a script system as registerSystem() does, without adding it: the first half of registerSystem(), used
+/// by hot reload to replace a system of the schedule.
+/// @return The system, or the errors of registerSystem(), but a name already used: the schedule says that.
+[[nodiscard]] RTYPE_SCRIPTING_API Result<BuiltSystem> makeSystem(ecs::App& app, SystemDeclaration declaration,
+                                                                 std::shared_ptr<RuntimeHandle> runtime);
+
 /// @brief Adds a script system to the App: looks the components of its query up, builds the QueryList and calls
 /// App::addSystem with a ScriptCallable that runs the `run` function (see runScriptSystem()), then `after()` and
 /// `before()` for its order.

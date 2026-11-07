@@ -11,6 +11,7 @@
 #include <format>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tl/expected.hpp>
 #include <utility>
@@ -44,6 +45,7 @@
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/system/ScriptCallable.hpp"
 #include "rtype/ecs/system/Side.hpp"
+#include "rtype/ecs/system/System.hpp"
 #include "rtype/ecs/time/Time.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/type/TypeTraits.hpp"
@@ -225,7 +227,7 @@ void warnAboutServerOnlyWrites(const ecs::Components& components, const SystemDe
 }
 }  // namespace
 
-Result<void> registerSystem(ecs::App& app, SystemDeclaration declaration, std::shared_ptr<RuntimeHandle> runtime) {
+Result<BuiltSystem> makeSystem(ecs::App& app, SystemDeclaration declaration, std::shared_ptr<RuntimeHandle> runtime) {
     auto& components = app.getWorld().getComponents();
     auto query = makeQuery(components, declaration);
     if (!query) {
@@ -266,16 +268,37 @@ Result<void> registerSystem(ecs::App& app, SystemDeclaration declaration, std::s
     };
     warnAboutServerOnlyWrites(components, declaration);
     try {
-        auto config =
-            app.addSystem(declaration.phase, declaration.name, std::move(callable), ecs::QueryList{std::move(*query)},
-                          std::move(resources->second), std::move(events->second), std::move(calls->second));
-        if (declaration.side) {
-            config.setSide(*declaration.side);
+        return BuiltSystem{
+            .phase = declaration.phase,
+            .side = declaration.side,
+            .spec =
+                {
+                    .system = ecs::System{app.getWorld(), declaration.name, std::move(callable),
+                                          ecs::QueryList{std::move(*query)}, std::move(resources->second),
+                                          std::move(events->second), std::move(calls->second)},
+                    .after = std::move(declaration.after),
+                    .before = std::move(declaration.before),
+                },
+        };
+    } catch (const ecs::exceptions::ScheduleException& error) {
+        return fail(ErrorKind::kRegistration, error.what());
+    }
+}
+
+Result<void> registerSystem(ecs::App& app, SystemDeclaration declaration, std::shared_ptr<RuntimeHandle> runtime) {
+    auto built = makeSystem(app, std::move(declaration), std::move(runtime));
+    if (!built) {
+        return tl::unexpected{std::move(built.error())};
+    }
+    try {
+        auto config = app.getSchedules().addSystem(built->phase, std::move(built->spec.system));
+        if (const std::optional<ecs::Side> side = built->side) {
+            config.setSide(*side);
         }
-        for (auto& name : declaration.after) {
+        for (auto& name : built->spec.after) {
             config.after(std::move(name));
         }
-        for (auto& name : declaration.before) {
+        for (auto& name : built->spec.before) {
             config.before(std::move(name));
         }
     } catch (const ecs::exceptions::ScheduleException& error) {
