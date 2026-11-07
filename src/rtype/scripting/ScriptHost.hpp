@@ -25,6 +25,7 @@
 #include "rtype/luau/CallContext.hpp"
 #include "rtype/luau/Library.hpp"
 #include "rtype/luau/ModuleLoader.hpp"
+#include "rtype/luau/ModuleSource.hpp"
 #include "rtype/luau/Result.hpp"
 #include "rtype/luau/Runtime.hpp"
 #include "rtype/luau/ValuePack.hpp"

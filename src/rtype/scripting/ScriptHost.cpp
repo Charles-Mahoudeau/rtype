@@ -48,6 +48,7 @@
 #include "rtype/luau/Failure.hpp"
 #include "rtype/luau/Function.hpp"
 #include "rtype/luau/LibraryBuilder.hpp"
+#include "rtype/luau/ModuleLoader.hpp"
 #include "rtype/luau/ModuleSource.hpp"
 #include "rtype/luau/Ref.hpp"
 #include "rtype/luau/Result.hpp"
