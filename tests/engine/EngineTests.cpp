@@ -391,6 +391,70 @@ TEST(Engine, TheScriptsOfAGameRequireEachOtherThroughTheScriptsAlias) {
     EXPECT_TRUE(engine.app().getWorld().getComponents().find("game.Configured"));
 }
 
+TEST(Engine, ScriptsRequireThroughAnAliasTheSettingsDeclare) {
+    const GameDirectory game{"rtype-engine-alias", R"(
+        engine.settings.network.port = 0
+        engine.settings.scripts.aliases = { shared = "shared" }
+    )"};
+    game.write("scripts/shared/x.luau", "return { name = 'Aliased' }");
+    game.write("scripts/server/main.luau", R"(
+        local x = require("@shared/x")
+        engine.ecs.component("game." .. x.name, { fields = {} })
+    )");
+
+    const Engine engine{serverConfig(game)};
+
+    EXPECT_TRUE(engine.app().getWorld().getComponents().find("game.Aliased"));
+}
+
+/// @return What building a game whose project is @p project throws, empty if nothing.
+std::string buildError(const std::string_view name, const std::string_view project) {
+    const GameDirectory game{name, project};
+    game.write("scripts/a.luau", "return 1");
+    try {
+        const Engine engine{serverConfig(game)};
+    } catch (const std::exception& error) {
+        return error.what();
+    }
+    return {};
+}
+
+TEST(Engine, RejectsAScriptsAliasOutsideTheScripts) {
+    const std::string message = buildError("rtype-engine-alias-outside", R"(
+        engine.settings.network.port = 0
+        engine.settings.scripts.aliases = { escape = "../assets" }
+    )");
+    EXPECT_NE(message.find("scripts.aliases.escape"), std::string::npos) << message;
+    EXPECT_NE(message.find("inside scripts/"), std::string::npos) << message;
+}
+
+TEST(Engine, RejectsAReservedScriptsAlias) {
+    const std::string message = buildError("rtype-engine-alias-reserved", R"(
+        engine.settings.network.port = 0
+        engine.settings.scripts.aliases = { self = "shared" }
+    )");
+    EXPECT_NE(message.find("scripts.aliases.self"), std::string::npos) << message;
+    EXPECT_NE(message.find("reserved"), std::string::npos) << message;
+}
+
+TEST(Engine, RejectsAScriptsAliasThatIsNotAString) {
+    const std::string message = buildError("rtype-engine-alias-type", R"(
+        engine.settings.network.port = 0
+        engine.settings.scripts.aliases = { shared = 3 }
+    )");
+    EXPECT_NE(message.find("scripts.aliases.shared"), std::string::npos) << message;
+    EXPECT_NE(message.find("string"), std::string::npos) << message;
+}
+
+TEST(Engine, RejectsAnUnknownScriptsSetting) {
+    const std::string message = buildError("rtype-engine-scripts-key", R"(
+        engine.settings.network.port = 0
+        engine.settings.scripts.alias = { shared = "shared" }
+    )");
+    EXPECT_NE(message.find("alias.shared"), std::string::npos) << message;
+    EXPECT_NE(message.find("'scripts'"), std::string::npos) << message;
+}
+
 TEST(Engine, RunsUntilAppExit) {
     const GameDirectory game{"rtype-engine-run"};
     std::int32_t builds = 0;
