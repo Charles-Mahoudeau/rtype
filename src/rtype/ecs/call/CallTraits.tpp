@@ -24,9 +24,8 @@ constexpr TypeDescription<sizeof...(Fields)> describeCallData(std::string_view n
     static_assert(std::is_standard_layout_v<T>,
                   "RTYPE_ECS_CALL_DATA: call data must be standard-layout (all members public, no reference members, "
                   "no virtual base).");
-    static_assert(std::is_trivially_copyable_v<T> && std::is_trivially_destructible_v<T>,
-                  "RTYPE_ECS_CALL_DATA: call data must be plain data (trivially copyable and destructible): it is "
-                  "copied as bytes.");
+    static_assert(std::is_nothrow_move_constructible_v<T>, "RTYPE_ECS_CALL_DATA: moving call data must not throw.");
+    static_assert(std::is_nothrow_destructible_v<T>, "RTYPE_ECS_CALL_DATA: destroying call data must not throw.");
     static_assert(std::is_default_constructible_v<T>,
                   "RTYPE_ECS_CALL_DATA: call data must be default-constructible: a script leaves out the fields that "
                   "keep their default.");

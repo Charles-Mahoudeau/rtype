@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/call/CallTraits.hpp"
@@ -77,6 +78,30 @@ void widen(ecs::NonSendMut<Window> window) { ++window->width; }
 
 /// @brief Always fails.
 void broken(ecs::Res<Score> /*score*/) { throw std::runtime_error{"the call broke"}; }
+
+/// @brief The arguments of `test.echo`: a text longer than an ecs::String holds, and a list.
+struct Prompt {
+    std::string text;
+    std::vector<float> weights;
+};
+RTYPE_ECS_CALL_DATA(Prompt, "test.call.Prompt", text, weights);
+
+/// @brief The result of `test.echo`.
+struct Echo {
+    std::string text;
+    int length{0};
+    float total{0.0F};
+};
+RTYPE_ECS_CALL_DATA(Echo, "test.call.Echo", text, length, total);
+
+/// @brief Gives the text back, doubled, with its length and the sum of the weights.
+Echo echo(const Prompt& prompt) {
+    Echo result{.text = prompt.text + prompt.text, .length = static_cast<int>(prompt.text.size())};
+    for (const float weight : prompt.weights) {
+        result.total += weight;
+    }
+    return result;
+}
 }  // namespace rtype::test::script_call
 
 namespace {
@@ -98,6 +123,7 @@ struct Fixture {
         app.addCall("test.reset", &rtype::test::script_call::reset);
         app.addCall("test.widen", &rtype::test::script_call::widen);
         app.addCall("test.broken", &rtype::test::script_call::broken);
+        app.addCall("test.echo", &rtype::test::script_call::echo);
         auto created = rtype::scripting::ScriptHost::create(app, {});
         EXPECT_TRUE(created) << (created ? "" : std::string{created.error().message()});
         host = std::move(*created);
@@ -288,4 +314,47 @@ TEST(ScriptCall, TheSchedulerSeesTheAccessOfTheDeclaredCalls) {
     fixture.app.runFrame();
 
     EXPECT_EQ(fixture.app.getWorld().getResources().require<Window>().width, 1);
+}
+
+TEST(ScriptCall, ALongTextAndAListGoInAndComeBackWhole) {
+    Fixture fixture;
+    EXPECT_EQ(fixture.run(R"(
+        local prompt = string.rep("abcdefghij", 1000)
+        local echo = engine.call("test.echo", { text = prompt, weights = { 1, 2.5 } })
+        assert(echo.length == 10000, tostring(echo.length))
+        assert(#echo.text == 20000, tostring(#echo.text))
+        assert(echo.text == prompt .. prompt)
+        assert(echo.total == 3.5, tostring(echo.total))
+        local empty = engine.call("test.echo")
+        assert(empty.text == "" and empty.length == 0)
+    )"),
+              "");
+}
+
+TEST(ScriptCall, ATextFieldRefusesAValueOfAnotherType) {
+    Fixture fixture;
+    const std::string error = fixture.run(R"(engine.call("test.echo", { text = 3 }))");
+    EXPECT_TRUE(contains(error, "engine call 'test.echo'")) << error;
+}
+
+TEST(ScriptCall, ASystemPassesALongTextToTheCallsItDeclares) {
+    Fixture fixture;
+    ASSERT_EQ(fixture.run(R"(
+        lengths = {}
+        engine.ecs.system("test.Echoes", {
+            phase = "Update",
+            side = "both",
+            query = {},
+            calls = { "test.echo" },
+            run = function(ctx)
+                local echo = ctx.call("test.echo", { text = string.rep("x", 4000) })
+                table.insert(lengths, #echo.text)
+            end,
+        })
+    )"),
+              "");
+    fixture.app.runFrame();
+    fixture.app.runFrame();
+    EXPECT_EQ(fixture.run("assert(#lengths == 2 and lengths[1] == 8000 and lengths[2] == 8000, tostring(#lengths))"),
+              "");
 }

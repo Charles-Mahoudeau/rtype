@@ -21,6 +21,9 @@ engine.ecs.system("game.Pew", {
 ```
 
 - Arguments you leave out keep their defaults. An `assetId` argument accepts a path.
+- A text argument or result is a Luau string. Short names (a sound, an action) hold 255 bytes at most and a longer
+  one is cut; a call that takes or gives a long text (a prompt, a request, a reply) takes it whole, at any length,
+  as its table says. A list argument is a Luau array.
 - A result of one field is returned as that value, a result of several as a table, a call with no result returns
   nothing.
 - A system that calls something it did not list under `calls` gets a Luau error. An unknown call is refused when the

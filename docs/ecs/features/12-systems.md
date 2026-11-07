@@ -167,7 +167,7 @@ struct LoadSound {
     rtype::core::asset::AssetId path;
     bool stream = false;
 };
-RTYPE_ECS_CALL_DATA(LoadSound, "rtype.audio.LoadSound", path, stream);   // arguments and results: plain data
+RTYPE_ECS_CALL_DATA(LoadSound, "rtype.audio.LoadSound", path, stream);   // arguments and results: call data
 struct Loaded {
     rtype::core::asset::AssetId id;
 };
@@ -182,9 +182,15 @@ app.addCall("rtype.audio.loadSound", [](rtype::ecs::ResMut<AudioAssets> sounds, 
   configuration (`Res`, `ResMut`, `NonSend`, `NonSendMut`, `Query`, `Commands&`, `EventReader`, `EventWriter`),
   then optionally `const Args&`; it returns void or call data. They give the call's **access**, as a system's
   parameters give its own (`CallInfo::access`).
-- Arguments and results are declared with `RTYPE_ECS_CALL_DATA` (trivially copyable, standard-layout,
-  default-constructible), so their description is a `TypeInfo`: a script runtime builds them from their defaults and
-  the fields a script names, with the conversions it already has for components.
+- Arguments and results are declared with `RTYPE_ECS_CALL_DATA` (standard-layout, default-constructible, moved and
+  destroyed without throwing), so their description is a `TypeInfo`: a script runtime builds them from their defaults
+  and the fields a script names, with the conversions it already has for components.
+- A field is a value, an `ecs::String` (255 bytes at most), or, for a longer text or a list, a `std::string` or a
+  `std::vector` of plain values (`kText` and list fields, see [Reflection](15-reflection-and-serialization.md)): a
+  prompt, a request body, a reply. Plain call data is copied in and out as bytes. Call data with a text or a list owns
+  memory, so the call reads it in place: its bytes must be a `CallBuffer` of its `TypeInfo` (aligned, built from the
+  defaults by its construct hook, destroyed with the buffer), for the arguments and for the result alike. The call
+  replaces the result built there with the one it returns. `checkCallBytes()` refuses misaligned bytes for such data.
 - The world keeps them in its `Calls` (`world.getCalls()`), by id and by name; a name taken twice throws a
   `CallException`.
 - `Calls::invoke(world, id, arguments, result)` calls one outside any system (while scripts load): its parameters are

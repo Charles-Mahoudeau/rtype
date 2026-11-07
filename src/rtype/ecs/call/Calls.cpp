@@ -7,9 +7,11 @@
 
 #include "Calls.hpp"
 
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <format>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <span>
@@ -29,6 +31,15 @@ namespace rtype::ecs {
 namespace {
 /// @return The size of the bytes of a described value: 0 when there is no description.
 [[nodiscard]] std::size_t sizeOf(const std::optional<TypeInfo>& type) noexcept { return type ? type->size : 0; }
+
+/// @return Whether @p bytes can hold the value of @p type the call reads in place: always for plain data, which is
+/// copied; for call data that owns memory (it has a move hook), when they are aligned as it requires.
+[[nodiscard]] bool isPlaced(const std::optional<TypeInfo>& type, const std::span<const std::byte> bytes) noexcept {
+    if (!type || type->hooks.move == nullptr || bytes.empty()) {
+        return true;
+    }
+    return std::bit_cast<std::uintptr_t>(bytes.data()) % type->alignment == 0;
+}
 }  // namespace
 
 Calls::~Calls() = default;
@@ -68,7 +79,8 @@ CallId Calls::add(CallInfo info) {
 }
 
 const CallInfo* Calls::findById(const CallId id) const noexcept {
-    return id < _calls.size() ? &_calls.at(id) : nullptr;
+    // Checked here: at() could throw from a noexcept function.
+    return id < _calls.size() ? &*std::next(_calls.begin(), static_cast<std::ptrdiff_t>(id)) : nullptr;
 }
 
 const CallInfo* Calls::findByName(const std::string_view name) const noexcept {
@@ -76,7 +88,8 @@ const CallInfo* Calls::findByName(const std::string_view name) const noexcept {
     if (found == _idsByHash.end()) {
         return nullptr;
     }
-    const CallInfo& info = _calls.at(found->second);
+    const CallInfo& info =
+        *std::next(_calls.begin(), static_cast<std::ptrdiff_t>(found->second));  // ids in the map are calls
     return info.name == name ? &info : nullptr;
 }
 
@@ -107,6 +120,10 @@ void checkCallBytes(const CallInfo& info, const std::span<const std::byte> argum
     if (result.size() != sizeOf(info.result)) {
         throw exceptions::CallException{
             std::format("Engine call '{}' returns {} bytes, not {}", info.name, sizeOf(info.result), result.size())};
+    }
+    if (!isPlaced(info.arguments, arguments) || !isPlaced(info.result, result)) {
+        throw exceptions::CallException{std::format(
+            "Engine call '{}' holds a text or a list: its bytes must be a CallBuffer of its data", info.name)};
     }
 }
 }  // namespace rtype::ecs

@@ -63,7 +63,7 @@ class RTYPE_ECS_API DynamicCalls {
     /// @param arguments The bytes of its arguments (CallInfo::arguments), empty when it takes none.
     /// @param result Where its result is written (CallInfo::result), empty when it returns none.
     /// @throws exceptions::CallException When `arguments` or `result` does not have the size of the call's
-    /// description.
+    /// description, or is not aligned for call data that owns memory (see Calls::invoke()).
     /// @throws exceptions::MissingResourceException When a Res or ResMut parameter's resource has no value.
     void invoke(std::size_t index, std::span<const std::byte> arguments, std::span<std::byte> result) const;
 

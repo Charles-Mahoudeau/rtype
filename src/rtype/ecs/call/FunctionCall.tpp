@@ -25,6 +25,7 @@
 #include "rtype/ecs/call/CallInfo.hpp"
 #include "rtype/ecs/call/CallTraits.hpp"
 #include "rtype/ecs/exceptions/CallException.hpp"
+#include "rtype/ecs/storage/ViewAs.hpp"
 #include "rtype/ecs/system/SystemAccess.hpp"
 #include "rtype/ecs/system/SystemParam.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
@@ -157,25 +158,35 @@ template <std::size_t... Indices>
 void FunctionCall<Function, Arguments, Result, std::tuple<Params...>>::call(
     const SystemContext& context, std::span<const std::byte> arguments, std::span<std::byte> result,
     std::index_sequence<Indices...> /*indices*/) {
-    // The bytes are plain data (RTYPE_ECS_CALL_DATA checks it): they are copied in and out, never aliased.
+    // Plain data is copied in and out, never aliased, so any bytes of the right size do. Call data that owns memory (a
+    // text, a list) is an object the caller built in its bytes (CallBuffer): it is read there, and the result replaces
+    // the one built there.
     const auto run = [&] {
         if constexpr (std::is_void_v<Arguments>) {
             return _function(SystemParam<Params>::get(std::get<Indices>(_states), context)...);
-        } else {
+        } else if constexpr (std::is_trivially_copyable_v<Arguments>) {
             Arguments value{};
             if constexpr (!std::is_empty_v<Arguments>) {
                 std::memcpy(&value, arguments.data(), sizeof(Arguments));
             }
             return _function(SystemParam<Params>::get(std::get<Indices>(_states), context)..., value);
+        } else {
+            const Arguments& value = *storage::viewAs<Arguments>(arguments);
+            return _function(SystemParam<Params>::get(std::get<Indices>(_states), context)..., value);
         }
     };
     if constexpr (std::is_void_v<Result>) {
         run();
-    } else {
+    } else if constexpr (std::is_trivially_copyable_v<Result>) {
         const Result value = run();
         if constexpr (!std::is_empty_v<Result>) {
             std::memcpy(result.data(), &value, sizeof(Result));
         }
+    } else {
+        Result value = run();
+        Result* target = storage::viewAs<Result>(result);
+        std::destroy_at(target);
+        std::construct_at(target, std::move(value));  // cannot throw: RTYPE_ECS_CALL_DATA checks it
     }
 }
 }  // namespace detail

@@ -56,10 +56,12 @@ class RTYPE_ECS_API Calls {
     /// their own, applied right after the call; the world's change tick then moves forward, as after a system's run.
     /// @param world The world the call belongs to.
     /// @param id The call.
-    /// @param arguments The bytes of its arguments (CallInfo::arguments), empty when it takes none.
-    /// @param result Where its result is written (CallInfo::result), empty when it returns none.
+    /// @param arguments The bytes of its arguments (CallInfo::arguments), empty when it takes none. Call data with a
+    /// text or a list (a `std::string` or `std::vector` field) is read in place: give a CallBuffer of its type.
+    /// @param result Where its result is written (CallInfo::result), empty when it returns none; a CallBuffer of its
+    /// type too when it owns memory.
     /// @throws exceptions::CallException When no call has this id, or `arguments` or `result` does not have the size
-    /// of the call's description.
+    /// of the call's description, or is not aligned for call data that owns memory.
     /// @throws exceptions::MissingResourceException When a Res or ResMut parameter's resource has no value.
     void invoke(World& world, CallId id, std::span<const std::byte> arguments, std::span<std::byte> result);
 
@@ -69,7 +71,8 @@ class RTYPE_ECS_API Calls {
 };
 
 /// @brief Checks the sizes of the bytes given to a call against its description.
-/// @throws exceptions::CallException When `arguments` or `result` does not have the size the call expects.
+/// @throws exceptions::CallException When `arguments` or `result` does not have the size the call expects, or holds
+/// call data that owns memory and is not aligned for it.
 RTYPE_ECS_API void checkCallBytes(const CallInfo& info, std::span<const std::byte> arguments,
                                   std::span<const std::byte> result);
 }  // namespace rtype::ecs

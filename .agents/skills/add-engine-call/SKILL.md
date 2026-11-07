@@ -20,7 +20,8 @@ game reaches what plain data cannot do: load an asset, bind an input, play a sou
 2. **Define the data.** An argument struct and, if the call returns something, a result struct, each declared with the
    call-data macro and a stable `rtype.<plugin>.<Name>` name, in the plugin's calls header (`<Name>Calls.hpp`). Missing
    argument fields keep their defaults, so give every field a sensible default. Use asset-id fields for assets (a script
-   passes a path), strings of the ECS for text, and glm vectors for positions. An optional value is a documented
+   passes a path), strings of the ECS (`ecs::String`, 255 bytes at most) for short text, `std::string` for a text that
+   may be longer (a prompt, a request body, a reply) and `std::vector` for a list, and glm vectors for positions. An optional value is a documented
    sentinel (NaN for "not given"); say it in the field's comment.
 3. **Write the function.** Its parameters are system parameters (resources, queries, event writers), so the call
    declares its access and the scheduler orders it. Register it from a `add<Name>Calls()` function in the plugin's

@@ -7,17 +7,16 @@
 
 #include "EngineCall.hpp"
 
-#include <algorithm>
 #include <cstddef>
 #include <exception>
 #include <format>
-#include <new>
 #include <optional>
 #include <span>
 #include <string_view>
 #include <utility>
 
 #include "core/asset/AssetId.hpp"
+#include "rtype/ecs/call/CallBuffer.hpp"
 #include "rtype/ecs/call/CallInfo.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/type/Field.hpp"
@@ -31,44 +30,6 @@
 
 namespace rtype::scripting::call {
 namespace {
-/// @brief The bytes of one value of a call data type, aligned as it requires.
-class Bytes {
-  public:
-    /// @brief Allocates a value of `type`, or nothing when there is no type, built from its defaults.
-    explicit Bytes(const std::optional<ecs::TypeInfo>& type) {
-        if (!type || type->size == 0) {
-            return;
-        }
-        _alignment = std::align_val_t{std::max<std::size_t>(type->alignment, 1)};
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory): released by the destructor, with the same alignment.
-        _data = static_cast<std::byte*>(::operator new(type->size, _alignment));
-        _size = type->size;
-        std::fill_n(_data, _size, std::byte{0});
-        if (type->hooks.construct != nullptr) {
-            type->hooks.construct(_data);  // the defaults the type's members declare
-        }
-    }
-
-    ~Bytes() {
-        if (_data != nullptr) {
-            ::operator delete(_data, _alignment);
-        }
-    }
-
-    Bytes(const Bytes& other) = delete;
-    Bytes& operator=(const Bytes& other) = delete;
-    Bytes(Bytes&& other) = delete;
-    Bytes& operator=(Bytes&& other) = delete;
-
-    /// @return The bytes; empty when there is no value.
-    [[nodiscard]] std::span<std::byte> get() const noexcept { return {_data, _size}; }
-
-  private:
-    std::byte* _data{nullptr};                               ///< The value, or null.
-    std::size_t _size{0};                                    ///< Its size in bytes.
-    std::align_val_t _alignment{alignof(std::max_align_t)};  ///< Its alignment, for the delete.
-};
-
 /// @return A Luau error naming the call.
 [[nodiscard]] luau::exceptions::RuntimeError fail(const ecs::CallInfo& info, const std::string_view why) {
     return luau::exceptions::RuntimeError{std::format("engine call '{}': {}", info.name, why)};
@@ -134,9 +95,9 @@ void fillArguments(const ecs::CallInfo& info, const luau::Value* fields, const s
 
 luau::ValuePack callEngine(const luau::Runtime& runtime, const ecs::CallInfo& info, const luau::Value* fields,
                            const Invoker& invoke) {
-    const Bytes arguments{info.arguments};
+    const ecs::CallBuffer arguments{info.arguments};
     fillArguments(info, fields, arguments.get());
-    const Bytes result{info.result};
+    const ecs::CallBuffer result{info.result};
     try {
         invoke(arguments.get(), result.get());
     } catch (const luau::exceptions::RuntimeError&) {
