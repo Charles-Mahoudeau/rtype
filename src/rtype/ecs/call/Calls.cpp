@@ -7,6 +7,7 @@
 
 #include "Calls.hpp"
 
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <format>
@@ -30,6 +31,15 @@ namespace rtype::ecs {
 namespace {
 /// @return The size of the bytes of a described value: 0 when there is no description.
 [[nodiscard]] std::size_t sizeOf(const std::optional<TypeInfo>& type) noexcept { return type ? type->size : 0; }
+
+/// @return Whether @p bytes can hold the value of @p type the call reads in place: always for plain data, which is
+/// copied; for call data that owns memory (it has a move hook), when they are aligned as it requires.
+[[nodiscard]] bool isPlaced(const std::optional<TypeInfo>& type, const std::span<const std::byte> bytes) noexcept {
+    if (!type || type->hooks.move == nullptr || bytes.empty()) {
+        return true;
+    }
+    return std::bit_cast<std::uintptr_t>(bytes.data()) % type->alignment == 0;
+}
 }  // namespace
 
 Calls::~Calls() = default;
@@ -110,6 +120,10 @@ void checkCallBytes(const CallInfo& info, const std::span<const std::byte> argum
     if (result.size() != sizeOf(info.result)) {
         throw exceptions::CallException{
             std::format("Engine call '{}' returns {} bytes, not {}", info.name, sizeOf(info.result), result.size())};
+    }
+    if (!isPlaced(info.arguments, arguments) || !isPlaced(info.result, result)) {
+        throw exceptions::CallException{std::format(
+            "Engine call '{}' holds a text or a list: its bytes must be a CallBuffer of its data", info.name)};
     }
 }
 }  // namespace rtype::ecs

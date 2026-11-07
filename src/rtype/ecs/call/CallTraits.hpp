@@ -30,16 +30,23 @@ concept CallData = Described<T> && TypeTraits<T>::kKind == TypeKind::kCallData;
 /// @brief Declares the arguments or the result of an engine call: a stable name, and the fields a script gives or
 /// receives, written once next to the type.
 ///
-/// @details Use it right after the type, in the same namespace, ending with a semicolon. Call data is plain data
-/// (trivially copyable and destructible, standard-layout, default-constructible): a script runtime builds it from
-/// its defaults and the fields the script names, then copies it as bytes. Only the listed fields can be set from a
-/// script; the others keep their default.
+/// @details Use it right after the type, in the same namespace, ending with a semicolon. Call data is
+/// standard-layout and default-constructible, and moving or destroying it does not throw: a script runtime builds it
+/// from its defaults and the fields the script names (in a CallBuffer), then the call reads it there. Only the listed
+/// fields can be set from a script; the others keep their default. A field is a value, an ecs::String (255 bytes at
+/// most) or, for a longer text or a list, a `std::string` or a `std::vector` of plain values: such call data owns
+/// memory, so it is never copied as bytes.
 /// @code
 /// struct LoadSound {
 ///     rtype::core::asset::AssetId path;
 ///     bool stream = false;
 /// };
 /// RTYPE_ECS_CALL_DATA(LoadSound, "rtype.audio.LoadSound", path, stream);
+///
+/// struct Ask {
+///     std::string prompt;  // a text of any length
+/// };
+/// RTYPE_ECS_CALL_DATA(Ask, "rtype.agent.Ask", prompt);
 /// @endcode
 /// @param Type The type, as named in the current namespace.
 /// @param Name Its stable name, a string literal such as "rtype.audio.LoadSound".
