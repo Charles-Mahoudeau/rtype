@@ -13,6 +13,7 @@
 #include "plugins/AssetIdReflection.hpp"  // IWYU pragma: keep
 #include "plugins/capsule/Export.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/call/CallTraits.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 
@@ -51,4 +52,9 @@ RTYPE_ECS_CALL_DATA(ReloadResult, "rtype.capsule.ReloadResult", reloaded);
 /// `rtype.CapsuleInstance` and `rtype.Children` components), each recording into the commands of the system that calls
 /// it. They throw a CapsuleException naming a capsule that cannot be spawned. Called by the CapsulePlugin.
 RTYPE_PLUGIN_CAPSULE_API void addCapsuleCalls(ecs::App& app);
+
+/// @brief Registers the setup forms of the plugin on @p registry: `engine.capsule.spawn`, `load` and `reload`, which
+/// make the calls above from a system's `ctx` and patch the root with overrides. Its library does it on every side,
+/// and so does building the plugin, for a program without libraries.
+RTYPE_PLUGIN_CAPSULE_API void addCapsuleForms(ecs::PluginRegistry& registry);
 }  // namespace rtype::plugins::capsule

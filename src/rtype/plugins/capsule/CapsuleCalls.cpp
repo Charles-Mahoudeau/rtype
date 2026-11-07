@@ -7,8 +7,10 @@
 
 #include "CapsuleCalls.hpp"
 
+#include <array>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "plugins/capsule/CapsuleInstance.hpp"
@@ -16,6 +18,7 @@
 #include "plugins/capsule/Capsules.hpp"
 #include "plugins/capsule/LoadedCapsule.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/hierarchy/Children.hpp"
@@ -48,7 +51,16 @@ ReloadResult reload(ecs::Commands& commands, ecs::Res<Capsules> capsules,
 }
 }  // namespace
 
+void addCapsuleForms(ecs::PluginRegistry& registry) {
+    static constexpr auto kForms = std::to_array<char>({
+#include "CapsuleForms.luau.h"
+    });
+    // bin2c ends the bytes with a null terminator, which is not part of the source.
+    registry.addScriptForms("addCapsuleForms", std::string_view{kForms.data(), kForms.size() - 1});
+}
+
 void addCapsuleCalls(ecs::App& app) {
+    addCapsuleForms(app.getPluginRegistry());
     app.addCall(std::string{kSpawnCall}, &spawn);
     app.addCall(std::string{kLoadCall}, &load);
     app.addCall(std::string{kReloadCall}, &reload);

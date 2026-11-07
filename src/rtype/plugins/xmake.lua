@@ -32,6 +32,7 @@ end
 
 plugin("capsule", {})
     add_files("capsule/**.cpp")
+    add_files("capsule/CapsuleForms.luau")
     add_headerfiles("capsule/**.hpp", "capsule/**.tpp")
 
 plugin("transform", {})
