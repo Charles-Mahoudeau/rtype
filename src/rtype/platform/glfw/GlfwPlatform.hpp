@@ -47,6 +47,7 @@ class RTYPE_PLATFORM_GLFW_API GlfwPlatform final : public contract::platform::IP
     GlfwPlatform& operator=(GlfwPlatform&&) = delete;
 
     [[nodiscard]] glm::uvec2 getFramebufferSize() const override;
+    [[nodiscard]] glm::uvec2 getWindowSize() const override;
     [[nodiscard]] const std::string& getTitle() const override;
     void setTitle(const std::string& title) override;
     void setSize(glm::uvec2 size) override;

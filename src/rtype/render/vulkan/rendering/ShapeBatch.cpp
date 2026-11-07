@@ -30,14 +30,18 @@ void ShapeBatch::add(contract::renderer::MaterialId material, const ShapeInstanc
     ++_batches.back().instanceCount;
 }
 
+void ShapeBatch::split() noexcept { _split = true; }
+
 void ShapeBatch::clear() noexcept {
+    _split = false;
     _instances.clear();
     _values.clear();
     _batches.clear();
 }
 
 void ShapeBatch::extend(contract::renderer::MaterialId material) {
-    if (_batches.empty() || _batches.back().material != material) {
+    if (_batches.empty() || _split || _batches.back().material != material) {
+        _split = false;
         _batches.push_back(Batch{.material = material,
                                  .firstInstance = static_cast<std::uint32_t>(_instances.size()),
                                  .firstValues = static_cast<std::uint32_t>(_values.size())});

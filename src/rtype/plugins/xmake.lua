@@ -8,6 +8,7 @@
 -- see physics/detail/Layers). This option does reach Jolt's CMake, and the package adds the matching define for us.
 add_requires("joltphysics 5.6.x", {alias = "joltphysics", configs = {object_layer_bits = "32"}})
 add_requires("nlohmann_json 3.12.x", {alias = "nlohmann_json"})
+add_requires("yoga 3.2.x", {alias = "yoga"})
 
 -- Starts the target of the plugin `name` and what every plugin shares. `deps`: the libraries its public headers use.
 local function plugin(name, deps)
@@ -101,9 +102,16 @@ plugin("physics-debug", {"plugin-physics", "plugin-graphics", "plugin-input", "p
     add_files("physics/debug/**.cpp")
     add_headerfiles("physics/debug/**.hpp")
 
+plugin("ui", {"plugin-graphics", "plugin-input", "plugin-text"})
+    add_files("ui/**.cpp")
+    add_files("ui/UiForms.luau")
+    add_headerfiles("ui/**.hpp", "ui/**.tpp")
+    -- Computes the layout. Private: only ui/detail/UiLayout.cpp includes it.
+    add_packages("yoga")
+
 -- Every plugin library, for what loads them without linking them: the executables build after it.
 target("plugin-libraries")
     set_kind("phony")
     add_deps("plugin-audio", "plugin-graphics", "plugin-input", "plugin-particle", "plugin-physics",
              "plugin-physics-debug", "plugin-shader", "plugin-shape", "plugin-sprite", "plugin-text", "plugin-tilemap",
-             "plugin-transform")
+             "plugin-transform", "plugin-ui")

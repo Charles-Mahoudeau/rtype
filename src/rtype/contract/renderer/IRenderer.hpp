@@ -13,11 +13,13 @@
 #include <glm/ext/vector_uint2.hpp>
 #include <span>
 #include <stdexcept>
+#include <variant>
 
 #include "core/Export.hpp"
 #include "rtype/contract/platform/IPlatform.hpp"
 #include "rtype/contract/platform/exceptions/PlatformExceptions.hpp"
 #include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Overlay.hpp"
 #include "rtype/contract/renderer/drawing/Shape.hpp"
 #include "rtype/contract/renderer/drawing/Sprite.hpp"
 #include "rtype/contract/renderer/drawing/Text.hpp"
@@ -116,6 +118,16 @@ class RTYPE_HEADER_ONLY_API IRenderer {
     /// @brief Draws a text laid out by the text plugin: its glyphs, from an MSDF font atlas, in the order of the other
     /// sprites (Vulkan batches them with the sprites).
     virtual void draw(const Text& text) = 0;
+    /// @brief Draws @p items over everything else of the frame, whatever the view: the frame's user interface.
+    /// @details Unlike the other draws, these are placed in view pixels (getViewSize(), origin at the top-left corner)
+    /// and stay in the order given, sprites, shapes and texts mixed, each one inside its clip. It can be called several
+    /// times in a frame. A backend that cannot clip or keep this order draws them as it can: this default ignores the
+    /// clips and the view.
+    virtual void drawOverlay(std::span<const OverlayItem> items) {
+        for (const OverlayItem& item : items) {
+            std::visit([this](const auto& drawing) { draw(drawing); }, item.drawing);
+        }
+    }
     /// @}
 
     /// @name Particles

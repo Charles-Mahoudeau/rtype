@@ -15,6 +15,7 @@
 #include <exception>
 #include <filesystem>
 #include <format>
+#include <glm/common.hpp>
 #include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
 #include <iostream>
@@ -26,6 +27,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -61,10 +63,12 @@
 #include "rtype/contract/platform/IPlatform.hpp"
 #include "rtype/contract/platform/exceptions/PlatformExceptions.hpp"
 #include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Overlay.hpp"
 #include "rtype/contract/renderer/drawing/Shape.hpp"
 #include "rtype/contract/renderer/drawing/Sprite.hpp"
 #include "rtype/contract/renderer/drawing/Text.hpp"
 #include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 #include "rtype/contract/renderer/particle/Particle.hpp"
 #include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 #include "rtype/contract/renderer/shaders/CompiledShader.hpp"
@@ -139,6 +143,29 @@ std::vector<std::byte> readPipelineCache(const std::filesystem::path& path, cons
         return {};
     }
     return data;
+}
+
+/// @return Whether @p left and @p right clip the same part of the view.
+bool sameClip(const std::optional<contract::renderer::math::Rect>& left,
+              const std::optional<contract::renderer::math::Rect>& right) noexcept {
+    if (!left || !right) {
+        return !left && !right;
+    }
+    return left->getX() == right->getX() && left->getY() == right->getY() && left->getWidth() == right->getWidth() &&
+           left->getHeight() == right->getHeight();
+}
+
+/// @return @p clip, in view pixels of @p viewSize, in the framebuffer pixels of @p viewport, and inside it.
+vk::Rect2D toScissor(const contract::renderer::math::Rect& clip, const contract::renderer::Viewport& viewport,
+                     glm::vec2 viewSize) noexcept {
+    const glm::vec2 scale = viewport.size / glm::max(viewSize, glm::vec2{1.0F});
+    const glm::vec2 position{clip.getX(), clip.getY()};
+    const glm::vec2 size{clip.getWidth(), clip.getHeight()};
+    const glm::vec2 start = glm::max(viewport.position + (position * scale), viewport.position);
+    const glm::vec2 end = glm::min(viewport.position + ((position + size) * scale), viewport.position + viewport.size);
+    const glm::vec2 extent = glm::max(end - start, glm::vec2{0.0F});
+    return vk::Rect2D{vk::Offset2D{static_cast<std::int32_t>(start.x), static_cast<std::int32_t>(start.y)},
+                      vk::Extent2D{static_cast<std::uint32_t>(extent.x), static_cast<std::uint32_t>(extent.y)}};
 }
 
 vk::ClearColorValue toClearColor(const contract::renderer::Color& color) {
@@ -220,6 +247,7 @@ void VulkanRenderer::init(contract::platform::IPlatform& platform) {
     _pipelineCache =
         std::make_unique<pipeline::PipelineCache>(*_device, readPipelineCache(_pipelineCachePath, *_physicalDevice));
     _globals = std::make_unique<frame::FrameGlobals>(*_device, *_allocator, kFramesInFlight);
+    _overlayGlobals = std::make_unique<frame::FrameGlobals>(*_device, *_allocator, kFramesInFlight);
     _device->setName(*_pipelineCache->getCache(), "Pipeline cache");
     _samplers = std::make_unique<texture::SamplerCache>(*_device, *_physicalDevice);
     _textureSetLayout = std::make_unique<descriptor::DescriptorSetLayout>(
@@ -316,7 +344,20 @@ void VulkanRenderer::createPasses() {
     auto shapePass =
         std::make_unique<rendering::ShapePass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
                                                &_pipelineCache->getCache(), kFramesInFlight);
+    auto overlaySpritePass =
+        std::make_unique<rendering::SpritePass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
+                                                &_pipelineCache->getCache(), kFramesInFlight);
+    auto overlayShapePass =
+        std::make_unique<rendering::ShapePass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
+                                               &_pipelineCache->getCache(), kFramesInFlight);
     const std::size_t frameIndex = _frames->getFrameIndex();
+    if (_overlaySpritePass) {
+        _deletionQueue.defer(frameIndex, std::exchange(_overlaySpritePass, std::move(overlaySpritePass)));
+        _deletionQueue.defer(frameIndex, std::exchange(_overlayShapePass, std::move(overlayShapePass)));
+    } else {
+        _overlaySpritePass = std::move(overlaySpritePass);
+        _overlayShapePass = std::move(overlayShapePass);
+    }
     if (_spritePass) {
         _deletionQueue.defer(frameIndex, std::exchange(_spritePass, std::move(spritePass)));
     } else {
@@ -410,6 +451,9 @@ void VulkanRenderer::beginFrame(const contract::renderer::Color& clearColor) {
     _drawList.clear();
     _simulations.clear();
     _shapes.clear();
+    _overlaySprites.clear();
+    _overlayShapes.clear();
+    _overlayRuns.clear();
     if (_framebufferSize.x == 0 || _framebufferSize.y == 0) {
         return;
     }
@@ -474,10 +518,12 @@ void VulkanRenderer::endFrame() {
     };
     {
         const command::CommandLabel label{*_device, commandBuffer, "Shapes"};
-        _shapePass->record(commandBuffer, frameIndex, _shapes, view.getViewport(), findTextureSet(_fallbackTexture),
-                           findShapeMaterial);
+        _shapePass->upload(frameIndex, _shapes);
+        _shapePass->record(commandBuffer, frameIndex, _shapes.getBatches(), view.getViewport(),
+                           findTextureSet(_fallbackTexture), findShapeMaterial);
     }
     _shapes.clear();
+    recordOverlay(commandBuffer, frameIndex, view, viewSize, framebufferSize);
 
     commandBuffer.endRendering();
     rendering::transitionImage(commandBuffer, _swapchain->getImages().at(imageIndex),
@@ -513,37 +559,46 @@ glm::vec2 VulkanRenderer::getViewSize() const { return glm::vec2{_config.virtual
 void VulkanRenderer::setView(const contract::renderer::View& view) { _view = view; }
 
 void VulkanRenderer::draw(const contract::renderer::Sprite& sprite) {
-    if (!_acquiredImage) {
-        return;
+    if (_acquiredImage) {
+        addTo(_sprites, sprite);
     }
+}
+
+void VulkanRenderer::addTo(rendering::SpriteBatch& batch, const contract::renderer::Sprite& sprite) {
     const texture::Texture* texture = _textures.find(sprite.texture);
     if (texture == nullptr) {
         throw std::invalid_argument("VulkanRenderer::draw(): the sprite's texture was destroyed or never created");
     }
     const rendering::SpriteInstance instance = rendering::SpriteInstance::fromSprite(sprite, texture->desc.size);
     if (sprite.material != contract::renderer::MaterialId{} && _materials.find(sprite.material) != nullptr) {
-        _sprites.add(sprite.texture, sprite.material, instance, sprite.instanceValues);
+        batch.add(sprite.texture, sprite.material, instance, sprite.instanceValues);
         return;
     }
-    _sprites.add(sprite.texture, instance);
+    batch.add(sprite.texture, instance);
 }
 
 void VulkanRenderer::draw(const contract::renderer::Shape& shape) {
-    if (!_acquiredImage) {
-        return;
+    if (_acquiredImage) {
+        addTo(_shapes, shape);
     }
+}
+
+void VulkanRenderer::addTo(rendering::ShapeBatch& batch, const contract::renderer::Shape& shape) {
     const rendering::ShapeInstance instance = rendering::ShapeInstance::fromShape(shape);
     if (shape.material != contract::renderer::MaterialId{} && _materials.find(shape.material) != nullptr) {
-        _shapes.add(shape.material, instance, shape.instanceValues);
+        batch.add(shape.material, instance, shape.instanceValues);
         return;
     }
-    _shapes.add(instance);
+    batch.add(instance);
 }
 
 void VulkanRenderer::draw(const contract::renderer::Text& text) {
-    if (!_acquiredImage) {
-        return;
+    if (_acquiredImage) {
+        addTo(_sprites, text);
     }
+}
+
+void VulkanRenderer::addTo(rendering::SpriteBatch& batch, const contract::renderer::Text& text) {
     const texture::Texture* texture = _textures.find(text.texture);
     if (texture == nullptr) {
         throw std::invalid_argument("VulkanRenderer::draw(): the text's texture was destroyed or never created");
@@ -551,9 +606,90 @@ void VulkanRenderer::draw(const contract::renderer::Text& text) {
     const contract::renderer::MaterialId material =
         _materials.find(text.material) != nullptr ? text.material : contract::renderer::MaterialId{};
     for (const contract::renderer::GlyphQuad& glyph : text.glyphs) {
-        _sprites.addGlyph(text.texture, material, rendering::SpriteInstance::fromGlyph(text, glyph, texture->desc.size),
-                          text.instanceValues);
+        batch.addGlyph(text.texture, material, rendering::SpriteInstance::fromGlyph(text, glyph, texture->desc.size),
+                       text.instanceValues);
     }
+}
+
+void VulkanRenderer::drawOverlay(const std::span<const contract::renderer::OverlayItem> items) {
+    if (!_acquiredImage) {
+        return;
+    }
+    for (const contract::renderer::OverlayItem& item : items) {
+        const bool shapes = std::holds_alternative<contract::renderer::Shape>(item.drawing);
+        // A run is what one scissor and one pass draw: a change of either starts a new one, in a batch of its own.
+        if (_overlayRuns.empty() || _overlayRuns.back().shapes != shapes ||
+            !sameClip(_overlayRuns.back().clip, item.clip)) {
+            _overlaySprites.split();
+            _overlayShapes.split();
+            _overlayRuns.push_back(
+                OverlayRun{.shapes = shapes,
+                           .firstBatch = static_cast<std::uint32_t>(shapes ? _overlayShapes.getBatches().size()
+                                                                           : _overlaySprites.getBatches().size()),
+                           .clip = item.clip});
+        }
+        std::visit(
+            [this](const auto& drawing) {
+                if constexpr (std::is_same_v<std::decay_t<decltype(drawing)>, contract::renderer::Shape>) {
+                    addTo(_overlayShapes, drawing);
+                } else {
+                    addTo(_overlaySprites, drawing);
+                }
+            },
+            item.drawing);
+        OverlayRun& run = _overlayRuns.back();
+        const std::size_t batches = shapes ? _overlayShapes.getBatches().size() : _overlaySprites.getBatches().size();
+        run.batchCount = static_cast<std::uint32_t>(batches) - run.firstBatch;
+    }
+}
+
+void VulkanRenderer::recordOverlay(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
+                                   const contract::renderer::CameraView& world, glm::vec2 viewSize,
+                                   glm::uvec2 framebufferSize) {
+    if (_overlayRuns.empty()) {
+        return;
+    }
+    const command::CommandLabel label{*_device, commandBuffer, "Overlay"};
+    // Without a resolution set, view pixels are framebuffer pixels.
+    if (viewSize.x <= 0.0F || viewSize.y <= 0.0F) {
+        viewSize = glm::vec2{framebufferSize};
+    }
+    const contract::renderer::CameraView view{
+        contract::renderer::CameraView::makeDefaultView(viewSize, framebufferSize), viewSize, framebufferSize};
+    _overlayGlobals->update(frameIndex, rendering::FrameUniforms{
+                                            .time = 0.0F,
+                                            .deltaTime = 0.0F,
+                                            .framebufferSize = glm::vec2{framebufferSize},
+                                            .viewProjection = view.getViewProjection(),
+                                        });
+    _overlayGlobals->bind(commandBuffer, *_layout, frameIndex);
+    _overlaySpritePass->upload(frameIndex, _overlaySprites);
+    _overlayShapePass->upload(frameIndex, _overlayShapes);
+    const auto findSet = [this](contract::renderer::TextureId texture) { return findTextureSet(texture); };
+    const auto findOverlayMaterial = [this, frameIndex](contract::renderer::MaterialId material,
+                                                        contract::renderer::ShaderTarget target) {
+        return findMaterial(material, target, frameIndex);
+    };
+    const contract::renderer::Viewport& viewport = world.getViewport();
+    for (const OverlayRun& run : _overlayRuns) {
+        const std::optional<vk::Rect2D> scissor =
+            run.clip ? std::optional{toScissor(*run.clip, viewport, viewSize)} : std::nullopt;
+        if (scissor && (scissor->extent.width == 0 || scissor->extent.height == 0)) {
+            continue;
+        }
+        if (run.shapes) {
+            _overlayShapePass->record(commandBuffer, frameIndex,
+                                      _overlayShapes.getBatches().subspan(run.firstBatch, run.batchCount), viewport,
+                                      findTextureSet(_fallbackTexture), findOverlayMaterial, scissor);
+        } else {
+            _overlaySpritePass->record(commandBuffer, frameIndex,
+                                       _overlaySprites.getBatches().subspan(run.firstBatch, run.batchCount), viewport,
+                                       findSet, findOverlayMaterial, scissor);
+        }
+    }
+    _overlaySprites.clear();
+    _overlayShapes.clear();
+    _overlayRuns.clear();
 }
 
 bool VulkanRenderer::supportsGpuParticles() const noexcept { return true; }

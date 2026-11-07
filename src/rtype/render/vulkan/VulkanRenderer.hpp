@@ -56,10 +56,12 @@
 #include "rtype/contract/platform/IPlatform.hpp"
 #include "rtype/contract/renderer/IRenderer.hpp"
 #include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Overlay.hpp"
 #include "rtype/contract/renderer/drawing/Shape.hpp"
 #include "rtype/contract/renderer/drawing/Sprite.hpp"
 #include "rtype/contract/renderer/drawing/Text.hpp"
 #include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/math/Rect.hpp"
 #include "rtype/contract/renderer/particle/Particle.hpp"
 #include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 #include "rtype/contract/renderer/shaders/CompiledShader.hpp"
@@ -204,6 +206,11 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public contract::renderer::
     /// @throws std::invalid_argument If its texture was destroyed or never created.
     void draw(const contract::renderer::Text& text) override;
 
+    /// @brief Records @p items for this frame's overlay, drawn at endFrame() over everything else: see
+    /// IRenderer::drawOverlay(). Each run of items of one kind and one clip is a scissored draw of its own.
+    /// @throws std::invalid_argument If the texture of an item was destroyed or never created.
+    void drawOverlay(std::span<const contract::renderer::OverlayItem> items) override;
+
     /// @return true: particle systems are simulated by compute shaders and drawn indirectly.
     [[nodiscard]] bool supportsGpuParticles() const noexcept override;
 
@@ -251,6 +258,14 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public contract::renderer::
     void destroy(contract::renderer::MaterialId material) override;
 
   private:
+    /// @brief Overlay draws that share a kind and a clip, recorded at endFrame().
+    struct OverlayRun {
+        bool shapes = false;                                 ///< Batches of _overlayShapes, or of _overlaySprites.
+        std::uint32_t firstBatch = 0;                        ///< Index of its first batch.
+        std::uint32_t batchCount = 0;                        ///< Number of batches.
+        std::optional<contract::renderer::math::Rect> clip;  ///< What it stays in, in view pixels.
+    };
+
     /// @brief A particle draw of the frame, recorded at endFrame().
     struct ParticleRange {
         contract::renderer::TextureId texture;   ///< Its set is found at endFrame(), as for the sprites.
@@ -279,6 +294,22 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public contract::renderer::
     /// buffer.
     /// @warning Only after the frame's fence was waited for: the GPU may still read the buffer before.
     void updateFrameUniforms(const contract::renderer::CameraView& view);
+
+    /// @brief Adds @p sprite to @p batch.
+    /// @throws std::invalid_argument If its texture was destroyed or never created.
+    void addTo(rendering::SpriteBatch& batch, const contract::renderer::Sprite& sprite);
+
+    /// @brief Adds the glyphs of @p text to @p batch.
+    /// @throws std::invalid_argument If its texture was destroyed or never created.
+    void addTo(rendering::SpriteBatch& batch, const contract::renderer::Text& text);
+
+    /// @brief Adds @p shape to @p batch.
+    void addTo(rendering::ShapeBatch& batch, const contract::renderer::Shape& shape);
+
+    /// @brief Records the overlay of the frame, in view pixels, inside dynamic rendering, then empties it.
+    /// @param world The frame's view, for its viewport.
+    void recordOverlay(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
+                       const contract::renderer::CameraView& world, glm::vec2 viewSize, glm::uvec2 framebufferSize);
 
     /// @brief Records the simulation of the frame's GPU systems (_simulations), before rendering begins.
     void recordParticleSimulations(const vk::raii::CommandBuffer& commandBuffer);
@@ -338,6 +369,9 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public contract::renderer::
     contract::renderer::Color _clearColor{0.0F};  ///< From beginFrame(): what endFrame() clears with.
     rendering::SpriteBatch _sprites;              ///< The frame's sprites; cleared by beginFrame().
     rendering::ShapeBatch _shapes;                ///< The frame's shapes; cleared by beginFrame().
+    rendering::SpriteBatch _overlaySprites;       ///< The overlay's sprites and glyphs; cleared by beginFrame().
+    rendering::ShapeBatch _overlayShapes;         ///< The overlay's shapes; cleared by beginFrame().
+    std::vector<OverlayRun> _overlayRuns;         ///< The overlay, in draw order; cleared by beginFrame().
     std::vector<contract::renderer::ParticleInstance> _particleInstances;  ///< The frame's CPU particles.
     std::vector<ParticleRange> _particleRanges;  ///< The frame's particle draws; cleared by beginFrame().
     rendering::DrawList _drawList;               ///< Where the particle draws sit among the sprite batches.
@@ -365,6 +399,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public contract::renderer::
     // 6. Pipelines, descriptors and shaders.
     std::unique_ptr<pipeline::ShaderCache> _shaders;          ///< Shader modules, built-in and from the game.
     std::unique_ptr<pipeline::PipelineCache> _pipelineCache;  ///< Shared by every pipeline the renderer builds.
+    std::unique_ptr<frame::FrameGlobals> _overlayGlobals;     ///< The frame uniforms of the overlay: its own view.
     std::unique_ptr<frame::FrameGlobals> _globals;            ///< Per-frame uniforms, at set 0, binding 0.
     std::unique_ptr<descriptor::DescriptorSetLayout> _textureSetLayout;     ///< Set 1: one combined image sampler.
     std::unique_ptr<descriptor::DescriptorAllocator> _textureDescriptors;   ///< Allocates the textures' sets.
@@ -376,6 +411,8 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public contract::renderer::
                                                         ///< pipeline: sets 0 and 1, and the push constants.
     std::unique_ptr<pipeline::PipelineLayout> _materialLayout;  ///< The game shaders' layout: the shared one and set 2.
     std::unique_ptr<rendering::SpritePass> _spritePass;         ///< Draws _sprites at endFrame().
+    std::unique_ptr<rendering::SpritePass> _overlaySpritePass;  ///< Draws _overlaySprites, with buffers of its own.
+    std::unique_ptr<rendering::ShapePass> _overlayShapePass;    ///< Draws _overlayShapes, with buffers of its own.
     std::unique_ptr<rendering::ShapePass> _shapePass;           ///< Draws _shapes at endFrame(), after the sprites.
     std::unique_ptr<rendering::ParticlePass> _particlePass;  ///< Draws _particleRanges at endFrame(), among _sprites.
     std::unique_ptr<particle::ParticleSimulationPass> _particleSimulation;     ///< Runs _simulations at endFrame().

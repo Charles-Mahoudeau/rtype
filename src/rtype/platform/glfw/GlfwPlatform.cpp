@@ -33,6 +33,13 @@ GlfwPlatform::~GlfwPlatform() {
     }
 }
 
+glm::uvec2 GlfwPlatform::getWindowSize() const {
+    int width = 0;
+    int height = 0;
+    glfwGetWindowSize(_window, &width, &height);
+    return {static_cast<unsigned int>(width), static_cast<unsigned int>(height)};
+}
+
 glm::uvec2 GlfwPlatform::getFramebufferSize() const {
     int width = 0;
     int height = 0;

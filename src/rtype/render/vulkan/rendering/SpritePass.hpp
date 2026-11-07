@@ -80,9 +80,11 @@ class RTYPE_RENDER_VULKAN_API SpritePass {
     /// with a game material through @p findMaterial for its target (the default material if it gives no pipeline),
     /// a batch of glyphs of the default material with the glyph pipeline. The frame's set 0 must already be bound. A
     /// batch whose texture no longer exists is skipped. Does nothing before upload().
+    /// @param scissor What the draws stay in, in framebuffer pixels; nothing: @p viewport.
     void record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
                 std::span<const SpriteBatch::Batch> batches, const contract::renderer::Viewport& viewport,
-                const TextureSetFinder& findTextureSet, const MaterialFinder& findMaterial);
+                const TextureSetFinder& findTextureSet, const MaterialFinder& findMaterial,
+                const std::optional<vk::Rect2D>& scissor = std::nullopt);
 
   private:
     /// @brief Instances the first buffer holds; each new one doubles until the frame's instances fit.

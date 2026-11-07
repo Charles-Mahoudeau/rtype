@@ -40,6 +40,10 @@ class RTYPE_HEADER_ONLY_API IPlatform {
     /// @return Size of the framebuffer, in pixels. May differ from the window size on high-DPI screens.
     [[nodiscard]] virtual glm::uvec2 getFramebufferSize() const = 0;
 
+    /// @return The window's size in the units of the mouse events, which differs from the framebuffer on a high density
+    /// display.
+    [[nodiscard]] virtual glm::uvec2 getWindowSize() const { return getFramebufferSize(); }
+
     /// @return Current window title.
     [[nodiscard]] virtual const std::string& getTitle() const = 0;
 

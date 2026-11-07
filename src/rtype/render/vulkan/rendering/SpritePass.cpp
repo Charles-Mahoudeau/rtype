@@ -119,7 +119,8 @@ void SpritePass::upload(std::size_t frameIndex, const SpriteBatch& batch) {
 
 void SpritePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
                         std::span<const SpriteBatch::Batch> batches, const contract::renderer::Viewport& viewport,
-                        const TextureSetFinder& findTextureSet, const MaterialFinder& findMaterial) {
+                        const TextureSetFinder& findTextureSet, const MaterialFinder& findMaterial,
+                        const std::optional<vk::Rect2D>& scissor) {
     const std::optional<memory::Buffer>& buffer = _buffers.at(frameIndex);
     if (batches.empty() || !buffer || viewport.size.x <= 0.0F || viewport.size.y <= 0.0F) {
         return;
@@ -128,10 +129,11 @@ void SpritePass::record(const vk::raii::CommandBuffer& commandBuffer, std::size_
     _pipeline.bind(commandBuffer);
     commandBuffer.setViewport(
         0, vk::Viewport{viewport.position.x, viewport.position.y, viewport.size.x, viewport.size.y, 0.0F, 1.0F});
-    commandBuffer.setScissor(0, vk::Rect2D{vk::Offset2D{static_cast<std::int32_t>(viewport.position.x),
-                                                        static_cast<std::int32_t>(viewport.position.y)},
-                                           vk::Extent2D{static_cast<std::uint32_t>(viewport.size.x),
-                                                        static_cast<std::uint32_t>(viewport.size.y)}});
+    commandBuffer.setScissor(0,
+                             scissor.value_or(vk::Rect2D{vk::Offset2D{static_cast<std::int32_t>(viewport.position.x),
+                                                                      static_cast<std::int32_t>(viewport.position.y)},
+                                                         vk::Extent2D{static_cast<std::uint32_t>(viewport.size.x),
+                                                                      static_cast<std::uint32_t>(viewport.size.y)}}));
     const std::optional<memory::Buffer>& values = _values.at(frameIndex);
     const pipeline::GraphicsPipeline* bound = &_pipeline;
     bool instancesFromStart = false;
