@@ -105,8 +105,10 @@ void Schedules::runFrame() {
     // A paused frame drops the ticks the clock counted, so resuming does not catch up on the time spent paused.
     const bool simulates = !_paused || std::exchange(_stepRequested, false);
     std::uint32_t ticks = 0;
-    if (simulates) {
-        ticks = _paused ? (_clock ? 1U : 0U) : measured;
+    if (simulates && !_paused) {
+        ticks = measured;
+    } else if (simulates && _clock) {
+        ticks = 1;  // a step simulates one tick
     }
     if (!_started) {
         run(Phase::kStartup);
