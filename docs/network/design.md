@@ -13,7 +13,7 @@ document decides *how*: the wire format, reliability, connections, threads and r
 something the ECS docs say, the change is listed in [Differences with the ECS docs](#13-differences-with-the-ecs-docs).
 
 > Snippets omit the Epitech header, the rule-of-five members and most `[[nodiscard]]`/`noexcept` for brevity.
-> The real code follows every rule in `CLAUDE.md`.
+> The real code follows every rule in `docs/CodeStyle.md`.
 
 ## Contents
 
