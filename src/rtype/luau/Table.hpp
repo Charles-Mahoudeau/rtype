@@ -192,6 +192,10 @@ class RTYPE_LUAU_API Table {
     /// Shallow: nested tables stay writable. A write from a script raises a Luau error; `set`, `setAt`,
     /// `setMetatable` and `clearMetatable` from C++ return a `kRuntime` failure. Freezing is irreversible and
     /// idempotent.
+    ///
+    /// Exception: a script assigning an absent key of a frozen table with a `__newindex` metamethod calls that
+    /// handler without a read-only error; the handler can return normally or have side effects, the table itself
+    /// stays unchanged.
     /// @return Nothing on success, or a Failure of kind `kStackOverflow` if the stack cannot grow.
     /// @throws exceptions::InvalidRef If the handle was moved from.
     [[nodiscard]] Result<void> freeze();

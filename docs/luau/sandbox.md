@@ -20,6 +20,9 @@ was called. After it:
 | `Runtime::globals()` | Still returns the shared table, now frozen |
 | `globals().set(...)` after sealing | Returns a `kRuntime` failure ("attempt to modify a readonly table"), like any write to a frozen table; it never throws or crashes |
 
+Publishing a usertype constructor (a script global) after sealing throws `InvalidOperation`: register usertypes
+before `sandbox()`.
+
 Scripts loaded **before** `sandbox()` keep sharing the (now frozen) global table: seal before loading scripts.
 
 ## Table freeze
@@ -27,3 +30,7 @@ Scripts loaded **before** `sandbox()` keep sharing the (now frozen) global table
 `Table::freeze()` makes a table read-only, shallowly like Luau's `table.freeze`: nested tables stay writable.
 `isFrozen()` reads the flag. Freezing is irreversible. A write from a script raises a Luau error, and from C++ `set`,
 `setAt`, `setMetatable` and `clearMetatable` return a `kRuntime` failure; the host does not crash.
+
+One exception: assigning an **absent** key of a frozen table that has a `__newindex` metamethod calls the handler
+instead of raising a read-only error (Luau only checks the flag when it writes the table itself). The handler can
+return normally or have side effects; the frozen table stays unchanged.
