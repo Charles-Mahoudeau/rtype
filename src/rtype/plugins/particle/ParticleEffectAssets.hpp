@@ -8,11 +8,13 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
@@ -78,6 +80,18 @@ class RTYPE_PLUGIN_PARTICLE_API ParticleEffectAssets {
     /// @throws core::asset::exceptions::AssetLoadException If another name already has this id (a hash collision).
     core::asset::AssetId add(const std::string& name, ParticleEffect effect);
 
+    /// @return The ids of every effect known, read or failed, in no order.
+    [[nodiscard]] std::vector<core::asset::AssetId> getIds() const;
+
+    /// @brief Replaces the effect @p id names, for a tool that edits it (the editor): the emitters playing it restart
+    /// with the new one at their next frame (getVersion()).
+    /// @throws contract::renderer::exceptions::ParticleException If @p effect is invalid; nothing changes then.
+    /// @throws std::invalid_argument If no effect has this id, or it failed.
+    void replace(core::asset::AssetId id, ParticleEffect effect);
+
+    /// @return How many times the effect @p id names was replaced: 0 until then, and for an unknown id.
+    [[nodiscard]] std::uint32_t getVersion(core::asset::AssetId id) const noexcept;
+
     /// @return The effect @p id names, or nullptr if it is unknown or failed.
     [[nodiscard]] const ParticleEffect* get(core::asset::AssetId id) const;
 
@@ -90,6 +104,7 @@ class RTYPE_PLUGIN_PARTICLE_API ParticleEffectAssets {
 
   private:
     core::asset::AssetStore<ParticleEffect> _effects{"ParticleEffect"};  ///< Every effect asked for, by id.
+    std::unordered_map<core::asset::AssetId, std::uint32_t> _versions;   ///< replace() calls, by id; none: 0.
     std::map<std::string, std::unique_ptr<IParticleEffectLoader>, std::less<>> _loaders;  ///< By extension.
 };
 RTYPE_ECS_RESOURCE(ParticleEffectAssets, "rtype.ParticleEffectAssets");
