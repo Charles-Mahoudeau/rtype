@@ -48,7 +48,11 @@ class ScriptsDirectory {
         const auto file = _path / relative;
         std::filesystem::create_directories(file.parent_path());
         std::error_code error;
-        std::filesystem::create_symlink(target, file, error);
+        if (std::filesystem::is_directory(target)) {
+            std::filesystem::create_directory_symlink(target, file, error);  // Windows tells the two kinds apart
+        } else {
+            std::filesystem::create_symlink(target, file, error);
+        }
         return !error;
     }
 
