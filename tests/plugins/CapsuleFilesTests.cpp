@@ -260,5 +260,32 @@ TEST_F(CapsuleFilesTest, WithoutHotReloadTheGameOnlyLoadsItsFiles) {
     app.addPlugin(capsule::CapsulePlugin{});
     app.finishPlugins();
     EXPECT_NE(app.getWorld().getResources().get<capsule::Capsules>()->find("actors/turret.actor"), nullptr);
-    EXPECT_EQ(app.getWorld().getResources().get<capsule::ReloadedCapsules>(), nullptr);
+    // Nothing reads the files again, but a tool can still ask for what it changed to be reloaded.
+    ASSERT_NE(app.getWorld().getResources().get<capsule::ReloadedCapsules>(), nullptr);
+    EXPECT_TRUE(app.getWorld().getResources().get<capsule::ReloadedCapsules>()->capsules.empty());
+}
+
+TEST_F(CapsuleFilesTest, ReloadsWhatACapsuleAToolRedefinedSpawnedWithoutHotReload) {
+    write("actors/turret.actor", kTurret);
+    rtype::ecs::App app;
+    app.insertResource(rtype::plugins::AssetDirectory{.path = _game});
+    static_cast<void>(app.getWorld().getComponents().registerType<tf::Health>());
+    static_cast<void>(app.getWorld().getComponents().registerType<tf::Armor>());
+    app.addPlugin(capsule::CapsulePlugin{});
+    app.finishPlugins();
+    rtype::ecs::Resources& resources = app.getWorld().getResources();
+    const capsule::CapsuleId id = capsule::CapsuleId::fromPath("actors/turret.actor");
+    rtype::ecs::Commands commands{app.getWorld()};
+    const rtype::ecs::Entity turret =
+        capsule::spawnCapsule(commands, resources.require<capsule::Capsules>(), id).getEntity();
+    commands.flush();
+
+    capsule::Capsule changed{"actors/turret.actor"};
+    changed.editNode(0).values.set(app.getWorld().getComponents(), tf::Health{.value = 42});
+    resources.requireMut<capsule::Capsules>()->define(std::move(changed));
+    resources.requireMut<capsule::ReloadedCapsules>()->capsules.push_back(id);
+    app.runFrame();
+    ASSERT_TRUE(app.getWorld().isAlive(turret));
+    EXPECT_EQ(app.getWorld().getComponents().get<tf::Health>(turret)->value, 42);
+    EXPECT_TRUE(resources.get<capsule::ReloadedCapsules>()->capsules.empty());
 }
