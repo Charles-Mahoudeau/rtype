@@ -7,7 +7,7 @@ implemented separately.
 
 They are **concept explainers**: what the feature is, why we need it, how other ECSs do it, what we
 chose, how it works, and what can go wrong. Snippets are illustrative and omit the Epitech header and
-the rule-of-five members; the real code follows `CLAUDE.md`.
+the rule-of-five members; the real code follows `docs/CodeStyle.md`.
 
 The requirements are the ones from the design:
 

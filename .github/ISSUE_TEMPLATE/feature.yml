@@ -1,0 +1,95 @@
+name: Feature
+description: "A unit of work on the engine: one deliverable, small enough for a single pull request."
+title: "[Area] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Title: `[Area] <summary>`, or `[Area] <ID>: <summary>` for a task listed in a plan document (`NET-06`, `SCR-03`).
+        After submitting, in the project "R-Type": set **Status**, **Priority** and **Size**. In the issue: link the
+        epic as the parent (sub-issue) and add the issues it is blocked by as real **blocked by** relationships, not as
+        text. The `plan-issues` skill does all of this with `gh`.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Also the label applied to the issue.
+      options:
+        - ecs
+        - luau
+        - scripting
+        - network
+        - physics
+        - Vulkan
+        - documentation
+    validations:
+      required: true
+
+  - type: input
+    id: task
+    attributes:
+      label: Task id
+      description: The id of the task in its plan document, or leave empty.
+      placeholder: NET-06
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What must be built, in one or two sentences.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why it is needed and how it fits in the engine.
+    validations:
+      required: true
+
+  - type: textarea
+    id: usage
+    attributes:
+      label: Usage
+      description: The intended API (indicative) and how a Luau script or a plugin uses it. A feature a game needs is only done when a script can use it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tasks
+    attributes:
+      label: Tasks
+      description: Checklist of concrete steps.
+      value: |
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Observable conditions that make this issue done.
+      value: |
+        - [ ] Builds with `xmake` on Linux, Windows and macOS
+        - [ ] Tests cover the success and failure paths
+        - [ ] Passes `clang-format` and `clang-tidy`
+        - [ ] Follows the conventions in `docs/CodeStyle.md`
+        - [ ] Documented in `docs/` and, for what scripts can use, in the manual (`manual/`) with a script test
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical
+    attributes:
+      label: Technical notes
+      description: Design choices, data structures, pitfalls, interactions with other parts.
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Links to the design docs, the plan document, or related issues and pull requests.

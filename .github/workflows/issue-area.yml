@@ -1,0 +1,31 @@
+name: Issue area label
+
+# An issue form cannot choose a label from a dropdown: this applies the label named by the form's "Area" answer.
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add the area label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          area="$(printf '%s\n' "$ISSUE_BODY" | awk '/^### Area/{found=1; next} found && NF{print; exit}')"
+          case "$area" in
+            ecs|luau|scripting|network|physics|Vulkan|documentation)
+              gh issue edit "$ISSUE_NUMBER" --add-label "$area"
+              ;;
+            *)
+              echo "No known area in the issue: '$area'"
+              ;;
+          esac
