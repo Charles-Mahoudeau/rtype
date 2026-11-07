@@ -93,7 +93,7 @@ jobs:
 
       - name: Setup macOS dependencies
         if: contains(runner.os, 'macos')
-        run: brew install molten-vk vulkan-loader glslang
+        run: brew install molten-vk vulkan-loader glslang autoconf automake libtool pkg-config
 
       - name: Install xmake
         uses: xmake-io/github-action-setup-xmake@v1

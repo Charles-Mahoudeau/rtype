@@ -13,6 +13,16 @@ if os.getenv("XMAKE_ACTION_BUILD_CACHE") == "true" then
     set_policy("build.ccache", true)
 end
 
+if is_plat("windows") then
+    -- The dynamic C runtime, shared by every library of the engine (C++ types cross their boundaries). Its DLLs go in
+    -- the release folder next to the executable.
+    set_runtimes(is_mode("debug") and "MDd" or "MD")
+else
+    -- Every binary looks for its libraries in its own folder first, and does not rely on the executable having loaded
+    -- them (a search path is not inherited): the release holds the engine's libraries and the C++ runtime side by side.
+    add_rpathdirs("@loader_path")
+end
+
 -- Shared by several modules, so declared once here.
 add_requires("glm 1.0.x", {alias = "glm"})
 add_requires("glfw 3.4", {alias = "glfw"})
@@ -27,6 +37,8 @@ if is_plat("macosx") then
 else
     add_requires("glslang 1.4.x",
                  {alias = "glslang", configs = {tools = true, spirv_tools = true, default_resource_limits = true}})
+    -- Its SPIRV-Tools are the ones xmake builds, static: the system's are shared libraries the release does not hold.
+    add_requireconfs("glslang.spirv-tools", {system = false, override = true})
 end
 
 -- Makes a shared library a plugin library: it appears in the `plugins` folder next to the executables (or the folder
@@ -35,18 +47,21 @@ end
 rule("rtype.plugin_library")
     on_load(function (target)
         if not target:is_plat("windows") then
-            -- Opened through the folder, it finds what it links one level up.
-            target:add("rpathdirs", "@loader_path/..", "@loader_path/../..")
-        end
-    end)
-    before_link(function (target)
-        -- Linked by the executable, a package's libraries were found through it; opened alone, the library needs them.
-        if target:is_plat("linux") then
-            for _, dirs in ipairs(target:get_from("linkdirs", "package::*") or {}) do
-                target:add("rpathdirs", dirs)
+            -- Opened through the folder, it finds what it links in its own folder (the other plugins) and in every
+            -- folder above it, up to the one holding the executable: `plugins/x.so` looks in `plugins/` and `.`,
+            -- `plugins/backends/x.so` in `plugins/backends/`, `plugins/` and `.`. Every entry stays inside the release
+            -- folder, which is what `.github/scripts/check-self-contained.sh` checks.
+            local folder = target:extraconf("rules", "rtype.plugin_library", "folder") or "plugins"
+            local up = "@loader_path"
+            target:add("rpathdirs", up)
+            for _ = 1, #path.split(folder) do
+                up = up .. "/.."
+                target:add("rpathdirs", up)
             end
         end
     end)
+    -- No search path to the folder of a package: they are static, and that folder is a build path a release must not
+    -- hold. A shared package would make the self-contained check fail, which is the point.
     after_build(function (target)
         local folder = path.join(target:targetdir(), target:extraconf("rules", "rtype.plugin_library", "folder") or "plugins")
         local file = path.join(folder, path.filename(target:targetfile()))
@@ -79,7 +94,11 @@ rule_end()
 rule("rtype.copy_to_root")
     on_load(function (target)
         if not target:is_plat("windows") then
+            -- The build folder, where the binary finds its libraries before it is packaged...
             target:add("rpathdirs", path.join("@loader_path", path.relative(target:targetdir(), os.projectdir())))
+            -- ...and `plugins/`, where a release holds the plugin libraries it links (transform, input): they are not
+            -- at its root, so the folder above `plugins/` is never searched by them (see rtype.plugin_library).
+            target:add("rpathdirs", "@loader_path/plugins")
         end
     end)
     after_build(function (target)
