@@ -14,9 +14,16 @@ target("engine-tests")
     add_deps("backend-libraries", {inherit = false})
     set_default(false)
     set_group("tests")
-    add_deps("engine-test-plugin", "plugin-libraries", "engine", "replication", "plugin-capsule", "plugin-graphics", "plugin-input", "plugin-particle", "plugin-physics", "plugin-physics-debug", "plugin-shader", "plugin-shape", "plugin-sprite", "plugin-text", "plugin-tilemap", "plugin-transform")
+    add_deps("engine-test-plugin", "plugin-libraries", "engine", "replication", "plugin-capsule", "plugin-graphics", "plugin-http", "plugin-input", "plugin-particle", "plugin-physics", "plugin-physics-debug", "plugin-shader", "plugin-shape", "plugin-sprite", "plugin-text", "plugin-tilemap", "plugin-transform")
     add_files("*.cpp", "../main.cpp")
     -- FakeBackend.hpp (header-only): the fake platform and renderer, for a client App that runs frames.
     add_includedirs("../plugins")
-    add_packages("gtest", "libsodium")
+    -- asio: LocalHttpServer.hpp, the HTTP server of the http plugin's script tests.
+    add_packages("gtest", "libsodium", "asio")
+    -- LocalHttpServer.hpp uses Asio's sockets, as the network module does.
+    if is_plat("windows") then
+        -- Asio includes windows.h: no min and max macros, which break std::max and the engine's headers.
+        add_defines("_WIN32_WINNT=0x0A00", "NOMINMAX", "WIN32_LEAN_AND_MEAN")
+        add_syslinks("ws2_32", "mswsock")
+    end
     add_tests("default")

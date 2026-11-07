@@ -115,6 +115,15 @@ See [Capsules](capsules.md).
 | `rtype.replication.readInput` | server | the input of a player's action, see [Networking](networking.md) |
 | `rtype.replication.localClient` | client | `{ connected, client }`: whether the server gave this client its id, and the id (as `net.Owner` and `net.ClientConnected` carry it) |
 
+### HTTP
+
+Server side, with `rtype.Http` added. Prefer `engine.http.request`, see [HTTP](http.md).
+
+| Call | Arguments | Result |
+|---|---|---|
+| `rtype.http.request` | `url`, `method` (`"GET"`), `headers` (`Name: value` lines), `body`, `timeout` | the request's id; its response comes as `rtype.HttpResponse` |
+| `rtype.http.cancel` | `request` | `true`, or `false` when it had already ended |
+
 ### Shaders and particles
 
 The shader plugin has `engine.assets.shader` and `engine.assets.material` forms, see [Setup forms](setup-forms.md).

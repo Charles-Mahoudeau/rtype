@@ -173,10 +173,12 @@ void addTerm(ecs::QueryBuilder& builder, const ecs::TermKind kind, const ecs::Co
             return fail(ErrorKind::kInvalidDeclaration,
                         std::format("System '{}': unknown event '{}'", declaration.name, name));
         }
-        if (const auto why = whyNotPlainData(info->type, false); !why.empty()) {
-            return fail(
-                ErrorKind::kInvalidDeclaration,
-                std::format("System '{}': event '{}' cannot be used by a script: {}", declaration.name, name, why));
+        // An event is copied in and out (a script gets a copy, sends a copy), so one that owns memory (a text, a list)
+        // is fine as long as it can be copied.
+        if (!info->type.copyable) {
+            return fail(ErrorKind::kInvalidDeclaration,
+                        std::format("System '{}': event '{}' cannot be used by a script: it cannot be copied",
+                                    declaration.name, name));
         }
         made.first.push_back({.type = &info->type, .read = read, .send = send});
         made.second.events.push_back({.id = info->type.id, .read = read, .send = send});

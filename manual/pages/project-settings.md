@@ -55,6 +55,7 @@ end
 | `rtype.Physics`, see [Physics](physics.md) | 2D physics | both |
 | `rtype.PhysicsDebug` | Draws the colliders and velocities | client |
 | `rtype.Capsule`, see [Capsules](capsules.md) | Actors and levels from capsule files | both |
+| `rtype.Http`, see [HTTP](http.md) | HTTPS requests to the hosts the game names | server |
 
 The time, the schedule and the transform are always there. A plugin that needs another brings it: listing
 `rtype.graphics` also loads `rtype.Input`, with a line on the error output, so list what you use and you may leave out
@@ -64,6 +65,11 @@ exist; the names are case-sensitive.
 
 A plugin reads its section when it is built, so a section is only checked if its plugin is listed; an unknown key in it
 is then an error.
+
+### `http`
+
+Every key is optional and the values are checked when `rtype.Http` is listed. The keys are in [HTTP](http.md#settings):
+`allowedHosts`, `allowHttp`, `maxConcurrent`, `timeout`, `maxResponseBytes` and `secrets`.
 
 ### `physics`
 

@@ -9,6 +9,8 @@
 add_requires("joltphysics 5.6.x", {alias = "joltphysics", configs = {object_layer_bits = "32"}})
 add_requires("nlohmann_json 3.12.x", {alias = "nlohmann_json"})
 add_requires("yoga 3.2.x", {alias = "yoga"})
+-- HTTPS for the http plugin: Schannel on Windows, OpenSSL 3 elsewhere (the package picks it).
+add_requires("libcurl 8.x", {alias = "libcurl"})
 
 -- Starts the target of the plugin `name` and what every plugin shares. `deps`: the libraries its public headers use.
 local function plugin(name, deps)
@@ -115,9 +117,20 @@ plugin("ui", {"plugin-graphics", "plugin-input", "plugin-text"})
     -- Computes the layout. Private: only ui/detail/UiLayout.cpp includes it.
     add_packages("yoga")
 
+plugin("http", {})
+    add_files("http/**.cpp")
+    add_files("http/HttpForms.luau")
+    add_headerfiles("http/**.hpp|detail/**.hpp")
+    -- The HTTPS client. Private: only http/detail/ includes curl.
+    add_packages("libcurl")
+    -- curl includes windows.h: without these, its min and max macros break std::max and the engine's headers.
+    if is_plat("windows") then
+        add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN")
+    end
+
 -- Every plugin library, for what loads them without linking them: the executables build after it.
 target("plugin-libraries")
     set_kind("phony")
-    add_deps("plugin-audio", "plugin-capsule", "plugin-graphics", "plugin-input", "plugin-particle", "plugin-physics",
-             "plugin-physics-debug", "plugin-shader", "plugin-shape", "plugin-sprite", "plugin-text", "plugin-tilemap",
-             "plugin-transform", "plugin-ui")
+    add_deps("plugin-audio", "plugin-capsule", "plugin-graphics", "plugin-http", "plugin-input", "plugin-particle",
+             "plugin-physics", "plugin-physics-debug", "plugin-shader", "plugin-shape", "plugin-sprite", "plugin-text",
+             "plugin-tilemap", "plugin-transform", "plugin-ui")

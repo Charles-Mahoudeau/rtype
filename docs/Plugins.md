@@ -42,6 +42,7 @@ and the materials are in `plugin-shader`.
 | `physics` | Jolt, `Collider`, `RigidBody` | `transform` |
 | `physics-debug` | Draws the colliders | `graphics`, `input`, `transform` |
 | `ui` | The user interface, laid out by Yoga: nodes, widgets, focus | `graphics`, `input`, `text` |
+| `http` | HTTPS requests for scripts: `HttpClient`, `HttpResponse`, `rtype.http.request` (libcurl) | |
 
 A plugin states what it requires in `getDependencies()`. The `App` refuses a plugin whose requirement was not added
 first, naming both, so a program adds a plugin after the ones it requires:

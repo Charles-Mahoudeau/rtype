@@ -193,6 +193,12 @@ end
 A script event is described by a Luau type exactly like a [component](02-component-registry.md), registered
 with `registerType(EventInfo)`, and sent and read as bytes (`send(id, bytes)`, `read(id, cursor)`).
 
+A script can also send and read a C++ event that owns memory (a `std::string` or `std::vector` field, such as
+`rtype.HttpResponse`), as long as it is copyable: what it sends is built from the defaults and copied into the queue
+with the copy hook, then destroyed; what it reads is a copy made with the copy hook, destroyed with its view. A
+script never sees the queue's own bytes, which a send of the same type can move. An event that cannot be copied is
+refused when the system is declared.
+
 ### Events and the network
 
 Events are **local** to a world, and the registry refuses a replicated event. Something the clients must know (an explosion to display) is either
