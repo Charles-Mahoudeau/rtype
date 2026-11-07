@@ -378,6 +378,19 @@ TEST(Engine, LoadsTheScriptsOfTheGame) {
     EXPECT_TRUE(engine.app().getWorld().getComponents().find("game.Shield"));
 }
 
+TEST(Engine, TheScriptsOfAGameRequireEachOtherThroughTheScriptsAlias) {
+    const GameDirectory game{"rtype-engine-require"};
+    game.write("scripts/shared/config.luau", "return { name = 'Configured' }");
+    game.write("scripts/server/main.luau", R"(
+        local config = require("@scripts/shared/config")
+        engine.ecs.component("game." .. config.name, { fields = {} })
+    )");
+
+    const Engine engine{serverConfig(game)};
+
+    EXPECT_TRUE(engine.app().getWorld().getComponents().find("game.Configured"));
+}
+
 TEST(Engine, RunsUntilAppExit) {
     const GameDirectory game{"rtype-engine-run"};
     std::int32_t builds = 0;
