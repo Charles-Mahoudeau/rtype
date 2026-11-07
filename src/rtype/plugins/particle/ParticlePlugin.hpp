@@ -19,8 +19,9 @@ class App;
 
 namespace rtype::plugins::particle {
 
-/// @brief Particle effects: inserts the ParticleEffectAssets and ParticleSystems resources, registers ParticleEmitter
-/// and ParticleOneShot and the particle events, and plays the emitters, on the CPU or the GPU (docs/particles/).
+/// @brief Particle effects: inserts the ParticleEffectAssets, ParticleEffectDrafts and ParticleSystems resources,
+/// registers ParticleEmitter and ParticleOneShot, the particle events and the engine calls of `engine.assets.particle`
+/// (addParticleCalls()), and plays the emitters, on the CPU or the GPU (docs/particles/).
 ///
 /// @details Four systems, all on the client:
 /// - PostUpdate "rtype.Particle.Spawn": spawns a one-shot emitter (ParticleOneShot) for each SpawnParticles event; it
