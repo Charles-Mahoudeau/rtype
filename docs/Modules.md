@@ -20,6 +20,9 @@ architecture rules, and this file keeps the detail, which changes with every fea
       `hashInteger`), the same in every compiler and process.
     - `core/config/` (`rtype::core::config`) — `Settings`: the flat configuration every plugin and backend reads
       its own section of, and its `SettingsException` (`config/exceptions/`).
+    - `core/library/` (`rtype::core::library`) — `LibraryEntry.hpp`: the C entry point of a library the engine loads
+      (`RTYPE_LIBRARY`), its version and toolchain check (`checkLibrary`), and `LibraryRegistrar`, through which libraries
+      exchange their registries by name.
     - `core/system/` (`rtype::core::system`) — `CacheDirectory.hpp`, `ExecutablePath.hpp`: where the system keeps a
       user's cache and the running executable.
 - `src/rtype/ecs/` — `ecs` target, shared library (`rtype-ecs`): the Entity Component System and,
@@ -56,13 +59,13 @@ architecture rules, and this file keeps the detail, which changes with every fea
   default, `--game <dir>`): it reads its `project.luau` through Luau (`scripting/SettingsLoader`, which also exposes
   the command line as `engine.args`), builds the `App` with the program's plugins, `EngineConfig::addPlugins`, and the engine's (transform, replication,
   scripting, server or client) in a fixed order, calls the game's native `EngineConfig::setup`, runs it, and builds it
-  again on `requestReload()`. `GamePlugins` reads the generic plugins `project.luau` lists under `plugins`
-  (`transform`, `physics`, `physicsDebug`) and their sections, added after the replication plugin. On clients,
+  again on `requestReload()`. `plugin/` holds `SharedLibrary` and `PluginLoader`, which load the plugin libraries, and
+  `PluginSignature`. The plugins `project.luau` names under `plugins` are added after the replication plugin. On clients,
   `NetworkInput` fills the `PlayerInput` sent to the server from the `Input` actions. `EngineConfig` holds
   the mode, the command line and these functions; `CommandLine` parses the `--name value` flags. Exported symbols are marked `RTYPE_ENGINE_API`.
   Design in `docs/engine/design.md`.
 - `src/rtype/client/`, `src/rtype/server/` — the generic executables `r-type_client` and `r-type_server`: a `main` that
-  lists its plugins and backends (client only) and runs an `Engine` on `game/`. The build copies them to the repository root
+  runs an `Engine` on `game/`, which loads the plugins and backends from their libraries (the executables link none). The build copies them to the repository root
   (rule `rtype.copy_to_root`). Games whose gameplay is still C++ (`ethan_game(bestoftheworld)`) keep their own `main`
   and give it to the `Engine` as `EngineConfig::setup`. `rtype_duel` is written in Luau (`game/scripts/`); its own `main`
   only picks the side from its first argument.
@@ -152,6 +155,7 @@ architecture rules, and this file keeps the detail, which changes with every fea
     - `plugins/AssetIdReflection.hpp` — lets components reflect `core::asset::AssetId` fields (`kAssetId`).
     - `plugins/AssetDirectory.hpp` — the `AssetDirectory` resource the `Engine` inserts: `<game>/assets`, where every
       asset path starts and which it cannot leave (`core::asset::resolveAssetPath()`).
+- `src/rtype/tools/sign/` — `rtype-sign`: the keys and signatures of the game plugins (`docs/Plugins.md`).
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
   `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
   (`IVulkanSurfaceSource`). See `docs/Backend.md`.
@@ -189,9 +193,8 @@ architecture rules, and this file keeps the detail, which changes with every fea
   turns a script system into a `ScriptCallable` on the App. `call/` holds `callEngine()`, which makes an `ecs` engine
   call from a script's table of argument fields and turns its result into Luau values, for `engine.call` and for
   `ctx.call` (a system's declared `calls`). `setup/` (`rtype::scripting::setup`) holds the setup forms built on those
-  calls: `engine.assets` (`AssetForms`: `texture`, `sound`, `font`, `tilemap`, `atlas`) and `engine.input`
-  (`InputForms`: `action`), read with `FormTable` (known keys, typed values, errors naming the form) and called through
-  `SetupCalls`, which skips a call the App does not have and gives the asset's id instead. `ScriptHost` owns the Luau runtime and the `engine` global
+  calls: each plugin brings its setup forms, in a `<Name>Forms.luau` file; `setup/FormsPrelude.luau` creates
+  `engine.assets`, `engine.input` and the helpers of `engine.forms`. `ScriptHost` owns the Luau runtime and the `engine` global
   (constant flags `isClient`, `isServer`, `isDebug`, `engine.ecs.component`, read by `component/DeclarationReader.hpp`,
   and `engine.ecs.system`, read by `system/SystemDeclarationReader.hpp`); a system declares the `resources` and `events` it uses, given to scripts by `ctx.resources` and `ctx.events` (plain-data ones only), through the `ecs` `DynamicResources` and `DynamicEvents` parameters; it knows no `Plugin`. The host and
   the App may be destroyed in either order. `plugin/` holds `ScriptingPlugin`, the `ecs::Plugin` that owns a
@@ -222,12 +225,12 @@ Dependencies always point towards the contracts and `ecs`, never away from them:
 
 ```
 core ←  ecs, contract-*
-contract-*  ←  platform-*, render-*, audio-*   ←  executables, examples
-ecs, contract-*  ←  plugin-*                   ←  executables, examples
+contract-*  ←  platform-*, render-*, audio-*   (loaded by the engine, built before the executables)
+ecs, contract-*  ←  plugin-*                   (loaded by the engine, built before the executables)
 luau ←  scripting
 network  ←  replication
 ecs      ←  replication, scripting
-scripting, replication, plugin-transform  ←  engine  ←  executables, examples
+scripting, replication, plugin-transform, plugin-input  ←  engine  ←  executables, examples
 ```
 
 - `core` depends on no other project target; `ecs` depends on `core` only. `core` is the only static library: it keeps
@@ -251,8 +254,10 @@ scripting, replication, plugin-transform  ←  engine  ←  executables, example
 - A platform module and a renderer module never depend on each other: what a renderer needs from a window that is
   specific to its graphics API goes through the matching `interop-*` target, which both sides depend on (see
   `docs/Backend.md`).
-- `engine` links `core`, `ecs`, `luau`, `scripting`, `replication` and `plugin-transform`, and nothing depends on it but
-  the executables, the examples and its tests. It links no other plugin and no contract: a program adds what it uses
-  through `EngineConfig::addPlugins`. Only the executables (`r-type_client`, `r-type_server`) and the examples (such as
-  `rtype_duel`) link everything together.
+- The executables link no plugin and no backend: the `Engine` loads those `project.luau` names from `plugins/` next to
+  the executable and `<game>/plugins/`. Each library exports one entry point (`RTYPE_PLUGIN_LIBRARY`, or `RTYPE_LIBRARY`
+  for a backend, which knows no ECS). See `docs/Plugins.md`.
+- `engine` links `core`, `ecs`, `luau`, `scripting`, `replication`, `plugin-transform` and `plugin-input`, and nothing
+  depends on it but the executables, the examples and its tests. It links no other plugin and no contract: it loads
+  them, and a program can still add its own through `EngineConfig::addPlugins`.
 

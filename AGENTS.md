@@ -31,12 +31,13 @@ One line per module; the detail of each (classes, files) is in `docs/Modules.md`
 | `src/rtype/replication/` | `replication` | World to messages and back: the only code knowing both ECS and network |
 | `src/rtype/luau/` | `luau` | Luau runtime wrapper, free of the engine (`docs/luau/`) |
 | `src/rtype/scripting/` | `scripting` | The bridge turning what scripts declare into ECS data (`docs/scripting/plan.md`) |
-| `src/rtype/engine/` | `engine` | Runs a game folder: settings, plugins, scripting, replication, reloads (`docs/engine/design.md`) |
+| `src/rtype/engine/` | `engine` | Runs a game folder: settings, loads the plugin and backend libraries, scripting, replication, reloads (`docs/engine/design.md`) |
 | `src/rtype/contract/` | `contract-*` | One interface per kind of backend, with its vocabulary (`docs/Backend.md`) |
 | `src/rtype/platform/`, `render/`, `audio/` | `platform-*`, `render-*`, `audio-*` | Backends fulfilling a contract; each wraps one third-party library |
 | `src/rtype/interop/` | `interop-*` | What a renderer needs from a platform, per graphics API |
-| `src/rtype/plugins/` | `plugin-*` | The engine features as ECS plugins: transform, input, graphics, sprite, physics... (`docs/Plugins.md`) |
-| `src/rtype/client/`, `server/` | executables | The generic `r-type_client` and `r-type_server` |
+| `src/rtype/plugins/` | `plugin-*` | The engine features as ECS plugins, one shared library each, loaded by the engine: transform, input, graphics, sprite, physics... (`docs/Plugins.md`) |
+| `src/rtype/tools/` | `rtype-sign` | Command line tools; `rtype-sign` makes the keys and signatures of the game plugins (`docs/Plugins.md#signatures`) |
+| `src/rtype/client/`, `server/` | executables | The generic `r-type_client` and `r-type_server`: they link no plugin and no backend, the engine loads them |
 | `examples/` | per example | Standalone examples; `examples/games/` holds the games |
 | `tests/<module>/` | `<module>-tests` | GoogleTest, one folder per module |
 | `docs/` | | Design docs for engine developers |
@@ -49,8 +50,9 @@ One line per module; the detail of each (classes, files) is in `docs/Modules.md`
    settings, scripts and assets.
 2. **The Luau API is the product.** An engine feature a game needs is not done until a script can use it, it is
    documented in the manual (`manual/`) and a script test covers it.
-3. **Data over code.** Plugins, backends, window, network and physics are chosen in `project.luau`, never in a
-   game-specific `main`. The C++ games in `examples/games/` are the step before this, not a model.
+3. **Data over code.** Plugins (by name, from their libraries), backends, window, network and physics are chosen in
+   `project.luau`, never in a game-specific `main`. The C++ games in `examples/games/` are the step before this, not a
+   model.
 4. **Dependencies point inward** (see below). Contracts know no ECS, backends know only their contract, plugins know no
    backend.
 5. **A plugin stands alone.** It owns its data, names the plugins it requires, never adds another, and the plugins form
@@ -67,12 +69,12 @@ One line per module; the detail of each (classes, files) is in `docs/Modules.md`
 
 ```
 core <-  ecs, contract-*
-contract-*  <-  platform-*, render-*, audio-*   <-  executables, examples
-ecs, contract-*  <-  plugin-*                   <-  executables, examples
+contract-*  <-  platform-*, render-*, audio-*   (loaded by the engine, built before the executables)
+ecs, contract-*  <-  plugin-*                   (loaded by the engine, built before the executables)
 luau <-  scripting
 network  <-  replication
 ecs      <-  replication, scripting
-scripting, replication, plugin-transform  <-  engine  <-  executables, examples
+scripting, replication, plugin-transform, plugin-input  <-  engine  <-  executables, examples
 ```
 
 - `core` depends on no project target; `ecs` on `core` only. `core` is the only static library and keeps no state.
@@ -84,8 +86,13 @@ scripting, replication, plugin-transform  <-  engine  <-  executables, examples
   `interop-*`. A window library, miniaudio and the like never leave their backend folder.
 - A plugin depends on `core`, `ecs`, glm, the contracts and the plugins it requires, plus private packages. Never on a
   `platform-*`, `render-*`, `audio-*` or `luau` target.
-- `engine` links `core`, `ecs`, `luau`, `scripting`, `replication` and `plugin-transform`, and nothing depends on it but
-  the executables, examples and its tests. A program adds the other plugins it uses.
+- `engine` links `core`, `ecs`, `luau`, `scripting`, `replication`, `plugin-transform` and `plugin-input`, and nothing
+  depends on it but the executables, examples and its tests. It links no other plugin and no backend: it loads them from
+  their libraries (`plugins/` next to the executable, `<game>/plugins/`), as `project.luau` names them. A program can
+  still add plugins in code through `EngineConfig::addPlugins`.
+- The executables link no plugin and no backend; the build only makes them first (`plugin-libraries`,
+  `backend-libraries`). A library exports one entry point (`RTYPE_PLUGIN_LIBRARY`, or `RTYPE_LIBRARY` for a backend,
+  which knows no ECS): see `docs/Plugins.md#loading`.
 
 ## Commands
 
