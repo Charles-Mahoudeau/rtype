@@ -16,6 +16,7 @@
 #include <string>
 #include <string_view>
 
+#include "ScriptsDirectory.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/time/FixedTimestep.hpp"
 #include "rtype/ecs/time/TimePlugin.hpp"
@@ -23,37 +24,7 @@
 #include "rtype/scripting/plugin/ScriptingPlugin.hpp"
 
 namespace {
-/// @brief A scripts directory in the temporary directory, removed with it.
-class ScriptsDirectory {
-  public:
-    explicit ScriptsDirectory(const std::string_view name)
-        : _path{std::filesystem::temp_directory_path() / std::string{name}} {
-        std::filesystem::remove_all(_path);
-        std::filesystem::create_directories(_path);
-    }
-
-    ~ScriptsDirectory() {
-        std::error_code error;
-        std::filesystem::remove_all(_path, error);
-    }
-
-    ScriptsDirectory(const ScriptsDirectory& other) = delete;
-    ScriptsDirectory& operator=(const ScriptsDirectory& other) = delete;
-    ScriptsDirectory(ScriptsDirectory&& other) = delete;
-    ScriptsDirectory& operator=(ScriptsDirectory&& other) = delete;
-
-    [[nodiscard]] const std::filesystem::path& path() const noexcept { return _path; }
-
-    /// @brief Writes a file under the directory, creating its folders.
-    void write(const std::string& relative, const std::string_view content) const {
-        const auto file = _path / relative;
-        std::filesystem::create_directories(file.parent_path());
-        std::ofstream{file} << content;
-    }
-
-  private:
-    std::filesystem::path _path;  ///< The directory.
-};
+using rtype::tests::ScriptsDirectory;
 
 /// @brief Adds the plugin to an App that runs one frame per second.
 void addPlugin(rtype::ecs::App& app, const std::filesystem::path& directory,
