@@ -11,18 +11,23 @@
 // is reloaded into what was spawned from it.
 
 #include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <format>
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "plugins/capsule/Capsule.hpp"
 #include "plugins/capsule/CapsuleInstance.hpp"
 #include "plugins/capsule/CapsulePlugin.hpp"
 #include "plugins/capsule/CapsuleSpawn.hpp"
-#include "plugins/capsule/NodeConfig.hpp"
+#include "plugins/capsule/Capsules.hpp"
+#include "plugins/capsule/LoadedCapsule.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
@@ -86,19 +91,58 @@ void describe(const World& world, Entity entity, std::size_t depth = 1) {
     }
 }
 
+/// @return A new child of `parent` in `capsule`, which spawns the capsule at `path` if it is not empty.
+std::uint32_t addChild(Capsule& capsule, std::uint32_t parent, std::string name, std::string_view path = {}) {
+    const std::uint32_t node = capsule.addNode(std::move(name), parent);
+    if (!path.empty()) {
+        capsule.editNode(node).instance = CapsuleRef{.id = CapsuleId::fromPath(path), .path = std::string{path}};
+    }
+    return node;
+}
+
+/// @brief Defines the turret, with `health`.
+void defineTurret(App& app, int health) {
+    Capsule turret{"actors/turret.actor"};
+    turret.editNode(0).values.set(app.getWorld().getComponents(), Health{.value = health});
+    app.getWorld().getResources().getMut<Capsules>()->define(std::move(turret));
+}
+
 /// @brief Adds the plugin and the capsules: a turret, a boss with two turrets, and two levels.
 void addCapsules(App& app) {
     app.addPlugin(CapsulePlugin{});
-    static_cast<void>(app.getWorld().getComponents().registerType<Brain>({.presence = Presence::kServerOnly}));
-    addCapsule(app, "actors/turret.actor").with(Health{.value = 5});
-    NodeConfig boss = addCapsule(app, "actors/boss.actor");
-    boss.with(Health{.value = 50}).with(Brain{.state = 1});
-    boss.child("LeftTurret").instance("actors/turret.actor").with(Position{.x = -40.F});
-    boss.child("RightTurret").instance("actors/turret.actor").with(Position{.x = 40.F});
-    NodeConfig level1 = addCapsule(app, "scenes/level1.scene");
-    level1.child("Boss").instance("actors/boss.actor").with(Position{.x = 600.F});
-    level1.child("Background").onSide(Side::kClient).with(Background{.layer = 0});
-    addCapsule(app, "scenes/level2.scene").child("Turret").instance("actors/turret.actor").with(Position{.x = 300.F});
+    Components& components = app.getWorld().getComponents();
+    static_cast<void>(components.registerType<Brain>({.presence = Presence::kServerOnly}));
+    Capsules& capsules = *app.getWorld().getResources().getMut<Capsules>();
+    defineTurret(app, 5);
+
+    Capsule boss{"actors/boss.actor"};
+    boss.editNode(0).values.set(components, Health{.value = 50});
+    boss.editNode(0).values.set(components, Brain{.state = 1});
+    boss.editNode(addChild(boss, 0, "LeftTurret", "actors/turret.actor")).values.set(components, Position{.x = -40.F});
+    boss.editNode(addChild(boss, 0, "RightTurret", "actors/turret.actor")).values.set(components, Position{.x = 40.F});
+    capsules.define(std::move(boss));
+
+    Capsule level1{"scenes/level1.scene"};
+    level1.editNode(addChild(level1, 0, "Boss", "actors/boss.actor")).values.set(components, Position{.x = 600.F});
+    CapsuleNode& background = level1.editNode(addChild(level1, 0, "Background"));
+    background.side = Side::kClient;
+    background.values.set(components, Background{.layer = 0});
+    capsules.define(std::move(level1));
+
+    Capsule level2{"scenes/level2.scene"};
+    level2.editNode(addChild(level2, 0, "Turret", "actors/turret.actor")).values.set(components, Position{.x = 300.F});
+    capsules.define(std::move(level2));
+}
+
+/// @return The root of the capsule at `path`, loaded in place of the one loaded before, as a system would.
+Entity load(App& app, std::string_view path) {
+    World& world = app.getWorld();
+    Commands commands{world};
+    const Entity root = loadCapsule(commands, *world.getResources().getMut<Capsules>(),
+                                    *world.getResources().getMut<LoadedCapsule>(), CapsuleId::fromPath(path))
+                            .getEntity();
+    commands.flush();
+    return root;
 }
 
 /// @brief Runs the example, printing each step.
@@ -106,24 +150,28 @@ void run() {
     App server{RunMode::kServer};
     addCapsules(server);
     std::cout << "== Level 1 on the server (no background) ==\n";
-    describe(server.getWorld(), loadCapsule(server.getWorld(), "scenes/level1.scene"));
+    describe(server.getWorld(), load(server, "scenes/level1.scene"));
 
     App client{RunMode::kClient};
     addCapsules(client);
     std::cout << "\n== Level 1 on a client (the boss comes from the server) ==\n";
-    describe(client.getWorld(), loadCapsule(client.getWorld(), "scenes/level1.scene"));
+    describe(client.getWorld(), load(client, "scenes/level1.scene"));
 
     World& world = server.getWorld();
     std::cout << "\n== Switching to level 2 ==\n";
-    const Entity level2 = loadCapsule(world, "scenes/level2.scene");
+    const Entity level2 = load(server, "scenes/level2.scene");
     describe(world, level2);
     std::cout << std::format("  {} entities left in the world\n", world.getEntityCount());
 
-    std::cout << "\n== The turret, defined again, reloaded into what was spawned from it ==\n";
-    addCapsule(server, "actors/turret.actor").with(Health{.value = 9});
-    const std::size_t reloaded = reloadInstances(world, CapsuleId::fromPath("actors/turret.actor"));
+    std::cout << "\n== The turret, defined again, reloaded into the level that holds it ==\n";
+    defineTurret(server, 9);
+    Commands commands{world};
+    const auto* children = world.getComponents().get<Children>(level2);
+    reloadCapsule(commands, world.getResources().require<Capsules>(), level2,
+                  *world.getComponents().get<CapsuleInstance>(level2),
+                  children != nullptr ? std::vector<Entity>{children->entities} : std::vector<Entity>{});
+    commands.flush();
     describe(world, level2);
-    std::cout << std::format("  {} root(s) reloaded\n", reloaded);
 }
 }  // namespace
 
