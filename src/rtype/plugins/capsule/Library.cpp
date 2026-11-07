@@ -14,7 +14,7 @@
 
 RTYPE_PLUGIN_LIBRARY(registrar) {
     using rtype::plugins::capsule::CapsulePlugin;
-    registrar.getPlugins().add(std::string{CapsulePlugin::kName}, [](const rtype::core::config::Settings& settings) {
-        return std::make_unique<CapsulePlugin>(settings);
-    });
+    registrar.getPlugins().add(
+        std::string{CapsulePlugin::kName},
+        [](const rtype::core::config::Settings& /*settings*/) { return std::make_unique<CapsulePlugin>(); });
 }

@@ -11,22 +11,26 @@
 #include <filesystem>
 #include <format>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "plugins/AssetDirectory.hpp"
+#include "plugins/HotReload.hpp"
 #include "plugins/capsule/Capsule.hpp"
 #include "plugins/capsule/CapsuleCalls.hpp"
 #include "plugins/capsule/CapsuleFiles.hpp"
 #include "plugins/capsule/CapsuleInstance.hpp"
-#include "plugins/capsule/CapsuleSettings.hpp"
+#include "plugins/capsule/CapsuleReloadable.hpp"
 #include "plugins/capsule/CapsuleSpawn.hpp"
 #include "plugins/capsule/Capsules.hpp"
 #include "plugins/capsule/LoadedCapsule.hpp"
+#include "plugins/capsule/ReloadedCapsules.hpp"
 #include "plugins/capsule/exceptions/CapsuleException.hpp"
-#include "rtype/core/config/Settings.hpp"
+#include "rtype/core/reload/HotReloader.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/change/Mut.hpp"
 #include "rtype/ecs/command/Commands.hpp"
@@ -74,15 +78,15 @@ ecs::Entity outermostRoot(ecs::Entity entity, const std::unordered_map<ecs::Enti
     return entity;
 }
 
-/// @brief Render, with hot reload: reads again the capsule files saved since, and reloads what they spawned, nested
+/// @brief Render, with hot reload: reloads what was spawned from the capsules the CapsuleReloadable read again, nested
 /// roots through the outermost capsule they belong to.
-void reloadCapsuleFiles(ecs::Commands& commands, ecs::ResMut<Capsules> capsules, ecs::ResMut<CapsuleFiles> files,
-                        ecs::Query<const CapsuleInstance, ecs::Optional<const ecs::Children>> roots,
-                        ecs::Query<const ecs::Parent> parents) {
-    const std::vector<CapsuleId> reread = files->update(*capsules, CapsuleFiles::Clock::now());
-    if (reread.empty()) {
+void reloadCapsules(ecs::Commands& commands, ecs::Res<Capsules> capsules, ecs::ResMut<ReloadedCapsules> reloaded,
+                    ecs::Query<const CapsuleInstance, ecs::Optional<const ecs::Children>> roots,
+                    ecs::Query<const ecs::Parent> parents) {
+    if (reloaded->capsules.empty()) {
         return;
     }
+    const std::vector<CapsuleId> reread = std::exchange(reloaded->capsules, {});
     std::unordered_map<ecs::Entity, ecs::Entity> parentOf;
     for (auto [entity, parent] : parents) {
         parentOf.emplace(entity, parent.entity);
@@ -112,11 +116,6 @@ void reloadCapsuleFiles(ecs::Commands& commands, ecs::ResMut<Capsules> capsules,
 }
 }  // namespace
 
-CapsulePlugin::CapsulePlugin(const core::config::Settings& settings)
-    : _settings{CapsuleSettings::fromSettings(settings)} {}
-
-CapsulePlugin::CapsulePlugin(CapsuleSettings settings) noexcept : _settings{settings} {}
-
 std::string_view CapsulePlugin::getName() const noexcept { return kName; }
 
 void CapsulePlugin::build(ecs::App& app) {
@@ -130,13 +129,24 @@ void CapsulePlugin::build(ecs::App& app) {
     }
     addCapsuleCalls(app);
     const std::filesystem::path directory = assetDirectoryOf(resources);
-    if (!directory.empty()) {
-        resources.insert(CapsuleFiles{directory, components});
-        if (_settings.hotReload) {
-            app.addSystem(ecs::Phase::kRender, std::string{kHotReloadSystem}, &reloadCapsuleFiles)
-                .setSide(ecs::Side::kBoth);
-        }
+    if (directory.empty()) {
+        return;
     }
+    resources.insert(CapsuleFiles{directory, components});
+    core::reload::HotReloader* reloader = hotReloaderOf(resources);
+    if (reloader == nullptr) {
+        return;
+    }
+    // The reloader's paths are relative to the game; the assets' directory is a folder of it.
+    const std::filesystem::path assets = directory.lexically_relative(reloader->root());
+    if (assets.empty() || *assets.begin() == "..") {
+        return;
+    }
+    resources.insertIfAbsent<ReloadedCapsules>();
+    reloader->add(std::make_unique<CapsuleReloadable>(&*resources.getMut<CapsuleFiles>(),
+                                                      &*resources.requireMut<Capsules>(),
+                                                      &*resources.requireMut<ReloadedCapsules>(), assets));
+    app.addSystem(ecs::Phase::kRender, std::string{kHotReloadSystem}, &reloadCapsules).setSide(ecs::Side::kBoth);
 }
 
 void CapsulePlugin::finish(ecs::App& app) {

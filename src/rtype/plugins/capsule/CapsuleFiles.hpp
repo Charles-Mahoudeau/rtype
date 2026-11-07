@@ -7,10 +7,10 @@
 
 #pragma once
 
-#include <chrono>
 #include <filesystem>
 #include <map>
 #include <set>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -28,14 +28,16 @@ class Capsules;
 /// @brief The capsule files of a game: the `.capsule`, `.scene` and `.actor` files under its assets, as the resource
 /// "rtype.CapsuleFiles" the CapsulePlugin inserts when the game has an asset directory.
 /// @details loadAll() reads them all once every plugin is built (CapsulePlugin::finish()), so a file can use the
-/// components scripts declare; a file instancing another reads it first. With hot reload, update() compares the files'
-/// modification times every kInterval and reads again a file saved since, with the files that instance it (their
-/// overrides start from its values), then the plugin reloads what was spawned from them. A file that fails to read
-/// then keeps its old version, and the error is written to the error output.
+/// components scripts declare; a file instancing another reads it first. With hot reload, the CapsuleReloadable hands
+/// the files saved since to reload(), which reads them again with the files that instance them (their overrides start
+/// from its values). A file that fails to read keeps its old version.
 class RTYPE_PLUGIN_CAPSULE_API CapsuleFiles {
   public:
-    using Clock = std::chrono::steady_clock;                    ///< What update() is timed with.
-    static constexpr std::chrono::milliseconds kInterval{500};  ///< Between two looks at the files.
+    /// @brief What reload() read.
+    struct Reread {
+        std::vector<CapsuleId> capsules;  ///< The capsules read again, the files that instance them included.
+        std::vector<std::string> errors;  ///< Why each file that kept its old version could not be read.
+    };
 
     /// @param assetDirectory The game's assets; capsule paths are relative to it.
     /// @param components The world's components, which the files name; they must outlive this resource.
@@ -54,17 +56,15 @@ class RTYPE_PLUGIN_CAPSULE_API CapsuleFiles {
     /// @throws exceptions::CapsuleException Naming the file, line and column of what cannot be read.
     std::vector<CapsuleId> loadAll(Capsules& capsules);
 
-    /// @brief Looks at the files if kInterval went by, and reads again those saved or added since, with the files that
-    /// instance them; a file that fails to read keeps its old version (the error goes to the error output).
-    /// @return The capsules read again.
-    std::vector<CapsuleId> update(Capsules& capsules, Clock::time_point now);
+    /// @brief Reads again the files `paths` names, with the files that instance them at any depth; a path that is not
+    /// a capsule file is skipped. A file that fails to read keeps its old version.
+    /// @param paths Files saved or added, by their path in the assets ("actors/bydo.actor").
+    /// @return The capsules read again, and the errors of the files that kept their old version.
+    Reread reload(Capsules& capsules, std::span<const std::string> paths);
 
   private:
-    /// @brief When each capsule file was last written, by its path in the assets.
-    using WriteTimes = std::map<std::string, std::filesystem::file_time_type>;
-
-    /// @return The capsule files under the assets now.
-    [[nodiscard]] WriteTimes scan() const;
+    /// @return The capsule files under the assets now, by their path in it, sorted.
+    [[nodiscard]] std::vector<std::string> scan() const;
 
     /// @brief Reads one file into `capsules`, after the files it instances that are in `pending`.
     /// @param pending The files still to read in this pass; each file read is taken out of it.
@@ -74,9 +74,7 @@ class RTYPE_PLUGIN_CAPSULE_API CapsuleFiles {
 
     std::filesystem::path _directory;                    ///< The game's assets.
     const ecs::Components* _components;                  ///< What the files name.
-    WriteTimes _files;                                   ///< The files at the last look.
     std::map<std::string, std::set<std::string>> _uses;  ///< The capsules each file instances, by its path.
-    Clock::time_point _nextPoll;                         ///< When update() looks at the files again.
 };
 
 RTYPE_ECS_RESOURCE(CapsuleFiles, "rtype.CapsuleFiles");
