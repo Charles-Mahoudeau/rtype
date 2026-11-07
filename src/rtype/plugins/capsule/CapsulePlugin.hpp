@@ -36,7 +36,7 @@ class RTYPE_PLUGIN_CAPSULE_API CapsulePlugin : public ecs::Plugin {
     [[nodiscard]] std::string_view getName() const noexcept override;
 
     /// @brief Inserts the Capsules resource if the world has none and sets its run mode to the App's, inserts the
-    /// LoadedCapsule resource, and registers the CapsuleInstance component.
+    /// LoadedCapsule resource, registers the CapsuleInstance component and the engine calls (addCapsuleCalls()).
     void build(ecs::App& app) override;
 };
 }  // namespace rtype::plugins::capsule

@@ -9,6 +9,7 @@
 
 #include <string_view>
 
+#include "plugins/capsule/CapsuleCalls.hpp"
 #include "plugins/capsule/CapsuleInstance.hpp"
 #include "plugins/capsule/Capsules.hpp"
 #include "plugins/capsule/LoadedCapsule.hpp"
@@ -29,5 +30,6 @@ void CapsulePlugin::build(ecs::App& app) {
     if (components.getRegistry().find<CapsuleInstance>() == nullptr) {
         static_cast<void>(components.registerType<CapsuleInstance>());
     }
+    addCapsuleCalls(app);
 }
 }  // namespace rtype::plugins::capsule
