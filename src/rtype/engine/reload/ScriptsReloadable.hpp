@@ -20,8 +20,9 @@
 
 namespace rtype::engine::reload {
 
-/// @brief Follows the `.luau` files under `scripts/`: a changed file is run again by the ScriptHost, which swaps its
-/// systems and components in the live world; a deleted file loses its systems.
+/// @brief Follows the `.luau` files under `scripts/`: a change set is reloaded as one batch by the ScriptHost: the
+/// changed files run again with the files that require them, and the systems and components are swapped in the live
+/// world; a deleted file loses its systems.
 class RTYPE_ENGINE_API ScriptsReloadable final : public core::reload::Reloadable {
   public:
     /// @brief Gives the host of the app being run, or null while there is none.
@@ -40,9 +41,8 @@ class RTYPE_ENGINE_API ScriptsReloadable final : public core::reload::Reloadable
     [[nodiscard]] std::string_view name() const noexcept override;
     [[nodiscard]] std::vector<core::reload::WatchedPath> watched() const override;
 
-    /// @return `applied` if every file was swapped; `needsRebuild` if one of them cannot be in place, or there is no
-    /// app to reload on; otherwise `failed` with the error of each file that could not be read or run (the others are
-    /// applied).
+    /// @return `applied` if the batch was swapped; `needsRebuild` if it cannot be in place, or there is no app to
+    /// reload on; otherwise `failed` (a file that cannot be read or a script error), and the old code keeps running.
     [[nodiscard]] core::reload::ReloadOutcome reload(const core::reload::ChangeSet& changes) override;
 
   private:
