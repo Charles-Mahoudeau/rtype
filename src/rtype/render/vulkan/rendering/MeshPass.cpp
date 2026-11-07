@@ -7,7 +7,6 @@
 
 #include "MeshPass.hpp"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <glm/common.hpp>
@@ -29,6 +28,7 @@
 #include "render/vulkan/pipeline/ShaderCache.hpp"
 #include "render/vulkan/pipeline/Vertex2D.hpp"
 #include "rtype/contract/renderer/drawing/Mesh.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
 
 namespace rtype::render::vulkan::rendering {
 
