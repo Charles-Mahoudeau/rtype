@@ -48,8 +48,8 @@ class RTYPE_RENDER_VULKAN_API Instance {
     /// @throws std::runtime_error If the system has no Vulkan loader (Loader).
     /// @throws std::invalid_argument If @p messenger is given without VK_EXT_debug_utils in @p requiredExtensions.
     /// @throws std::runtime_error If one of the required extensions is not supported.
-    /// @throws std::runtime_error If one of the layers is not supported.
-    /// @throws std::runtime_error If @p validation enables something the validation layer does not offer.
+    /// A layer that is not installed, or that cannot be loaded, is left out with a warning on the error output, and so
+    /// are the options of @p validation the validation layer does not offer: they are debugging tools.
     Instance(const std::string_view& appName, const std::string_view& engineName, uint32_t apiVersion,
              std::vector<const char*> requiredExtensions, std::vector<const char*> layers = {},
              ValidationOptions validation = {},
@@ -71,9 +71,10 @@ class RTYPE_RENDER_VULKAN_API Instance {
     static void checkExtensionsSupported(std::span<const vk::ExtensionProperties> available,
                                          std::span<const char* const> required);
 
-    /// @throws std::runtime_error Naming the first requested layer the loader does not offer.
-    static void checkLayersSupported(std::span<const vk::LayerProperties> available,
-                                     std::span<const char* const> requested);
+    /// @return The requested layers the loader offers. Each one it does not offer is left out with a warning on the
+    /// error output: layers are debugging tools, and a machine without them still runs the game.
+    [[nodiscard]] static std::vector<const char*> keepAvailableLayers(std::span<const vk::LayerProperties> available,
+                                                                      std::span<const char* const> requested);
 
     /// @brief Opts in to portability drivers (MoltenVK on macOS) when the loader offers it.
     /// @details Appends VK_KHR_portability_enumeration to the extensions, which must go with the returned flag:
@@ -89,14 +90,16 @@ class RTYPE_RENDER_VULKAN_API Instance {
     static bool isLayerAvailable(std::span<const vk::LayerProperties> available, std::string_view name);
 
     /// @brief Resolves the validation options to apply: none when the validation layer is not in @p layers or
-    /// nothing is enabled; otherwise appends VK_EXT_layer_settings to @p extensions.
-    /// @throws std::runtime_error If the validation layer does not offer VK_EXT_layer_settings.
+    /// nothing is enabled; otherwise appends VK_EXT_layer_settings to @p extensions. If the validation layer does not
+    /// offer that extension, the options are left out with a warning.
     [[nodiscard]] ValidationOptions enableValidationFeatures(ValidationOptions requested,
                                                              std::span<const char* const> layers,
                                                              std::vector<const char*>& extensions) const;
 
     /// @brief Creates the instance from the already checked extensions and layers, with @p messenger and the
-    /// validation layer settings of @p validation chained into its pNext.
+    /// validation layer settings of @p validation chained into its pNext. A layer the loader lists but cannot load
+    /// (VK_ERROR_LAYER_NOT_PRESENT: its library is missing) does not stop the start: the instance is created again
+    /// without any layer, nor their settings, with a warning.
     [[nodiscard]] vk::raii::Instance createInstance(
         const vk::ApplicationInfo& appInfo, vk::InstanceCreateFlags flags, std::span<const char* const> extensions,
         std::span<const char* const> layers, ValidationOptions validation,

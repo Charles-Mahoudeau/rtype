@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <format>
+#include <iostream>
 #include <optional>
 #include <span>
 #include <stdexcept>
@@ -37,7 +38,7 @@ Instance::Instance(const std::string_view& appName, const std::string_view& engi
     const auto availableExtensions = _context.enumerateInstanceExtensionProperties();
     checkExtensionsSupported(availableExtensions, requiredExtensions);
     const vk::InstanceCreateFlags flags = enablePortability(availableExtensions, requiredExtensions);
-    checkLayersSupported(_context.enumerateInstanceLayerProperties(), layers);
+    layers = keepAvailableLayers(_context.enumerateInstanceLayerProperties(), layers);
     const ValidationOptions appliedValidation = enableValidationFeatures(validation, layers, requiredExtensions);
 
     _instance = createInstance(appInfo, flags, requiredExtensions, layers, appliedValidation, messenger);
@@ -56,13 +57,17 @@ void Instance::checkExtensionsSupported(std::span<const vk::ExtensionProperties>
     }
 }
 
-void Instance::checkLayersSupported(std::span<const vk::LayerProperties> available,
-                                    std::span<const char* const> requested) {
+std::vector<const char*> Instance::keepAvailableLayers(std::span<const vk::LayerProperties> available,
+                                                       std::span<const char* const> requested) {
+    std::vector<const char*> kept;
     for (const char* layer : requested) {
-        if (!isLayerAvailable(available, layer)) {
-            throw std::runtime_error(std::format("Instance layer not supported: {}", layer));
+        if (isLayerAvailable(available, layer)) {
+            kept.push_back(layer);
+        } else {
+            std::cerr << std::format("[vulkan] warning: the layer {} is not installed: running without it\n", layer);
         }
     }
+    return kept;
 }
 
 vk::InstanceCreateFlags Instance::enablePortability(std::span<const vk::ExtensionProperties> available,
@@ -95,9 +100,11 @@ ValidationOptions Instance::enableValidationFeatures(ValidationOptions requested
     }
     if (!isExtensionAvailable(_context.enumerateInstanceExtensionProperties(std::string{kValidationLayerName}),
                               vk::EXTLayerSettingsExtensionName)) {
-        throw std::runtime_error(
-            std::format("{} does not offer {}: disable synchronization validation and best practices",
-                        kValidationLayerName, vk::EXTLayerSettingsExtensionName));
+        std::cerr << std::format(
+            "[vulkan] warning: {} does not offer {}: running without synchronization "
+            "validation and best practices\n",
+            kValidationLayerName, vk::EXTLayerSettingsExtensionName);
+        return {};
     }
     extensions.push_back(vk::EXTLayerSettingsExtensionName);
     return requested;
@@ -132,6 +139,30 @@ vk::raii::Instance Instance::createInstance(
         .setPEnabledExtensionNames(extensions)
         .setPEnabledLayerNames(layers)
         .setPNext(next);
+    try {
+        return {_context, createInfo};
+    } catch (const vk::LayerNotPresentError& error) {
+        if (layers.empty()) {
+            throw;
+        }
+        // The loader lists the layer, but cannot open its library (a manifest without its file): start without layers.
+        std::cerr << std::format("[vulkan] warning: a layer could not be loaded ({}): running without layers\n",
+                                 error.what());
+    }
+    std::vector<const char*> withoutSettings;
+    for (const char* extension : extensions) {
+        if (std::string_view{extension} != vk::EXTLayerSettingsExtensionName) {
+            withoutSettings.push_back(extension);
+        }
+    }
+    vk::DebugUtilsMessengerCreateInfoEXT plainMessenger{};
+    const void* plainNext = nullptr;
+    if (messenger) {
+        plainMessenger = *messenger;
+        plainMessenger.setPNext(nullptr);
+        plainNext = &plainMessenger;
+    }
+    createInfo.setPEnabledExtensionNames(withoutSettings).setPEnabledLayerNames({}).setPNext(plainNext);
     return {_context, createInfo};
 }
 
