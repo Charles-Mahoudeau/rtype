@@ -135,6 +135,9 @@ rule("rtype.copy_to_root")
         end
     end)
     after_build(function (target)
+        -- Removed first, so the copy is a new file: macOS caches the code signature of a file it ran, and kills a binary
+        -- written over it in place ("Code Signature Invalid") the next time it starts.
+        os.tryrm(path.join(os.projectdir(), path.filename(target:targetfile())))
         os.cp(target:targetfile(), os.projectdir())
         -- The folders next to the executable, where the Engine looks for the plugins: links to those of the build, which
         -- are real files (a copy on Windows, which has no link it can count on).
