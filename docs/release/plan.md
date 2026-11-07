@@ -13,7 +13,7 @@ Based on the code of 2026-11-07 (the generic executable is `aylo-runtime`, the s
 | D2 | **No dependency beyond the OS and the GPU driver.** Third-party libraries are static or bundled; a script fails the build when a binary resolves a library outside `runtime/` (allowlist: the OS and the Vulkan driver). | "Runs without any dependency" is checked, not hoped for. |
 | D3 | **No headers or SDK in the zip.** A game is Luau; a native plugin needs the compiler of the engine (`checkLibrary()`), so a separate `-sdk` zip would come later, if asked. | The Luau API is the product. |
 | D4 | **SemVer, one version for the engine.** `0.x` until the script API settles; after that a breaking change to what a script sees is a major version. The version is in `xmake.lua`, `--version` and `manifest.json`. | A game developer must know what an upgrade can break. |
-| D5 | **The package is made by one xmake task**, run the same locally and in CI. It copies real files (the build's `plugins/` holds symlinks). | One recipe, testable on a developer's machine. |
+| D5 | **The package is made by one xmake task**, run the same locally and in CI. The libraries are real files next to the executable; `plugins/` holds relative links to them on Linux and macOS (copies on Windows), as in the build: a second copy of a library would be loaded twice there. | One recipe, testable on a developer's machine. |
 | D6 | **A `v*` tag publishes a draft GitHub Release**; a human reviews and publishes it. Notes come from the Conventional Commits. | Releases are a human decision (`AGENTS.md`). |
 | D7 | **Nightly: a rolling `nightly` prerelease**, replaced after every push to `main` whose CI is green (docs-only pushes skipped, a burst of pushes builds the last one). Version `<next>-nightly.<sha>`. | Game developers can test `main`; the stable "latest" release stays stable. |
 | D8 | **Signing: free options only.** SHA256SUMS and a GitHub artifact attestation on every zip; ad-hoc `codesign` on macOS; SignPath Foundation for Windows when accepted. Notarization and paid certificates are out of scope. | No certificate budget; the repository is public. |
@@ -25,7 +25,7 @@ aylo-engine-<version>-<os>-<arch>/
 ├── runtime/                 what a game ships
 │   ├── aylo-runtime(.exe)
 │   ├── lib*.so / *.dll / *.dylib
-│   ├── plugins/             real files
+│   ├── plugins/             links to the libraries above (copies on Windows)
 │   │   └── backends/
 │   └── licenses/
 ├── editor/                  later, never shipped
@@ -83,7 +83,7 @@ version) and written to `manifest.json` by REL-04. A nightly stamps `<version>-n
 ### REL-04: packaging task
 
 An xmake task (`xmake package-release`) builds in release mode and produces the layout of section 2 in `build/package/`
-and the zip next to it: real files instead of symlinks, symbols stripped (debug symbols in a `-symbols` zip),
+and the zip next to it: the links of `plugins/` made relative, symbols stripped (debug symbols in a `-symbols` zip),
 `manifest.json` with a sha256 per file, third-party licenses in `runtime/licenses/`, `templates/game/` from a small
 example game, the offline manual (`uvx zensical build`). Runs the check of REL-01 on `runtime/`.
 

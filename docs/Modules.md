@@ -28,6 +28,8 @@ architecture rules, and this file keeps the detail, which changes with every fea
       (applied, failed, needs a rebuild), `ReloadReport` (the log line) and `HotReloader`, which polls and reloads.
     - `core/system/` (`rtype::core::system`) — `CacheDirectory.hpp`, `ExecutablePath.hpp`: where the system keeps a
       user's cache and the running executable.
+    - `core/version/` (`rtype::core::version`) — `Version.hpp`: `VersionInfo` and `describe()`, the text of
+      `aylo-runtime --version`. The version itself is set once in the root `xmake.lua` (`docs/release/package.md`).
 - `src/rtype/ecs/` — `ecs` target, shared library (`rtype-ecs`): the Entity Component System and,
   later, the App and its plugins (`rtype::ecs`). Design in `docs/ecs/design.md`. It depends on `core` only.
   Exported classes and functions are marked `RTYPE_ECS_API`, and the library keeps no
