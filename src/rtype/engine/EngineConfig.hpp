@@ -50,6 +50,11 @@ struct EngineConfig {
     /// Called on every build of the App, after MinimalPlugins and the transform plugin, before the replication.
     std::function<void(ecs::App&, const core::config::Settings&)> addPlugins;
 
+    /// @brief Plugins added by name after those `project.luau` lists under `plugins`, from their libraries, as if the
+    /// project listed them last; one the project already lists is not added twice. For a program that brings a tool
+    /// to any game: `aylo-runtime --editor` adds "rtype.Editor".
+    std::vector<std::string> extraPlugins;
+
     /// @brief The game's own native code: its components, resources, systems and plugins. Optional.
     ///
     /// Called on every build of the App, after the engine's plugins and before the scripts and the network plugin,
