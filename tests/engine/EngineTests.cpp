@@ -8,9 +8,12 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <span>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -20,6 +23,7 @@
 
 #include "core/system/ExecutablePath.hpp"
 #include "plugins/AssetDirectory.hpp"
+#include "plugins/capsule/LoadedCapsule.hpp"
 #include "rtype/core/config/Settings.hpp"
 #include "rtype/core/config/exceptions/ConfigExceptions.hpp"
 #include "rtype/ecs/app/App.hpp"
@@ -176,6 +180,43 @@ TEST(Engine, AddsTheCapsulePluginFromItsLibrary) {
     EXPECT_TRUE(engine.app().getWorld().getResources().find("rtype.Capsules"));
     EXPECT_TRUE(engine.app().getWorld().getResources().find("rtype.LoadedCapsule"));
     EXPECT_NE(engine.app().getWorld().getCalls().findByName("rtype.capsule.spawn"), nullptr);
+}
+
+TEST(Engine, ReadsTheGamesCapsuleFilesAfterItsScripts) {
+    const GameDirectory game{"rtype-engine-capsule-files", R"(
+        engine.settings.network.port = 0
+        engine.settings.plugins = { "rtype.Capsule" }
+        engine.settings.capsule.hotReload = false
+    )"};
+    // The file names a component a script declares: it is read once every plugin, scripts included, is built.
+    game.write("assets/actors/bydo.actor", "[node path=\".\"]\ngame.Health = { value = 3 }\n");
+    game.write("scripts/game.luau", R"(
+        engine.ecs.component("game.Health", { fields = { value = "i32" } })
+        local loaded = false
+        engine.ecs.system("game.Start", {
+            phase = "Update",
+            query = {},
+            calls = { "rtype.capsule.load" },
+            run = function(ctx)
+                if loaded then return end
+                loaded = true
+                ctx.call("rtype.capsule.load", { capsule = "actors/bydo.actor" })
+            end,
+        })
+    )");
+    Engine engine{serverConfig(game)};
+    engine.app().runFrame();
+    const rtype::ecs::World& world = engine.app().getWorld();
+    const auto health = world.getComponents().find("game.Health");
+    ASSERT_TRUE(health);
+    const auto* loaded = world.getResources().get<rtype::plugins::capsule::LoadedCapsule>();
+    ASSERT_NE(loaded, nullptr);
+    ASSERT_TRUE(world.isAlive(loaded->root));
+    const std::span<const std::byte> value = world.getComponents().get(loaded->root, *health);
+    ASSERT_EQ(value.size(), sizeof(std::int32_t));
+    std::int32_t points = 0;
+    std::memcpy(&points, value.data(), sizeof(points));
+    EXPECT_EQ(points, 3);
 }
 
 TEST(Engine, RefusesAPluginNoLibraryRegisters) {
