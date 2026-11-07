@@ -159,6 +159,25 @@ rule("rtype.copy_to_root")
     end)
 rule_end()
 
+-- The modules that are static libraries because no plugin links them: they live in the executable, once. A shared library
+-- (a plugin, a backend, a contract) linking one would carry its own copy, and the state of the two copies would drift
+-- apart (docs/Modules.md). The build refuses it. `core` is static too, but stateless: any library may link it.
+rule("rtype.static_modules")
+    on_config(function (target)
+        local executableOnly = {luau = true, network = true, replication = true, scripting = true, engine = true}
+        if target:kind() ~= "shared" then
+            return
+        end
+        for _, dep in ipairs(target:orderdeps()) do
+            if executableOnly[dep:name()] then
+                raise("%s is a shared library and links %s, a static module only an executable may link: " ..
+                      "its state would be duplicated (see docs/Modules.md)", target:name(), dep:name())
+            end
+        end
+    end)
+rule_end()
+add_rules("rtype.static_modules")
+
 -- The game's own plugins, if the repository has a game.
 for _, file in ipairs(os.files(path.join(os.scriptdir(), "game", "plugins", "*", "xmake.lua"))) do
     includes(file)
