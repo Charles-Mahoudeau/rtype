@@ -91,7 +91,7 @@ scripting, replication, plugin-transform, plugin-input  <-  engine  <-  executab
   `platform-*`, `render-*`, `audio-*` or `luau` target.
 - `engine` links `core`, `ecs`, `luau`, `scripting`, `replication`, `plugin-transform` and `plugin-input`, and nothing
   depends on it but the executables, examples and its tests. It links no other plugin and no backend: it loads them from
-  their libraries (`plugins/` next to the executable, `<game>/plugins/`), as `project.luau` names them. A program can
+  their libraries (`plugins/` next to the executable, `<game>/plugins/`; `lib/` holds the rest), as `project.luau` names them. A program can
   still add plugins in code through `EngineConfig::addPlugins`.
 - The executables link no plugin and no backend; the build only makes them first (`plugin-libraries`,
   `backend-libraries`). A library exports one entry point (`RTYPE_PLUGIN_LIBRARY`, or `RTYPE_LIBRARY` for a backend,

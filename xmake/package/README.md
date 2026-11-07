@@ -7,7 +7,7 @@ to be installed, apart from the graphics driver of the machine (Vulkan) for a ga
 
 | Folder or file | What it is |
 |---|---|
-| `runtime/` | The engine: `aylo-runtime`, its libraries, its plugins. **This is the folder you ship with your game.** |
+| `runtime/` | The engine: `aylo-runtime`, `lib/` (its libraries), `plugins/` (its plugins). **This is the folder you ship with your game.** |
 | `tools/aylo-sign` | Makes the keys and signatures of the native plugins of a game |
 | `templates/game/` | A game that runs: copy it to start yours |
 | `manual/` | The manual, to read offline: open `manual/index.html` |

@@ -29,7 +29,8 @@ aylo-engine-<version>-<os>-<arch>/
   runtime/                what your game ships
     aylo-runtime          the program (aylo-runtime.exe on Windows)
     (libraries)           what the program needs, next to it
-    plugins/              the engine's plugins
+    lib/                  the engine's libraries (on Windows they sit next to the program)
+    plugins/              the engine's plugins, and plugins/backends/ for the window, the renderer and the sound
       backends/           the window, renderer and audio backends
     licenses/             the notices of the libraries inside
   editor/                 planned: the editor. Never shipped.
@@ -68,7 +69,7 @@ your game's name; the folder is what matters, so the libraries and plugins are s
 MyGame/
   runtime/
     MyGame              was aylo-runtime
-    (libraries, plugins/, licenses/, untouched)
+    (lib/, plugins/, licenses/, untouched)
   game/
     project.luau
     scripts/

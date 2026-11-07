@@ -48,10 +48,12 @@ names the ones we know: the Vulkan loader, and the window system libraries GLFW 
   install the driver of your graphics card` instead of a library that refuses to load. VMA is told not to bind the Vulkan
   functions itself (`VMA_STATIC_VULKAN_FUNCTIONS=0`): the allocator takes them from the dispatchers of the Vulkan
   instance and device.
-- **Plugin libraries have relative search paths only** (rule `rtype.plugin_library`): the folder of the library and each
-  folder above it, up to the one of the executable (`$ORIGIN`, `$ORIGIN/..`). The other binaries get `$ORIGIN`, and the
-  engine and the executable also `$ORIGIN/plugins`, where a release holds the transform and input plugin libraries. A
-  search path is not inherited by the libraries a binary loads, so each one carries its own.
+- **Every binary has relative search paths only**, set by the build (rules `rtype.layout` and `rtype.plugin_library`):
+  a plugin `$ORIGIN` (the plugins it links) and `$ORIGIN/../lib`; a backend `$ORIGIN/../../lib`; a library of `lib/`
+  `$ORIGIN`, and the engine also `$ORIGIN/../plugins`, where the transform and input plugins it links are; an executable
+  `$ORIGIN/lib` and `$ORIGIN/plugins`. Nothing looks above `runtime/`. A search path is not inherited by the libraries a
+  binary loads, so each one carries its own. The executable of the build also finds the build folder from the
+  repository root (`aylo-runtime` is copied there); the package replaces its search paths with those of the zip.
 - **Windows uses the dynamic C runtime** (`/MD`, `/MDd`), shared by every library since C++ types cross their boundaries.
 
 ## What the packaging adds
@@ -59,7 +61,7 @@ names the ones we know: the Vulkan loader, and the window system libraries GLFW 
 The build does not put these in the folder; the packaging task (REL-04) does, and the check proves it did:
 
 - **Linux:** `libstdc++.so.6` and `libgcc_s.so.1`, found with `<compiler> -print-file-name=libstdc++.so.6`, copied next
-  to the executable, with `patchelf --set-rpath '$ORIGIN'` (they have no search path of their own, and `libstdc++`
+  `lib/`, with `patchelf --set-rpath '$ORIGIN'` (they have no search path of their own, and `libstdc++`
   needs `libgcc_s`). Bundled rather than linked statically: each library would otherwise hold its own copy of the C++
   runtime, and the exceptions and type information that cross them would not agree. The release is built on an old
   glibc (an Ubuntu 22.04 container), as a binary runs on any glibc at least as recent as the one it was linked against.
@@ -68,10 +70,11 @@ The build does not put these in the folder; the packaging task (REL-04) does, an
   install names and the rpaths of the binaries rewritten (`install_name_tool`) to point into the folder. The renderer
   still links Homebrew's loader on macOS, whose rpath the check reports until then.
 
-The real files, not the symbolic links of the build's `plugins/` folder, go in the package.
+The package holds real files only: the build makes `lib/` and `plugins/` of real files, and the check reports a
+symbolic link that leaves the folder.
 
 ## State
 
-Verified on Linux: a `runtime/` folder staged from the release build (real files in `plugins/` and `plugins/backends/`,
-the C++ runtime added as above) passes the check, and its server runs a game with only glibc loaded from outside the
+Verified on Linux: the `runtime/` folder of the package (`lib/`, `plugins/`, `plugins/backends/` of real files, the C++
+runtime added as above) passes the check, and its server runs a game with only glibc loaded from outside the
 folder. The Windows (`.ps1`, `/MD`) and macOS parts are written and not yet run: the first CI run of the release workflow, which calls the check, is where they are tried.

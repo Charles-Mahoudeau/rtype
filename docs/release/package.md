@@ -12,9 +12,9 @@ One zip per platform and architecture, named `aylo-engine-<version>-<os>-<arch>.
 aylo-engine-<version>-<os>-<arch>/
 ├── runtime/                 what a game ships
 │   ├── aylo-runtime(.exe)
-│   ├── lib*.so / *.dll / *.dylib   every library: the engine's, the plugins and the backends
-│   ├── plugins/             where the engine looks for the plugins: links to the libraries above
-│   │   └── backends/        the same for the platform, renderer and audio backends
+│   ├── lib/                 the libraries that are not plugins: ecs, the contracts, the engine... and the C++ runtime
+│   ├── plugins/             the plugin libraries, real files; the engine scans this folder
+│   │   └── backends/        the platform, renderer and audio backends, scanned too
 │   └── licenses/            THIRD_PARTY_NOTICES.md
 ├── tools/aylo-sign(.exe)
 ├── templates/game/          a game that runs, from examples/games/template/game/
@@ -24,6 +24,11 @@ aylo-engine-<version>-<os>-<arch>/
 ```
 
 The engine looks for `plugins/` and `plugins/backends/` next to the executable, so `runtime/` works wherever it is copied.
+The build folder has the same layout (`build/<platform>/<arch>/<mode>/`), so what runs there runs in the zip. No file of
+the zip is a symbolic link: every library is one real file, in the one folder that holds it. On Windows, which has no
+rpath, the DLLs of `lib/` sit next to the executable instead (there is no `lib/` folder in the zip), which is where
+the DLLs of `plugins/` find them. How a binary finds its libraries is in
+[`self-contained.md`](self-contained.md#how-the-build-gets-there).
 The editor will get its own `editor/` folder, outside `runtime/`, so that shipping the runtime never ships it.
 
 `manifest.json` holds the `version` (a nightly build is `<version>-nightly.<commit>`), the `commit`, the `platform` and
@@ -59,11 +64,10 @@ The output is in `build/package/`. Options: `--no-build` packages what is alread
 out (also left out, with a warning, when `uvx` is not installed). The task refuses a build that is not a release build.
 It then:
 
-1. copies the runtime and every library next to it (the plugins link each other and find them there), leaving out the
-   libraries made for the tests, and makes `plugins/` as the build has it: relative links to those libraries on Linux
-   and macOS, copies on Windows. A second real copy would be another library to Linux and macOS, loaded twice, so the
-   zip is made with `zip -y` to keep the links. `tools/aylo-sign` finds the libraries in `../runtime` (an rpath; on
-   Windows the DLLs are copied next to it);
+1. copies the runtime, `lib/` and `plugins/` as the build made them, leaving out the libraries made for the tests,
+   adds the C++ runtime to `lib/` (Linux, with `patchelf`) and sets the search paths of the executable and the tool to
+   the folders of the zip (`$ORIGIN/lib:$ORIGIN/plugins`, and `$ORIGIN/../runtime/lib:$ORIGIN/../runtime/plugins` for
+   `tools/aylo-sign`; on Windows its DLLs are copied next to it);
 2. adds the licenses, the template game, the manual, the README, the version and the license of the repository (with a
    warning when the repository has none);
 3. strips what is not stripped and keeps the debug information apart;

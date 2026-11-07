@@ -13,7 +13,7 @@ Based on the code of 2026-11-07 (the generic executable is `aylo-runtime`, the s
 | D2 | **No dependency beyond the OS and the GPU driver.** Third-party libraries are static or bundled; a script fails the build when a binary resolves a library outside `runtime/` (allowlist: the OS and the Vulkan driver). | "Runs without any dependency" is checked, not hoped for. |
 | D3 | **No headers or SDK in the zip.** A game is Luau; a native plugin needs the compiler of the engine (`checkLibrary()`), so a separate `-sdk` zip would come later, if asked. | The Luau API is the product. |
 | D4 | **SemVer, one version for the engine.** `0.x` until the script API settles; after that a breaking change to what a script sees is a major version. The version is in `xmake.lua`, `--version` and `manifest.json`. | A game developer must know what an upgrade can break. |
-| D5 | **The package is made by one xmake task**, run the same locally and in CI. The libraries are real files next to the executable; `plugins/` holds relative links to them on Linux and macOS (copies on Windows), as in the build: a second copy of a library would be loaded twice there. | One recipe, testable on a developer's machine. |
+| D5 | **The package is made by one xmake task**, run the same locally and in CI. The build and the zip have the same layout: `lib/` holds the libraries that are not plugins, `plugins/` the plugins, all real files, no link (a second copy of a library would be loaded twice, and a tool that flattens links would make one). | One recipe, testable on a developer's machine. |
 | D6 | **A `v*` tag publishes a draft GitHub Release**; a human reviews and publishes it. Notes come from the Conventional Commits. | Releases are a human decision (`AGENTS.md`). |
 | D7 | **Nightly: a rolling `nightly` prerelease**, replaced after every push to `main` whose CI is green (docs-only pushes skipped, a burst of pushes builds the last one). Version `<next>-nightly.<sha>`. | Game developers can test `main`; the stable "latest" release stays stable. |
 | D8 | **Signing: free options only.** SHA256SUMS and a GitHub artifact attestation on every zip; ad-hoc `codesign` on macOS; SignPath Foundation for Windows when accepted. Notarization and paid certificates are out of scope. | No certificate budget; the repository is public. |
@@ -24,8 +24,8 @@ Based on the code of 2026-11-07 (the generic executable is `aylo-runtime`, the s
 aylo-engine-<version>-<os>-<arch>/
 ├── runtime/                 what a game ships
 │   ├── aylo-runtime(.exe)
-│   ├── lib*.so / *.dll / *.dylib
-│   ├── plugins/             links to the libraries above (copies on Windows)
+│   ├── lib/                 the libraries that are not plugins (on Windows, next to the executable)
+│   ├── plugins/             the plugin libraries, real files; the engine scans it
 │   │   └── backends/
 │   └── licenses/
 ├── editor/                  later, never shipped
@@ -51,12 +51,17 @@ A game ships `runtime/` and its own `game/` folder.
 | REL-07 | Nightly prerelease on `main` | REL-06 | P2 | S |
 | REL-08 | Sign the binaries: ad-hoc macOS, SignPath on Windows | REL-06 | P3 | M |
 | REL-09 | Docs: shipping a game, releasing the engine | REL-04 | P2 | S |
+| REL-10 | Runtime layout: `lib/` and `plugins/`, real files | REL-04 | P2 | M |
+| REL-11 | Transform and input loaded as plugins | REL-10 | P2 | M |
+| REL-12 | Static modules that no plugin links | REL-11 | P2 | M |
 
 ```
 REL-01 -> REL-02 --\
                     +-> REL-04 -> REL-05 -> REL-06 -> REL-07
 REL-03 ------------/      \                     \-> REL-08
                            \-> REL-09
+
+REL-04 -> REL-10 -> REL-11 -> REL-12
 ```
 
 ### REL-01: check script
@@ -83,7 +88,7 @@ version) and written to `manifest.json` by REL-04. A nightly stamps `<version>-n
 ### REL-04: packaging task
 
 An xmake task (`xmake package-release`) builds in release mode and produces the layout of section 2 in `build/package/`
-and the zip next to it: the links of `plugins/` made relative, symbols stripped (debug symbols in a `-symbols` zip),
+and the zip next to it: the build's layout copied as it is (REL-10), symbols stripped (debug symbols in a `-symbols` zip),
 `manifest.json` with a sha256 per file, third-party licenses in `runtime/licenses/`, `templates/game/` from a small
 example game, the offline manual (`uvx zensical build`). Runs the check of REL-01 on `runtime/`.
 
@@ -117,3 +122,24 @@ Gatekeeper quarantine on macOS, SmartScreen on Windows.
 `manual/`: a page "Shipping your game" (what to copy, how to rename, signing your own build, the macOS quarantine
 command, SmartScreen), written with the `write-manual` skill. `docs/release/`: how a release and a nightly are made and
 how to cut a version. The README of the zip.
+
+### REL-10: runtime layout
+
+The build tree and the zip share one layout: the executable, `lib/` for the shared libraries that are not plugins,
+`plugins/` for the plugin libraries and `plugins/backends/` for the backends, all real files, no link. A second copy of a
+library would be loaded twice, and a tool that flattens links would make one. rpaths: the executable `lib`, a plugin
+`$ORIGIN:$ORIGIN/../lib` (plugins link each other), a backend `$ORIGIN/../../lib`. Windows has no rpath: the DLLs the
+executable links sit next to it.
+
+### REL-11: transform and input as plugins
+
+The engine stops linking `plugin-transform` and `plugin-input` and loads them from their libraries like the others
+(the transform plugin, which every game has, by name; a clear error if it is missing). `NetworkInput` stays in the
+engine and reads the input through the `rtype.input.read` engine call: moving it to the input plugin would make a plugin
+depend on `replication`.
+
+### REL-12: static modules
+
+`luau`, `network`, `replication`, `scripting` and `engine` are static libraries linked into the executable: no plugin
+or backend links them. `ecs` and the contracts stay shared (registries and RTTI shared with plugins). A build rule
+refuses a shared library that links a static module, so their state can never be duplicated.
