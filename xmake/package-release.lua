@@ -66,33 +66,53 @@ task("package-release")
         copyExecutable(path.join(builddir, "aylo-runtime" .. exeext), path.join(runtime, "aylo-runtime" .. exeext))
         copyExecutable(path.join(builddir, "aylo-sign" .. exeext), path.join(stage, "tools", "aylo-sign" .. exeext))
 
-        -- The libraries, next to the executable: the plugins link each other and the contracts, and find them one level up.
-        -- A library made for the tests is not part of the engine.
+        -- The libraries, as the build made them: `lib/` holds the ones that are not plugins, `plugins/` the plugins (real
+        -- files, `plugins/backends/` for the backends). A library made for the tests is not part of the engine.
         local function isTestLibrary(file)
             return path.filename(file):find("test", 1, true) ~= nil
         end
-        for _, file in ipairs(os.files(path.join(builddir, "*" .. libext))) do
+        -- Windows has no rpath: what the executable links sits next to it, `lib/` included (the contracts and `ecs` are
+        -- found there by the plugins too). The transform and input plugins are linked by the engine until it loads them,
+        -- so they are there as well as in `plugins/`: a module of the same name is shared, so the plugin folder's copy is
+        -- the one already loaded.
+        local libdir = windows and runtime or path.join(runtime, "lib")
+        os.mkdir(libdir)
+        for _, file in ipairs(os.files(path.join(builddir, "lib", "*" .. libext))) do
             if not isTestLibrary(file) then
-                os.cp(file, path.join(runtime, path.filename(file)))
+                os.cp(file, path.join(libdir, path.filename(file)))
             end
         end
-        -- Windows has no rpath: the tool finds the engine's DLLs next to itself.
+        local pluginsdir = path.join(builddir, "plugins")
+        for _, file in ipairs(os.files(path.join(pluginsdir, "**" .. libext))) do
+            if not isTestLibrary(file) then
+                local to = path.join(runtime, "plugins", path.relative(file, pluginsdir))
+                os.mkdir(path.directory(to))
+                os.cp(file, to)
+                local filename = path.filename(file)
+                if windows and (filename == "rtype-plugin-transform.dll" or filename == "rtype-plugin-input.dll") then
+                    os.cp(file, path.join(runtime, filename))
+                end
+            end
+        end
+        -- The tool finds the engine's DLLs next to itself.
         if windows then
             for _, file in ipairs(os.files(path.join(runtime, "*" .. libext))) do
                 os.cp(file, path.join(stage, "tools", path.filename(file)))
             end
         end
-        -- The C++ runtime of the machine that built it, next to the libraries: the zip must run where none is installed. They
-        -- are the ones the executable resolves; their rpath is the folder, as theirs would be searched elsewhere otherwise.
+        -- The C++ runtime of the machine that built it, in `lib/`: the zip must run where none is installed. They are the
+        -- ones the executable resolves; their rpath is the folder, as theirs would be searched elsewhere otherwise. The
+        -- search paths of the executable and the tool are set to the folders of the zip (the build's include its own
+        -- folder, which does not exist here).
         if plat == "linux" then
             local patchelf = find_tool("patchelf")
             local resolved = os.iorunv("ldd", {path.join(runtime, "aylo-runtime")})
             for _, soname in ipairs({"libstdc++.so.6", "libgcc_s.so.1"}) do
                 local found = resolved:match(soname:gsub("%p", "%%%0") .. " => (%S+)")
                 if found and os.isfile(found) then
-                    os.cp(found, path.join(runtime, soname))
+                    os.cp(found, path.join(libdir, soname))
                     if patchelf then
-                        os.vrunv(patchelf.program, {"--set-rpath", "$ORIGIN", path.join(runtime, soname)})
+                        os.vrunv(patchelf.program, {"--set-rpath", "$ORIGIN", path.join(libdir, soname)})
                     else
                         cprint("${yellow}warning: patchelf is missing: %s is bundled without its rpath", soname)
                     end
@@ -100,21 +120,12 @@ task("package-release")
                     cprint("${yellow}warning: %s is not linked by the runtime: it is not bundled", soname)
                 end
             end
-        end
-        -- `plugins/` and `plugins/backends/`, where the Engine looks for what it loads, as in the build: a link to the library
-        -- next to the executable (a copy on Windows, which shares the modules of the same name). A second copy of the file
-        -- would be another library to Linux and macOS, loaded twice. The links are relative, so they survive the zip.
-        local pluginsdir = path.join(builddir, "plugins")
-        for _, file in ipairs(os.files(path.join(pluginsdir, "**" .. libext))) do
-            if not isTestLibrary(file) then
-                local library = path.join(runtime, path.filename(file))
-                local to = path.join(runtime, "plugins", path.relative(file, pluginsdir))
-                os.mkdir(path.directory(to))
-                if windows then
-                    os.cp(library, to)
-                else
-                    os.vrunv("ln", {"-s", path.relative(library, path.directory(to)), to})
-                end
+            if patchelf then
+                os.vrunv(patchelf.program, {"--set-rpath", "$ORIGIN/lib:$ORIGIN/plugins", path.join(runtime, "aylo-runtime")})
+                os.vrunv(patchelf.program, {"--set-rpath", "$ORIGIN/../runtime/lib:$ORIGIN/../runtime/plugins",
+                                            path.join(stage, "tools", "aylo-sign")})
+            else
+                cprint("${yellow}warning: patchelf is missing: the executables keep the search paths of the build")
             end
         end
 
@@ -175,10 +186,7 @@ task("package-release")
         for _, file in ipairs(table.join(os.files(path.join(stage, "runtime", "**" .. libext)),
                                           os.files(path.join(runtime, "aylo-runtime" .. exeext)),
                                           os.files(path.join(stage, "tools", "aylo-sign" .. exeext)))) do
-            -- The links of plugins/ stand for a library that is stripped as itself.
-            if not os.islink(file) then
-                keepSymbols(file)
-            end
+            keepSymbols(file)
         end
         if windows then
             for _, pdb in ipairs(os.files(path.join(builddir, "*.pdb"))) do
