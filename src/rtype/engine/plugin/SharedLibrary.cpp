@@ -58,8 +58,8 @@ SharedLibrary::SharedLibrary(const std::filesystem::path& path) {
     static_cast<void>(GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_PIN | GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
                                          static_cast<LPCWSTR>(_handle), &pinned));
 #else
-    // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer): it is set by a different call on each system.
     // RTLD_NODELETE: never unloaded, even once closed (see the class).
+    // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer): it is set by a different call on each system.
     _handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL | RTLD_NODELETE);
     if (_handle == nullptr) {
         const char* reason = dlerror();
