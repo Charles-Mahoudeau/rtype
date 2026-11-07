@@ -575,6 +575,72 @@ TEST(EngineHotReload, SwapsTheSystemsOfAChangedScriptWithoutBuildingTheGameAgain
     EXPECT_NE(log.find("system game.Quit"), std::string::npos) << log;
 }
 
+namespace {
+/// @return A script whose system @p name ends the game with the code of the module `config`, if it is not 0.
+std::string configuredQuitScript(const std::string_view name) {
+    return "local config = require('./config')\nengine.ecs.system(\"" + std::string{name} + R"(", {
+        phase = "Update",
+        query = {},
+        events = { send = { "rtype.AppExit" } },
+        run = function(ctx)
+            if config.code ~= 0 then ctx.events.send("rtype.AppExit", { code = config.code }) end
+        end,
+    }))";
+}
+
+/// @return A script whose system `game.Other` ends the game with @p code, or does nothing if @p code is 0.
+std::string otherScript(const int code) {
+    std::string script = quitScript(code);
+    script.replace(script.find("game.Quit"), std::string_view{"game.Quit"}.size(), "game.Other");
+    // Both send the exit event: an order between them is required.
+    constexpr std::string_view kPhase = "phase = \"Update\",";
+    script.replace(script.find(kPhase), kPhase.size(), "phase = \"Update\", after = { \"game.Quit\" },");
+    return script;
+}
+
+/// @brief Setup that registers the exit event scripts send.
+void registerExit(Engine& engine) {
+    static_cast<void>(engine.app().getWorld().getEvents().registerType<rtype::ecs::AppExit>());
+}
+}  // namespace
+
+TEST(EngineHotReload, ReRunsTheDependentsOfAChangedModule) {
+    const GameDirectory game{"rtype-engine-hot-dependents", kHotProject};
+    game.write("scripts/config.luau", "return { code = 0 }");
+    game.write("scripts/quit.luau", configuredQuitScript("game.Quit"));
+    EngineConfig config = serverConfig(game);
+    config.setup = &registerExit;
+    Engine engine{std::move(config)};
+    game.write("scripts/config.luau", "return { code = 9 }");
+
+    testing::internal::CaptureStderr();
+    const int code = engine.run();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(code, 9) << "quit.luau ran again and saw the new value of config.luau";
+    EXPECT_NE(log.find("[HotReload] scripts: applied in"), std::string::npos) << log;
+    EXPECT_NE(log.find("system game.Quit"), std::string::npos) << log;
+}
+
+TEST(EngineHotReload, DoesNotReRunTheModulesThatDoNotRequireTheChangedOne) {
+    const GameDirectory game{"rtype-engine-hot-unrelated", kHotProject};
+    game.write("scripts/config.luau", "return { code = 0 }");
+    game.write("scripts/quit.luau", configuredQuitScript("game.Quit"));
+    game.write("scripts/other.luau", otherScript(0));
+    EngineConfig config = serverConfig(game);
+    config.setup = &registerExit;
+    Engine engine{std::move(config)};
+    game.write("scripts/other.luau", otherScript(5));
+
+    testing::internal::CaptureStderr();
+    const int code = engine.run();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(code, 5) << log;
+    EXPECT_NE(log.find("system game.Other"), std::string::npos) << log;
+    EXPECT_EQ(log.find("system game.Quit"), std::string::npos) << log;
+}
+
 TEST(EngineHotReload, BuildsTheGameAgainWhenAScriptCannotBeSwappedInPlace) {
     const GameDirectory game{"rtype-engine-hot-layout", kHotProject};
     game.write("scripts/thing.luau", R"(engine.ecs.component("game.Thing", { fields = { a = "f32" } }))");
