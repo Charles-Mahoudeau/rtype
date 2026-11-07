@@ -3,7 +3,7 @@
 The physics plugin gives your game 2D bodies, colliders and collision events. Add it in `project.luau`:
 
 ```luau
-engine.settings.plugins = { "physics", "physicsDebug" }
+engine.settings.plugins = { "rtype.Physics", "rtype.PhysicsDebug" }
 engine.settings.physics.gravity = { 0, 0 }     -- { x, y }, world units per second squared, Y down
 ```
 
@@ -92,6 +92,6 @@ engine.ecs.system("game.Ships", {
 
 ## The debug view
 
-With `"physicsDebug"` in `plugins` (client only), F3 toggles outlines of the colliders and arrows for the velocities.
+With `"rtype.PhysicsDebug"` in `plugins` (client only), F3 toggles outlines of the colliders and arrows for the velocities.
 `physicsDebug.drawAll = true` outlines every collider; otherwise only entities with an `rtype.PhysicsDebug` component are
 drawn.

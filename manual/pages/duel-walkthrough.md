@@ -44,12 +44,19 @@ if engine.isClient then
 	engine.settings.network.host = engine.args.host or "127.0.0.1"
 end
 
-engine.settings.plugins = { "physics", "physicsDebug" }
+engine.settings.plugins = { "rtype.Physics" }
+if engine.isClient then
+	engine.settings.plugins = {
+		"rtype.Physics", "rtype.Input", "rtype.graphics", "rtype.Shader", "rtype.Sprite", "rtype.SpriteDraw",
+		"rtype.Shape", "rtype.Tilemap", "rtype.Text", "rtype.Particle", "rtype.audio", "rtype.PhysicsDebug",
+	}
+end
 engine.settings.physics.gravity = { 0, 0 }
 ```
 
 The port and host come from the command line. A top-down arena needs the physics with no gravity, and the debug view to
-see the colliders (F3). Clients also choose `platform = "glfw"`, `renderer = "vulkan"`, a window and an audio backend.
+see the colliders (F3). The server lists only the physics; a client lists everything it draws, plays and reads. Clients
+also choose `platform = "glfw"`, `renderer = "vulkan"`, a window and an audio backend.
 See [Project settings](project-settings.md).
 
 ## `arena.luau`: the rules both sides share
