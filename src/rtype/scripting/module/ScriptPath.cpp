@@ -13,6 +13,8 @@
 #include <format>
 #include <string>
 #include <string_view>
+#include <tl/expected.hpp>
+#include <utility>
 #include <vector>
 
 #include "rtype/scripting/ErrorKind.hpp"

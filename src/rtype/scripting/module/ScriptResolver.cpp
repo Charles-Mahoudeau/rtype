@@ -17,6 +17,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <tl/expected.hpp>
 #include <utility>
 #include <vector>
 
@@ -164,6 +165,21 @@ struct Requester {
     }
     return segments;
 }
+[[nodiscard]] std::string unknownAlias(const std::string& name,
+                                       const std::map<std::string, std::vector<std::string>>& aliases) {
+    std::vector<std::string> known{std::string{kScripts}, std::string{kSelf}};
+    for (const auto& entry : aliases) {
+        known.push_back(entry.first);
+    }
+    std::ranges::sort(known);
+    std::string list;
+    for (const std::string& known_name : known) {
+        list += list.empty() ? "@" : ", @";
+        list += known_name;
+    }
+    return std::format("unknown alias '@{}' (known aliases: {})", name, list);
+}
+
 }  // namespace
 
 ScriptResolver::ScriptResolver(std::filesystem::path scriptsRoot, const std::map<std::string, std::string>& aliases)
@@ -202,18 +218,11 @@ Result<luau::ModuleSource> ScriptResolver::operator()(const std::string_view req
     if (parsed->kind == ScriptPath::Kind::kRelative) {
         // From an init.luau, "./" names the siblings of its folder: the folder is the module.
         target = requester.folder;
-        if (requester.isInit) {
-            if (target.empty()) {
-                return fail(ErrorKind::kOutsideScripts, "escapes scripts/");
-            }
-            target.pop_back();
+        const std::size_t up = parsed->parents + (requester.isInit ? 1 : 0);
+        if (up > target.size()) {
+            return fail(ErrorKind::kOutsideScripts, "escapes scripts/");
         }
-        for (std::size_t i = 0; i < parsed->parents; ++i) {
-            if (target.empty()) {
-                return fail(ErrorKind::kOutsideScripts, "escapes scripts/");
-            }
-            target.pop_back();
-        }
+        target.resize(target.size() - up);
     } else if (parsed->alias == kSelf) {
         if (requesterKey.empty()) {
             return fail(ErrorKind::kInvalidPath, "invalid path: '@self' needs a requiring script");
@@ -222,18 +231,7 @@ Result<luau::ModuleSource> ScriptResolver::operator()(const std::string_view req
     } else if (parsed->alias != kScripts) {
         const auto alias = _aliases.find(parsed->alias);
         if (alias == _aliases.end()) {
-            std::vector<std::string> known{std::string{kScripts}, std::string{kSelf}};
-            for (const auto& entry : _aliases) {
-                known.push_back(entry.first);
-            }
-            std::ranges::sort(known);
-            std::string list;
-            for (const std::string& name : known) {
-                list += list.empty() ? "@" : ", @";
-                list += name;
-            }
-            return fail(ErrorKind::kUnknownAlias,
-                        std::format("unknown alias '@{}' (known aliases: {})", parsed->alias, list));
+            return fail(ErrorKind::kUnknownAlias, unknownAlias(parsed->alias, _aliases));
         }
         target = alias->second;
     }
@@ -249,7 +247,7 @@ Result<luau::ModuleSource> ScriptResolver::resolveEntry(const std::string_view e
         return fail(ErrorKind::kInvalidPath,
                     std::format("invalid entry '{}': give a path relative to scripts/, with no prefix", entry));
     }
-    const Result<luau::ModuleSource> module = (*this)({}, std::format("@scripts/{}", entry));
+    Result<luau::ModuleSource> module = (*this)({}, std::format("@scripts/{}", entry));
     if (!module && module.error().kind() == ErrorKind::kInvalidPath) {
         return fail(ErrorKind::kInvalidPath, std::format("invalid entry '{}': {}", entry, module.error().message()));
     }
@@ -278,8 +276,8 @@ Result<luau::ModuleSource> ScriptResolver::load(const Segments& target) const {
     if (foundCount > 1) {
         return fail(ErrorKind::kAmbiguousModule,
                     std::format("ambiguous: both {} and {} exist",
-                                displayed(candidates[0].folders) + "/" + candidates[0].fileName,
-                                displayed(candidates[1].folders) + "/" + candidates[1].fileName));
+                                displayed(candidates.front().folders) + "/" + candidates.front().fileName,
+                                displayed(candidates.back().folders) + "/" + candidates.back().fileName));
     }
     if (foundCount == 0) {
         for (const Candidate& candidate : candidates) {
