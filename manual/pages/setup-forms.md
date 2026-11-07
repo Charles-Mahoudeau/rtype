@@ -80,3 +80,14 @@ engine.input.action("shoot", "button", { bind = { "MouseLeft", { control = "Game
 The names of controls are in [Engine calls](engine-calls.md#input). In a networked game the action is also declared in
 the network input layout on both sides, and the client sends its state to the server each tick. See
 [Networking](networking.md).
+
+## Forms you use in a system
+
+Some forms work on the world, so they take what a system's `run` receives:
+
+| Form | Page |
+|---|---|
+| `engine.capsule.spawn(ctx, path, overrides)`, `engine.capsule.load(ctx, path, overrides)`, `engine.capsule.reload(ctx, root)` | [Capsules](capsules.md#spawning-switching-levels-reloading) |
+| `engine.ui.spawn(ctx.commands, spec, parent)` | [User interface](ui.md) |
+
+A form that makes an engine call needs that call in the system's `calls`, as `ctx.call` does.
