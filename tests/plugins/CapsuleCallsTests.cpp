@@ -26,6 +26,7 @@
 #include "plugins/capsule/LoadedCapsule.hpp"
 #include "plugins/capsule/exceptions/CapsuleException.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/call/CallInfo.hpp"
 #include "rtype/ecs/call/Calls.hpp"
 #include "rtype/ecs/call/DynamicCalls.hpp"
@@ -185,4 +186,16 @@ TEST_F(CapsuleCallsTest, GivesTheSystemTheAccessOfTheCalls) {
     }
     EXPECT_TRUE(readsCapsules);
     EXPECT_TRUE(writesLoaded);
+}
+
+TEST(CapsuleCalls, ThePluginBringsItsSetupForms) {
+    rtype::ecs::App app;
+    app.addPlugin(capsule::CapsulePlugin{});
+    const auto& forms = app.getPluginRegistry().getScriptForms();
+    const auto found = forms.find("addCapsuleForms");
+    ASSERT_NE(found, forms.end());
+    EXPECT_TRUE(found->second.contains("engine.capsule.spawn"));
+    EXPECT_TRUE(found->second.contains("engine.capsule.load"));
+    EXPECT_TRUE(found->second.contains("engine.capsule.reload"));
+    EXPECT_FALSE(found->second.ends_with('\0'));
 }

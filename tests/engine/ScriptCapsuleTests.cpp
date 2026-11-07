@@ -7,6 +7,8 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -31,6 +33,12 @@ struct Health {
     std::int32_t value;
 };
 RTYPE_ECS_COMPONENT(Health, "test.scriptcapsule.Health", value);
+
+struct Armor {
+    std::int32_t value{0};
+    std::int32_t extra{0};
+};
+RTYPE_ECS_COMPONENT(Armor, "test.scriptcapsule.Armor", value, extra);
 }  // namespace rtype::test::script_capsule
 
 namespace capsule = rtype::plugins::capsule;
@@ -46,9 +54,11 @@ struct ScriptApp {
     ScriptApp() {
         app.addPlugin(capsule::CapsulePlugin{});
         static_cast<void>(app.getWorld().getComponents().registerType<sc::Health>());
+        static_cast<void>(app.getWorld().getComponents().registerType<sc::Armor>());
         auto& capsules = *app.getWorld().getResources().getMut<capsule::Capsules>();
         capsule::Capsule bydo{"actors/bydo.actor"};
         bydo.editNode(0).values.set(app.getWorld().getComponents(), sc::Health{.value = 3});
+        bydo.editNode(0).values.set(app.getWorld().getComponents(), sc::Armor{.value = 1, .extra = 2});
         static_cast<void>(bydo.addNode("Gun", 0));
         capsules.define(std::move(bydo));
         for (const char* path : {"scenes/one.scene", "scenes/two.scene"}) {
@@ -139,4 +149,91 @@ TEST(ScriptCapsule, ACallOnAnUnknownCapsuleFailsNamingIt) {
     const std::string error = script.run(R"(engine.call("rtype.capsule.spawn", { capsule = "actors/nothing.actor" }))");
     EXPECT_TRUE(error.contains("rtype.capsule.spawn")) << error;
     EXPECT_TRUE(error.contains("No capsule has the id")) << error;
+}
+
+TEST(ScriptCapsule, TheFormsSpawnLoadAndReloadInOneCallEach) {
+    ScriptApp script;
+    ASSERT_EQ(script.run(R"(
+        frame = 0
+        engine.ecs.system("game.Levels", {
+            phase = "Update",
+            query = {},
+            calls = { "rtype.capsule.spawn", "rtype.capsule.load", "rtype.capsule.reload" },
+            run = function(ctx)
+                frame += 1
+                if frame == 1 then
+                    bydo = engine.capsule.spawn(ctx, "actors/bydo.actor", {
+                        ["test.scriptcapsule.Armor"] = { extra = 9 },   -- the capsule's value stays
+                    })
+                    level = engine.capsule.load(ctx, "scenes/one.scene")
+                elseif frame == 2 then
+                    reloaded = engine.capsule.reload(ctx, bydo)
+                    notARoot = engine.capsule.reload(ctx, ctx.commands:spawn())
+                end
+            end,
+        })
+    )"),
+              "");
+    rtype::ecs::World& world = script.app.getWorld();
+    script.app.runFrame();
+    EXPECT_EQ(world.getEntityCount(), 5U);  // the bydo and its gun, the level, its bydo and gun
+    std::vector<std::pair<std::int32_t, std::int32_t>> armors;
+    const rtype::ecs::QueryState<const sc::Armor> state{world.getComponents()};
+    rtype::ecs::Query<const sc::Armor> query{state, 0};
+    for (auto [entity, armor] : query) {
+        armors.emplace_back(armor.value, armor.extra);
+    }
+    std::ranges::sort(armors);
+    EXPECT_EQ(armors,
+              (std::vector<std::pair<std::int32_t, std::int32_t>>{{1, 2}, {1, 9}}));  // level's bydo, patched one
+    EXPECT_EQ(world.getResources().get<capsule::LoadedCapsule>()->capsule,
+              rtype::core::asset::AssetId::fromPath("scenes/one.scene"));
+    EXPECT_EQ(script.run("assert(level ~= nil and bydo ~= nil)"), "");
+
+    script.app.runFrame();
+    EXPECT_EQ(script.run("assert(reloaded == true and notARoot == false)"), "");
+}
+
+TEST(ScriptCapsule, TheFormsCheckWhatTheyAreGiven) {
+    ScriptApp script;
+    ASSERT_EQ(script.run(R"(
+        errors = {}
+        local function try(...)
+            local done, message = pcall(...)
+            table.insert(errors, done and "" or tostring(message))
+        end
+        engine.ecs.system("game.Mistakes", {
+            phase = "Update",
+            query = {},
+            calls = { "rtype.capsule.spawn" },
+            run = function(ctx)
+                if #errors > 0 then return end
+                try(engine.capsule.spawn, "actors/bydo.actor")
+                try(engine.capsule.spawn, ctx, 42)
+                try(engine.capsule.spawn, ctx, "actors/bydo.actor", { ["test.scriptcapsule.Armor"] = 3 })
+                try(engine.capsule.spawn, ctx, "actors/nothing.actor")
+                try(engine.capsule.load, ctx, "scenes/one.scene")
+                try(engine.capsule.spawn, ctx, "actors/bydo.actor", { ["test.scriptcapsule.Armor"] = { extar = 1 } })
+                try(engine.capsule.spawn, ctx, "actors/bydo.actor", {}, "more")
+            end,
+        })
+    )"),
+              "");
+    script.app.runFrame();
+    const std::vector<std::string> expected{
+        "engine.capsule.spawn: expected the system's ctx first",
+        "engine.capsule.spawn: expected the capsule's path second",
+        "engine.capsule.spawn: overrides: 'test.scriptcapsule.Armor' must be a table of fields",
+        "engine.capsule.spawn: ",  // the call's own error follows
+        "engine.capsule.load: ",
+        "engine.capsule.spawn: overrides: ",
+        "engine.capsule.spawn: expected at most 3 argument(s), got 4",
+    };
+    for (std::size_t index = 0; index < expected.size(); ++index) {
+        const std::string lua = "local text = errors[" + std::to_string(index + 1) + "]; assert(string.find(text, \"" +
+                                expected[index] + "\", 1, true), text)";
+        EXPECT_EQ(script.run(lua), "") << expected[index];
+    }
+    EXPECT_EQ(script.run(R"(assert(string.find(errors[4], "No capsule has the id", 1, true), errors[4]))"), "");
+    EXPECT_EQ(script.run(R"(assert(string.find(errors[6], "extar", 1, true), errors[6]))"), "");
 }
