@@ -30,9 +30,11 @@
 #include "plugins/graphics/Camera.hpp"
 #include "plugins/graphics/GraphicsResources.hpp"
 #include "plugins/graphics/OverlayQueue.hpp"
+#include "plugins/graphics/PlatformEventFilter.hpp"
 #include "plugins/graphics/SpriteQueue.hpp"
 #include "plugins/graphics/TextureAssets.hpp"
 #include "plugins/graphics/TextureCalls.hpp"
+#include "plugins/graphics/ToolFrame.hpp"
 #include "plugins/graphics/VisibleArea.hpp"
 #include "plugins/graphics/WindowEvents.hpp"  // IWYU pragma: keep
 #include "plugins/input/InputEvents.hpp"      // IWYU pragma: keep
@@ -76,7 +78,7 @@ void createBackend(ecs::NonSendMut<BackendSetup> setup, ecs::NonSendMut<plugins:
 
 /// @brief PreUpdate: sends every event of the platform as an ECS event, resizes the renderer, and asks the App to
 /// stop once the window is closed.
-void forwardEvents(ecs::NonSendMut<plugins::graphics::Backend> backend,
+void forwardEvents(ecs::NonSendMut<plugins::graphics::Backend> backend, ecs::NonSend<PlatformEventFilter> eventFilter,
                    ecs::EventWriter<contract::platform::event::Closed> closed,
                    ecs::EventWriter<contract::platform::event::Resized> resized,
                    ecs::EventWriter<contract::platform::event::FocusChanged> focus,
@@ -103,14 +105,19 @@ void forwardEvents(ecs::NonSendMut<plugins::graphics::Backend> backend,
                  scrolled, gamepadConnected, gamepadDisconnected, gamepadPressed, gamepadReleased, gamepadAxis);
     const std::vector<contract::platform::Event> events =
         isMinimized(started) ? started.platform->waitEvents() : started.platform->pollEvents();
-    for (const contract::platform::Event& event : events) {
+    for (const contract::platform::Event& received : events) {
+        // The renderer follows the window whatever a tool decides the game sees.
+        if (const auto* resize = std::get_if<contract::platform::event::Resized>(&received)) {
+            started.renderer->resize({resize->width, resize->height});
+        }
+        contract::platform::Event event = received;
+        if (eventFilter->filter && !eventFilter->filter(event)) {
+            continue;
+        }
         platformEvents.send(plugins::input::PlatformEvent{.event = event});
         std::visit(
-            [&writers, &started](const auto& alternative) {
+            [&writers](const auto& alternative) {
                 using Alternative = std::decay_t<decltype(alternative)>;
-                if constexpr (std::is_same_v<Alternative, contract::platform::event::Resized>) {
-                    started.renderer->resize({alternative.width, alternative.height});
-                }
                 std::get<ecs::EventWriter<Alternative>&>(writers).send(alternative);
             },
             event);
@@ -160,11 +167,14 @@ void applyCamera(ecs::NonSendMut<plugins::graphics::Backend> backend, ecs::ResMu
                  ecs::Query<const transform::GlobalTransform, const graphics::Camera> cameras) {
     plugins::graphics::Backend& started = *backend;
     if (isStarted(started)) {
+        // A scene drawn into a texture is seen as a window of its size: that is the framebuffer the game places things
+        // in, and the units of the mouse events a tool hands it (PlatformEventFilter).
+        const std::optional<glm::uvec2> scene = started.renderer->getSceneSize();
         const glm::vec2 size = started.renderer->getViewSize();
-        const glm::uvec2 framebuffer = started.platform->getFramebufferSize();
+        const glm::uvec2 framebuffer = scene.value_or(started.platform->getFramebufferSize());
         *info = graphics::ViewInfo{.viewSize = size.x > 0.0F && size.y > 0.0F ? size : glm::vec2{framebuffer},
                                    .framebuffer = framebuffer,
-                                   .window = started.platform->getWindowSize()};
+                                   .window = scene.value_or(started.platform->getWindowSize())};
     }
     if (!isStarted(started) || isMinimized(started)) {
         *visible = graphics::VisibleArea{};
@@ -183,7 +193,8 @@ void applyCamera(ecs::NonSendMut<plugins::graphics::Backend> backend, ecs::ResMu
         started.renderer->setView(*shown);
     }
     const glm::vec2 viewSize = started.renderer->getViewSize();
-    const glm::uvec2 framebufferSize = started.platform->getFramebufferSize();
+    const glm::uvec2 framebufferSize =
+        started.renderer->getSceneSize().value_or(started.platform->getFramebufferSize());
     *visible = visibleAreaOf(shown.value_or(contract::renderer::CameraView::makeDefaultView(viewSize, framebufferSize)),
                              viewSize, framebufferSize);
 }
@@ -207,12 +218,16 @@ void drawSprites(ecs::NonSendMut<plugins::graphics::Backend> backend, ecs::ResMu
 }
 
 /// @brief Render: shows what was drawn since beginFrame().
-void endFrame(ecs::NonSendMut<plugins::graphics::Backend> backend, ecs::ResMut<graphics::OverlayQueue> overlay) {
+void endFrame(ecs::NonSendMut<plugins::graphics::Backend> backend, ecs::ResMut<graphics::OverlayQueue> overlay,
+              ecs::NonSend<ToolFrame> tool) {
     plugins::graphics::Backend& started = *backend;
     const std::vector<contract::renderer::OverlayItem> items = overlay->take();
     if (isStarted(started) && !isMinimized(started)) {
         if (!items.empty()) {
             started.renderer->drawOverlay(items);
+        }
+        if (tool->draw) {
+            tool->draw(*started.platform, *started.renderer);
         }
         started.renderer->endFrame();
     }
@@ -259,6 +274,8 @@ void GraphicsPlugin::build(ecs::App& app) {
     ecs::Resources& resources = app.getWorld().getResources();
     resources.insertNonSend(BackendSetup{.registry = std::move(_registry), .settings = std::move(_settings)});
     resources.insertNonSend(plugins::graphics::Backend{});
+    resources.insertNonSend(PlatformEventFilter{});
+    resources.insertNonSend(ToolFrame{});
     resources.insertIfAbsent<ClearColor>();
     resources.insertIfAbsent<TextureAssets>();
     resources.getMut<TextureAssets>()->setDirectory(assetDirectoryOf(resources));
