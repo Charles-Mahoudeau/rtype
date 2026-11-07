@@ -218,7 +218,7 @@ architecture rules, and this file keeps the detail, which changes with every fea
       (`vendor/.clang-tidy`).
 - `src/rtype/luau/` — `luau` target, static library (`rtype-luau`) for Luau scripting. Failures a correct program can
   hit return
-  `Result<T>`; exceptions are only for API misuse (`docs/luau/error-handling.md`).
+  `Result<T>`; exceptions are only for API misuse (`docs/luau/error-handling.md`). The opt-in sandbox and `Table::freeze()`: `docs/luau/sandbox.md`.
 - `src/rtype/scripting/` — `scripting` target, static library (`rtype-scripting`): the Luau bridge, turning what scripts
   declare into ECS data (`rtype::scripting`, exported symbols marked `RTYPE_SCRIPTING_API`). It has its own `Error` /
   `Result`, like `luau`. `component/` holds `ComponentDeclaration` and `registerComponent()`, which computes the
