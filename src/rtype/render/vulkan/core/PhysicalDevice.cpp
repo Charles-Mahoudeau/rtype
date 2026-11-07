@@ -109,8 +109,8 @@ std::optional<std::uint32_t> findFamily(const std::vector<vk::QueueFamilyPropert
 }
 
 /// @return The first family able to present to @p surface, if any.
-std::optional<std::uint32_t> findPresentFamily(const vk::PhysicalDevice& physicalDevice, const vk::SurfaceKHR& surface,
-                                               std::uint32_t familyCount) {
+std::optional<std::uint32_t> findPresentFamily(const vk::raii::PhysicalDevice& physicalDevice,
+                                               const vk::SurfaceKHR& surface, std::uint32_t familyCount) {
     for (std::uint32_t index = 0; index < familyCount; ++index) {
         if (physicalDevice.getSurfaceSupportKHR(index, surface) == VK_TRUE) {
             return index;
@@ -122,7 +122,7 @@ std::optional<std::uint32_t> findPresentFamily(const vk::PhysicalDevice& physica
 /// @return The queue families of @p physicalDevice. Compute and transfer prefer dedicated families, so their work
 /// can run in parallel with graphics; otherwise compute takes any compute family, and transfer the graphics one
 /// (graphics families implicitly support transfer).
-QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice& physicalDevice, const vk::SurfaceKHR& surface) {
+QueueFamilyIndices findQueueFamilies(const vk::raii::PhysicalDevice& physicalDevice, const vk::SurfaceKHR& surface) {
     using Flag = vk::QueueFlagBits;
     const std::vector<vk::QueueFamilyProperties> queueFamilies = physicalDevice.getQueueFamilyProperties();
     QueueFamilyIndices indices;

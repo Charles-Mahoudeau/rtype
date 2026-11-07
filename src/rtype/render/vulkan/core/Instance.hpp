@@ -14,6 +14,7 @@
 #include <vector>
 #include <vulkan/vulkan_raii.hpp>
 
+#include "Loader.hpp"
 #include "render/vulkan/Export.hpp"
 
 namespace rtype::render::vulkan::core {
@@ -44,6 +45,7 @@ class RTYPE_RENDER_VULKAN_API Instance {
     /// @param messenger Debug messenger active during vkCreateInstance and vkDestroyInstance, whose messages the
     /// DebugMessenger cannot catch (e.g. objects leaked at exit): DebugMessenger::makeCreateInfo(). Requires
     /// VK_EXT_debug_utils in @p requiredExtensions.
+    /// @throws std::runtime_error If the system has no Vulkan loader (Loader).
     /// @throws std::invalid_argument If @p messenger is given without VK_EXT_debug_utils in @p requiredExtensions.
     /// @throws std::runtime_error If one of the required extensions is not supported.
     /// @throws std::runtime_error If one of the layers is not supported.
@@ -63,10 +65,6 @@ class RTYPE_RENDER_VULKAN_API Instance {
 
     /// @return The Vulkan context handle.
     [[nodiscard]] const vk::raii::Context& getContext() const;
-
-    /// @return The entry point of the Vulkan loader this library is linked against.
-    /// @note Hand it to every other Vulkan user (e.g. GLFW) so the whole process shares one loader.
-    [[nodiscard]] static PFN_vkGetInstanceProcAddr getLoaderEntryPoint() noexcept;
 
   private:
     /// @throws std::runtime_error Naming the first required extension the loader does not offer.
@@ -104,7 +102,8 @@ class RTYPE_RENDER_VULKAN_API Instance {
         std::span<const char* const> layers, ValidationOptions validation,
         const std::optional<vk::DebugUtilsMessengerCreateInfoEXT>& messenger) const;
 
-    vk::raii::Context _context;              ///< Loader dispatch, built from getLoaderEntryPoint().
+    Loader _loader;                          ///< The system's Vulkan loader.
+    vk::raii::Context _context;              ///< Loader dispatch, built from the loader's entry point.
     vk::raii::Instance _instance = nullptr;  ///< The Vulkan instance, created by the constructor.
 };
 }  // namespace rtype::render::vulkan::core
