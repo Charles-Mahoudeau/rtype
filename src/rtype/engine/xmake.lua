@@ -8,7 +8,8 @@ add_requires("libsodium", {alias = "libsodium", system = false})
 -- The engine: reads a game's project settings (Luau), builds its App (network, scripting, and the plugins the program
 -- adds) and runs it. It names no backend: the executables add the plugins they use.
 target("engine")
-    set_kind("shared")
+    -- Static, linked into the executable: no plugin links it (rtype.static_modules enforces it).
+    set_kind("static")
     set_basename("rtype-engine")
     -- Public: Engine.hpp and EngineConfig.hpp expose the App and the settings.
     add_deps("core", "ecs", {public = true})
@@ -17,6 +18,7 @@ target("engine")
     add_files("**.cpp")
     add_headerfiles("**.hpp")
     add_defines("RTYPE_ENGINE_BUILD", {public = false})
+    add_defines("RTYPE_ENGINE_STATIC", {public = true})
     add_includedirs("$(projectdir)/src", {public = true})
     -- Verifies the game plugins' signatures. Private: only plugin/PluginSignature.cpp includes it.
     add_packages("libsodium")
