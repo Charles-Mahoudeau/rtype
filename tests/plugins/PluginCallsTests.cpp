@@ -18,16 +18,19 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <variant>
 #include <vector>
 
 #include "FakeAudioDevice.hpp"
 #include "FakeBackend.hpp"
 #include "core/asset/AssetId.hpp"
+#include "core/config/Settings.hpp"
 #include "plugins/audio/AudioAssets.hpp"
 #include "plugins/audio/AudioCalls.hpp"
 #include "plugins/audio/AudioEvents.hpp"
 #include "plugins/audio/AudioPlugin.hpp"
 #include "plugins/audio/exceptions/AudioCallException.hpp"
+#include "plugins/graphics/BackendRegistry.hpp"
 #include "plugins/graphics/GraphicsPlugin.hpp"
 #include "plugins/graphics/TextureAssets.hpp"
 #include "plugins/graphics/TextureCalls.hpp"
@@ -35,6 +38,10 @@
 #include "plugins/input/InputPlugin.hpp"
 #include "plugins/input/PlatformEvent.hpp"
 #include "plugins/input/exceptions/InputExceptions.hpp"
+#include "plugins/particle/ParticleCalls.hpp"
+#include "plugins/particle/ParticleEffect.hpp"
+#include "plugins/particle/ParticleEffectAssets.hpp"
+#include "plugins/particle/ParticlePlugin.hpp"
 #include "plugins/physics/Collider.hpp"
 #include "plugins/physics/PhysicsCalls.hpp"
 #include "plugins/physics/PhysicsPlugin.hpp"
@@ -43,6 +50,7 @@
 #include "plugins/physics/RigidBody.hpp"
 #include "plugins/physics/Velocity.hpp"
 #include "plugins/physics/exceptions/PhysicsExceptions.hpp"
+#include "plugins/shader/ShaderPlugin.hpp"
 #include "plugins/sprite/AtlasAssets.hpp"
 #include "plugins/sprite/SpriteAtlas.hpp"
 #include "plugins/sprite/SpriteCalls.hpp"
@@ -59,7 +67,11 @@
 #include "rtype/contract/audiodevice/AudioTypes.hpp"
 #include "rtype/contract/platform/event/Event.hpp"
 #include "rtype/contract/platform/input/Key.hpp"
+#include "rtype/contract/renderer/drawing/BlendMode.hpp"
 #include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/exceptions/ParticleExceptions.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/call/CallInfo.hpp"
 #include "rtype/ecs/call/Calls.hpp"
@@ -281,6 +293,106 @@ TEST(SpriteCalls, MistakesThrowAnAtlasException) {
     EXPECT_THROW(call<void>(app, rtype::plugins::sprite::kAddAnimationCall,
                             rtype::plugins::sprite::AddAnimationArguments{.atlas = sheet, .name = "far", .first = 5}),
                  rtype::plugins::sprite::exceptions::AtlasException);
+}
+
+// ---- particle ----
+
+namespace {
+/// @brief Adds the ParticlePlugin and the plugins it requires to @p app, with no backend.
+void addParticlePlugins(rtype::ecs::App& app) {
+    app.addPlugin(rtype::plugins::transform::TransformPlugin{});
+    app.addPlugin(rtype::plugins::input::InputPlugin{});
+    app.addPlugin(rtype::plugins::graphics::GraphicsPlugin{
+        std::make_unique<rtype::plugins::graphics::BackendRegistry>(), rtype::core::config::Settings{}});
+    app.addPlugin(rtype::plugins::shader::ShaderPlugin{});
+    app.addPlugin(rtype::plugins::particle::ParticlePlugin{});
+}
+}  // namespace
+
+TEST(ParticleCalls, ADraftFilledByTheCallsBecomesAnEffect) {
+    namespace particle = rtype::plugins::particle;
+    rtype::ecs::App app;
+    addParticlePlugins(app);
+    call<void>(app, particle::kBeginEffectCall,
+               particle::BeginEffectArguments{.name = "sparks",
+                                              .simulation = "cpu",
+                                              .space = "local",
+                                              .loop = false,
+                                              .shape = "circle",
+                                              .radius = 4.0F,
+                                              .edgeOnly = true,
+                                              .lifetimeMin = 0.25F,
+                                              .lifetimeMax = 0.5F,
+                                              .texture = AssetId::fromPath("spark.png"),
+                                              .blend = "alpha",
+                                              .alignment = "velocity",
+                                              .flipbookColumns = 4});
+    call<void>(app, particle::kAddBurstCall, particle::AddBurstArguments{.name = "sparks", .count = 16});
+    call<void>(app, particle::kAddColorKeyCall,
+               particle::AddColorKeyArguments{.name = "sparks", .t = 0.0F, .color = {1.0F, 1.0F, 0.0F, 1.0F}});
+    call<void>(app, particle::kAddColorKeyCall,
+               particle::AddColorKeyArguments{.name = "sparks", .t = 1.0F, .color = {1.0F, 0.0F, 0.0F, 0.0F}});
+    call<void>(app, particle::kAddCurveKeyCall,
+               particle::AddCurveKeyArguments{.name = "sparks", .curve = "speed", .t = 1.0F, .value = 0.0F});
+    const auto added =
+        call<particle::EffectResult>(app, particle::kAddEffectCall, particle::AddEffectArguments{.name = "sparks"});
+
+    EXPECT_EQ(added.effect, AssetId::fromPath("sparks"));
+    const auto& resources = app.getWorld().getResources();
+    const particle::ParticleEffect* effect = resources.require<particle::ParticleEffectAssets>().get(added.effect);
+    ASSERT_NE(effect, nullptr);
+    EXPECT_EQ(effect->desc.simulation, rtype::contract::renderer::ParticleSimulation::kCpu);
+    EXPECT_EQ(effect->desc.space, rtype::contract::renderer::ParticleSpace::kLocal);
+    EXPECT_FALSE(effect->desc.loop);
+    const auto* circle = std::get_if<rtype::contract::renderer::CircleShape>(&effect->desc.shape);
+    ASSERT_NE(circle, nullptr);
+    EXPECT_FLOAT_EQ(circle->radius, 4.0F);
+    EXPECT_TRUE(circle->edgeOnly);
+    EXPECT_FLOAT_EQ(effect->desc.lifetime.max, 0.5F);
+    EXPECT_FLOAT_EQ(effect->desc.size.min, 1.0F);  // not given: the default
+    ASSERT_EQ(effect->desc.bursts.size(), 1U);
+    EXPECT_EQ(effect->desc.bursts[0].count, 16U);
+    ASSERT_EQ(effect->desc.colorOverLife.keys.size(), 2U);
+    EXPECT_FLOAT_EQ(effect->desc.colorOverLife.keys[1].value.w, 0.0F);
+    EXPECT_TRUE(effect->desc.sizeOverLife.keys.empty());
+    ASSERT_EQ(effect->desc.speedOverLife.keys.size(), 1U);
+    EXPECT_EQ(effect->texture, AssetId::fromPath("spark.png"));
+    EXPECT_EQ(effect->blend, rtype::contract::renderer::BlendMode::kAlpha);
+    EXPECT_EQ(effect->alignment, rtype::contract::renderer::ParticleAlignment::kVelocity);
+    EXPECT_EQ(effect->flipbook.columns, 4U);
+    EXPECT_TRUE(resources.require<particle::ParticleEffectDrafts>().effects.empty());
+}
+
+TEST(ParticleCalls, MistakesThrowAParticleException) {
+    namespace particle = rtype::plugins::particle;
+    using rtype::contract::renderer::exceptions::ParticleException;
+    rtype::ecs::App app;
+    addParticlePlugins(app);
+    EXPECT_THROW(call<void>(app, particle::kBeginEffectCall, particle::BeginEffectArguments{}), ParticleException);
+    EXPECT_THROW(call<void>(app, particle::kBeginEffectCall, particle::BeginEffectArguments{.name = "a", .blend = "x"}),
+                 ParticleException);
+    EXPECT_THROW(
+        call<void>(app, particle::kBeginEffectCall, particle::BeginEffectArguments{.name = "a", .flipbookRows = 0}),
+        ParticleException);
+    EXPECT_THROW(call<void>(app, particle::kAddBurstCall, particle::AddBurstArguments{.name = "never", .count = 1}),
+                 ParticleException);
+
+    call<void>(app, particle::kBeginEffectCall, particle::BeginEffectArguments{.name = "a"});
+    EXPECT_THROW(call<void>(app, particle::kAddCurveKeyCall, particle::AddCurveKeyArguments{.name = "a", .curve = "x"}),
+                 ParticleException);
+    call<void>(app, particle::kAddCurveKeyCall, particle::AddCurveKeyArguments{.name = "a", .t = 2.0F});
+    try {
+        static_cast<void>(
+            call<particle::EffectResult>(app, particle::kAddEffectCall, particle::AddEffectArguments{.name = "a"}));
+        ADD_FAILURE() << "an effect with a key at t = 2 was added";
+    } catch (const ParticleException& error) {
+        EXPECT_NE(std::string_view{error.what()}.find("Particle effect 'a'"), std::string_view::npos) << error.what();
+    }
+    // The invalid draft is gone: it does not come back with the next try.
+    EXPECT_THROW(static_cast<void>(call<particle::EffectResult>(app, particle::kAddEffectCall,
+                                                                particle::AddEffectArguments{.name = "a"})),
+                 ParticleException);
+    EXPECT_EQ(app.getWorld().getResources().require<particle::ParticleEffectAssets>().getCount(), 0U);
 }
 
 // ---- texture, font, tilemap ----

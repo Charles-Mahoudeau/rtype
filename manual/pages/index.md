@@ -25,6 +25,7 @@ own.
 - **Engine calls** let scripts use what plain data cannot express: loading an asset, playing a sound, asking the
   physics. See [Engine calls](engine-calls.md) and [Setup forms](setup-forms.md).
 - **The user interface** is built from tables: menus, HUDs, buttons, sliders. See [User interface](ui.md).
+- **Particle effects** (sparks, smoke, trails) are tables too. See [Particles](particles.md).
 
 ## Client and server
 

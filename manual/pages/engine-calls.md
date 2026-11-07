@@ -105,4 +105,6 @@ See [Physics](physics.md).
 ### Shaders and particles
 
 The shader plugin has `engine.assets.shader` and `engine.assets.material` forms, see [Setup forms](setup-forms.md).
-Particle effects are *planned* for scripts.
+Particle effects have the `engine.assets.particle` form, see [Particles](particles.md). It is made of the calls
+`rtype.particle.beginEffect`, `rtype.particle.addBurst`, `rtype.particle.addColorKey`, `rtype.particle.addCurveKey` and
+`rtype.particle.addEffect` (client); use the form rather than the calls.

@@ -85,6 +85,7 @@ plugin("text", {"plugin-graphics", "plugin-shader", "plugin-transform"})
 
 plugin("particle", {"plugin-graphics", "plugin-shader", "plugin-transform"})
     add_files("particle/**.cpp")
+    add_files("particle/ParticleForms.luau")
     add_headerfiles("particle/**.hpp", "particle/**.tpp")
 
 plugin("audio", {"contract-audiodevice", "plugin-transform"})

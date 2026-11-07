@@ -30,8 +30,8 @@ namespace rtype::plugins::particle {
 ///
 /// @details Every effect is checked (contract::renderer::validate()) before it is stored. A file that cannot be read,
 /// has no loader or describes an invalid effect is recorded as failed, with the reason, which is also printed: one
-/// broken effect does not stop the game. No loader is registered by default; until the Luau one exists, effects are
-/// built in C++.
+/// broken effect does not stop the game. No loader is registered by default: effects are built in C++, or by scripts
+/// with the `engine.assets.particle` setup form (ParticleCalls.hpp).
 /// @code
 /// rtype::plugins::particle::ParticleEffect sparks;
 /// sparks.desc.bursts.push_back({.count = 32});

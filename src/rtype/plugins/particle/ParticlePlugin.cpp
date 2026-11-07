@@ -27,6 +27,7 @@
 #include "plugins/graphics/SpriteQueue.hpp"
 #include "plugins/graphics/TextureAssets.hpp"
 #include "plugins/particle/CpuSimulation.hpp"
+#include "plugins/particle/ParticleCalls.hpp"
 #include "plugins/particle/ParticleEffect.hpp"
 #include "plugins/particle/ParticleEffectAssets.hpp"
 #include "plugins/particle/ParticleEmitter.hpp"
@@ -294,6 +295,7 @@ void ParticlePlugin::build(ecs::App& app) {
     ecs::Resources& resources = app.getWorld().getResources();
     resources.insertIfAbsent<ParticleEffectAssets>();
     resources.getMut<ParticleEffectAssets>()->setDirectory(assetDirectoryOf(resources));
+    resources.insertIfAbsent<ParticleEffectDrafts>();
     resources.insertIfAbsent<ParticleSystems>();
     resources.insertIfAbsent<graphics::TextureAssets>();
     resources.insertIfAbsent<graphics::SpriteQueue>();
@@ -301,6 +303,7 @@ void ParticlePlugin::build(ecs::App& app) {
     static_cast<void>(app.getWorld().getComponents().registerType<ParticleOneShot>());
     static_cast<void>(app.getWorld().getEvents().registerType<SpawnParticles>());
     static_cast<void>(app.getWorld().getEvents().registerType<ParticlesFinished>());
+    addParticleCalls(app);
 
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kSpawnSystem}, &spawnParticles).setSide(ecs::Side::kClient);
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kUpdateSystem}, &updateEmitters)

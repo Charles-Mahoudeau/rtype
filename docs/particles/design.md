@@ -30,8 +30,8 @@ the CPU when the renderer cannot simulate it, so every backend can show every ef
 
 - **A general-purpose engine, not a shoot'em up only.** Tens of thousands of particles on screen (smoke, sparks,
   debris, rain, magic) without the CPU noticing, not a few hundred.
-- **Effects are data.** An effect is a value describing how particles spawn, move, age and look; it is built in C++
-  first, loaded from Luau files later ([Luau](#12-luau)).
+- **Effects are data.** An effect is a value describing how particles spawn, move, age and look; it is built in C++, or
+  by a script with the `engine.assets.particle` setup form ([Luau](#12-luau)).
 - **Gameplay never sees where particles live.** It adds a `ParticleEmitter` to an entity and plays or stops it; whether
   the particles are simulated by the CPU or by a compute shader changes nothing for it.
 - **Client only, never replicated.** Particles are cosmetic: the server never simulates them, and two clients may show
@@ -83,7 +83,9 @@ src/rtype/plugins/particle/           namespace rtype::plugins::particle        
 ├── ParticlePlugin.hpp/.cpp           the plugin: registers, inserts the resources, adds the systems
 ├── ParticleEffect.hpp                an effect: a ParticleSystemDesc plus how its particles look
 ├── ParticleEffectAssets.hpp/.cpp     the effects by AssetId (resource), with the file loaders by extension
-├── IParticleEffectLoader.hpp         what a file format implements to build an effect (Luau later)
+├── IParticleEffectLoader.hpp         what a file format implements to build an effect (none yet)
+├── ParticleCalls.hpp/.cpp            the engine calls of the setup form, and their drafts (resource)
+├── ParticleForms.luau                engine.assets.particle, the setup form
 ├── ParticleEmitter.hpp               an effect played at an entity (component)
 ├── ParticleEvents.hpp                SpawnParticles, ParticlesFinished
 ├── ParticleSystems.hpp/.cpp          each emitter's live state, CPU pool or GPU id (resource)
@@ -426,19 +428,38 @@ parent. Sub-emitters on collision come with collisions.
 
 ## 12. Luau
 
-Effects will be written in Luau files, as the project settings are. The Luau is run **once, when the effect is
-loaded**, and builds a `ParticleEffect`; it never runs per particle (the particles are on the GPU, where no Luau VM
-runs). Gameplay scripts drive emitters (play, stop, `rateScale`) like any component.
+### From scripts
 
-`plugins` does not depend on `luau`, so the Luau loader lives outside it:
+A game describes its effects in its scripts, with the `engine.assets.particle` setup form
+(`plugins/particle/ParticleForms.luau`, manual page `manual/pages/particles.md`). The Luau runs **once, while the
+scripts load**, and builds a `ParticleEffect`; it never runs per particle (the particles are on the GPU, where no Luau
+VM runs). Gameplay scripts drive emitters (`playing`, `rateScale`, `effect`) like any component, and play one-shots with
+the `SpawnParticles` event.
 
-- `ParticleEffectAssets` has a registry of loaders by file extension (`IParticleEffectLoader`), filled by the
-  executable, as `BackendRegistry` and `AudioRegistry` are.
-- Some code that depends on both `plugins` and `luau` registers the `.luau` loader, as `replication` is the only code
-  that knows both the ECS and the network. Its name and place are chosen when it is written; all this design commits to
-  is that the plugin needs no change to accept it.
+Call data cannot hold a list, and an effect has four (bursts, the colour, size and speed curves), so the form is thin
+over five engine calls (`plugins/particle/ParticleCalls.hpp`), all on the client:
 
-Until then, effects are built in C++ with `ParticleEffectAssets::add()`.
+| Call | Arguments | What it does |
+|---|---|---|
+| `rtype.particle.beginEffect` | `name` and every scalar of the effect, flat: `lifetimeMin`/`lifetimeMax`..., `shape` (`"point"`, `"circle"`, `"rect"`) with `radius`, `edgeOnly`, `rectSize`, enums as names (`blend`, `alignment`, `space`, `simulation`) | starts a draft, replacing one of the same name |
+| `rtype.particle.addBurst` | `name`, `time`, `count`, `cycles`, `interval` | appends a burst to the draft |
+| `rtype.particle.addColorKey` | `name`, `t`, `color` | appends a key to its `colorOverLife` |
+| `rtype.particle.addCurveKey` | `name`, `curve` (`"size"` or `"speed"`), `t`, `value` | appends a key to its `sizeOverLife` or `speedOverLife` |
+| `rtype.particle.addEffect` | `name` | validates the draft and moves it to `ParticleEffectAssets::add()`; returns `{ effect }` |
+
+The drafts are the resource `ParticleEffectDrafts`, so the effect stored is always whole and valid: an effect is never
+changed once it is in `ParticleEffectAssets`, and a draft that fails validation is dropped, not left half-built. The
+errors are `contract::renderer::exceptions::ParticleException`s naming the effect (`Particle effect 'a': ...`) or the
+unknown name (`Unknown blend 'glow' (expected ...)`). Adding a name twice keeps the first effect, as for materials.
+
+The forms are registered from the plugin's library on every side, so a server, which has no particles, still checks the
+table and gets the id (`engine.assetId(name)`).
+
+### Effect files
+
+`ParticleEffectAssets` still has a registry of loaders by file extension (`IParticleEffectLoader`), for effects in files
+of their own. None is registered yet. A loader of `.luau` effect files, one effect per file, may come later (#325): it
+would live outside `plugins`, which does not depend on `luau`, and register itself with `addLoader(".luau", ...)`.
 
 ## 13. Implementation plan
 
@@ -460,7 +481,8 @@ Each step builds and is tested on its own, in this order:
    `ParticleInstance::life`, now how far into its life a particle is); sorting by age for `kAlpha` (`sortByAge`,
    `std::ranges::sort` on the CPU, `particle_sort.comp` on the GPU). Done.
 6. **Sub-emitters,** on birth and death, CPU then GPU.
-7. **Luau:** the loader registry, then the Luau loader, once the Luau module is ready.
+7. **Luau:** the loader registry (done), then the `engine.assets.particle` setup form and its calls (done). A loader of
+   `.luau` effect files may follow (#325).
 8. **Docs:** `CLAUDE.md` (structure), `docs/Backend.md` (the new `IRenderer` calls), a user guide like
    `docs/Sprites.md`.
 
@@ -475,8 +497,8 @@ Settled:
    `GraphicsPlugin`.
 3. **A CPU path, chosen per effect or emitter, and the fallback** of an effect that asks for the GPU on a renderer that
    cannot simulate it.
-4. **Effects in C++ first,** Luau later through a loader registered from outside `plugins`; the plugin is designed so
-   that it can accept one, and the name and place of that code are chosen when it is written.
+4. **Effects in C++ first, then from scripts** through the `engine.assets.particle` setup form and its engine calls
+   ([Luau](#12-luau)); a loader of effect files may follow.
 5. **No global setting:** the CPU/GPU choice per effect and per emitter is enough.
 6. **No global budget:** each effect has its own capacity, and that is the only limit.
 7. **Sub-emitters** are planned after the first version, as described in [Sub-emitters](#11-sub-emitters).

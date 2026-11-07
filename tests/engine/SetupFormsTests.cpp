@@ -136,6 +136,22 @@ TEST(SetupForms, MistakesAreErrorsNamingTheForm) {
               std::string::npos);
 }
 
+TEST(SetupForms, AParticleFormIsCheckedAndGivesTheIdWithoutThePlugin) {
+    const BareApp script;
+    EXPECT_EQ(script.run(std::format(R"(
+        local sparks = engine.assets.particle({{
+            name = "sparks", rate = 20, lifetime = {{ min = 0.2, max = 0.4 }},
+            bursts = {{ {{ count = 8 }} }}, colorOverLife = {{ {{ t = 0, color = {{ 1, 1, 1 }} }} }},
+        }})
+        assert(tostring(sparks) == "{}")
+    )",
+                                     printedId("sparks"))),
+              "");
+    EXPECT_NE(script.run(R"(engine.assets.particle({ name = "a", lifetime = "long" }))")
+                  .find("engine.assets.particle: 'lifetime': expected a number or a table"),
+              std::string::npos);
+}
+
 TEST(SetupForms, ShaderFormsGiveTheIdsWithoutThePlugin) {
     const BareApp script;
     ASSERT_EQ(script.run(R"(
