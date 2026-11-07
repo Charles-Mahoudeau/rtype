@@ -5,8 +5,9 @@ target("aylo-sign")
     add_deps("engine")
     add_packages("libsodium")
     add_files("main.cpp")
-    -- In the release zip it is in `tools/`, next to `runtime/`, which holds the libraries it links. On Windows the
-    -- packaging copies the DLLs next to it, as there is no rpath there.
+    -- In the release zip it is in `tools/`, next to `runtime/`, which holds the libraries it links (`lib/`, and the
+    -- plugins the engine links in `plugins/`). On Windows the packaging copies the DLLs next to it, as there is no
+    -- rpath there.
     if not is_plat("windows") then
-        add_rpathdirs("@loader_path/../runtime")
+        add_rpathdirs("@loader_path/../runtime/lib", "@loader_path/../runtime/plugins")
     end

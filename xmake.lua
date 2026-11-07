@@ -26,10 +26,6 @@ if is_plat("windows") then
     -- The dynamic C runtime, shared by every library of the engine (C++ types cross their boundaries). Its DLLs go in
     -- the release folder next to the executable.
     set_runtimes(is_mode("debug") and "MDd" or "MD")
-else
-    -- Every binary looks for its libraries in its own folder first, and does not rely on the executable having loaded
-    -- them (a search path is not inherited): the release holds the engine's libraries and the C++ runtime side by side.
-    add_rpathdirs("@loader_path")
 end
 
 -- Shared by several modules, so declared once here.
@@ -50,36 +46,64 @@ else
     add_requireconfs("glslang.spirv-tools", {system = false, override = true})
 end
 
--- Makes a shared library a plugin library: it appears in the `plugins` folder next to the executables (or the folder
--- `rtype.plugin_folder` names), where the Engine finds it. The folder links to the library rather than holding a second
--- file, which would load twice; on Windows, where SharedLibrary shares the modules of the same name, it is a copy.
-rule("rtype.plugin_library")
+-- The layout of what is built, the same in the build folder and in the release zip (docs/release/package.md):
+--
+--   aylo-runtime            the executables (and the tests) at the root of the folder
+--   lib/                    the shared libraries that are not plugins: `ecs`, the contracts, `engine`...
+--   plugins/                the plugin libraries, real files; the Engine scans it
+--   plugins/backends/       the platform, renderer and audio backends; the Engine scans it too
+--
+-- A library knows where its dependencies are from its own folder (rpath on Linux and macOS, all inside the folder).
+-- Windows has no rpath: the DLLs an executable links are copied next to it, and SharedLibrary adds `lib/` to the folders
+-- a plugin's DLLs are looked for in.
+rule("rtype.layout")
     on_load(function (target)
-        if not target:is_plat("windows") then
-            -- Opened through the folder, it finds what it links in its own folder (the other plugins) and in every
-            -- folder above it, up to the one holding the executable: `plugins/x.so` looks in `plugins/` and `.`,
-            -- `plugins/backends/x.so` in `plugins/backends/`, `plugins/` and `.`. Every entry stays inside the release
-            -- folder, which is what `.github/scripts/check-self-contained.sh` checks.
-            local folder = target:extraconf("rules", "rtype.plugin_library", "folder") or "plugins"
-            local up = "@loader_path"
-            target:add("rpathdirs", up)
-            for _ = 1, #path.split(folder) do
-                up = up .. "/.."
-                target:add("rpathdirs", up)
+        local kind = target:kind()
+        if (kind ~= "shared" and kind ~= "binary") or target:rule("rtype.plugin_library") or target:rule("rtype.game_plugin") then
+            return
+        end
+        if kind == "shared" then
+            target:set("targetdir", path.join(target:targetdir(), "lib"))
+            if not target:is_plat("windows") then
+                target:add("rpathdirs", "@loader_path")
+            end
+        elseif not target:is_plat("windows") then
+            -- `plugins/` for the plugin libraries an executable links (the engine's transform and input plugins).
+            target:add("rpathdirs", "@loader_path/lib", "@loader_path/plugins")
+        end
+    end)
+    after_build(function (target)
+        if target:kind() == "binary" and target:is_plat("windows") then
+            -- Only the DLLs it depends on: the others may still be linking, and Windows refuses to read a file being written.
+            for _, dep in ipairs(target:orderdeps()) do
+                if dep:kind() == "shared" then
+                    os.cp(dep:targetfile(), target:targetdir())
+                end
             end
         end
     end)
-    -- No search path to the folder of a package: they are static, and that folder is a build path a release must not
-    -- hold. A shared package would make the self-contained check fail, which is the point.
-    after_build(function (target)
-        local folder = path.join(target:targetdir(), target:extraconf("rules", "rtype.plugin_library", "folder") or "plugins")
-        local file = path.join(folder, path.filename(target:targetfile()))
-        os.mkdir(folder)
-        os.tryrm(file)
-        if target:is_plat("windows") then
-            os.cp(target:targetfile(), file)
-        else
-            os.ln(path.absolute(target:targetfile()), file)
+rule_end()
+add_rules("rtype.layout")
+
+-- Makes a shared library a plugin library: it is built into the `plugins` folder next to the executables (or the folder
+-- `folder` names, `plugins/backends` for a backend), where the Engine finds it. It is the only copy of the library:
+-- the plugins it links are in its own folder, the other libraries in `lib/`.
+rule("rtype.plugin_library")
+    on_load(function (target)
+        local folder = target:extraconf("rules", "rtype.plugin_library", "folder") or "plugins"
+        target:set("targetdir", path.join(target:targetdir(), folder))
+        if not target:is_plat("windows") then
+            -- A plugin finds the plugins it links beside it, and `lib/` one folder up; a backend, one folder deeper, only
+            -- `lib/`. Every entry stays inside the release folder, which is what `.github/scripts/check-self-contained.sh`
+            -- checks.
+            local up = "@loader_path"
+            for _ = 1, #path.split(folder) do
+                up = up .. "/.."
+            end
+            if folder == "plugins" then
+                target:add("rpathdirs", "@loader_path")
+            end
+            target:add("rpathdirs", up .. "/lib")
         end
     end)
 rule_end()
@@ -89,12 +113,13 @@ rule_end()
 -- root's scan of `game/plugins/`) includes that file.
 rule("rtype.game_plugin")
     on_load(function (target)
-        -- The library stays in the game: it links the engine's libraries through their folder.
+        -- The library stays in the game: it links the engine's libraries through their folders.
         local folder = path.directory(target:scriptdir())
         target:set("targetdir", folder)
         if not target:is_plat("windows") then
             local build = path.join(os.projectdir(), "build", target:plat(), target:arch(), get_config("mode") or "release")
-            target:add("rpathdirs", path.join("@loader_path", path.relative(build, folder)))
+            target:add("rpathdirs", path.join("@loader_path", path.relative(path.join(build, "lib"), folder)),
+                       path.join("@loader_path", path.relative(path.join(build, "plugins"), folder)))
         end
     end)
 rule_end()
@@ -103,22 +128,24 @@ rule_end()
 rule("rtype.copy_to_root")
     on_load(function (target)
         if not target:is_plat("windows") then
-            -- The build folder, where the binary finds its libraries before it is packaged...
-            target:add("rpathdirs", path.join("@loader_path", path.relative(target:targetdir(), os.projectdir())))
-            -- ...and `plugins/`, where a release holds the plugin libraries it links (transform, input): they are not
-            -- at its root, so the folder above `plugins/` is never searched by them (see rtype.plugin_library).
-            target:add("rpathdirs", "@loader_path/plugins")
+            -- The build folder, where the binary finds its libraries and plugins before it is packaged.
+            local build = path.join("@loader_path", path.relative(target:targetdir(), os.projectdir()))
+            target:add("rpathdirs", path.join(build, "lib"), path.join(build, "plugins"))
         end
     end)
     after_build(function (target)
         os.cp(target:targetfile(), os.projectdir())
-        -- The plugin libraries, where the Engine looks for them: next to the executable.
-        local plugins = path.join(os.projectdir(), "plugins")
-        os.tryrm(plugins)
-        if target:is_plat("windows") then
-            os.cp(path.join(target:targetdir(), "plugins"), plugins)
-        else
-            os.ln(path.absolute(path.join(target:targetdir(), "plugins")), plugins)
+        -- The folders next to the executable, where the Engine looks for the plugins: links to those of the build, which
+        -- are real files (a copy on Windows, which has no link it can count on).
+        for _, folder in ipairs({"plugins", "lib"}) do
+            local from = path.join(target:targetdir(), folder)
+            local to = path.join(os.projectdir(), folder)
+            os.tryrm(to)
+            if target:is_plat("windows") then
+                os.cp(from, to)
+            elseif folder == "plugins" then
+                os.ln(path.absolute(from), to)
+            end
         end
         if target:is_plat("windows") then
             -- No rpath there, so its DLLs go next to it. Only those it depends on: the others may still be linking, and

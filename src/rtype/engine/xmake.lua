@@ -15,9 +15,9 @@ target("engine")
     -- The plugins the Engine names: the transform plugin, which every game has, and the input plugin, which NetworkInput
     -- reads. The others are loaded from their libraries.
     add_deps("luau", "scripting", "replication", "plugin-transform", "plugin-input")
-    -- In a release, those two plugin libraries are in `plugins/` like the others, not next to the engine.
+    -- Those two plugin libraries are in `plugins/` like the others, next to `lib/`, which holds the engine.
     if not is_plat("windows") then
-        add_rpathdirs("@loader_path/plugins")
+        add_rpathdirs("@loader_path/../plugins")
     end
     add_files("**.cpp")
     add_headerfiles("**.hpp")
