@@ -158,10 +158,10 @@ turns this off, or a game could disable its own check.
   signature of the library's bytes.
 
 ```sh
-rtype-sign keygen root                          # once, by the project: root.pub, root.key
-rtype-sign keygen dev                           # by the developer: dev.pub, dev.key
-rtype-sign certify root.key dev.pub             # by the project: dev.pub.cert
-rtype-sign sign dev.key dev.pub libgame-boss.so # by the developer, after each build: libgame-boss.so.sig
+aylo-sign keygen root                          # once, by the project: root.pub, root.key
+aylo-sign keygen dev                           # by the developer: dev.pub, dev.key
+aylo-sign certify root.key dev.pub             # by the project: dev.pub.cert
+aylo-sign sign dev.key dev.pub libgame-boss.so # by the developer, after each build: libgame-boss.so.sig
 ```
 
 What a signature does not do:

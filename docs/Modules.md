@@ -158,7 +158,7 @@ architecture rules, and this file keeps the detail, which changes with every fea
     - `plugins/AssetIdReflection.hpp` — lets components reflect `core::asset::AssetId` fields (`kAssetId`).
     - `plugins/AssetDirectory.hpp` — the `AssetDirectory` resource the `Engine` inserts: `<game>/assets`, where every
       asset path starts and which it cannot leave (`core::asset::resolveAssetPath()`).
-- `src/rtype/tools/sign/` — `rtype-sign`: the keys and signatures of the game plugins (`docs/Plugins.md`).
+- `src/rtype/tools/sign/` — `aylo-sign`: the keys and signatures of the game plugins (`docs/Plugins.md`).
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
   `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
   (`IVulkanSurfaceSource`). See `docs/Backend.md`.

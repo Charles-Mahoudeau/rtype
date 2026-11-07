@@ -37,7 +37,7 @@ One line per module; the detail of each (classes, files) is in `docs/Modules.md`
 | `src/rtype/platform/`, `render/`, `audio/` | `platform-*`, `render-*`, `audio-*` | Backends fulfilling a contract; each wraps one third-party library |
 | `src/rtype/interop/` | `interop-*` | What a renderer needs from a platform, per graphics API |
 | `src/rtype/plugins/` | `plugin-*` | The engine features as ECS plugins, one shared library each, loaded by the engine: transform, input, graphics, sprite, physics... (`docs/Plugins.md`) |
-| `src/rtype/tools/` | `rtype-sign` | Command line tools; `rtype-sign` makes the keys and signatures of the game plugins (`docs/Plugins.md#signatures`) |
+| `src/rtype/tools/` | `aylo-sign` | Command line tools; `aylo-sign` makes the keys and signatures of the game plugins (`docs/Plugins.md#signatures`) |
 | `src/rtype/runtime/` | `aylo-runtime` | The generic executable, a client or with `--server` the server: it links no plugin and no backend, the engine loads them |
 | `examples/` | per example | Standalone examples; `examples/games/` holds the games |
 | `tests/<module>/` | `<module>-tests` | GoogleTest, one folder per module |

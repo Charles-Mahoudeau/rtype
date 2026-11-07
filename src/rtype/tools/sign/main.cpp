@@ -5,10 +5,10 @@
 ** main
 */
 
-// rtype-sign: makes the keys and signatures of the game plugins.
-//   rtype-sign keygen <name>                   writes <name>.pub and <name>.key
-//   rtype-sign certify <root.key> <dev.pub>    writes <dev.pub>.cert, the root's signature of a developer's key
-//   rtype-sign sign <dev.key> <dev.pub> <library>  writes <library>.sig, with the certificate <dev.pub>.cert
+// aylo-sign: makes the keys and signatures of the game plugins.
+//   aylo-sign keygen <name>                   writes <name>.pub and <name>.key
+//   aylo-sign certify <root.key> <dev.pub>    writes <dev.pub>.cert, the root's signature of a developer's key
+//   aylo-sign sign <dev.key> <dev.pub> <library>  writes <library>.sig, with the certificate <dev.pub>.cert
 
 #include <sodium/core.h>
 #include <sodium/crypto_sign.h>
@@ -131,7 +131,7 @@ int main(const int argc, char** argv) {
         } else if (command == "sign" && args.size() == 5) {
             sign(args.at(2), args.at(3), args.at(4));
         } else {
-            std::cerr << "Usage: rtype-sign keygen <name> | certify <root.key> <dev.pub> | "
+            std::cerr << "Usage: aylo-sign keygen <name> | certify <root.key> <dev.pub> | "
                          "sign <dev.key> <dev.pub> <library>\n";
             return kErrorCode;
         }
