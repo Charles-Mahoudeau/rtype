@@ -76,8 +76,8 @@ inputs.
 ## Running
 
 ```sh
-./r-type_server --game my_game/game --port 4242
-./r-type_client --game my_game/game --host 127.0.0.1 --port 4242
+./aylo-runtime --server --game my_game/game --port 4242
+./aylo-runtime --game my_game/game --host 127.0.0.1 --port 4242
 ```
 
 Set `network.port` and `network.host` in `project.luau` from `engine.args` (see [Project settings](project-settings.md)).

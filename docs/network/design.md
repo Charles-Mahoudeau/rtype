@@ -99,8 +99,8 @@ An arrow means "is used by".
 
 | Target | Kind | Folder / namespace | Contains | Depends on |
 |---|---|---|---|---|
-| `network` | shared library (`rtype-network`) | `src/rtype/network/`, `rtype::network` | UDP socket and I/O thread, handshake and sessions, sequence numbers and acks, reliable channel, message packing, `ByteWriter` / `ByteReader`, lobby routing | Asio only. No ECS, no engine. |
-| `replication` | shared library (`rtype-replication`) | `src/rtype/replication/`, `rtype::replication` | `ReplicationPlugin` (shared types, `InputLayout`), `ServerPlugin` / `ClientPlugin` and their systems, `NetworkId` / `Owner` / `PlayerInput` / `Interpolated`, manifest, snapshot writer and reader, per-client ack bookkeeping, input buffers, custom packet registry | `ecs`, `network` |
+| `network` | static library (`rtype-network`) | `src/rtype/network/`, `rtype::network` | UDP socket and I/O thread, handshake and sessions, sequence numbers and acks, reliable channel, message packing, `ByteWriter` / `ByteReader`, lobby routing | Asio only. No ECS, no engine. |
+| `replication` | static library (`rtype-replication`) | `src/rtype/replication/`, `rtype::replication` | `ReplicationPlugin` (shared types, `InputLayout`), `ServerPlugin` / `ClientPlugin` and their systems, `NetworkId` / `Owner` / `PlayerInput` / `Interpolated`, manifest, snapshot writer and reader, per-client ack bookkeeping, input buffers, custom packet registry | `ecs`, `network` |
 | `engine` | library (today the executable) | `src/rtype/engine/` | The engine shared by both executables | `plugins`, `ecs`, `luau` |
 | `client` | executable | | The game with a window. Can also host a game ([listen server](#4-topology-and-run-modes)). | `engine`, `replication`, `platform-glfw`, `render-vulkan` |
 | `server` | executable, headless | | The dedicated server | `engine`, `replication`. **Never** `platform-glfw` or `render-vulkan`, so it starts on a machine with no display or GPU. |

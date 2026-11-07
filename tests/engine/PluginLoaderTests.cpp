@@ -51,7 +51,7 @@ class PluginLoaderTest : public ::testing::Test {
 
     /// @brief Copies the fixture library to @p directory.
     static void addFixture(const std::filesystem::path& directory) {
-        std::filesystem::copy_file(rtype::core::system::getExecutableDirectory() / fixtureName(),
+        std::filesystem::copy_file(rtype::core::system::getExecutableDirectory() / "plugins" / fixtureName(),
                                    directory / fixtureName());
     }
 

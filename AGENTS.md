@@ -37,8 +37,8 @@ One line per module; the detail of each (classes, files) is in `docs/Modules.md`
 | `src/rtype/platform/`, `render/`, `audio/` | `platform-*`, `render-*`, `audio-*` | Backends fulfilling a contract; each wraps one third-party library |
 | `src/rtype/interop/` | `interop-*` | What a renderer needs from a platform, per graphics API |
 | `src/rtype/plugins/` | `plugin-*` | The engine features as ECS plugins, one shared library each, loaded by the engine: transform, input, graphics, sprite, physics... (`docs/Plugins.md`) |
-| `src/rtype/tools/` | `rtype-sign` | Command line tools; `rtype-sign` makes the keys and signatures of the game plugins (`docs/Plugins.md#signatures`) |
-| `src/rtype/client/`, `server/` | executables | The generic `r-type_client` and `r-type_server`: they link no plugin and no backend, the engine loads them |
+| `src/rtype/tools/` | `aylo-sign` | Command line tools; `aylo-sign` makes the keys and signatures of the game plugins (`docs/Plugins.md#signatures`) |
+| `src/rtype/runtime/` | `aylo-runtime` | The generic executable, a client or with `--server` the server: it links no plugin and no backend, the engine loads them |
 | `examples/` | per example | Standalone examples; `examples/games/` holds the games |
 | `tests/<module>/` | `<module>-tests` | GoogleTest, one folder per module |
 | `docs/` | | Design docs for engine developers |
@@ -77,10 +77,14 @@ ecs, contract-*  <-  plugin-*                   (loaded by the engine, built bef
 luau <-  scripting
 network  <-  replication
 ecs      <-  replication, scripting
-scripting, replication, plugin-transform, plugin-input  <-  engine  <-  executables, examples
+scripting, replication  <-  engine  <-  executables, examples
 ```
 
-- `core` depends on no project target; `ecs` on `core` only. `core` is the only static library and keeps no state.
+- `core` depends on no project target; `ecs` on `core` only. `core` is static and keeps no state, so any library may
+  link it. `luau`, `network`, `replication`, `scripting` and `engine` are static too, linked into the executable: no
+  plugin, backend or contract may link them, since a shared library would get its own copy of their state. The build
+  refuses it (rule `rtype.static_modules`). `ecs` and the contracts stay shared: they hold what plugins and backends
+  share (registries, type information).
 - `network` depends on Asio only (private); `replication` is the only module that knows ECS and network; renderers,
   platforms and `luau` never include its headers.
 - A contract depends on `core` and glm only (the renderer contract also on the platform contract). No ECS type in a
@@ -89,9 +93,9 @@ scripting, replication, plugin-transform, plugin-input  <-  engine  <-  executab
   `interop-*`. A window library, miniaudio and the like never leave their backend folder.
 - A plugin depends on `core`, `ecs`, glm, the contracts and the plugins it requires, plus private packages. Never on a
   `platform-*`, `render-*`, `audio-*` or `luau` target.
-- `engine` links `core`, `ecs`, `luau`, `scripting`, `replication`, `plugin-transform` and `plugin-input`, and nothing
-  depends on it but the executables, examples and its tests. It links no other plugin and no backend: it loads them from
-  their libraries (`plugins/` next to the executable, `<game>/plugins/`), as `project.luau` names them. A program can
+- `engine` links `core`, `ecs`, `luau`, `scripting`, `replication`, and nothing depends on it but the executables,
+  examples and its tests. It links no plugin and no backend: it loads them from their libraries (`plugins/` next to the
+  executable, `<game>/plugins/`; `lib/` holds the rest), as `project.luau` names them. A program can
   still add plugins in code through `EngineConfig::addPlugins`.
 - The executables link no plugin and no backend; the build only makes them first (`plugin-libraries`,
   `backend-libraries`). A library exports one entry point (`RTYPE_PLUGIN_LIBRARY`, or `RTYPE_LIBRARY` for a backend,
@@ -102,8 +106,10 @@ scripting, replication, plugin-transform, plugin-input  <-  engine  <-  executab
 `xmake` with the `clang` toolchain and C++23.
 
 - Configure: `xmake f -y` (`-m release` for release). Build all: `xmake build -y`. One target: `xmake build engine`.
-- Run (the build copies the executables to the repository root): `./r-type_server` and `./r-type_client`, on `game/` or
-  `--game <dir>`; other `--name value` flags reach `project.luau` as `engine.args`.
+- Run (the build copies `aylo-runtime` to the repository root): `./aylo-runtime` (client) and `./aylo-runtime --server`,
+  on `game/` or `--game <dir>`; other `--name value` flags reach `project.luau` as `engine.args`. `./r-type_server` and
+  `./r-type_client` at the root are `sh` wrappers (`.bat` ones on Windows) that start it with the right side (the names
+  the subject asks for).
 - Duel example: `xmake f -y --rtype_duel=y`, then `xmake run rtype_duel server [--port <port>]` and
   `xmake run rtype_duel client [--host <host>] [--port <port>]` (or the generic executables with
   `--game examples/games/rtype_duel/game`).

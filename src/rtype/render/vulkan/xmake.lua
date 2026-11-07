@@ -1,8 +1,4 @@
 
-if not is_plat("macosx") then
-    add_requires("vulkan-loader 1.4.x", {alias = "vulkan-loader"})
-end
-
 add_requires("vulkan-memory-allocator 3.3.x", {alias = "vulkan-memory-allocator"})
 add_requires("vulkan-memory-allocator-hpp v3.3.0+3",
              {alias = "vulkan-memory-allocator-hpp", configs = {use_vulkanheaders = true}})
@@ -71,9 +67,12 @@ target("render-vulkan")
     add_deps("core", "contract-renderer", "interop-vulkan")
     add_packages("vulkan-headers", "vulkan-memory-allocator", "vulkan-memory-allocator-hpp", "glm", "stb", "imgui")
     add_packages("vulkan-headers", {public = true})
-    -- vk::raii::Context takes the linked vkGetInstanceProcAddr instead of dlopen()-ing its own loader. Public: it
-    -- changes the layout of vk::raii::Context, so every file including the renderer headers must agree on it.
+    -- vk::raii::Context takes the entry point core/Loader.cpp gives it instead of dlopen()-ing its own loader. Public:
+    -- it changes the layout of vk::raii::Context, so every file including the renderer headers must agree on it.
     add_defines("VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL=0", {public = true})
+    -- Nothing of the renderer links the Vulkan loader (it is opened at run time, so a release does not need it): VMA
+    -- must not bind the Vulkan functions itself. vma::raii::createAllocator gives it the ones of the dispatchers.
+    add_defines("VMA_STATIC_VULKAN_FUNCTIONS=0", "VMA_DYNAMIC_VULKAN_FUNCTIONS=0")
 
     if is_plat("macosx") then
         -- Homebrew's loader (brew install molten-vk vulkan-loader): xmake's is configured for its own prefix and
@@ -91,8 +90,6 @@ target("render-vulkan")
             local brewprefix = os.iorunv("brew", {"--prefix"}):trim()
             target:add("rpathdirs", path.join(brewprefix, "lib"), {public = true})
         end)
-    else
-        add_packages("vulkan-loader")
     end
     add_defines("RTYPE_RENDER_VULKAN_BUILD", {public = false})
     add_files("**.cpp")

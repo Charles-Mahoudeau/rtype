@@ -12,9 +12,9 @@ my_game/game/
   assets/         everything your game loads: images, sounds, fonts, maps             (required on a client)
 ```
 
-The same generic programs run every game: `r-type_server` (no window, no graphics) and `r-type_client`. You point them at
-your folder with `--game`. Nothing in the engine knows about your game, and your game never needs a program of its
-own.
+The same generic program, `aylo-runtime`, runs every game: as the client by default, and as the server (no window, no
+graphics) with `--server`. You point it at your folder with `--game`. Nothing in the engine knows about your game, and
+your game never needs a program of its own.
 
 ## What you write
 
@@ -38,6 +38,7 @@ clients draw it and send their inputs. The same scripts load on both sides, and 
 1. [Getting started](getting-started.md) runs an example game.
 2. [The R-Type Duel walkthrough](duel-walkthrough.md) reads a complete two-player game, file by file.
 3. The reference pages answer "what can I write here".
+4. [Shipping your game](shipping.md) explains how to download the engine and what to hand to your players.
 
 !!! note "Planned"
     Parts of the engine are still being built. Pages mark what does not exist yet as *planned*: do not rely on it.

@@ -6,7 +6,7 @@ the assets of a `game/` folder. It is not for engine work (that is `src/`).
 ## What you do and do not do
 
 - You write Luau and `project.luau`, and add assets. A game is the folder `game/` with `project.luau`, `scripts/` and
-  `assets/`, run by the generic executables: `./r-type_server --game <dir>` and `./r-type_client --game <dir>`.
+  `assets/`, run by the generic executables: `./aylo-runtime --server --game <dir>` and `./aylo-runtime --game <dir>`.
 - You never read or change C++ (`src/`, a game's own `src/` or `main`). The C++ parts of `rtype_duel` and of
   `ethan_game(bestoftheworld)` are a temporary step, not a model. Do not copy them.
 - Learn the API from the game developer manual in `manual/`. Until it covers a topic, `docs/scripting/plan.md` and

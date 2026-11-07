@@ -7,6 +7,14 @@ target("platform-glfw")
     -- Public: Registration.hpp includes PlatformRegistry.
     add_deps("core", "contract-platform", {public = true})
     add_packages("glfw")
+    -- On Linux, GLFW opens the X11 and Wayland libraries when it starts. The package lists them (and the thirty xcb
+    -- libraries they need) as links all the same, which would make the library need them to load, and a machine
+    -- without a display server (the headless server) would not load it. Only GLFW itself is linked.
+    before_link(function (target)
+        if target:is_plat("linux") then
+            target:pkg("glfw"):set("links", {"glfw3"})
+        end
+    end)
     -- GlfwPlatform implements IVulkanSurfaceSource. Public: GlfwPlatform.hpp includes it.
     add_deps("interop-vulkan", {public = true})
     add_files("**.cpp")

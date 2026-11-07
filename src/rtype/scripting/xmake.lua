@@ -1,11 +1,13 @@
 -- The Luau bridge: turns what scripts declare into ECS data.
 target("scripting")
-    set_kind("shared")
+    -- Static, linked into the executable: no plugin links it (rtype.static_modules enforces it).
+    set_kind("static")
     set_basename("rtype-scripting")
     add_files("**.cpp")
     add_headerfiles("**.hpp")
     add_deps("core", "ecs", "luau", {public = true})
     add_defines("RTYPE_SCRIPTING_BUILD", {public = false})
+    add_defines("RTYPE_SCRIPTING_STATIC", {public = true})
     add_includedirs("$(projectdir)/src", {public = true})
     add_packages("tl_expected", {public = true})
     -- Embeds the prelude of the setup forms as a byte array, included as "FormsPrelude.luau.h".

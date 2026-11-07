@@ -17,7 +17,8 @@ Read the root `AGENTS.md` first, then the `AGENTS.md` of the module you work in.
 - Includes: a sibling by its bare name, anything else from this folder as `rtype/<module>/...`. Never `../`.
 - Namespaces mirror the folder path under `rtype/`, except the exceptions a module's `AGENTS.md` states.
 - Every shared library marks what it exports with its own `RTYPE_<LIB>_API` macro; a type with no code of its own
-  (an interface, an exception) uses the header-only macro of `core`.
+  (an interface, an exception) uses the header-only macro of `core`. A static module (`luau`, `network`, `replication`,
+  `scripting`, `engine`) keeps the macro and defines `RTYPE_<LIB>_STATIC` publicly, so it expands to nothing.
 - Failures a correct program can hit are returned as results (`luau`, `scripting`); misuse and construction failures
   throw exceptions derived from `std::runtime_error`, kept in an `exceptions/` folder next to the code that throws them.
 - A third-party package is private to the module that wraps it: no public header includes it.

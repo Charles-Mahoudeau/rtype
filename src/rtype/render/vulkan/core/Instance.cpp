@@ -22,7 +22,7 @@ namespace rtype::render::vulkan::core {
 Instance::Instance(const std::string_view& appName, const std::string_view& engineName, uint32_t apiVersion,
                    std::vector<const char*> requiredExtensions, std::vector<const char*> layers,
                    ValidationOptions validation, const std::optional<vk::DebugUtilsMessengerCreateInfoEXT>& messenger)
-    : _context{getLoaderEntryPoint()} {
+    : _context{_loader.getEntryPoint()} {
     if (messenger && std::ranges::none_of(requiredExtensions, [](const char* extension) {
             return std::string_view{extension} == vk::EXTDebugUtilsExtensionName;
         })) {
@@ -46,8 +46,6 @@ Instance::Instance(const std::string_view& appName, const std::string_view& engi
 const vk::raii::Instance& Instance::getInstance() const { return _instance; }
 
 const vk::raii::Context& Instance::getContext() const { return _context; }
-
-PFN_vkGetInstanceProcAddr Instance::getLoaderEntryPoint() noexcept { return vkGetInstanceProcAddr; }
 
 void Instance::checkExtensionsSupported(std::span<const vk::ExtensionProperties> available,
                                         std::span<const char* const> required) {

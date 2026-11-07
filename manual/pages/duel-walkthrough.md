@@ -30,8 +30,8 @@ the other files a shared `Duel` table.
 ## Run it
 
 ```sh
-./r-type_server --game examples/games/rtype_duel/game
-./r-type_client --game examples/games/rtype_duel/game      # twice
+./aylo-runtime --server --game examples/games/rtype_duel/game
+./aylo-runtime --game examples/games/rtype_duel/game      # twice
 ```
 
 Or `xmake f -y --rtype_duel=y` then `xmake run rtype_duel server` and `xmake run rtype_duel client`.

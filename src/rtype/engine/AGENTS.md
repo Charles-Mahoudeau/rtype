@@ -1,12 +1,12 @@
 # engine — runs a game folder
 
 Reads a game folder's `project.luau`, loads the plugin and backend libraries it names, builds the app with them plus the
-engine's own, runs it, and rebuilds it on reload. Shared library `engine`.
+engine's own, runs it, and rebuilds it on reload. Static library `engine`, linked into the executable.
 
 ## Boundaries
 
-- Links `core`, `ecs`, `luau`, `scripting`, `replication`, the transform plugin and the input plugin, and nothing else.
-  It links no other plugin, no contract and no backend: it loads them (`plugin/`) from `plugins/` next to the executable
+- Links `core`, `ecs`, `luau`, `scripting`, `replication`, and nothing else.
+  It links no plugin, no contract and no backend: it loads them (`plugin/`) from `plugins/` next to the executable
   and from `<game>/plugins/`. A program can still add plugins in code through `EngineConfig::addPlugins`.
 - Nothing depends on it except the executables, the examples and its tests.
 - It names no game and contains no gameplay. A game reaches the engine only through settings, scripts and assets.
@@ -26,4 +26,4 @@ engine's own, runs it, and rebuilds it on reload. Shared library `engine`.
 
 - Tests: `tests/engine/` (`engine-tests`), which also holds the script-level tests of engine calls and setup forms.
 - Docs: `docs/engine/design.md`. The settings a game sees: `manual/`, updated with the `write-manual` skill whenever a setting changes.
-- The executables (`src/rtype/client/`, `src/rtype/server/`) only run the engine; they link no plugin and no backend.
+- The executable (`src/rtype/runtime/`) only runs the engine; it links no plugin and no backend.

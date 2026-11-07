@@ -36,6 +36,7 @@
 #include "command/CommandLabel.hpp"
 #include "core/DebugMessenger.hpp"
 #include "core/Instance.hpp"
+#include "core/Loader.hpp"
 #include "core/system/CacheDirectory.hpp"
 #include "core/system/ExecutablePath.hpp"
 #include "descriptor/DescriptorAllocator.hpp"
@@ -197,7 +198,8 @@ VulkanRenderer::~VulkanRenderer() {
 }
 
 void VulkanRenderer::setup(contract::platform::IPlatform& platform) {
-    surfaceSourceOf(platform).initLoader(core::Instance::getLoaderEntryPoint());
+    // The loader stays open for the process: the Instance created by init() opens the same one.
+    surfaceSourceOf(platform).initLoader(core::Loader{}.getEntryPoint());
 }
 
 void VulkanRenderer::init(contract::platform::IPlatform& platform) {

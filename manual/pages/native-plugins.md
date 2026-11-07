@@ -27,6 +27,6 @@ that is listed but missing stops the start with the names that exist.
 - A library is refused if it was built with another compiler or version than the engine.
 - A plugin is native code and can do anything the player can, so a **release** build of the engine opens a library of
   `<game>/plugins/` only if it comes with a signature from a developer the project vouches for (`<library>.sig`, made
-  with `rtype-sign`). A debug build checks nothing, as that is where plugins are written.
+  with `aylo-sign`). A debug build checks nothing, as that is where plugins are written.
 
 The folders, the entry points and the signatures in full are in `docs/Plugins.md` of the repository.

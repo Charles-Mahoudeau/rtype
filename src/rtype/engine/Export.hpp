@@ -9,10 +9,9 @@
 
 /// @brief Marks the classes and functions exported by the rtype-engine library.
 ///
-/// @details The library is built shared by default: `RTYPE_ENGINE_BUILD` is defined while building it, so
-/// the symbols are exported (`__declspec(dllexport)` on Windows, default visibility elsewhere) and
-/// imported by its users. Defining `RTYPE_ENGINE_STATIC` (publicly, when the target is switched to a static
-/// library) makes the macro expand to nothing.
+/// @details The library is static, linked into the executable: `RTYPE_ENGINE_STATIC` is defined publicly, so the
+/// macro expands to nothing. Built shared instead, `RTYPE_ENGINE_BUILD` is defined while building it, so the symbols
+/// are exported (`__declspec(dllexport)` on Windows, default visibility elsewhere) and imported by its users.
 #ifdef RTYPE_ENGINE_STATIC
 #define RTYPE_ENGINE_API
 #else

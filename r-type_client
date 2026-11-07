@@ -1,0 +1,4 @@
+#!/bin/sh
+# R-Type client: starts the AYLO runtime on the game in `game/`; any argument is passed on
+# (`--game <directory>`, `--port <port>`...).
+exec "$(dirname "$0")/aylo-runtime" "$@"

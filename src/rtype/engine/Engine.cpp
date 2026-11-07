@@ -17,6 +17,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 
@@ -36,6 +37,7 @@
 #include "rtype/engine/Exceptions.hpp"
 #include "rtype/engine/NetworkInput.hpp"
 #include "rtype/engine/plugin/PluginSignature.hpp"
+#include "rtype/engine/plugin/RequiredPlugin.hpp"
 #include "rtype/engine/reload/ProjectReloadable.hpp"
 #include "rtype/engine/reload/ScriptsReloadable.hpp"
 #include "rtype/engine/scripting/SettingsLoader.hpp"
@@ -43,7 +45,6 @@
 #include "rtype/network/io/Address.hpp"
 #include "rtype/plugins/AssetDirectory.hpp"
 #include "rtype/plugins/HotReload.hpp"
-#include "rtype/plugins/transform/TransformPlugin.hpp"
 #include "rtype/replication/ReplicationPlugin.hpp"
 #include "rtype/replication/ReplicationSettings.hpp"
 #include "rtype/replication/client/ClientPlugin.hpp"
@@ -57,6 +58,10 @@ constexpr bool kIsDebug = false;
 #else
 constexpr bool kIsDebug = true;
 #endif
+
+/// @brief The name of the transform plugin, the one plugin every game has (TransformPlugin::kName, which the Engine
+/// does not include; a test checks they are the same).
+constexpr std::string_view kTransformPlugin = "rtype.Transform";
 
 /// @return Whether @p mode runs the client side: a window, inputs and sound.
 bool runsClient(const rtype::ecs::RunMode mode) { return rtype::ecs::runsIn(rtype::ecs::Side::kClient, mode); }
@@ -299,7 +304,10 @@ void Engine::build() {
 
     registerLibraries();
     app.addPlugins(ecs::MinimalPlugins{});
-    app.addPlugin(plugins::transform::TransformPlugin{});
+    // Every game has it, and the Engine links it no more than the others: it comes from its library like a listed one.
+    app.addPlugin(plugin::createRequiredPlugin(
+        app.getPluginRegistry(), kTransformPlugin,
+        {core::system::getExecutableDirectory() / kPluginsDirectory, _gameDirectory / kPluginsDirectory}));
     if (_config.addPlugins) {
         _config.addPlugins(app, _settings);
     }

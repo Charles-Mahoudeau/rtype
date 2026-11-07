@@ -19,7 +19,8 @@ my_game/game/
   assets/           everything loaded, named by its path under assets/ (clients require the folder)
 ```
 
-Run it: `./r-type_server --game my_game/game` and `./r-type_client --game my_game/game`; every `--name value` flag is
+Run it: `./aylo-runtime --server --game my_game/game` and `./aylo-runtime --game my_game/game` (`./r-type_server` and
+`./r-type_client` are wrappers for them); every `--name value` flag is
 `engine.args.name` in `project.luau`. Model it on `examples/games/rtype_duel/game/`: `scripts/arena.luau` (the shared
 rules, loaded first because of its name), `scripts/server/*.luau` (gameplay), `scripts/client/*.luau` (presentation).
 

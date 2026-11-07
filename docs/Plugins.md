@@ -93,9 +93,16 @@ start, and the message lists those that exist.
 | `plugins/`, next to the executable | the engine's plugins | every side |
 | `plugins/backends/`, next to the executable | the platforms, renderers and audio devices | a client that names a `platform`, a `renderer` or an `audio.backend` |
 | `<game>/plugins/` | the game's own plugins | every side |
+| `lib/`, next to the executable | the libraries that are not plugins (`ecs`, the contracts, the C++ runtime...) | nothing: it is not scanned |
 
-The build fills `plugins/` next to the executables (rule `rtype.plugin_library`). A library in `<game>/plugins/` with the
-file name of an engine library stops the start: a game cannot silently replace part of the engine.
+The build makes this layout (rule `rtype.plugin_library` for `plugins/`, rule `rtype.layout` for `lib/`), and the release
+zip holds the same one: every library is one real file, in one folder. A plugin finds the plugins it links beside it
+and the other libraries in `lib/` (a relative rpath: `$ORIGIN` and `$ORIGIN/../lib`; a backend, one folder deeper,
+`$ORIGIN/../../lib`), so a plugin library is never opened from two places and loaded twice. `plugins/` holds plugins
+only: the Engine refuses a library with no entry point, which is why the others are in `lib/`. On Windows, which has no
+rpath, the DLLs the executable links sit next to it (the `lib/` ones included), which is where the plugins find them.
+A library in `<game>/plugins/` with the file name of an engine library stops the start: a game cannot silently replace
+part of the engine.
 
 Libraries stay loaded until the process ends, even through `Engine::requestReload()`, as what they built must outlive
 every App. A library and the engine must be built with the same compiler and version: `checkLibrary()` refuses another
@@ -158,10 +165,10 @@ turns this off, or a game could disable its own check.
   signature of the library's bytes.
 
 ```sh
-rtype-sign keygen root                          # once, by the project: root.pub, root.key
-rtype-sign keygen dev                           # by the developer: dev.pub, dev.key
-rtype-sign certify root.key dev.pub             # by the project: dev.pub.cert
-rtype-sign sign dev.key dev.pub libgame-boss.so # by the developer, after each build: libgame-boss.so.sig
+aylo-sign keygen root                          # once, by the project: root.pub, root.key
+aylo-sign keygen dev                           # by the developer: dev.pub, dev.key
+aylo-sign certify root.key dev.pub             # by the project: dev.pub.cert
+aylo-sign sign dev.key dev.pub libgame-boss.so # by the developer, after each build: libgame-boss.so.sig
 ```
 
 What a signature does not do:

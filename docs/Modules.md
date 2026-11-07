@@ -28,6 +28,8 @@ architecture rules, and this file keeps the detail, which changes with every fea
       (applied, failed, needs a rebuild), `ReloadReport` (the log line) and `HotReloader`, which polls and reloads.
     - `core/system/` (`rtype::core::system`) — `CacheDirectory.hpp`, `ExecutablePath.hpp`: where the system keeps a
       user's cache and the running executable.
+    - `core/version/` (`rtype::core::version`) — `Version.hpp`: `VersionInfo` and `describe()`, the text of
+      `aylo-runtime --version`. The version itself is set once in the root `xmake.lua` (`docs/release/package.md`).
 - `src/rtype/ecs/` — `ecs` target, shared library (`rtype-ecs`): the Entity Component System and,
   later, the App and its plugins (`rtype::ecs`). Design in `docs/ecs/design.md`. It depends on `core` only.
   Exported classes and functions are marked `RTYPE_ECS_API`, and the library keeps no
@@ -43,7 +45,7 @@ architecture rules, and this file keeps the detail, which changes with every fea
       namespace whatever their folder (`rtype/ecs/entity/Entity.hpp` declares `rtype::ecs::Entity`).
       Only internal parts get a sub-namespace, named after their folder: `rtype::ecs::storage`,
       `rtype::ecs::detail` (`detail/`), `rtype::ecs::exceptions` (`exceptions/`).
-- `src/rtype/network/` — `network` target, shared library (`rtype-network`): the transport, which moves bytes
+- `src/rtype/network/` — `network` target, static library (`rtype-network`): the transport, which moves bytes
   between machines (sockets, connections, acks, reliability). It knows nothing about the ECS and depends on
   Asio only, as a private package: no public header includes Asio, and only `.cpp` files of `io/` do.
   Exported symbols are marked `RTYPE_NETWORK_API`. Design in `docs/network/design.md`, task plan in
@@ -52,13 +54,13 @@ architecture rules, and this file keeps the detail, which changes with every fea
       (`Types.hpp`, `NetworkSettings.hpp`, `RandomSource.hpp`), then one folder and sub-namespace per feature:
       `protocol/` (`rtype::network::protocol`, wire constants, sequences, packets), `bytes/`, `connection/`,
       `io/`, `server/`, `client/`, `exceptions/`. A folder is created only when a file goes in it.
-- `src/rtype/replication/` — `replication` target, shared library (`rtype-replication`): the only code that
+- `src/rtype/replication/` — `replication` target, static library (`rtype-replication`): the only code that
   knows both the ECS and the network; it turns a `World` into messages and back (`rtype::replication`).
   Exported symbols are marked `RTYPE_REPLICATION_API`. Feature folders and sub-namespaces as in `network`:
   `component/`, `event/`, `serialization/`, `manifest/`, `input/`, `snapshot/`, `server/`, `client/`,
   `packet/`, `exceptions/`. `input/InputCalls.hpp` holds its engine calls (`rtype.replication.addInput`, `readInput`),
   `client/ClientCalls.hpp` the client's (`rtype.replication.localClient`), both registered by `ReplicationPlugin`.
-- `src/rtype/engine/` — `engine` target, shared library (`rtype-engine`): `Engine` runs a game directory (`game/` by
+- `src/rtype/engine/` — `engine` target, static library (`rtype-engine`): `Engine` runs a game directory (`game/` by
   default, `--game <dir>`): it reads its `project.luau` through Luau (`scripting/SettingsLoader`, which also exposes
   the command line as `engine.args`), builds the `App` with the program's plugins, `EngineConfig::addPlugins`, and the engine's (transform, replication,
   scripting, server or client) in a fixed order, calls the game's native `EngineConfig::setup`, runs it, and builds it
@@ -67,8 +69,8 @@ architecture rules, and this file keeps the detail, which changes with every fea
   `NetworkInput` fills the `PlayerInput` sent to the server from the `Input` actions. `EngineConfig` holds
   the mode, the command line and these functions; `CommandLine` parses the `--name value` flags. Exported symbols are marked `RTYPE_ENGINE_API`.
   Design in `docs/engine/design.md`.
-- `src/rtype/client/`, `src/rtype/server/` — the generic executables `r-type_client` and `r-type_server`: a `main` that
-  runs an `Engine` on `game/`, which loads the plugins and backends from their libraries (the executables link none). The build copies them to the repository root
+- `src/rtype/runtime/` — the generic executable `aylo-runtime`: a `main` that runs an `Engine` on `game/` as a client, or
+  as the server with `--server`, which loads the plugins and backends from their libraries (the executables link none). The build copies them to the repository root
   (rule `rtype.copy_to_root`). Games whose gameplay is still C++ (`ethan_game(bestoftheworld)`) keep their own `main`
   and give it to the `Engine` as `EngineConfig::setup`. `rtype_duel` is written in Luau (`game/scripts/`); its own `main`
   only picks the side from its first argument.
@@ -158,7 +160,7 @@ architecture rules, and this file keeps the detail, which changes with every fea
     - `plugins/AssetIdReflection.hpp` — lets components reflect `core::asset::AssetId` fields (`kAssetId`).
     - `plugins/AssetDirectory.hpp` — the `AssetDirectory` resource the `Engine` inserts: `<game>/assets`, where every
       asset path starts and which it cannot leave (`core::asset::resolveAssetPath()`).
-- `src/rtype/tools/sign/` — `rtype-sign`: the keys and signatures of the game plugins (`docs/Plugins.md`).
+- `src/rtype/tools/sign/` — `aylo-sign`: the keys and signatures of the game plugins (`docs/Plugins.md`).
 - `src/rtype/interop/` — header-only targets, one per graphics API (`interop-vulkan`,
   `rtype::interop::vulkan`): the interfaces a platform implements to serve the renderers of that API
   (`IVulkanSurfaceSource`). See `docs/Backend.md`.
@@ -183,10 +185,10 @@ architecture rules, and this file keeps the detail, which changes with every fea
       includes `miniaudio.h`, and the executable sees `Registration.hpp` only. The implementation of miniaudio (and of
       stb_vorbis, its OGG decoder) is compiled once, in `vendor/MiniaudioImplementation.cpp`, which clang-tidy skips
       (`vendor/.clang-tidy`).
-- `src/rtype/luau/` — `luau` target, shared library (`rtype-luau`) for Luau scripting. Failures a correct program can
+- `src/rtype/luau/` — `luau` target, static library (`rtype-luau`) for Luau scripting. Failures a correct program can
   hit return
   `Result<T>`; exceptions are only for API misuse (`docs/luau/error-handling.md`).
-- `src/rtype/scripting/` — `scripting` target, shared library (`rtype-scripting`): the Luau bridge, turning what scripts
+- `src/rtype/scripting/` — `scripting` target, static library (`rtype-scripting`): the Luau bridge, turning what scripts
   declare into ECS data (`rtype::scripting`, exported symbols marked `RTYPE_SCRIPTING_API`). It has its own `Error` /
   `Result`, like `luau`. `component/` holds `ComponentDeclaration` and `registerComponent()`, which computes the
   deterministic layout of a script component and registers it. `view/` (`rtype::scripting::view`) holds what scripts
@@ -219,7 +221,7 @@ architecture rules, and this file keeps the detail, which changes with every fea
 
 Each module has its own `xmake.lua`, included from the root `xmake.lua`. Add new sources under the
 matching module: `plugin-*`, `contract-*`, `core`, `ecs`, `network`, `replication`, `engine`, `platform-glfw`, `render-vulkan`,
-`audio-miniaudio`, `luau`, `r-type_client` and `r-type_server` glob
+`audio-miniaudio`, `luau` and `aylo-runtime` glob
 `**.cpp` in their own folder.
 
 ### Dependency rules
@@ -236,8 +238,14 @@ ecs      ←  replication, scripting
 scripting, replication, plugin-transform, plugin-input  ←  engine  ←  executables, examples
 ```
 
-- `core` depends on no other project target; `ecs` depends on `core` only. `core` is the only static library: it keeps
-  no global state, so a copy in each binary is harmless.
+- `core` depends on no other project target; `ecs` depends on `core` only. `core` is static and keeps no global state,
+  so a copy in each binary is harmless.
+- `luau`, `network`, `replication`, `scripting` and `engine` are static libraries, linked into the executable, because
+  no plugin, backend or contract links them. They may keep state (the Luau VM, sockets), which would be duplicated by a
+  shared library linking them: the build refuses it (rule `rtype.static_modules` in the root `xmake.lua`). `ecs` and
+  the contracts stay shared: they hold the registries and the type information plugins and backends share, so every
+  binary must see one copy. A static module marks its exports with `RTYPE_<LIB>_API`, which expands to nothing
+  through the public define `RTYPE_<LIB>_STATIC`.
 - `network` depends on Asio only (private): never on the ECS, a plugin or any other project target. `replication`
   depends on `ecs` and `network` and is the only module that knows both; the renderer, the platforms and `luau` never
   include its headers.
@@ -260,7 +268,7 @@ scripting, replication, plugin-transform, plugin-input  ←  engine  ←  execut
 - The executables link no plugin and no backend: the `Engine` loads those `project.luau` names from `plugins/` next to
   the executable and `<game>/plugins/`. Each library exports one entry point (`RTYPE_PLUGIN_LIBRARY`, or `RTYPE_LIBRARY`
   for a backend, which knows no ECS). See `docs/Plugins.md`.
-- `engine` links `core`, `ecs`, `luau`, `scripting`, `replication`, `plugin-transform` and `plugin-input`, and nothing
-  depends on it but the executables, the examples and its tests. It links no other plugin and no contract: it loads
+- `engine` links `core`, `ecs`, `luau`, `scripting`, `replication`, and nothing
+  depends on it but the executables, the examples and its tests. It links no plugin and no contract: it loads
   them, and a program can still add its own through `EngineConfig::addPlugins`.
 

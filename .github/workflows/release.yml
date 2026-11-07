@@ -1,0 +1,359 @@
+name: Release
+
+# What it makes (docs/release/plan.md, docs/release/release-process.md):
+#   - a `v*` tag: a DRAFT GitHub Release with the zip of each platform, SHA256SUMS and generated notes. A human reviews it
+#     and publishes it; this workflow never publishes a stable release.
+#   - a push to main: the rolling `nightly` prerelease, replaced by the zips of that commit.
+#   - a manual run: the zips as workflow artifacts only, to try the packaging without touching a release.
+#
+# It builds and tests by itself instead of waiting for the CI workflow (workflow_run): the zips must come from the tests
+# of the release build (-m release) of the very commit they hold, and one workflow keeps the tag, the nightly and the
+# manual run on the same path. The price is that a nightly repeats the tests the CI ran on the same commit.
+
+on:
+  push:
+    tags: ["v*"]
+    branches: [main]
+    # Not evaluated for tags, which always build.
+    paths-ignore:
+      - "docs/**"
+      - "manual/**"
+      - "**.md"
+  workflow_dispatch:
+
+# A newer push to main replaces the build of an older one (a burst of merged pull requests builds the last), but a tag
+# build is never cancelled.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+env:
+  XMAKE_ACTION_BUILD_CACHE: "true"
+
+jobs:
+  # What this run makes, and the checks that must hold before the long builds.
+  prepare:
+    name: Decide what to release
+    runs-on: ubuntu-latest
+    outputs:
+      kind: ${{ steps.what.outputs.kind }}
+      suffix: ${{ steps.what.outputs.suffix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Decide what to release
+        id: what
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          short="$(git rev-parse --short=7 HEAD)"
+          if [[ "$EVENT" == "push" && "$REF_TYPE" == "tag" ]]; then
+            kind=release
+            suffix=""
+            if [[ ! "$REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "::error::The tag ${REF_NAME} is not a version: expected vMAJOR.MINOR.PATCH[-prerelease]."
+              exit 1
+            fi
+            # A release holds code that went through a pull request.
+            git fetch --no-tags origin main
+            if ! git merge-base --is-ancestor HEAD origin/main; then
+              echo "::error::The tag ${REF_NAME} is not on main: merge the commit first, then tag it."
+              exit 1
+            fi
+            # The version of the build is the one in xmake.lua: it must be the tag's.
+            declared="$(grep -oE 'set_version\("[^"]+"' xmake.lua | head -n 1 | sed -E 's/set_version\("([^"]+)"/\1/' || true)"
+            if [[ -z "$declared" ]]; then
+              echo "::warning::No set_version in xmake.lua: the version of the tag is not checked."
+            elif [[ "v${declared}" != "$REF_NAME" ]]; then
+              echo "::error::xmake.lua declares ${declared} but the tag is ${REF_NAME}: bump the version, then tag."
+              exit 1
+            fi
+          elif [[ "$EVENT" == "push" ]]; then
+            kind=nightly
+            suffix="nightly.${short}"
+          else
+            kind=dry
+            suffix="dev.${short}"
+          fi
+          echo "kind=$kind" >> "$GITHUB_OUTPUT"
+          echo "suffix=$suffix" >> "$GITHUB_OUTPUT"
+          echo "This run makes: ${kind} (version suffix: '${suffix}')"
+
+  build:
+    name: Build, test and package (${{ matrix.name }})
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The glibc of the runner is the oldest the zip runs on: 22.04 (glibc 2.35), not latest.
+          - name: linux-x86_64
+            os: ubuntu-22.04
+          - name: macos-arm64
+            os: macos-latest
+          - name: windows-x86_64
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      # The attestation of each zip (actions/attest-build-provenance).
+      id-token: write
+      attestations: write
+      # SignPath reads the artifact it signs through the API (Windows, once the variables below are set).
+      actions: read
+    env:
+      # The suffix the package task appends to the version: `0.4.0-nightly.1a2b3c4`. Empty for a release.
+      AYLO_VERSION_SUFFIX: ${{ needs.prepare.outputs.suffix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Ubuntu 22.04 ships libstdc++ 12 and clang 14: too old for C++23. The toolchain comes from the PPA and apt.llvm.org;
+      # the runtime libraries of the zip do not depend on them (the zip links the C++ runtime statically, or bundles it).
+      - name: Setup Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee /etc/apt/sources.list.d/llvm.list
+          sudo apt-get update
+          sudo apt-get install -y g++-13 clang-18 patchelf \
+            vulkan-tools libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-18 100
+
+      - name: Setup macOS dependencies
+        if: runner.os == 'macOS'
+        run: brew install molten-vk vulkan-loader glslang autoconf automake libtool pkg-config
+
+      - name: Install xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+          actions-cache-folder: ".xmake-cache"
+          actions-cache-key: "${{ matrix.os }}-release-compilation"
+
+      - name: Locate xmake packages
+        id: packages
+        shell: bash
+        env:
+          XMAKE_ROOT: y
+        run: |
+          xmake repo --update
+          echo "hash=$(xmake l utils.ci.packageskey | tr -d '\r')" >> "$GITHUB_OUTPUT"
+          echo "dir=$(xmake l -c 'import("core.package.package"); print(package.installdir())' | tr -d '\r')" >> "$GITHUB_OUTPUT"
+
+      - name: Restore package cache
+        id: package-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.packages.outputs.dir }}
+          key: xmake-package-cache-${{ matrix.os }}-release-${{ steps.packages.outputs.hash }}
+          restore-keys: xmake-package-cache-${{ matrix.os }}-release-
+
+      - name: Restore build cache
+        id: build-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: build/.build_cache
+          key: xmake-build-cache-${{ matrix.os }}-release-${{ hashFiles('**/xmake.lua', 'src/**', 'tests/**') }}
+          restore-keys: xmake-build-cache-${{ matrix.os }}-release-
+
+      - name: Build project and tests
+        run: |
+          xmake f -y -m release --Tests=y
+          xmake build -y
+        timeout-minutes: 45
+
+      # Caches are written by the nightly only: a tag build restores them and leaves them as they are.
+      - name: Save package cache
+        if: needs.prepare.outputs.kind == 'nightly' && steps.package-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.packages.outputs.dir }}
+          key: ${{ steps.package-cache.outputs.cache-primary-key }}
+
+      - name: Save build cache
+        if: needs.prepare.outputs.kind == 'nightly' && steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/.build_cache
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
+
+      - name: Run tests
+        run: xmake test -v -y
+
+      # The package task (xmake package-release) writes build/package/aylo-engine-<version>-<os>-<arch>/, the zip and the
+      # -symbols zip next to it. On macOS it runs AYLO_CODESIGN_SCRIPT on runtime/ after stripping and before it writes
+      # manifest.json and the zip: a stripped arm64 binary has no valid signature and the kernel kills it.
+      - name: Package
+        shell: bash
+        env:
+          AYLO_CODESIGN_SCRIPT: ${{ runner.os == 'macOS' && format('{0}/.github/scripts/codesign-macos.sh', github.workspace) || '' }}
+        run: xmake package-release -y
+
+      - name: Find the zip
+        id: zip
+        shell: bash
+        run: |
+          zips=()
+          for file in build/package/aylo-engine-*.zip; do
+            [[ "$file" == *-symbols.zip ]] || zips+=("$file")
+          done
+          if [[ "${#zips[@]}" -ne 1 ]]; then
+            echo "::error::Expected one zip in build/package, found ${#zips[@]}: ${zips[*]}"
+            exit 1
+          fi
+          echo "path=${zips[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Check the signature of the macOS binaries in the zip
+        if: runner.os == 'macOS'
+        run: |
+          check="$(mktemp -d)"
+          ditto -x -k "${{ steps.zip.outputs.path }}" "$check"
+          bash .github/scripts/codesign-macos.sh --verify "$check"
+
+      # No-op until the SignPath Foundation accepts the project and the repository defines SIGNPATH_ORGANIZATION_ID
+      # (docs/release/signing.md). It signs the zip, which replaces the unsigned one. manifest.json keeps the hashes of
+      # the files as they were before the signature: the files it lists as signed will differ.
+      - name: Upload the unsigned Windows zip
+        id: unsigned
+        if: runner.os == 'Windows' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-${{ matrix.name }}
+          path: ${{ steps.zip.outputs.path }}
+          retention-days: 1
+
+      - name: Sign the Windows binaries with SignPath
+        if: runner.os == 'Windows' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Replace the zip with the signed one
+        if: runner.os == 'Windows' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        shell: bash
+        run: cp -f "signed/$(basename '${{ steps.zip.outputs.path }}')" "${{ steps.zip.outputs.path }}"
+
+      # The zip, not the build tree: it must run in a clean directory with no toolchain.
+      - name: Smoke test the zip
+        if: runner.os != 'Windows'
+        run: bash .github/scripts/smoke-test.sh "${{ steps.zip.outputs.path }}"
+
+      - name: Smoke test the zip (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .github/scripts/smoke-test.ps1 "${{ steps.zip.outputs.path }}"
+
+      - name: Attest the zips
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: build/package/*.zip
+
+      - name: Keep the zips
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-${{ matrix.name }}
+          path: build/package/*.zip
+          if-no-files-found: error
+          # A release or a nightly copies them to GitHub Releases; a manual run keeps them for a week.
+          retention-days: ${{ needs.prepare.outputs.kind == 'dry' && 7 || 1 }}
+
+  # The only job that writes to the repository. Nothing here publishes a stable release: a tag gives a draft.
+  publish:
+    name: Publish (${{ needs.prepare.outputs.kind }})
+    needs: [prepare, build]
+    if: needs.prepare.outputs.kind != 'dry'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Two publications of the nightly never overlap, and a started one is not cancelled half-way.
+    concurrency:
+      group: release-publish-${{ needs.prepare.outputs.kind }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      KIND: ${{ needs.prepare.outputs.kind }}
+      TAG: ${{ github.ref_name }}
+      SHA: ${{ github.sha }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Download the zips
+        uses: actions/download-artifact@v8
+        with:
+          pattern: package-*
+          merge-multiple: true
+          path: dist
+
+      - name: Write SHA256SUMS
+        working-directory: dist
+        run: |
+          ls -l
+          sha256sum -- *.zip | tee SHA256SUMS
+
+      # Release notes group the pull requests by label: .github/release.yml.
+      - name: Make a draft release
+        if: env.KIND == 'release'
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "::error::The release ${TAG} already exists: delete it or tag a new version."
+            exit 1
+          fi
+          prerelease=()
+          if [[ "$TAG" == *-* ]]; then
+            prerelease=(--prerelease)
+          fi
+          gh release create "$TAG" --draft --verify-tag --title "$TAG" --generate-notes "${prerelease[@]}" \
+            dist/*.zip dist/SHA256SUMS
+
+      - name: Replace the nightly
+        if: env.KIND == 'nightly'
+        run: |
+          # A newer push to main is already building: do not publish over it with an older commit.
+          head="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [[ "$head" != "$SHA" ]]; then
+            echo "::notice::main moved on to ${head}: this nightly (${SHA}) is stale, not published."
+            exit 0
+          fi
+
+          cat > notes.md <<EOF
+          **Untested build of \`main\`, not for shipping.** Commit ${SHA}.
+
+          The nightly is replaced after every push to \`main\` whose build and tests pass. Use a version release
+          (the latest release of this repository) for a game you ship.
+          EOF
+
+          # The rolling tag follows the commit. A tag push made with the workflow token starts no workflow.
+          git tag -f nightly "$SHA"
+          git push -f origin refs/tags/nightly
+
+          if gh release view nightly > /dev/null 2>&1; then
+            # The asset names carry the commit: delete the old ones, or they pile up.
+            gh release view nightly --json assets --jq '.assets[].name' \
+              | while IFS= read -r asset; do gh release delete-asset nightly "$asset" --yes; done
+            gh release edit nightly --title "Nightly ${SHA:0:7}" --notes-file notes.md --prerelease --draft=false --latest=false
+          else
+            gh release create nightly --verify-tag --title "Nightly ${SHA:0:7}" --notes-file notes.md --prerelease --latest=false
+          fi
+          gh release upload nightly dist/*.zip dist/SHA256SUMS --clobber

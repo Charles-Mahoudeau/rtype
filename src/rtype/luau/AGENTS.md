@@ -1,6 +1,7 @@
 # luau — Luau runtime wrapper
 
-A safe C++ wrapper over the Luau VM: state, tables, functions, userdata and type definitions. Shared library `luau`.
+A safe C++ wrapper over the Luau VM: state, tables, functions, userdata and type definitions. Static library `luau`,
+linked into the executable.
 
 ## Boundaries
 
