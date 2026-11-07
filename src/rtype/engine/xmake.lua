@@ -12,10 +12,9 @@ target("engine")
     set_basename("rtype-engine")
     -- Public: Engine.hpp and EngineConfig.hpp expose the App and the settings.
     add_deps("core", "ecs", {public = true})
-    -- The plugins the Engine names: the transform plugin, which every game has, and the input plugin, which NetworkInput
-    -- reads. The others are loaded from their libraries.
-    add_deps("luau", "scripting", "replication", "plugin-transform", "plugin-input")
-    -- Those two plugin libraries are in `plugins/` like the others, next to `lib/`, which holds the engine.
+    -- No plugin: the Engine loads them all, the transform and input plugins too, from their libraries.
+    add_deps("luau", "scripting", "replication")
+    -- Those two plugin libraries are in `plugins/`, next to `lib/`, which holds the engine.
     if not is_plat("windows") then
         add_rpathdirs("@loader_path/../plugins")
     end
