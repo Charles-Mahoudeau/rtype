@@ -44,7 +44,7 @@ using Keys = std::vector<std::string>;
 /// of a module is `<key>.luau`.
 class Modules {
   public:
-    explicit Modules(const bool sandboxed = true) : _runtime{makeRuntime()} {
+    explicit Modules(const bool sandboxed = true, const bool shareGlobals = false) : _runtime{makeRuntime()} {
         if (sandboxed) {
             _runtime.sandbox();
         }
@@ -55,7 +55,8 @@ class Modules {
                     throw std::runtime_error{"hook"};
                 }
                 events.push_back(std::format("{}{}", entering ? "+" : "-", key));
-            });
+            },
+            ModuleLoader::Options{.shareGlobals = shareGlobals});
     }
 
     ~Modules() = default;
@@ -354,6 +355,39 @@ TEST(ModuleLoader, EachModuleHasItsOwnGlobalsInAnUnsandboxedRuntimeToo) {
     lua_getglobal(state, "require");
     EXPECT_TRUE(lua_isnil(state, -1));
     lua_pop(state, 2);
+}
+
+TEST(ModuleLoader, SharedGlobalsLetModulesSeeEachOthersGlobalWrites) {
+    Modules modules{false, true};
+    modules.sources["a"] = "Shared = 7; local value = 1; return value";
+    modules.sources["b"] = "require('a'); return Shared";
+
+    modules.require("a");
+    EXPECT_EQ(modules.text(modules.require("b")), "7");
+    lua_State* state = rtype::luau::detail::rawState(modules.runtime());
+    lua_getglobal(state, "Shared");
+    EXPECT_EQ(lua_tonumber(state, -1), 7);
+    lua_pop(state, 1);
+}
+
+TEST(ModuleLoader, SharedGlobalsKeepRequirePerModule) {
+    Modules modules{false, true};
+    modules.sources["a"] = "return type(require)";
+
+    EXPECT_EQ(modules.text(modules.require("a")), "function");
+    lua_State* state = rtype::luau::detail::rawState(modules.runtime());
+    lua_getglobal(state, "require");
+    EXPECT_TRUE(lua_isnil(state, -1));
+    lua_pop(state, 1);
+}
+
+TEST(ModuleLoader, SharedGlobalsAreIgnoredByASandboxedRuntime) {
+    Modules modules{true, true};
+    modules.sources["a"] = "Shared = 1; return Shared";
+    modules.sources["b"] = "require('a'); return Shared == nil";
+
+    modules.require("a");
+    EXPECT_EQ(modules.typeOf(modules.require("b")), "boolean");
 }
 
 TEST(ModuleLoader, ModulesSeeTheSharedGlobals) {
