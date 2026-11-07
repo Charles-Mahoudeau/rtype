@@ -422,12 +422,14 @@ This task creates the empty shells and the vocabulary they share:
 
 **What it must do.**
 
-1. `network` builds as a shared library `rtype-network` that depends on Asio only. Asio is a **private** package:
+1. `network` builds as a static library `rtype-network` that depends on Asio only. Asio is a **private** package:
    no public header includes it, so the libraries and executables that use `network` never see Asio
    (as GLFW never leaves `platform/glfw/`).
-2. `replication` builds as a shared library `rtype-replication` that depends on `ecs` and `network`, both public
-   (its headers use their types).
-3. Exported symbols use `RTYPE_NETWORK_API` / `RTYPE_REPLICATION_API`, defined like `RTYPE_ECS_API`.
+2. `replication` builds as a static library `rtype-replication` that depends on `ecs` and `network`, both public
+   (its headers use their types). Both are linked into the executable: no plugin links them, and the build refuses
+   a shared library that does (`rtype.static_modules`).
+3. Exported symbols use `RTYPE_NETWORK_API` / `RTYPE_REPLICATION_API`, defined like `RTYPE_ECS_API` (empty for the
+   static build, through `RTYPE_NETWORK_STATIC` / `RTYPE_REPLICATION_STATIC`).
 4. `Types.hpp` defines:
 
    | Type | Meaning |

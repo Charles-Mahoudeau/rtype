@@ -1,7 +1,7 @@
 # engine — runs a game folder
 
 Reads a game folder's `project.luau`, loads the plugin and backend libraries it names, builds the app with them plus the
-engine's own, runs it, and rebuilds it on reload. Shared library `engine`.
+engine's own, runs it, and rebuilds it on reload. Static library `engine`, linked into the executable.
 
 ## Boundaries
 

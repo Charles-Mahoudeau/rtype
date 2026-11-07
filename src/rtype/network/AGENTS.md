@@ -1,7 +1,7 @@
 # network — the transport
 
-Moves bytes between machines: sockets, connections, acknowledgements, reliability, server and client endpoints. Shared
-library `network`.
+Moves bytes between machines: sockets, connections, acknowledgements, reliability, server and client endpoints. Static
+library `network`, linked into the executable.
 
 ## Boundaries
 

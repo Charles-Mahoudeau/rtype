@@ -158,7 +158,9 @@ run between two frames, on the main thread, which is the renderer's.
 
 ## Dependencies
 
-`engine` is a shared library (`rtype-engine`, `RTYPE_ENGINE_API`). It links `core`, `ecs` and `plugins` publicly,
-because `Engine.hpp` and `EngineConfig.hpp` expose the `App`, the `Settings` and the registries. It links `luau`,
-`scripting` and `replication` privately. It names no backend: the executables register them, so `engine` never depends
+`engine` is a static library (`rtype-engine`), linked into the executable: no plugin links it, so its state, and that
+of `luau`, `scripting`, `replication` and `network` below it, lives in the executable once (`RTYPE_ENGINE_STATIC`
+makes `RTYPE_ENGINE_API` expand to nothing; the build refuses a shared library that links one of them). It links
+`core`, `ecs` and `plugins` publicly, because `Engine.hpp` and `EngineConfig.hpp` expose the `App`, the `Settings` and
+the registries. It links `luau`, `scripting` and `replication` privately. It names no backend: the executables register them, so `engine` never depends
 on a `platform-*`, `render-*` or `audio-*` target.

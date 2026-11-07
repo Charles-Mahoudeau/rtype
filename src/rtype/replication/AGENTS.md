@@ -1,8 +1,8 @@
 # replication — world to messages and back
 
 Turns a world into messages and back: component and event replication, snapshots, the manifest of replicated data,
-input, and the server and client sides. Shared library `replication`. The only module that knows both the ECS and the
-network.
+input, and the server and client sides. Static library `replication`, linked into the executable. The only module that
+knows both the ECS and the network.
 
 ## Boundaries
 

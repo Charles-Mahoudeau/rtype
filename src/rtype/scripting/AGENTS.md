@@ -1,7 +1,8 @@
 # scripting — the Luau bridge
 
 Turns what a script declares (components, systems, resources, events, assets, input) into ECS data, and runs script
-systems on the app. Shared library `scripting`. This is the module that makes the Luau API real.
+systems on the app. Static library `scripting`, linked into the executable. This is the module that makes the Luau API
+real.
 
 ## Boundaries
 
