@@ -40,6 +40,14 @@ inline constexpr std::string_view kAddEffectCall = "rtype.particle.addEffect";  
 /// The ECS resource "rtype.ParticleEffectDrafts", inserted by the ParticlePlugin.
 struct ParticleEffectDrafts {
     std::map<std::string, ParticleEffect, std::less<>> effects;  ///< Begun and not added yet.
+
+    ParticleEffectDrafts() = default;
+    ~ParticleEffectDrafts() = default;
+    ParticleEffectDrafts(const ParticleEffectDrafts& other) = delete;
+    ParticleEffectDrafts& operator=(const ParticleEffectDrafts& other) = delete;
+    // noexcept, as a resource must be: MSVC's std::map does not promise it on its own.
+    ParticleEffectDrafts(ParticleEffectDrafts&& other) noexcept = default;
+    ParticleEffectDrafts& operator=(ParticleEffectDrafts&& other) noexcept = default;
 };
 RTYPE_ECS_RESOURCE(ParticleEffectDrafts, "rtype.ParticleEffectDrafts");
 
