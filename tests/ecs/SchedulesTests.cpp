@@ -20,8 +20,10 @@
 #include "rtype/ecs/schedule/FrameClock.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
+#include "rtype/ecs/schedule/Schedule.hpp"
 #include "rtype/ecs/schedule/Schedules.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
+#include "rtype/ecs/system/System.hpp"
 #include "rtype/ecs/world/World.hpp"
 
 namespace rtype::test::schedules {
@@ -118,6 +120,36 @@ TEST(Schedules, RejectsANameUsedInAnotherPhase) {
     expectScheduleError([&] { schedules.addSystem(Phase::kRender, "rtype.movement", &noop); },
                         "Two systems are named 'rtype.movement' (phases Update and Render)");
     EXPECT_FALSE(schedules.getSchedule(Phase::kRender).contains("rtype.movement"));
+}
+
+TEST(Schedules, ReplacesTheSystemsOfOnePhase) {
+    World world;
+    Schedules schedules{world, RunMode::kStandalone};
+    schedules.addSystem(Phase::kUpdate, "update", &noop);
+    schedules.addSystem(Phase::kRender, "render", &noop);
+    std::vector<rtype::ecs::Schedule::SystemSpec> systems;
+    systems.push_back({.system = rtype::ecs::System{world, "update", &noop}, .after = {}, .before = {}});
+    systems.push_back({.system = rtype::ecs::System{world, "other", &noop}, .after = {"update"}, .before = {}});
+
+    schedules.replaceSystems(Phase::kUpdate, std::move(systems), {});
+    schedules.build();
+
+    EXPECT_EQ(orderOf(schedules, Phase::kUpdate), (std::vector<std::string>{"update", "other"}));
+    EXPECT_EQ(orderOf(schedules, Phase::kRender), (std::vector<std::string>{"render"}));
+}
+
+TEST(Schedules, RefusesToReplaceWithANameUsedInAnotherPhase) {
+    World world;
+    Schedules schedules{world, RunMode::kStandalone};
+    schedules.addSystem(Phase::kUpdate, "update", &noop);
+    schedules.addSystem(Phase::kRender, "render", &noop);
+    std::vector<rtype::ecs::Schedule::SystemSpec> systems;
+    systems.push_back({.system = rtype::ecs::System{world, "render", &noop}, .after = {}, .before = {}});
+
+    expectScheduleError([&] { schedules.replaceSystems(Phase::kUpdate, std::move(systems), {}); },
+                        "Two systems are named 'render' (phases Render and Update)");
+
+    EXPECT_FALSE(schedules.getSchedule(Phase::kUpdate).contains("render"));
 }
 
 TEST(Schedules, RejectsANameUsedTwiceInOnePhase) {
