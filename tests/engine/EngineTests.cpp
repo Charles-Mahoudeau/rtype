@@ -166,6 +166,18 @@ TEST(Engine, AddsThePluginsTheSettingsNameFromTheirLibraries) {
     EXPECT_TRUE(engine.app().hasPlugin("rtype.Physics"));
 }
 
+TEST(Engine, AddsTheCapsulePluginFromItsLibrary) {
+    const GameDirectory game{"rtype-engine-capsules", R"(
+        engine.settings.network.port = 0
+        engine.settings.plugins = { "rtype.Capsule" }
+    )"};
+    Engine engine{serverConfig(game)};
+    EXPECT_TRUE(engine.app().hasPlugin("rtype.Capsule"));
+    EXPECT_TRUE(engine.app().getWorld().getResources().find("rtype.Capsules"));
+    EXPECT_TRUE(engine.app().getWorld().getResources().find("rtype.LoadedCapsule"));
+    EXPECT_NE(engine.app().getWorld().getCalls().findByName("rtype.capsule.spawn"), nullptr);
+}
+
 TEST(Engine, RefusesAPluginNoLibraryRegisters) {
     const GameDirectory game{"rtype-engine-unknown-plugin", R"(
         engine.settings.network.port = 0
