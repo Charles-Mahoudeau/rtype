@@ -164,12 +164,21 @@ descendants go with it.
 resource names, spawns the new capsule and remembers it. Entities outside the old capsule's tree (the player, a game
 manager) stay.
 
+### Names
+
+Each spawned entity gets a `rtype.Name` (`ecs/entity/Name.hpp`) before its node's values: the node's name, the
+capsule file's name (its stem) for the root. A node that gives a `Name` replaces it; an instance's root is named by the
+node that places it.
+
 ### Reloading
 
 `reloadCapsule(commands, capsules, root, instance, children)` despawns the root's children, adds the capsule's current
 root values again, spawns its children again and updates `CapsuleInstance.version`. The root entity and its other
 components stay. A nested root (`nested`) is reloaded from its own capsule, which replaces the outer node's values on
-it; reloading the outermost capsule it belongs to keeps them.
+it; reloading the outermost capsule it belongs to keeps them. The plugin's Render system `rtype.Capsule.HotReload`
+reloads, at every frame, what was spawned from the capsules the `ReloadedCapsules` resource names, nested roots through
+their outermost capsule: hot reload names the files it read again there, and a tool (the editor) the capsules it
+redefined. The system and the resource are there with or without hot reload.
 
 ### From scripts
 
@@ -228,5 +237,6 @@ engine.ecs.system("game.Waves", {
 
 - Remapping `Entity` fields that point inside the tree, written as node paths in the files (a turret aiming at a
   node of its own capsule). (Later)
-- Saving part of a running world back to a capsule file, for an editor. (Later)
+- Saving part of a running world back to a capsule file. The editor edits the capsules themselves and writes them with
+  `writeCapsule()` (`docs/Editor.md`), so this is only for "save the world as it is now". (Later)
 - Spawning by capsule over the network: the spawn record already has a `capsule` short id, still unused. (Later)

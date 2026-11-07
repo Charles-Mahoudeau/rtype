@@ -46,6 +46,7 @@ end
 |------------|------|-----------|-----------|
 | `aylo-runtime --server` (`src/rtype/runtime/`) | `kServer` | nothing (headless) | `game/` only |
 | `aylo-runtime` (`src/rtype/runtime/`) | `kClient` | the backends `project.luau` names (`platform`, `renderer`, `audio.backend`) | `game/` only |
+| `aylo-runtime --editor` | `kStandalone` | as the client, plus `rtype.Editor` (`EngineConfig::extraPlugins`) | `game/` only, both sides in one world (`docs/Editor.md`) |
 | `rtype_duel` (example) | `server` or `client`, the first argument | as the client, on the client side | its `game/` only (Luau) |
 | `ethan_game(bestoftheworld)` (example) | `kStandalone` | as the client | `setup` |
 
@@ -69,7 +70,7 @@ macOS. On Windows, the rule copies the build folder's DLLs next to them.
 | 3 | `MinimalPlugins`, `rtype.Transform` (from its library, an error naming the folders when none provides it) | always | time, the schedule and the positions, which every game has |
 | 4 | `EngineConfig::addPlugins` | if given | plugins a program adds in code rather than through its libraries; a client adds its window and what it draws |
 | 5 | `ReplicationPlugin` | network modes (`kClient`, `kServer`) | registers `Owner`, `PlayerInput`, the connection events and `InputLayout`, so the setup can declare its inputs |
-| 6 | the plugins named under `plugins`, from their libraries | if listed | the setup and the scripts can use their components and calls |
+| 6 | the plugins named under `plugins`, then `EngineConfig::extraPlugins` (those not already listed), from their libraries | if listed | the setup and the scripts can use their components and calls |
 | 7 | `EngineConfig::setup` | if given | the game's native components, resources, systems and plugins |
 | 8 | `ScriptingPlugin`, on `<game>/scripts` | always | the scripts can use what the setup registered |
 | 9 | `ServerPlugin` or `ClientPlugin` | network modes | **last**: it reads every replicated component when it is built, the game's and the scripts' |

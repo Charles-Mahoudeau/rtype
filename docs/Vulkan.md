@@ -185,6 +185,29 @@ GPU.
 
 `examples/graphic/render/vulkan/VulkanBlendModes` shows the three modes side by side.
 
+## Meshes and the scene texture
+
+A tool built on the renderer (the editor, [`Editor.md`](Editor.md)) uses two optional calls of `IRenderer`:
+
+- `drawMesh(mesh)` adds indexed triangles, in framebuffer pixels, to the frame's meshes. `endFrame()` draws them last,
+  in the window, with `rendering::MeshPass`: one pipeline (`shaders/mesh.vert` and `mesh.frag`, on the shared layout, so
+  a mesh texture is a set 1 like any other), a vertex and an index buffer per frame in flight, and one scissored indexed
+  draw per `MeshCommand`. Its set 0 is its own `FrameGlobals` (`_meshGlobals`), with one unit per pixel, origin at the
+  top-left corner: updating the overlay's would change what the overlay already recorded.
+- `setSceneSize(size)` draws the scene (sprites, particles, shapes, overlay) into a texture instead of the window. The
+  change is made by the next `beginFrame()`. The texture is in the swapchain's format, an entry of the texture table whose
+  `TextureId` stays the same when the size changes, and the `recordScene()` that draws into it is the one that draws into
+  the swapchain image without it. Its barriers are `kSceneToColorAttachment` (it waits for the previous frame's fragment
+  shaders that sampled it) and `kSceneToShaderRead`.
+
+- `setScenePreview(preview)` draws the world a second time, from `preview.view`, into a texture of `preview.size`
+  (`_previewTexture`, made like the scene's by `adoptTarget()`). The world is uploaded once (`uploadWorld()`) and
+  recorded twice (`recordWorld()`), first into the preview, with its own `FrameGlobals` (`_previewGlobals`, one unit
+  per pixel at zoom 1), then into the scene; neither the overlay nor the meshes are in the preview, and `clearWorld()`
+  forgets the world once both are recorded.
+
+`getFrameStats()` gives the sprites, shapes, overlay items, mesh triangles and textures of the last frame.
+
 ## Shaders
 
 Shaders are written in GLSL and compiled to SPIR-V, then turned into `vk::raii::ShaderModule`s by

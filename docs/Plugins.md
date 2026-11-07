@@ -43,6 +43,7 @@ and the materials are in `plugin-shader`.
 | `physics-debug` | Draws the colliders | `graphics`, `input`, `transform` |
 | `ui` | The user interface, laid out by Yoga: nodes, widgets, focus | `graphics`, `input`, `text` |
 | `http` | HTTPS requests for scripts: `HttpClient`, `HttpResponse`, `rtype.http.request` (libcurl) | |
+| `Editor` | The editor (`rtype-editor`, in `src/rtype/editor/`, not a feature of a game): the game in a panel, its entities and their components, the frame rate, scenes and particles edited. Added by `aylo-runtime --editor`, see [`Editor.md`](Editor.md) | `graphics`, `capsule` |
 
 A plugin states what it requires in `getDependencies()`. The `App` refuses a plugin whose requirement was not added
 first, naming both, so a program adds a plugin after the ones it requires:
@@ -106,7 +107,10 @@ rpath, the DLLs the executable links sit next to it (the `lib/` ones included), 
 A library in `<game>/plugins/` with the file name of an engine library stops the start: a game cannot silently replace
 part of the engine.
 
-Libraries stay loaded until the process ends, even through `Engine::requestReload()`, as what they built must outlive
+Libraries stay loaded until the process ends, even through `Engine::requestReload()` and once the `Engine` is gone: they
+are opened with `RTLD_NODELETE` (pinned on Windows), so closing one gives its handle back and never unmaps its code. An
+exception a plugin threw, caught in `main` after the `Engine` that loaded it was destroyed, still calls that code (its
+`what()`). And what they built must outlive
 every App. A library and the engine must be built with the same compiler and version: `checkLibrary()` refuses another
 one rather than crash later. Raise `kLibraryAbiVersion` when `LibraryEntry` or `LibraryRegistrar` change.
 

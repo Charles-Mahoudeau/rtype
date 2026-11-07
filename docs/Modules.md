@@ -69,6 +69,18 @@ architecture rules, and this file keeps the detail, which changes with every fea
   `NetworkInput` fills the `PlayerInput` sent to the server from the `Input` actions. `EngineConfig` holds
   the mode, the command line and these functions; `CommandLine` parses the `--name value` flags. Exported symbols are marked `RTYPE_ENGINE_API`.
   Design in `docs/engine/design.md`.
+- `src/rtype/editor/` — `editor` target, shared library (`rtype-editor`): the editor, a library the engine loads as
+  `rtype.Editor`, added by `aylo-runtime --editor` (`rtype::editor`, exported symbols marked `RTYPE_EDITOR_API`). It
+  requires the graphics and capsule plugins and adds no system: it sets the graphics plugin's `PlatformEventFilter` and
+  `ToolFrame` resources, and pauses the App's schedules while editing. `EditorPlugin` builds an `EditorState` (the ImGui
+  context, the input bridge, the play session, the open scene, what the panels remember) and reads the `editor`
+  settings (`scene`, `textEditor`). `gui/` holds `GuiContext`, `GuiInput` (the window's events to ImGui, and which of them the game
+  sees), `GameViewport` and `GuiMesh` (ImGui's draw data and textures as a `contract::renderer::Mesh`). `play/` holds
+  `PlaySession` (Play, Pause, Step, Stop), `scene/` holds `SceneEdit` (the capsule changes, open, save, new files) and
+  `Isolation` (a capsule shown alone, prefab mode), `console/` holds `ConsoleLog` and `OutputCapture` (the program's
+  output, for the Console), `shell/` holds `TextEditor` (a file opened in an external editor), all without ImGui. `panels/` holds the Game, Hierarchy, Inspector, Assets, Particles, Console and Stats panels and the menu bar,
+  `FieldEditor` (the widgets of a reflected value, assets dropped on fields) and `WorldView`. Dear ImGui (docking
+  branch) is a private package: no header of the editor includes it. Design in `docs/Editor.md`.
 - `src/rtype/runtime/` — the generic executable `aylo-runtime`: a `main` that runs an `Engine` on `game/` as a client, or
   as the server with `--server`, which loads the plugins and backends from their libraries (the executables link none). The build copies them to the repository root
   (rule `rtype.copy_to_root`). Games whose gameplay is still C++ (`ethan_game(bestoftheworld)`) keep their own `main`
@@ -105,8 +117,10 @@ architecture rules, and this file keeps the detail, which changes with every fea
       window events and the PreUpdate / Render systems that poll the window, frame the drawing and draw the `SpriteQueue`
       by layer. Also the `Camera` component (projection and priority, placed by its entity's `Transform`), the
       `TextureAssets` resource (the textures by `AssetId`, queued by `load()` and decoded with stb), the `SpriteQueue`
-      resource (what the frame draws) and the `VisibleArea` resource (what the frame shows). It requires the
-      `InputPlugin` and the `TransformPlugin`.
+      resource (what the frame draws) and the `VisibleArea` resource (what the frame shows). Two main-thread resources
+      let a tool sit between the window and the game: `PlatformEventFilter` (sees every event first, may change it or
+      hide it) and `ToolFrame` (a callback run just before the frame ends, with the platform and the renderer). It
+      requires the `InputPlugin` and the `TransformPlugin`.
     - `plugins/input/` (`rtype::plugins::input`) — `InputPlugin`: `Control` (named with text by `controlFromName()`,
       `ControlNames.hpp`, over `contract/platform/input/KeyNames.hpp`), `Input`, `InputAction`, `ButtonStates`,
       the `rtype.Input` resource, fed by a `PreUpdate` system from the `PlatformEvent`s in order, and the typed input
@@ -231,7 +245,7 @@ architecture rules, and this file keeps the detail, which changes with every fea
 - `docs/` — design documentation (e.g. `docs/Plugins.md` for the libraries and their dependencies, `docs/ecs/features/17-hierarchy.md` for parents and children,
   `docs/Input.md` for the event and input pipeline, `docs/physics/design.md`
   for the physics, `docs/audio/design.md` for the audio, `docs/Sprites.md` for atlases and animations,
-  `docs/Tilemap.md` for tilemaps and parallax, `docs/Text.md` for MSDF text, `docs/Shaders.md` for game shaders,
+  `docs/Tilemap.md` for tilemaps and parallax, `docs/Text.md` for MSDF text, `docs/Editor.md` for the editor, `docs/Shaders.md` for game shaders,
   `docs/CapsuleFormat.md` for the capsule file format, `docs/engine/design.md` for the `Engine`, its build order and
   reloads; `docs/benchmarks/` for the library and format comparisons behind a choice).
 - `.github/` — CI workflow and issue templates.

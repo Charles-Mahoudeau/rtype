@@ -27,6 +27,12 @@ On macOS, if the loader does not find the Homebrew layers, point it at them:
 VK_ADD_LAYER_PATH=/opt/homebrew/share/vulkan/explicit_layer.d xmake run shader
 ```
 
+A layer the machine does not have is not an error: the renderer writes `[vulkan] warning: the layer ... is not installed:
+running without it` on the error output and starts without it. So does a layer the loader lists but cannot open (its
+manifest is there, its library is not: `[vulkan] warning: a layer could not be loaded`), and synchronization validation or
+best practices the validation layer does not offer. A project can ask for the validation layer in debug builds without
+breaking the machines that do not have it.
+
 ## Names
 
 Every object the renderer creates has a name, shown in validation messages and captures instead of a hexadecimal

@@ -135,6 +135,13 @@ flowchart TD
 `TimeClock` measures `std::chrono::steady_clock` (the first frame counts 0) or uses the fixed duration of a
 manual plugin, runs the fixed timestep on it and writes `Time`. Without a clock, `FixedUpdate` never runs.
 
+**Pausing.** A tool (the editor, `docs/Editor.md`) freezes the gameplay with `Schedules::setPaused(true)`: a paused frame
+runs Startup, PreUpdate, PostUpdate and Render, but neither FixedUpdate nor Update, so the events still come in, what
+follows the gameplay (global transforms, animations, particles) and the drawing still run, and the gameplay does not
+move. The clock still measures the frame (`Time::delta` keeps its value) and the ticks it counted are dropped, so
+resuming does not catch up. `Schedules::step()` makes the next paused frame run whole, with exactly one fixed tick. A
+game's own pause menu is gameplay, not this.
+
 ### Ordering inside a phase
 
 ```c++

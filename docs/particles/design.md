@@ -298,7 +298,7 @@ struct ParticleOneShot {};
 - **Systems,** all client-side (`ecs::Side::kClient`):
     - `PostUpdate` `rtype.Particle.Spawn`: spawn the entities of the `SpawnParticles` events.
     - `PostUpdate` `rtype.Particle.Update`, after the transform plugin: start and sweep emitters (an emitter whose
-      effect changed restarts), advance their clocks, compute each one's spawn count (`computeSpawnCount()`), run the
+      effect changed, or whose effect was replaced, `ParticleEffectAssets::replace()` bumping its version, restarts), advance their clocks, compute each one's spawn count (`computeSpawnCount()`), run the
       CPU simulation of the CPU emitters, and send `ParticlesFinished`.
     - `Render` `rtype.Particle.Draw`, after `rtype.graphics.camera` and `rtype.Text.Draw`, before
       `rtype.graphics.sprites`: call `simulate()` for each GPU emitter, and push a `ParticleDraw` per emitter whose
