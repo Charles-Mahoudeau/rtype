@@ -39,7 +39,9 @@ as CI does. To format only: `clang-format -i <files>`. To lint one file: `clang-
 
 ## 4. Docs
 
-The `docs/` page of the module you changed is updated; anything a script can use has its `manual/` page. Check the
+The `docs/` page of the module you changed is updated; anything a script can use has its `manual/` page, written with
+the `write-manual` skill. Run `git diff --stat <base>`: if the change touches an engine call, a component, an event, a
+setting, a setup form or a plugin and `manual/` is not in the diff, stop and invoke `write-manual`. Check the
 paths your docs, `AGENTS.md` and skills mention exist.
 
 ## 5. Report faithfully

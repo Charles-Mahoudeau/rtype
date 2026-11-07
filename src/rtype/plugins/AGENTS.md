@@ -32,4 +32,5 @@ ECS plugin: one shared library `plugin-<name>` in one folder, namespace `rtype::
 - Tests: `tests/plugins/` (`plugins-tests`), flat, one file per concern.
 - Docs: `docs/Plugins.md` (the graph), one page per feature (`docs/Sprites.md`, `Tilemap.md`, `Text.md`, `Shaders.md`,
   `Input.md`, `docs/physics/design.md`, `docs/audio/design.md`, `docs/particles/design.md`), `docs/Modules.md`.
-- Skills: `add-plugin`, `add-component`, `add-engine-call`.
+- Skills: `add-plugin`, `add-component`, `add-engine-call`, and `write-manual` for the manual page of what you add or
+  change (mandatory).

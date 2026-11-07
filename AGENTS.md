@@ -49,7 +49,9 @@ One line per module; the detail of each (classes, files) is in `docs/Modules.md`
    the generic client and server. The engine never names a game, contains no gameplay, and loads a game only through its
    settings, scripts and assets.
 2. **The Luau API is the product.** An engine feature a game needs is not done until a script can use it, it is
-   documented in the manual (`manual/`) and a script test covers it.
+   documented in the manual (`manual/`, written with the `write-manual` skill) and a script test covers it. Changing
+   what a script sees (a call, component, event, setting, setup form, plugin) means updating the manual in the same
+   change: no manual change, no merge.
 3. **Data over code.** Plugins (by name, from their libraries), backends, window, network and physics are chosen in
    `project.luau`, never in a game-specific `main`. The C++ games in `examples/games/` are the step before this, not a
    model.
@@ -125,7 +127,8 @@ Before calling a task finished, run the `verify` skill and report the result fai
 3. `clang-format` leaves the changed files unchanged and `clang-tidy` reports nothing new
    (`.github/scripts/lint.sh <base>`).
 4. The docs of what changed are updated: the `docs/` page of the module, and for anything a script can use, the
-   `manual/` page.
+   `manual/` page, written with the `write-manual` skill (a pull request that changes the script API and leaves
+   `manual/` untouched is not done, unless its description says why no script can see the change).
 
 If a step cannot be run or fails, say so; never claim it done.
 
@@ -155,5 +158,20 @@ If a step cannot be run or fails, say so; never claim it done.
 
 ## Skills
 
-In `.agents/skills/` (`.claude/skills/` links to it): `verify`, `commit-split`, `open-pr`, `plan-issues`,
-`add-plugin`, `add-component`, `add-engine-call`, `luau-gameplay`.
+In `.agents/skills/` (`.claude/skills/` links to it). **A skill is not optional background: when a task matches a row,
+invoke the skill before doing the task, even if the user did not name it.** Asking for the task is asking for its skill;
+doing it by hand from memory skips rules (labels, project fields, template, commit split) that only the skill holds.
+
+| When you... | Invoke |
+|---|---|
+| open, create or update a pull request, "submit", "push for review" | `open-pr` (which runs `verify`) |
+| commit, or write commit messages, or push a branch with several changes | `commit-split` |
+| finish a change, or are about to say "done" | `verify` |
+| touch anything a script can see: an engine call, a component, an event, a setting, a setup form, a plugin, a scripting-bridge rule; or find a manual page missing or wrong | `write-manual` |
+| add an engine call or a setup form | `add-engine-call` (then `write-manual`) |
+| add a component, resource or event to a plugin | `add-component` (then `write-manual`) |
+| add a plugin | `add-plugin` (then `write-manual`) |
+| write or change a game in Luau | `luau-gameplay` |
+| file issues, an epic, sub-issues, dependencies | `plan-issues` |
+
+The skills chain: a feature PR goes `add-*` -> `write-manual` -> `verify` -> `commit-split` -> `open-pr`.

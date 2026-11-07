@@ -36,8 +36,8 @@ game reaches what plain data cannot do: load an asset, bind an input, play a sou
     - C++: the call itself in `tests/plugins/` (success, bad argument, the side it is absent on).
     - Script test in `tests/engine/` (see `ScriptEngineCallsTests`, `ScriptSetupFormsTests`, `ScriptPhysicsTests`):
       a Luau snippet makes the call on a real app and checks the result and the error messages.
-6. **Manual.** Add the call to its plugin's page in `manual/`: name, arguments with types and defaults, result, which
-   side, an example script, errors. Add it to the calls table of `docs/ecs/features/19-luau-bridge.md` and the
+6. **Manual.** Invoke the `write-manual` skill and add the call to its plugin's page in `manual/`: name, arguments with
+   types and defaults, result, which side, an example script, errors. Add it to the calls table of `docs/ecs/features/19-luau-bridge.md` and the
    "From scripts" section of the plugin's design doc.
 7. `verify`, `commit-split` (data and function, then registration, then tests, then docs), `open-pr`.
 
