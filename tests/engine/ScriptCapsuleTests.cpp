@@ -14,9 +14,10 @@
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
+#include "plugins/capsule/Capsule.hpp"
 #include "plugins/capsule/CapsulePlugin.hpp"
+#include "plugins/capsule/Capsules.hpp"
 #include "plugins/capsule/LoadedCapsule.hpp"
-#include "plugins/capsule/NodeConfig.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/component/Components.hpp"
@@ -45,9 +46,17 @@ struct ScriptApp {
     ScriptApp() {
         app.addPlugin(capsule::CapsulePlugin{});
         static_cast<void>(app.getWorld().getComponents().registerType<sc::Health>());
-        capsule::addCapsule(app, "actors/bydo.actor").with(sc::Health{.value = 3}).child("Gun");
-        capsule::addCapsule(app, "scenes/one.scene").child("Bydo").instance("actors/bydo.actor");
-        capsule::addCapsule(app, "scenes/two.scene").child("Bydo").instance("actors/bydo.actor");
+        auto& capsules = *app.getWorld().getResources().getMut<capsule::Capsules>();
+        capsule::Capsule bydo{"actors/bydo.actor"};
+        bydo.editNode(0).values.set(app.getWorld().getComponents(), sc::Health{.value = 3});
+        static_cast<void>(bydo.addNode("Gun", 0));
+        capsules.define(std::move(bydo));
+        for (const char* path : {"scenes/one.scene", "scenes/two.scene"}) {
+            capsule::Capsule level{path};
+            level.editNode(level.addNode("Bydo", 0)).instance = capsule::CapsuleRef{
+                .id = capsule::CapsuleId::fromPath("actors/bydo.actor"), .path = "actors/bydo.actor"};
+            capsules.define(std::move(level));
+        }
         auto created = rtype::scripting::ScriptHost::create(app, {});
         EXPECT_TRUE(created) << (created ? "" : std::string{created.error().message()});
         host = std::move(*created);

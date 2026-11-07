@@ -18,12 +18,12 @@
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
+#include "plugins/capsule/Capsule.hpp"
 #include "plugins/capsule/CapsuleCalls.hpp"
 #include "plugins/capsule/CapsuleInstance.hpp"
 #include "plugins/capsule/CapsulePlugin.hpp"
 #include "plugins/capsule/Capsules.hpp"
 #include "plugins/capsule/LoadedCapsule.hpp"
-#include "plugins/capsule/NodeConfig.hpp"
 #include "plugins/capsule/exceptions/CapsuleException.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/call/CallInfo.hpp"
@@ -69,8 +69,24 @@ class CapsuleCallsTest : public ::testing::Test {
   protected:
     void SetUp() override {
         app.addPlugin(capsule::CapsulePlugin{});
-        capsule::addCapsule(app, "actors/turret.actor").with(tc::Health{.value = 5}).child("Muzzle");
-        capsule::addCapsule(app, "scenes/level.scene").child("Turret").instance("actors/turret.actor");
+        defineTurret(tc::Health{.value = 5}, true);
+        capsule::Capsule level{"scenes/level.scene"};
+        level.editNode(level.addNode("Turret", 0)).instance = capsule::CapsuleRef{
+            .id = capsule::CapsuleId::fromPath("actors/turret.actor"), .path = "actors/turret.actor"};
+        capsules().define(std::move(level));
+    }
+
+    /// @return The world's capsules.
+    capsule::Capsules& capsules() { return *app.getWorld().getResources().getMut<capsule::Capsules>(); }
+
+    /// @brief Defines "actors/turret.actor" with `health`, and a "Muzzle" child if `muzzle`.
+    void defineTurret(tc::Health health, bool muzzle) {
+        capsule::Capsule turret{"actors/turret.actor"};
+        turret.editNode(0).values.set(app.getWorld().getComponents(), health);
+        if (muzzle) {
+            static_cast<void>(turret.addNode("Muzzle", 0));
+        }
+        capsules().define(std::move(turret));
     }
 
     /// @return The id of a registered call.
@@ -119,7 +135,7 @@ TEST_F(CapsuleCallsTest, ReloadsARoot) {
     const auto spawned = invoke<capsule::CapsuleRoot>(
         capsule::kSpawnCall,
         capsule::CapsuleArguments{.capsule = rtype::core::asset::AssetId::fromPath("actors/turret.actor")});
-    capsule::addCapsule(app, "actors/turret.actor").with(tc::Health{.value = 9});
+    defineTurret(tc::Health{.value = 9}, false);
     EXPECT_TRUE(
         invoke<capsule::ReloadResult>(capsule::kReloadCall, capsule::ReloadArguments{.root = spawned.root}).reloaded);
     rtype::ecs::World& world = app.getWorld();

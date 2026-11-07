@@ -50,12 +50,12 @@ TEST(Capsules, StartsWithNoCapsules) {
     EXPECT_EQ(capsules.getCount(), 0U);
     EXPECT_EQ(capsules.find("actors/bydo.actor"), nullptr);
     EXPECT_EQ(capsules.find(capsule::CapsuleId::fromPath("actors/bydo.actor")), nullptr);
-    EXPECT_EQ(capsules.getRunMode(), rtype::ecs::RunMode::kStandalone);
+    EXPECT_TRUE(capsules.loads(rtype::ecs::Side::kServer) && capsules.loads(rtype::ecs::Side::kClient));  // standalone
 }
 
 TEST(Capsules, DefinesACapsuleWithARootOnly) {
     capsule::Capsules capsules;
-    const capsule::Capsule& bydo = capsules.define("actors/./bydo.actor");
+    const capsule::Capsule& bydo = capsules.define(capsule::Capsule{"actors/./bydo.actor"});
     EXPECT_EQ(bydo.getPath(), "actors/bydo.actor");  // normalized
     EXPECT_EQ(bydo.getId(), capsule::CapsuleId::fromPath("actors/bydo.actor"));
     EXPECT_EQ(bydo.getVersion(), 0U);
@@ -70,26 +70,26 @@ TEST(Capsules, DefinesACapsuleWithARootOnly) {
 TEST(Capsules, DefinesACapsuleAgainKeepingItsId) {
     rtype::ecs::World world;
     capsule::Capsules capsules;
-    capsule::Capsule& boss = capsules.define("actors/boss.actor");
-    boss.editNode(0).values.set(world.getComponents(), tc::Health{.value = 50});
-    static_cast<void>(boss.addNode("Turret", 0));
-    capsule::Capsule& again = capsules.define("actors/boss.actor");
+    capsule::Capsule first{"actors/boss.actor"};
+    first.editNode(0).values.set(world.getComponents(), tc::Health{.value = 50});
+    static_cast<void>(first.addNode("Turret", 0));
+    const capsule::Capsule& boss = capsules.define(std::move(first));
+    const capsule::Capsule& again = capsules.define(capsule::Capsule{"actors/boss.actor"});
     EXPECT_EQ(&again, &boss);  // the same capsule: what instances it stays valid
     EXPECT_EQ(again.getVersion(), 1U);
-    ASSERT_EQ(again.getNodes().size(), 1U);  // emptied, to fill again
+    ASSERT_EQ(again.getNodes().size(), 1U);  // the new nodes replaced the old ones
     EXPECT_EQ(again.getNodes()[0].values.getCount(), 0U);
     EXPECT_EQ(capsules.getCount(), 1U);
 }
 
 TEST(Capsules, RefusesAnEmptyPathAndAnUnknownId) {
     capsule::Capsules capsules;
-    EXPECT_EQ(errorOf([&] { static_cast<void>(capsules.define("")); }), "A capsule needs a path");
+    EXPECT_EQ(errorOf([] { static_cast<void>(capsule::Capsule{""}); }), "A capsule needs a path");
     EXPECT_FALSE(errorOf([&] { static_cast<void>(capsules.edit(capsule::CapsuleId::fromPath("missing"))); }).empty());
 }
 
 TEST(Capsules, AddsNodesFoundByPath) {
-    capsule::Capsules capsules;
-    capsule::Capsule& boss = capsules.define("actors/boss.actor");
+    capsule::Capsule boss{"actors/boss.actor"};
     const std::uint32_t turret = boss.addNode("Turret", 0);
     const std::uint32_t muzzle = boss.addNode("Muzzle", turret);
     EXPECT_EQ(turret, 1U);
@@ -103,8 +103,7 @@ TEST(Capsules, AddsNodesFoundByPath) {
 }
 
 TEST(Capsules, RefusesABadNodeName) {
-    capsule::Capsules capsules;
-    capsule::Capsule& boss = capsules.define("actors/boss.actor");
+    capsule::Capsule boss{"actors/boss.actor"};
     static_cast<void>(boss.addNode("Turret", 0));
     EXPECT_EQ(errorOf([&] { static_cast<void>(boss.addNode("Turret", 0)); }),
               "Capsule 'actors/boss.actor': '.' already has a child named 'Turret'");
@@ -139,10 +138,10 @@ TEST(Capsules, SpawnsTheNodesAndComponentsOfItsSide) {
 TEST(CapsulePlugin, InsertsTheCapsulesWithTheRunModeOfTheApp) {
     rtype::ecs::App app{rtype::ecs::RunMode::kServer};
     capsule::Capsules early;
-    static_cast<void>(early.define("actors/bydo.actor"));
+    static_cast<void>(early.define(capsule::Capsule{"actors/bydo.actor"}));
     app.insertResource(std::move(early));
     app.addPlugin(capsule::CapsulePlugin{});
     const auto& capsules = app.getWorld().getResources().require<capsule::Capsules>();
-    EXPECT_EQ(capsules.getRunMode(), rtype::ecs::RunMode::kServer);
-    EXPECT_NE(capsules.find("actors/bydo.actor"), nullptr);  // inserted before: kept
+    EXPECT_FALSE(capsules.loads(rtype::ecs::Side::kClient));  // the App's run mode: a server
+    EXPECT_NE(capsules.find("actors/bydo.actor"), nullptr);   // inserted before: kept
 }
