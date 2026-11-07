@@ -77,7 +77,7 @@ ecs, contract-*  <-  plugin-*                   (loaded by the engine, built bef
 luau <-  scripting
 network  <-  replication
 ecs      <-  replication, scripting
-scripting, replication, plugin-transform, plugin-input  <-  engine  <-  executables, examples
+scripting, replication  <-  engine  <-  executables, examples
 ```
 
 - `core` depends on no project target; `ecs` on `core` only. `core` is the only static library and keeps no state.
@@ -89,9 +89,9 @@ scripting, replication, plugin-transform, plugin-input  <-  engine  <-  executab
   `interop-*`. A window library, miniaudio and the like never leave their backend folder.
 - A plugin depends on `core`, `ecs`, glm, the contracts and the plugins it requires, plus private packages. Never on a
   `platform-*`, `render-*`, `audio-*` or `luau` target.
-- `engine` links `core`, `ecs`, `luau`, `scripting`, `replication`, `plugin-transform` and `plugin-input`, and nothing
-  depends on it but the executables, examples and its tests. It links no other plugin and no backend: it loads them from
-  their libraries (`plugins/` next to the executable, `<game>/plugins/`; `lib/` holds the rest), as `project.luau` names them. A program can
+- `engine` links `core`, `ecs`, `luau`, `scripting`, `replication`, and nothing depends on it but the executables,
+  examples and its tests. It links no plugin and no backend: it loads them from their libraries (`plugins/` next to the
+  executable, `<game>/plugins/`; `lib/` holds the rest), as `project.luau` names them. A program can
   still add plugins in code through `EngineConfig::addPlugins`.
 - The executables link no plugin and no backend; the build only makes them first (`plugin-libraries`,
   `backend-libraries`). A library exports one entry point (`RTYPE_PLUGIN_LIBRARY`, or `RTYPE_LIBRARY` for a backend,

@@ -66,14 +66,14 @@ macOS. On Windows, the rule copies the build folder's DLLs next to them.
 |---|------|------|----------|
 | 1 | `project.luau`, read with `isClient`, `isServer`, `isDebug` and `args` | always | everything below reads the settings |
 | 2 | the network settings, checked (`network.host`, `network.port`) | always | a wrong address fails before a window opens |
-| 3 | `MinimalPlugins`, `TransformPlugin` | always | time, the schedule and the positions, which every game has |
+| 3 | `MinimalPlugins`, `rtype.Transform` (from its library, an error naming the folders when none provides it) | always | time, the schedule and the positions, which every game has |
 | 4 | `EngineConfig::addPlugins` | if given | plugins a program adds in code rather than through its libraries; a client adds its window and what it draws |
 | 5 | `ReplicationPlugin` | network modes (`kClient`, `kServer`) | registers `Owner`, `PlayerInput`, the connection events and `InputLayout`, so the setup can declare its inputs |
 | 6 | the plugins named under `plugins`, from their libraries | if listed | the setup and the scripts can use their components and calls |
 | 7 | `EngineConfig::setup` | if given | the game's native components, resources, systems and plugins |
 | 8 | `ScriptingPlugin`, on `<game>/scripts` | always | the scripts can use what the setup registered |
 | 9 | `ServerPlugin` or `ClientPlugin` | network modes | **last**: it reads every replicated component when it is built, the game's and the scripts' |
-| 10 | `rtype.engine.networkInput` (`addNetworkInput()`) | `kClient` | fills the `PlayerInput` sent to the server from the `Input` actions named like the `InputLayout` ones, so a game needs no input code of its own |
+| 10 | `rtype.engine.networkInput` (`addNetworkInput()`) | `kClient` | fills the `PlayerInput` sent to the server from the `Input` actions named like the `InputLayout` ones, read through the `rtype.input.read` engine call (no system when the input plugin is not loaded), so a game needs no input code of its own |
 
 The network reads the `network` section of the settings and refuses unknown keys:
 

@@ -262,7 +262,7 @@ scripting, replication, plugin-transform, plugin-input  ←  engine  ←  execut
 - The executables link no plugin and no backend: the `Engine` loads those `project.luau` names from `plugins/` next to
   the executable and `<game>/plugins/`. Each library exports one entry point (`RTYPE_PLUGIN_LIBRARY`, or `RTYPE_LIBRARY`
   for a backend, which knows no ECS). See `docs/Plugins.md`.
-- `engine` links `core`, `ecs`, `luau`, `scripting`, `replication`, `plugin-transform` and `plugin-input`, and nothing
-  depends on it but the executables, the examples and its tests. It links no other plugin and no contract: it loads
+- `engine` links `core`, `ecs`, `luau`, `scripting`, `replication`, and nothing
+  depends on it but the executables, the examples and its tests. It links no plugin and no contract: it loads
   them, and a program can still add its own through `EngineConfig::addPlugins`.
 

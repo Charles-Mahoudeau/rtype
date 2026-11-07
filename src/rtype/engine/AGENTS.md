@@ -5,8 +5,8 @@ engine's own, runs it, and rebuilds it on reload. Shared library `engine`.
 
 ## Boundaries
 
-- Links `core`, `ecs`, `luau`, `scripting`, `replication`, the transform plugin and the input plugin, and nothing else.
-  It links no other plugin, no contract and no backend: it loads them (`plugin/`) from `plugins/` next to the executable
+- Links `core`, `ecs`, `luau`, `scripting`, `replication`, and nothing else.
+  It links no plugin, no contract and no backend: it loads them (`plugin/`) from `plugins/` next to the executable
   and from `<game>/plugins/`. A program can still add plugins in code through `EngineConfig::addPlugins`.
 - Nothing depends on it except the executables, the examples and its tests.
 - It names no game and contains no gameplay. A game reaches the engine only through settings, scripts and assets.

@@ -47,7 +47,7 @@ struct EngineConfig {
     /// @brief Adds the plugins this program uses, with the project's settings: a server without a window adds none of
     /// the client's, and links none of them. Optional.
     ///
-    /// Called on every build of the App, after MinimalPlugins and the TransformPlugin, before the replication.
+    /// Called on every build of the App, after MinimalPlugins and the transform plugin, before the replication.
     std::function<void(ecs::App&, const core::config::Settings&)> addPlugins;
 
     /// @brief The game's own native code: its components, resources, systems and plugins. Optional.
