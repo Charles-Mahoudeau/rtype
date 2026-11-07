@@ -24,6 +24,9 @@
 #include "plugins/input/InputAction.hpp"
 #include "plugins/input/InputPlugin.hpp"
 #include "plugins/input/PlatformEvent.hpp"
+#include "plugins/particle/ParticleEffect.hpp"
+#include "plugins/particle/ParticleEffectAssets.hpp"
+#include "plugins/particle/ParticlePlugin.hpp"
 #include "plugins/shader/MaterialAssets.hpp"
 #include "plugins/shader/ShaderAssets.hpp"
 #include "plugins/shader/ShaderPlugin.hpp"
@@ -37,6 +40,9 @@
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/contract/platform/event/Event.hpp"
 #include "rtype/contract/platform/input/Key.hpp"
+#include "rtype/contract/renderer/drawing/BlendMode.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/scripting/ScriptHost.hpp"
 
@@ -258,4 +264,71 @@ TEST(ScriptSetupForms, AMaterialFormChecksItsTable) {
         engine.assets.material({ name = "a", shader = engine.assets.shader("a.glsl"), values = { v = { x = 1 } } })
     )");
     EXPECT_NE(error.find("engine.assets.material: value 'v'"), std::string::npos) << error;
+}
+
+TEST(ScriptSetupForms, AParticleFormBuildsTheWholeEffect) {
+    ScriptApp script;
+    addShaderPlugins(script);
+    script.app.addPlugin(rtype::plugins::particle::ParticlePlugin{});
+    ASSERT_EQ(script.run(R"(
+        local smoke = engine.assets.particle({
+            name = "game.smoke",
+            texture = engine.assets.texture("smoke.png"),
+            source = { position = { x = 0, y = 0 }, size = { x = 64, y = 32 } },
+            flipbook = { columns = 2, rows = 1 },
+            blend = "alpha", simulation = "cpu", capacity = 128,
+            rate = 30, shape = { type = "rect", size = { x = 16, y = 4 } },
+            lifetime = { min = 0.5, max = 1 }, speed = 40, angle = { min = -0.3, max = 0.3 },
+            color = { 0.5, 0.5, 0.5 }, gravity = { x = 0, y = -20 }, drag = 1.5,
+            bursts = { { count = 10 }, { time = 0.5, count = 4, cycles = 2, interval = 0.1 } },
+            colorOverLife = { { t = 0, color = { 1, 1, 1, 1 } }, { t = 1, color = { 1, 1, 1, 0 } } },
+            sizeOverLife = { { t = 0, value = 0.5 }, { t = 1, value = 2 } },
+        })
+        assert(smoke == engine.assetId("game.smoke"))
+    )"),
+              "");
+
+    const rtype::plugins::particle::ParticleEffect* smoke =
+        script.app.getWorld().getResources().require<rtype::plugins::particle::ParticleEffectAssets>().get(
+            rtype::core::asset::AssetId::fromPath("game.smoke"));
+    ASSERT_NE(smoke, nullptr);
+    EXPECT_EQ(smoke->texture, rtype::core::asset::AssetId::fromPath("smoke.png"));
+    EXPECT_FLOAT_EQ(smoke->source.getWidth(), 64.0F);
+    EXPECT_EQ(smoke->flipbook.columns, 2U);
+    EXPECT_EQ(smoke->blend, rtype::contract::renderer::BlendMode::kAlpha);
+    EXPECT_EQ(smoke->desc.simulation, rtype::contract::renderer::ParticleSimulation::kCpu);
+    EXPECT_EQ(smoke->desc.capacity, 128U);
+    EXPECT_FLOAT_EQ(smoke->desc.rate, 30.0F);
+    const auto* rect = std::get_if<rtype::contract::renderer::RectShape>(&smoke->desc.shape);
+    ASSERT_NE(rect, nullptr);
+    EXPECT_FLOAT_EQ(rect->size.x, 16.0F);
+    EXPECT_FLOAT_EQ(smoke->desc.speed.min, 40.0F);
+    EXPECT_FLOAT_EQ(smoke->desc.speed.max, 40.0F);
+    EXPECT_FLOAT_EQ(smoke->desc.angle.min, -0.3F);
+    EXPECT_FLOAT_EQ(smoke->desc.color.w, 1.0F);  // the alpha left out is 1
+    EXPECT_FLOAT_EQ(smoke->desc.gravity.y, -20.0F);
+    ASSERT_EQ(smoke->desc.bursts.size(), 2U);
+    EXPECT_EQ(smoke->desc.bursts[1].cycles, 2U);
+    EXPECT_EQ(smoke->desc.colorOverLife.keys.size(), 2U);
+    ASSERT_EQ(smoke->desc.sizeOverLife.keys.size(), 2U);
+    EXPECT_FLOAT_EQ(smoke->desc.sizeOverLife.keys[1].value, 2.0F);
+}
+
+TEST(ScriptSetupForms, AParticleFormReportsItsMistakes) {
+    ScriptApp script;
+    addShaderPlugins(script);
+    script.app.addPlugin(rtype::plugins::particle::ParticlePlugin{});
+    const auto expectError = [&script](const std::string& source, const std::string& message) {
+        const std::string error = script.run(source);
+        EXPECT_NE(error.find(message), std::string::npos) << "got: " << error;
+    };
+    expectError(R"(engine.assets.particle({ rate = 1 }))", "engine.assets.particle: expected a 'name'");
+    expectError(R"(engine.assets.particle({ name = "a", colour = 1 }))", "unexpected 'colour'");
+    expectError(R"(engine.assets.particle({ name = "a", color = { 1, 1 } }))", "'color': expected a colour");
+    expectError(R"(engine.assets.particle({ name = "a", bursts = { { time = 1 } } }))", "burst 1: expected a 'count'");
+    expectError(R"(engine.assets.particle({ name = "a", sizeOverLife = { { value = 1 } } }))",
+                "'sizeOverLife' key 1: expected a 't'");
+    expectError(R"(engine.assets.particle({ name = "a", blend = "glow" }))",
+                "Unknown blend 'glow' (expected 'additive', 'alpha', 'cutout')");
+    expectError(R"(engine.assets.particle({ name = "a", lifetime = 0 }))", "Particle effect 'a'");
 }
