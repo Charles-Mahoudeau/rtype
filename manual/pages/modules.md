@@ -124,6 +124,18 @@ With it, [luau-lsp](https://github.com/JohnnyMorganz/luau-lsp) understands `@scr
 template game has it already; copy it to your game folder if you started another way. The engine itself does not read
 this file: `@scripts` always exists.
 
+To add an alias of your own, declare it in `project.luau` with `engine.settings.scripts.aliases`
+(see [Project settings](project-settings.md#scripts)) and mirror it here, with the target relative to the game folder:
+
+```json
+{
+	"aliases": {
+		"scripts": "./scripts",
+		"shared": "./scripts/shared"
+	}
+}
+```
+
 ## See also
 
 [Hot reload](hot-reload.md) for what happens when you save a module, and [Systems](systems.md).

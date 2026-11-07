@@ -28,6 +28,37 @@ too.
 | `network.port` | both | `4242` | a whole number from 1 to 65535; `0` also on a server (the system picks a free port) |
 | `network.host` | client | `"127.0.0.1"` | must resolve to an address |
 
+## Scripts
+
+| Key | Default | Check |
+|---|---|---|
+| `scripts.aliases.<name>` | none | the folder inside `scripts/` that `@<name>` points to, a string |
+
+An alias is a short name for a folder of your scripts, usable in `require`:
+
+```lua
+engine.settings.scripts.aliases = { shared = "shared" }
+```
+
+```lua
+-- scripts/server/main.luau
+local config = require("@shared/config") -- scripts/shared/config.luau
+```
+
+The rules:
+
+- A name is made of `a-z`, `0-9`, `_`, `.` and `-`, and ignores case: `Shared` and `shared` are the same alias, so
+  declaring both is an error.
+- `scripts` and `self` are reserved: `@scripts` is always the `scripts/` folder, `@self` the folder of the requiring
+  file.
+- The target is a path relative to `scripts/` and stays inside it: no absolute path, no `..` past the root, no link
+  pointing out.
+- An invalid alias stops the start with a message naming `scripts.aliases.<name>` and the reason. Any other key under
+  `scripts` is an unknown key and an error.
+
+The editor does not read `project.luau`, so mirror each alias in the `.luaurc` next to it (the targets there are
+relative to the game folder) or luau-lsp will flag the paths. See [Modules and require](modules.md#editor-setup).
+
 ## Plugins
 
 Plugins add engine features. A game lists the ones it wants by name, and the engine loads each from its library:

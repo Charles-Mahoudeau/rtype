@@ -83,6 +83,14 @@ The network reads the `network` section of the settings and refuses unknown keys
 | `network.port` | both | 4242 | a whole number from 1 to 65535; 0 also on a server (the system picks a free port) |
 | `network.host` | client | `"127.0.0.1"` | must resolve to an address |
 
+The `scripts` section is read when the `ScriptingPlugin` is added (step 8) but checked before anything is built, with the
+network: `checkKeys({"aliases"}, "scripts")` (the entry point keys come with their own change). `scripts.aliases` is an
+open-ended table, so `readScriptAliases` lists it with `Settings::keys()`. Each value must be a string, and each alias is
+tried alone on a `scripting::modules::ScriptResolver`, so the error is a `RuntimeError` naming
+`scripts.aliases.<name>` with the resolver's reason (bad name, `scripts`/`self` reserved, target outside `scripts/`). The
+map goes to `ScriptingPlugin::Config::aliases`. The game mirrors the aliases in its `.luaurc` for luau-lsp; the engine
+does not read that file.
+
 `addPlugins` runs again on every build, so it creates what the plugins own, such as their registries, each time.
 
 ### Plugins
