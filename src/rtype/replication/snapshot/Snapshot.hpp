@@ -26,8 +26,8 @@ class Manifest;
 }  // namespace rtype::replication::manifest
 
 namespace rtype::replication::snapshot {
-/// @brief The prefab of a record that has none (always, until prefabs exist).
-inline constexpr std::uint16_t kNoPrefab = 0xFFFF;
+/// @brief The capsule of a record that has none (always, until spawn records carry their capsule).
+inline constexpr std::uint16_t kNoCapsule = 0xFFFF;
 
 /// @brief Flag bit: the snapshot lists every replicated entity, with all its replicated components, so the client
 /// removes what is absent. The other bits are reserved and must be 0.
@@ -61,7 +61,7 @@ struct ComponentValue {
 /// @brief An entity the client does not know yet, with all its components.
 struct SpawnRecord {
     std::uint32_t networkId{0};              ///< The entity's NetworkId, never 0.
-    std::uint16_t prefab{kNoPrefab};         ///< The prefab, kNoPrefab for none.
+    std::uint16_t capsule{kNoCapsule};       ///< The short id of its capsule, kNoCapsule for none.
     std::vector<ComponentValue> components;  ///< Its components, in increasing short id.
 
     friend bool operator==(const SpawnRecord& left, const SpawnRecord& right) noexcept = default;

@@ -47,9 +47,9 @@ Snapshot makeSnapshot() {
     value.flags = snapshot::kComplete;
     value.spawns.push_back(
         {.networkId = 1,
-         .prefab = snapshot::kNoPrefab,
+         .capsule = snapshot::kNoCapsule,
          .components = {{.shortId = 0, .bytes = makeBytes(4, 1)}, {.shortId = 2, .bytes = makeBytes(8, 9)}}});
-    value.spawns.push_back({.networkId = 5, .prefab = 3, .components = {{.shortId = 1, .bytes = makeBytes(1, 40)}}});
+    value.spawns.push_back({.networkId = 5, .capsule = 3, .components = {{.shortId = 1, .bytes = makeBytes(1, 40)}}});
     value.updates.push_back({.networkId = 2, .components = {{.shortId = 1, .bytes = makeBytes(1, 50)}}});
     value.removals.push_back({.networkId = 3, .shortId = 2});
     value.despawns = {4, 6};
@@ -68,7 +68,7 @@ TEST(Snapshot, EncodesTheDocumentedLayout) {
     value.lastProcessedInput = 0x0A0B0C0D;
     value.flags = snapshot::kComplete;
     value.spawns.push_back(
-        {.networkId = 9, .prefab = 0x0102, .components = {{.shortId = 1, .bytes = makeBytes(1, 7)}}});
+        {.networkId = 9, .capsule = 0x0102, .components = {{.shortId = 1, .bytes = makeBytes(1, 7)}}});
 
     const std::optional<Bytes> bytes = snapshot::encode(value);
 
@@ -80,7 +80,7 @@ TEST(Snapshot, EncodesTheDocumentedLayout) {
         std::byte{0x01},                                                     // flags
         std::byte{0x01}, std::byte{0x00},                                    // spawn count
         std::byte{0x09}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},  // net id
-        std::byte{0x02}, std::byte{0x01},                                    // prefab
+        std::byte{0x02}, std::byte{0x01},                                    // capsule
         std::byte{0x01},                                                     // component count
         std::byte{0x01}, std::byte{0x00}, std::byte{0x07},                   // short id, fields
         std::byte{0x00}, std::byte{0x00},                                    // update count
@@ -296,7 +296,7 @@ TEST(Snapshot, RefusesAVariableLengthPastTheEndOfTheMessage) {
     value.spawns.push_back(
         {.networkId = 1, .components = {{.shortId = 1, .bytes = makeBytes(5, 20), .lengthPrefixed = true}}});
     Bytes bytes = snapshot::encode(value).value();
-    // The length sits after the header, the count, the record's id, prefab, component count and short id.
+    // The length sits after the header, the count, the record's id, capsule, component count and short id.
     constexpr std::size_t kLengthOffset = 10 + 2 + 4 + 2 + 1 + 2;
     bytes[kLengthOffset] = std::byte{200};
 
