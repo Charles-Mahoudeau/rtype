@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <format>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <optional>
 #include <ranges>

@@ -73,6 +73,7 @@ core::reload::ReloadOutcome ScriptsReloadable::reload(const core::reload::Change
         return ReloadOutcome::failed(joinFailures(failures));
     }
     std::vector<std::string> removed;
+    removed.reserve(changes.removed.size());
     for (const std::string& file : changes.removed) {
         removed.push_back(nameOf(file));
     }
