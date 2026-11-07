@@ -4,7 +4,6 @@ add_requires("vulkan-memory-allocator-hpp v3.3.0+3",
              {alias = "vulkan-memory-allocator-hpp", configs = {use_vulkanheaders = true}})
 -- Built against the same xmake vulkan-headers as the renderer, not the system ones (see the root xmake.lua).
 add_requireconfs("vulkan-memory-allocator-hpp.vulkan-headers", {system = false, override = true})
-add_requires("imgui 1.92.x", {alias = "imgui", configs = {vulkan = true}})
 -- glslangValidator compiles the shaders: from the glslang package required by the root xmake.lua, or from Homebrew on
 -- macOS (brew install glslang).
 
@@ -67,7 +66,7 @@ target("render-vulkan")
     set_basename("rtype-render-vulkan")
     -- contract-renderer for IRenderer, interop-vulkan for IVulkanSurfaceSource (implemented by the platforms).
     add_deps("core", "contract-renderer", "interop-vulkan")
-    add_packages("vulkan-headers", "vulkan-memory-allocator", "vulkan-memory-allocator-hpp", "glm", "stb", "imgui")
+    add_packages("vulkan-headers", "vulkan-memory-allocator", "vulkan-memory-allocator-hpp", "glm", "stb")
     add_packages("vulkan-headers", {public = true})
     -- vk::raii::Context takes the entry point core/Loader.cpp gives it instead of dlopen()-ing its own loader. Public:
     -- it changes the layout of vk::raii::Context, so every file including the renderer headers must agree on it.
