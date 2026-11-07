@@ -114,19 +114,9 @@ rtype.Transform = { position = (-40, 0) }
 rtype.SpriteRenderer = { texture = "sprites/bg.png", layer = -10 }
 ```
 
-| Part | Rule |
-|---|---|
-| `[capsule format=1]` | Optional, first: the version of the format |
-| `[node path="..."]` | `"."` for the root, `"Boss/LeftTurret"` below it; the parent must come before |
-| `instance="path"` | The node spawns that capsule; its components start from that capsule root's values, so it names only the fields it changes |
-| `side=server\|client\|both` | Where the node is spawned (server by default); not on the root |
-| `name = { field = value, ... }` | A component, its fields over its defaults; `{}` for the defaults or a tag |
-| Values | numbers (`0x...` for an asset id with no path), `true` / `false`, `"text"` (strings, asset paths), `(x, y)` vectors, `[a, b]` arrays and lists; `#` starts a comment |
-
-Entity fields cannot be set yet. `format::readCapsule()` reads a file into a capsule (an error names the file, line and
-column) and `format::writeCapsule()` writes one back, with only the fields that differ from where reading starts,
-floats in their shortest exact form and assets by the path they were read from, so a capsule read and written again is
-the same: an editor can save what it reads.
+`format::readCapsule()` reads a file into a capsule (an error names the file, line and column) and
+`format::writeCapsule()` writes one back so that it reads the same: an editor can save what it reads. Every rule of
+the format, and how the writer writes, is in [`CapsuleFormat.md`](../../CapsuleFormat.md).
 
 **Loading.** The `CapsulePlugin` reads every capsule file from its `finish()`, once every plugin, scripts included, is
 built, so a file can name the components scripts declare. A file instancing another reads it first. A broken file stops

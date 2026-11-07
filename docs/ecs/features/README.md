@@ -64,7 +64,7 @@ flowchart BT
     reflection["15 Reflection"]
     hooks["16 Hooks"]
     hierarchy["17 Hierarchy"]
-    actors["18 Actors"]
+    actors["18 Capsules"]
     luau["19 Luau bridge"]
     replication["20 Replication"]
 
