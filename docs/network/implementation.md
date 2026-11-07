@@ -382,7 +382,7 @@ flowchart LR
     N17 --> N36[NET-36 prediction] --> N37[NET-37 smoothing]
     N20 --> N39[NET-39 executables] --> N38[NET-38 engine glue]
     N39 --> N40[NET-40 listen server]
-    N20 --> N41[NET-41 prefabs]
+    N20 --> N41[NET-41 capsules]
     N20 --> N42[NET-42 quantization]
 ```
 
@@ -2116,7 +2116,7 @@ check, short ids when reading), later NET-33 (packets) and NET-41 (prefabs) add 
 ```c++
 namespace rtype::replication {
 enum class MessageType : std::uint8_t {
-    kManifestComponent = 0x20, kManifestPacket = 0x21, kManifestPrefab = 0x22, kManifestInputAction = 0x23,
+    kManifestComponent = 0x20, kManifestPacket = 0x21, kManifestCapsule = 0x22, kManifestInputAction = 0x23,
     kManifestEnd = 0x24, kSnapshot = 0x30, kInput = 0x31, kCustomPacket = 0x32,
 };
 }  // namespace rtype::replication
@@ -3155,14 +3155,14 @@ left to do once the engine is split.
   to `127.0.0.1`; closing the game stops and joins them.
 - [ ] The host's own player applies its input directly (no reconciliation needed, but it is harmless).
 
-### NET-41 · Prefabs in replication
+### NET-41 · Capsules in replication
 
 | Milestone | Size | Blocked by | Design |
 |---|---|---|---|
-| M7 | S | NET-20, **ECS prefabs** | [7.2](design.md#72-manifest), [7.4](design.md#74-snapshots-server--client) |
+| M7 | S | NET-20, **capsules** (`plugin-capsule`, done) | [7.2](design.md#72-manifest), [7.4](design.md#74-snapshots-server--client) |
 
 **Tasks.**
-- [ ] `kManifestPrefab` entries; spawn records carry the prefab short id; the client instantiates the prefab, then
+- [ ] `kManifestCapsule` entries; spawn records carry the capsule short id; the client spawns the capsule, then
   applies the replicated components.
 
 ### NET-42 · Quantization
@@ -3223,7 +3223,7 @@ check.
 |---|---|---|
 | ECS `StandalonePlugin` ([#128](https://github.com/Charles-Mahoudeau/rtype/issues/128)) | ECS | NET-38 |
 | ECS hook to finish a plugin's setup once every plugin was built (optional) | ECS | Nothing: `ReplicatedRead` is built when `ServerPlugin` adds its systems, so it is added last, checked by `net.start` |
-| ECS prefabs | ECS | NET-41 |
+| Capsules (`plugin-capsule`, done) | plugins | NET-41 |
 | ECS field network options (quantization) | ECS | NET-42 |
 | ECS Luau bridge, engine Luau plugin | ECS + Luau | NET-35 |
 | `VulkanRenderer::draw(Shape)` (done) | Render | Only the visual display of the prototype client (NET-18 printed the world until then) |

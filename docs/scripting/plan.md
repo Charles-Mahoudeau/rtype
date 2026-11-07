@@ -2,7 +2,7 @@
 
 Goal: **a game developer writes components and systems in Luau, and they run on the ECS** (`App`, `World`, scheduler),
 on the server and the clients. Everything else of
-[`../ecs/features/19-luau-bridge.md`](../ecs/features/19-luau-bridge.md) (prefabs, states, hot reload, side checks,
+[`../ecs/features/19-luau-bridge.md`](../ecs/features/19-luau-bridge.md) (capsules, states, hot reload, side checks,
 replication of script components) comes after.
 
 Based on the code of 2026-10-29 (branch `refactor/engine/luau-settings-registry`). Every snippet is a
@@ -344,7 +344,8 @@ Checked against the code on 2026-11-03. What the ECS already offers, and what it
 | Events and resources from scripts                               | By bytes and id: `Events::send(EventId, span)`, `RawEventRange`, `Resources::find/get/getMut(ResourceId)`. `ScriptCallable` receives `DynamicQueries` and `Commands` only, so it needs access to them. |
 | Systems by side                                                 | `Side`, `System::setSide`, `RunMode`. Done.                                                                                                                                                            |
 | Client systems write only `kClientOnly` components              | **Not enforced.** `Presence` exists on types, but nothing reads it when a system is added.                                                                                                             |
-| Prefabs (feature 18), states and run conditions (feature 13 v2) | **Not implemented.** Only described in the docs.                                                                                                                                                       |
+| Capsules (feature 18) | **Implemented** in `plugin-capsule`: files describe them, scripts spawn, load and reload them through `rtype.capsule.*` calls. |
+| States and run conditions (feature 13 v2) | **Not implemented.** Only described in the docs.                                                                                                                                                       |
 | Replication of script components                                | The manifest carries `layoutHash`; whether it accepts components registered at runtime is **not checked**.                                                                                             |
 
 Tasks about the `scripting` target use the `SCR-xx` ids, from `SCR-01`. Work that has to happen in the ECS first is
@@ -630,21 +631,24 @@ this plan is A: it exists in the design, and it needs no change to the ECS rule.
   sees (option (b) above, or the option the team picks).
 - [ ] A script system rejects an invalid name before writing it.
 
-#### SCR-08: Prefabs
+#### SCR-08: Capsules (was: Prefabs)
 
 |            |                                               |
 |------------|-----------------------------------------------|
 | Module     | `ecs`, then `scripting`                       |
-| Blocked by | ECS feature 18 (prefabs), **not implemented** |
+| Blocked by | ECS feature 18: **done**, as capsules (`plugin-capsule`) |
 
-**Goal.** `ecs.prefab("game.Bydo", {...})` and `commands:spawnPrefab("game.Bydo")`.
+**Goal.** Scripts use capsules. *Done differently than first planned:* actors and scenes became one concept,
+capsules, described by files (`.actor`, `.scene`, `.capsule` under `assets/`, read by the plugin and reloaded when
+saved) rather than declared from Luau, so scripts declare nothing: they call `rtype.capsule.spawn`,
+`rtype.capsule.load` and `rtype.capsule.reload` (see [Capsules](../ecs/features/18-capsules.md)).
 
 Not startable: the ECS part has to exist first. Create it as an `ecs` issue (feature 18, v2) and block this one on it.
 
 **Done when**
 
-- [ ] A prefab declared in Luau is spawned by a Luau system and by a C++ one.
-- [ ] An unknown prefab or component is refused when the script loads.
+- [x] A capsule described in a file is spawned by a Luau system and by a C++ one.
+- [x] An unknown capsule or component is refused (a call error, or the file refused when it is read).
 
 #### SCR-09: States and run conditions
 
@@ -764,7 +768,7 @@ flowchart LR
     S14 --> S15["SCR-07<br/>replication"]
     S12 --> S18["SCR-10<br/>engine calls, setup"]
     S14 --> S18
-    E18["ECS 18<br/>prefabs"] --> S16["SCR-08<br/>prefabs"]
+    E18["ECS 18<br/>capsules"] --> S16["SCR-08<br/>capsules"]
     E13["ECS 13 v2<br/>states"] --> S17["SCR-09<br/>states"]
 ```
 

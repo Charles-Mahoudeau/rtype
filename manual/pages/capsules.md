@@ -11,10 +11,6 @@ Add the plugin in `project.luau`:
 engine.settings.plugins = { "rtype.Capsule" }
 ```
 
-!!! note
-    Capsule files are read by the next version of the plugin (the format and hot reload). Until then, capsules are
-    defined by a [native plugin](native-plugins.md); everything below already works from scripts.
-
 ## What a capsule holds
 
 A capsule is a tree of nodes. Each node becomes one entity when the capsule is spawned:
@@ -27,6 +23,46 @@ A capsule is a tree of nodes. Each node becomes one entity when the capsule is s
 
 A level is a capsule whose root has no `rtype.Transform`: its children stay where the level put them. A capsule that
 should move as one gives its root a `rtype.Transform`.
+
+## Capsule files
+
+Put your capsules anywhere under `assets/`. The engine reads every `.capsule`, `.scene` and `.actor` file when the game
+starts, after your scripts, so a file can use the components they declare. A capsule's name is its path from
+`assets/`, for example `actors/boss.actor`.
+
+```
+[capsule format=1]
+
+# The boss, with a turret on each side.
+[node path="."]
+game.Health = { value = 50 }
+rtype.Transform = {}
+
+[node path="LeftTurret" instance="actors/turret.actor"]
+rtype.Transform = { position = (-40, 0) }
+
+[node path="RightTurret" instance="actors/turret.actor"]
+rtype.Transform = { position = (40, 0) }
+
+[node path="Shadow" side=client]
+rtype.SpriteRenderer = { texture = "sprites/boss_shadow.png", layer = -1 }
+```
+
+- Each `[node]` is one entity. `path="."` is the root and comes first; `"LeftTurret"` is a child of the root,
+  `"LeftTurret/Muzzle"` a child of the turret, and a parent comes before its children.
+- `instance="actors/turret.actor"` spawns that capsule there. Write only the fields you change: the others keep the
+  turret's values.
+- `side=client` (or `both`) for what only players see; nodes are the server's by default.
+- A component is `name = { field = value, ... }`, with the component's defaults for the fields you leave out, and `{}`
+  for all of them. Values: numbers, `true` / `false`, `"text"` (also asset paths), `(x, y)` vectors and `[a, b]`
+  lists. `#` starts a comment.
+- A file the engine cannot read stops the start with the file, the line and the column of the mistake.
+
+### Hot reload
+
+While the game runs in a debug build, save a capsule file and the engine reads it again, with the files that use it,
+and respawns what came from it in place. A file saved with a mistake keeps its previous version and prints why. Turn it
+off, or on in a release build, with `engine.settings.capsule = { hotReload = false }`.
 
 ## Spawning, switching levels, reloading
 

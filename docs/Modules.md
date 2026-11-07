@@ -117,6 +117,9 @@ architecture rules, and this file keeps the detail, which changes with every fea
       `spawnCapsule()`, `loadCapsule()` (switches levels, with the `LoadedCapsule` resource) and `reloadCapsule()`,
       each recorded in a `Commands` buffer (`CapsuleSpawn.hpp`), the `CapsuleInstance` component on
       every spawned root, and the `rtype.capsule.spawn` / `load` / `reload` calls (`CapsuleCalls.hpp`).
+      `format/CapsuleText.hpp` (`rtype::plugins::capsule::format`) reads and writes the capsule file format;
+      `CapsuleFiles` (the `rtype.CapsuleFiles` resource) reads a game's `.capsule` / `.scene` / `.actor` files from the
+      plugin's `finish()` and, with `capsule.hotReload` (`CapsuleSettings`), reads saved files again.
       `detail/CapsuleSpawner` checks a capsule and records its walk. It requires no plugin. See
       `docs/ecs/features/18-capsules.md`.
     - `plugins/transform/` (`rtype::plugins::transform`) — `TransformPlugin`: the `Transform` component gameplay writes,

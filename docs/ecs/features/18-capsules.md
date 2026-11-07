@@ -83,13 +83,56 @@ boss.editNode(left).values.set(components, Transform{.position = {-40.F, 0.F}});
 capsules.define(std::move(boss));
 ```
 
-An instance is looked up when the capsule is spawned, so a capsule can instance one defined, or redefined, later.
+An instance is looked up when the capsule is spawned, so a capsule can instance one defined, or redefined, later. A
+game describes its capsules in files instead ([below](#capsule-files)).
 
 | Rule | Behaviour |
 |---|---|
 | Names | One capsule per path; two paths with the same id are refused (`CapsuleException`) |
 | Values | Any component (all are copyable); setting one again replaces it. `Parent` and `Children` are refused: the nodes set the hierarchy |
 | Hot reload | `Capsules::define()` of a capsule with the same id replaces its nodes and bumps its version, keeping its id and address, so what instances it stays valid |
+
+### Capsule files
+
+A game keeps its capsules under `<game>/assets`, as `.capsule`, `.scene` or `.actor` files: the same format, the
+extension is for the developer. A file is a flat list of node sections, the root first and a parent before its
+children, each with its components written by field name (from the [reflection](15-reflection-and-serialization.md)):
+
+```
+[capsule format=1]
+
+[node path="."]
+game.Health = { value = 50 }
+
+[node path="LeftTurret" instance="actors/turret.actor"]
+rtype.Transform = { position = (-40, 0) }
+
+[node path="Background" side=client]
+rtype.SpriteRenderer = { texture = "sprites/bg.png", layer = -10 }
+```
+
+| Part | Rule |
+|---|---|
+| `[capsule format=1]` | Optional, first: the version of the format |
+| `[node path="..."]` | `"."` for the root, `"Boss/LeftTurret"` below it; the parent must come before |
+| `instance="path"` | The node spawns that capsule; its components start from that capsule root's values, so it names only the fields it changes |
+| `side=server\|client\|both` | Where the node is spawned (server by default); not on the root |
+| `name = { field = value, ... }` | A component, its fields over its defaults; `{}` for the defaults or a tag |
+| Values | numbers (`0x...` for an asset id with no path), `true` / `false`, `"text"` (strings, asset paths), `(x, y)` vectors, `[a, b]` arrays and lists; `#` starts a comment |
+
+Entity fields cannot be set yet. `format::readCapsule()` reads a file into a capsule (an error names the file, line and
+column) and `format::writeCapsule()` writes one back, with only the fields that differ from where reading starts,
+floats in their shortest exact form and assets by the path they were read from, so a capsule read and written again is
+the same: an editor can save what it reads.
+
+**Loading.** The `CapsulePlugin` reads every capsule file from its `finish()`, once every plugin, scripts included, is
+built, so a file can name the components scripts declare. A file instancing another reads it first. A broken file stops
+the start, naming the file, line and column.
+
+**Hot reload.** With `capsule.hotReload` (on by default in debug builds), a Render system on every side looks at the
+files every 500 ms. A saved file is read again with the files that instance it, then what was spawned from them is
+reloaded (nested roots through their outermost capsule). A file saved broken keeps its old version; the error goes to
+the error output.
 
 ### Spawning
 
@@ -174,8 +217,12 @@ An override added after a spawn replaces the whole component (its defaults with 
 - **Reloading a root the game added to.** A reload despawns all the root's children, including ones the game parented
   to it, and keeps the root's other components, even ones the new version no longer sets.
 - **Editing a capsule after spawning.** Instances are copies: they change only when reloaded.
+- **A file naming a component no plugin or script registers.** It is refused when the files are read: list the plugin
+  that owns the component.
 
 ## Open questions
 
-- Remapping `Entity` fields that point inside the tree (a turret aiming at a node of its own capsule). (Later)
+- Remapping `Entity` fields that point inside the tree, written as node paths in the files (a turret aiming at a
+  node of its own capsule). (Later)
 - Saving part of a running world back to a capsule file, for an editor. (Later)
+- Spawning by capsule over the network: the spawn record already has a `capsule` short id, still unused. (Later)

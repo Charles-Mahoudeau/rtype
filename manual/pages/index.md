@@ -42,4 +42,4 @@ clients draw it and send their inputs. The same scripts load on both sides, and 
 
 !!! note "Planned"
     Parts of the engine are still being built. Pages mark what does not exist yet as *planned*: do not rely on it.
-    Prefabs, game states, a way for scripts to send their own network messages, and hot reload of scripts are planned.
+    Game states, a way for scripts to send their own network messages, and hot reload of scripts are planned.

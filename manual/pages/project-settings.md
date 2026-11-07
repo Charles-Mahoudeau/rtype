@@ -54,6 +54,7 @@ end
 | `rtype.audio` | Sounds, music and the listener | client |
 | `rtype.Physics`, see [Physics](physics.md) | 2D physics | both |
 | `rtype.PhysicsDebug` | Draws the colliders and velocities | client |
+| `rtype.Capsule`, see [Capsules](capsules.md) | Actors and levels from capsule files | both |
 
 The time, the schedule and the transform are always there. A plugin that needs another brings it: listing
 `rtype.graphics` also loads `rtype.Input`, with a line on the error output, so list what you use and you may leave out
@@ -81,6 +82,12 @@ Every key is optional and the values are checked when `rtype.Physics` is listed.
 | `enabled` | outlines shown at start (F3 toggles them in game) |
 | `drawAll` | outline every collider, not only the entities that ask |
 | `outlineThickness`, `velocityScale` | how the outlines and velocity arrows look |
+
+### `capsule`
+
+| Key | Meaning |
+|---|---|
+| `hotReload` | reads again the capsule files you save while the game runs, and respawns what they spawned (on by default in a debug build) |
 
 ## Window, renderer and audio (client)
 

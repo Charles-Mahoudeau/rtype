@@ -81,7 +81,7 @@ sequenceDiagram
     S->>C: challenge (random number)
     C->>S: same number back
     S->>C: accepted (session token, resume token, client id)
-    S->>C: manifest (every component, packet, prefab, input action)
+    S->>C: manifest (every component, packet, capsule, input action)
     C->>S: ready → lobby
 ```
 
