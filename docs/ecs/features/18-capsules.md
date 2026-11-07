@@ -69,41 +69,40 @@ Its nodes form a flat list, a parent before its children, node 0 the root:
 | instance | Another capsule it spawns instead of a plain entity: that capsule's root takes this node's components over its own, and gets this node's children too |
 | components | `ComponentValues`: one live value per component (copied and destroyed with its type's hooks), each with the component's presence |
 
-From C++, `addCapsule()` defines a capsule and returns its root's `NodeConfig`:
+A `Capsule` is built node by node, then given to the `Capsules` resource with `define()`. Games describe capsules in
+files, which the plugin reads the same way; building one in C++ is for tests and tools:
 
 ```c++
-rtype::plugins::capsule::addCapsule(app, "actors/turret.actor").with(Transform{}).with(Health{.value = 5});
-rtype::plugins::capsule::NodeConfig boss = rtype::plugins::capsule::addCapsule(app, "actors/boss.actor");
-boss.with(Transform{}).with(Health{.value = 50});
-boss.child("LeftTurret").instance("actors/turret.actor").with(Transform{.position = {-40.F, 0.F}});
-boss.child("RightTurret").instance("actors/turret.actor").with(Transform{.position = {40.F, 0.F}});
-
-rtype::plugins::capsule::NodeConfig level = rtype::plugins::capsule::addCapsule(app, "scenes/level1.scene");
-level.child("Boss").instance("actors/boss.actor").with(Transform{.position = {600.F, 0.F}});
-level.child("Background").onSide(rtype::ecs::Side::kClient).with(SpriteRenderer{/* ... */});
+namespace capsule = rtype::plugins::capsule;
+capsule::Capsule boss{"actors/boss.actor"};                    // a root only; the path is normalized, the id derived
+boss.editNode(0).values.set(components, Health{.value = 50});
+const std::uint32_t left = boss.addNode("LeftTurret", 0);
+boss.editNode(left).instance = capsule::CapsuleRef{.id = capsule::CapsuleId::fromPath("actors/turret.actor"),
+                                                   .path = "actors/turret.actor"};
+boss.editNode(left).values.set(components, Transform{.position = {-40.F, 0.F}});
+capsules.define(std::move(boss));
 ```
 
-An instance is looked up when the capsule is spawned, so a capsule can instance one defined, or redefined, later. Files
-describe capsules the same way (the capsule file format).
+An instance is looked up when the capsule is spawned, so a capsule can instance one defined, or redefined, later.
 
 | Rule | Behaviour |
 |---|---|
 | Names | One capsule per path; two paths with the same id are refused (`CapsuleException`) |
 | Values | Any component (all are copyable); setting one again replaces it. `Parent` and `Children` are refused: the nodes set the hierarchy |
-| Hot reload | `Capsules::define(path)` again empties the capsule and bumps its version, keeping its id, so what instances it stays valid |
+| Hot reload | `Capsules::define()` of a capsule with the same id replaces its nodes and bumps its version, keeping its id and address, so what instances it stays valid |
 
 ### Spawning
 
 ```c++
 // in a system: reserved at once, alive when the system's commands are applied
 void spawnWave(rtype::ecs::Commands& commands, rtype::ecs::Res<rtype::plugins::capsule::Capsules> capsules) {
-    rtype::plugins::capsule::spawnCapsule(commands, *capsules, "actors/bydo.actor")
+    rtype::plugins::capsule::spawnCapsule(commands, *capsules, bydoId)
         .add(Transform{.position = {820.F, 140.F}});   // replaces the capsule's Transform for this entity
 }
-
-// outside systems (tests, tools): at once, from the world's Capsules
-const rtype::ecs::Entity boss = rtype::plugins::capsule::spawnCapsule(world, "actors/boss.actor");
 ```
+
+Spawning, loading and reloading are all recorded in a `Commands` buffer: in a system, its own; outside systems (tests,
+tools), a `Commands{world}` flushed by hand.
 
 ```mermaid
 flowchart LR
@@ -111,7 +110,7 @@ flowchart LR
     capsule -->|copy per spawn| world["World<br/>one entity per node, parented"]
 ```
 
-One walk over the nodes, shared by `Commands` and the `World`: a node of the other side is skipped with its subtree; a
+One walk over the nodes: a node of the other side is skipped with its subtree; a
 node is a new entity, or the root its instance spawns; its kept values are added (presence: a client leaves out
 `kServerOnly` components, a dedicated server `kClientOnly` ones); it is parented to its parent's entity. The root gets a
 `CapsuleInstance { capsule, version, nested }`. A check pass runs first (every instanced capsule exists, none contains
@@ -129,11 +128,10 @@ manager) stay.
 
 ### Reloading
 
-| Function | Behaviour |
-|---|---|
-| `reloadCapsule(world, root)` | Despawns the root's children, adds the capsule's current root values again, spawns its children again and updates `CapsuleInstance.version`. The root entity and its other components stay |
-| `reloadCapsule(commands, capsules, root, instance, children)` | The same, recorded, from a system |
-| `reloadInstances(world, id)` | Reloads everything spawned from a capsule; a nested root (`nested`) is reloaded through the outermost capsule it belongs to, so the outer node's values stay on it |
+`reloadCapsule(commands, capsules, root, instance, children)` despawns the root's children, adds the capsule's current
+root values again, spawns its children again and updates `CapsuleInstance.version`. The root entity and its other
+components stay. A nested root (`nested`) is reloaded from its own capsule, which replaces the outer node's values on
+it; reloading the outermost capsule it belongs to keeps them.
 
 ### From scripts
 

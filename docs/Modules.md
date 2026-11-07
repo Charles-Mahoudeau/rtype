@@ -114,10 +114,10 @@ architecture rules, and this file keeps the detail, which changes with every fea
     - `plugins/capsule/` (`rtype::plugins::capsule`) — `CapsulePlugin`: capsules, entities described once and spawned
       by copy, actors and levels alike. `Capsule` (a flat list of nodes: name, parent, side, the capsule it instances,
       `ComponentValues`), the `Capsules` resource (by the `AssetId` of their path, `define()` again for hot reload),
-      `addCapsule()` / `NodeConfig`, `spawnCapsule()`, `loadCapsule()` (switches levels, with the `LoadedCapsule`
-      resource) and `reloadCapsule()` / `reloadInstances()` (`CapsuleSpawn.hpp`), the `CapsuleInstance` component on
+      `spawnCapsule()`, `loadCapsule()` (switches levels, with the `LoadedCapsule` resource) and `reloadCapsule()`,
+      each recorded in a `Commands` buffer (`CapsuleSpawn.hpp`), the `CapsuleInstance` component on
       every spawned root, and the `rtype.capsule.spawn` / `load` / `reload` calls (`CapsuleCalls.hpp`).
-      `detail/CapsuleSpawner` is the walk `Commands` and the `World` share. It requires no plugin. See
+      `detail/CapsuleSpawner` checks a capsule and records its walk. It requires no plugin. See
       `docs/ecs/features/18-capsules.md`.
     - `plugins/transform/` (`rtype::plugins::transform`) — `TransformPlugin`: the `Transform` component gameplay writes,
       relative to the entity's parent, and the `GlobalTransform` rendering reads, computed from it in `PostUpdate` on
