@@ -122,8 +122,7 @@ includes("src/rtype/platform/glfw")
 includes("src/rtype/luau")
 includes("src/rtype/render/vulkan")
 includes("src/rtype/audio/miniaudio")
-includes("src/rtype/client")
-includes("src/rtype/server")
+includes("src/rtype/runtime")
 includes("src/rtype/tools/sign")
 
 -- Every backend library, for what loads them without linking them.
@@ -135,7 +134,7 @@ target("rtype")
     set_kind("phony")
     set_default(true)
     add_deps("core", "ecs", "network", "replication", "engine", "platform-glfw", "luau", "render-vulkan", "audio-miniaudio",
-             "r-type_client", "r-type_server")
+             "aylo-runtime")
 
 
 local ALL_EXAMPLES_FLAG = "AllExamples"

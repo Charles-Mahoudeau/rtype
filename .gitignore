@@ -11,10 +11,8 @@ compile_commands.json
 .idea/
 
 # Binaries copied to the repository root by the rtype.copy_to_root rule
-/r-type_client
-/r-type_server
-/r-type_client.exe
-/r-type_server.exe
+/aylo-runtime
+/aylo-runtime.exe
 /*.dll
 /plugins
 # Plugin libraries built into a game
