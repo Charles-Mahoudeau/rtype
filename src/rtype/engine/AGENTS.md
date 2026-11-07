@@ -25,5 +25,5 @@ engine's own, runs it, and rebuilds it on reload. Shared library `engine`.
 ## Tests and docs
 
 - Tests: `tests/engine/` (`engine-tests`), which also holds the script-level tests of engine calls and setup forms.
-- Docs: `docs/engine/design.md`. The settings a game sees: `manual/`.
+- Docs: `docs/engine/design.md`. The settings a game sees: `manual/`, updated with the `write-manual` skill whenever a setting changes.
 - The executables (`src/rtype/client/`, `src/rtype/server/`) only run the engine; they link no plugin and no backend.

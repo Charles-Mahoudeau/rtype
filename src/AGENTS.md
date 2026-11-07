@@ -29,4 +29,5 @@ Read the root `AGENTS.md` first, then the `AGENTS.md` of the module you work in.
 ## Before you finish
 
 Run the `verify` skill. A new engine feature that scripts can use also needs its engine call, its manual page and a
-script test (see the `add-engine-call` skill).
+script test (see the `add-engine-call` skill), and the manual is updated with the `write-manual` skill in the same
+change. Skills are not optional: the root `AGENTS.md` lists when each one must be invoked.

@@ -16,7 +16,7 @@ systems on the app. Shared library `scripting`. This is the module that makes th
 - A script touches ECS data only through views checked against the current frame, so a stale view is an error, not
   undefined behavior.
 - Script component layouts are deterministic, identical on server and client.
-- Anything a script can do is documented in `manual/` and covered by a script test. A new setup form or engine call
+- Anything a script can do is documented in `manual/` (with the `write-manual` skill) and covered by a script test. A new setup form or engine call
   without them is not done.
 - Engine calls from scripts go through the generic call mechanism of `ecs`; the bridge never special-cases a plugin.
 - The setup forms (`engine.assets`, `engine.input`...) belong to the plugins, which bring them as `<Name>Forms.luau`
@@ -28,4 +28,4 @@ systems on the app. Shared library `scripting`. This is the module that makes th
   are in `tests/engine/` (`engine-tests`), where the plugins are available.
 - Design and status: `docs/scripting/plan.md`, `docs/ecs/features/19-luau-bridge.md`, `docs/engine/design.md`.
 - What exists: `docs/Modules.md`. The user-facing API: `manual/`.
-- Skills: `add-engine-call`, `luau-gameplay`.
+- Skills: `add-engine-call`, `luau-gameplay`, and `write-manual` for every change a script can see (mandatory).
