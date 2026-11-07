@@ -11,6 +11,7 @@
 #include <string>
 #include <utility>
 
+#include "core/asset/AssetId.hpp"
 #include "plugins/capsule/Capsule.hpp"
 #include "plugins/capsule/CapsulePlugin.hpp"
 #include "plugins/capsule/Capsules.hpp"
@@ -144,4 +145,25 @@ TEST(CapsulePlugin, InsertsTheCapsulesWithTheRunModeOfTheApp) {
     const auto& capsules = app.getWorld().getResources().require<capsule::Capsules>();
     EXPECT_FALSE(capsules.loads(rtype::ecs::Side::kClient));  // the App's run mode: a server
     EXPECT_NE(capsules.find("actors/bydo.actor"), nullptr);   // inserted before: kept
+}
+
+TEST(Capsules, DefinesACapsuleReadWholeInOneStep) {
+    capsule::Capsules capsules;
+    capsule::Capsule& first = capsules.define(capsule::Capsule{capsule::CapsuleId::fromPath("a.actor"), "a.actor"});
+    EXPECT_EQ(first.getVersion(), 0U);
+    capsule::Capsule replacement{capsule::CapsuleId::fromPath("a.actor"), "a.actor"};
+    static_cast<void>(replacement.addNode("Gun", 0));
+    capsule::Capsule& second = capsules.define(std::move(replacement));
+    EXPECT_EQ(&second, &first);  // the same capsule: what instances it stays valid
+    EXPECT_EQ(second.getVersion(), 1U);
+    EXPECT_EQ(second.getNodes().size(), 2U);
+}
+
+TEST(Capsules, RemembersThePathsOfAssets) {
+    capsule::Capsules capsules;
+    const rtype::core::asset::AssetId id = rtype::core::asset::AssetId::fromPath("sprites/ship.png");
+    EXPECT_EQ(capsules.findAssetPath(id), nullptr);
+    capsules.rememberAssetPath(id, "sprites/ship.png");
+    ASSERT_NE(capsules.findAssetPath(id), nullptr);
+    EXPECT_EQ(*capsules.findAssetPath(id), "sprites/ship.png");
 }
