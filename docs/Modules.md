@@ -13,7 +13,7 @@ architecture rules, and this file keeps the detail, which changes with every fea
   modules need it; what only `plugins` needs stays in `plugins`.
     - `core/asset/` (`rtype::core::asset`) — `AssetId`: the hash of an asset's path, the same in every process, which
       components keep to name a texture or a sound. The ECS reflection of it (`kAssetId`) is in
-      `plugins/AssetIdReflection.hpp`. `AssetFiles.hpp` (`normalizePath`, `resolveAssetPath`, `readTextFile`) and `AssetStore<T>` (the assets
+      `plugins/AssetIdReflection.hpp`. `AssetFiles.hpp` (`normalizePath`, `isInsideDirectory`, `resolveAssetPath`, `readTextFile`) and `AssetStore<T>` (the assets
       of a resource by id, with hash-collision checks) are shared by the asset resources of `plugins`, which throw
       `AssetLoadException` (`asset/exceptions/`).
     - `core/hash/` (`rtype::core::hash`) — `NameHash.hpp`: the FNV-1a 64-bit hash (`hashName`, `hashString`,
@@ -235,7 +235,7 @@ architecture rules, and this file keeps the detail, which changes with every fea
   and `engine.ecs.system`, read by `system/SystemDeclarationReader.hpp`); a system declares the `resources` and `events` it uses, given to scripts by `ctx.resources` and `ctx.events` (plain-data ones only), through the `ecs` `DynamicResources` and `DynamicEvents` parameters; it knows no `Plugin`. The host and
   the App may be destroyed in either order. `plugin/` holds `ScriptingPlugin`, the `ecs::Plugin` that owns a
   `ScriptHost` and, from `build()`, runs every `.luau` file under its scripts directory (`game/scripts` by default) in
-  sorted path order; a missing directory loads nothing and warns on `std::cerr`. `exceptions/` holds
+  sorted path order; a missing directory loads nothing and warns on `std::cerr`. `module/` holds the `require` path logic, not used at runtime yet: `ScriptPath` (pure parser of a require string) and `ScriptResolver` (finds the file inside `scripts/`: aliases, `init.luau`, exact case, no escape; the `luau::ModuleLoader` callback; `docs/scripting/plan.md` D10). `exceptions/` holds
   `ScriptLoadException`, thrown when a script cannot be loaded, since `build()` cannot return a `Result`. It links
   `core`, `ecs` and `luau`. Design in `docs/luau/ecs-bridge-plan.md`.
 - `tests/<module>/` — GoogleTest unit tests, one folder per module, each with its own `xmake.lua`.
