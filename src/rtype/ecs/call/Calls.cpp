@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <format>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <span>
@@ -68,7 +69,8 @@ CallId Calls::add(CallInfo info) {
 }
 
 const CallInfo* Calls::findById(const CallId id) const noexcept {
-    return id < _calls.size() ? &_calls.at(id) : nullptr;
+    // Checked here: at() could throw from a noexcept function.
+    return id < _calls.size() ? &*std::next(_calls.begin(), static_cast<std::ptrdiff_t>(id)) : nullptr;
 }
 
 const CallInfo* Calls::findByName(const std::string_view name) const noexcept {
@@ -76,7 +78,8 @@ const CallInfo* Calls::findByName(const std::string_view name) const noexcept {
     if (found == _idsByHash.end()) {
         return nullptr;
     }
-    const CallInfo& info = _calls.at(found->second);
+    const CallInfo& info =
+        *std::next(_calls.begin(), static_cast<std::ptrdiff_t>(found->second));  // ids in the map are calls
     return info.name == name ? &info : nullptr;
 }
 
