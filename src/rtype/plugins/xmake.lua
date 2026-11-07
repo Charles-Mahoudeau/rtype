@@ -117,6 +117,6 @@ plugin("ui", {"plugin-graphics", "plugin-input", "plugin-text"})
 -- Every plugin library, for what loads them without linking them: the executables build after it.
 target("plugin-libraries")
     set_kind("phony")
-    add_deps("plugin-audio", "plugin-graphics", "plugin-input", "plugin-particle", "plugin-physics",
+    add_deps("plugin-audio", "plugin-capsule", "plugin-graphics", "plugin-input", "plugin-particle", "plugin-physics",
              "plugin-physics-debug", "plugin-shader", "plugin-shape", "plugin-sprite", "plugin-text", "plugin-tilemap",
              "plugin-transform", "plugin-ui")
