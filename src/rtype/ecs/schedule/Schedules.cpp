@@ -15,6 +15,7 @@
 #include <iterator>
 #include <memory>
 #include <span>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -64,6 +65,21 @@ Schedule::SystemConfig Schedules::addSystem(Phase phase, System system) {
         }
     }
     return at(phase).addSystem(std::move(system));
+}
+
+void Schedules::replaceSystems(Phase phase, std::vector<Schedule::SystemSpec> systems,
+                               std::span<const std::string> removed) {
+    const Schedule& target = getSchedule(phase);
+    for (const Schedule& schedule : _schedules) {
+        for (const Schedule::SystemSpec& spec : systems) {
+            if (&schedule != &target && schedule.contains(spec.system.getName())) {
+                throw exceptions::ScheduleException{
+                    std::format("Two systems are named '{}' (phases {} and {}): names must be unique",
+                                spec.system.getName(), toString(schedule.getPhase()), toString(phase))};
+            }
+        }
+    }
+    at(phase).replaceSystems(std::move(systems), removed);
 }
 
 void Schedules::build() {
