@@ -95,8 +95,11 @@ game describes its capsules in files instead ([below](#capsule-files)).
 ### Capsule files
 
 A game keeps its capsules under `<game>/assets`, as `.capsule`, `.scene` or `.actor` files: the same format, the
-extension is for the developer. A file is a flat list of node sections, the root first and a parent before its
-children, each with its components written by field name (from the [reflection](15-reflection-and-serialization.md)):
+extension is for the developer. The format is specified in full (tokens, grammar, every value type, errors, how it is
+written) in [`CapsuleFormat.md`](../../CapsuleFormat.md); why it is our own and not TOML is in
+[`benchmarks/capsule-format.md`](../../benchmarks/capsule-format.md). A file is a flat list of node sections, the root
+first and a parent before its children, each with its components written by field name (from the
+[reflection](15-reflection-and-serialization.md)):
 
 ```
 [capsule format=1]

@@ -117,7 +117,8 @@ architecture rules, and this file keeps the detail, which changes with every fea
       `spawnCapsule()`, `loadCapsule()` (switches levels, with the `LoadedCapsule` resource) and `reloadCapsule()`,
       each recorded in a `Commands` buffer (`CapsuleSpawn.hpp`), the `CapsuleInstance` component on
       every spawned root, and the `rtype.capsule.spawn` / `load` / `reload` calls (`CapsuleCalls.hpp`).
-      `format/CapsuleText.hpp` (`rtype::plugins::capsule::format`) reads and writes the capsule file format;
+      `format/CapsuleText.hpp` (`rtype::plugins::capsule::format`) reads and writes the capsule file format
+      (`docs/CapsuleFormat.md`);
       `CapsuleFiles` (the `rtype.CapsuleFiles` resource) reads a game's `.capsule` / `.scene` / `.actor` files from the
       plugin's `finish()` and reads saved files again for `CapsuleReloadable`, the plugin's hot reload source, which
       fills `ReloadedCapsules` for the system that reloads what they spawned.
@@ -227,7 +228,8 @@ architecture rules, and this file keeps the detail, which changes with every fea
   `docs/Input.md` for the event and input pipeline, `docs/physics/design.md`
   for the physics, `docs/audio/design.md` for the audio, `docs/Sprites.md` for atlases and animations,
   `docs/Tilemap.md` for tilemaps and parallax, `docs/Text.md` for MSDF text, `docs/Shaders.md` for game shaders,
-  `docs/engine/design.md` for the `Engine`, its build order and reloads).
+  `docs/CapsuleFormat.md` for the capsule file format, `docs/engine/design.md` for the `Engine`, its build order and
+  reloads; `docs/benchmarks/` for the library and format comparisons behind a choice).
 - `.github/` — CI workflow and issue templates.
 - `.agents/skills/` — agent skills (`.claude/skills/` symlinks to it).
 
