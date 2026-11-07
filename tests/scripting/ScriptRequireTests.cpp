@@ -196,15 +196,16 @@ TEST(ScriptRequire, ADeclarationBelongsToTheModuleThatMadeIt) {
     ASSERT_TRUE(game.hasSystem("game.FromMain"));
 
     // Reloading the requirer replaces its own system only: the required module keeps what it declared.
-    const ReloadOutcome main =
-        game.host->reloadScript("scripts/b_main.luau", "require('./a_lib')\n" + systemScript("game.MainAgain"));
+    const std::string newMain = "require('./a_lib')\n" + systemScript("game.MainAgain");
+    scripts.write("b_main.luau", newMain);
+    const ReloadOutcome main = game.host->reloadScript("scripts/b_main.luau", newMain);
 
     EXPECT_EQ(main.status, Status::kApplied) << main.message;
     EXPECT_TRUE(game.hasSystem("game.FromLib"));
     EXPECT_FALSE(game.hasSystem("game.FromMain"));
     EXPECT_TRUE(game.hasSystem("game.MainAgain"));
 
-    // And the other way round.
+    // And the other way round: the requirer runs again with it, so it declares its system again.
     const ReloadOutcome lib = game.host->reloadScript("scripts/a_lib.luau", systemScript("game.LibAgain"));
 
     EXPECT_EQ(lib.status, Status::kApplied) << lib.message;
@@ -223,10 +224,8 @@ TEST(ScriptRequire, ReloadingAModuleGivesTheNewValueToLaterRequires) {
     Game game{scripts.path()};
     ASSERT_TRUE(game.hasSystem("game.Val1"));
 
+    // The requirer runs again with its module, and sees the new value.
     EXPECT_EQ(game.host->reloadScript("scripts/a_lib.luau", "return { n = 2 }").status, Status::kApplied);
-    // The requirer is not re-run by the reload of its module (that comes later), only when it reloads itself.
-    EXPECT_TRUE(game.hasSystem("game.Val1"));
-    EXPECT_EQ(game.host->reloadScript("scripts/b_user.luau", user).status, Status::kApplied);
 
     EXPECT_TRUE(game.hasSystem("game.Val2"));
     EXPECT_FALSE(game.hasSystem("game.Val1"));
@@ -244,6 +243,7 @@ TEST(ScriptRequire, AFailedReloadOfAModuleKeepsTheOldValue) {
     const ReloadOutcome failed = game.host->reloadScript("scripts/a_lib.luau", "error('nope')");
 
     EXPECT_EQ(failed.status, Status::kFailed);
+    // The cache kept the old value: the requirer, run again alone, still sees it.
     EXPECT_EQ(game.host->reloadScript("scripts/b_user.luau", user).status, Status::kApplied);
     EXPECT_TRUE(game.hasSystem("game.Val1"));
 }
