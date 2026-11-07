@@ -97,7 +97,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public contract::renderer::
     /// true});
     /// @endcode
     struct Config {
-        std::string engineName = "R-Type Engine";       ///< Reported to the driver, with the window title as app name.
+        std::string engineName = "AYLO Engine";         ///< Reported to the driver, with the window title as app name.
         std::uint32_t apiVersion = VK_API_VERSION_1_3;  ///< Highest Vulkan version the renderer uses.
         std::vector<std::string> layers;           ///< Instance layers to enable, e.g. VK_LAYER_KHRONOS_validation.
         std::vector<std::string> extraExtensions;  ///< Enabled on top of the ones the window needs.
