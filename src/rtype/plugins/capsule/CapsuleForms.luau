@@ -59,31 +59,25 @@ local function patch(form, ctx, root, overrides)
 	end
 end
 
--- Spawns a copy of `capsule` and returns its root. Needs "rtype.capsule.spawn" in the system's `calls`.
-function engine.capsule.spawn(...)
-	local form = "engine.capsule.spawn"
-	forms.arguments(form, 3, ...)
-	local ctx, capsule, overrides = ...
-	checkContext(form, ctx)
-	checkCapsule(form, capsule)
-	local entries = readOverrides(form, overrides)
-	local root = call(form, ctx, "rtype.capsule.spawn", { capsule = capsule })
-	patch(form, ctx, root, entries)
-	return root
+-- Returns a form that makes `name` with a capsule's path, then patches the root it returns with the overrides.
+local function spawningForm(form, name)
+	return function(...)
+		forms.arguments(form, 3, ...)
+		local ctx, capsule, overrides = ...
+		checkContext(form, ctx)
+		checkCapsule(form, capsule)
+		local entries = readOverrides(form, overrides)
+		local root = call(form, ctx, name, { capsule = capsule })
+		patch(form, ctx, root, entries)
+		return root
+	end
 end
 
+-- Spawns a copy of `capsule` and returns its root. Needs "rtype.capsule.spawn" in the system's `calls`.
+engine.capsule.spawn = spawningForm("engine.capsule.spawn", "rtype.capsule.spawn")
+
 -- Despawns the capsule loaded before, spawns `capsule` and returns its root. Needs "rtype.capsule.load" in `calls`.
-function engine.capsule.load(...)
-	local form = "engine.capsule.load"
-	forms.arguments(form, 3, ...)
-	local ctx, capsule, overrides = ...
-	checkContext(form, ctx)
-	checkCapsule(form, capsule)
-	local entries = readOverrides(form, overrides)
-	local root = call(form, ctx, "rtype.capsule.load", { capsule = capsule })
-	patch(form, ctx, root, entries)
-	return root
-end
+engine.capsule.load = spawningForm("engine.capsule.load", "rtype.capsule.load")
 
 -- Spawns the current version of the capsule again into `root`; returns false if `root` is not a capsule's root.
 -- Needs "rtype.capsule.reload" in `calls`.
