@@ -84,5 +84,8 @@ void ScriptingPlugin::build(ecs::App& app) {
                 std::format("Script '{}' failed: {}", name, result.error().message())};
         }
     }
+    if (_config.onBuilt) {
+        _config.onBuilt(*_host);
+    }
 }
 }  // namespace rtype::scripting
