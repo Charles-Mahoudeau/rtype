@@ -31,8 +31,6 @@ namespace rtype::plugins::capsule {
 CapsuleFiles::CapsuleFiles(std::filesystem::path assetDirectory, const ecs::Components& components)
     : _directory{std::move(assetDirectory)}, _components{&components} {}
 
-const std::filesystem::path& CapsuleFiles::getDirectory() const noexcept { return _directory; }
-
 std::vector<CapsuleId> CapsuleFiles::loadAll(Capsules& capsules) {
     const std::vector<std::string> files = scan();
     std::set<std::string> pending{files.begin(), files.end()};

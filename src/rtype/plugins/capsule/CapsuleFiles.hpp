@@ -48,9 +48,6 @@ class RTYPE_PLUGIN_CAPSULE_API CapsuleFiles {
     CapsuleFiles(CapsuleFiles&& other) noexcept = default;
     CapsuleFiles& operator=(CapsuleFiles&& other) noexcept = default;
 
-    /// @return The game's assets.
-    [[nodiscard]] const std::filesystem::path& getDirectory() const noexcept;
-
     /// @brief Reads every capsule file under the assets into `capsules` (Capsules::define()).
     /// @return The capsules read.
     /// @throws exceptions::CapsuleException Naming the file, line and column of what cannot be read.

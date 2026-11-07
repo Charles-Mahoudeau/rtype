@@ -276,7 +276,7 @@ class Reader {
           _components{&components},
           _capsules{&capsules},
           _loadInstance{&loadInstance},
-          _capsule{CapsuleId::fromPath(path), std::string{path}} {}
+          _capsule{path} {}
     ~Reader() = default;
     Reader(const Reader& other) = delete;
     Reader& operator=(const Reader& other) = delete;
