@@ -1,9 +1,17 @@
 
 add_requires("vulkan-memory-allocator 3.3.x", {alias = "vulkan-memory-allocator"})
-add_requires("vulkan-memory-allocator-hpp v3.3.0+3",
-             {alias = "vulkan-memory-allocator-hpp", configs = {use_vulkanheaders = true}})
--- Built against the same xmake vulkan-headers as the renderer, not the system ones (see the root xmake.lua).
-add_requireconfs("vulkan-memory-allocator-hpp.vulkan-headers", {system = false, override = true})
+-- xmake-repo's vulkan-memory-allocator-hpp adds its vulkan-headers dependency in on_install, after the requirements are
+-- resolved: on a clean machine it is neither installed first nor given to the package's test, which then compiles
+-- against the system headers (Ubuntu 22.04's lack vulkan/vulkan_hpp_macros.hpp). The same package, with the dependency
+-- declared on load, so it resolves to the vulkan-headers the root xmake.lua requires. set_base inherits the scripts
+-- but not the add_deps of the base, so vulkan-memory-allocator is declared here too.
+package("vma-hpp")
+    set_base("vulkan-memory-allocator-hpp")
+    on_load(function (package)
+        package:add("deps", "vulkan-memory-allocator", "vulkan-headers")
+    end)
+package_end()
+add_requires("vma-hpp v3.3.0+3", {alias = "vulkan-memory-allocator-hpp", configs = {use_vulkanheaders = true}})
 add_requires("imgui 1.92.x", {alias = "imgui", configs = {vulkan = true}})
 -- glslangValidator compiles the shaders: from the glslang package required by the root xmake.lua, or from Homebrew on
 -- macOS (brew install glslang).
