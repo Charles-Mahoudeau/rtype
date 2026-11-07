@@ -58,6 +58,10 @@ rtype.SpriteRenderer = { texture = "sprites/boss_shadow.png", layer = -1 }
   lists. `#` starts a comment.
 - A file the engine cannot read stops the start with the file, the line and the column of the mistake.
 
+The [Capsule file format](capsule-format.md) page has the whole format: every attribute, how to write each field type,
+instances and the error messages. [Reading and writing capsule files](capsule-files.md) says when the engine reads
+them, what saving one does to a running game, and what a file looks like once the engine writes it back.
+
 ### Hot reload
 
 With [hot reload](hot-reload.md) on (`engine.settings.hotReload`, the default in a debug build), save a capsule file
@@ -70,7 +74,8 @@ version, and the log says where the mistake is:
 [HotReload] capsules: failed in 0.2 ms (modified assets/actors/bydo.actor): actors/bydo.actor:3:25: ...
 ```
 
-Deleting a file changes nothing: its capsule stays as it was until the game is built again.
+Deleting a file changes nothing: its capsule stays as it was until the game is built again. The details are in
+[Reading and writing capsule files](capsule-files.md#when-you-save-a-file).
 
 ## Spawning, switching levels, reloading
 

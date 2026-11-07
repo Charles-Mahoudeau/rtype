@@ -29,6 +29,8 @@ nav:
   - Networking: networking.md
   - Physics: physics.md
   - Capsules: capsules.md
+  - Capsule file format: capsule-format.md
+  - Reading and writing capsule files: capsule-files.md
   - Particles: particles.md
   - User interface: ui.md
   - Native plugins: native-plugins.md
