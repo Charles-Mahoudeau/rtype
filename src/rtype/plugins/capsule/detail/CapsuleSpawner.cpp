@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <filesystem>
 #include <format>
 #include <iterator>
 #include <string>
@@ -21,7 +22,9 @@
 #include "plugins/capsule/exceptions/CapsuleException.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/entity/Name.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
+#include "rtype/ecs/type/String.hpp"
 
 namespace rtype::plugins::capsule::detail {
 namespace {
@@ -68,6 +71,10 @@ void checkNodes(const Capsules& capsules, const Capsule& capsule, std::vector<co
     }
     stack.pop_back();
 }
+
+/// @return The name a capsule's root gets: its file's name, without its folders and extension ("boss" for
+/// "actors/boss.actor").
+std::string rootName(const Capsule& capsule) { return std::filesystem::path{capsule.getPath()}.stem().string(); }
 }  // namespace
 
 void checkCapsule(const Capsules& capsules, const Capsule& capsule) {
@@ -96,6 +103,7 @@ ecs::Entity spawnTree(const Capsules& capsules, const Capsule& capsule, ecs::Com
         } else {
             entity = into != ecs::Entity{} ? into : commands.spawn().getEntity();
         }
+        commands.add(entity, ecs::Name{.value = ecs::String{index == 0 ? rootName(capsule) : node.name}});
         addKeptValues(capsules, node.values, entity, commands);
         if (index != 0) {
             commands.add(entity, ecs::Parent{.entity = parent});
