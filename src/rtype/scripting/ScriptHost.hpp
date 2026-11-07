@@ -65,10 +65,11 @@ namespace rtype::scripting {
 ///
 /// Modules: a host created with a resolver (the ScriptResolver of a game) gives its scripts `require` (see
 /// require()). Each file is a module of its own, named by its chunk name (`scripts/<key>`), and owns what it declares,
-/// so a nested `require` restores the requiring file as owner afterwards. For now the modules share their global
-/// writes (the loader's `shareGlobals`), so a game that passes data through globals still works. A host without a
-/// resolver has no `require`: run() and reloadScript() then run the given source directly, as one script of that name
-/// (what the tests of the host do).
+/// so a nested `require` restores the requiring file as owner afterwards. The host seals itself before the first
+/// script runs (see seal()): the setup forms of the plugins run, then the runtime is sandboxed, so each file has its
+/// own globals and read-only standard libraries, and `engine` is frozen deeply. Files share data only through
+/// `require`; plugins added after the first script ran are an error. A host without a resolver has no `require`: run()
+/// and reloadScript() then run the given source directly, as one script of that name (what the tests of the host do).
 ///
 /// The host and the App may be destroyed in either order. The systems a script added stay in the App when the host
 /// is destroyed first, but their script is gone with the runtime: they can no longer run it.
@@ -146,8 +147,8 @@ class RTYPE_SCRIPTING_API ScriptHost {
     [[nodiscard]] core::reload::ReloadOutcome removeScript(const std::string& name);
 
     /// @brief Chooses what a reload does with a file no module loaded.
-    /// @param adopts True (the default, while every file is loaded as a root): it is a new root and runs. False
-    /// (entry points): it is ignored until a module requires it.
+    /// @param adopts True (the default): it is a new root and runs. False (what the ScriptingPlugin sets, with entry
+    /// points): it is ignored until a module requires it.
     void setAdoptsNewFiles(bool adopts) noexcept;
 
     /// @param name Name of a component a script declared.
@@ -161,6 +162,11 @@ class RTYPE_SCRIPTING_API ScriptHost {
 
     /// @brief Runs the setup forms of the App's plugins that did not run yet.
     [[nodiscard]] luau::Result<> loadForms() const;
+
+    /// @brief Seals the host before the first script runs: loads the setup forms, then sandboxes the runtime and
+    /// freezes `engine` deeply. Later calls only check that no plugin brought forms since.
+    /// @return Nothing, or the error of a form, or that forms were registered after the seal.
+    [[nodiscard]] luau::Result<> seal();
 
     /// @param app The App scripts declare their ECS data on.
     /// @param runtime The runtime of the scripts.
@@ -270,6 +276,7 @@ class RTYPE_SCRIPTING_API ScriptHost {
     std::map<std::string, std::string> _chunkNames;  ///< Chunk name of each module key the resolver gave.
     std::map<std::string, std::string> _overrides;   ///< Source a reload gives in place of a module's file, by key.
     std::set<std::string> _roots;                    ///< Keys of the modules required from outside: what stays loaded.
+    bool _sealed{false};                             ///< Whether seal() ran: the scripts have globals of their own.
     bool _adoptsNewFiles{true};                      ///< Whether a new file is a root (see setAdoptsNewFiles()).
     std::vector<std::string> _ownerStack;            ///< The owners to give back when a module ends, innermost last.
     std::unique_ptr<luau::ModuleLoader> _loader;     ///< The module cache; null without a resolver. After `_runtime`.

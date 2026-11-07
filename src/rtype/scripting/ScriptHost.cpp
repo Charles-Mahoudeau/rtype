@@ -76,6 +76,28 @@ luau::RuntimeConfig makeRuntimeConfig() {
     };
 }
 
+/// @brief Freezes a table and every table reachable from it (a table already seen is skipped, so cycles end).
+luau::Result<> freezeTree(luau::Table table, std::vector<luau::Table>& seen) {
+    for (const luau::Table& known : seen) {
+        if (auto same = known.refersToSame(table); same && *same) {
+            return {};
+        }
+    }
+    seen.push_back(table);
+    auto entries = table.entries();
+    if (!entries) {
+        return tl::unexpected{std::move(entries.error())};
+    }
+    for (const auto& entry : *entries) {
+        if (const auto* child = entry.second.tryAs<luau::Table>()) {
+            if (auto frozen = freezeTree(*child, seen); !frozen) {
+                return frozen;
+            }
+        }
+    }
+    return table.freeze();
+}
+
 /// @brief What `app` holds in a plugin's `build`: the host to declare on, and whether the build is still running.
 struct AppHandle {
     ScriptHost* host{nullptr};    ///< The host the declarations go to.
@@ -112,14 +134,14 @@ ScriptHost::ScriptHost(ecs::App& app, luau::Runtime runtime, luau::ModuleLoader:
     _handle->runtime = &_runtime;
     _handle->components = &_components;
     if (_resolver) {
-        // The modules share their global writes until the sandbox gives each file its own globals.
+        // Each file has its own globals once the host is sealed (see seal()): modules share data through `require`.
         _loader = std::make_unique<luau::ModuleLoader>(
             _runtime,
             [this](const std::string_view requester, const std::string_view path) {
                 return resolveModule(requester, path);
             },
             [this](const std::string_view key, const bool entering) { enterModule(key, entering); },
-            luau::ModuleLoader::Options{.shareGlobals = true});
+            luau::ModuleLoader::Options{.shareGlobals = false});
     }
 }
 
@@ -154,8 +176,8 @@ luau::Result<> ScriptHost::require(const std::string_view path) {
     if (!_loader) {
         return luau::Failure{luau::ErrorKind::kRuntime, "this host has no modules: it was created without a resolver"};
     }
-    if (auto loaded = loadForms(); !loaded) {
-        return loaded;
+    if (auto sealed = seal(); !sealed) {
+        return sealed;
     }
     auto module = _loader->require(path);
     if (!module) {
@@ -179,8 +201,8 @@ std::optional<std::string> ScriptHost::moduleKeyOf(const std::string_view name) 
 }
 
 luau::Result<> ScriptHost::run(std::string name, const std::string& source) {
-    if (auto loaded = loadForms(); !loaded) {
-        return loaded;
+    if (auto sealed = seal(); !sealed) {
+        return sealed;
     }
     _owner = name;
     auto result = runSource(std::move(name), source);
@@ -194,6 +216,31 @@ luau::Result<> ScriptHost::runSource(std::string name, const std::string& source
         return tl::unexpected{std::move(script.error())};
     }
     return _runtime.run(*script);
+}
+
+luau::Result<> ScriptHost::seal() {
+    if (_sealed) {
+        for (const auto& name : _app.getPluginRegistry().getScriptForms() | std::views::keys) {
+            if (!_loadedForms.contains(name)) {
+                return luau::Failure{luau::ErrorKind::kRuntime,
+                                     std::format("the setup forms '{}' were registered after the first script ran: "
+                                                 "add every plugin before the scripts run",
+                                                 name)};
+            }
+        }
+        return {};
+    }
+    if (auto loaded = loadForms(); !loaded) {
+        return loaded;
+    }
+    // The forms and the engine are written, from here on every script has globals of its own and cannot change them.
+    _runtime.sandbox();
+    std::vector<luau::Table> seen;
+    if (auto frozen = freezeTree(_engine->table(), seen); !frozen) {
+        return frozen;
+    }
+    _sealed = true;
+    return {};
 }
 
 luau::Result<> ScriptHost::loadForms() const {
@@ -445,8 +492,8 @@ core::reload::ReloadOutcome ScriptHost::reloadScript(const std::string& name, co
     if (moduleKeyOf(name)) {
         return reloadModules({{name, source}}, {});
     }
-    if (auto loaded = loadForms(); !loaded) {
-        return core::reload::ReloadOutcome::failed(std::string{loaded.error().message()});
+    if (auto sealed = seal(); !sealed) {
+        return core::reload::ReloadOutcome::failed(std::string{sealed.error().message()});
     }
     ReloadPlan plan;
     plan.file = name;
@@ -490,8 +537,8 @@ core::reload::ReloadOutcome ScriptHost::reloadModules(const std::map<std::string
     if (!_loader) {
         return ReloadOutcome::failed("this host has no modules: it was created without a resolver");
     }
-    if (auto loaded = loadForms(); !loaded) {
-        return ReloadOutcome::failed(std::string{loaded.error().message()});
+    if (auto sealed = seal(); !sealed) {
+        return ReloadOutcome::failed(std::string{sealed.error().message()});
     }
 
     ReloadPlan plan;
