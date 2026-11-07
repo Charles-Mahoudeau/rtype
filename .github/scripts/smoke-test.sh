@@ -55,12 +55,16 @@ done
 for file in runtime/aylo-runtime tools/aylo-sign; do
     if [ -x "$root/$file" ]; then ok "$file is executable"; else fail "$file is missing or not executable"; fi
 done
-for folder in runtime/plugins runtime/plugins/backends templates/game/scripts templates/game/assets; do
+for folder in runtime/lib runtime/plugins runtime/plugins/backends templates/game/scripts templates/game/assets; do
     if [ -d "$root/$folder" ]; then ok "has $folder/"; else fail "missing $folder/"; fi
 done
-# plugins/ links to the libraries next to the executable on Linux and macOS (a second copy would load twice): none may dangle.
-dangling=$(find -L "$root" -type l | wc -l | tr -d ' ')
-if [ "$dangling" -eq 0 ]; then ok "no dangling symbolic link"; else fail "$dangling dangling symbolic links"; fi
+# Every library is a real file, once: a link would be another copy to a tool that flattens them, and loaded twice.
+links=$(find "$root" -type l | wc -l | tr -d ' ')
+if [ "$links" -eq 0 ]; then ok "no symbolic link"; else fail "$links symbolic links: every library must be a real file"; fi
+# lib/ holds what is not a plugin, plugins/ nothing else (the Engine refuses a library that is not one there).
+if ls "$root/runtime/lib" | grep -q 'plugin'; then fail "a plugin is in runtime/lib/"; else ok "runtime/lib/ holds no plugin"; fi
+loose=$(find "$root/runtime/plugins" -type f ! -name '*.so' ! -name '*.dylib' ! -name '*.luau' | wc -l | tr -d ' ')
+if [ "$loose" -eq 0 ]; then ok "runtime/plugins/ holds plugin libraries only"; else fail "runtime/plugins/ holds $loose files that are not libraries"; fi
 if [ -x "$runtime" ]; then
     # --- Version ------------------------------------------------------------------------------------------------------
     reported=$("$runtime" --version | sed -n 1p)
