@@ -48,34 +48,14 @@ rtype.Transform = { position = (40, 0) }
 rtype.SpriteRenderer = { texture = "sprites/boss_shadow.png", layer = -1 }
 ```
 
-- Each `[node]` is one entity. `path="."` is the root and comes first; `"LeftTurret"` is a child of the root,
-  `"LeftTurret/Muzzle"` a child of the turret, and a parent comes before its children.
-- `instance="actors/turret.actor"` spawns that capsule there. Write only the fields you change: the others keep the
-  turret's values.
-- `side=client` (or `both`) for what only players see; nodes are the server's by default.
-- A component is `name = { field = value, ... }`, with the component's defaults for the fields you leave out, and `{}`
-  for all of them. Values: numbers, `true` / `false`, `"text"` (also asset paths), `(x, y)` vectors and `[a, b]`
-  lists. `#` starts a comment.
-- A file the engine cannot read stops the start with the file, the line and the column of the mistake.
+Each `[node]` is one entity: `path="."` is the root, `instance` places another capsule there (write only the fields
+you change), and `side=client` keeps a node on the players' machines. The
+[Capsule file format](capsule-format.md) page has the whole format: every attribute, how to write each field type,
+instances and the error messages.
 
-The [Capsule file format](capsule-format.md) page has the whole format: every attribute, how to write each field type,
-instances and the error messages. [Reading and writing capsule files](capsule-files.md) says when the engine reads
-them, what saving one does to a running game, and what a file looks like once the engine writes it back.
-
-### Hot reload
-
-With [hot reload](hot-reload.md) on (`engine.settings.hotReload`, the default in a debug build), save a capsule file
-while the game runs and the engine reads it again, with the files that use it, and respawns what came from it in place:
-the root entity stays the same, with the components you added to it. A file saved with a mistake keeps its previous
-version, and the log says where the mistake is:
-
-```
-[HotReload] capsules: applied in 0.4 ms (modified assets/actors/bydo.actor): capsule actors/bydo.actor
-[HotReload] capsules: failed in 0.2 ms (modified assets/actors/bydo.actor): actors/bydo.actor:3:25: ...
-```
-
-Deleting a file changes nothing: its capsule stays as it was until the game is built again. The details are in
-[Reading and writing capsule files](capsule-files.md#when-you-save-a-file).
+With [hot reload](hot-reload.md) on, saving a file respawns what came from it in place, and a file saved with a
+mistake keeps its previous version. [Reading and writing capsule files](capsule-files.md) says when the engine reads
+your files, what saving one does to a running game, and what a file looks like once the engine writes it back.
 
 ## Spawning, switching levels, reloading
 
