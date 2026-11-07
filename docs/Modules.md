@@ -37,7 +37,7 @@ architecture rules, and this file keeps the detail, which changes with every fea
       data: fields, hooks, descriptions, registry), `component/`, `resource/`, `event/`, `storage/`, `change/`
       (change ticks), `world/`, `command/` (deferred structural changes), `hierarchy/` (`Parent`, `Children`),
       `actor/` (named templates of entities), `query/`, `system/`, `call/` (engine calls: named functions plugins give
-      to scripts), `schedule/`, `time/`, `app/` (the App and its plugins)), included as
+      to scripts, and `CallBuffer`, the bytes of their arguments and results), `schedule/`, `time/`, `app/` (the App and its plugins)), included as
       `rtype/ecs/<feature>/<File>.hpp`.
     - Exception to the namespace rule: the types users write every day stay in the flat `rtype::ecs`
       namespace whatever their folder (`rtype/ecs/entity/Entity.hpp` declares `rtype::ecs::Entity`).

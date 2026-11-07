@@ -141,7 +141,9 @@ engine.ecs.system("game.Scorer", {
 ```
 
 Missing argument fields keep their defaults. A result of one field is returned as that value, a result of several as
-a table, and a call that returns nothing returns no value. A system's declared calls add their access to its own, so
+a table, and a call that returns nothing returns no value. A `std::string` field of a call takes and gives a Luau
+string of any length, and a `std::vector` field a Luau array; an `ecs::String` field is cut at 255 bytes. The
+arguments and the result live in `CallBuffer`s for the time of the call, so their memory is freed after it. A system's declared calls add their access to its own, so
 the scheduler sees what they read and write, and runs it on the main thread when one of them needs it. Calling a call
 the system did not declare raises a Luau error. An unknown call, a wrong argument or a call that throws raises an error
 naming the call. An unknown call in `calls` is refused when the script loads, unless the system does not run in that
