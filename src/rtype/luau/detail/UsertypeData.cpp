@@ -343,7 +343,7 @@ int UsertypeData::callMethod(lua_State* state) {
     const auto& entry = *static_cast<const MethodEntry*>(lua_tolightuserdata(state, lua_upvalueindex(kSecondUpvalue)));
     return protect(
         state,
-        [&]() -> int {
+        [&] -> int {
             void* object{requireObject(state, data, kSelfIndex)};
             const ValuePack args{readArgs(state, kSelfIndex + 1)};
             const ValuePack results{entry.handler(object, args.values())};
