@@ -15,11 +15,27 @@
 #include <vector>
 
 #include "plugins/capsule/Capsule.hpp"
+#include "plugins/capsule/CapsuleInstance.hpp"
 #include "plugins/capsule/Capsules.hpp"
+#include "plugins/capsule/ComponentValues.hpp"
 #include "plugins/capsule/exceptions/CapsuleException.hpp"
+#include "rtype/ecs/command/Commands.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/hierarchy/Parent.hpp"
 
 namespace rtype::plugins::capsule::detail {
 namespace {
+/// @brief Gives `entity` the values of `values` a spawn keeps on the registry's side, in their order.
+void addKeptValues(const Capsules& capsules, const ComponentValues& values, ecs::Entity entity,
+                   ecs::Commands& commands) {
+    for (std::size_t index = 0; index < values.getCount(); ++index) {
+        if (capsules.keeps(values.getPresence(index))) {
+            // The id was registered when the value was set.
+            static_cast<void>(commands.add(entity, values.getId(index), values.getValue(index)));
+        }
+    }
+}
+
 // NOLINTNEXTLINE(misc-no-recursion): the stack stops a capsule that contains itself.
 void checkNodes(const Capsules& capsules, const Capsule& capsule, std::vector<const Capsule*>& stack) {
     stack.push_back(&capsule);
@@ -57,5 +73,38 @@ void checkNodes(const Capsules& capsules, const Capsule& capsule, std::vector<co
 void checkCapsule(const Capsules& capsules, const Capsule& capsule) {
     std::vector<const Capsule*> stack;
     checkNodes(capsules, capsule, stack);
+}
+
+// NOLINTNEXTLINE(misc-no-recursion): the depth is the depth of the instances, which checkCapsule() keeps acyclic.
+ecs::Entity spawnTree(const Capsules& capsules, const Capsule& capsule, ecs::Commands& commands, ecs::Entity root,
+                      bool nested) {
+    const auto nodes = capsule.getNodes();
+    std::vector<ecs::Entity> entities(nodes.size());  // the null entity for a node skipped
+    for (std::size_t index = 0; index < nodes.size(); ++index) {
+        const CapsuleNode& node = *std::next(nodes.begin(), static_cast<std::ptrdiff_t>(index));
+        ecs::Entity parent;
+        if (index != 0) {
+            parent = entities.at(node.parent);
+            if (parent == ecs::Entity{} || !capsules.loads(node.side)) {
+                continue;  // its parent was skipped, or it is the other side's: it is skipped with its subtree
+            }
+        }
+        const ecs::Entity into = index == 0 ? root : ecs::Entity{};
+        ecs::Entity entity;
+        if (node.instance) {
+            entity = spawnTree(capsules, *capsules.find(node.instance->id), commands, into, true);
+        } else {
+            entity = into != ecs::Entity{} ? into : commands.spawn().getEntity();
+        }
+        addKeptValues(capsules, node.values, entity, commands);
+        if (index != 0) {
+            commands.add(entity, ecs::Parent{.entity = parent});
+        }
+        entities.at(index) = entity;
+    }
+    const ecs::Entity spawned = entities.front();
+    commands.add(spawned,
+                 CapsuleInstance{.capsule = capsule.getId(), .version = capsule.getVersion(), .nested = nested});
+    return spawned;
 }
 }  // namespace rtype::plugins::capsule::detail
