@@ -97,33 +97,19 @@ check_elf() {
     local file="$1" dynamic rpaths=() dirs entry dir resolved name found
     dynamic="$(readelf -d "$file" 2>/dev/null || true)"
 
-    # The search path: RPATH and RUNPATH entries, with $ORIGIN the folder the library is opened from. That is the folder
-    # of the file, and the folder of each link to it inside the folder (plugins/ holds links to the libraries next to the
-    # executable, and the loader expands $ORIGIN from the path it was given, not from the file the link leads to).
-    local origins=() link
-    origins+=("$(dirname "$file")")
-    while IFS= read -r link; do
-        [[ "$(readlink -f "$link")" == "$file" ]] && origins+=("$(dirname "$link")")
-    done < <(find "$root" -type l -name "$(basename "$file")")
+    # The search path: RPATH and RUNPATH entries, with $ORIGIN the folder of the file.
     while IFS= read -r entry; do
         [[ -z $entry ]] && continue
         IFS=: read -ra dirs <<<"$entry"
         for dir in "${dirs[@]}"; do
-            local reachable=0 origin
-            for origin in "${origins[@]}"; do
-                resolved="${dir//\$ORIGIN/$origin}"
-                resolved="${resolved//\$\{ORIGIN\}/$origin}"
-                [[ $resolved == /* ]] || resolved="$origin/$resolved"
-                resolved="$(normalize "$resolved")"
-                if inside "$resolved"; then
-                    rpaths+=("$resolved")
-                    reachable=1
-                fi
-            done
-            if [[ $reachable -eq 0 ]]; then
-                resolved="${dir//\$ORIGIN/${origins[0]}}"
-                [[ $resolved == /* ]] || resolved="${origins[0]}/$resolved"
-                report "$(relative "$file"): search path entry $(normalize "$resolved") is outside the folder"
+            dir="${dir//\$ORIGIN/$(dirname "$file")}"
+            dir="${dir//\$\{ORIGIN\}/$(dirname "$file")}"
+            [[ $dir == /* ]] || dir="$(dirname "$file")/$dir"
+            resolved="$(normalize "$dir")"
+            if inside "$resolved"; then
+                rpaths+=("$resolved")
+            else
+                report "$(relative "$file"): search path entry $resolved is outside the folder"
             fi
         done
     done < <(sed -n 's/.*(\(RPATH\|RUNPATH\)).*\[\(.*\)\].*/\2/p' <<<"$dynamic")

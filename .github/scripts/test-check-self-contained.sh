@@ -93,15 +93,6 @@ cp "$work/ok/libanswer.so" "$work/escape/"
 "$cc" $shared -fPIC "$work/lib.c" -o "$work/escape/plugins/libplugin.so" -Wl,-rpath,"$rpath_up/.."
 expect "relative search path leaving the folder" 1 "$work/escape" "outside the folder"
 
-# A library next to the executable, opened through a link of plugins/: the loader expands $ORIGIN from the link's folder,
-# so a search path going up one level is inside the folder; without the link, it leaves it.
-mkdir -p "$work/linked/plugins" "$work/unlinked"
-"$cc" $shared -fPIC "$work/lib.c" -o "$work/linked/libplugin.so" -Wl,-rpath,"$rpath_self" -Wl,-rpath,"$rpath_up"
-ln -s ../libplugin.so "$work/linked/plugins/libplugin.so"
-expect "search path going up, through a link of plugins/" 0 "$work/linked"
-cp "$work/linked/libplugin.so" "$work/unlinked/"
-expect "search path going up, without a link" 1 "$work/unlinked" "outside the folder"
-
 # A symbolic link to a file outside the folder (the build's plugins/ folder is made of them).
 mkdir "$work/link"
 cp "$work/ok/libanswer.so" "$work/ok/app" "$work/link/"
