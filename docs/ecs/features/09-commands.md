@@ -125,7 +125,7 @@ sequenceDiagram
 
 ```luau
 function WaveSpawner:run(ctx)
-    local enemy = ctx.commands:spawnActor("game.Bydo")
+    local enemy = ctx.call("rtype.capsule.spawn", { capsule = "actors/bydo.actor" })
     ctx.commands:add(enemy, "game.Shield", { strength = 20 })
 end
 ```
@@ -135,7 +135,7 @@ end
 - Uses: [Entity](01-entity.md) (`reserve()`), [World](06-world.md), [Component registry](02-component-registry.md)
   (ids, sizes, hooks).
 - Used by: [Systems](12-systems.md), [Scheduler](13-scheduler.md) (flush points),
-  [Actors](18-actors-and-scenes.md) (`spawnActor`), [Luau bridge](19-luau-bridge.md),
+  [Capsules](18-capsules.md) (spawning by copy), [Luau bridge](19-luau-bridge.md),
   [Replication](20-replication.md) (applying received spawns and despawns on the client).
 
 ## Pitfalls

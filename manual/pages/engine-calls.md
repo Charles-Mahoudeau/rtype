@@ -97,6 +97,16 @@ Prefer `engine.input.action`, see [Setup forms](setup-forms.md). To read an acti
 
 See [Physics](physics.md).
 
+### Capsules
+
+| Call | Arguments | Result |
+|---|---|---|
+| `rtype.capsule.spawn` | `capsule` (a path) | the root entity |
+| `rtype.capsule.load` | `capsule` (a path): switches levels | the root entity |
+| `rtype.capsule.reload` | `root` | `true` if it was a capsule's root |
+
+See [Capsules](capsules.md).
+
 ### Replication
 
 | Call | Where | What |

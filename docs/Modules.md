@@ -38,8 +38,8 @@ architecture rules, and this file keeps the detail, which changes with every fea
     - Files are grouped in one folder per feature (`entity/`, `type/` (the core shared by every kind of ECS
       data: fields, hooks, descriptions, registry), `component/`, `resource/`, `event/`, `storage/`, `change/`
       (change ticks), `world/`, `command/` (deferred structural changes), `hierarchy/` (`Parent`, `Children`),
-      `actor/` (named templates of entities), `query/`, `system/`, `call/` (engine calls: named functions plugins give
-      to scripts, and `CallBuffer`, the bytes of their arguments and results), `schedule/`, `time/`, `app/` (the App and its plugins)), included as
+      `query/`, `system/`, `call/` (engine calls: named functions plugins give to scripts, and `CallBuffer`, the bytes of
+      their arguments and results), `schedule/`, `time/`, `app/` (the App and its plugins)), included as
       `rtype/ecs/<feature>/<File>.hpp`.
     - Exception to the namespace rule: the types users write every day stay in the flat `rtype::ecs`
       namespace whatever their folder (`rtype/ecs/entity/Entity.hpp` declares `rtype::ecs::Entity`).
@@ -111,6 +111,14 @@ architecture rules, and this file keeps the detail, which changes with every fea
       `ControlNames.hpp`, over `contract/platform/input/KeyNames.hpp`), `Input`, `InputAction`, `ButtonStates`,
       the `rtype.Input` resource, fed by a `PreUpdate` system from the `PlatformEvent`s in order, and the typed input
       events (`InputEvents.hpp`) for gameplay code. It knows nothing of the graphics plugin, which requires it.
+    - `plugins/capsule/` (`rtype::plugins::capsule`) — `CapsulePlugin`: capsules, entities described once and spawned
+      by copy, actors and levels alike. `Capsule` (a flat list of nodes: name, parent, side, the capsule it instances,
+      `ComponentValues`), the `Capsules` resource (by the `AssetId` of their path, `define()` again for hot reload),
+      `addCapsule()` / `NodeConfig`, `spawnCapsule()`, `loadCapsule()` (switches levels, with the `LoadedCapsule`
+      resource) and `reloadCapsule()` / `reloadInstances()` (`CapsuleSpawn.hpp`), the `CapsuleInstance` component on
+      every spawned root, and the `rtype.capsule.spawn` / `load` / `reload` calls (`CapsuleCalls.hpp`).
+      `detail/CapsuleSpawner` is the walk `Commands` and the `World` share. It requires no plugin. See
+      `docs/ecs/features/18-capsules.md`.
     - `plugins/transform/` (`rtype::plugins::transform`) — `TransformPlugin`: the `Transform` component gameplay writes,
       relative to the entity's parent, and the `GlobalTransform` rendering reads, computed from it in `PostUpdate` on
       every side. `TransformMath.hpp` (`combine`, `toLocal`), `WorldPoses` (world poses for what runs before `PostUpdate`,
