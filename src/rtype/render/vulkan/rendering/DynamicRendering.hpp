@@ -49,6 +49,27 @@ inline constexpr ImageTransition kToColorAttachment{
     .dstAccess = vk::AccessFlagBits2::eColorAttachmentWrite,
 };
 
+/// @brief The scene's texture, contents discarded, to color attachment: waits for the fragment shaders of the previous
+/// frame that sampled it (a barrier orders them before it, as they were submitted earlier on the same queue).
+inline constexpr ImageTransition kSceneToColorAttachment{
+    .oldLayout = vk::ImageLayout::eUndefined,
+    .newLayout = vk::ImageLayout::eColorAttachmentOptimal,
+    .srcStage = vk::PipelineStageFlagBits2::eFragmentShader | vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+    .srcAccess = vk::AccessFlagBits2::eNone,
+    .dstStage = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+    .dstAccess = vk::AccessFlagBits2::eColorAttachmentWrite,
+};
+
+/// @brief The scene's texture, drawn into, to sampled by the fragment shaders of the meshes that show it.
+inline constexpr ImageTransition kSceneToShaderRead{
+    .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
+    .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+    .srcStage = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+    .srcAccess = vk::AccessFlagBits2::eColorAttachmentWrite,
+    .dstStage = vk::PipelineStageFlagBits2::eFragmentShader,
+    .dstAccess = vk::AccessFlagBits2::eShaderSampledRead,
+};
+
 /// @brief Color attachment to presentable: after the attachment writes; presentation itself waits on a semaphore.
 inline constexpr ImageTransition kColorAttachmentToPresent{
     .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,

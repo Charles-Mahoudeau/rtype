@@ -250,6 +250,8 @@ void VulkanRenderer::init(contract::platform::IPlatform& platform) {
         std::make_unique<pipeline::PipelineCache>(*_device, readPipelineCache(_pipelineCachePath, *_physicalDevice));
     _globals = std::make_unique<frame::FrameGlobals>(*_device, *_allocator, kFramesInFlight);
     _overlayGlobals = std::make_unique<frame::FrameGlobals>(*_device, *_allocator, kFramesInFlight);
+    _meshGlobals = std::make_unique<frame::FrameGlobals>(*_device, *_allocator, kFramesInFlight);
+    _previewGlobals = std::make_unique<frame::FrameGlobals>(*_device, *_allocator, kFramesInFlight);
     _device->setName(*_pipelineCache->getCache(), "Pipeline cache");
     _samplers = std::make_unique<texture::SamplerCache>(*_device, *_physicalDevice);
     _textureSetLayout = std::make_unique<descriptor::DescriptorSetLayout>(
@@ -352,6 +354,9 @@ void VulkanRenderer::createPasses() {
     auto overlayShapePass =
         std::make_unique<rendering::ShapePass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
                                                &_pipelineCache->getCache(), kFramesInFlight);
+    auto meshPass =
+        std::make_unique<rendering::MeshPass>(*_device, *_allocator, *_shaders, *_layout, _swapchain->getFormat(),
+                                              &_pipelineCache->getCache(), kFramesInFlight);
     const std::size_t frameIndex = _frames->getFrameIndex();
     if (_overlaySpritePass) {
         _deletionQueue.defer(frameIndex, std::exchange(_overlaySpritePass, std::move(overlaySpritePass)));
@@ -375,20 +380,22 @@ void VulkanRenderer::createPasses() {
     } else {
         _shapePass = std::move(shapePass);
     }
+    if (_meshPass) {
+        _deletionQueue.defer(frameIndex, std::exchange(_meshPass, std::move(meshPass)));
+    } else {
+        _meshPass = std::move(meshPass);
+    }
 }
 
-void VulkanRenderer::updateFrameUniforms(const contract::renderer::CameraView& view) {
+rendering::FrameUniforms VulkanRenderer::makeFrameUniforms(const contract::renderer::CameraView& view,
+                                                           vk::Extent2D extent) const {
     const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-    const vk::Extent2D extent = _swapchain->getExtent();
-    _globals->update(
-        _frames->getFrameIndex(),
-        rendering::FrameUniforms{
-            .time = std::chrono::duration<float>{now - _startTime}.count(),
-            .deltaTime = std::chrono::duration<float>{now - _lastFrameTime}.count(),
-            .framebufferSize = glm::vec2{static_cast<float>(extent.width), static_cast<float>(extent.height)},
-            .viewProjection = view.getViewProjection(),
-        });
-    _lastFrameTime = now;
+    return rendering::FrameUniforms{
+        .time = std::chrono::duration<float>{now - _startTime}.count(),
+        .deltaTime = std::chrono::duration<float>{now - _lastFrameTime}.count(),
+        .framebufferSize = glm::vec2{static_cast<float>(extent.width), static_cast<float>(extent.height)},
+        .viewProjection = view.getViewProjection(),
+    };
 }
 
 std::size_t VulkanRenderer::getLastRecordedFrame() const {
@@ -456,6 +463,9 @@ void VulkanRenderer::beginFrame(const contract::renderer::Color& clearColor) {
     _overlaySprites.clear();
     _overlayShapes.clear();
     _overlayRuns.clear();
+    _mesh.vertices.clear();
+    _mesh.indices.clear();
+    _mesh.commands.clear();
     if (_framebufferSize.x == 0 || _framebufferSize.y == 0) {
         return;
     }
@@ -464,6 +474,10 @@ void VulkanRenderer::beginFrame(const contract::renderer::Color& clearColor) {
     if (_swapchainOutOfDate) {
         recreateSwapchain();
     }
+    adoptTarget(_sceneSize, _sceneTexture, _sceneSizeRequest, "Scene");
+    adoptTarget(_previewSize, _previewTexture, _previewRequest ? std::optional{_previewRequest->size} : std::nullopt,
+                "Preview");
+    _previewView = _previewRequest ? std::optional{_previewRequest->view} : std::nullopt;
     const frame::FrameData& frame = _frames->getCurrentFrame();
 
     std::uint32_t imageIndex = 0;
@@ -494,43 +508,61 @@ void VulkanRenderer::endFrame() {
     const vk::raii::CommandBuffer& commandBuffer = frame.getCommandBuffer().getCommandBuffer();
     const std::size_t frameIndex = _frames->getFrameIndex();
 
-    const vk::Extent2D extent = _swapchain->getExtent();
-    const glm::uvec2 framebufferSize{extent.width, extent.height};
+    // The scene goes to its own texture when a tool asked for one (setSceneSize()); the window then only shows meshes.
+    const vk::Extent2D windowExtent = _swapchain->getExtent();
+    const glm::uvec2 windowSize{windowExtent.width, windowExtent.height};
+    const texture::Texture* scene = _sceneSize ? _textures.find(_sceneTexture) : nullptr;
+    const vk::Extent2D sceneExtent = scene != nullptr ? scene->image.getExtent() : windowExtent;
+    const glm::uvec2 framebufferSize{sceneExtent.width, sceneExtent.height};
     const glm::vec2 viewSize{_config.virtualResolution};
     const contract::renderer::CameraView view{
         _view.value_or(contract::renderer::CameraView::makeDefaultView(viewSize, framebufferSize)), viewSize,
         framebufferSize};
-    updateFrameUniforms(view);
+    _globals->update(frameIndex, makeFrameUniforms(view, sceneExtent));
+    _stats = contract::renderer::FrameStats{
+        .sprites = static_cast<std::uint32_t>(_sprites.getInstances().size()),
+        .shapes = static_cast<std::uint32_t>(_shapes.getInstances().size()),
+        .overlayItems =
+            static_cast<std::uint32_t>(_overlaySprites.getInstances().size() + _overlayShapes.getInstances().size()),
+        .meshTriangles = static_cast<std::uint32_t>(_mesh.indices.size() / 3),
+        .textures = static_cast<std::uint32_t>(_textures.getSize()),
+    };
     {
         const command::CommandLabel label{*_device, commandBuffer, "Particle simulation"};
         recordParticleSimulations(commandBuffer);
     }
 
     // Rendering starts here, not in beginFrame(): work that cannot be recorded inside a rendering scope (compute
-    // dispatches) is recorded above, before it.
+    // dispatches) is recorded above, before it. The world is uploaded once, for the preview and the scene.
+    uploadWorld(frameIndex);
+    recordPreview(commandBuffer, frameIndex);
+    if (scene != nullptr) {
+        const command::CommandLabel label{*_device, commandBuffer, "Scene"};
+        rendering::transitionImage(commandBuffer, *scene->image.getImage(), rendering::kSceneToColorAttachment);
+        const vk::RenderingAttachmentInfo sceneColor =
+            rendering::colorAttachment(*scene->image.getImageView(), toClearColor(_clearColor));
+        commandBuffer.beginRendering(rendering::renderingInfo(sceneExtent, {&sceneColor, 1}));
+        recordWorld(commandBuffer, frameIndex, view, *_globals);
+        recordOverlay(commandBuffer, frameIndex, view, viewSize, framebufferSize);
+        commandBuffer.endRendering();
+        rendering::transitionImage(commandBuffer, *scene->image.getImage(), rendering::kSceneToShaderRead);
+    }
     rendering::transitionImage(commandBuffer, _swapchain->getImages().at(imageIndex), rendering::kToColorAttachment);
     const vk::RenderingAttachmentInfo color =
         rendering::colorAttachment(*_swapchain->getImageViews().at(imageIndex), toClearColor(_clearColor));
-    commandBuffer.beginRendering(rendering::renderingInfo(_swapchain->getExtent(), {&color, 1}));
-    _globals->bind(commandBuffer, *_layout, frameIndex);
-    recordSpritesAndParticles(commandBuffer, frameIndex, view);
-    const auto findShapeMaterial = [this, frameIndex](contract::renderer::MaterialId material,
-                                                      contract::renderer::ShaderTarget target) {
-        return findMaterial(material, target, frameIndex);
-    };
-    {
-        const command::CommandLabel label{*_device, commandBuffer, "Shapes"};
-        _shapePass->upload(frameIndex, _shapes);
-        _shapePass->record(commandBuffer, frameIndex, _shapes.getBatches(), view.getViewport(),
-                           findTextureSet(_fallbackTexture), findShapeMaterial);
+    commandBuffer.beginRendering(rendering::renderingInfo(windowExtent, {&color, 1}));
+    if (scene == nullptr) {
+        recordWorld(commandBuffer, frameIndex, view, *_globals);
+        recordOverlay(commandBuffer, frameIndex, view, viewSize, framebufferSize);
     }
-    _shapes.clear();
-    recordOverlay(commandBuffer, frameIndex, view, viewSize, framebufferSize);
+    clearWorld();
+    recordMeshes(commandBuffer, frameIndex, windowSize);
 
     commandBuffer.endRendering();
     rendering::transitionImage(commandBuffer, _swapchain->getImages().at(imageIndex),
                                rendering::kColorAttachmentToPresent);
     frame.getCommandBuffer().end();
+    _lastFrameTime = std::chrono::steady_clock::now();
 
     const vk::Semaphore renderFinished = *_frames->getRenderFinished(imageIndex).getSemaphore();
     const vk::SemaphoreSubmitInfo waitInfo{*frame.getImageAvailable().getSemaphore(), 0,
@@ -643,6 +675,155 @@ void VulkanRenderer::drawOverlay(const std::span<const contract::renderer::Overl
         const std::size_t batches = shapes ? _overlayShapes.getBatches().size() : _overlaySprites.getBatches().size();
         run.batchCount = static_cast<std::uint32_t>(batches) - run.firstBatch;
     }
+}
+
+void VulkanRenderer::uploadWorld(std::size_t frameIndex) {
+    _spritePass->upload(frameIndex, _sprites);
+    _particlePass->upload(frameIndex, _particleInstances);
+    _shapePass->upload(frameIndex, _shapes);
+}
+
+void VulkanRenderer::recordWorld(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
+                                 const contract::renderer::CameraView& view, const frame::FrameGlobals& globals) {
+    globals.bind(commandBuffer, *_layout, frameIndex);
+    recordSpritesAndParticles(commandBuffer, frameIndex, view);
+    const auto findShapeMaterial = [this, frameIndex](contract::renderer::MaterialId material,
+                                                      contract::renderer::ShaderTarget target) {
+        return findMaterial(material, target, frameIndex);
+    };
+    const command::CommandLabel label{*_device, commandBuffer, "Shapes"};
+    _shapePass->record(commandBuffer, frameIndex, _shapes.getBatches(), view.getViewport(),
+                       findTextureSet(_fallbackTexture), findShapeMaterial);
+}
+
+void VulkanRenderer::clearWorld() {
+    _sprites.clear();
+    _particleInstances.clear();
+    _particleRanges.clear();
+    _drawList.clear();
+    _shapes.clear();
+}
+
+void VulkanRenderer::recordPreview(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex) {
+    const texture::Texture* preview = _previewSize ? _textures.find(_previewTexture) : nullptr;
+    if (preview == nullptr || !_previewView) {
+        return;
+    }
+    const command::CommandLabel label{*_device, commandBuffer, "Preview"};
+    const vk::Extent2D extent = preview->image.getExtent();
+    const glm::uvec2 size{extent.width, extent.height};
+    // No virtual resolution: one world unit per pixel at zoom 1, the whole texture shown.
+    const contract::renderer::CameraView view{*_previewView, glm::vec2{0.0F}, size};
+    _previewGlobals->update(frameIndex, makeFrameUniforms(view, extent));
+    rendering::transitionImage(commandBuffer, *preview->image.getImage(), rendering::kSceneToColorAttachment);
+    const vk::RenderingAttachmentInfo color =
+        rendering::colorAttachment(*preview->image.getImageView(), toClearColor(_clearColor));
+    commandBuffer.beginRendering(rendering::renderingInfo(extent, {&color, 1}));
+    recordWorld(commandBuffer, frameIndex, view, *_previewGlobals);
+    commandBuffer.endRendering();
+    rendering::transitionImage(commandBuffer, *preview->image.getImage(), rendering::kSceneToShaderRead);
+}
+
+void VulkanRenderer::recordMeshes(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
+                                  glm::uvec2 framebufferSize) {
+    if (_mesh.commands.empty()) {
+        return;
+    }
+    const command::CommandLabel label{*_device, commandBuffer, "Meshes"};
+    // One unit per pixel, origin at the top-left corner: the meshes are placed in window pixels.
+    const glm::vec2 size{framebufferSize};
+    const contract::renderer::CameraView pixels{contract::renderer::CameraView::makeDefaultView(size, framebufferSize),
+                                                size, framebufferSize};
+    _meshGlobals->update(frameIndex, rendering::FrameUniforms{
+                                         .time = 0.0F,
+                                         .deltaTime = 0.0F,
+                                         .framebufferSize = size,
+                                         .viewProjection = pixels.getViewProjection(),
+                                     });
+    _meshGlobals->bind(commandBuffer, *_layout, frameIndex);
+    _meshPass->upload(frameIndex, _mesh);
+    _meshPass->record(
+        commandBuffer, frameIndex, _mesh, framebufferSize,
+        [this](contract::renderer::TextureId texture) { return findTextureSet(texture); },
+        findTextureSet(_fallbackTexture));
+}
+
+void VulkanRenderer::drawMesh(const contract::renderer::Mesh& mesh) {
+    if (!_acquiredImage) {
+        return;
+    }
+    const auto baseVertex = static_cast<std::uint32_t>(_mesh.vertices.size());
+    const auto baseIndex = static_cast<std::uint32_t>(_mesh.indices.size());
+    _mesh.vertices.insert(_mesh.vertices.end(), mesh.vertices.begin(), mesh.vertices.end());
+    _mesh.indices.reserve(_mesh.indices.size() + mesh.indices.size());
+    for (const std::uint32_t index : mesh.indices) {
+        _mesh.indices.push_back(baseVertex + index);
+    }
+    for (contract::renderer::MeshCommand command : mesh.commands) {
+        command.indexOffset += baseIndex;
+        _mesh.commands.push_back(command);
+    }
+}
+
+void VulkanRenderer::setSceneSize(std::optional<glm::uvec2> size) { _sceneSizeRequest = size; }
+
+std::optional<glm::uvec2> VulkanRenderer::getSceneSize() const { return _sceneSize; }
+
+contract::renderer::TextureId VulkanRenderer::getSceneTexture() const {
+    return _sceneSize ? _sceneTexture : contract::renderer::TextureId{};
+}
+
+contract::renderer::FrameStats VulkanRenderer::getFrameStats() const { return _stats; }
+
+texture::Texture VulkanRenderer::makeTargetTexture(glm::uvec2 size, std::string_view name) const {
+    memory::Image image{*_device, *_allocator, vk::Extent2D{size.x, size.y}, _swapchain->getFormat(),
+                        vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled};
+    vk::raii::DescriptorSet set = _textureDescriptors->allocate(*_textureSetLayout);
+    const contract::renderer::TextureDesc desc{.size = size, .filter = contract::renderer::TextureFilter::kLinear};
+    descriptor::DescriptorWriter{}
+        .writeImage(rendering::kTextureBinding, *image.getImageView(), *_samplers->get(desc.filter, desc.repeat),
+                    vk::ImageLayout::eShaderReadOnlyOptimal)
+        .update(*_device, *set);
+    _device->setName(*image.getImage(), name);
+    _device->setName(*image.getImageView(), std::format("{} view", name));
+    _device->setName(*set, std::format("{} set", name));
+    return texture::Texture{.image = std::move(image), .desc = desc, .set = std::move(set)};
+}
+
+void VulkanRenderer::adoptTarget(std::optional<glm::uvec2>& size, contract::renderer::TextureId& texture,
+                                 std::optional<glm::uvec2> request, std::string_view name) {
+    if (!request) {
+        if (size) {
+            destroy(texture);
+            texture = contract::renderer::TextureId{};
+            size.reset();
+        }
+        return;
+    }
+    const std::uint32_t maxSize = _physicalDevice->getLimits().maxImageDimension2D;
+    const glm::uvec2 wanted{std::clamp(request->x, 1U, maxSize), std::clamp(request->y, 1U, maxSize)};
+    texture::Texture* current = size ? _textures.find(texture) : nullptr;
+    if (current != nullptr && size == wanted && current->image.getFormat() == _swapchain->getFormat()) {
+        return;
+    }
+    texture::Texture made = makeTargetTexture(wanted, name);
+    if (current != nullptr) {
+        // The id stays: whoever draws the texture keeps its handle, the GPU finishes with the old image first.
+        texture::Texture old = std::move(*current);
+        *current = std::move(made);
+        _deletionQueue.defer(getLastRecordedFrame(), std::move(old));
+    } else {
+        texture = _textures.insert(std::move(made));
+    }
+    size = wanted;
+}
+
+void VulkanRenderer::setScenePreview(const std::optional<contract::renderer::ScenePreview>& preview) {
+    _previewRequest = preview;
+}
+
+contract::renderer::TextureId VulkanRenderer::getPreviewTexture() const {
+    return _previewSize ? _previewTexture : contract::renderer::TextureId{};
 }
 
 void VulkanRenderer::recordOverlay(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
@@ -779,8 +960,6 @@ void VulkanRenderer::draw(const contract::renderer::ParticleDraw& particles) {
 
 void VulkanRenderer::recordSpritesAndParticles(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
                                                const contract::renderer::CameraView& view) {
-    _spritePass->upload(frameIndex, _sprites);
-    _particlePass->upload(frameIndex, _particleInstances);
     const std::span<const rendering::SpriteBatch::Batch> batches = _sprites.getBatches();
     const auto findSet = [this](contract::renderer::TextureId texture) { return findTextureSet(texture); };
     const auto findSpriteMaterial = [this, frameIndex](contract::renderer::MaterialId material,
@@ -813,10 +992,6 @@ void VulkanRenderer::recordSpritesAndParticles(const vk::raii::CommandBuffer& co
                                           *system->getIndirect().getBuffer(), view.getViewport());
         }
     }
-    _sprites.clear();
-    _particleInstances.clear();
-    _particleRanges.clear();
-    _drawList.clear();
 }
 
 vk::DescriptorSet VulkanRenderer::findTextureSet(contract::renderer::TextureId texture) const {

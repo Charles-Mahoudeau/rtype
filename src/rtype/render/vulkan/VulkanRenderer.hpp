@@ -47,6 +47,7 @@
 #include "presentation/Swapchain.hpp"
 #include "rendering/DrawList.hpp"
 #include "rendering/MaterialBinding.hpp"
+#include "rendering/MeshPass.hpp"
 #include "rendering/ParticleConstants.hpp"
 #include "rendering/ParticlePass.hpp"
 #include "rendering/ShapeBatch.hpp"
@@ -56,6 +57,7 @@
 #include "rtype/contract/platform/IPlatform.hpp"
 #include "rtype/contract/renderer/IRenderer.hpp"
 #include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Mesh.hpp"
 #include "rtype/contract/renderer/drawing/Overlay.hpp"
 #include "rtype/contract/renderer/drawing/Shape.hpp"
 #include "rtype/contract/renderer/drawing/Sprite.hpp"
@@ -65,7 +67,9 @@
 #include "rtype/contract/renderer/particle/Particle.hpp"
 #include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 #include "rtype/contract/renderer/shaders/CompiledShader.hpp"
+#include "rtype/contract/renderer/stats/FrameStats.hpp"
 #include "rtype/contract/renderer/view/CameraView.hpp"
+#include "rtype/contract/renderer/view/ScenePreview.hpp"
 #include "rtype/contract/renderer/view/View.hpp"
 #include "texture/SamplerCache.hpp"
 #include "texture/Texture.hpp"
@@ -257,6 +261,32 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public contract::renderer::
     /// @brief Destroys a material once the GPU is done with it; does nothing for one already destroyed.
     void destroy(contract::renderer::MaterialId material) override;
 
+    /// @brief Adds @p mesh to the frame's meshes, drawn by endFrame() in the window, over the scene and the overlay,
+    /// by rendering::MeshPass. Does nothing if beginFrame() skipped the frame.
+    void drawMesh(const contract::renderer::Mesh& mesh) override;
+
+    /// @brief Asks for the scene to be drawn into a texture of @p size, or back into the window (nothing); the next
+    /// beginFrame() makes the change (see IRenderer::setSceneSize()). The texture keeps the swapchain's format, so the
+    /// passes draw into it as into the window.
+    void setSceneSize(std::optional<glm::uvec2> size) override;
+
+    /// @return The size of the scene's texture as of the current frame; nothing while the scene goes to the window.
+    [[nodiscard]] std::optional<glm::uvec2> getSceneSize() const override;
+
+    /// @return The scene's texture, stable across resizes; none while the scene goes to the window.
+    [[nodiscard]] contract::renderer::TextureId getSceneTexture() const override;
+
+    /// @brief Asks for the world to be drawn a second time, from @p preview's view, into a texture of its size, or for
+    /// that to stop (nothing); the next beginFrame() makes the change. The world's buffers are uploaded once and drawn
+    /// twice: the preview has its own frame uniforms, and neither the overlay nor the meshes.
+    void setScenePreview(const std::optional<contract::renderer::ScenePreview>& preview) override;
+
+    /// @return The preview's texture, stable across resizes; none while there is no preview.
+    [[nodiscard]] contract::renderer::TextureId getPreviewTexture() const override;
+
+    /// @return What the last frame ended drew.
+    [[nodiscard]] contract::renderer::FrameStats getFrameStats() const override;
+
   private:
     /// @brief Overlay draws that share a kind and a clip, recorded at endFrame().
     struct OverlayRun {
@@ -290,10 +320,10 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public contract::renderer::
     /// ones (their pipelines render into the old format) to the deletion queue.
     void createPasses();
 
-    /// @brief Writes this frame's FrameUniforms (time, delta time, swapchain extent, @p view's matrix) into its uniform
-    /// buffer.
-    /// @warning Only after the frame's fence was waited for: the GPU may still read the buffer before.
-    void updateFrameUniforms(const contract::renderer::CameraView& view);
+    /// @return The FrameUniforms of a picture of @p extent seen through @p view, at the time of the frame being ended:
+    /// what the frame's uniform buffers hold (one per picture: the scene and the preview).
+    [[nodiscard]] rendering::FrameUniforms makeFrameUniforms(const contract::renderer::CameraView& view,
+                                                             vk::Extent2D extent) const;
 
     /// @brief Adds @p sprite to @p batch.
     /// @throws std::invalid_argument If its texture was destroyed or never created.
@@ -314,10 +344,36 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public contract::renderer::
     /// @brief Records the simulation of the frame's GPU systems (_simulations), before rendering begins.
     void recordParticleSimulations(const vk::raii::CommandBuffer& commandBuffer);
 
-    /// @brief Uploads the frame's sprites and particles, and records them in the order of _drawList, into @p view's
+    /// @brief Records the frame's sprites and particles, uploaded, in the order of _drawList, into @p view's
     /// viewport.
     void recordSpritesAndParticles(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
                                    const contract::renderer::CameraView& view);
+
+    /// @brief Makes the size @p request asks for the current one of a texture the frame draws into (the scene's, the
+    /// preview's): creates it, resizes it keeping its id, or destroys it. Between frames only: the GPU may still read
+    /// the previous image, which is deferred.
+    void adoptTarget(std::optional<glm::uvec2>& size, contract::renderer::TextureId& texture,
+                     std::optional<glm::uvec2> request, std::string_view name);
+
+    /// @return A texture of @p size and the swapchain's format, drawn into and then sampled, named @p name.
+    [[nodiscard]] texture::Texture makeTargetTexture(glm::uvec2 size, std::string_view name) const;
+
+    /// @brief Copies the frame's world (sprites, particles, shapes) into the frame's buffers, once, for recordWorld().
+    void uploadWorld(std::size_t frameIndex);
+
+    /// @brief Records the frame's world, uploaded, in the dynamic rendering scope already begun, seen through @p view
+    /// with the frame uniforms of @p globals: what the scene and the preview both draw.
+    void recordWorld(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex,
+                     const contract::renderer::CameraView& view, const frame::FrameGlobals& globals);
+
+    /// @brief Forgets the frame's world, once every picture has recorded it.
+    void clearWorld();
+
+    /// @brief Records the frame's preview into its texture, before the scene: its own rendering scope.
+    void recordPreview(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex);
+
+    /// @brief Records the frame's meshes into the window, in the dynamic rendering scope already begun.
+    void recordMeshes(const vk::raii::CommandBuffer& commandBuffer, std::size_t frameIndex, glm::uvec2 framebufferSize);
 
     /// @return The descriptor set of @p texture, or a null handle if it no longer exists.
     [[nodiscard]] vk::DescriptorSet findTextureSet(contract::renderer::TextureId texture) const;
@@ -378,6 +434,15 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public contract::renderer::
     std::vector<std::pair<contract::renderer::ParticleSystemId, contract::renderer::ParticleEmission>>
         _simulations;  ///< The GPU systems to simulate this frame, by id; cleared by beginFrame().
     contract::renderer::TextureId _fallbackTexture;  ///< A white pixel: a material's unset textures.
+    std::optional<glm::uvec2> _sceneSizeRequest;     ///< From setSceneSize(): taken by the next beginFrame().
+    std::optional<glm::uvec2> _sceneSize;            ///< The scene texture's size now; empty: the scene is the window.
+    contract::renderer::TextureId _sceneTexture;     ///< The scene's texture in _textures, while _sceneSize is set.
+    contract::renderer::Mesh _mesh;                  ///< The frame's meshes, merged; cleared by beginFrame().
+    std::optional<contract::renderer::ScenePreview> _previewRequest;  ///< From setScenePreview(): for beginFrame().
+    std::optional<contract::renderer::View> _previewView;             ///< The preview's view as of the current frame.
+    std::optional<glm::uvec2> _previewSize;         ///< The preview texture's size now; empty: no preview.
+    contract::renderer::TextureId _previewTexture;  ///< The preview's texture in _textures.
+    contract::renderer::FrameStats _stats;          ///< What the last frame drew.
 
     // 2. Context: created by init(), in this order.
     std::optional<core::Instance> _instance;                ///< The VkInstance.
@@ -400,6 +465,8 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public contract::renderer::
     std::unique_ptr<pipeline::ShaderCache> _shaders;          ///< Shader modules, built-in and from the game.
     std::unique_ptr<pipeline::PipelineCache> _pipelineCache;  ///< Shared by every pipeline the renderer builds.
     std::unique_ptr<frame::FrameGlobals> _overlayGlobals;     ///< The frame uniforms of the overlay: its own view.
+    std::unique_ptr<frame::FrameGlobals> _meshGlobals;        ///< The frame uniforms of the meshes: window pixels.
+    std::unique_ptr<frame::FrameGlobals> _previewGlobals;     ///< The frame uniforms of the preview: its view.
     std::unique_ptr<frame::FrameGlobals> _globals;            ///< Per-frame uniforms, at set 0, binding 0.
     std::unique_ptr<descriptor::DescriptorSetLayout> _textureSetLayout;     ///< Set 1: one combined image sampler.
     std::unique_ptr<descriptor::DescriptorAllocator> _textureDescriptors;   ///< Allocates the textures' sets.
@@ -414,6 +481,7 @@ class RTYPE_RENDER_VULKAN_API VulkanRenderer final : public contract::renderer::
     std::unique_ptr<rendering::SpritePass> _overlaySpritePass;  ///< Draws _overlaySprites, with buffers of its own.
     std::unique_ptr<rendering::ShapePass> _overlayShapePass;    ///< Draws _overlayShapes, with buffers of its own.
     std::unique_ptr<rendering::ShapePass> _shapePass;           ///< Draws _shapes at endFrame(), after the sprites.
+    std::unique_ptr<rendering::MeshPass> _meshPass;             ///< Draws _mesh at endFrame(), over everything.
     std::unique_ptr<rendering::ParticlePass> _particlePass;  ///< Draws _particleRanges at endFrame(), among _sprites.
     std::unique_ptr<particle::ParticleSimulationPass> _particleSimulation;     ///< Runs _simulations at endFrame().
     core::SlotMap<contract::renderer::TextureId, texture::Texture> _textures;  ///< By TextureId.
