@@ -56,6 +56,15 @@ Settings Settings::section(std::string_view prefix) const {
     return result;
 }
 
+std::vector<std::string> Settings::keys() const {
+    std::vector<std::string> result;
+    result.reserve(_values.size());
+    for (const auto& entry : _values) {
+        result.push_back(entry.first);
+    }
+    return result;
+}
+
 bool Settings::getBool(std::string_view key, bool fallback) const {
     return read<bool>(_values, key, fallback, "a boolean");
 }
