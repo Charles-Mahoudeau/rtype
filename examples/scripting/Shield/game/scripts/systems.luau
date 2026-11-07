@@ -1,4 +1,4 @@
--- Files load in sorted path order: shield.luau declared "game.Shield" before this one uses it.
+-- main.luau requires shield.luau first, which declares "game.Shield" before this one uses it.
 
 engine.ecs.component("game.Spawner", { fields = {}, presence = "serverOnly" })
 

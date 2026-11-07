@@ -1,3 +1,6 @@
+-- A standalone game runs the three entries (main, server, client); this one has only main.
+engine.settings.scripts.main = "all"
+
 local GAME_WIDTH = 800
 local GAME_HEIGHT = 600
 

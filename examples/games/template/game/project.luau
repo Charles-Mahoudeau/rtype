@@ -4,6 +4,9 @@
 --   runtime/aylo-runtime --game templates/game                 a client, in a window
 --   runtime/aylo-runtime --game templates/game --headless      a client without a window, to test the network
 
+-- The scripts run from `scripts/main.luau`. For a game with a server and a client side, name an entry per side:
+--   engine.settings.scripts.server = "server/main"   engine.settings.scripts.client = "client/main"
+
 engine.settings.network.port = engine.args.port or 4242
 
 if engine.isClient then
