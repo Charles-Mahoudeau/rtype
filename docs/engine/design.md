@@ -17,7 +17,7 @@ return engine.run();
 ```
 game/
 ├── project.luau    settings: window, renderer, audio, network...   (required)
-└── scripts/        the Luau files of ScriptingPlugin, root-required in sorted path order; they can `require` each other (optional)
+└── scripts/        the Luau files of ScriptingPlugin: the entry points (`scripts.main/server/client`, default `main`) and what they `require` (optional)
 ```
 
 The directory is `EngineConfig::game` (`game` by default), or `--game <directory>` on the command line. A relative path
@@ -84,7 +84,7 @@ The network reads the `network` section of the settings and refuses unknown keys
 | `network.host` | client | `"127.0.0.1"` | must resolve to an address |
 
 The `scripts` section is read when the `ScriptingPlugin` is added (step 8) but checked before anything is built, with the
-network: `checkKeys({"aliases"}, "scripts")` (the entry point keys come with their own change). `scripts.aliases` is an
+network: `checkKeys({"main", "server", "client", "aliases"}, "scripts")`. The entries (`scripts.main`, `scripts.server`, `scripts.client`, strings) go to `ScriptingPlugin::Config`; the plugin requires `main`, then `server` if the mode runs the server side, then `client` if it runs the client side (`runsServer`/`runsClient` of the run mode, so standalone runs all three). With none set, `main` defaults to `"main"` and a missing file only warns; a missing explicit entry fails the build naming `scripts.<key>`. `scripts.aliases` is an
 open-ended table, so `readScriptAliases` lists it with `Settings::keys()`. Each value must be a string, and each alias is
 tried alone on a `scripting::modules::ScriptResolver`, so the error is a `RuntimeError` naming
 `scripts.aliases.<name>` with the resolver's reason (bad name, `scripts`/`self` reserved, target outside `scripts/`). The
@@ -148,7 +148,7 @@ A new hot-reloaded feature is a new `Reloadable` added to the reloader, nothing 
   one staging area and one loader transaction:
   - The loaded modules among the changed and removed files are the seeds; `loader.dependents(seeds)` adds everything
     that requires them, directly or not, dependencies first. A changed file no module loaded is ignored, unless the
-    host adopts new files (`setAdoptsNewFiles`, true while every file is auto-loaded): it is then a new root and runs.
+    host adopts new files (`setAdoptsNewFiles`; the plugin sets false, so with entry points the file is ignored until a module requires it).
   - The affected modules are invalidated and required again in that order; one that an earlier module required is
     already cached and is skipped. The new source of a changed file is given to the resolver as a one-shot override.
   - The host keeps the roots, the modules required from outside (`ScriptHost::require`). After the run, the modules no

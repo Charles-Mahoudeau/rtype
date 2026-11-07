@@ -18,11 +18,18 @@ the assets of a `game/` folder. It is not for engine work (that is `src/`).
   `[Area] <summary>`, say which script wants what, with the Luau you would write) and tell the user. Use the
   `plan-issues` skill if several tasks are needed.
 
+## Scripts
+
+- Nothing under `scripts/` runs by itself: `scripts.main`, `scripts.server` and `scripts.client` in `project.luau` name
+  the entries (default `main`), and everything else runs because a file `require`s it.
+- Each file has its own globals; share data only through `require` (a returned table is frozen; keep changing state in
+  a local behind functions). Never write a global to pass data, and never test `engine.isServer` to skip a file: put it
+  under the entry of the side that needs it.
+
 ## How
 
 - Use the `luau-gameplay` skill for the folder layout, components, systems, calls and setup forms.
-- Model your game on `examples/games/rtype_duel/game/` (scripts split by side: `server/`, `client/`, shared files at the
-  root). `examples/games/plugin_demo/` shows a game with a native plugin of its own in `game/plugins/`: writing one is
+- Model your game on `examples/games/rtype_duel/game/` (an entry per side, `server/main.luau` and `client/main.luau`, named in `project.luau`; shared files in `shared/`). `examples/games/plugin_demo/` shows a game with a native plugin of its own in `game/plugins/`: writing one is
   engine work, not game work; ask for it in an engine issue.
 - Run it to see it work: build with `xmake build -y`, then run the server and the client (commands in the root file).
 - Keep every piece of data on the side it belongs to: the server owns gameplay, the client draws and sends inputs.
