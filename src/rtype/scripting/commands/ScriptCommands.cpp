@@ -7,7 +7,10 @@
 
 #include "ScriptCommands.hpp"
 
+#include <algorithm>
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <format>
 #include <memory>
 #include <new>
@@ -77,7 +80,8 @@ struct Built {
     ecs::ComponentId id{};  ///< The component.
     std::vector<std::byte>
         bytes;  ///< A plain-data value: its defaults with the fields of the script written over them.
-    std::optional<LiveValue> live;  ///< A value with lifecycle hooks instead, filled the same way.
+    std::optional<LiveValue> live;           ///< A value with lifecycle hooks instead, filled the same way.
+    std::span<const ecs::FieldInfo> fields;  ///< The component's fields, as scripts name them.
 
     /// @return The bytes of the value, plain or live.
     [[nodiscard]] std::span<std::byte> value() noexcept { return live ? live->bytes() : std::span<std::byte>{bytes}; }
@@ -153,17 +157,56 @@ void checkAlive(const ScriptCommands& handle) {
     Built built = info == nullptr
                       ? Built{.id = layout->second.id, .bytes = layout->second.defaults, .live = std::nullopt}
                       : defaultsOf(*info);
+    built.fields = info == nullptr ? std::span<const ecs::FieldInfo>{layout->second.fields} : info->type.fields;
     if (fields != nullptr) {
-        const std::span<const ecs::FieldInfo> described =
-            info == nullptr ? std::span<const ecs::FieldInfo>{layout->second.fields} : info->type.fields;
         ecs::TypeInfo description;
         description.name = name;
-        description.fields.assign(described.begin(), described.end());
+        description.fields.assign(built.fields.begin(), built.fields.end());
         if (auto filled = view::fillFromTable(description, *fields, built.value()); !filled) {
             throw luau::exceptions::RuntimeError{std::string{filled.error().message()}};
         }
     }
     return built;
+}
+
+/// @brief One field a patch writes, copied out of the value the script's table built.
+struct FieldWrite {
+    std::uint32_t offset{0};               ///< Where the field is in the component's value.
+    const ecs::ListAccess* list{nullptr};  ///< Assigns a list field (a `std::vector`, a `std::string`); null: bytes.
+    std::vector<std::byte> bytes;          ///< The field's bytes, or the values of its list.
+};
+
+/// @return The fields the table `fields` names, with their values taken from `built`, which it filled.
+/// @throws luau::exceptions::RuntimeError If the table cannot be read.
+[[nodiscard]] std::vector<FieldWrite> writesOf(Built& built, const luau::Table& fields) {
+    auto entries = fields.entries();
+    if (!entries) {
+        throw luau::exceptions::RuntimeError{std::string{entries.error().message()}};
+    }
+    const std::span<std::byte> value = built.value();
+    std::vector<FieldWrite> writes;
+    for (const auto& [key, unused] : *entries) {
+        const auto* name = key.tryAs<std::string>();
+        const auto field =
+            name == nullptr ? built.fields.end() : std::ranges::find(built.fields, *name, &ecs::FieldInfo::name);
+        if (field == built.fields.end()) {
+            continue;  // fillFromTable() refused anything else already
+        }
+        const std::span<std::byte> bytes = value.subspan(field->offset);
+        if (field->list != nullptr) {
+            const std::span<const std::byte> elements = field->list->elements(bytes.data());
+            writes.push_back(FieldWrite{.offset = field->offset,
+                                        .list = field->list,
+                                        .bytes = std::vector<std::byte>{elements.begin(), elements.end()}});
+        } else {
+            const std::span<std::byte> scalar =
+                bytes.first(static_cast<std::size_t>(ecs::getFieldLayout(field->type).size) * field->count);
+            writes.push_back(FieldWrite{.offset = field->offset,
+                                        .list = nullptr,
+                                        .bytes = std::vector<std::byte>{scalar.begin(), scalar.end()}});
+        }
+    }
+    return writes;
 }
 
 /// @return The entity a script handed over, or a Luau error if the value is not an `Entity`.
@@ -173,6 +216,32 @@ void checkAlive(const ScriptCommands& handle) {
         throw luau::exceptions::RuntimeError{"expected an Entity"};
     }
     return *entity;
+}
+/// @brief Writes the fields of a patch over the current value of the component.
+void applyWrites(const std::vector<FieldWrite>& writes, std::span<std::byte> current) {
+    for (const FieldWrite& write : writes) {
+        std::byte* field = current.subspan(write.offset).data();
+        if (write.list != nullptr) {
+            write.list->assign(field, write.bytes);
+        } else {
+            std::memcpy(field, write.bytes.data(), write.bytes.size());
+        }
+    }
+}
+
+/// @brief `commands:patch(entity, name, fields)`: records writing the fields of the table over the entity's value at
+/// the flush.
+void recordPatch(const ScriptCommands& handle, const luau::Userdata& entity, const std::string& name,
+                 const luau::Table& fields) {
+    checkAlive(handle);
+    const ecs::Entity target = toEntity(entity);
+    Built value = build(handle, name, &fields);
+    const bool recorded = handle.commands->patch(
+        target, value.id,
+        [writes = writesOf(value, fields)](std::span<std::byte> current) { applyWrites(writes, current); });
+    if (!recorded) {
+        throw luau::exceptions::RuntimeError{std::format("cannot patch '{}': use setParent and removeParent", name)};
+    }
 }
 }  // namespace
 
@@ -222,6 +291,7 @@ luau::Result<> registerCommandsType(luau::Runtime& runtime) {
                     Built value = build(handle, name, fields ? &*fields : nullptr);
                     handle.commands->add(target, value.id, value.value());  // copies the value
                 })
+        .method("patch", &recordPatch)
         .method("setParent",
                 [](const ScriptCommands& handle, const luau::Userdata& child, const luau::Userdata& parent) {
                     checkAlive(handle);
