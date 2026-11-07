@@ -15,9 +15,7 @@ engine.ecs.system("game.MoveRiders", {
 	after = { "net.applyInputs", "rtype.Physics.SyncBodies" },
 	before = { "rtype.Physics.SyncToPhysics" },
 	run = function(ctx)
-		local half = Game.sizeOf(Game.riderTiles)
-		half.x /= 2
-		half.y /= 2
+		local halfX, halfY = Game.riderSize.x / 2, Game.riderSize.y / 2
 		for entity, rider, transform in ctx.query do
 			local move = ctx.call("rtype.replication.readInput", { entity = entity, action = "move" }).vector
 			-- A diagonal is as fast as a straight line.
@@ -28,8 +26,8 @@ engine.ecs.system("game.MoveRiders", {
 			-- Up is +1 in the input, and Y goes down on screen.
 			local step = Game.riderSpeed * ctx.time.fixedDelta
 			local position = {
-				x = math.clamp(rider.position.x + move.x * step, Game.roadsLeft + half.x, Game.roadsRight - half.x),
-				y = math.clamp(rider.position.y - move.y * step, half.y, Game.viewHeight - half.y),
+				x = math.clamp(rider.position.x + move.x * step, Game.roadsLeft + halfX, Game.roadsRight - halfX),
+				y = math.clamp(rider.position.y - move.y * step, halfY, Game.viewHeight - halfY),
 			}
 			transform.position = position
 			rider.position = position

@@ -40,7 +40,7 @@ engine.ecs.system("game.SpawnRiders", {
 				["rtype.Transform"] = { position = position },
 				["rtype.Collider"] = {
 					shape = Game.box,
-					size = Game.sizeOf(Game.riderTiles),
+					size = Game.riderSize,
 					layer = Game.riderLayer,
 					mask = bit32.bor(Game.vehicleLayer, Game.bulletLayer),
 				},

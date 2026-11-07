@@ -2,7 +2,6 @@
 -- around the player's own rider.
 
 local riderDrawLayer = 1
-local rectShape = 0 -- rtype.ShapeRenderer kind
 local ownOutline = { x = 1, y = 1, z = 1, w = 1 }
 local ownOutlineThickness = 3
 
@@ -17,7 +16,7 @@ engine.ecs.system("game.DressRiders", {
 	side = "client",
 	query = { read = { "game.Rider" }, without = { "rtype.SpriteRenderer" } },
 	run = function(ctx)
-		local size = Game.sizeOf(Game.riderTiles)
+		local size = Game.riderSize
 		for entity, rider in ctx.query do
 			ctx.commands:add(entity, "rtype.Transform", { position = rider.position })
 			ctx.commands:add(entity, "rtype.SpriteRenderer", {
@@ -53,12 +52,11 @@ engine.ecs.system("game.OutlineOwnRider", {
 		if not me.connected then
 			return
 		end
-		local size = Game.sizeOf(Game.riderTiles)
 		for entity, owner in ctx.query do
 			if owner.client == me.client then
 				ctx.commands:add(entity, "rtype.ShapeRenderer", {
-					kind = rectShape,
-					size = size,
+					kind = Game.rectShape,
+					size = Game.riderSize,
 					cornerRadius = 12,
 					fillColor = { x = 0, y = 0, z = 0, w = 0 },
 					outlineColor = ownOutline,

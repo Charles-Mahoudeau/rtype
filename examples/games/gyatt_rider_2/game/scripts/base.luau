@@ -7,33 +7,37 @@ Game = {
 	roadTiles = 2, -- a road is as wide as a vehicle
 	roadCount = 8,
 	sidebarTiles = 1, -- the strip on the left, under the timer and the gauge
-	viewWidth = 1088,
-	viewHeight = 640,
+	viewTilesHigh = 10,
 	maxPlayers = 4, -- the next players watch
 	riderTiles = { x = 1, y = 2 },
 	riderSpeed = 400, -- world units per second, in every direction
 	startRoads = { 1, 3, 4, 6 }, -- the road each slot starts on, counted from 0 on the left
-	startY = 512, -- where the riders start, near the bottom
 
 	-- The collision categories: each Collider belongs to some (layer) and collides with some (mask).
 	riderLayer = 1,
 	vehicleLayer = 2,
 	bulletLayer = 4,
 	cyclistLayer = 8,
+
+	-- The enums of the engine's components, as their reflected numbers.
+	box = 0, -- rtype.Collider shape
+	kinematic = 1, -- rtype.RigidBody type
+	rectShape = 0, -- rtype.ShapeRenderer kind
 }
-
--- The roads' edges, in world units: the riders stay inside.
-Game.roadsLeft = Game.sidebarTiles * Game.tile
-Game.roadsRight = Game.viewWidth
-
--- The enums of the engine's components, as their reflected numbers.
-Game.box = 0 -- rtype.Collider shape
-Game.kinematic = 1 -- rtype.RigidBody type
 
 --- The size of something counted in tiles, in world units.
 function Game.sizeOf(tiles: { x: number, y: number }): { x: number, y: number }
 	return { x = tiles.x * Game.tile, y = tiles.y * Game.tile }
 end
+
+-- The sizes in world units, from the tiles. project.luau sizes the window the same, and tools/make_placeholders.py
+-- draws the art the same.
+Game.viewWidth = (Game.sidebarTiles + Game.roadCount * Game.roadTiles) * Game.tile
+Game.viewHeight = Game.viewTilesHigh * Game.tile
+Game.roadsLeft = Game.sidebarTiles * Game.tile -- the roads' edges: the riders stay inside
+Game.roadsRight = Game.viewWidth
+Game.riderSize = Game.sizeOf(Game.riderTiles)
+Game.startY = Game.viewHeight - Game.riderSize.y -- where the riders start: half a rider above the bottom
 
 --- The X of a road's middle, the road counted from 0 on the left.
 function Game.roadCenterX(road: number): number
