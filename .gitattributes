@@ -2,3 +2,6 @@
 # and a CRLF checkout (Windows) would put carriage returns in the assembled GLSL.
 *.glsl text eol=lf
 *.bat text eol=crlf
+# The shell wrappers stay LF: a CRLF checkout makes the shebang `/bin/sh\r`, which cannot run.
+r-type_client text eol=lf
+r-type_server text eol=lf
