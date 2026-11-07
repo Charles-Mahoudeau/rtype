@@ -6,8 +6,8 @@ Game = {
 	tile = 64, -- pixels per tile: every size of the game is counted in tiles
 	roadTiles = 2, -- a road is as wide as a vehicle
 	roadCount = 8,
-	sidebarTiles = 2, -- the strip on the left, under the timer and the gauge
-	viewWidth = 1152,
+	sidebarTiles = 1, -- the strip on the left, under the timer and the gauge
+	viewWidth = 1088,
 	viewHeight = 640,
 	maxPlayers = 4, -- the next players watch
 	riderTiles = { x = 1, y = 2 },

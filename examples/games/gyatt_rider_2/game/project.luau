@@ -1,5 +1,5 @@
--- The view: a 2-tile strip on the left (the timer and the gauge), then 8 roads of 2 tiles, 64 pixels a tile.
-local GAME_WIDTH = 1152
+-- The view: a 1-tile strip on the left (the timer and the gauge), then 8 roads of 2 tiles, 64 pixels a tile.
+local GAME_WIDTH = 1088
 local GAME_HEIGHT = 640
 
 -- The network, from the command line: `--port 4243` on both sides, `--host 10.0.0.2` on a client.
