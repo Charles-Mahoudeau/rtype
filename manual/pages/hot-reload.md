@@ -22,9 +22,15 @@ on the error output: what reloaded, which files, how long it took, and what chan
 Saving a script runs it again. Its `engine.system` calls replace the systems of the same name, and a system you removed
 from the file is removed from the game. If the file has an error, nothing changes and the error is logged.
 
-A file you [require](modules.md) is reloaded the same way, and the next `require` of it gives the new value. The files
-that already required it are **not** run again yet: they keep the value they got, until you save them too. Saving a
-module and then the files that use it gives the result you expect.
+When you save a file that other files [require](modules.md), those files run again too, directly or not, always after
+the modules they use. The next `require` gives the new value, so the files that use a module see your change at once, and
+you do not need to save them. Files that do not depend on it are left alone. Several files saved together reload as one.
+
+If anything fails during that (a mistake in a file, a `require` of a file you deleted, a require cycle you just made),
+nothing changes: the old code keeps running and the error is logged. Fix it and save again.
+
+A module that no file requires any more is unloaded, and its systems are removed. A new file under `scripts/` runs
+as soon as you save it while the game still loads every file of `scripts/`.
 
 Some changes cannot be applied in place, so the game is rebuilt (and the log says why):
 

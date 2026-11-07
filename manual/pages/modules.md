@@ -138,4 +138,4 @@ To add an alias of your own, declare it in `project.luau` with `engine.settings.
 
 ## See also
 
-[Hot reload](hot-reload.md) for what happens when you save a module, and [Systems](systems.md).
+[Hot reload](hot-reload.md) for what happens when you save a module (the files that require it run again too), and [Systems](systems.md).
