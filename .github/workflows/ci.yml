@@ -4,9 +4,9 @@ on:
   push:
     branches: [main]
   # No base filter: in a stack, the pull requests above the first target the branch below, not main.
-  # No types, so not edited: bots such as CodeRabbit edit the description of every pull request, and each edit started a run whose jobs
-  # were all skipped. The cost: a pull request retargeted to main (the one below it merged) does not become the top of
-  # its stack by itself; re-run its checks by hand (gh run rerun, or workflow_dispatch).
+  # No types, so not edited: bots such as CodeRabbit edit the description of every pull request, and each edit started
+  # a run whose jobs were all skipped. The cost: a pull request retargeted to main (the one below it merged) does not
+  # become the top of its stack by itself; re-run its checks by hand (gh run rerun, or workflow_dispatch).
   pull_request:
   workflow_dispatch:
 
