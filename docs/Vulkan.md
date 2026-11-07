@@ -5,6 +5,9 @@ The `render-vulkan` target (`src/rtype/render/vulkan/`, namespace `rtype::render
 - **`VulkanRenderer`**: implements `IRenderer`. Skeleton for now: `init()` creates the instance, the debug messenger
   and the window surface; drawing throws `UnsupportedFeatureException` until it is implemented. Registered as
   `"vulkan"` by `registerRenderer()`.
+- **`core::Loader`**: opens the system's Vulkan loader at run time and gives its `vkGetInstanceProcAddr` to the
+  instance and the window library, so the process has one loader and a release does not need one linked (see
+  [Self-contained releases](release/self-contained.md)). On macOS it still links Homebrew's.
 - **`core::Instance`**: the `VkInstance`, with its extensions and layers.
 - **`core::DebugMessenger`**: prints the validation layer messages to stderr.
 - **`core::Device::setName()`** and **`command::CommandLabel`**: name objects and label passes, for validation
@@ -34,7 +37,9 @@ brew install molten-vk vulkan-loader glslang vulkan-validationlayers
 
 ### Linux / Windows
 
-The loader comes from xmake, and the driver from your GPU vendor. For the validation layers, install
+Both come from your GPU vendor: the driver installs the Vulkan loader (`libvulkan.so.1`, `vulkan-1.dll`), which
+`core::Loader` opens when the renderer starts, so a build links no loader and a machine without one gets an error naming
+what to install. For the validation layers, install
 `vulkan-validationlayers` (Linux package manager) or the [Vulkan SDK](https://vulkan.lunarg.com/) (Windows).
 
 ## Usage
