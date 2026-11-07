@@ -1,9 +1,7 @@
 -- The texts over the game: each player's name at the top of their half, and who won at the end.
 
--- The rest draws: the server has none of the plugins it names.
-if not engine.isClient then
-	return
-end
+local assets = require("@scripts/client/assets")
+local Duel = require("@scripts/shared/arena")
 
 local textLayer = 10 -- over every sprite
 local nameSize, nameTop = 22, 12
@@ -29,7 +27,7 @@ engine.ecs.system("game.SpawnNames", {
 				["rtype.Transform"] = { position = { x = Duel.viewWidth / 4 * (2 * player + 1), y = nameTop } },
 				["rtype.TextRenderer"] = {
 					text = `Player {player + 1}`,
-					font = Duel.assets.font,
+					font = assets.font,
 					size = nameSize,
 					color = nameColor,
 					anchor = { x = 0.5, y = 0 },
@@ -78,7 +76,7 @@ engine.ecs.system("game.AnnounceWinner", {
 					["rtype.Transform"] = { position = { x = Duel.viewWidth / 2, y = line.y } },
 					["rtype.TextRenderer"] = {
 						text = line.text,
-						font = Duel.assets.font,
+						font = assets.font,
 						size = winnerSize,
 						color = if mine then winColor else loseColor,
 						anchor = { x = 0.5, y = 0.5 },

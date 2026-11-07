@@ -1,7 +1,7 @@
--- The client's assets: the sprite atlases, the sounds, the planets and the background. The forms load them on the
--- clients, and give their ids on the server too, without loading anything there.
+-- The client's assets: the sprite atlases, the sounds, the planets and the background. The forms load them; the
+-- module returns their ids, for the client modules that use them.
 
-Duel.assets = {
+return {
 	-- The left sheet: 5 frames of 48x48, every 65 pixels.
 	leftShip = engine.assets.atlas({
 		name = "game.leftShip",

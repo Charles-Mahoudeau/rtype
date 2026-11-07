@@ -1,10 +1,8 @@
 -- The lasers: they fly with the physics; the first thing one touches spends it, and the other player's ship ends the
 -- game.
 
--- The server's systems only: clients have none of the systems they are ordered against.
-if not engine.isServer then
-	return
-end
+local Duel = require("@scripts/shared/arena")
+local Match = require("@scripts/server/match")
 
 -- The lasers of this tick, by their entity's bits: their shooter. Filled by FollowLaserBodies for DetectHits.
 local lasers: { [number]: number } = {}
@@ -51,8 +49,8 @@ engine.ecs.system("game.DetectHits", {
 				end
 				spent[laser.bits] = true
 				ctx.commands:despawn(laser)
-				if not Duel.over and ships[other.bits] then
-					Duel.over = true
+				if not Match.isOver() and ships[other.bits] then
+					Match.finish()
 					ctx.commands:spawn({ ["game.Winner"] = { player = shooter } })
 					print(`[server] player {shooter + 1} wins`)
 				end

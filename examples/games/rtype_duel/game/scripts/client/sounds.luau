@@ -1,9 +1,6 @@
 -- The music, and a sound at each shot: the laser's, or the misfire's, a little different each time.
 
--- The rest draws and plays: the server has none of the plugins it names.
-if not engine.isClient then
-	return
-end
+local assets = require("@scripts/client/assets")
 
 local shotPitchMin, shotPitchMax = 0.9, 1.1
 local shotVolumeMin, shotVolumeMax = 0.8, 1.0
@@ -25,7 +22,7 @@ engine.ecs.system("game.PlayMusic", {
 	query = {},
 	events = { send = { "rtype.PlayMusic" } },
 	run = function(ctx)
-		ctx.events.send("rtype.PlayMusic", { sound = Duel.assets.music, crossfade = 1 })
+		ctx.events.send("rtype.PlayMusic", { sound = assets.music, crossfade = 1 })
 	end,
 })
 
@@ -37,7 +34,7 @@ engine.ecs.system("game.PlayLasers", {
 	calls = { "rtype.audio.playSound" },
 	run = function(ctx)
 		for _, laser in ctx.query do
-			playShot(ctx, Duel.assets.laserSound, laser.position)
+			playShot(ctx, assets.laserSound, laser.position)
 		end
 	end,
 })
@@ -51,7 +48,7 @@ engine.ecs.system("game.PlayMisfires", {
 	calls = { "rtype.audio.playSound" },
 	run = function(ctx)
 		for _, misfire in ctx.query do
-			playShot(ctx, Duel.assets.misfireSound, misfire.position)
+			playShot(ctx, assets.misfireSound, misfire.position)
 		end
 	end,
 })

@@ -1,6 +1,8 @@
 -- The obstacles in the middle of the arena come from its scene (assets/scenes/arena.scene): two walls and a rock, static
 -- colliders that stop the lasers and that the ships slide along. The server tells the clients where they are.
 
+local Duel = require("@scripts/shared/arena")
+
 -- The server's systems only, and only with the network: run alone, the clients' systems see the Transform itself.
 if not engine.isServer or not Duel.networked then
 	return
