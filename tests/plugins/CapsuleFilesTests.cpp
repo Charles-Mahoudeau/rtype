@@ -28,6 +28,7 @@
 #include "plugins/capsule/CapsuleReloadable.hpp"
 #include "plugins/capsule/CapsuleSpawn.hpp"
 #include "plugins/capsule/Capsules.hpp"
+#include "plugins/capsule/LoadedCapsule.hpp"
 #include "plugins/capsule/ReloadedCapsules.hpp"
 #include "plugins/capsule/exceptions/CapsuleException.hpp"
 #include "rtype/core/reload/HotReloader.hpp"
@@ -35,6 +36,7 @@
 #include "rtype/core/reload/ReloadReport.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/change/Mut.hpp"
+#include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
@@ -229,7 +231,13 @@ TEST_F(CapsuleFilesTest, TheGameLoadsItsFilesAndReloadsWhatTheySpawned) {
     app.addPlugin(capsule::CapsulePlugin{});
     app.finishPlugins();
     EXPECT_EQ(reloader.size(), 1U);
-    const rtype::ecs::Entity level = capsule::loadCapsule(app.getWorld(), "scenes/level.scene");
+    rtype::ecs::Commands commands{app.getWorld()};
+    const rtype::ecs::Entity level =
+        capsule::loadCapsule(commands, app.getWorld().getResources().require<capsule::Capsules>(),
+                             *app.getWorld().getResources().getMut<capsule::LoadedCapsule>(),
+                             capsule::CapsuleId::fromPath("scenes/level.scene"))
+            .getEntity();
+    commands.flush();
     const rtype::ecs::Entity turret = app.getWorld().getComponents().get<rtype::ecs::Children>(level)->entities.at(0);
     EXPECT_EQ(app.getWorld().getComponents().get<tf::Health>(turret)->value, 5);
 
