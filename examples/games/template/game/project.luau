@@ -1,0 +1,21 @@
+-- The starting point of a game: a project with one counter, a window on the client and a network port.
+-- Run it from the folder of the engine (the one with `runtime/`):
+--   runtime/aylo-runtime --server --game templates/game        the server, no window
+--   runtime/aylo-runtime --game templates/game                 a client, in a window
+--   runtime/aylo-runtime --game templates/game --headless      a client without a window, to test the network
+
+engine.settings.network.port = engine.args.port or 4242
+
+if engine.isClient then
+	engine.settings.network.host = engine.args.host or "127.0.0.1"
+
+	if engine.args.headless then
+		-- The client sends its inputs to the server, so it needs the input plugin even with no window.
+		engine.settings.plugins = { "rtype.Input" }
+	else
+		engine.settings.plugins = { "rtype.graphics" }
+		engine.settings.platform = "glfw"
+		engine.settings.renderer = "vulkan"
+		engine.settings.window.title = "My game"
+	end
+end
