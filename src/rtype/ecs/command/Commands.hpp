@@ -7,8 +7,10 @@
 
 #pragma once
 
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <span>
 #include <vector>
@@ -23,8 +25,8 @@
 namespace rtype::ecs {
 class World;
 
-/// @brief A buffer of structural changes (spawn, add, remove, despawn) recorded now and applied later, in the order
-/// they were recorded.
+/// @brief A buffer of structural changes (spawn, add, remove, despawn) and patches recorded now and applied later, in
+/// the order they were recorded.
 ///
 /// @details A system iterating a query must not change the pools it walks; it records the changes here, and they are
 /// applied at the flush, between phases. spawn() hands out an entity at once (reserved, alive at the flush), so later
@@ -65,6 +67,11 @@ class RTYPE_ECS_API Commands {
         /// @brief Records removing a C++ component from the entity (Commands::remove()).
         template <Component T>
         EntityCommands& remove();
+
+        /// @brief Records changing the entity's value of a C++ component at the flush (Commands::patch()).
+        template <Component T, typename F>
+            requires std::invocable<F&, T&> && std::copy_constructible<F>
+        EntityCommands& patch(F edit);
 
         /// @brief Records despawning the entity (Commands::despawn()).
         void despawn();
@@ -120,6 +127,22 @@ class RTYPE_ECS_API Commands {
     /// @brief Records despawning the entity (World::despawn()).
     void despawn(Entity entity);
 
+    /// @brief Records changing the entity's value of a C++ component when the commands are applied: `edit` reads and
+    /// writes the value the entity has at that moment, after the commands recorded before (a value added by the same
+    /// buffer, a capsule just spawned), and the value is marked changed.
+    /// @details Unlike add(), which replaces the whole value, a patch keeps what it does not write:
+    /// `commands.entity(bydo).patch<Transform>([](Transform& transform) { transform.position = {820.F, 140.F}; });`
+    /// Skipped if the entity is dead or does not have the component by then, and for a tag. `edit` runs inside flush()
+    /// and must not throw. Parent and Children are the World's to change (World::setParent()): they cannot be patched.
+    template <Component T, typename F>
+        requires std::invocable<F&, T&> && std::copy_constructible<F>
+    void patch(Entity entity, F edit);
+
+    /// @brief Records changing the entity's value of a component when the commands are applied, as the typed patch():
+    /// `edit` gets the bytes of the value (the Luau bridge writes the fields a script names).
+    /// @return False, recording nothing, if the id is unknown, is Parent or Children, or `edit` is empty.
+    bool patch(Entity entity, ComponentId id, std::function<void(std::span<std::byte>)> edit);
+
     /// @brief Applies every command in the order it was recorded, then empties the buffer.
     /// @details First registers the C++ components it needs (if that throws, nothing is applied and the buffer is
     /// kept), then makes the reserved entities alive, then applies each command; one on an entity dead by then is
@@ -139,6 +162,7 @@ class RTYPE_ECS_API Commands {
         kAdd,      ///< Give the entity the value at `index` in the column.
         kRemove,   ///< Remove the column's component from the entity.
         kDespawn,  ///< Despawn the entity.
+        kPatch,    ///< Run the edit at `index` in _patches on the entity's value of the column's component.
     };
 
     /// @brief The values recorded for one component, and how to find its id at the flush.
@@ -154,7 +178,7 @@ class RTYPE_ECS_API Commands {
         Kind kind;             ///< What it does.
         Entity entity;         ///< The entity it applies to.
         std::uint32_t column;  ///< Index in _columns of its component (add and remove).
-        std::uint32_t index;   ///< Index of its value in the column (add).
+        std::uint32_t index;   ///< Index of its value in the column (add), or of its edit in _patches (patch).
     };
 
     /// @return The index of the column of the C++ component `T`, creating it (without registering `T`) if needed.
@@ -165,6 +189,9 @@ class RTYPE_ECS_API Commands {
     /// is unknown.
     [[nodiscard]] std::optional<std::uint32_t> columnOf(ComponentId id);
 
+    /// @brief Records the patch `edit` of the column `column`'s component.
+    void recordPatch(Entity entity, std::uint32_t column, std::function<void(std::span<std::byte>)> edit);
+
     /// @return The index of the column with this key, or nothing.
     [[nodiscard]] std::optional<std::uint32_t> findColumn(std::uint64_t key) const noexcept;
 
@@ -172,9 +199,10 @@ class RTYPE_ECS_API Commands {
     template <Component T>
     [[nodiscard]] static ComponentId registerIfNeeded(Components& components);
 
-    World* _world;                  ///< The world the commands apply to.
-    std::vector<Record> _records;   ///< The commands, in the order they were recorded.
-    std::vector<Column> _columns;   ///< The values, one column per component used.
+    World* _world;                 ///< The world the commands apply to.
+    std::vector<Record> _records;  ///< The commands, in the order they were recorded.
+    std::vector<Column> _columns;  ///< The values, one column per component used.
+    std::vector<std::function<void(std::span<std::byte>)>> _patches;  ///< The edits of the patches recorded.
     std::vector<Entity> _reserved;  ///< Entities this buffer reserved and has not flushed.
 };
 

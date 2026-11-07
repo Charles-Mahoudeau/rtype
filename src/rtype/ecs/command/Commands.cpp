@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <iterator>
 #include <optional>
 #include <span>
@@ -18,6 +19,7 @@
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/hierarchy/Children.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
 #include "rtype/ecs/storage/ByteColumn.hpp"
 #include "rtype/ecs/storage/ViewAs.hpp"
@@ -40,9 +42,11 @@ Commands::Commands(Commands&& other) noexcept
     : _world{other._world},
       _records{std::move(other._records)},
       _columns{std::move(other._columns)},
+      _patches{std::move(other._patches)},
       _reserved{std::move(other._reserved)} {
     other._records.clear();  // a moved-from vector is valid but unspecified: make `other` empty for sure
     other._columns.clear();
+    other._patches.clear();
     other._reserved.clear();
 }
 
@@ -52,9 +56,11 @@ Commands& Commands::operator=(Commands&& other) noexcept {
         _world = other._world;
         _records = std::move(other._records);
         _columns = std::move(other._columns);
+        _patches = std::move(other._patches);
         _reserved = std::move(other._reserved);
         other._records.clear();
         other._columns.clear();
+        other._patches.clear();
         other._reserved.clear();
     }
     return *this;
@@ -107,6 +113,33 @@ void Commands::despawn(Entity entity) {
     _records.push_back(Record{.kind = Kind::kDespawn, .entity = entity, .column = 0, .index = 0});
 }
 
+bool Commands::patch(Entity entity, ComponentId id, std::function<void(std::span<std::byte>)> edit) {
+    const ComponentInfo* info = _world->getComponents().getRegistry().findById(id);
+    if (info == nullptr || !edit || info->type.layoutHash == TypeTraits<Parent>::kLayoutHash ||
+        info->type.layoutHash == TypeTraits<Children>::kLayoutHash) {
+        return false;
+    }
+    const std::optional<std::uint32_t> column = columnOf(id);
+    if (!column) {
+        return false;
+    }
+    recordPatch(entity, *column, std::move(edit));
+    return true;
+}
+
+void Commands::recordPatch(Entity entity, std::uint32_t column, std::function<void(std::span<std::byte>)> edit) {
+    _patches.push_back(std::move(edit));
+    try {
+        _records.push_back(Record{.kind = Kind::kPatch,
+                                  .entity = entity,
+                                  .column = column,
+                                  .index = static_cast<std::uint32_t>(_patches.size() - 1)});
+    } catch (...) {
+        _patches.pop_back();  // keeps the edits and the records in step
+        throw;
+    }
+}
+
 void Commands::flush() {
     Components& components = _world->getComponents();
     for (Column& column : _columns) {  // registers first: if it throws, nothing is applied yet
@@ -141,9 +174,19 @@ void Commands::flush() {
             case Kind::kDespawn:
                 static_cast<void>(_world->despawn(record.entity));
                 break;
+            case Kind::kPatch: {
+                const Column& column = *std::next(_columns.begin(), record.column);
+                if (components.get(record.entity, column.id).empty()) {
+                    break;  // dead, without the component by now, or a tag (no value to edit): skipped
+                }
+                const std::span<std::byte> value = components.getMut(record.entity, column.id);  // marked changed
+                std::invoke(*std::next(_patches.begin(), record.index), value);
+                break;
+            }
         }
     }
     _records.clear();
+    _patches.clear();
     for (Column& column : _columns) {
         column.values.clear();  // destroys the moved-from values, keeps the capacity
     }
@@ -151,6 +194,7 @@ void Commands::flush() {
 
 void Commands::clear() noexcept {
     _records.clear();
+    _patches.clear();
     for (Column& column : _columns) {
         column.values.clear();
     }
