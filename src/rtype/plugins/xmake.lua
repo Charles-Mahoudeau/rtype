@@ -123,6 +123,10 @@ plugin("http", {})
     add_headerfiles("http/**.hpp|detail/**.hpp")
     -- The HTTPS client. Private: only http/detail/ includes curl.
     add_packages("libcurl")
+    -- curl includes windows.h: without these, its min and max macros break std::max and the engine's headers.
+    if is_plat("windows") then
+        add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN")
+    end
 
 -- Every plugin library, for what loads them without linking them: the executables build after it.
 target("plugin-libraries")

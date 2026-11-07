@@ -15,6 +15,7 @@
 #include <asio/read_until.hpp>
 #include <asio/streambuf.hpp>
 #include <asio/write.hpp>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>

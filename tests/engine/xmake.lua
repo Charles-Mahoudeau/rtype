@@ -22,7 +22,8 @@ target("engine-tests")
     add_packages("gtest", "libsodium", "asio")
     -- LocalHttpServer.hpp uses Asio's sockets, as the network module does.
     if is_plat("windows") then
-        add_defines("_WIN32_WINNT=0x0A00")
+        -- Asio includes windows.h: no min and max macros, which break std::max and the engine's headers.
+        add_defines("_WIN32_WINNT=0x0A00", "NOMINMAX", "WIN32_LEAN_AND_MEAN")
         add_syslinks("ws2_32", "mswsock")
     end
     add_tests("default")
