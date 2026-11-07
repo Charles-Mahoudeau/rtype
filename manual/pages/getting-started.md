@@ -19,9 +19,10 @@ directory when the program starts.
 
 ## The command line is yours
 
-The runtime keeps `--server` (it selects the server side) and the engine keeps `--game`. Every other `--name value` (or
-`--name=value`, or a bare `--name`) is given to `project.luau` as `engine.args`, so your game decides its own options, and
-`--server` is not one of them:
+`aylo-runtime --version` prints the version of the engine, the commit it was built from and the library version, and
+stops: quote it in a bug report. The runtime keeps `--server` (it selects the server side) and `--version`, and the
+engine keeps `--game`. Every other `--name value` (or `--name=value`, or a bare `--name`) is given to `project.luau` as
+`engine.args`, so your game decides its own options, and `--server` is not one of them:
 
 ```luau
 engine.settings.network.port = engine.args.port or 4242
