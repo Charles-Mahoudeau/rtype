@@ -26,7 +26,8 @@ rules, loaded first because of its name), `scripts/server/*.luau` (gameplay), `s
 ## project.luau
 
 Plain Luau that sets `engine.settings`; `engine.isClient`, `engine.isServer` and `engine.isDebug` say where it runs.
-It chooses everything about the engine: `network.port`/`network.host`, `plugins` (such as `{ "physics", "physicsDebug" }`)
+It chooses everything about the engine: `network.port`/`network.host`, `plugins` (the names the plugins give
+themselves, such as `{ "rtype.Physics", "rtype.PhysicsDebug" }`; a client lists `rtype.graphics`, `rtype.Sprite`... too)
 and their sections (`physics.gravity`...), on clients `platform`, `renderer`, `window.title`/`size`, `audio`... Unknown
 keys are errors: a typo fails at start. Never change engine code to change a setting.
 

@@ -19,7 +19,8 @@ earlier example of splitting plugins into libraries, see pull request #414.
 2. **Create the folder** `src/rtype/plugins/<name>/`, namespace `rtype::plugins::<name>`, one feature folder inside only
    when files go in it, an export header for `RTYPE_PLUGIN_<NAME>_API`, exceptions in `exceptions/`.
 3. **Declare the target** in `src/rtype/plugins/xmake.lua` with the `plugin("<name>", {<deps>})` helper: its sources and
-   headers by glob, and its private packages with `add_packages`. A new third-party package is added with
+   headers by glob, and its private packages with `add_packages`. The helper applies the `rtype.plugin_library` rule,
+   which puts the library where the engine loads it. A new third-party package is added with
    `add_requires` (in that file, or the root one if several modules use it) and stays private: no public header
    includes it.
 4. **Write the plugin class.** It declares its requirements in the dependencies it reports and registers its data in its
@@ -29,10 +30,11 @@ earlier example of splitting plugins into libraries, see pull request #414.
    skill. Put the name in the `rtype.` namespace for engine data.
 6. **Settings.** If it reads a section of `project.luau`, read it through the shared settings, refuse unknown keys, and
    check the values before the app is built.
-7. **Make it reachable from Luau.** Register its engine calls from the build step (skill `add-engine-call`). If a game
-   should be able to list it in `project.luau` under `plugins`, add it to the engine's generic plugins list
-   (`docs/engine/design.md`, *Generic plugins*) and say which side it runs on. Otherwise the program adds it through
-   its executable's plugin list.
+7. **Make it loadable and reachable from Luau.** Give the library its entry point, a `Library.cpp` with one
+   `RTYPE_PLUGIN_LIBRARY` that registers the plugin under its `getName()` (`rtype.<Name>`), as the other plugins do
+   (`docs/Plugins.md`, *Entry points*). A game then lists that name under `plugins` in `project.luau`; no executable
+   or engine file changes, and the plugins it requires come with it. Say which side it runs on. Register its engine
+   calls from the build step (skill `add-engine-call`).
 8. **Tests** in `tests/plugins/`: one file per concern; add the plugin to the dependencies of `plugins-tests` in
    `tests/plugins/xmake.lua`. Cover the success and failure paths, and the plugin's requirement check.
 9. **Script test** in `tests/engine/` for what scripts can do with it, next to `ScriptEngineCallsTests`.
