@@ -8,7 +8,7 @@
 // Capsules: an entity described once (components and child entities, a child can be another capsule) and spawned by
 // copy. A boss with two turrets and a level holding the boss are the same thing; each node is spawned on its side, so
 // the same level spawns on a server and a client without duplicates. Loading switches levels; a capsule defined again
-// is reloaded into what was spawned from it.
+// is reloaded into what was spawned from it. A capsule is also the text of its file, read and written back the same.
 
 #include <cstddef>
 #include <cstdint>
@@ -26,7 +26,9 @@
 #include "plugins/capsule/CapsuleSpawn.hpp"
 #include "plugins/capsule/Capsules.hpp"
 #include "plugins/capsule/LoadedCapsule.hpp"
+#include "plugins/capsule/format/CapsuleText.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/change/Mut.hpp"
 #include "rtype/ecs/command/Commands.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/component/Components.hpp"
@@ -172,6 +174,15 @@ void run() {
                   children != nullptr ? std::vector<Entity>{children->entities} : std::vector<Entity>{});
     commands.flush();
     describe(world, level2);
+
+    std::cout << "\n== The boss as the text of its file ==\n";
+    auto capsules = world.getResources().requireMut<Capsules>();
+    const std::string text =
+        format::writeCapsule(*capsules->find("actors/boss.actor"), world.getComponents(), *capsules);
+    std::cout << text;
+    const Capsule again = format::readCapsule("actors/boss.actor", text, world.getComponents(), *capsules);
+    std::cout << std::format("  read back: {} node(s), the same text: {}\n", again.getNodes().size(),
+                             format::writeCapsule(again, world.getComponents(), *capsules) == text);
 }
 }  // namespace
 
