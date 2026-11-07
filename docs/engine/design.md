@@ -17,7 +17,7 @@ return engine.run();
 ```
 game/
 ├── project.luau    settings: window, renderer, audio, network...   (required)
-└── scripts/        the Luau files of ScriptingPlugin, loaded in sorted path order (optional)
+└── scripts/        the Luau files of ScriptingPlugin, root-required in sorted path order; they can `require` each other (optional)
 ```
 
 The directory is `EngineConfig::game` (`game` by default), or `--game <directory>` on the command line. A relative path
@@ -134,7 +134,11 @@ A new hot-reloaded feature is a new `Reloadable` added to the reloader, nothing 
 
 - `ProjectReloadable` follows `project.luau`. It runs the file again to check it loads: if not, the reload fails and the
   game keeps its settings; if so, it asks for a rebuild.
-- `ScriptsReloadable` follows `scripts/**/*.luau` and calls `ScriptHost::removeScript` / `reloadScript` per file.
+- `ScriptsReloadable` follows `scripts/**/*.luau` and calls `ScriptHost::removeScript` / `reloadScript` per file. A
+  script is known by its chunk name, `scripts/<key>` (the path in the game folder; also the owner of what it declares and
+  the name in errors). The scripts are modules of a `luau::ModuleLoader`: a reload replaces the file's cache entry in a
+  loader transaction, committed when applied and rolled back otherwise, so later requires see the new value. The modules
+  that required it are not re-run yet (limitation; see the hot reload PR of epic #489).
   A script is run in a staging area and committed only if the whole file ran; its systems replace the previous ones of
   the same name through `Schedules::replaceSystems`, which restores the old schedule if the new one has a cycle. A change
   that cannot be patched asks for a rebuild: a changed component layout, a new replicated component, a removed component,

@@ -247,8 +247,9 @@ end
 return RtypePlugin
 ```
 
-Files are loaded **by path** because cross-file `require` is a non-goal of the Luau proposal; it also
-gives the bridge every file it must watch for hot reload.
+This section is the original proposal. Today files `require` each other (by string path, `docs/scripting/plan.md`
+D10, `docs/luau/modules.md`) and the `app:load` form above does not exist; every file under `scripts/` is still run as a
+root `require` (a bridge until entry points land, epic #489).
 
 ### Input actions from Luau
 
