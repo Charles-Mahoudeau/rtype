@@ -263,6 +263,33 @@ TEST(ParticlePlugin, ChangingTheEffectRestartsTheEmitter) {
     EXPECT_EQ(app.systems().find(entity)->effect, app.burst());
 }
 
+TEST(ParticlePlugin, ReplacingTheEffectRestartsTheEmittersPlayingIt) {
+    ParticleApp app;
+    const rtype::ecs::Entity entity = app.spawnEmitter(ParticleEmitter{.effect = app.burst()});
+    static_cast<void>(app.drawFrame());
+    static_cast<void>(app.drawFrame());  // the burst is out: nothing new to emit
+    ParticleEffect bigger = *app.effects().get(app.burst());
+    bigger.desc.bursts.at(0).count = 12;
+    app.effects().replace(app.burst(), std::move(bigger));
+    const auto draws = app.drawFrame();
+    ASSERT_EQ(draws.size(), 1U);
+    EXPECT_EQ(countInstances(draws.at(0)), 12U);  // started again, with the new burst
+    EXPECT_EQ(app.systems().find(entity)->effectVersion, 1U);
+}
+
+TEST(ParticlePlugin, KeepsPlayingWhileTheSimulationIsPaused) {
+    ParticleApp app;
+    app.app().getSchedules().setPaused(true);  // an editor editing: no gameplay, but what is drawn still moves
+    static_cast<void>(app.spawnEmitter(ParticleEmitter{.effect = app.stream()}));
+    static_cast<void>(app.drawFrame());
+    const auto first = app.drawFrame();
+    ASSERT_EQ(first.size(), 1U);
+    const std::size_t before = countInstances(first.at(0));
+    const auto second = app.drawFrame();
+    ASSERT_EQ(second.size(), 1U);
+    EXPECT_GT(countInstances(second.at(0)), before);
+}
+
 TEST(ParticlePlugin, AOneShotEmitterFinishesAndIsDespawned) {
     ParticleApp app;
     const rtype::ecs::Entity entity = app.spawnEmitter(ParticleEmitter{.effect = app.burst()});
