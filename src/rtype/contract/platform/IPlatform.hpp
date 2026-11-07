@@ -9,6 +9,7 @@
 
 #include <glm/ext/vector_uint2.hpp>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "core/Export.hpp"
@@ -76,5 +77,11 @@ class RTYPE_HEADER_ONLY_API IPlatform {
 
     /// @return Seconds elapsed since init(), to compute the frame delta time.
     [[nodiscard]] virtual double getTime() const = 0;
+
+    /// @brief Puts @p text, UTF-8, on the system's clipboard. Default: does nothing, for a platform without one.
+    virtual void setClipboardText(std::string_view /*text*/) {}
+
+    /// @return The text on the system's clipboard, UTF-8; empty when it holds none. Default: empty.
+    [[nodiscard]] virtual std::string getClipboardText() const { return {}; }
 };
 }  // namespace rtype::contract::platform
