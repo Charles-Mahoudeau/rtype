@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <glm/ext/vector_uint2.hpp>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <utility>
@@ -34,6 +35,7 @@
 #include "rtype/contract/platform/exceptions/PlatformExceptions.hpp"
 #include "rtype/contract/renderer/IRenderer.hpp"
 #include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Mesh.hpp"
 #include "rtype/contract/renderer/drawing/Shape.hpp"
 #include "rtype/contract/renderer/drawing/Sprite.hpp"
 #include "rtype/contract/renderer/drawing/Text.hpp"
@@ -77,6 +79,10 @@ struct FakeBackendState {
     std::vector<rtype::contract::renderer::MaterialDesc> updatedMaterials;  ///< Every updateMaterial() call.
     std::vector<rtype::contract::renderer::MaterialId> destroyedMaterials;  ///< Every destroy(MaterialId).
     std::vector<char> drawOrder;  ///< 's' (sprite), 'h' (shape), 't' (text) or 'p' (particles) per draw() call.
+    std::vector<rtype::contract::renderer::Mesh> meshes;       ///< Every drawMesh() call.
+    std::vector<std::optional<glm::uvec2>> sceneSizeRequests;  ///< Every setSceneSize() call.
+    std::optional<glm::uvec2> sceneSize;                       ///< What getSceneSize() returns: the last request.
+    rtype::contract::renderer::TextureId sceneTexture;         ///< What getSceneTexture() returns.
 };
 
 /// @brief A window that returns scripted events.
@@ -215,6 +221,13 @@ class FakeRenderer : public rtype::contract::renderer::IRenderer {
     void destroy(rtype::contract::renderer::MaterialId material) override {
         _state->destroyedMaterials.push_back(material);
     }
+    void drawMesh(const rtype::contract::renderer::Mesh& mesh) override { _state->meshes.push_back(mesh); }
+    void setSceneSize(std::optional<glm::uvec2> size) override {
+        _state->sceneSizeRequests.push_back(size);
+        _state->sceneSize = size;
+    }
+    [[nodiscard]] std::optional<glm::uvec2> getSceneSize() const override { return _state->sceneSize; }
+    [[nodiscard]] rtype::contract::renderer::TextureId getSceneTexture() const override { return _state->sceneTexture; }
 
   private:
     std::shared_ptr<FakeBackendState> _state;  ///< Shared with the test.
