@@ -8,9 +8,11 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 
+#include "core/asset/AssetId.hpp"
 #include "plugins/capsule/Capsule.hpp"
 #include "plugins/capsule/Export.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
@@ -41,8 +43,9 @@ class RTYPE_PLUGIN_CAPSULE_API Capsules {
     /// @return The number of capsules.
     [[nodiscard]] std::size_t getCount() const noexcept;
 
-    /// @brief Adds a capsule, or replaces the nodes of the one with its id and bumps its version (hot reload: its
-    /// address stays). Entities spawned before do not change until they are reloaded.
+    /// @brief Adds a capsule, or replaces the nodes of the one with its id and bumps its version, in one step (hot
+    /// reload: its address stays; a file that fails to read never reaches it, so the old version stays). Entities
+    /// spawned before do not change until they are reloaded.
     /// @return The capsule stored.
     /// @throws exceptions::CapsuleException When its id is another path's (a hash collision); nothing changes then.
     Capsule& define(Capsule capsule);
@@ -57,6 +60,13 @@ class RTYPE_PLUGIN_CAPSULE_API Capsules {
     /// @throws exceptions::CapsuleException When no capsule has this id.
     [[nodiscard]] Capsule& edit(CapsuleId id);
 
+    /// @brief Remembers the path an asset id was read from, so a capsule written back names the asset by its path (an
+    /// id is a hash: it cannot give the path back).
+    void rememberAssetPath(core::asset::AssetId id, std::string path);
+
+    /// @return The path an asset id was read from, or nullptr if none was remembered.
+    [[nodiscard]] const std::string* findAssetPath(core::asset::AssetId id) const noexcept;
+
     /// @return Whether a spawn on this registry's side creates a node of this side (ecs::runsIn()).
     [[nodiscard]] bool loads(ecs::Side side) const noexcept;
 
@@ -66,7 +76,8 @@ class RTYPE_PLUGIN_CAPSULE_API Capsules {
 
   private:
     std::unordered_map<CapsuleId, Capsule> _capsules;  ///< Capsules by id; a node-based map keeps their addresses.
-    ecs::RunMode _mode{ecs::RunMode::kStandalone};     ///< The side spawns happen on.
+    std::unordered_map<core::asset::AssetId, std::string> _assetPaths;  ///< The paths asset ids were read from.
+    ecs::RunMode _mode{ecs::RunMode::kStandalone};                      ///< The side spawns happen on.
 };
 
 RTYPE_ECS_RESOURCE(Capsules, "rtype.Capsules");

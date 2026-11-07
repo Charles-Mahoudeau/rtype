@@ -14,6 +14,7 @@
 #include <utility>
 
 #include "core/asset/AssetFiles.hpp"
+#include "core/asset/AssetId.hpp"
 #include "plugins/capsule/Capsule.hpp"
 #include "plugins/capsule/exceptions/CapsuleException.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
@@ -58,6 +59,15 @@ Capsule& Capsules::edit(CapsuleId id) {
         throw exceptions::CapsuleException{std::format("No capsule has the id {:#x}", id.value)};
     }
     return found->second;
+}
+
+void Capsules::rememberAssetPath(core::asset::AssetId id, std::string path) {
+    _assetPaths.insert_or_assign(id, std::move(path));
+}
+
+const std::string* Capsules::findAssetPath(core::asset::AssetId id) const noexcept {
+    const auto found = _assetPaths.find(id);
+    return found != _assetPaths.end() ? &found->second : nullptr;
 }
 
 bool Capsules::loads(ecs::Side side) const noexcept { return ecs::runsIn(side, _mode); }
