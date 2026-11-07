@@ -8,13 +8,18 @@ if engine.isClient then
 end
 
 -- A top-down arena: the physics without gravity, and F3 outlines every collider (hidden at first).
-engine.settings.plugins = { "rtype.Physics" }
+-- The arena and what the server spawns in it are capsules (assets/scenes, assets/actors).
+engine.settings.plugins = { "rtype.Physics", "rtype.Capsule" }
 if engine.isClient then
 	engine.settings.plugins = {
-		"rtype.Physics", "rtype.Input", "rtype.graphics", "rtype.Shader", "rtype.Sprite", "rtype.SpriteDraw",
-		"rtype.Shape", "rtype.Tilemap", "rtype.Text", "rtype.Particle", "rtype.audio", "rtype.PhysicsDebug",
+		"rtype.Physics", "rtype.Capsule", "rtype.Input", "rtype.graphics", "rtype.Shader", "rtype.Sprite",
+		"rtype.SpriteDraw", "rtype.Shape", "rtype.Tilemap", "rtype.Text", "rtype.Particle", "rtype.audio",
+		"rtype.PhysicsDebug",
 	}
 end
+-- `aylo-runtime --editor --game <this folder>` opens the arena to edit it; `--open actors/ship_left.actor` opens
+-- another capsule (an actor opens alone).
+engine.settings.editor.scene = engine.args.open or "scenes/arena.scene"
 engine.settings.physics.gravity = { 0, 0 }
 engine.settings.physicsDebug.enabled = false
 engine.settings.physicsDebug.drawAll = true

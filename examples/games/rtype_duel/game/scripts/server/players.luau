@@ -1,19 +1,20 @@
 -- The players: each of the first two clients gets a ship, removed when they leave.
 
--- The server's systems only: clients have none of the systems they are ordered against.
-if not engine.isServer then
+-- The server's systems only, and only with the network: players join through it.
+if not engine.isServer or not Duel.networked then
 	return
 end
 
 print(`[server] waiting for {Duel.playerCount} players`)
 
--- Update: gives each of the first two clients a ship, kinematic: MoveShips moves it, the lasers hit it, nothing pushes
--- it.
+-- Update: gives each of the first two clients a ship (assets/actors/ship_left.actor or ship_right.actor), kinematic:
+-- MoveShips moves it, the lasers hit it, nothing pushes it.
 engine.ecs.system("game.SpawnPlayers", {
 	phase = "Update",
 	side = "server",
 	query = { read = { "game.Ship" } },
 	events = { read = { "net.ClientConnected" } },
+	calls = { "rtype.capsule.spawn" },
 	run = function(ctx)
 		local taken = 0
 		local leftTaken = false
@@ -29,20 +30,10 @@ engine.ecs.system("game.SpawnPlayers", {
 			local player = if leftTaken then 1 else 0
 			leftTaken = true
 			taken += 1
-			local x = if player == 0 then Duel.shipX else Duel.viewWidth - Duel.shipX
-			local position = { x = x, y = Duel.viewHeight / 2 }
-			ctx.commands:spawn({
-				["game.Ship"] = { position = position, player = player },
-				["net.Owner"] = { client = joined.client },
-				["net.PlayerInput"] = {},
-				["rtype.Transform"] = { position = position },
-				["rtype.Collider"] = {
-					size = { x = Duel.shipHalfSize.x * 2, y = Duel.shipHalfSize.y * 2 },
-					layer = Duel.shipLayerOf(player),
-					mask = bit32.bor(Duel.obstacleLayer, Duel.laserLayer),
-				},
-				["rtype.RigidBody"] = { type = Duel.kinematic },
-			})
+			-- The ship's actor holds its place, its body and its collision layers; the client steers it.
+			local ship = engine.capsule.spawn(ctx, Duel.ships[player])
+			ctx.commands:add(ship, "net.Owner", { client = joined.client })
+			ctx.commands:add(ship, "net.PlayerInput", {})
 			print(`[server] client {joined.client} is player {player + 1}`)
 		end
 	end,

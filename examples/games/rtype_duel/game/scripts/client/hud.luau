@@ -40,6 +40,11 @@ engine.ecs.system("game.SpawnNames", {
 	end,
 })
 
+-- Who won and who is who come from the network: run alone (the editor), there are no players.
+if not Duel.networked then
+	return
+end
+
 -- Update: the ships' players by client, for game.AnnounceWinner.
 engine.ecs.system("game.TrackOwners", {
 	phase = "Update",
