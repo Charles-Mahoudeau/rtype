@@ -22,6 +22,8 @@
 #include "Panels.hpp"
 #include "WorldView.hpp"
 #include "core/asset/AssetFiles.hpp"
+#include "editor/EditorState.hpp"
+#include "editor/gui/Text.hpp"
 #include "editor/scene/SceneEdit.hpp"
 #include "editor/shell/TextEditor.hpp"
 #include "plugins/capsule/Capsule.hpp"
@@ -57,10 +59,28 @@ std::string payloadPath(const ImGuiPayload& payload) {
         std::string{static_cast<const char*>(payload.Data), static_cast<std::size_t>(payload.DataSize)}});
 }
 
+/// @brief Records in @p request what is dropped on node @p index: another node moves under it, a capsule file from the
+/// Assets panel is placed under it.
+void acceptDrop(const capsule::Capsule& capsule, std::uint32_t index, TreeRequest& request) {
+    if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(kNodePayload)) {
+        std::uint32_t moved = 0;
+        std::memcpy(&moved, payload->Data, sizeof(moved));
+        if (!scene::isInSubtree(capsule, index, moved)) {
+            request = TreeRequest{.kind = TreeRequest::Kind::kMove, .node = moved, .target = index};
+        }
+    }
+    if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(kAssetPayload)) {
+        const std::string path = payloadPath(*payload);
+        if (capsule::format::isCapsuleFile(path) && path != capsule.getPath()) {
+            request = TreeRequest{.kind = TreeRequest::Kind::kInstance, .node = index, .path = path};
+        }
+    }
+}
+
 /// @brief Draws node @p index of @p capsule and its subtree, recording what the user asks for in @p request.
 // NOLINTNEXTLINE(misc-no-recursion): the depth is the depth of the scene's tree.
 void drawNode(EditorState& state, const capsule::Capsule& capsule, std::uint32_t index, TreeRequest& request) {
-    const capsule::CapsuleNode& node = capsule.getNodes()[index];
+    const capsule::CapsuleNode& node = capsule.getNodes().subspan(index).front();
     const std::vector<std::uint32_t> children = scene::childrenOf(capsule, index);
     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick |
                                ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
@@ -74,6 +94,7 @@ void drawNode(EditorState& state, const capsule::Capsule& capsule, std::uint32_t
         index == 0 ? std::filesystem::path{std::string{capsule.getPath()}}.stem().string() : node.name;
     const std::string label = node.instance ? std::format("{}  [{}]", name, node.instance->path) : name;
     ImGui::PushID(static_cast<int>(index));
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg): a constant format.
     const bool open = ImGui::TreeNodeEx("##node", flags, "%s", label.c_str());
     if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
         state.selectedNode = index;
@@ -84,19 +105,7 @@ void drawNode(EditorState& state, const capsule::Capsule& capsule, std::uint32_t
         ImGui::EndDragDropSource();
     }
     if (ImGui::BeginDragDropTarget()) {
-        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(kNodePayload)) {
-            std::uint32_t moved = 0;
-            std::memcpy(&moved, payload->Data, sizeof(moved));
-            if (!scene::isInSubtree(capsule, index, moved)) {
-                request = TreeRequest{.kind = TreeRequest::Kind::kMove, .node = moved, .target = index};
-            }
-        }
-        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(kAssetPayload)) {
-            const std::string path = payloadPath(*payload);
-            if (capsule::format::isCapsuleFile(path) && path != capsule.getPath()) {
-                request = TreeRequest{.kind = TreeRequest::Kind::kInstance, .node = index, .path = path};
-            }
-        }
+        acceptDrop(capsule, index, request);
         ImGui::EndDragDropTarget();
     }
     if (ImGui::BeginPopupContextItem()) {
@@ -153,10 +162,10 @@ void apply(EditorState& state, const capsule::Capsule& current, const TreeReques
     state.markEditedUnsaved();
 }
 
-/// @brief The tree of the scene being edited.
-void drawSceneTree(EditorState& state) {
+/// @brief The tree of the capsule being edited, @p id.
+void drawSceneTree(EditorState& state, capsule::CapsuleId id) {
     const auto* capsules = state.world->getResources().get<capsule::Capsules>();
-    const capsule::Capsule* edited = capsules != nullptr ? capsules->find(*state.getEdited()) : nullptr;
+    const capsule::Capsule* edited = capsules != nullptr ? capsules->find(id) : nullptr;
     if (edited == nullptr) {
         ImGui::TextUnformatted("The capsule is not loaded.");
         return;
@@ -169,13 +178,13 @@ void drawSceneTree(EditorState& state) {
         }
         ImGui::SameLine();
         const capsule::Capsule* behind = state.scene ? capsules->find(*state.scene) : nullptr;
-        ImGui::TextDisabled("%s >", behind != nullptr ? std::string{behind->getPath()}.c_str() : "(no scene)");
+        gui::textDisabled(behind != nullptr ? std::format("{} >", behind->getPath()) : std::string{"(no scene) >"});
         ImGui::SameLine();
     }
     ImGui::TextUnformatted(std::string{edited->getPath()}.c_str());
     if (state.isEditedUnsaved()) {
         ImGui::SameLine();
-        ImGui::TextDisabled("(not saved)");
+        gui::textDisabled("(not saved)");
     }
     if (ImGui::SmallButton("Open in text editor")) {
         const std::filesystem::path file = state.assets / std::string{edited->getPath()};
@@ -215,6 +224,7 @@ void drawEntityTree(EditorState& state, ecs::Entity entity) {
     }
     const std::string label = labelOf(world, entity);
     ImGui::PushID(static_cast<int>(entity.getIndex()));
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg): a constant format.
     const bool open = ImGui::TreeNodeEx("##entity", flags, "%s", label.c_str());
     if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
         state.selected = entity;
@@ -266,8 +276,8 @@ void drawHierarchyPanel(EditorState& state) {
         return;
     }
     if (ImGui::Begin("Hierarchy", &state.showHierarchy)) {
-        if (!state.play.isPlaying() && state.getEdited()) {
-            drawSceneTree(state);
+        if (const auto edited = state.getEdited(); !state.play.isPlaying() && edited) {
+            drawSceneTree(state, *edited);
         } else {
             drawWorldTree(state);
         }

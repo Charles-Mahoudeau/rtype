@@ -15,6 +15,7 @@
 #include <limits>
 #include <variant>
 
+#include "GameViewport.hpp"
 #include "rtype/contract/platform/event/Event.hpp"
 #include "rtype/contract/platform/input/Key.hpp"
 
@@ -161,6 +162,42 @@ void feedModifiers(ImGuiIO& io, const platform::input::Mods& mods) {
     io.AddKeyEvent(ImGuiMod_Alt, mods.alt);
     io.AddKeyEvent(ImGuiMod_Super, mods.super);
 }
+
+/// @brief Moves ImGui's mouse, and @p moved into the scene's pixels when it goes to the game.
+/// @return Whether the game gets the move: over the game, or while a button pressed over it is held.
+bool filterMouseMoved(ImGuiIO& io, platform::event::MouseMoved& moved, const GameViewport& viewport,
+                      std::uint32_t gameButtons) {
+    io.AddMousePosEvent(moved.position.x, moved.position.y);
+    if (!viewport.hovered && gameButtons == 0) {
+        return false;
+    }
+    // Window units to the scene's pixels: the game sees the scene as a window of its own.
+    const glm::vec2 scale = viewport.size.x > 0.0F && viewport.size.y > 0.0F
+                                ? glm::vec2{viewport.sceneSize} / viewport.size
+                                : glm::vec2{1.0F};
+    moved.position = (moved.position - viewport.position) * scale;
+    moved.delta *= scale;
+    return true;
+}
+
+/// @brief Tells ImGui that @p button went @p down, and keeps in @p gameButtons the ones pressed over the game.
+/// @return Whether the game gets it: over the game, or the release of a button pressed over it.
+bool filterMouseButton(ImGuiIO& io, int button, bool down, bool hovered, std::uint32_t& gameButtons) {
+    if (button < 0) {
+        return hovered;
+    }
+    io.AddMouseButtonEvent(button, down);
+    const std::uint32_t bit = 1U << button;
+    if (down) {
+        if (hovered) {
+            gameButtons |= bit;
+        }
+        return hovered;
+    }
+    const bool heldByGame = (gameButtons & bit) != 0;
+    gameButtons &= ~bit;
+    return heldByGame || hovered;
+}
 }  // namespace
 
 GuiInput::GuiInput(ImGuiContext* context) noexcept : _context{context} {}
@@ -171,39 +208,16 @@ bool GuiInput::filter(platform::Event& event) {
     const bool keyboardForGame = _viewport.focused && !io.WantTextInput;
 
     if (auto* moved = std::get_if<platform::event::MouseMoved>(&event)) {
-        io.AddMousePosEvent(moved->position.x, moved->position.y);
-        if (!_viewport.hovered && _gameButtons == 0) {
-            return false;
-        }
-        // Window units to the scene's pixels: the game sees the scene as a window of its own.
-        const glm::vec2 scale = _viewport.size.x > 0.0F && _viewport.size.y > 0.0F
-                                    ? glm::vec2{_viewport.sceneSize} / _viewport.size
-                                    : glm::vec2{1.0F};
-        moved->position = (moved->position - _viewport.position) * scale;
-        moved->delta *= scale;
-        return true;
+        return filterMouseMoved(io, *moved, _viewport, _gameButtons);
     }
     if (const auto* pressed = std::get_if<platform::event::MouseButtonPressed>(&event)) {
-        const int button = toImGuiButton(pressed->button);
-        if (button >= 0) {
-            io.AddMouseButtonEvent(button, true);
-        }
+        const bool forGame =
+            filterMouseButton(io, toImGuiButton(pressed->button), true, _viewport.hovered, _gameButtons);
         feedModifiers(io, pressed->mods);
-        if (_viewport.hovered && button >= 0) {
-            _gameButtons |= 1U << button;
-        }
-        return _viewport.hovered;
+        return forGame;
     }
     if (const auto* released = std::get_if<platform::event::MouseButtonReleased>(&event)) {
-        const int button = toImGuiButton(released->button);
-        if (button >= 0) {
-            io.AddMouseButtonEvent(button, false);
-        }
-        const bool heldByGame = button >= 0 && (_gameButtons & (1U << button)) != 0;
-        if (button >= 0) {
-            _gameButtons &= ~(1U << button);
-        }
-        return heldByGame || _viewport.hovered;
+        return filterMouseButton(io, toImGuiButton(released->button), false, _viewport.hovered, _gameButtons);
     }
     if (const auto* scrolled = std::get_if<platform::event::MouseScrolled>(&event)) {
         io.AddMouseWheelEvent(scrolled->offset.x, scrolled->offset.y);

@@ -24,10 +24,14 @@
 #include "FieldEditor.hpp"
 #include "Panels.hpp"
 #include "WorldView.hpp"
+#include "editor/EditorState.hpp"
+#include "editor/gui/Text.hpp"
 #include "editor/scene/SceneEdit.hpp"
 #include "plugins/capsule/Capsule.hpp"
 #include "plugins/capsule/Capsules.hpp"
+#include "plugins/capsule/ComponentValues.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
+#include "rtype/ecs/component/ComponentRegistry.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
@@ -86,64 +90,56 @@ bool componentHeader(const ecs::ComponentInfo& info, std::size_t index, bool& re
     const std::string title = std::format("{}###component{}", shortName(info.type.name), index);
     const bool open = ImGui::CollapsingHeader(title.c_str(), &kept, ImGuiTreeNodeFlags_DefaultOpen);
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("%s", info.type.name.c_str());
+        gui::tooltip(info.type.name);
     }
     removed = !kept;
     return open && kept;
 }
 
-/// @brief Shows the node being edited: its name, side, instance and components, and applies what the user changes.
-void drawNode(EditorState& state) {
-    auto capsules = state.world->getResources().getMut<capsule::Capsules>();
-    if (!capsules || capsules->find(*state.getEdited()) == nullptr) {
-        ImGui::TextUnformatted("The capsule is not loaded.");
-        return;
+/// @brief Shows the name and the side of node @p index of @p edited, which is not the root.
+/// @return Whether the user changed them.
+bool editNameAndSide(EditorState& state, capsule::Capsule& edited, std::uint32_t index) {
+    bool changed = false;
+    const capsule::CapsuleNode& node = edited.editNode(index);
+    // Filled from the node unless it is being typed in, so the user's typing stays until Enter.
+    if (ImGui::GetActiveID() != ImGui::GetID("Name")) {
+        fillTextField(state, node.name);
     }
-    capsule::Capsule& edited = capsules->edit(*state.getEdited());
-    const std::uint32_t index = *state.selectedNode;
-    if (index >= edited.getNodes().size()) {
-        state.selectedNode = 0;
-        return;
+    if (ImGui::InputText("Name", state.textField.data(), state.textField.size(),
+                         ImGuiInputTextFlags_EnterReturnsTrue)) {
+        if (scene::renameNode(edited, index, state.textField.data())) {
+            changed = true;
+        } else {
+            state.status = std::format("'{}' cannot name this node: a sibling has it, or it is empty or has a '/'",
+                                       state.textField.data());
+        }
     }
+    static constexpr std::array<const char*, 3> kSides{"server", "client", "both"};
+    static constexpr std::array<ecs::Side, 3> kSideValues{ecs::Side::kServer, ecs::Side::kClient, ecs::Side::kBoth};
+    int side = 0;
+    for (std::size_t choice = 0; choice < kSideValues.size(); ++choice) {
+        if (edited.editNode(index).side == kSideValues.at(choice)) {
+            side = static_cast<int>(choice);
+        }
+    }
+    if (ImGui::Combo("Side", &side, kSides.data(), static_cast<int>(kSides.size()))) {
+        edited.editNode(index).side = kSideValues.at(static_cast<std::size_t>(side));
+        changed = true;
+    }
+    return changed;
+}
+
+/// @brief Shows the components of node @p index of @p edited, changed and removed in place.
+/// @return Whether the user changed them.
+bool editNodeComponents(const EditorState& state, capsule::Capsule& edited, std::uint32_t index) {
     const ecs::Components& components = state.world->getComponents();
     bool changed = false;
-    line(std::format("Node: {}", index == 0 ? std::string{edited.getPath()} : edited.getNodePath(index)));
-    capsule::CapsuleNode& node = edited.editNode(index);
-    if (index != 0) {
-        // Filled from the node unless it is being typed in, so the user's typing stays until Enter.
-        if (ImGui::GetActiveID() != ImGui::GetID("Name")) {
-            fillTextField(state, node.name);
-        }
-        if (ImGui::InputText("Name", state.textField.data(), state.textField.size(),
-                             ImGuiInputTextFlags_EnterReturnsTrue)) {
-            if (scene::renameNode(edited, index, state.textField.data())) {
-                changed = true;
-            } else {
-                state.status = std::format("'{}' cannot name this node: a sibling has it, or it is empty or has a '/'",
-                                           state.textField.data());
-            }
-        }
-        static constexpr std::array<const char*, 3> kSides{"server", "client", "both"};
-        static constexpr std::array<ecs::Side, 3> kSideValues{ecs::Side::kServer, ecs::Side::kClient, ecs::Side::kBoth};
-        int side = 0;
-        for (std::size_t choice = 0; choice < kSideValues.size(); ++choice) {
-            if (node.side == kSideValues.at(choice)) {
-                side = static_cast<int>(choice);
-            }
-        }
-        if (ImGui::Combo("Side", &side, kSides.data(), static_cast<int>(kSides.size()))) {
-            edited.editNode(index).side = kSideValues.at(static_cast<std::size_t>(side));
-            changed = true;
-        }
-    }
-    if (node.instance) {
-        line(std::format("Instance of {}", node.instance->path));
-    }
-    ImGui::Separator();
     // The ids first: changing a value while walking the values would move them.
+    const capsule::ComponentValues& current = edited.editNode(index).values;
     std::vector<ecs::ComponentId> ids;
-    for (std::size_t value = 0; value < node.values.getCount(); ++value) {
-        ids.push_back(node.values.getId(value));
+    ids.reserve(current.getCount());
+    for (std::size_t value = 0; value < current.getCount(); ++value) {
+        ids.push_back(current.getId(value));
     }
     for (std::size_t slot = 0; slot < ids.size(); ++slot) {
         const ecs::ComponentId id = ids.at(slot);
@@ -167,15 +163,40 @@ void drawNode(EditorState& state) {
             changed = true;
         }
     }
+    return changed;
+}
+
+/// @brief Shows node @p index of the capsule being edited, @p id: its name, side, instance and components, and applies
+/// what the user changes.
+void drawNode(EditorState& state, capsule::CapsuleId id, std::uint32_t index) {
+    auto capsules = state.world->getResources().getMut<capsule::Capsules>();
+    if (!capsules || capsules->find(id) == nullptr) {
+        ImGui::TextUnformatted("The capsule is not loaded.");
+        return;
+    }
+    capsule::Capsule& edited = capsules->edit(id);
+    if (index >= edited.getNodes().size()) {
+        state.selectedNode = 0;
+        return;
+    }
+    const ecs::Components& components = state.world->getComponents();
+    line(std::format("Node: {}", index == 0 ? std::string{edited.getPath()} : edited.getNodePath(index)));
+    bool changed = index != 0 && editNameAndSide(state, edited, index);
+    if (const capsule::CapsuleNode& node = edited.editNode(index); node.instance) {
+        line(std::format("Instance of {}", node.instance->path));
+    }
+    ImGui::Separator();
+    changed = editNodeComponents(state, edited, index) || changed;
     ImGui::Separator();
     capsule::ComponentValues& values = edited.editNode(index).values;
-    if (const auto picked = pickComponent(state, true, [&values](ecs::ComponentId id) { return values.has(id); })) {
+    if (const auto picked =
+            pickComponent(state, true, [&values](ecs::ComponentId value) { return values.has(value); })) {
         const DefaultValue added{components.getRegistry().findById(*picked)->type};
         values.set(components, *picked, added.getBytes());
         changed = true;
     }
     if (changed) {
-        scene::respawn(*state.world, *state.getEdited());
+        scene::respawn(*state.world, id);
         state.markEditedUnsaved();
     }
 }
@@ -186,7 +207,7 @@ void drawEntity(EditorState& state) {
     ecs::World& world = *state.world;
     const ecs::Entity entity = state.selected;
     line(std::format("Entity #{} (generation {})", entity.getIndex(), entity.getGeneration()));
-    ImGui::TextDisabled("Changes while playing are lost at Stop.");
+    gui::textDisabled("Changes while playing are lost at Stop.");
     ImGui::Separator();
     ecs::Components& components = world.getComponents();
     const std::size_t count = components.getRegistry().getCount();
@@ -204,7 +225,7 @@ void drawEntity(EditorState& state) {
             if (editFields(world, info->type, copy)) {
                 // The copy shares what the value owns, so it is written back whole, through the access that marks it
                 // changed.
-                std::span<std::byte> target = components.getMut(entity, id);
+                const std::span<std::byte> target = components.getMut(entity, id);
                 std::memcpy(target.data(), copy.data(), std::min(target.size(), copy.size()));
             }
             ImGui::PopID();
@@ -230,13 +251,14 @@ void drawInspectorPanel(EditorState& state) {
         return;
     }
     if (ImGui::Begin("Inspector", &state.showInspector)) {
-        if (!state.play.isPlaying() && state.getEdited() && state.selectedNode) {
-            drawNode(state);
+        const std::optional<plugins::capsule::CapsuleId> edited = state.getEdited();
+        if (!state.play.isPlaying() && edited && state.selectedNode) {
+            drawNode(state, *edited, *state.selectedNode);
         } else if (!state.selected.isNull() && state.world->isAlive(state.selected)) {
             drawEntity(state);
         } else {
-            ImGui::TextUnformatted(state.getEdited() ? "Select a node."
-                                                     : "Open a scene or an actor in the Assets, or select an entity.");
+            ImGui::TextUnformatted(edited ? "Select a node."
+                                          : "Open a scene or an actor in the Assets, or select an entity.");
         }
     }
     ImGui::End();

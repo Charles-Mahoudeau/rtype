@@ -22,6 +22,8 @@
 
 #include "FieldEditor.hpp"
 #include "Panels.hpp"
+#include "editor/EditorState.hpp"
+#include "editor/gui/Text.hpp"
 #include "editor/scene/Isolation.hpp"
 #include "editor/scene/SceneEdit.hpp"
 #include "editor/shell/TextEditor.hpp"
@@ -98,9 +100,8 @@ void folderMenu(EditorState& state, const std::string& folder) {
     }
 }
 
-/// @brief Draws the files and folders of @p folder, folders first, by name.
-// NOLINTNEXTLINE(misc-no-recursion): the depth is the depth of the assets' folders.
-void drawFolder(EditorState& state, const std::filesystem::path& folder) {
+/// @return The entries of @p folder but the hidden ones, folders first, by name.
+std::vector<std::filesystem::directory_entry> listFolder(const std::filesystem::path& folder) {
     std::error_code error;
     std::vector<std::filesystem::directory_entry> entries;
     for (const auto& entry : std::filesystem::directory_iterator{folder, error}) {
@@ -114,69 +115,87 @@ void drawFolder(EditorState& state, const std::filesystem::path& folder) {
         }
         return left.path().filename() < right.path().filename();
     });
-    for (const auto& entry : entries) {
+    return entries;
+}
+
+/// @brief Opens the capsule file @p relative: a scene as the level; an actor, or any other capsule, alone (prefab
+/// mode).
+void openCapsule(EditorState& state, const std::string& relative) {
+    if (std::filesystem::path{relative}.extension() == ".scene") {
+        openScene(state, relative);
+    } else {
+        openPrefab(state, relative);
+    }
+}
+
+/// @brief The menu of the file @p relative, named @p name.
+void fileMenu(EditorState& state, const std::string& relative, const std::string& name, bool isCapsule) {
+    const bool isScene = std::filesystem::path{relative}.extension() == ".scene";
+    if (isCapsule && ImGui::MenuItem(isScene ? "Open" : "Open alone")) {
+        openCapsule(state, relative);
+    }
+    if (ImGui::MenuItem("Open in text editor") && !shell::openInTextEditor(state.textEditor, state.assets / relative)) {
+        state.status = std::format("Could not run '{}'", state.textEditor);
+    }
+    if (ImGui::MenuItem("Rename")) {
+        request(state, AssetAction::kRename, relative, name);
+    }
+    if (ImGui::MenuItem("Delete")) {
+        request(state, AssetAction::kDelete, relative);
+    }
+}
+
+/// @brief Draws the file @p relative, named @p name: a double-click opens a capsule, a drag carries its path.
+void drawFile(EditorState& state, const std::string& relative, const std::string& name) {
+    const bool isCapsule = capsule::format::isCapsuleFile(relative);
+    const bool isOpen = isCapsule && state.getEdited() == capsule::CapsuleId::fromPath(relative);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg): a constant format.
+    ImGui::TreeNodeEx("##file",
+                      ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen |
+                          ImGuiTreeNodeFlags_SpanAvailWidth | (isOpen ? ImGuiTreeNodeFlags_Selected : 0),
+                      "%s", name.c_str());
+    if (isCapsule && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+        openCapsule(state, relative);
+    }
+    if (ImGui::BeginDragDropSource()) {
+        ImGui::SetDragDropPayload(kAssetPayload, relative.data(), relative.size());
+        ImGui::TextUnformatted(relative.c_str());
+        ImGui::EndDragDropSource();
+    }
+    if (ImGui::BeginPopupContextItem()) {
+        fileMenu(state, relative, name, isCapsule);
+        ImGui::EndPopup();
+    }
+}
+
+/// @brief Draws the files and folders of @p folder, folders first, by name.
+// NOLINTNEXTLINE(misc-no-recursion): the depth is the depth of the assets' folders.
+void drawFolder(EditorState& state, const std::filesystem::path& folder) {
+    for (const auto& entry : listFolder(folder)) {
         const std::string relative = relativeOf(state, entry.path());
         const std::string name = entry.path().filename().string();
         ImGui::PushID(relative.c_str());
-        if (entry.is_directory()) {
-            const bool open = ImGui::TreeNodeEx("##folder", ImGuiTreeNodeFlags_SpanAvailWidth, "%s/", name.c_str());
-            if (ImGui::BeginPopupContextItem()) {
-                folderMenu(state, relative);
-                ImGui::Separator();
-                if (ImGui::MenuItem("Rename")) {
-                    request(state, AssetAction::kRename, relative, name);
-                }
-                if (ImGui::MenuItem("Delete")) {
-                    request(state, AssetAction::kDelete, relative);
-                }
-                ImGui::EndPopup();
+        if (!entry.is_directory()) {
+            drawFile(state, relative, name);
+            ImGui::PopID();
+            continue;
+        }
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg): a constant format.
+        const bool open = ImGui::TreeNodeEx("##folder", ImGuiTreeNodeFlags_SpanAvailWidth, "%s/", name.c_str());
+        if (ImGui::BeginPopupContextItem()) {
+            folderMenu(state, relative);
+            ImGui::Separator();
+            if (ImGui::MenuItem("Rename")) {
+                request(state, AssetAction::kRename, relative, name);
             }
-            if (open) {
-                drawFolder(state, entry.path());
-                ImGui::TreePop();
+            if (ImGui::MenuItem("Delete")) {
+                request(state, AssetAction::kDelete, relative);
             }
-        } else {
-            const bool isCapsule = capsule::format::isCapsuleFile(relative);
-            const bool isOpen = isCapsule && state.getEdited() == capsule::CapsuleId::fromPath(relative);
-            ImGui::TreeNodeEx("##file",
-                              ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen |
-                                  ImGuiTreeNodeFlags_SpanAvailWidth | (isOpen ? ImGuiTreeNodeFlags_Selected : 0),
-                              "%s", name.c_str());
-            // A scene opens as the level; an actor, or any other capsule, opens alone (prefab mode).
-            const bool isScene = std::filesystem::path{relative}.extension() == ".scene";
-            if (isCapsule && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-                if (isScene) {
-                    openScene(state, relative);
-                } else {
-                    openPrefab(state, relative);
-                }
-            }
-            if (ImGui::BeginDragDropSource()) {
-                ImGui::SetDragDropPayload(kAssetPayload, relative.data(), relative.size());
-                ImGui::TextUnformatted(relative.c_str());
-                ImGui::EndDragDropSource();
-            }
-            if (ImGui::BeginPopupContextItem()) {
-                if (isCapsule && ImGui::MenuItem(isScene ? "Open" : "Open alone")) {
-                    if (isScene) {
-                        openScene(state, relative);
-                    } else {
-                        openPrefab(state, relative);
-                    }
-                }
-                if (ImGui::MenuItem("Open in text editor")) {
-                    if (!shell::openInTextEditor(state.textEditor, state.assets / relative)) {
-                        state.status = std::format("Could not run '{}'", state.textEditor);
-                    }
-                }
-                if (ImGui::MenuItem("Rename")) {
-                    request(state, AssetAction::kRename, relative, name);
-                }
-                if (ImGui::MenuItem("Delete")) {
-                    request(state, AssetAction::kDelete, relative);
-                }
-                ImGui::EndPopup();
-            }
+            ImGui::EndPopup();
+        }
+        if (open) {
+            drawFolder(state, entry.path());
+            ImGui::TreePop();
         }
         ImGui::PopID();
     }
@@ -238,7 +257,7 @@ void drawPopup(EditorState& state) {
     }
     bool confirmed = false;
     if (state.assetAction == AssetAction::kDelete) {
-        ImGui::Text("Delete '%s'? This cannot be undone.", state.assetTarget.c_str());
+        ImGui::TextUnformatted(std::format("Delete '{}'? This cannot be undone.", state.assetTarget).c_str());
     } else {
         ImGui::TextUnformatted(state.assetAction == AssetAction::kRename ? "New name" : "Name");
         if (ImGui::IsWindowAppearing()) {
@@ -326,7 +345,7 @@ void drawAssetsPanel(EditorState& state) {
                 ImGui::EndPopup();
             }
             ImGui::SameLine();
-            ImGui::TextDisabled("assets/  (double-click a scene to edit it, drag a file onto a node or a field)");
+            gui::textDisabled("assets/  (double-click a scene to edit it, drag a file onto a node or a field)");
             ImGui::Separator();
             drawFolder(state, state.assets);
         }

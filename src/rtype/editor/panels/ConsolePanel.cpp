@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "Panels.hpp"
+#include "editor/EditorState.hpp"
 #include "editor/console/ConsoleLog.hpp"
 
 namespace rtype::editor::panels {
@@ -40,6 +41,21 @@ bool shows(const EditorState& state, console::Level level) {
         default:
             return state.consoleInfo;
     }
+}
+
+/// @brief Shows @p line, row @p row of the list, in the color of its level, with a menu that copies it.
+void drawLine(const console::Line& line, int row) {
+    ImGui::PushID(row);
+    ImGui::PushStyleColor(ImGuiCol_Text, colorOf(line.level));
+    ImGui::TextUnformatted(line.text.c_str());
+    ImGui::PopStyleColor();
+    if (ImGui::BeginPopupContextItem("##line")) {
+        if (ImGui::MenuItem("Copy")) {
+            ImGui::SetClipboardText(line.text.c_str());
+        }
+        ImGui::EndPopup();
+    }
+    ImGui::PopID();
 }
 }  // namespace
 
@@ -84,18 +100,7 @@ void drawConsolePanel(EditorState& state) {
         clipper.Begin(static_cast<int>(shown.size()));
         while (clipper.Step()) {
             for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row) {
-                const console::Line& line = *shown.at(static_cast<std::size_t>(row));
-                ImGui::PushID(row);
-                ImGui::PushStyleColor(ImGuiCol_Text, colorOf(line.level));
-                ImGui::TextUnformatted(line.text.c_str());
-                ImGui::PopStyleColor();
-                if (ImGui::BeginPopupContextItem("##line")) {
-                    if (ImGui::MenuItem("Copy")) {
-                        ImGui::SetClipboardText(line.text.c_str());
-                    }
-                    ImGui::EndPopup();
-                }
-                ImGui::PopID();
+                drawLine(*shown.at(static_cast<std::size_t>(row)), row);
             }
         }
         // New lines keep the view at the bottom, unless the user scrolled up to read.

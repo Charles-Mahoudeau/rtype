@@ -10,10 +10,10 @@
 #include <algorithm>
 #include <cfloat>
 #include <cstddef>
-#include <cstdint>
 #include <exception>
 #include <format>
 #include <glm/ext/vector_float2.hpp>
+#include <optional>
 #include <string>
 #include <utility>
 #include <variant>
@@ -21,6 +21,8 @@
 
 #include "Panels.hpp"
 #include "core/asset/AssetId.hpp"
+#include "editor/EditorState.hpp"
+#include "editor/gui/Text.hpp"
 #include "plugins/graphics/VisibleArea.hpp"
 #include "plugins/particle/ParticleEffect.hpp"
 #include "plugins/particle/ParticleEffectAssets.hpp"
@@ -60,7 +62,7 @@ bool editShape(renderer::EmitterShape& shape) {
     if (auto* rect = std::get_if<renderer::RectShape>(&shape)) {
         return ImGui::DragFloat2("rect size", &rect->size.x, kDragSpeed, 0.0F, FLT_MAX);
     }
-    ImGui::TextDisabled("shape: a point");
+    gui::textDisabled("shape: a point");
     return false;
 }
 
@@ -75,7 +77,7 @@ bool editDesc(renderer::ParticleSystemDesc& desc) {
     for (std::size_t index = 0; index < desc.bursts.size(); ++index) {
         renderer::ParticleBurst& burst = desc.bursts.at(index);
         ImGui::PushID(static_cast<int>(index));
-        ImGui::Text("burst %zu", index);
+        ImGui::TextUnformatted(std::format("burst {}", index).c_str());
         changed = ImGui::DragFloat("time", &burst.time, kDragSpeed, 0.0F, FLT_MAX) || changed;
         changed = ImGui::DragScalar("count", ImGuiDataType_U32, &burst.count) || changed;
         changed = ImGui::DragScalar("cycles", ImGuiDataType_U32, &burst.cycles) || changed;
@@ -94,7 +96,8 @@ bool editDesc(renderer::ParticleSystemDesc& desc) {
     ImGui::SeparatorText("Forces");
     changed = ImGui::DragFloat2("gravity", &desc.gravity.x, kDragSpeed * 10.0F) || changed;
     changed = ImGui::DragFloat("drag", &desc.drag, kDragSpeed, 0.0F, FLT_MAX) || changed;
-    ImGui::TextDisabled("capacity %u; curves, texture and blending are kept as the script made them", desc.capacity);
+    gui::textDisabled(
+        std::format("capacity {}; curves, texture and blending are kept as the script made them", desc.capacity));
     return changed;
 }
 
@@ -136,12 +139,55 @@ void preview(EditorState& state, core::asset::AssetId id) {
     }
     glm::vec2 center{0.0F};
     if (const auto* visible = world.getResources().get<plugins::graphics::VisibleArea>();
-        visible && !visible->isEmpty()) {
+        visible != nullptr && !visible->isEmpty()) {
         center = (visible->min + visible->max) * 0.5F;
     }
     state.preview =
         world.spawn(plugins::transform::Transform{.position = center}, particle::ParticleEmitter{.effect = id},
                     ecs::Name{.value = ecs::String{"Particle preview"}});
+}
+
+/// @brief The list of the effects, sorted by name: a click selects one.
+void drawEffectList(EditorState& state, const particle::ParticleEffectAssets& effects) {
+    std::vector<core::asset::AssetId> ids = effects.getIds();
+    std::ranges::sort(ids, {}, [&](core::asset::AssetId id) { return nameOf(effects, id); });
+    for (const core::asset::AssetId id : ids) {
+        const std::string name = nameOf(effects, id);
+        ImGui::BeginDisabled(effects.get(id) == nullptr);
+        if (ImGui::Selectable(name.c_str(), state.selectedEffect == id)) {
+            state.selectedEffect = id;
+        }
+        ImGui::EndDisabled();
+    }
+}
+
+/// @brief The selected effect @p id: its preview buttons and its settings, changed in place.
+void drawEffect(EditorState& state, particle::ParticleEffectAssets& effects, core::asset::AssetId id,
+                const particle::ParticleEffect& current) {
+    if (ImGui::Button("Preview")) {
+        preview(state, id);
+    }
+    ImGui::SameLine();
+    ImGui::BeginDisabled(state.preview.isNull() || !state.world->isAlive(state.preview));
+    if (ImGui::Button("Stop preview")) {
+        static_cast<void>(state.world->despawn(state.preview));
+        state.preview = {};
+    }
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    if (ImGui::Button("Copy as Luau")) {
+        ImGui::SetClipboardText(toLuau(nameOf(effects, id), current.desc).c_str());
+        state.status = "The effect's Luau is on the clipboard";
+    }
+    gui::textDisabled("Changes last until the game stops: paste the Luau in your script to keep them.");
+    particle::ParticleEffect edited = current;
+    if (editDesc(edited.desc)) {
+        try {
+            effects.replace(id, std::move(edited));
+        } catch (const std::exception& error) {
+            state.status = error.what();
+        }
+    }
 }
 }  // namespace
 
@@ -159,52 +205,19 @@ void drawParticlesPanel(EditorState& state) {
         ImGui::End();
         return;
     }
-    std::vector<core::asset::AssetId> ids = effects->getIds();
-    std::ranges::sort(ids, {}, [&](core::asset::AssetId id) { return nameOf(*effects, id); });
     if (ImGui::BeginChild("##effects", ImVec2{ImGui::GetContentRegionAvail().x * 0.3F, 0.0F},
                           ImGuiChildFlags_ResizeX | ImGuiChildFlags_Borders)) {
-        for (const core::asset::AssetId id : ids) {
-            const std::string name = nameOf(*effects, id);
-            const bool failed = effects->get(id) == nullptr;
-            ImGui::BeginDisabled(failed);
-            if (ImGui::Selectable(name.c_str(), state.selectedEffect == id)) {
-                state.selectedEffect = id;
-            }
-            ImGui::EndDisabled();
-        }
+        drawEffectList(state, *effects);
     }
     ImGui::EndChild();
     ImGui::SameLine();
     if (ImGui::BeginChild("##effect")) {
-        const particle::ParticleEffect* current = state.selectedEffect ? effects->get(*state.selectedEffect) : nullptr;
-        if (current == nullptr) {
-            ImGui::TextUnformatted("Select an effect: a script makes them with engine.assets.particle.");
+        const std::optional<core::asset::AssetId> selected = state.selectedEffect;
+        const particle::ParticleEffect* current = selected ? effects->get(*selected) : nullptr;
+        if (selected && current != nullptr) {
+            drawEffect(state, *effects, *selected, *current);
         } else {
-            const core::asset::AssetId id = *state.selectedEffect;
-            if (ImGui::Button("Preview")) {
-                preview(state, id);
-            }
-            ImGui::SameLine();
-            ImGui::BeginDisabled(state.preview.isNull() || !state.world->isAlive(state.preview));
-            if (ImGui::Button("Stop preview")) {
-                static_cast<void>(state.world->despawn(state.preview));
-                state.preview = {};
-            }
-            ImGui::EndDisabled();
-            ImGui::SameLine();
-            if (ImGui::Button("Copy as Luau")) {
-                ImGui::SetClipboardText(toLuau(nameOf(*effects, id), current->desc).c_str());
-                state.status = "The effect's Luau is on the clipboard";
-            }
-            ImGui::TextDisabled("Changes last until the game stops: paste the Luau in your script to keep them.");
-            particle::ParticleEffect edited = *current;
-            if (editDesc(edited.desc)) {
-                try {
-                    effects->replace(id, std::move(edited));
-                } catch (const std::exception& error) {
-                    state.status = error.what();
-                }
-            }
+            ImGui::TextUnformatted("Select an effect: a script makes them with engine.assets.particle.");
         }
     }
     ImGui::EndChild();
