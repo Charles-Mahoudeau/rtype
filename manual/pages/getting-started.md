@@ -4,8 +4,8 @@
 
 The engine builds one generic program, `aylo-runtime`, and copies it to the repository root. It runs a game folder:
 `game/` in the current directory, or the folder you give with `--game`. It runs the client by default and the server
-(no window, no graphics) with `--server`. At the repository root, the scripts `r-type_server` and `r-type_client` (`.bat` files on Windows) start it
-for you on the matching side, so `./r-type_server` is `./aylo-runtime --server`.
+(no window, no graphics) with `--server`. At the repository root, the scripts `r-type_server` and `r-type_client`
+(`.bat` files on Windows) start it for you on the matching side, so `./r-type_server` is `./aylo-runtime --server`.
 
 ```sh
 xmake build -y

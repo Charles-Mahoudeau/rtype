@@ -104,8 +104,8 @@ scripting, replication, plugin-transform, plugin-input  <-  engine  <-  executab
 - Configure: `xmake f -y` (`-m release` for release). Build all: `xmake build -y`. One target: `xmake build engine`.
 - Run (the build copies `aylo-runtime` to the repository root): `./aylo-runtime` (client) and `./aylo-runtime --server`,
   on `game/` or `--game <dir>`; other `--name value` flags reach `project.luau` as `engine.args`. `./r-type_server` and
-  `./r-type_client` at the root are `sh` wrappers (`.bat` ones on Windows) that start it with the right side (the names the
-  subject asks for).
+  `./r-type_client` at the root are `sh` wrappers (`.bat` ones on Windows) that start it with the right side (the names
+  the subject asks for).
 - Duel example: `xmake f -y --rtype_duel=y`, then `xmake run rtype_duel server [--port <port>]` and
   `xmake run rtype_duel client [--host <host>] [--port <port>]` (or the generic executables with
   `--game examples/games/rtype_duel/game`).
