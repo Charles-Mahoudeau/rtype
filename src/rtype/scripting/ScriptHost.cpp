@@ -160,8 +160,14 @@ luau::Result<> ScriptHost::require(const std::string_view path) {
     if (!module) {
         return tl::unexpected{std::move(module.error())};
     }
+    // A module required from outside is a root: what a reload keeps loaded is what the roots reach.
+    if (const auto resolved = _resolver({}, path)) {
+        _roots.insert(resolved->key);
+    }
     return {};
 }
+
+void ScriptHost::setAdoptsNewFiles(const bool adopts) noexcept { _adoptsNewFiles = adopts; }
 
 std::optional<std::string> ScriptHost::moduleKeyOf(const std::string_view name) const {
     constexpr std::string_view kPrefix = "scripts/";
@@ -317,7 +323,8 @@ void ScriptHost::declareSystem(std::string name, const luau::Table& spec) {
         return;
     }
     for (const auto& [file, declared] : _files) {
-        if (file != _owner && declared.systems.contains(systemName)) {
+        // A script run again by this reload gives its systems up: another one may take them over.
+        if (file != _owner && !_staging->rerun.contains(file) && declared.systems.contains(systemName)) {
             throw luau::exceptions::RuntimeError{
                 std::format("System '{}': already declared by the script '{}'", systemName, file)};
         }
@@ -434,13 +441,28 @@ luau::ValuePack ScriptHost::callEngine(const luau::CallContext& arguments) {
 }
 
 core::reload::ReloadOutcome ScriptHost::reloadScript(const std::string& name, const std::string& source) {
+    if (moduleKeyOf(name)) {
+        return reloadModules({{name, source}}, {});
+    }
     if (auto loaded = loadForms(); !loaded) {
         return core::reload::ReloadOutcome::failed(std::string{loaded.error().message()});
     }
-    return reloadFile(name, &source);
+    ReloadPlan plan;
+    plan.file = name;
+    plan.source = &source;
+    plan.owners.insert(name);
+    return applyReload(plan);
 }
 
-core::reload::ReloadOutcome ScriptHost::removeScript(const std::string& name) { return reloadFile(name, nullptr); }
+core::reload::ReloadOutcome ScriptHost::removeScript(const std::string& name) {
+    if (moduleKeyOf(name)) {
+        return reloadModules({}, {name});
+    }
+    ReloadPlan plan;
+    plan.file = name;
+    plan.owners.insert(name);
+    return applyReload(plan);
+}
 
 std::optional<ecs::Phase> ScriptHost::findSystemPhase(const std::string& name) const {
     for (const auto& declared : _files | std::views::values) {
@@ -460,46 +482,114 @@ void ScriptHost::restorePlugins() {
     }
 }
 
-core::reload::ReloadOutcome ScriptHost::reloadFile(const std::string& file, const std::string* source) {
-    const std::optional<std::string> key = moduleKeyOf(file);
-    if (!key) {
-        return applyReload(file, source);
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): one sequence of steps: classify, plan, run, commit.
+core::reload::ReloadOutcome ScriptHost::reloadModules(const std::map<std::string, std::string>& changed,
+                                                      const std::vector<std::string>& removed) {
+    using core::reload::ReloadOutcome;
+    if (!_loader) {
+        return ReloadOutcome::failed("this host has no modules: it was created without a resolver");
     }
-    // The module's cache entry is replaced together with what it declares: both or neither.
+    if (auto loaded = loadForms(); !loaded) {
+        return ReloadOutcome::failed(std::string{loaded.error().message()});
+    }
+
+    ReloadPlan plan;
+    plan.modules = true;
+    plan.roots = _roots;
+    std::map<std::string, std::string> sources;  // New source of each changed key.
+    std::vector<std::string> seeds;              // Loaded modules whose file changed or went away.
+    std::vector<std::string> added;              // Files nobody loaded that become roots.
+    for (const std::string& name : removed) {
+        const std::optional<std::string> key = moduleKeyOf(name);
+        if (!key) {
+            return ReloadOutcome::failed(std::format("'{}' is not a module of this host", name));
+        }
+        plan.removed.insert(*key);
+        plan.roots.erase(*key);
+        plan.owners.insert(name);
+        if (_loader->isLoaded(*key)) {
+            seeds.push_back(*key);
+        }
+    }
+    for (const auto& [name, source] : changed) {
+        const std::optional<std::string> key = moduleKeyOf(name);
+        if (!key) {
+            return ReloadOutcome::failed(std::format("'{}' is not a module of this host", name));
+        }
+        if (plan.removed.contains(*key)) {
+            continue;
+        }
+        sources.insert_or_assign(*key, source);
+        if (_loader->isLoaded(*key)) {
+            seeds.push_back(*key);
+        } else if (_adoptsNewFiles) {
+            added.push_back(*key);
+            plan.roots.insert(*key);
+        }
+    }
+
+    // Everything that depends on a changed module runs again, dependencies first.
+    const std::vector<std::string> affected = _loader->dependents(seeds);
+    for (const std::string& key : affected) {
+        if (!plan.removed.contains(key)) {
+            plan.run.push_back(key);
+            plan.owners.insert(chunkNameOf(key));
+        }
+    }
+    for (const std::string& key : added) {
+        plan.run.push_back(key);
+        plan.owners.insert(chunkNameOf(key));
+    }
+
     _loader->begin();
-    _loader->invalidate({*key});
-    if (source != nullptr) {
-        _overrides.insert_or_assign(*key, *source);
+    _loader->invalidate(affected);
+    for (const auto& [key, source] : sources) {
+        _overrides.insert_or_assign(key, source);
     }
-    core::reload::ReloadOutcome outcome = applyReload(file, source);
-    _overrides.erase(*key);
-    if (outcome.status == core::reload::ReloadOutcome::Status::kApplied) {
+    ReloadOutcome outcome = applyReload(plan);
+    for (const auto& entry : sources) {
+        _overrides.erase(entry.first);
+    }
+    if (outcome.status == ReloadOutcome::Status::kApplied) {
         _loader->commit();
+        _roots = std::move(plan.roots);
     } else {
         _loader->rollback();
     }
     return outcome;
 }
 
+std::string ScriptHost::chunkNameOf(const std::string& key) { return "scripts/" + key; }
+
 // NOLINTNEXTLINE(readability-function-cognitive-complexity): one sequence of steps that must stay in this order.
-core::reload::ReloadOutcome ScriptHost::applyReload(const std::string& file, const std::string* source) {
+core::reload::ReloadOutcome ScriptHost::applyReload(const ReloadPlan& plan) {
     using core::reload::ReloadOutcome;
 
     _staging = std::make_unique<Staging>();
-    _owner = file;
+    _staging->rerun = plan.owners;
+    _owner = plan.file;
     const auto finish = [this](void*) {
         _staging.reset();
         _owner.clear();
     };
     const std::unique_ptr<void, decltype(finish)> scope{this, finish};
 
-    if (source != nullptr) {
-        const std::optional<std::string> key = moduleKeyOf(file);
-        std::string path;
-        if (key) {
-            path = "./" + key->substr(0, key->size() - std::string_view{".luau"}.size());
+    // The scripts run again, in order: modules by `require`, a plain script directly.
+    luau::Result<> ran;
+    if (plan.modules) {
+        for (const std::string& key : plan.run) {
+            if (_loader->isLoaded(key)) {
+                continue;  // A module run again earlier required it.
+            }
+            const std::string path = "./" + key.substr(0, key.size() - std::string_view{".luau"}.size());
+            if (ran = _loader->require(path).transform([](const luau::Ref&) {}); !ran) {
+                break;
+            }
         }
-        auto ran = key ? _loader->require(path).transform([](const luau::Ref&) {}) : runSource(file, *source);
+    } else if (plan.source != nullptr) {
+        ran = runSource(plan.file, *plan.source);
+    }
+    {
         if (!ran) {
             if (_staging->rebuild) {
                 return ReloadOutcome::needsRebuild(*_staging->rebuild);
@@ -527,8 +617,29 @@ core::reload::ReloadOutcome ScriptHost::applyReload(const std::string& file, con
         return ReloadOutcome::needsRebuild(*_staging->rebuild);
     }
 
+    // Modules the roots no longer reach are unloaded: they declare nothing any more.
+    std::set<std::string> unloaded;
+    if (plan.modules) {
+        std::vector<std::string> liveRoots;
+        for (const std::string& root : plan.roots) {
+            if (_loader->isLoaded(root)) {
+                liveRoots.push_back(root);
+            }
+        }
+        const std::vector<std::string> reachable = _loader->reachableFrom(liveRoots);
+        std::vector<std::string> unreachable;
+        for (const std::string& key : _loader->loadedKeys()) {
+            if (!std::ranges::binary_search(reachable, key)) {
+                unreachable.push_back(key);
+                unloaded.insert(chunkNameOf(key));
+            }
+        }
+        _loader->unload(unreachable);
+    }
+
     // Which files the reload touched, and what each one no longer declares.
-    std::set<std::string> touched{file};
+    std::set<std::string> touched = plan.owners;
+    touched.insert(unloaded.begin(), unloaded.end());
     for (const auto& [owner, declared] : _staging->declared) {
         touched.insert(owner);
     }
@@ -544,7 +655,10 @@ core::reload::ReloadOutcome ScriptHost::applyReload(const std::string& file, con
             }
         }
         for (const auto& [name, phase] : before.systems) {
-            if (!after.systems.contains(name)) {
+            // A system another script of the batch declares now has moved: it is replaced, not removed.
+            const bool taken = std::ranges::any_of(
+                _staging->systems, [&name](const auto& built) { return built.spec.system.getName() == name; });
+            if (!after.systems.contains(name) && !taken) {
                 removedSystems.emplace_back(name, phase);
             }
         }
@@ -607,7 +721,7 @@ core::reload::ReloadOutcome ScriptHost::applyReload(const std::string& file, con
     }
     // A plugin the script no longer declares goes with it.
     std::erase_if(_plugins, [&](const auto& entry) {
-        return entry.second.file == file && !_staging->declaredPlugins.contains(entry.first);
+        return touched.contains(entry.second.file) && !_staging->declaredPlugins.contains(entry.first);
     });
     return ReloadOutcome::applied(std::move(what));
 }

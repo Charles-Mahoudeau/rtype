@@ -114,20 +114,41 @@ class RTYPE_SCRIPTING_API ScriptHost {
 
     /// @brief Runs a script again and swaps what it declares in the App (see the class).
     ///
-    /// @details A script the host did not run before is added: its systems join the schedule. The App's schedules are
-    /// only touched when the whole script ran. With a resolver and a name of the form `scripts/<key>`, the script is a
-    /// module: its cache entry is replaced in a loader transaction (committed when applied, rolled back otherwise), so
-    /// later requires see the new value. The modules that required it are not run again.
+    /// @details With a resolver and a name of the form `scripts/<key>`, this is reloadModules() with one file.
+    /// Otherwise the script is run alone: a script the host did not run before is added, and the App's schedules
+    /// are only touched when the whole script ran.
     /// @param name Name of the script, as given to run(), or its chunk name (`scripts/<key>`).
     /// @param source The new Luau source code.
     /// @return `applied` with what changed ("system game.move"), `failed` with the error of the script (nothing was
     /// changed), or `needsRebuild` with why it cannot be applied in place.
     [[nodiscard]] core::reload::ReloadOutcome reloadScript(const std::string& name, const std::string& source);
 
+    /// @brief Reloads a batch of modules at once: one staging and one loader transaction.
+    ///
+    /// @details The loaded modules among the changed and deleted ones, and every module that requires them (directly
+    /// or not), are run again, dependencies first; a module that an earlier one required is not run twice. What they
+    /// declare is swapped as a whole, a system moving from one of them to another included. Afterwards the modules the
+    /// roots (the files required from outside, see require()) no longer reach are unloaded, and what they declared
+    /// goes away. A changed file that is not loaded is a new root, loaded, unless setAdoptsNewFiles(false); a deleted
+    /// file stops being a root. If the reload fails (a script error, a require that finds no file, a cycle) nothing
+    /// changes: the old code keeps running and the module cache is as it was.
+    /// @param changed Chunk names (`scripts/<key>`) of the added or modified files, with their new source (it is
+    /// used in place of the file's content, so a source need not be on disk).
+    /// @param removed Chunk names of the deleted files. A module that still requires one of them fails to run.
+    /// @return As reloadScript(); a needs-rebuild when an unloaded module declared a component.
+    [[nodiscard]] core::reload::ReloadOutcome reloadModules(const std::map<std::string, std::string>& changed,
+                                                            const std::vector<std::string>& removed);
+
     /// @brief Forgets a script that was deleted: removes its systems from the App.
-    /// @param name Name of the script, as given to run(), or its chunk name.
+    /// @param name Name of the script, as given to run(), or its chunk name. A module is reloadModules() with one
+    /// deleted file.
     /// @return As reloadScript(): a component or a plugin of the script cannot be removed in place.
     [[nodiscard]] core::reload::ReloadOutcome removeScript(const std::string& name);
+
+    /// @brief Chooses what a reload does with a file no module loaded.
+    /// @param adopts True (the default, while every file is loaded as a root): it is a new root and runs. False
+    /// (entry points): it is ignored until a module requires it.
+    void setAdoptsNewFiles(bool adopts) noexcept;
 
     /// @param name Name of a component a script declared.
     /// @return Its layout, with the default value a field left out of `Commands::add` or `spawn` takes, or null if no
@@ -198,14 +219,25 @@ class RTYPE_SCRIPTING_API ScriptHost {
         std::map<std::string, PluginEntry> replacedPlugins;  ///< The plugins declared again, as they were before.
         std::set<std::string> declaredPlugins;               ///< The plugins the reload declared.
         std::optional<std::string> rebuild;                  ///< Why the reload cannot be applied in place.
+        std::set<std::string> rerun;                         ///< The scripts run again or deleted by the reload.
     };
 
-    /// @brief The reload of one script, from running it to applying it: @p source is null for a script that was
-    /// deleted.
-    [[nodiscard]] core::reload::ReloadOutcome reloadFile(const std::string& file, const std::string* source);
+    /// @brief What a reload runs and what it expects to touch.
+    struct ReloadPlan {
+        bool modules{false};                 ///< Whether the scripts are modules of the loader (else `file` alone).
+        std::string file;                    ///< A script that is not a module: its name.
+        const std::string* source{nullptr};  ///< Its new source; null if it was deleted.
+        std::vector<std::string> run;        ///< Module keys to require, dependencies first.
+        std::set<std::string> removed;       ///< Module keys whose file was deleted.
+        std::set<std::string> roots;         ///< Module keys that are roots once the reload is applied.
+        std::set<std::string> owners;        ///< Names (chunk names) of the scripts run again or deleted.
+    };
 
-    /// @brief reloadFile() without the loader transaction around it.
-    [[nodiscard]] core::reload::ReloadOutcome applyReload(const std::string& file, const std::string* source);
+    /// @brief Runs a plan and swaps what changed in the App, without the loader transaction around it.
+    [[nodiscard]] core::reload::ReloadOutcome applyReload(const ReloadPlan& plan);
+
+    /// @return The chunk name of a module key (`scripts/<key>`).
+    [[nodiscard]] static std::string chunkNameOf(const std::string& key);
 
     /// @return The module key of a script name (`scripts/<key>`), or nothing if the script is not a module of this
     /// host.
@@ -237,6 +269,8 @@ class RTYPE_SCRIPTING_API ScriptHost {
     luau::ModuleLoader::Resolver _resolver;          ///< The game's resolver; empty without modules.
     std::map<std::string, std::string> _chunkNames;  ///< Chunk name of each module key the resolver gave.
     std::map<std::string, std::string> _overrides;   ///< Source a reload gives in place of a module's file, by key.
+    std::set<std::string> _roots;                    ///< Keys of the modules required from outside: what stays loaded.
+    bool _adoptsNewFiles{true};                      ///< Whether a new file is a root (see setAdoptsNewFiles()).
     std::vector<std::string> _ownerStack;            ///< The owners to give back when a module ends, innermost last.
     std::unique_ptr<luau::ModuleLoader> _loader;     ///< The module cache; null without a resolver. After `_runtime`.
 };
