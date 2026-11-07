@@ -77,4 +77,4 @@ at load, `ctx.call` in a declared system. The list of calls is in the manual (an
 3. Run a server and a client and play it. A script error is printed with the system and does not stop the game: read
    the output, fix, run again.
 4. If something is missing from the API, stop, file the issue, tell the user. Do not edit C++.
-5. Update `manual/` when you found it wrong or incomplete.
+5. Update `manual/` when you found it wrong or incomplete (`write-manual` skill).

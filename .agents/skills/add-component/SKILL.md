@@ -33,7 +33,7 @@ and `docs/CodeStyle.md`.
 7. **Tests.** C++ in `tests/plugins/` (default values, registration, the side it lives on) and a script test in
    `tests/engine/` that reads and writes it from Luau. A component that replicates also gets a test in
    `tests/replication/`.
-8. **Docs.** The feature page in `docs/` for its plugin; the component table of the plugin in `manual/` (fields, types,
+8. **Docs.** The feature page in `docs/` for its plugin; the component table of the plugin in `manual/` (invoke the `write-manual` skill) (fields, types,
    defaults, side, an example script); `docs/Modules.md` if it is a notable class.
 9. `verify`, `commit-split`, `open-pr`.
 

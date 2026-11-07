@@ -39,7 +39,7 @@ earlier example of splitting plugins into libraries, see pull request #414.
    `tests/plugins/xmake.lua`. Cover the success and failure paths, and the plugin's requirement check.
 9. **Script test** in `tests/engine/` for what scripts can do with it, next to `ScriptEngineCallsTests`.
 10. **Docs.** Add the plugin to the tables of `docs/Plugins.md`; give it a design page in `docs/` (or a section of an
-    existing one) with a "From scripts" section; add its description to `docs/Modules.md`; add its page in `manual/`
+    existing one) with a "From scripts" section; add its description to `docs/Modules.md`; add its page in `manual/` (invoke the `write-manual` skill)
     (see `manual/mkdocs.yml` for the nav) for what a game developer uses, with no C++ in it.
 11. **Verify** with the `verify` skill, then commit with `commit-split` (build file and plugin first, then data, then
     calls, then tests, then docs) and open the pull request with `open-pr`.

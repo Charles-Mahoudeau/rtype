@@ -6,7 +6,8 @@ description: Open a draft pull request, or a stack of them, for the R-Type repos
 # Open a pull request
 
 Always a draft (`--draft`); never merge it, never push to `main`. Run the `verify` skill first and put its result in the
-description.
+description. If the change touches what scripts can see and `manual/` is not in the diff, run `write-manual` first. Follow
+this whole skill, the template, labels, assignee, milestone and project fields included, even for a one-line PR.
 
 ## Rules
 
