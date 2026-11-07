@@ -209,6 +209,8 @@ engine.input.action("fire", "button", { bind = { "Space", "GamepadSouth" } })
 | `engine.assets.atlas{path \| texture, name, linear, grid, frames, animations}` | `rtype.sprite.loadAtlas` (a `path`) or `rtype.sprite.createAtlas` (a `texture`, named after it unless `name` is given), then `rtype.sprite.addFrame` per frame and `rtype.sprite.addAnimation` per animation, by name | the atlas's `AssetId` |
 | `engine.assets.particle({name, ...})` | `rtype.particle.beginEffect` (every key but the lists), then `rtype.particle.addBurst` per burst, `rtype.particle.addColorKey` per `colorOverLife` key and `rtype.particle.addCurveKey` per `sizeOverLife` and `speedOverLife` key, then `rtype.particle.addEffect` | the effect's `AssetId` |
 | `engine.input.action(name, type, {bind})` | `rtype.input.addAction` (`type`: `"button"` by default, `"axis"` or `"vector2"`), then one bind call per binding, in order | nothing |
+| `engine.capsule.spawn(ctx, path, overrides)`, `engine.capsule.load(ctx, path, overrides)` (in a system) | `rtype.capsule.spawn` / `load` through `ctx.call`, then `ctx.commands:patch` of the root per override | the root `Entity` |
+| `engine.capsule.reload(ctx, root)` (in a system) | `rtype.capsule.reload` through `ctx.call` | `true` if `root` was a capsule's root |
 
 - An atlas's `grid` takes `frameSize` and `count` (both needed), `spacing`, `columns` and `offset`; a frame takes a
   `position` and a `size`, and an optional `name` (its index otherwise) and `origin` (its centre otherwise). `grid`,

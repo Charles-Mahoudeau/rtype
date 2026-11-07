@@ -189,20 +189,29 @@ Scripts describe nothing: files do. A system spawns, loads and reloads through t
 | `rtype.capsule.load` | `capsule` (a path) | the new root; the capsule loaded before is despawned |
 | `rtype.capsule.reload` | `root` | `true` if it was a capsule's root |
 
+The plugin also brings setup forms (`CapsuleForms.luau`, registered by `addCapsuleForms()` from its library and its
+build step): `engine.capsule.spawn(ctx, path, overrides)`, `engine.capsule.load(ctx, path, overrides)` and
+`engine.capsule.reload(ctx, root)`. A form checks its arguments, makes the call through `ctx.call` (so the system still
+lists it) and patches the root with each override (`ctx.commands:patch`, [Commands](09-commands.md)): only the fields
+named change, over the values the capsule gives the root.
+
 ```luau
 engine.ecs.system("game.Waves", {
     phase = "Update",
+    query = {},
     calls = { "rtype.capsule.spawn", "rtype.capsule.load" },
     run = function(ctx)
-        local bydo = ctx.call("rtype.capsule.spawn", { capsule = "actors/bydo.actor" })
-        ctx.commands:add(bydo, "rtype.Transform", { position = { x = 820, y = 140 } })
+        local bydo = engine.capsule.spawn(ctx, "actors/bydo.actor", {
+            ["rtype.Transform"] = { position = { x = 820, y = 140 } },   -- rotation and scale stay the capsule's
+        })
         -- when the boss is defeated:
-        ctx.call("rtype.capsule.load", { capsule = "scenes/level2.scene" })
+        engine.capsule.load(ctx, "scenes/level2.scene")
     end,
 })
 ```
 
-An override added after a spawn replaces the whole component (its defaults with the fields given), as in C++.
+`ctx.commands:add` after a spawn still replaces the whole component (its defaults with the fields given), as in C++;
+`patch<T>()` is the C++ way to change part of it.
 
 ## Connections
 
