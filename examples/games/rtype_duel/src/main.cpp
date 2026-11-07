@@ -33,7 +33,7 @@
 //
 // The whole game is in game/: project.luau sets the engine up, and the scripts of game/scripts/ hold the rules, the
 // shared ones in arena.luau, the server's in server/ and the clients' in client/. This executable only picks the side
-// and registers the client's backends, like r-type_client and r-type_server.
+// and registers the client's backends, like aylo-runtime.
 //
 // One binary runs both sides: the first argument picks the Engine's mode; the other flags go to game/project.luau,
 // which reads --host and --port from `engine.args`.

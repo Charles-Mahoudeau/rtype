@@ -2,13 +2,15 @@
 
 ## Run a game
 
-The engine builds two generic programs, `r-type_server` and `r-type_client`, and copies them to the repository root.
-Both run a game folder: `game/` in the current directory, or the folder you give with `--game`.
+The engine builds one generic program, `aylo-runtime`, and copies it to the repository root. It runs a game folder:
+`game/` in the current directory, or the folder you give with `--game`. It runs the client by default and the server
+(no window, no graphics) with `--server`. At the repository root, the scripts `r-type_server` and `r-type_client` start it
+for you on the matching side, so `./r-type_server` is `./aylo-runtime --server`.
 
 ```sh
 xmake build -y
-./r-type_server --game examples/games/rtype_duel/game
-./r-type_client --game examples/games/rtype_duel/game      # one per player
+./aylo-runtime --server --game examples/games/rtype_duel/game
+./aylo-runtime --game examples/games/rtype_duel/game      # one per player
 ```
 
 The folder must contain a `project.luau`. A client also needs the `assets/` folder and refuses to start without it; a
@@ -28,8 +30,8 @@ end
 ```
 
 ```sh
-./r-type_server --game my_game/game --port 4243
-./r-type_client --game my_game/game --host 10.0.0.2 --port 4243
+./aylo-runtime --server --game my_game/game --port 4243
+./aylo-runtime --game my_game/game --host 10.0.0.2 --port 4243
 ```
 
 Values are typed: `true` and `false` are booleans, a decimal number is a number, anything else is a string. A flag given
@@ -69,4 +71,4 @@ engine.ecs.system("game.Count", {
 })
 ```
 
-Run `./r-type_server --game hello/game`. Read on to learn what every part of it means.
+Run `./aylo-runtime --server --game hello/game`. Read on to learn what every part of it means.

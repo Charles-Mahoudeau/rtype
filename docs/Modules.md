@@ -67,8 +67,8 @@ architecture rules, and this file keeps the detail, which changes with every fea
   `NetworkInput` fills the `PlayerInput` sent to the server from the `Input` actions. `EngineConfig` holds
   the mode, the command line and these functions; `CommandLine` parses the `--name value` flags. Exported symbols are marked `RTYPE_ENGINE_API`.
   Design in `docs/engine/design.md`.
-- `src/rtype/client/`, `src/rtype/server/` — the generic executables `r-type_client` and `r-type_server`: a `main` that
-  runs an `Engine` on `game/`, which loads the plugins and backends from their libraries (the executables link none). The build copies them to the repository root
+- `src/rtype/runtime/` — the generic executable `aylo-runtime`: a `main` that runs an `Engine` on `game/` as a client, or
+  as the server with `--server`, which loads the plugins and backends from their libraries (the executables link none). The build copies them to the repository root
   (rule `rtype.copy_to_root`). Games whose gameplay is still C++ (`ethan_game(bestoftheworld)`) keep their own `main`
   and give it to the `Engine` as `EngineConfig::setup`. `rtype_duel` is written in Luau (`game/scripts/`); its own `main`
   only picks the side from its first argument.
@@ -219,7 +219,7 @@ architecture rules, and this file keeps the detail, which changes with every fea
 
 Each module has its own `xmake.lua`, included from the root `xmake.lua`. Add new sources under the
 matching module: `plugin-*`, `contract-*`, `core`, `ecs`, `network`, `replication`, `engine`, `platform-glfw`, `render-vulkan`,
-`audio-miniaudio`, `luau`, `r-type_client` and `r-type_server` glob
+`audio-miniaudio`, `luau` and `aylo-runtime` glob
 `**.cpp` in their own folder.
 
 ### Dependency rules

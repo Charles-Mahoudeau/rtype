@@ -44,18 +44,20 @@ end
 
 | Executable | Mode | Registers | Game code |
 |------------|------|-----------|-----------|
-| `r-type_server` (`src/rtype/server/`) | `kServer` | nothing (headless) | `game/` only |
-| `r-type_client` (`src/rtype/client/`) | `kClient` | GLFW, Vulkan, miniaudio | `game/` only |
+| `aylo-runtime --server` (`src/rtype/runtime/`) | `kServer` | nothing (headless) | `game/` only |
+| `aylo-runtime` (`src/rtype/runtime/`) | `kClient` | GLFW, Vulkan, miniaudio | `game/` only |
 | `rtype_duel` (example) | `server` or `client`, the first argument | as the client, on the client side | its `game/` only (Luau) |
 | `ethan_game(bestoftheworld)` (example) | `kStandalone` | as the client | `setup` |
 
-A game written entirely in Luau (SCR-10 in `../scripting/plan.md`) needs no `main` of its own: the two generic
-executables run it (`./r-type_server --game examples/games/rtype_duel/game`). `rtype_duel` is one: its `main` only picks
+A game written entirely in Luau (SCR-10 in `../scripting/plan.md`) needs no `main` of its own: the generic
+runtime runs it (`./aylo-runtime --server --game examples/games/rtype_duel/game`). `rtype_duel` is one: its `main` only picks
 the side from its first argument, to show that one binary can run both sides, and registers the client's backends.
 `ethan_game` shows the step before: its gameplay is still C++, given to the `Engine` as `EngineConfig::setup`.
 
-The build copies `r-type_client` and `r-type_server` to the repository root (rule `rtype.copy_to_root` in the root
-`xmake.lua`). The copies find the project's shared libraries in the build folder through a relative rpath on Linux and
+The runtime takes `--server` for itself (it is not in `engine.args`); every other flag goes to the game. The build copies
+`aylo-runtime` to the repository root (rule `rtype.copy_to_root` in the root `xmake.lua`). The repository root also holds
+two committed `sh` wrappers, `r-type_server` (`aylo-runtime --server "$@"`) and `r-type_client`, the names the subject
+asks for; they do not run on Windows, where `aylo-runtime.exe` is started directly. The copy finds the project's shared libraries in the build folder through a relative rpath on Linux and
 macOS. On Windows, the rule copies the build folder's DLLs next to them.
 
 ## What a build adds, in order

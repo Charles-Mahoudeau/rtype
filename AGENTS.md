@@ -38,7 +38,7 @@ One line per module; the detail of each (classes, files) is in `docs/Modules.md`
 | `src/rtype/interop/` | `interop-*` | What a renderer needs from a platform, per graphics API |
 | `src/rtype/plugins/` | `plugin-*` | The engine features as ECS plugins, one shared library each, loaded by the engine: transform, input, graphics, sprite, physics... (`docs/Plugins.md`) |
 | `src/rtype/tools/` | `rtype-sign` | Command line tools; `rtype-sign` makes the keys and signatures of the game plugins (`docs/Plugins.md#signatures`) |
-| `src/rtype/client/`, `server/` | executables | The generic `r-type_client` and `r-type_server`: they link no plugin and no backend, the engine loads them |
+| `src/rtype/runtime/` | `aylo-runtime` | The generic executable, a client or with `--server` the server: it links no plugin and no backend, the engine loads them |
 | `examples/` | per example | Standalone examples; `examples/games/` holds the games |
 | `tests/<module>/` | `<module>-tests` | GoogleTest, one folder per module |
 | `docs/` | | Design docs for engine developers |
@@ -102,8 +102,9 @@ scripting, replication, plugin-transform, plugin-input  <-  engine  <-  executab
 `xmake` with the `clang` toolchain and C++23.
 
 - Configure: `xmake f -y` (`-m release` for release). Build all: `xmake build -y`. One target: `xmake build engine`.
-- Run (the build copies the executables to the repository root): `./r-type_server` and `./r-type_client`, on `game/` or
-  `--game <dir>`; other `--name value` flags reach `project.luau` as `engine.args`.
+- Run (the build copies `aylo-runtime` to the repository root): `./aylo-runtime` (client) and `./aylo-runtime --server`,
+  on `game/` or `--game <dir>`; other `--name value` flags reach `project.luau` as `engine.args`. `./r-type_server` and
+  `./r-type_client` at the root are `sh` wrappers that start it with the right side (the names the subject asks for).
 - Duel example: `xmake f -y --rtype_duel=y`, then `xmake run rtype_duel server [--port <port>]` and
   `xmake run rtype_duel client [--host <host>] [--port <port>]` (or the generic executables with
   `--game examples/games/rtype_duel/game`).
