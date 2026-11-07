@@ -74,3 +74,5 @@ engine.ecs.system("game.Count", {
 ```
 
 Run `./aylo-runtime --server --game hello/game`. Read on to learn what every part of it means.
+
+When your game is ready, [Shipping your game](shipping.md) explains what to give your players.
