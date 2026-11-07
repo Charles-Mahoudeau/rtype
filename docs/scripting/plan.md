@@ -84,7 +84,7 @@ Supported in the first version:
   `engine.ecs.addPlugin(name)` adds it. Adding one first adds the plugins it lists, then calls `build(app)`, where
   `app` has `component`, `system` and `addPlugin` (it only lives during the build). A plugin is built once; an unknown
   name, a cycle (`a -> b -> a`) or a name declared twice is an error.
-- **`ctx`**: `query` (iteration), `commands` (`spawn`, `despawn`, `add`, `setParent`, `removeParent`), `fixedDelta`,
+- **`ctx`**: `query` (iteration), `commands` (`spawn`, `despawn`, `add`, `patch`, `setParent`, `removeParent`), `fixedDelta`,
   `delta`.
 - Scripts can read components declared in C++ (they are in the registry), as long as their fields use the types above.
   A `std::vector` field of a C++ component reads as a table, a copy, and is replaced from an array; a `std::string`
@@ -304,6 +304,8 @@ Each task is one issue and one pull request. Ids `LUA-xx`. Tests go in `tests/sc
 - `commands:add(entity, "game.Shield", {...})`.
 - `commands:despawn(entity)`, which despawns its children too.
 - `commands:setParent(child, parent)` and `commands:removeParent(child)`.
+- `commands:patch(entity, "game.Shield", {...})`: writes only the fields of the table over the value the entity has
+  at the flush (`Commands::patch`), so a capsule just spawned keeps the rest.
 - Component values are built with the LUA-03 conversion, over the defaults.
 
 **Done when**

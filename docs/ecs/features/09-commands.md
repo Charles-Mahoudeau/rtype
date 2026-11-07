@@ -37,6 +37,7 @@ rtype::ecs::Commands commands{world};
 const rtype::ecs::Entity bullet = commands.spawn().add(Position{}).add(Velocity{.x = 600.F}).getEntity();
 commands.entity(enemy).remove<Shield>().add(Dead{});
 commands.despawn(other);
+commands.entity(boss).patch<Transform>([](Transform& transform) { transform.position.x += 40.F; });
 commands.add(enemy, shieldId, bytes);   // by id (Luau, network): copied; false for an unknown id or a wrong size
 commands.flush();                        // the scheduler will flush between phases
 ```
@@ -48,6 +49,7 @@ commands.flush();                        // the scheduler will flush between pha
 | `add(e, value)`: moved in | `add(e, id, bytes)`: copied |
 | `remove<T>(e)` | `remove(e, id)` |
 | `despawn(e)` | same |
+| `patch<T>(e, edit)`: `edit(T&)` at the flush | `patch(e, id, edit)`: `edit(std::span<std::byte>)`; false for an unknown id, Parent or Children, or an empty edit |
 | `flush()`, `clear()`, `getCount()`, `isEmpty()` | same |
 
 ## How it works
@@ -99,6 +101,11 @@ sequenceDiagram
   system earlier in the same flush.
 - **Values are moved into the buffer** (type-erased bytes), so the buffer can be applied without knowing
   C++ types; Luau commands use the same path (their bytes are copied in, since the script keeps them).
+- **A patch reads and writes at the flush.** `add` replaces the whole value; `patch<T>(e, edit)` runs `edit` on
+  the value `e` has when the record is replayed, so it sees the commands recorded before it (a value added by the same
+  buffer, a capsule spawned through it) and keeps what it does not write. The value is marked changed. It is skipped
+  if `e` is dead, does not have `T` by then, or `T` is a tag. `edit` is copied into the buffer (a `std::function`)
+  and must not throw. Parent and Children are refused: the World keeps them in step (`setParent()`).
 - **Registering waits for the flush.** `add<T>` of a component not registered yet does not touch the
   registry: registering inside a query loop can move every pool under the running query. `T` is
   registered at the flush (an already registered `T` keeps its options).
@@ -111,13 +118,15 @@ sequenceDiagram
 
 - **One `ByteColumn` per component it uses**, keyed by the component's layout hash (so a C++ type and its
   id share one column), holding the recorded values with their alignment and lifecycle hooks.
-- **One ordered list of small records**: `{kind (add, remove, despawn), entity, column, index}`.
+- **One ordered list of small records**: `{kind (add, remove, despawn, patch), entity, column, index}`; a patch's
+  `index` points into a list of edits (`std::function<void(std::span<std::byte>)>`), cleared with the records.
 - **`flush()`**, in this order:
   1. registers the C++ components the buffer needs (if that throws, nothing is applied and the buffer is
      kept);
   2. `World::flushReserved()`: the spawned entities become alive;
   3. replays the records: add → `Components::addMove()` (the value is moved from its column into the
-     pool), remove → `Components::remove()`, despawn → `World::despawn()`; each is skipped on a dead entity;
+     pool), remove → `Components::remove()`, despawn → `World::despawn()`, patch → the edit on
+     `Components::getMut()` (marked changed); each is skipped on a dead entity;
   4. clears the columns (destroying the moved-from values) but **keeps their capacity**, so a buffer
      reused every frame does not allocate in steady state.
 
@@ -126,9 +135,13 @@ sequenceDiagram
 ```luau
 function WaveSpawner:run(ctx)
     local enemy = ctx.call("rtype.capsule.spawn", { capsule = "actors/bydo.actor" })
-    ctx.commands:add(enemy, "game.Shield", { strength = 20 })
+    ctx.commands:add(enemy, "game.Shield", { strength = 20 })          -- the whole value: defaults + strength
+    ctx.commands:patch(enemy, "rtype.Transform", { position = { x = 820, y = 140 } })   -- only position
 end
 ```
+
+`ctx.commands:patch` builds the value the table describes, keeps the bytes of the fields it names (the values of a
+list or a `std::string` field) and records a patch that writes only them, so no Luau value is held until the flush.
 
 ## Connections
 
