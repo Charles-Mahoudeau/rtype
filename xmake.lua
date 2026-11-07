@@ -31,7 +31,7 @@ end
 -- Shared by several modules, so declared once here.
 add_requires("glm 1.0.x", {alias = "glm"})
 add_requires("glfw 3.4", {alias = "glfw"})
--- Never the system's: the runner's apt headers predate vulkan_hpp_macros.hpp, which vulkan-memory-allocator-hpp needs.
+-- Never the system's: apt's are older than 1.4 and lack vulkan_hpp_macros.hpp, which vulkan-memory-allocator-hpp needs.
 add_requires("vulkan-headers 1.4.x", {alias = "vulkan-headers", system = false})
 add_requires("stb", {alias = "stb"})
 -- glslang: the library compiles the game's shaders at runtime (plugins), glslangValidator the renderer's built-in ones
