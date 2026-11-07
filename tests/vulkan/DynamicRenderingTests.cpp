@@ -67,3 +67,21 @@ TEST(DynamicRendering, PresetTransitionsMatchTheFrame) {
     EXPECT_EQ(rendering::kColorAttachmentToPresent.oldLayout, vk::ImageLayout::eColorAttachmentOptimal);
     EXPECT_EQ(rendering::kColorAttachmentToPresent.newLayout, vk::ImageLayout::ePresentSrcKHR);
 }
+
+TEST(DynamicRendering, TheSceneTextureIsDrawnIntoThenSampled) {
+    EXPECT_EQ(rendering::kSceneToColorAttachment.oldLayout, vk::ImageLayout::eUndefined);
+    EXPECT_EQ(rendering::kSceneToColorAttachment.newLayout, vk::ImageLayout::eColorAttachmentOptimal);
+    EXPECT_EQ(rendering::kSceneToShaderRead.oldLayout, vk::ImageLayout::eColorAttachmentOptimal);
+    EXPECT_EQ(rendering::kSceneToShaderRead.newLayout, vk::ImageLayout::eShaderReadOnlyOptimal);
+}
+
+TEST(DynamicRendering, TheSceneTextureWaitsForTheFragmentShadersOfThePreviousFrame) {
+    EXPECT_TRUE(rendering::kSceneToColorAttachment.srcStage & vk::PipelineStageFlagBits2::eFragmentShader);
+    EXPECT_EQ(rendering::kSceneToColorAttachment.dstAccess, vk::AccessFlagBits2::eColorAttachmentWrite);
+}
+
+TEST(DynamicRendering, TheMeshesWaitForTheSceneToBeWritten) {
+    EXPECT_EQ(rendering::kSceneToShaderRead.srcAccess, vk::AccessFlagBits2::eColorAttachmentWrite);
+    EXPECT_EQ(rendering::kSceneToShaderRead.dstStage, vk::PipelineStageFlagBits2::eFragmentShader);
+    EXPECT_EQ(rendering::kSceneToShaderRead.dstAccess, vk::AccessFlagBits2::eShaderSampledRead);
+}
