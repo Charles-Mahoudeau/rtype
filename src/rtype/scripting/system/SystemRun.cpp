@@ -53,12 +53,35 @@
 
 namespace rtype::scripting::system {
 namespace {
-/// @return Zero-initialised-size storage for one value of `type`, aligned as the type requires.
-[[nodiscard]] std::shared_ptr<std::byte> allocateBytes(const ecs::TypeInfo& type) {
+/// @return Storage for one value of `type`, aligned as it requires, holding a copy of @p source (with its copy hook,
+/// for a value that owns memory) or, without a source, a value built from its defaults. The value is destroyed with
+/// the storage.
+[[nodiscard]] std::shared_ptr<std::byte> makeValue(const ecs::TypeInfo& type,
+                                                   const std::span<const std::byte> source = {}) {
     const std::align_val_t alignment{std::max<std::size_t>(type.alignment, 1)};
     // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
     auto* raw = static_cast<std::byte*>(::operator new(std::max<std::size_t>(type.size, 1), alignment));
-    return {raw, [alignment](std::byte* bytes) { ::operator delete(bytes, alignment); }};
+    try {
+        if (!source.empty() && type.hooks.copy != nullptr) {
+            type.hooks.copy(raw, source.data());
+        } else if (!source.empty()) {
+            std::ranges::copy(source, raw);
+        } else {
+            std::fill_n(raw, type.size, std::byte{0});
+            if (type.hooks.construct != nullptr) {
+                type.hooks.construct(raw);  // the defaults the type's members declare
+            }
+        }
+    } catch (...) {
+        ::operator delete(raw, alignment);
+        throw;
+    }
+    return {raw, [alignment, destruct = type.hooks.destruct](std::byte* bytes) {
+                if (destruct != nullptr) {
+                    destruct(bytes);
+                }
+                ::operator delete(bytes, alignment);
+            }};
 }
 
 /// @return The value a script gets for the user data it was given, or the error that made it.
@@ -214,11 +237,9 @@ class EventsContext {
                 throw luau::exceptions::RuntimeError{"events.send expects a table of fields as its second argument"};
             }
         }
-        const std::shared_ptr<std::byte> storage = allocateBytes(*term.type);
+        // Built from its defaults, then copied into the queue: the storage destroys this one.
+        const std::shared_ptr<std::byte> storage = makeValue(*term.type);
         const std::span<std::byte> bytes{storage.get(), term.type->size};
-        if (term.type->hooks.construct != nullptr) {
-            term.type->hooks.construct(storage.get());  // the defaults the type's members declare
-        }
         if (fields != nullptr) {
             if (auto filled = view::fillFromTable(*term.type, *fields, bytes); !filled) {
                 throw luau::exceptions::RuntimeError{std::string{filled.error().message()}};
@@ -255,10 +276,10 @@ class EventsContext {
         }
         const std::span<const std::byte> read = *pass.next;
         ++pass.next;
-        // The view owns a copy: a send of the same type during the pass can grow the queue and move the original.
-        const std::shared_ptr<std::byte> storage = allocateBytes(*pass.type);
+        // The view owns a copy: a send of the same type during the pass can grow the queue and move the original. An
+        // event that owns memory (a text) is copied with its copy hook, never as bytes.
+        const std::shared_ptr<std::byte> storage = makeValue(*pass.type, read);
         const std::span<std::byte> bytes{storage.get(), read.size()};
-        std::ranges::copy(read, bytes.begin());
         luau::ValuePack pack;
         pack.add(handOver(_views.create(view::ComponentView{
             .type = pass.type,
