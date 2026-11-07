@@ -56,6 +56,20 @@ struct Crowd {
     std::vector<int> members;
 };
 RTYPE_ECS_EVENT(Crowd, "test.ctx.Crowd");
+
+/// @brief An event with a text and a list, as an HTTP response or an AI's reply carries.
+struct Message {
+    std::string text;
+    std::vector<int> members;
+    int priority{1};
+};
+RTYPE_ECS_EVENT(Message, "test.ctx.Message", text, members, priority);
+
+/// @brief An event that cannot be copied, so a script can neither get nor send a copy of it.
+struct Handle {
+    std::unique_ptr<int> value;
+};
+RTYPE_ECS_EVENT(Handle, "test.ctx.Handle");
 }  // namespace rtype::test::script_context
 
 namespace {
@@ -74,6 +88,8 @@ struct Fixture {
         app.getWorld().getResources().insert(rtype::test::script_context::Bag{});
         app.getWorld().getEvents().registerType<Boom>();
         app.getWorld().getEvents().registerType<rtype::test::script_context::Crowd>();
+        app.getWorld().getEvents().registerType<rtype::test::script_context::Message>();
+        app.getWorld().getEvents().registerType<rtype::test::script_context::Handle>();
         auto created = rtype::scripting::ScriptHost::create(app, {});
         EXPECT_TRUE(created) << (created ? "" : std::string{created.error().message()});
         host = std::move(*created);
@@ -248,13 +264,55 @@ TEST(ScriptContext, AnUnknownResourceOrEventIsRefusedWhenTheScriptLoads) {
     EXPECT_NE(event.find("System 'game.B': unknown event 'game.Nope'"), std::string::npos) << event;
 }
 
-TEST(ScriptContext, AnEventThatIsNotPlainDataIsRefusedWhenTheScriptLoads) {
+TEST(ScriptContext, AnEventThatCannotBeCopiedIsRefusedWhenTheScriptLoads) {
     Fixture fixture;
     const std::string message = fixture.run(R"(
+        engine.ecs.system("game.Handle", { phase = "Update", query = {}, events = { read = { "test.ctx.Handle" } },
+                                           run = function(ctx) end })
+    )");
+    EXPECT_NE(message.find("event 'test.ctx.Handle' cannot be used by a script: it cannot be copied"),
+              std::string::npos)
+        << message;
+    EXPECT_EQ(fixture.run(R"(
         engine.ecs.system("game.Crowd", { phase = "Update", query = {}, events = { read = { "test.ctx.Crowd" } },
                                           run = function(ctx) end })
-    )");
-    EXPECT_NE(message.find("event 'test.ctx.Crowd' cannot be used by a script"), std::string::npos) << message;
+    )"),
+              "");
+}
+
+TEST(ScriptContext, AnEventThatOwnsMemoryGoesBothWaysWhole) {
+    using rtype::test::script_context::Message;
+    Fixture fixture;
+    ASSERT_EQ(fixture.run(R"(
+        lengths = {}
+        engine.ecs.system("game.Talk", {
+            phase = "Update",
+            query = {},
+            events = { read = { "test.ctx.Message" }, send = { "test.ctx.Message" } },
+            run = function(ctx)
+                for message in ctx.events.read("test.ctx.Message") do
+                    table.insert(lengths, #message.text)
+                    assert(#message.members == 3 and message.members[3] == 30)
+                end
+                if #lengths == 1 then
+                    ctx.events.send("test.ctx.Message", { text = string.rep("r", 20000), members = { 5 }, priority = 2 })
+                end
+            end,
+        })
+    )"),
+              "");
+    fixture.app.getWorld().getEvents().send(Message{.text = std::string(10000, 'q'), .members = {10, 20, 30}});
+    rtype::ecs::EventCursor cursor;
+    fixture.app.runFrame();  // the script reads the C++ event and answers
+    std::vector<Message> answers;
+    for (const Message& message : fixture.app.getWorld().getEvents().read<Message>(cursor)) {
+        answers.push_back(message);
+    }
+    EXPECT_EQ(fixture.run("assert(#lengths == 1 and lengths[1] == 10000, tostring(lengths[1]))"), "");
+    ASSERT_EQ(answers.size(), 2U);  // the one sent from C++, then the script's answer
+    EXPECT_EQ(answers[1].text.size(), 20000U);
+    EXPECT_EQ(answers[1].members, std::vector<int>{5});
+    EXPECT_EQ(answers[1].priority, 2);
 }
 
 TEST(ScriptContext, BadResourceAndEventDeclarationsNameTheSystem) {
