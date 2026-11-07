@@ -129,10 +129,12 @@ the same: an editor can save what it reads.
 built, so a file can name the components scripts declare. A file instancing another reads it first. A broken file stops
 the start, naming the file, line and column.
 
-**Hot reload.** With `capsule.hotReload` (on by default in debug builds), a Render system on every side looks at the
-files every 500 ms. A saved file is read again with the files that instance it, then what was spawned from them is
-reloaded (nested roots through their outermost capsule). A file saved broken keeps its old version; the error goes to
-the error output.
+**Hot reload.** With the engine's hot reload (`hotReload`, the `HotReload` resource), the plugin adds a
+`CapsuleReloadable` to the engine's `HotReloader`, following the capsule files of the assets. Between two frames, a
+saved or added file is read again (`CapsuleFiles::reload()`) with the files that instance it, and the capsules read go
+to the `ReloadedCapsules` resource; the next frame, the Render system `rtype.Capsule.HotReload` (every side) reloads
+what was spawned from them, nested roots through their outermost capsule. A file saved broken keeps its old version and
+the reload is reported as failed with the file, line and column; a removed file is ignored.
 
 ### Spawning
 

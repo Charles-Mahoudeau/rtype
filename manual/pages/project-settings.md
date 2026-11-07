@@ -83,12 +83,6 @@ Every key is optional and the values are checked when `rtype.Physics` is listed.
 | `drawAll` | outline every collider, not only the entities that ask |
 | `outlineThickness`, `velocityScale` | how the outlines and velocity arrows look |
 
-### `capsule`
-
-| Key | Meaning |
-|---|---|
-| `hotReload` | reads again the capsule files you save while the game runs, and respawns what they spawned (on by default in a debug build) |
-
 ## Window, renderer and audio (client)
 
 ```luau

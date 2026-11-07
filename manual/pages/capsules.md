@@ -60,9 +60,17 @@ rtype.SpriteRenderer = { texture = "sprites/boss_shadow.png", layer = -1 }
 
 ### Hot reload
 
-While the game runs in a debug build, save a capsule file and the engine reads it again, with the files that use it,
-and respawns what came from it in place. A file saved with a mistake keeps its previous version and prints why. Turn it
-off, or on in a release build, with `engine.settings.capsule = { hotReload = false }`.
+With [hot reload](hot-reload.md) on (`engine.settings.hotReload`, the default in a debug build), save a capsule file
+while the game runs and the engine reads it again, with the files that use it, and respawns what came from it in place:
+the root entity stays the same, with the components you added to it. A file saved with a mistake keeps its previous
+version, and the log says where the mistake is:
+
+```
+[HotReload] capsules: applied in 0.4 ms (modified assets/actors/bydo.actor): capsule actors/bydo.actor
+[HotReload] capsules: failed in 0.2 ms (modified assets/actors/bydo.actor): actors/bydo.actor:3:25: ...
+```
+
+Deleting a file changes nothing: its capsule stays as it was until the game is built again.
 
 ## Spawning, switching levels, reloading
 
