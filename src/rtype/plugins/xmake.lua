@@ -30,6 +30,10 @@ local function plugin(name, deps)
         add_rules("utils.bin2c", {extensions = {".luau", ".glsl"}})
 end
 
+plugin("capsule", {})
+    add_files("capsule/**.cpp")
+    add_headerfiles("capsule/**.hpp", "capsule/**.tpp")
+
 plugin("transform", {})
     add_files("transform/**.cpp")
     add_headerfiles("transform/**.hpp", "transform/**.tpp")
