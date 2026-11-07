@@ -142,13 +142,24 @@ A new hot-reloaded feature is a new `Reloadable` added to the reloader, nothing 
 
 - `ProjectReloadable` follows `project.luau`. It runs the file again to check it loads: if not, the reload fails and the
   game keeps its settings; if so, it asks for a rebuild.
-- `ScriptsReloadable` follows `scripts/**/*.luau` and calls `ScriptHost::removeScript` / `reloadScript` per file. A
-  script is known by its chunk name, `scripts/<key>` (the path in the game folder; also the owner of what it declares and
-  the name in errors). The scripts are modules of a `luau::ModuleLoader`: a reload replaces the file's cache entry in a
-  loader transaction, committed when applied and rolled back otherwise, so later requires see the new value. The modules
-  that required it are not re-run yet (limitation; see the hot reload PR of epic #489).
-  A script is run in a staging area and committed only if the whole file ran; its systems replace the previous ones of
-  the same name through `Schedules::replaceSystems`, which restores the old schedule if the new one has a cycle. A change
+- `ScriptsReloadable` follows `scripts/**/*.luau` and makes one `ScriptHost::reloadModules(changed, removed)` call per
+  change set (a batch). A script is known by its chunk name, `scripts/<key>` (the path in the game folder; also the
+  owner of what it declares and the name in errors). The scripts are modules of a `luau::ModuleLoader`, and a batch is
+  one staging area and one loader transaction:
+  - The loaded modules among the changed and removed files are the seeds; `loader.dependents(seeds)` adds everything
+    that requires them, directly or not, dependencies first. A changed file no module loaded is ignored, unless the
+    host adopts new files (`setAdoptsNewFiles`, true while every file is auto-loaded): it is then a new root and runs.
+  - The affected modules are invalidated and required again in that order; one that an earlier module required is
+    already cached and is skipped. The new source of a changed file is given to the resolver as a one-shot override.
+  - The host keeps the roots, the modules required from outside (`ScriptHost::require`). After the run, the modules no
+    root reaches (`reachableFrom`) are unloaded; what they declared goes away like what a deleted file declared (a
+    component means a rebuild). A deleted file stops being a root; a module that still requires it fails with "not
+    found".
+  - Any failure (a script error, a cycle, a missing file) rolls the loader back and keeps the old systems, plugins and
+    cache: the old code keeps running. `reloadScript` and `removeScript` are batches of one file.
+  Every script of the batch runs in the staging area, committed only if all of them ran; their systems replace the previous ones of
+  the same name through `Schedules::replaceSystems` (a system that moved from one script of the batch to another is
+  a replacement, not a removal), which restores the old schedule if the new one has a cycle. A change
   that cannot be patched asks for a rebuild: a changed component layout, a new replicated component, a removed component,
   a system that changes phase or whose name another script owns, a deleted file.
 - Plugins add their own through the `HotReload` resource (`plugins/HotReload.hpp`, like `AssetDirectory`): the
