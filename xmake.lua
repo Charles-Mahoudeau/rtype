@@ -1,6 +1,13 @@
 add_rules("mode.debug", "mode.release")
 set_languages("c++23")
 
+-- The version of the engine, the only place it is written: `aylo-runtime --version` and the release package read it
+-- (xmake/modules/engine_version.lua). SemVer; 0.x until the script API settles (docs/release/plan.md).
+set_version("0.1.0")
+-- A nightly build: `xmake f --nightly=<commit>` makes the version `<version>-nightly.<commit>`.
+option("nightly", {default = "", showmenu = true, description = "Commit a nightly build is made from; empty for a release"})
+add_moduledirs(path.join(os.scriptdir(), "xmake", "modules"))
+
 if is_plat("windows") then
     set_toolchains("msvc")
 else
