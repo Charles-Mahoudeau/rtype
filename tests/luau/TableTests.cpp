@@ -226,6 +226,46 @@ TEST(Table, SetFailsOnReadOnlyTable) {
     EXPECT_DOUBLE_EQ(number(table, "a"), 1.0);
 }
 
+TEST(Table, IsFrozen) {
+    const auto runtime = makeRuntime();
+    Table table = runForTable(runtime, "return {a = 1}");
+
+    EXPECT_FALSE(*table.isFrozen());
+    ASSERT_TRUE(table.freeze());
+    EXPECT_TRUE(*table.isFrozen());
+    EXPECT_TRUE(table.freeze());
+}
+
+TEST(Table, FreezeRejectsWrites) {
+    const auto runtime = makeRuntime();
+    Table table = runForTable(runtime, "return {a = 1}");
+    ASSERT_TRUE(table.freeze());
+    ASSERT_TRUE(runtime.globals().set("frozen", Value{table}));
+
+    const auto fromCpp = table.set("a", Value{2.0});
+    const auto script = runtime.load("writer", "frozen.a = 2");
+    ASSERT_TRUE(script);
+    const auto fromScript = runtime.run(*script);
+
+    ASSERT_FALSE(fromCpp);
+    EXPECT_EQ(fromCpp.error().kind(), ErrorKind::kRuntime);
+    ASSERT_FALSE(fromScript);
+    EXPECT_EQ(fromScript.error().kind(), ErrorKind::kRuntime);
+    EXPECT_DOUBLE_EQ(number(table, "a"), 1.0);
+}
+
+TEST(Table, FreezeIsShallow) {
+    const auto runtime = makeRuntime();
+    Table table = runForTable(runtime, "return {inner = {a = 1}}");
+    ASSERT_TRUE(table.freeze());
+
+    auto inner = table.get("inner")->as<Table>();
+
+    EXPECT_FALSE(*inner.isFrozen());
+    EXPECT_TRUE(inner.set("a", Value{2.0}));
+    EXPECT_DOUBLE_EQ(number(inner, "a"), 2.0);
+}
+
 TEST(Table, SetFailsForTableOfAnotherState) {
     const auto runtime = makeRuntime();
     const auto foreign = makeRuntime();

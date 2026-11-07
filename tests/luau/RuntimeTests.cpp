@@ -234,17 +234,88 @@ TEST(Runtime, ScriptRunsInItsOwnThread) {
     EXPECT_NE(first->state(), second->state());
 }
 
-// TODO: add this test back when the sandbox feature is re-enabled.
-// TEST(Runtime, ScriptGlobalsDoNotLeakToOtherScripts) {
-//     const auto runtime = makeRuntime();
-//     const auto writer = runtime.load("writer", "shared = 42");
-//     const auto reader = runtime.load("reader", "assert(shared == nil)");
-//     ASSERT_TRUE(writer);
-//     ASSERT_TRUE(reader);
-//
-//     EXPECT_TRUE(runtime.run(*writer));
-//     EXPECT_TRUE(runtime.run(*reader));
-// }
+TEST(Runtime, ScriptGlobalsDoNotLeakToOtherScripts) {
+    auto runtime = makeRuntime();
+    runtime.sandbox();
+    const auto writer = runtime.load("writer", "shared = 42");
+    const auto reader = runtime.load("reader", "assert(shared == nil)");
+    ASSERT_TRUE(writer);
+    ASSERT_TRUE(reader);
+
+    EXPECT_TRUE(runtime.run(*writer));
+    EXPECT_TRUE(runtime.run(*reader));
+}
+
+TEST(Runtime, AnUnsandboxedRuntimeSharesGlobals) {
+    const auto runtime = makeRuntime();
+    const auto writer = runtime.load("writer", "shared = 42");
+    const auto reader = runtime.load("reader", "assert(shared == 42)");
+    ASSERT_TRUE(writer);
+    ASSERT_TRUE(reader);
+
+    EXPECT_FALSE(runtime.isSandboxed());
+    EXPECT_TRUE(runtime.run(*writer));
+    EXPECT_TRUE(runtime.run(*reader));
+}
+
+TEST(Runtime, SandboxMarksTheRuntimeSandboxed) {
+    auto runtime = makeRuntime();
+
+    runtime.sandbox();
+
+    EXPECT_TRUE(runtime.isSandboxed());
+}
+
+TEST(Runtime, SandboxIsIdempotent) {
+    auto runtime = makeRuntime();
+
+    runtime.sandbox();
+    runtime.sandbox();
+
+    const auto script = runtime.load("script", "local x = math.max(1, 2)\nassert(x == 2)");
+    ASSERT_TRUE(script);
+    EXPECT_TRUE(runtime.isSandboxed());
+    EXPECT_TRUE(runtime.run(*script));
+}
+
+TEST(Runtime, GlobalsSetBeforeSandboxAreSeenByEveryScript) {
+    auto runtime = makeRuntime();
+    ASSERT_TRUE(runtime.globals().set("engine", rtype::luau::Value{42.0}));
+    runtime.sandbox();
+    const auto first = runtime.load("first", "assert(engine == 42)");
+    const auto second = runtime.load("second", "assert(engine == 42)");
+    ASSERT_TRUE(first);
+    ASSERT_TRUE(second);
+
+    EXPECT_TRUE(runtime.run(*first));
+    EXPECT_TRUE(runtime.run(*second));
+}
+
+TEST(Runtime, AScriptGlobalStaysInItsThread) {
+    auto runtime = makeRuntime();
+    runtime.sandbox();
+    const auto script = runtime.load("script", "mine = 7");
+    ASSERT_TRUE(script);
+
+    EXPECT_TRUE(runtime.run(*script));
+
+    const auto value = runtime.globals().get("mine");
+    ASSERT_TRUE(value);
+    EXPECT_TRUE(value->is<rtype::luau::Value::Nil>());
+}
+
+TEST(Runtime, SettingAGlobalAfterSandboxFails) {
+    auto runtime = makeRuntime();
+    runtime.sandbox();
+
+    const auto result = runtime.globals().set("late", rtype::luau::Value{1.0});
+
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kRuntime);
+    const auto value = runtime.globals().get("late");
+    ASSERT_TRUE(value);
+    EXPECT_TRUE(value->is<rtype::luau::Value::Nil>());
+}
 
 TEST(Runtime, ScriptKeepsItsOwnGlobalsBetweenRuns) {
     const auto runtime = makeRuntime();
@@ -255,17 +326,17 @@ TEST(Runtime, ScriptKeepsItsOwnGlobalsBetweenRuns) {
     EXPECT_TRUE(runtime.run(*script));
 }
 
-// TODO: add this test back when the sandbox feature is re-enabled.
-// TEST(Runtime, ScriptCannotModifyStandardLibraries) {
-//     const auto runtime = makeRuntime();
-//     const auto script = runtime.load("tamper", "math.max = nil");
-//     ASSERT_TRUE(script);
-//
-//     const auto result = runtime.run(*script);
-//
-//     ASSERT_FALSE(result);
-//     EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kRuntime);
-// }
+TEST(Runtime, ScriptCannotModifyStandardLibraries) {
+    auto runtime = makeRuntime();
+    runtime.sandbox();
+    const auto script = runtime.load("tamper", "math.max = nil");
+    ASSERT_TRUE(script);
+
+    const auto result = runtime.run(*script);
+
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().kind(), rtype::luau::ErrorKind::kRuntime);
+}
 
 TEST(Runtime, AllOptimizationLevelsRunScripts) {
     for (const auto level : {rtype::luau::RuntimeConfig::OptimizationLevel::kDisabled,
