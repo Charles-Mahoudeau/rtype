@@ -53,9 +53,14 @@ SharedLibrary::SharedLibrary(const std::filesystem::path& path) {
         throw exceptions::RuntimeError{
             std::format("Cannot load the library '{}': system error {}", path.generic_string(), GetLastError())};
     }
+    // Pinned: never unloaded, even once closed (see the class).
+    HMODULE pinned = nullptr;
+    static_cast<void>(GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_PIN | GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+                                         static_cast<LPCWSTR>(_handle), &pinned));
 #else
+    // RTLD_NODELETE: never unloaded, even once closed (see the class).
     // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer): it is set by a different call on each system.
-    _handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+    _handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL | RTLD_NODELETE);
     if (_handle == nullptr) {
         const char* reason = dlerror();
         throw exceptions::RuntimeError{std::format("Cannot load the library '{}': {}", path.generic_string(),

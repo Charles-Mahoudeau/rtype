@@ -7,6 +7,7 @@
 
 #include "Engine.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <exception>
@@ -20,6 +21,7 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include "core/library/LibraryEntry.hpp"
 #include "core/system/ExecutablePath.hpp"
@@ -259,7 +261,13 @@ void Engine::registerLibraries() {
 
 void Engine::addListedPlugins() {
     const ecs::PluginRegistry& plugins = _app->getPluginRegistry();
-    for (const std::string& name : _settings.getStringList(kPluginsSetting, {})) {
+    std::vector<std::string> names = _settings.getStringList(kPluginsSetting, {});
+    for (const std::string& extra : _config.extraPlugins) {
+        if (std::ranges::find(names, extra) == names.end()) {
+            names.push_back(extra);
+        }
+    }
+    for (const std::string& name : names) {
         std::unique_ptr<ecs::Plugin> plugin = plugins.create(name);
         if (plugin == nullptr) {
             std::string known;

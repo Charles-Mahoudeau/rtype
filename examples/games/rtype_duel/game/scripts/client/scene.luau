@@ -35,14 +35,21 @@ engine.ecs.system("game.SpawnCamera", {
 	end,
 })
 
--- Update: places and draws the obstacles the server spawned, as their colliders.
+-- PostUpdate: draws the obstacles as their colliders, placed where the server says when they came from it. PostUpdate
+-- also runs while the editor edits the arena, so the obstacles show there too.
 engine.ecs.system("game.PlaceObstacles", {
-	phase = "Update",
+	phase = "PostUpdate",
 	side = "client",
-	query = { read = { "game.Obstacle", "rtype.Collider" }, without = { "rtype.Transform" } },
+	query = {
+		read = { "game.Obstacle", "rtype.Collider" },
+		optionalRead = { "rtype.Transform" },
+		without = { "rtype.ShapeRenderer" },
+	},
 	run = function(ctx)
-		for entity, obstacle, collider in ctx.query do
-			ctx.commands:add(entity, "rtype.Transform", { position = obstacle.position })
+		for entity, obstacle, collider, transform in ctx.query do
+			if transform == nil then -- replicated: the server sends where it is, not its Transform
+				ctx.commands:add(entity, "rtype.Transform", { position = obstacle.position })
+			end
 			ctx.commands:add(entity, "rtype.ShapeRenderer", {
 				kind = if collider.shape == Duel.circle then circleShape else rectShape,
 				size = collider.size,

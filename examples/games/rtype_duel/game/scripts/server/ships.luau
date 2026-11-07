@@ -1,8 +1,8 @@
 -- The ships: they move in their half of the arena, sliding along the obstacles, and fire on a click until someone has
 -- won. One shot in Duel.misfireOdds misfires: a Misfire replaces the laser, for the clients to play its sound.
 
--- The server's systems only: clients have none of the systems they are ordered against.
-if not engine.isServer then
+-- The server's systems only, and only with the network: the ships are the players'.
+if not engine.isServer or not Duel.networked then
 	return
 end
 
@@ -11,7 +11,7 @@ engine.ecs.system("game.MoveShips", {
 	phase = "FixedUpdate",
 	side = "server",
 	query = { write = { "game.Ship", "rtype.Transform" }, with = { "rtype.Collider", "net.PlayerInput" } },
-	calls = { "rtype.replication.readInput", "rtype.physics.moveAndSlide" },
+	calls = { "rtype.replication.readInput", "rtype.physics.moveAndSlide", "rtype.capsule.spawn" },
 	after = { "net.applyInputs", "rtype.Physics.SyncBodies" },
 	before = { "rtype.Physics.SyncToPhysics" },
 	run = function(ctx)
@@ -57,16 +57,11 @@ function Duel.fire(ctx, player: number, position)
 		})
 		return
 	end
-	-- A dynamic body flying at its Velocity, without gravity, never tunnelling through a thin wall.
-	ctx.commands:spawn({
+	-- The laser's actor (assets/actors/laser.actor) is the body; the shot gives where, who, which way and whom it hits.
+	engine.capsule.spawn(ctx, Duel.laser, {
 		["game.Laser"] = { position = muzzle, shooter = player },
 		["rtype.Transform"] = { position = muzzle },
-		["rtype.Collider"] = {
-			size = { x = Duel.laserHalfSize.x * 2, y = Duel.laserHalfSize.y * 2 },
-			layer = Duel.laserLayer,
-			mask = bit32.bor(Duel.obstacleLayer, Duel.shipLayerOf(1 - player)),
-		},
-		["rtype.RigidBody"] = { gravityScale = 0, fixedRotation = true, continuousCollision = true },
+		["rtype.Collider"] = { mask = bit32.bor(Duel.obstacleLayer, Duel.shipLayerOf(1 - player)) },
 		["rtype.Velocity"] = { linear = { x = direction * Duel.laserSpeed, y = 0 } },
 	})
 end

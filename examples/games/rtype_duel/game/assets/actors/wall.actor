@@ -1,0 +1,8 @@
+[capsule format=1]
+
+# A wall of the middle column: a static box the lasers stop on and the ships slide along (collision layer 1, the
+# obstacles). Its look is given on the clients (scripts/client/scene.luau).
+[node path="."]
+game.Obstacle = {}
+rtype.Transform = {}
+rtype.Collider = { size = (40, 140), layer = 1 }

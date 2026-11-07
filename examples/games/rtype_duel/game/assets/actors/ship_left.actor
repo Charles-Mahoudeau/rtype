@@ -1,0 +1,10 @@
+[capsule format=1]
+
+# The left player's ship (player 0, firing right): kinematic, moved by game.MoveShips, hit by the right player's lasers.
+# Layer 4 (the left ship), colliding with the obstacles (1) and the lasers (2). The server spawns it for a client and
+# gives it its owner (scripts/server/players.luau).
+[node path="."]
+game.Ship = { position = (80, 300) }
+rtype.Transform = { position = (80, 300) }
+rtype.Collider = { size = (48, 48), layer = 4, mask = 3 }
+rtype.RigidBody = { type = 1 }

@@ -128,6 +128,10 @@ void CapsulePlugin::build(ecs::App& app) {
         static_cast<void>(components.registerType<CapsuleInstance>());
     }
     addCapsuleCalls(app);
+    // What to respawn in the world at the next frame: the files the hot reload read again, or what a tool (the
+    // editor) changed. It runs whether or not hot reload is on.
+    resources.insertIfAbsent<ReloadedCapsules>();
+    app.addSystem(ecs::Phase::kRender, std::string{kHotReloadSystem}, &reloadCapsules).setSide(ecs::Side::kBoth);
     const std::filesystem::path directory = assetDirectoryOf(resources);
     if (directory.empty()) {
         return;
@@ -142,11 +146,9 @@ void CapsulePlugin::build(ecs::App& app) {
     if (assets.empty() || *assets.begin() == "..") {
         return;
     }
-    resources.insertIfAbsent<ReloadedCapsules>();
     reloader->add(std::make_unique<CapsuleReloadable>(&*resources.getMut<CapsuleFiles>(),
                                                       &*resources.requireMut<Capsules>(),
                                                       &*resources.requireMut<ReloadedCapsules>(), assets));
-    app.addSystem(ecs::Phase::kRender, std::string{kHotReloadSystem}, &reloadCapsules).setSide(ecs::Side::kBoth);
 }
 
 void CapsulePlugin::finish(ecs::App& app) {

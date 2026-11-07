@@ -1,34 +1,21 @@
--- The obstacles in the middle of the arena: two walls and a rock between them, static colliders that stop the lasers
--- and that the ships slide along.
+-- The obstacles in the middle of the arena come from its scene (assets/scenes/arena.scene): two walls and a rock, static
+-- colliders that stop the lasers and that the ships slide along. The server tells the clients where they are.
 
--- The server's systems only: clients have none of the systems they are ordered against.
-if not engine.isServer then
+-- The server's systems only, and only with the network: run alone, the clients' systems see the Transform itself.
+if not engine.isServer or not Duel.networked then
 	return
 end
 
-local obstacles = {
-	{ position = { x = Duel.middleX, y = 140 }, collider = { shape = Duel.box, size = { x = 40, y = 140 } } },
-	{ position = { x = Duel.middleX, y = Duel.viewHeight / 2 }, collider = { shape = Duel.circle, radius = 36 } },
-	{
-		position = { x = Duel.middleX, y = Duel.viewHeight - 140 },
-		collider = { shape = Duel.box, size = { x = 40, y = 140 } },
-	},
-}
-
--- Startup: spawns the obstacles, replicated through their Obstacle (the physics replicates the Collider).
-engine.ecs.system("game.SpawnObstacles", {
-	phase = "Startup",
+-- PostUpdate, once the gameplay moved what it moves: an obstacle the arena spawned replicates its place, for the clients
+-- to draw it there.
+engine.ecs.system("game.TrackObstacles", {
+	phase = "PostUpdate",
 	side = "server",
-	query = {},
+	query = { read = { "rtype.Transform" }, write = { "game.Obstacle" }, added = { "game.Obstacle" } },
+	before = { "net.snapshot" },
 	run = function(ctx)
-		for _, obstacle in obstacles do
-			local collider = table.clone(obstacle.collider)
-			collider.layer = Duel.obstacleLayer
-			ctx.commands:spawn({
-				["game.Obstacle"] = { position = obstacle.position },
-				["rtype.Transform"] = { position = obstacle.position },
-				["rtype.Collider"] = collider,
-			})
+		for _, transform, obstacle in ctx.query do
+			obstacle.position = transform.position
 		end
 	end,
 })

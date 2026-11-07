@@ -6,7 +6,6 @@ Duel = {
 	viewWidth = 800,
 	viewHeight = 600,
 	middleX = 400, -- each ship stays on its side of it
-	shipX = 80, -- distance of each ship from its edge
 	shipSpeed = 300, -- world units per second
 	laserSpeed = 600,
 	shipHalfSize = { x = 24, y = 24 },
@@ -20,6 +19,15 @@ Duel = {
 	laserLayer = 2,
 	leftShipLayer = 4,
 	rightShipLayer = 8,
+
+	-- The capsules (assets/): the arena and what the server spawns in it.
+	arena = "scenes/arena.scene",
+	ships = { [0] = "actors/ship_left.actor", [1] = "actors/ship_right.actor" },
+	laser = "actors/laser.actor",
+
+	-- Whether players join through the network. Run alone (`aylo-runtime --editor`), the server and the client are one
+	-- process with no network: there are no players, and the scripts that need them stay out.
+	networked = not (engine.isServer and engine.isClient),
 }
 
 -- The enums of the engine's components, as their reflected numbers.
@@ -68,3 +76,14 @@ engine.input.action("move", "vector2", { -- up and down (only Y is used)
 	},
 })
 engine.input.action("shoot", "button", { bind = { "MouseLeft" } })
+
+-- Startup, on every side: the arena. The server spawns its obstacles and replicates them to the clients.
+engine.ecs.system("game.LoadArena", {
+	phase = "Startup",
+	side = "both",
+	query = {},
+	calls = { "rtype.capsule.load" },
+	run = function(ctx)
+		engine.capsule.load(ctx, Duel.arena)
+	end,
+})

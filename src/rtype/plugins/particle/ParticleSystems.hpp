@@ -25,9 +25,11 @@ namespace rtype::plugins::particle {
 
 /// @brief The live state of one emitter, kept by ParticleSystems: what changes every frame and gameplay never sees.
 struct EmitterState {
-    core::asset::AssetId effect;   ///< The effect it was started with: a change restarts it.
-    std::uint32_t seed{0};         ///< The seed in use (picked if the component's is 0).
-    float time{0.0F};              ///< Seconds since it started, for the bursts, duration and loop.
+    core::asset::AssetId effect;  ///< The effect it was started with: a change restarts it.
+    std::uint32_t effectVersion{
+        0};                 ///< That effect's version (ParticleEffectAssets::getVersion()): a change restarts it.
+    std::uint32_t seed{0};  ///< The seed in use (picked if the component's is 0).
+    float time{0.0F};       ///< Seconds since it started, for the bursts, duration and loop.
     float spawnAccumulator{0.0F};  ///< Fraction of a particle carried to the next frame (rate * dt is rarely whole).
     std::uint32_t spawned{0};      ///< Particles emitted so far: the next ParticleEmission::firstParticle.
     bool finished{false};          ///< ParticlesFinished was sent.

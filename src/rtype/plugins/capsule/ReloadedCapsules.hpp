@@ -13,9 +13,10 @@
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 
 namespace rtype::plugins::capsule {
-/// @brief The capsules read again since the last frame, the "rtype.ReloadedCapsules" resource the CapsulePlugin
-/// inserts with hot reload: the CapsuleReloadable fills it between two frames, and the plugin's hot reload system
-/// empties it, reloading what was spawned from them.
+/// @brief The capsules changed since the last frame, the "rtype.ReloadedCapsules" resource the CapsulePlugin inserts:
+/// the CapsuleReloadable fills it between two frames with the files hot reload read again, a tool (the editor) with
+/// the capsules it redefined (Capsules::define()), and the plugin's Render system "rtype.Capsule.HotReload" empties it,
+/// reloading what was spawned from them.
 struct ReloadedCapsules {
     std::vector<CapsuleId> capsules;  ///< Read again, not reloaded in the world yet.
 };

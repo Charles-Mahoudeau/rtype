@@ -15,8 +15,11 @@
 namespace rtype::engine::plugin {
 /// @brief A shared library opened at runtime (`.so`, `.dylib`, `.dll`), closed with this object.
 ///
-/// @details Code from a library must stay loaded for as long as anything built from it is alive, so the owner keeps it
-/// longer than what it built. On Windows, a library already in the process under the same file name is shared, as the
+/// @details Code from a library must stay loaded for as long as anything built from it is alive. Its owner keeps it
+/// longer than what it built, but some of it can outlive every owner: an exception a plugin threw, caught in `main`
+/// once the Engine that loaded the plugin is destroyed, still calls its library's code (its `what()`). So a library is
+/// never unloaded before the process ends (`RTLD_NODELETE`, a pinned module on Windows): closing it gives its handle
+/// back, its code stays. On Windows, a library already in the process under the same file name is shared, as the
 /// executable may have loaded a copy of it from another folder.
 class RTYPE_ENGINE_API SharedLibrary {
   public:

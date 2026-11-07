@@ -11,9 +11,10 @@ if not engine.isClient then
 	return
 end
 
--- Update: gives the ships the server spawned their sprite, animated.
+-- PostUpdate: gives the ships their sprite, animated. PostUpdate also runs while the editor edits, so a ship's actor
+-- opened alone shows its look.
 engine.ecs.system("game.DressShips", {
-	phase = "Update",
+	phase = "PostUpdate",
 	side = "client",
 	query = { read = { "game.Ship" }, without = { "rtype.SpriteRenderer" } },
 	run = function(ctx)
@@ -28,9 +29,9 @@ engine.ecs.system("game.DressShips", {
 	end,
 })
 
--- Update: gives the lasers the server spawned their sprite, flying away from their shooter.
+-- PostUpdate: gives the lasers their sprite, flying away from their shooter (the editor shows it too).
 engine.ecs.system("game.DressLasers", {
-	phase = "Update",
+	phase = "PostUpdate",
 	side = "client",
 	query = { read = { "game.Laser" }, without = { "rtype.SpriteRenderer" } },
 	run = function(ctx)
@@ -90,7 +91,7 @@ engine.ecs.system("game.ExplodeLoser", {
 	phase = "Update",
 	side = "client",
 	query = { read = { "game.Ship" }, write = { "rtype.SpriteRenderer" } },
-	after = { "game.NoticeWinner", "game.DressShips" },
+	after = { "game.NoticeWinner" },
 	run = function(ctx)
 		if newWinner == nil then
 			return

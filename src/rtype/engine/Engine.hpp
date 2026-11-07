@@ -35,8 +35,8 @@ namespace rtype::engine {
 /// 2. the plugins of the program, EngineConfig::addPlugins, with the settings: a client adds its window and what it
 ///    draws there, so the Engine names no backend and a server links none;
 /// 3. on a network side (client and server modes), the replication plugin;
-/// 4. the plugins the settings name under `plugins`, built from the plugin libraries of the `plugins` folders, next to
-///    the executable and in the game directory; those they require come with them;
+/// 4. the plugins the settings name under `plugins`, then EngineConfig::extraPlugins, built from the plugin libraries
+///    of the `plugins` folders, next to the executable and in the game directory; those they require come with them;
 /// 5. the game's native code, EngineConfig::setup;
 /// 6. the scripting plugin, which runs the game's scripts;
 /// 7. the network plugin, server or client, last because it reads every replicated component when it is built;

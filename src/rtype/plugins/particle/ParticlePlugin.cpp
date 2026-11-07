@@ -108,20 +108,23 @@ void stopEmitter(ParticleSystems& systems, contract::renderer::IRenderer* render
 
 /// @brief Starts @p entity's emitter of @p effect, on the GPU or the CPU.
 EmitterState& startEmitter(ParticleSystems& systems, contract::renderer::IRenderer* renderer, ecs::Entity entity,
-                           const ParticleEmitter& emitter, const ParticleEffect& effect) {
+                           const ParticleEmitter& emitter, const ParticleEffect& effect, std::uint32_t version) {
     const std::uint32_t seed = emitter.seed != 0 ? emitter.seed : systems.pickSeed();
     const contract::renderer::ParticleSystemDesc desc = simulatedDesc(effect);
     if (pickGpu(emitter, effect, emitter.effect, renderer, systems)) {
         try {
             return systems.start(entity, EmitterState{.effect = emitter.effect,
+                                                      .effectVersion = version,
                                                       .seed = seed,
                                                       .simulation = renderer->createParticleSystem(desc)});
         } catch (const std::exception& error) {
             std::cerr << "[ParticlePlugin] " << error.what() << ": the effect runs on the CPU\n";
         }
     }
-    return systems.start(entity,
-                         EmitterState{.effect = emitter.effect, .seed = seed, .simulation = CpuSimulation{desc}});
+    return systems.start(
+        entity,
+        EmitterState{
+            .effect = emitter.effect, .effectVersion = version, .seed = seed, .simulation = CpuSimulation{desc}});
 }
 
 /// @return Whether the emitter of @p state, of @p desc, has emitted everything and its last particle died.
@@ -172,12 +175,13 @@ void updateEmitter(UpdateContext& context, ecs::Entity entity, const transform::
     }
     context.playing.insert(entity);
     EmitterState* state = context.systems->find(entity);
-    if (state != nullptr && state->effect != emitter.effect) {
+    const std::uint32_t version = context.effects->getVersion(emitter.effect);
+    if (state != nullptr && (state->effect != emitter.effect || state->effectVersion != version)) {
         stopEmitter(*context.systems, context.renderer, entity);
         state = nullptr;
     }
     if (state == nullptr) {
-        state = &startEmitter(*context.systems, context.renderer, entity, emitter, *effect);
+        state = &startEmitter(*context.systems, context.renderer, entity, emitter, *effect, version);
     }
 
     const std::uint32_t spawnCount =

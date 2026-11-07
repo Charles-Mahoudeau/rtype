@@ -13,7 +13,7 @@ too.
 |---|---|
 | `engine.isClient`, `engine.isServer` | Where this file runs |
 | `engine.isDebug` | A debug build |
-| `engine.args` | The command line flags, typed (see [Getting started](getting-started.md)) |
+| `engine.args` | The command line flags, typed (see [Getting started](getting-started.md)); `engine.args.editor` is `true` in the [editor](editor.md) |
 
 ## Hot reload
 
@@ -50,6 +50,7 @@ end
 | `rtype.Tilemap` | Tiled maps and parallax backgrounds | client |
 | `rtype.Text` | Text from font atlases | client |
 | `rtype.Ui`, see [User interface](ui.md) | Menus and HUDs: layout, buttons, sliders, text fields | client |
+| `rtype.Editor`, see [Editor](editor.md) | Your scenes edited in a window of panels, and the game played there. Do not list it: `--editor` adds it | both, in one process |
 | `rtype.Particle`, see [Particles](particles.md) | Particle emitters and effects | client |
 | `rtype.audio` | Sounds, music and the listener | client |
 | `rtype.Physics`, see [Physics](physics.md) | 2D physics | both |
@@ -88,6 +89,15 @@ Every key is optional and the values are checked when `rtype.Physics` is listed.
 | `enabled` | outlines shown at start (F3 toggles them in game) |
 | `drawAll` | outline every collider, not only the entities that ask |
 | `outlineThickness`, `velocityScale` | how the outlines and velocity arrows look |
+
+### `editor`
+
+Read when the game runs in the [editor](editor.md) (`--editor`), ignored otherwise.
+
+| Key | Meaning |
+|---|---|
+| `scene` | The capsule file, in the assets, the editor opens at start: `"scenes/level.scene"`, or an actor, which opens alone |
+| `textEditor` | The command that opens a file from the editor (Visual Studio Code by default): `"subl"`, `"code"` |
 
 ## Window, renderer and audio (client)
 

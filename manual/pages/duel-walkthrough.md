@@ -8,10 +8,10 @@ page reads it file by file.
 game/
   project.luau            settings
   scripts/
-    arena.luau            shared: constants, components, input actions
+    arena.luau            shared: constants, components, input actions, loads the arena
     server/               gameplay (runs on the server)
       players.luau        gives each client a ship
-      obstacles.luau      the walls and the rock in the middle
+      obstacles.luau      tells the clients where the obstacles are
       ships.luau          moving and firing
       lasers.luau         flying, hitting, winning
     client/               presentation (runs on the clients)
@@ -22,7 +22,12 @@ game/
       hud.luau            names and the winner text
       controls.luau       a local quit key
   assets/                 images, sounds, font, Tiled map
+    scenes/arena.scene    the arena: the walls and the rock, as instances of the actors
+    actors/               wall, rock, the two ships and the laser: what the server spawns
 ```
+
+The arena and what the server spawns in it are [capsules](capsules.md): files you can open and change in the
+[editor](editor.md) (`./aylo-runtime --editor --game examples/games/rtype_duel/game` opens the arena).
 
 Scripts load in sorted path order on every side, so `arena.luau`, which sorts before the folders, runs first and gives
 the other files a shared `Duel` table.
@@ -84,18 +89,25 @@ See [Components](components.md) and [Setup forms](setup-forms.md).
 ## The server
 
 Every server file starts with `if not engine.isServer then return end`, because its systems are ordered against
-systems only the server has.
+systems only the server has. `players.luau`, `obstacles.luau` and `ships.luau` also return when `Duel.networked` is
+false: in the editor, the server and the client are one process with no network, so no player joins.
 
-- **`players.luau`** reads `net.ClientConnected` and, for each of the first two clients, spawns a ship with
-  `game.Ship`, `net.Owner`, `net.PlayerInput`, a `rtype.Transform`, a box `rtype.Collider` and a kinematic
-  `rtype.RigidBody`. A third client finds the game full. It removes the ship when it reads `net.ClientDisconnected`.
+`arena.luau` loads the arena on every side in a `Startup` system, with `engine.capsule.load(ctx, Duel.arena)`. The server
+spawns its walls and its rock and replicates them; a client spawns no node of it, as they are all the server's. The
+scene names no component of a client's plugin: a dedicated server reads it too, and has none of them.
+
+- **`players.luau`** reads `net.ClientConnected` and, for each of the first two clients, spawns a ship from its actor
+  (`actors/ship_left.actor` or `ship_right.actor`: `game.Ship`, a `rtype.Transform`, a box `rtype.Collider` and a
+  kinematic `rtype.RigidBody`) with `engine.capsule.spawn`, then adds `net.Owner` and `net.PlayerInput` with
+  `ctx.commands:add`, as an override only changes what the actor has. A third client finds the game full. It removes the ship when it reads `net.ClientDisconnected`.
   See [Networking](networking.md).
-- **`obstacles.luau`** spawns the static walls and the rock: a `game.Obstacle` for the clients and a `rtype.Collider`
-  for the physics.
+- **`obstacles.luau`** copies the place of each obstacle the arena spawned into its replicated `game.Obstacle`, in
+  `PostUpdate` before `net.snapshot`, for the clients to draw it there.
 - **`ships.luau`** moves the ships in `FixedUpdate`, after `net.applyInputs` and before the physics syncs, reading the
   player's `move` action with `rtype.replication.readInput` and sliding along the obstacles with
-  `rtype.physics.moveAndSlide`. On `shoot.pressed` it spawns a laser: a dynamic body with a `rtype.Velocity`, no
-  gravity and continuous collision. One shot in ten misfires: a `game.Misfire` replaces the laser so the clients play
+  `rtype.physics.moveAndSlide`. On `shoot.pressed` it spawns `actors/laser.actor` (a dynamic body with a
+  `rtype.Velocity`, no gravity and continuous collision), with overrides for its place, its shooter, its direction and
+  the ship it can hit. One shot in ten misfires: a `game.Misfire` replaces the laser so the clients play
   another sound.
 - **`lasers.luau`** copies the laser bodies' positions into the replicated `game.Laser` after the physics, removes
   those that left the view, and reads `rtype.CollisionStarted` events: a laser that touches something is spent, and
@@ -107,14 +119,15 @@ Every client file starts with `if not engine.isClient then return end` once it h
 
 - **`assets.luau`** loads everything with the `engine.assets` forms and keeps the ids in `Duel.assets`. See
   [Setup forms](setup-forms.md).
-- **`scene.luau`** spawns the camera (`rtype.Camera` and `rtype.AudioListener`) in a `Startup` system, gives the
-  obstacles the server spawned a `rtype.Transform` and a `rtype.ShapeRenderer`, and spawns the space background map and
-  the planets that pass.
+- **`scene.luau`** spawns the camera (`rtype.Camera` and `rtype.AudioListener`) in a `Startup` system, gives each
+  obstacle a `rtype.ShapeRenderer` (and the `rtype.Transform` the server's `game.Obstacle` says, when it came through
+  the network) in `PostUpdate`, which also runs while the editor edits the arena, and spawns the space background map
+  and the planets that pass.
 - **`sprites.luau`** finds the new `game.Ship` and `game.Laser` entities with `added = {...}` and gives them a
   `rtype.SpriteRenderer` and `rtype.SpriteAnimator` from the atlases, and spawns the explosion for the loser.
 - **`sounds.luau`** sends `rtype.PlayMusic` at start and calls `rtype.audio.playSound` for each new laser or misfire.
 - **`hud.luau`** spawns `rtype.TextRenderer` entities for the names, and when `game.Winner` appears says who won, using
-  `rtype.replication.localClient` and `net.Owner` to know whether this client is the winner.
+  `rtype.replication.localClient` and `net.Owner` to know whether this client is the winner (with the network only).
 - **`controls.luau`** adds a local Escape action with engine calls instead of `engine.input.action`, so it is not sent
   to the server.
 

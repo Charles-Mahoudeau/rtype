@@ -14,6 +14,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "core/asset/AssetFiles.hpp"
 #include "core/asset/AssetId.hpp"
@@ -89,6 +90,16 @@ auto AssetStore<T>::add(const std::string& name, T value) -> Stored {
         return Stored{.id = AssetId::fromPath(path)};
     }
     return Stored{.id = *id, .added = &store(*id, std::move(path), std::move(value))};
+}
+
+template <typename T>
+std::vector<AssetId> AssetStore<T>::getIds() const {
+    std::vector<AssetId> ids;
+    ids.reserve(_entries.size());
+    for (const auto& [id, entry] : _entries) {
+        ids.push_back(id);
+    }
+    return ids;
 }
 
 template <typename T>

@@ -27,10 +27,12 @@
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/entity/Name.hpp"
 #include "rtype/ecs/hierarchy/Children.hpp"
 #include "rtype/ecs/hierarchy/Parent.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/system/Side.hpp"
+#include "rtype/ecs/type/String.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/world/World.hpp"
 
@@ -190,6 +192,33 @@ TEST_F(CapsuleSpawnTest, SpawnsACopyOfEachValueWithTheChildrenParented) {
     EXPECT_FALSE(instance->nested);
     EXPECT_EQ(get<capsule::CapsuleInstance>(children[0]), nullptr);  // only roots
     EXPECT_EQ(world().getEntityCount(), 2U);
+}
+
+TEST_F(CapsuleSpawnTest, NamesEachEntityAfterItsNode) {
+    const rtype::ecs::Entity root = spawn("actors/turret.actor");
+    ASSERT_NE(get<rtype::ecs::Name>(root), nullptr);
+    EXPECT_EQ(get<rtype::ecs::Name>(root)->value.view(), "turret");  // the root: its file's name
+    const std::vector<rtype::ecs::Entity> children = childrenOf(root);
+    ASSERT_EQ(children.size(), 1U);
+    EXPECT_EQ(get<rtype::ecs::Name>(children[0])->value.view(), "Muzzle");
+}
+
+TEST_F(CapsuleSpawnTest, NamesAnInstanceAfterTheNodeThatPlacesIt) {
+    const rtype::ecs::Entity boss = spawn("actors/boss.actor");
+    EXPECT_EQ(get<rtype::ecs::Name>(boss)->value.view(), "boss");
+    const std::vector<rtype::ecs::Entity> children = childrenOf(boss);
+    ASSERT_EQ(children.size(), 3U);
+    EXPECT_EQ(get<rtype::ecs::Name>(children[0])->value.view(), "Left");  // not "turret"
+    EXPECT_EQ(get<rtype::ecs::Name>(children[1])->value.view(), "Right");
+    EXPECT_EQ(get<rtype::ecs::Name>(childrenOf(children[0])[0])->value.view(), "Muzzle");
+}
+
+TEST_F(CapsuleSpawnTest, KeepsTheNameANodeGives) {
+    capsule::Capsule named{"actors/named.actor"};
+    set(named, 0, rtype::ecs::Name{.value = rtype::ecs::String{"Captain"}});
+    capsules().define(std::move(named));
+    const rtype::ecs::Entity root = spawn("actors/named.actor");
+    EXPECT_EQ(get<rtype::ecs::Name>(root)->value.view(), "Captain");
 }
 
 TEST_F(CapsuleSpawnTest, SpawnsNestedCapsulesWithTheNodesValuesOverTheirRoots) {

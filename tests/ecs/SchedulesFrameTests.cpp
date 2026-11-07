@@ -243,3 +243,65 @@ TEST(SchedulesEvents, CountsOnlyTheWritersOfThisRunMode) {
         EXPECT_EQ(world.getEvents().getCount<Hit>(), mode == RunMode::kServer ? 1U : 0U);
     }
 }
+
+TEST_F(SchedulesFrame, RunsTheWholeFrameWhenNotPaused) { EXPECT_FALSE(schedules.isPaused()); }
+
+TEST_F(SchedulesFrame, LeavesFixedUpdateAndUpdateOutWhilePaused) {
+    useTicks(schedules, {2, 2});
+    schedules.setPaused(true);
+    EXPECT_TRUE(schedules.isPaused());
+    schedules.runFrame();
+    EXPECT_EQ(takeTrace(), (std::vector<int>{7, 1, 2, 5, 6}));
+    schedules.runFrame();
+    EXPECT_EQ(takeTrace(), (std::vector<int>{7, 2, 5, 6}));
+}
+
+TEST_F(SchedulesFrame, DropsTheTicksOfAPausedFrameWhenResumed) {
+    useTicks(schedules, {3, 1});
+    schedules.setPaused(true);
+    schedules.runFrame();
+    takeTrace();
+    schedules.setPaused(false);
+    schedules.runFrame();
+    EXPECT_EQ(takeTrace(), (std::vector<int>{7, 2, 3, 8, 9, 4, 5, 6}));  // the 3 paused ticks are not caught up
+}
+
+TEST_F(SchedulesFrame, AStepRunsOneWholeFrameWithOneTick) {
+    useTicks(schedules, {0, 4, 4});
+    schedules.setPaused(true);
+    schedules.runFrame();
+    takeTrace();
+    schedules.step();
+    schedules.runFrame();
+    EXPECT_EQ(takeTrace(), (std::vector<int>{7, 2, 3, 8, 9, 4, 5, 6}));
+    schedules.runFrame();
+    EXPECT_EQ(takeTrace(), (std::vector<int>{7, 2, 5, 6}));  // one step, one frame
+}
+
+TEST_F(SchedulesFrame, AStepWithoutAClockRunsUpdateOnly) {
+    schedules.setPaused(true);
+    schedules.runFrame();
+    takeTrace();
+    schedules.step();
+    schedules.runFrame();
+    EXPECT_EQ(takeTrace(), (std::vector<int>{2, 4, 5, 6}));
+}
+
+TEST_F(SchedulesFrame, AStepDoesNothingWhileRunning) {
+    useTicks(schedules, {1, 1});
+    schedules.step();
+    schedules.runFrame();
+    takeTrace();
+    schedules.setPaused(true);
+    schedules.runFrame();
+    EXPECT_EQ(takeTrace(), (std::vector<int>{7, 2, 5, 6}));
+}
+
+TEST_F(SchedulesFrame, PausingAgainForgetsAStepNotTaken) {
+    useTicks(schedules, {1, 1});
+    schedules.setPaused(true);
+    schedules.step();
+    schedules.setPaused(true);
+    schedules.runFrame();
+    EXPECT_EQ(takeTrace(), (std::vector<int>{7, 1, 2, 5, 6}));
+}

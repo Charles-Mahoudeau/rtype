@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <format>
@@ -130,6 +131,45 @@ TEST(ParticleEffectAssetsTests, AddThrowsOnAnInvalidEffect) {
 
     EXPECT_THROW(static_cast<void>(assets.add("empty", std::move(effect))), ParticleException);
     EXPECT_EQ(assets.getCount(), 0U);
+}
+
+TEST(ParticleEffectAssetsTests, ListsTheIdsOfItsEffects) {
+    ParticleEffectAssets assets;
+    const AssetId sparks = assets.add("sparks", ParticleEffect{});
+    const AssetId smoke = assets.add("smoke", ParticleEffect{});
+    std::vector<AssetId> ids = assets.getIds();
+    ASSERT_EQ(ids.size(), 2U);
+    EXPECT_TRUE(std::ranges::find(ids, sparks) != ids.end());
+    EXPECT_TRUE(std::ranges::find(ids, smoke) != ids.end());
+}
+
+TEST(ParticleEffectAssetsTests, ReplacesAnEffectAndCountsItsVersions) {
+    ParticleEffectAssets assets;
+    const AssetId id = assets.add("sparks", ParticleEffect{});
+    EXPECT_EQ(assets.getVersion(id), 0U);
+    ParticleEffect changed;
+    changed.desc.capacity = 32;
+    assets.replace(id, std::move(changed));
+    EXPECT_EQ(assets.get(id)->desc.capacity, 32U);
+    EXPECT_EQ(assets.getVersion(id), 1U);
+}
+
+TEST(ParticleEffectAssetsTests, ReplaceKeepsTheEffectWhenTheNewOneIsInvalid) {
+    ParticleEffectAssets assets;
+    ParticleEffect first;
+    first.desc.capacity = 8;
+    const AssetId id = assets.add("sparks", std::move(first));
+    ParticleEffect invalid;
+    invalid.desc.capacity = 0;
+    EXPECT_THROW(assets.replace(id, std::move(invalid)), ParticleException);
+    EXPECT_EQ(assets.get(id)->desc.capacity, 8U);
+    EXPECT_EQ(assets.getVersion(id), 0U);
+}
+
+TEST(ParticleEffectAssetsTests, ReplaceRefusesAnUnknownEffect) {
+    ParticleEffectAssets assets;
+    EXPECT_THROW(assets.replace(AssetId::fromPath("missing"), ParticleEffect{}), std::invalid_argument);
+    EXPECT_EQ(assets.getVersion(AssetId::fromPath("missing")), 0U);
 }
 
 TEST(ParticleEffectAssetsTests, UnknownIdGivesNothing) {

@@ -11,6 +11,7 @@
 #include <format>
 #include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <variant>
@@ -19,6 +20,7 @@
 #include "rtype/contract/platform/IPlatform.hpp"
 #include "rtype/contract/platform/exceptions/PlatformExceptions.hpp"
 #include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Mesh.hpp"
 #include "rtype/contract/renderer/drawing/Overlay.hpp"
 #include "rtype/contract/renderer/drawing/Shape.hpp"
 #include "rtype/contract/renderer/drawing/Sprite.hpp"
@@ -27,6 +29,8 @@
 #include "rtype/contract/renderer/particle/Particle.hpp"
 #include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 #include "rtype/contract/renderer/shaders/CompiledShader.hpp"
+#include "rtype/contract/renderer/stats/FrameStats.hpp"
+#include "rtype/contract/renderer/view/ScenePreview.hpp"
 #include "rtype/contract/renderer/view/View.hpp"
 
 namespace rtype::contract::renderer {
@@ -197,6 +201,45 @@ class RTYPE_HEADER_ONLY_API IRenderer {
     /// @brief Destroys a material. Safe while the backend may still be drawing with it; does nothing for one already
     /// destroyed. Drawings that still name it get the default material. Default: does nothing.
     virtual void destroy(MaterialId /*material*/) {}
+    /// @}
+
+    /// @name Tools
+    /// @brief What a tool built on the renderer (a debug UI, an editor) needs: to draw its own triangles over the
+    /// frame, to have the scene drawn into a texture it shows inside its own window, and to read what the frame drew.
+    /// Optional: a renderer without them ignores the meshes, draws the scene into the window and reports nothing.
+    /// @{
+
+    /// @brief Draws @p mesh over everything else of the frame, in framebuffer pixels, after the overlay and whatever
+    /// the scene target is. Between beginFrame() and endFrame(); it can be called several times in a frame. Default:
+    /// draws nothing.
+    virtual void drawMesh(const Mesh& /*mesh*/) {}
+
+    /// @brief Draws the scene (sprites, shapes, texts, particles and the overlay) into a texture of @p size instead of
+    /// the window, which then only shows the meshes; nothing: back to the window. The scene is seen as in a window
+    /// of that size: the view, the letterboxing and getSceneSize() follow it.
+    /// @details The change is made at the next beginFrame(), so a frame is drawn at one size only. Default: does
+    /// nothing.
+    virtual void setSceneSize(std::optional<glm::uvec2> /*size*/) {}
+
+    /// @return The size the scene is drawn at when it goes to a texture (setSceneSize(), as of the current frame);
+    /// nothing while it goes to the window.
+    [[nodiscard]] virtual std::optional<glm::uvec2> getSceneSize() const { return std::nullopt; }
+
+    /// @return The texture the scene is drawn into, to draw in a mesh: valid while getSceneSize() has a value and
+    /// stays the same when the size changes. None otherwise. It holds the last scene drawn, so a mesh of the same
+    /// frame shows that frame's scene.
+    [[nodiscard]] virtual TextureId getSceneTexture() const { return TextureId{}; }
+
+    /// @brief Draws the world of every frame a second time, from @p preview's view, into a texture of its size;
+    /// nothing: stops. The change is made at the next beginFrame(), as setSceneSize()'s. Default: does nothing.
+    virtual void setScenePreview(const std::optional<ScenePreview>& /*preview*/) {}
+
+    /// @return The texture the preview is drawn into, to draw in a mesh: valid while a preview is set and stable across
+    /// its resizes. None otherwise.
+    [[nodiscard]] virtual TextureId getPreviewTexture() const { return TextureId{}; }
+
+    /// @return What the last frame ended drew. Default: zeros.
+    [[nodiscard]] virtual FrameStats getFrameStats() const { return FrameStats{}; }
     /// @}
 };
 }  // namespace rtype::contract::renderer

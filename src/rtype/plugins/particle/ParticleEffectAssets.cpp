@@ -8,6 +8,7 @@
 #include "plugins/particle/ParticleEffectAssets.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <format>
 #include <memory>
@@ -85,6 +86,23 @@ core::asset::AssetId ParticleEffectAssets::load(const std::filesystem::path& pat
 core::asset::AssetId ParticleEffectAssets::add(const std::string& name, ParticleEffect effect) {
     contract::renderer::validate(effect.desc);
     return _effects.add(name, std::move(effect)).id;
+}
+
+std::vector<core::asset::AssetId> ParticleEffectAssets::getIds() const { return _effects.getIds(); }
+
+void ParticleEffectAssets::replace(core::asset::AssetId id, ParticleEffect effect) {
+    ParticleEffect* current = _effects.get(id);
+    if (current == nullptr) {
+        throw std::invalid_argument{"ParticleEffectAssets::replace(): no effect has this id"};
+    }
+    contract::renderer::validate(effect.desc);
+    *current = std::move(effect);
+    ++_versions[id];
+}
+
+std::uint32_t ParticleEffectAssets::getVersion(core::asset::AssetId id) const noexcept {
+    const auto found = _versions.find(id);
+    return found != _versions.end() ? found->second : 0;
 }
 
 const ParticleEffect* ParticleEffectAssets::get(core::asset::AssetId id) const { return _effects.get(id); }

@@ -57,6 +57,12 @@ With [hot reload](hot-reload.md) on, saving a file respawns what came from it in
 mistake keeps its previous version. [Reading and writing capsule files](capsule-files.md) says when the engine reads
 your files, what saving one does to a running game, and what a file looks like once the engine writes it back.
 
+## Names
+
+Each entity a capsule spawns gets a `rtype.Name`: the name of its node (`LeftTurret`), or for the root, the file's name
+without its folder and extension (`boss` for `actors/boss.actor`). A node that gives a `rtype.Name` of its own keeps it.
+The [editor](editor.md) shows entities by these names; a script can read them like any component.
+
 ## Spawning, switching levels, reloading
 
 The `engine.capsule` forms do each of these in one line, from a system's `run`. Each makes an engine call, so the

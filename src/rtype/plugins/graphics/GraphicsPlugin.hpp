@@ -31,11 +31,13 @@ namespace rtype::plugins::graphics {
 /// - PreUpdate "rtype.graphics.events": polls the platform (or waits for an event while the window is minimized),
 ///   sends every event as a PlatformEvent, in order, and as its typed ECS event (the input ones of InputEvents.hpp,
 ///   and Closed, Resized, TextEntered), resizes the renderer, and sends AppExit once the window is closed. It runs
-///   before the InputPlugin's system.
+///   before the InputPlugin's system. A tool that shows the game inside its own window sets the PlatformEventFilter
+///   resource, which sees every event first and may change it or hide it from the game.
 /// - Render "rtype.graphics.textures": destroys the unloaded textures and loads the queued ones of the TextureAssets
 ///   resource (updateTextures()), so a texture asked for during this frame's Update is drawn in this frame.
 /// - Render "rtype.graphics.beginFrame" and "rtype.graphics.endFrame": clear with the ClearColor resource, and show the
-///   frame. In between, "rtype.graphics.camera" shows the world from the entity with a Camera (the highest priority)
+///   frame (a tool that draws over the game sets the ToolFrame resource, which endFrame calls just before it ends the
+///   frame). In between, "rtype.graphics.camera" shows the world from the entity with a Camera (the highest priority)
 ///   and a GlobalTransform, through IRenderer::setView() (none: the renderer's default view, window pixels from the
 ///   top-left corner). Drawing systems run between the two (`.after("rtype.graphics.beginFrame")`,
 ///   `.before("rtype.graphics.endFrame")`). Both are skipped while the window is minimized. The camera system also

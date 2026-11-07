@@ -77,6 +77,22 @@ TEST_F(PluginLoaderTest, LoadsALibraryAndRegistersItsPlugins) {
     EXPECT_TRUE(app.hasPlugin("test.Loaded"));
 }
 
+TEST_F(PluginLoaderTest, KeepsTheCodeOfALibraryOnceItsLoaderIsGone) {
+    addFixture(_first);
+    rtype::ecs::App app;
+    {
+        PluginLoader loader;
+        loader.load(_first);
+        rtype::core::library::LibraryRegistrar registrar;
+        registrar.provide(rtype::ecs::kPluginRegistryService, app.getPluginRegistry());
+        loader.registerInto(registrar);
+    }
+    // The factory is code of the library: an unloaded library would crash here, as an exception it threw would in main.
+    ASSERT_TRUE(app.getPluginRegistry().has("test.Loaded"));
+    app.addPlugin(app.getPluginRegistry().create("test.Loaded"));
+    EXPECT_TRUE(app.hasPlugin("test.Loaded"));
+}
+
 TEST_F(PluginLoaderTest, ReadsAFolderOnce) {
     addFixture(_first);
     PluginLoader loader;
