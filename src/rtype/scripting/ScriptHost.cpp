@@ -43,9 +43,13 @@
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/world/World.hpp"
 #include "rtype/luau/CallContext.hpp"
+#include "rtype/luau/ErrorKind.hpp"
 #include "rtype/luau/Exceptions.hpp"
+#include "rtype/luau/Failure.hpp"
 #include "rtype/luau/Function.hpp"
 #include "rtype/luau/LibraryBuilder.hpp"
+#include "rtype/luau/ModuleSource.hpp"
+#include "rtype/luau/Ref.hpp"
 #include "rtype/luau/Result.hpp"
 #include "rtype/luau/RuntimeConfig.hpp"
 #include "rtype/luau/Table.hpp"
@@ -84,26 +88,87 @@ void checkAlive(const AppHandle& handle) {
 }
 }  // namespace
 
-luau::Result<std::unique_ptr<ScriptHost>> ScriptHost::create(ecs::App& app, const Options options) {
+luau::Result<std::unique_ptr<ScriptHost>> ScriptHost::create(ecs::App& app, const Options options,
+                                                             luau::ModuleLoader::Resolver resolver) {
     auto runtime = luau::Runtime::create(makeRuntimeConfig());
     if (!runtime) {
         return tl::unexpected{std::move(runtime.error())};
     }
     // The constructor is private, so make_unique cannot reach it.
-    std::unique_ptr<ScriptHost> host{new ScriptHost{app, std::move(*runtime)}};
+    std::unique_ptr<ScriptHost> host{new ScriptHost{app, std::move(*runtime), std::move(resolver)}};
     if (auto installed = host->installEngine(options); !installed) {
         return tl::unexpected{std::move(installed.error())};
     }
     return host;
 }
 
-ScriptHost::ScriptHost(ecs::App& app, luau::Runtime runtime)
-    : _app{app}, _runtime{std::move(runtime)}, _handle{std::make_shared<system::RuntimeHandle>()} {
+ScriptHost::ScriptHost(ecs::App& app, luau::Runtime runtime, luau::ModuleLoader::Resolver resolver)
+    : _app{app},
+      _runtime{std::move(runtime)},
+      _handle{std::make_shared<system::RuntimeHandle>()},
+      _resolver{std::move(resolver)} {
     _handle->runtime = &_runtime;
     _handle->components = &_components;
+    if (_resolver) {
+        // The modules share their global writes until the sandbox gives each file its own globals.
+        _loader = std::make_unique<luau::ModuleLoader>(
+            _runtime,
+            [this](const std::string_view requester, const std::string_view path) {
+                return resolveModule(requester, path);
+            },
+            [this](const std::string_view key, const bool entering) { enterModule(key, entering); },
+            luau::ModuleLoader::Options{.shareGlobals = true});
+    }
 }
 
-ScriptHost::~ScriptHost() { _handle->runtime = nullptr; }
+ScriptHost::~ScriptHost() {
+    _loader.reset();
+    _handle->runtime = nullptr;
+}
+
+luau::Result<luau::ModuleSource> ScriptHost::resolveModule(const std::string_view requester,
+                                                           const std::string_view path) {
+    auto module = _resolver(requester, path);
+    if (!module) {
+        return module;
+    }
+    _chunkNames.insert_or_assign(module->key, module->chunkName);
+    if (const auto replaced = _overrides.find(module->key); replaced != _overrides.end()) {
+        module->source = replaced->second;
+    }
+    return module;
+}
+
+void ScriptHost::enterModule(const std::string_view key, const bool entering) {
+    if (entering) {
+        _ownerStack.push_back(std::exchange(_owner, _chunkNames[std::string{key}]));
+    } else if (!_ownerStack.empty()) {
+        _owner = std::move(_ownerStack.back());
+        _ownerStack.pop_back();
+    }
+}
+
+luau::Result<> ScriptHost::require(const std::string_view path) {
+    if (!_loader) {
+        return luau::Failure{luau::ErrorKind::kRuntime, "this host has no modules: it was created without a resolver"};
+    }
+    if (auto loaded = loadForms(); !loaded) {
+        return loaded;
+    }
+    auto module = _loader->require(path);
+    if (!module) {
+        return tl::unexpected{std::move(module.error())};
+    }
+    return {};
+}
+
+std::optional<std::string> ScriptHost::moduleKeyOf(const std::string_view name) const {
+    constexpr std::string_view kPrefix = "scripts/";
+    if (!_loader || !name.starts_with(kPrefix) || name.size() == kPrefix.size()) {
+        return std::nullopt;
+    }
+    return std::string{name.substr(kPrefix.size())};
+}
 
 luau::Result<> ScriptHost::run(std::string name, const std::string& source) {
     if (auto loaded = loadForms(); !loaded) {
@@ -394,8 +459,29 @@ void ScriptHost::restorePlugins() {
     }
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity): one sequence of steps that must stay in this order.
 core::reload::ReloadOutcome ScriptHost::reloadFile(const std::string& file, const std::string* source) {
+    const std::optional<std::string> key = moduleKeyOf(file);
+    if (!key) {
+        return applyReload(file, source);
+    }
+    // The module's cache entry is replaced together with what it declares: both or neither.
+    _loader->begin();
+    _loader->invalidate({*key});
+    if (source != nullptr) {
+        _overrides.insert_or_assign(*key, *source);
+    }
+    core::reload::ReloadOutcome outcome = applyReload(file, source);
+    _overrides.erase(*key);
+    if (outcome.status == core::reload::ReloadOutcome::Status::kApplied) {
+        _loader->commit();
+    } else {
+        _loader->rollback();
+    }
+    return outcome;
+}
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): one sequence of steps that must stay in this order.
+core::reload::ReloadOutcome ScriptHost::applyReload(const std::string& file, const std::string* source) {
     using core::reload::ReloadOutcome;
 
     _staging = std::make_unique<Staging>();
@@ -407,7 +493,13 @@ core::reload::ReloadOutcome ScriptHost::reloadFile(const std::string& file, cons
     const std::unique_ptr<void, decltype(finish)> scope{this, finish};
 
     if (source != nullptr) {
-        if (auto ran = runSource(file, *source); !ran) {
+        const std::optional<std::string> key = moduleKeyOf(file);
+        std::string path;
+        if (key) {
+            path = "./" + key->substr(0, key->size() - std::string_view{".luau"}.size());
+        }
+        auto ran = key ? _loader->require(path).transform([](const luau::Ref&) {}) : runSource(file, *source);
+        if (!ran) {
             if (_staging->rebuild) {
                 return ReloadOutcome::needsRebuild(*_staging->rebuild);
             }

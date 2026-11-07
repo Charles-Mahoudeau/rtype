@@ -24,6 +24,7 @@
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/luau/CallContext.hpp"
 #include "rtype/luau/Library.hpp"
+#include "rtype/luau/ModuleLoader.hpp"
 #include "rtype/luau/Result.hpp"
 #include "rtype/luau/Runtime.hpp"
 #include "rtype/luau/ValuePack.hpp"
@@ -61,6 +62,13 @@ namespace rtype::scripting {
 /// disappeared, a new replicated component, a system that changed phase) is reported as a rebuild, and a script that
 /// raises an error changes nothing. The state a system kept in its script (an upvalue) starts again from the new code.
 ///
+/// Modules: a host created with a resolver (the ScriptResolver of a game) gives its scripts `require` (see
+/// require()). Each file is a module of its own, named by its chunk name (`scripts/<key>`), and owns what it declares,
+/// so a nested `require` restores the requiring file as owner afterwards. For now the modules share their global
+/// writes (the loader's `shareGlobals`), so a game that passes data through globals still works. A host without a
+/// resolver has no `require`: run() and reloadScript() then run the given source directly, as one script of that name
+/// (what the tests of the host do).
+///
 /// The host and the App may be destroyed in either order. The systems a script added stay in the App when the host
 /// is destroyed first, but their script is gone with the runtime: they can no longer run it.
 class RTYPE_SCRIPTING_API ScriptHost {
@@ -75,8 +83,11 @@ class RTYPE_SCRIPTING_API ScriptHost {
     /// @brief Creates the runtime and the `engine` global.
     /// @param app The App scripts declare their ECS data on; it must outlive the host's use of it.
     /// @param options The flags of `engine`.
+    /// @param resolver Maps the `require` paths of the scripts to their source (a modules::ScriptResolver). Empty: no
+    /// `require`; see the class.
     /// @return The host, or the error of the runtime that could not be created.
-    [[nodiscard]] static luau::Result<std::unique_ptr<ScriptHost>> create(ecs::App& app, Options options);
+    [[nodiscard]] static luau::Result<std::unique_ptr<ScriptHost>> create(ecs::App& app, Options options,
+                                                                          luau::ModuleLoader::Resolver resolver = {});
 
     ~ScriptHost();
     ScriptHost(const ScriptHost& other) = delete;
@@ -84,7 +95,17 @@ class RTYPE_SCRIPTING_API ScriptHost {
     ScriptHost(ScriptHost&& other) = delete;
     ScriptHost& operator=(ScriptHost&& other) = delete;
 
-    /// @brief Compiles a script and runs it, once.
+    /// @brief Requires a module from outside any script (a root require): runs it if it did not run yet, after the
+    /// setup forms.
+    ///
+    /// @details What the module declares belongs to it, by its chunk name. A module already loaded (because another
+    /// one required it) is not run again.
+    /// @param path Path given to the resolver, with no requiring file: `./<key without extension>` for a file.
+    /// @return Nothing, or the error (`require("<path>"): <reason>`); also if the host has no resolver.
+    [[nodiscard]] luau::Result<> require(std::string_view path);
+
+    /// @brief Compiles a script and runs it, once, directly: it has no `require`, and the host's modules do not know
+    /// it.
     /// @param name Name of the script, for the error messages.
     /// @param source Luau source code.
     /// @return Nothing, or the error of the script: it does not compile, or it raised one (a bad declaration is one).
@@ -93,15 +114,17 @@ class RTYPE_SCRIPTING_API ScriptHost {
     /// @brief Runs a script again and swaps what it declares in the App (see the class).
     ///
     /// @details A script the host did not run before is added: its systems join the schedule. The App's schedules are
-    /// only touched when the whole script ran.
-    /// @param name Name of the script, as given to run().
+    /// only touched when the whole script ran. With a resolver and a name of the form `scripts/<key>`, the script is a
+    /// module: its cache entry is replaced in a loader transaction (committed when applied, rolled back otherwise), so
+    /// later requires see the new value. The modules that required it are not run again.
+    /// @param name Name of the script, as given to run(), or its chunk name (`scripts/<key>`).
     /// @param source The new Luau source code.
     /// @return `applied` with what changed ("system game.move"), `failed` with the error of the script (nothing was
     /// changed), or `needsRebuild` with why it cannot be applied in place.
     [[nodiscard]] core::reload::ReloadOutcome reloadScript(const std::string& name, const std::string& source);
 
     /// @brief Forgets a script that was deleted: removes its systems from the App.
-    /// @param name Name of the script, as given to run().
+    /// @param name Name of the script, as given to run(), or its chunk name.
     /// @return As reloadScript(): a component or a plugin of the script cannot be removed in place.
     [[nodiscard]] core::reload::ReloadOutcome removeScript(const std::string& name);
 
@@ -119,7 +142,7 @@ class RTYPE_SCRIPTING_API ScriptHost {
 
     /// @param app The App scripts declare their ECS data on.
     /// @param runtime The runtime of the scripts.
-    ScriptHost(ecs::App& app, luau::Runtime runtime);
+    ScriptHost(ecs::App& app, luau::Runtime runtime, luau::ModuleLoader::Resolver resolver);
 
     /// @brief Builds `engine` and its `ecs` library, and makes it a global.
     [[nodiscard]] luau::Result<> installEngine(Options options);
@@ -180,6 +203,19 @@ class RTYPE_SCRIPTING_API ScriptHost {
     /// deleted.
     [[nodiscard]] core::reload::ReloadOutcome reloadFile(const std::string& file, const std::string* source);
 
+    /// @brief reloadFile() without the loader transaction around it.
+    [[nodiscard]] core::reload::ReloadOutcome applyReload(const std::string& file, const std::string* source);
+
+    /// @return The module key of a script name (`scripts/<key>`), or nothing if the script is not a module of this
+    /// host.
+    [[nodiscard]] std::optional<std::string> moduleKeyOf(std::string_view name) const;
+
+    /// @brief Resolves through the host's resolver, giving the source being reloaded in place of the file's.
+    [[nodiscard]] luau::Result<luau::ModuleSource> resolveModule(std::string_view requester, std::string_view path);
+
+    /// @brief Makes the script of a module the owner of what is declared, or gives the previous owner back.
+    void enterModule(std::string_view key, bool entering);
+
     /// @brief Puts the plugins back as they were before the reload in progress.
     void restorePlugins();
 
@@ -197,5 +233,10 @@ class RTYPE_SCRIPTING_API ScriptHost {
     std::map<std::string, FileDeclarations> _files;  ///< What each script declared, by its name.
     std::string _owner;                              ///< The script a declaration made now belongs to.
     std::unique_ptr<Staging> _staging;               ///< The reload in progress; null outside a reload.
+    luau::ModuleLoader::Resolver _resolver;          ///< The game's resolver; empty without modules.
+    std::map<std::string, std::string> _chunkNames;  ///< Chunk name of each module key the resolver gave.
+    std::map<std::string, std::string> _overrides;   ///< Source a reload gives in place of a module's file, by key.
+    std::vector<std::string> _ownerStack;            ///< The owners to give back when a module ends, innermost last.
+    std::unique_ptr<luau::ModuleLoader> _loader;     ///< The module cache; null without a resolver. After `_runtime`.
 };
 }  // namespace rtype::scripting

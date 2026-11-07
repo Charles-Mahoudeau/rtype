@@ -13,6 +13,7 @@
 #include <string_view>
 #include <vector>
 
+#include "rtype/luau/ModuleLoader.hpp"
 #include "rtype/luau/ModuleSource.hpp"
 #include "rtype/scripting/Export.hpp"
 #include "rtype/scripting/Result.hpp"
@@ -20,7 +21,7 @@
 namespace rtype::scripting::modules {
 /// @brief Finds the file a `require` path names, inside a game's `scripts/` folder and nowhere else.
 ///
-/// @details Usable as the `luau::ModuleLoader::Resolver` (`operator()`). It parses the path with ScriptPath, resolves
+/// @details Usable by a `luau::ModuleLoader` through forLoader(). It parses the path with ScriptPath, resolves
 /// it from the requiring file or from an alias, and looks for `<path>.luau` then `<path>/init.luau` (both existing is
 /// an error). Three rules make it safe and the same on every system:
 ///   - nothing outside `scripts/` is reachable: not by `..`, not by a link pointing out (checked on the real path);
@@ -57,6 +58,10 @@ class RTYPE_SCRIPTING_API ScriptResolver {
     /// @return The module, or `kInvalidPath` for a prefix, an extension, an empty, `.` or `..` segment, or what
     /// operator() reports.
     [[nodiscard]] Result<luau::ModuleSource> resolveEntry(std::string_view entry) const;
+
+    /// @return A `luau::ModuleLoader::Resolver` working on a copy of this resolver: the error of a failed resolution
+    /// becomes a loader failure with the same message.
+    [[nodiscard]] luau::ModuleLoader::Resolver forLoader() const;
 
     /// @return The scripts folder.
     [[nodiscard]] const std::filesystem::path& root() const noexcept;

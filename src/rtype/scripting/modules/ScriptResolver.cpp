@@ -23,7 +23,11 @@
 
 #include "core/asset/AssetFiles.hpp"
 #include "core/asset/exceptions/AssetExceptions.hpp"
+#include "rtype/luau/ErrorKind.hpp"
+#include "rtype/luau/Failure.hpp"
+#include "rtype/luau/ModuleLoader.hpp"
 #include "rtype/luau/ModuleSource.hpp"
+#include "rtype/luau/Result.hpp"
 #include "rtype/scripting/ErrorKind.hpp"
 #include "rtype/scripting/Result.hpp"
 #include "rtype/scripting/exceptions/ScriptLoadException.hpp"
@@ -203,6 +207,17 @@ ScriptResolver::ScriptResolver(std::filesystem::path scriptsRoot, const std::map
                 std::format("scripts alias '{}': defined twice (names ignore case)", name)};
         }
     }
+}
+
+luau::ModuleLoader::Resolver ScriptResolver::forLoader() const {
+    return [resolver = *this](const std::string_view requester,
+                              const std::string_view path) -> luau::Result<luau::ModuleSource> {
+        auto module = resolver(requester, path);
+        if (!module) {
+            return luau::Failure{luau::ErrorKind::kRuntime, std::string{module.error().message()}};
+        }
+        return std::move(*module);
+    };
 }
 
 const std::filesystem::path& ScriptResolver::root() const noexcept { return _root; }

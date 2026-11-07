@@ -79,8 +79,8 @@ core::reload::ReloadOutcome ScriptsReloadable::reload(const core::reload::Change
     if (host == nullptr) {
         return ReloadOutcome::needsRebuild("the game is not running: it is built again");
     }
-    // The host knows a script by the path it was loaded with: the game directory and the file's path in it.
-    const auto nameOf = [this](const std::string& file) { return core::asset::normalizePath(_gameDirectory / file); };
+    // The host knows a script by its chunk name, `scripts/<key>`: the file's path in the game directory.
+    const auto nameOf = [](const std::string& file) { return core::asset::normalizePath(file); };
 
     Summary summary;
     for (const std::string& file : changes.removed) {

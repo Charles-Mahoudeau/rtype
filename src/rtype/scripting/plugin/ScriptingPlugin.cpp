@@ -18,29 +18,30 @@
 #include <vector>
 
 #include "rtype/core/asset/AssetFiles.hpp"
-#include "rtype/core/asset/exceptions/AssetExceptions.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/scripting/ScriptHost.hpp"
 #include "rtype/scripting/exceptions/ScriptLoadException.hpp"
+#include "rtype/scripting/modules/ScriptResolver.hpp"
 
 namespace rtype::scripting {
 namespace {
 constexpr std::string_view kScriptExtension = ".luau";
 
-/// @return The `.luau` files under @p directory, sorted by path; none, with a warning, if it is not a directory.
+/// @return The keys of the `.luau` files under @p directory (paths relative to it, with their extension and `/`),
+/// sorted; none, with a warning, if it is not a directory.
 /// @throws exceptions::ScriptLoadException If @p directory cannot be read.
-std::vector<std::filesystem::path> findScripts(const std::filesystem::path& directory) {
+std::vector<std::string> findScripts(const std::filesystem::path& directory) {
     std::error_code error;
     if (!std::filesystem::is_directory(directory, error)) {
         std::cerr << std::format("[ScriptingPlugin] Scripts directory '{}' not found, no script loaded\n",
                                  directory.string());
         return {};
     }
-    std::vector<std::filesystem::path> scripts;
+    std::vector<std::string> keys;
     for (std::filesystem::recursive_directory_iterator it{directory, error}, end; !error && it != end;
          it.increment(error)) {
         if (it->is_regular_file() && it->path().extension() == kScriptExtension) {
-            scripts.push_back(it->path());
+            keys.push_back(core::asset::normalizePath(it->path().lexically_relative(directory)));
         }
     }
     if (error) {
@@ -48,8 +49,8 @@ std::vector<std::filesystem::path> findScripts(const std::filesystem::path& dire
             std::format("Cannot read scripts directory '{}': {}", directory.string(), error.message())};
     }
     // Sorted on the portable form, so the order does not depend on the platform's separator.
-    std::ranges::sort(scripts, {}, [](const std::filesystem::path& path) { return core::asset::normalizePath(path); });
-    return scripts;
+    std::ranges::sort(keys);
+    return keys;
 }
 }  // namespace
 
@@ -64,24 +65,20 @@ ScriptingPlugin& ScriptingPlugin::operator=(ScriptingPlugin&& other) noexcept = 
 std::string_view ScriptingPlugin::getName() const noexcept { return "rtype.scripting"; }
 
 void ScriptingPlugin::build(ecs::App& app) {
-    auto host = ScriptHost::create(app, _config.options);
+    const std::vector<std::string> keys = findScripts(_config.directory);
+    auto host = ScriptHost::create(app, _config.options, modules::ScriptResolver{_config.directory}.forLoader());
     if (!host) {
         throw exceptions::ScriptLoadException{
             std::format("Cannot create the script runtime: {}", host.error().message())};
     }
     _host = std::move(*host);
 
-    for (const auto& path : findScripts(_config.directory)) {
-        const std::string name = core::asset::normalizePath(path);
-        std::string source;
-        try {
-            source = core::asset::readTextFile(path);
-        } catch (const core::asset::exceptions::AssetLoadException& e) {
-            throw exceptions::ScriptLoadException{std::format("Cannot read script '{}': {}", name, e.what())};
-        }
-        if (auto result = _host->run(name, source); !result) {
+    // Every file is a root require, so a file another one required is already loaded and does not run again.
+    for (const std::string& key : keys) {
+        const std::string path = std::format("./{}", key.substr(0, key.size() - kScriptExtension.size()));
+        if (auto result = _host->require(path); !result) {
             throw exceptions::ScriptLoadException{
-                std::format("Script '{}' failed: {}", name, result.error().message())};
+                std::format("Script 'scripts/{}' failed: {}", key, result.error().message())};
         }
     }
     if (_config.onBuilt) {

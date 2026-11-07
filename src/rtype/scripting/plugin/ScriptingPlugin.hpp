@@ -20,8 +20,12 @@
 namespace rtype::scripting {
 /// @brief Runs the Luau files of a game on the App: the components and systems they declare join it.
 ///
-/// @details build() creates a ScriptHost, then loads every `.luau` file found under the scripts directory, in sorted
-/// path order, so the order is the same on every machine. A missing directory loads nothing and logs a warning on
+/// @details build() creates a ScriptHost with a modules::ScriptResolver over the scripts directory, then loads every
+/// `.luau` file found under it as a root `require` of its key, in sorted path order, so the order is the same on every
+/// machine. Files can `require` each other (see `manual/pages/modules.md`); a file another one already required does
+/// not run again. This auto-loading, and the global writes the files share, are transitional: entry points and
+/// per-file globals replace them (epic #489). A script's chunk name, which names it in errors and owns what it
+/// declares, is `scripts/<path in the directory>`. A missing directory loads nothing and logs a warning on
 /// `std::cerr`. The same files load on every side (server and clients): a script tells the sides apart with
 /// `engine.isClient` and `engine.isServer`. The host lives as long as the plugin, that is as long as the App;
 /// Config::onBuilt gives it to the program.
