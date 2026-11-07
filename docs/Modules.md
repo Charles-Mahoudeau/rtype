@@ -23,6 +23,9 @@ architecture rules, and this file keeps the detail, which changes with every fea
     - `core/library/` (`rtype::core::library`) — `LibraryEntry.hpp`: the C entry point of a library the engine loads
       (`RTYPE_LIBRARY`), its version and toolchain check (`checkLibrary`), and `LibraryRegistrar`, through which libraries
       exchange their registries by name.
+    - `core/reload/` (`rtype::core::reload`) — hot reload, free of any module: `Reloadable` (a feature that applies new
+      versions of its files), `FileWatcher` (mtime and size polling with a debounce), `ChangeSet`, `ReloadOutcome`
+      (applied, failed, needs a rebuild), `ReloadReport` (the log line) and `HotReloader`, which polls and reloads.
     - `core/system/` (`rtype::core::system`) — `CacheDirectory.hpp`, `ExecutablePath.hpp`: where the system keeps a
       user's cache and the running executable.
 - `src/rtype/ecs/` — `ecs` target, shared library (`rtype-ecs`): the Entity Component System and,
@@ -59,7 +62,7 @@ architecture rules, and this file keeps the detail, which changes with every fea
   default, `--game <dir>`): it reads its `project.luau` through Luau (`scripting/SettingsLoader`, which also exposes
   the command line as `engine.args`), builds the `App` with the program's plugins, `EngineConfig::addPlugins`, and the engine's (transform, replication,
   scripting, server or client) in a fixed order, calls the game's native `EngineConfig::setup`, runs it, and builds it
-  again on `requestReload()`. `plugin/` holds `SharedLibrary` and `PluginLoader`, which load the plugin libraries, and
+  again on `requestReload()` or when `project.luau` changes. `reload/` holds `ProjectReloadable` and `ScriptsReloadable`, the engine's hot reload sources (`HotReloader`, `plugins/HotReload.hpp`). `plugin/` holds `SharedLibrary` and `PluginLoader`, which load the plugin libraries, and
   `PluginSignature`. The plugins `project.luau` names under `plugins` are added after the replication plugin. On clients,
   `NetworkInput` fills the `PlayerInput` sent to the server from the `Input` actions. `EngineConfig` holds
   the mode, the command line and these functions; `CommandLine` parses the `--name value` flags. Exported symbols are marked `RTYPE_ENGINE_API`.
@@ -148,8 +151,8 @@ architecture rules, and this file keeps the detail, which changes with every fea
     - `plugins/shader/` (`rtype::plugins::shader`) — `ShaderPlugin`: game shaders and materials. `ShaderAssets` (shaders
       by `AssetId`, written in the engine's GLSL dialect), `MaterialAssets` (`Material`: a shader and its values),
       the `MaterialInstance` component (an entity's own `instance uniform` values), `ShaderHandles`, which keeps the
-      renderer up to date, and `ShaderWatcher`, which reloads the shaders saved in `<game>/assets/shaders`
-      (`shader.hotReload`). `ShaderCalls.hpp` holds what `engine.assets.shader` and `material` call. `detail/` holds the parser, the assembler and the compiler. glslang is a private package: only
+      renderer up to date, and `ShaderReloadable`, which reloads the shaders saved in `<game>/assets/shaders`
+      for the engine's `HotReloader` (`hotReload`). `ShaderCalls.hpp` holds what `engine.assets.shader` and `material` call. `detail/` holds the parser, the assembler and the compiler. glslang is a private package: only
       `shader/detail/ShaderCompiler.cpp` includes it. It requires the graphics plugin. See `docs/Shaders.md`.
     - `plugins/GlmReflection.hpp` — lets components reflect `glm::vec2`, `vec3` and `vec4` fields.
     - `plugins/AssetIdReflection.hpp` — lets components reflect `core::asset::AssetId` fields (`kAssetId`).

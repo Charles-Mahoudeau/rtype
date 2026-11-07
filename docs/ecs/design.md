@@ -1055,7 +1055,9 @@ for hot reload.
   `kTypeMismatch`...).
 - **Hot reload.** Reloading a file re-registers its component if the `layoutHash` is unchanged;
   otherwise it is refused (or, in development, the component's data is migrated by field name).
-  Systems can always be reloaded.
+  Systems can always be reloaded: `Schedules::replaceSystems(phase, specs, removed)` swaps and removes the systems of a
+  phase in one step, keeping a replaced system's place, and puts the old schedule back if the new one has a cycle or an
+  ambiguity (all or nothing). The reload itself is driven by `core::reload::HotReloader` (`../engine/design.md`).
 - **Where scripts run.** Luau plugins are loaded on **both** the server and the clients: both need the
   component layouts, actors and states. Each system declares a `side`:
   - `"server"` (the default): gameplay. Runs only on the server, which is authoritative.
