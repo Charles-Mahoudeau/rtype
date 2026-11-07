@@ -5,8 +5,8 @@ description: Turn a plan document or a feature into a GitHub epic with child iss
 
 # Plan and file issues
 
-Uses `gh` only (works in Claude Code and Codex). Repository `Charles-Mahoudeau/rtype`; below `$R` is
-`repos/Charles-Mahoudeau/rtype`. Issue types do not exist on a user-owned repository: do not set one.
+Uses `gh` only (works in Claude Code and Codex). The repository is the current one: `OWNER=$(gh repo view --json owner --jq .owner.login)`, and `$R` is
+`repos/$(gh repo view --json nameWithOwner --jq .nameWithOwner)`. Issue types may not exist on a user-owned repository: do not set one.
 
 The project "R-Type" (user project number 8) holds the metadata and is the single source of truth: **Status**
 (Backlog | Ready | In progress | In review | Done), **Priority** (P0 | P1 | P2 | P3), **Size** (XS | S | M | L | XL),
@@ -41,7 +41,7 @@ Technical notes, References), with the task id first when there is one. Put the 
 
 ```sh
 gh issue create --title "[Network] NET-06: Reliable sender" --body-file body.md \
-  --label enhancement --label network [--milestone "<name>"] [--assignee Charles-Mahoudeau]
+  --label enhancement --label network [--milestone "<name>"] [--assignee @me]
 ```
 
 `gh issue create` prints the issue URL; keep the number.
@@ -71,10 +71,10 @@ Never write "Blocked by #x" as text only: a text mention links nothing. You may 
 ## 4. Project fields
 
 ```sh
-gh project item-add 8 --owner Charles-Mahoudeau --url <issue url>
-gh project item-edit 8 --owner Charles-Mahoudeau --url <issue url> --field Status   --value Backlog
-gh project item-edit 8 --owner Charles-Mahoudeau --url <issue url> --field Priority --value P1
-gh project item-edit 8 --owner Charles-Mahoudeau --url <issue url> --field Size     --value M
+gh project item-add 8 --owner $OWNER --url <issue url>
+gh project item-edit 8 --owner $OWNER --url <issue url> --field Status   --value Backlog
+gh project item-edit 8 --owner $OWNER --url <issue url> --field Priority --value P1
+gh project item-edit 8 --owner $OWNER --url <issue url> --field Size     --value M
 ```
 
 Status is Backlog by default, Ready when nothing blocks it. Size: XS under an hour, S a few hours, M a day, L a few
@@ -87,7 +87,7 @@ Verify the graph matches the plan before you report:
 ```sh
 gh api $R/issues/<epic>/sub_issues --jq '[.[].number]'                       # every child, in order
 gh api $R/issues/<n>/dependencies/blocked_by --jq '[.[].number]'              # blockers of n
-gh project item-list 8 --owner Charles-Mahoudeau --limit 200 --format json    # fields of every item
+gh project item-list 8 --owner $OWNER --limit 200 --format json    # fields of every item
 ```
 
 Compare the sub-issues and every blocked-by list with the plan's graph, and every item's Status, Priority and Size. Fix

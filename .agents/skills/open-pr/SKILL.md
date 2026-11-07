@@ -19,18 +19,20 @@ this whole skill, the template, labels, assignee, milestone and project fields i
 - **`Closes #n`** for each issue the PR completes (one line per issue). In a stack, the PR that completes an issue closes
   it, not the others.
 - **Stack position**: in the Stack section write "Part n of N" and the list `#a -> #b -> #c`.
-- **Assignee**: the user who owns the repository (`--assignee @me` when run as them, else `Charles-Mahoudeau`).
+- **Assignee**: the person running the command (`--assignee @me`); never a hard-coded login.
 - **Labels**: the area labels of the issue (`ecs`, `luau`, `scripting`, `network`, `physics`, `Vulkan`...), plus
   `documentation`, `bug` or `enhancement` as fits. Priority and size are not labels.
 - **Milestone**: the issue's, when it has one (`gh issue view <n> --json milestone`).
-- **Project**: add it to project "R-Type" (number 8, owner `Charles-Mahoudeau`) with Status "In review".
+- **Project**: add it to project "R-Type" (number 8, owner `$OWNER`, the repository owner) with Status "In review".
 
 ## Single pull request
+
+Get the owner once: `OWNER=$(gh repo view --json owner --jq .owner.login)`.
 
 ```sh
 git push -u origin <branch>
 gh pr create --draft --base main --title "<title>" --body-file <body.md> \
-  --assignee Charles-Mahoudeau --label ecs --label enhancement [--milestone "<name>"]
+  --assignee @me --label ecs --label enhancement [--milestone "<name>"]
 ```
 
 Fill the body in a file (the template is the skeleton) rather than inline.
@@ -53,15 +55,15 @@ create.
 ## After creating each pull request
 
 ```sh
-gh pr edit <n> --add-assignee Charles-Mahoudeau --add-label documentation
-gh project item-add 8 --owner Charles-Mahoudeau --url <pr url>
-gh project item-edit 8 --owner Charles-Mahoudeau --url <pr url> --field Status --value "In review"
+gh pr edit <n> --add-assignee @me --add-label documentation
+gh project item-add 8 --owner $OWNER --url <pr url>
+gh project item-edit 8 --owner $OWNER --url <pr url> --field Status --value "In review"
 ```
 
 If this `gh` is older and `item-edit` does not take `--url`/`--field`, use ids: `gh project item-add ... --format json`
-returns the item id; `gh project field-list 8 --owner Charles-Mahoudeau --format json` gives the field id and the option
+returns the item id; `gh project field-list 8 --owner $OWNER --format json` gives the field id and the option
 id of "In review"; then `gh project item-edit --id <item> --project-id <project> --field-id <field>
---single-select-option-id <option>`. The project id comes from `gh project view 8 --owner Charles-Mahoudeau --format json`.
+--single-select-option-id <option>`. The project id comes from `gh project view 8 --owner $OWNER --format json`.
 
 ## Check
 
