@@ -42,7 +42,10 @@ bool takeServerFlag(std::vector<std::string>& args) {
 int main(const int argc, char** argv) {
     try {
         const std::span rawArgs{argv, static_cast<std::size_t>(argc)};
-        std::vector<std::string> args{rawArgs.begin() + 1, rawArgs.end()};
+        std::vector<std::string> args;
+        if (!rawArgs.empty()) {  // Some platforms start a program with no argv[0].
+            args.assign(rawArgs.begin() + 1, rawArgs.end());
+        }
         const bool server = takeServerFlag(args);
         rtype::engine::Engine engine{{
             .mode = server ? rtype::ecs::RunMode::kServer : rtype::ecs::RunMode::kClient,
