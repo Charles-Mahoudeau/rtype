@@ -7,6 +7,8 @@ set_version("0.1.0")
 -- A nightly build: `xmake f --nightly=<commit>` makes the version `<version>-nightly.<commit>`.
 option("nightly", {default = "", showmenu = true, description = "Commit a nightly build is made from; empty for a release"})
 add_moduledirs(path.join(os.scriptdir(), "xmake", "modules"))
+-- `xmake package-release`: the zip game developers download.
+includes("xmake/package-release.lua")
 
 if is_plat("windows") then
     set_toolchains("msvc")
