@@ -170,6 +170,43 @@ TEST(Engine, AddsThePluginsTheSettingsNameFromTheirLibraries) {
     EXPECT_TRUE(engine.app().hasPlugin("rtype.Physics"));
 }
 
+TEST(Engine, AddsTheExtraPluginsAfterTheListedOnes) {
+    const GameDirectory game{"rtype-engine-extra", R"(
+        engine.settings.network.port = 0
+        engine.settings.plugins = { "test.Loaded" }
+    )"};
+    EngineConfig config = serverConfig(game);
+    config.extraPlugins = {"rtype.Capsule"};
+    Engine engine{std::move(config)};
+    EXPECT_TRUE(engine.app().hasPlugin("test.Loaded"));
+    EXPECT_TRUE(engine.app().hasPlugin("rtype.Capsule"));
+}
+
+TEST(Engine, DoesNotAddAnExtraPluginTheProjectAlreadyLists) {
+    const GameDirectory game{"rtype-engine-extra-listed", R"(
+        engine.settings.network.port = 0
+        engine.settings.plugins = { "rtype.Capsule" }
+    )"};
+    EngineConfig config = serverConfig(game);
+    config.extraPlugins = {"rtype.Capsule"};
+    const Engine engine{std::move(config)};
+    EXPECT_TRUE(engine.app().hasPlugin("rtype.Capsule"));
+}
+
+TEST(Engine, RefusesAnExtraPluginNoLibraryRegisters) {
+    const GameDirectory game{"rtype-engine-extra-missing", R"(
+        engine.settings.network.port = 0
+    )"};
+    EngineConfig config = serverConfig(game);
+    config.extraPlugins = {"game.Missing"};
+    try {
+        const Engine engine{std::move(config)};
+        FAIL() << "the plugin was accepted";
+    } catch (const RuntimeError& error) {
+        EXPECT_TRUE(std::string{error.what()}.contains("game.Missing"));
+    }
+}
+
 TEST(Engine, AddsTheCapsulePluginFromItsLibrary) {
     const GameDirectory game{"rtype-engine-capsules", R"(
         engine.settings.network.port = 0
