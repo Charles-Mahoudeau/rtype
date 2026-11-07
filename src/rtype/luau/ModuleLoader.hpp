@@ -30,6 +30,15 @@ namespace detail {
 int requireFunction(lua_State* state);
 }  // namespace detail
 
+/// @brief How the modules of a `ModuleLoader` relate to the shared globals (`ModuleLoader::Options`).
+struct ModuleLoaderOptions {
+    /// @brief When true, a global a module writes goes to the shared globals, so the other modules and the host
+    ///        see it (the way scripts behaved before `require`); `require` itself stays per-module. It has no
+    ///        effect on a sandboxed runtime, whose globals are read-only: there a module's writes stay in the
+    ///        module. A bridge for games that still share data through globals.
+    bool shareGlobals{false};
+};
+
 /// @brief Loads Luau modules by path (`require`), caching one instance per module.
 ///
 /// Free of the engine: it knows neither files nor games. A `Resolver` callback turns a path into a `ModuleSource`; the
@@ -53,11 +62,15 @@ class RTYPE_LUAU_API ModuleLoader {
     ///        when it fails. Calls are properly nested. Cache hits do not call it.
     using RunHook = std::function<void(std::string_view key, bool entering)>;
 
+    /// @brief How the modules relate to the shared globals.
+    using Options = ModuleLoaderOptions;
+
     /// @brief Creates a loader over a runtime.
     /// @param runtime Runtime the modules run in; it must outlive the loader.
     /// @param resolver Maps paths to module sources.
     /// @param runHook Optional hook called around each module run.
-    ModuleLoader(Runtime& runtime, Resolver resolver, RunHook runHook = {});
+    /// @param options How the modules relate to the shared globals.
+    ModuleLoader(Runtime& runtime, Resolver resolver, RunHook runHook = {}, Options options = {});
 
     /// @brief Detaches the loader from the `require` functions it gave to the modules.
     ~ModuleLoader() noexcept;
@@ -165,6 +178,7 @@ class RTYPE_LUAU_API ModuleLoader {
     Runtime& _runtime;                                    ///< Runtime the modules run in.
     Resolver _resolver;                                   ///< Maps paths to sources.
     RunHook _runHook;                                     ///< Called around each run.
+    Options _options;                                     ///< How modules relate to the shared globals.
     std::map<std::string, Entry, std::less<>> _cache;     ///< Loaded modules by key.
     std::map<std::string, std::set<std::string>> _edges;  ///< Requester key to the keys it requires.
     std::vector<Frame> _stack;                            ///< Modules being loaded, outermost first.

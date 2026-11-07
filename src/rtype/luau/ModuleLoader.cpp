@@ -95,8 +95,8 @@ std::set<std::string> closure(const Edges& graph, const std::vector<std::string>
 }
 }  // namespace
 
-ModuleLoader::ModuleLoader(Runtime& runtime, Resolver resolver, RunHook runHook)
-    : _runtime{runtime}, _resolver{std::move(resolver)}, _runHook{std::move(runHook)} {
+ModuleLoader::ModuleLoader(Runtime& runtime, Resolver resolver, RunHook runHook, const Options options)
+    : _runtime{runtime}, _resolver{std::move(resolver)}, _runHook{std::move(runHook)}, _options{options} {
     if (!_resolver) {
         throw exceptions::InvalidOperation{"a module loader needs a resolver"};
     }
@@ -321,6 +321,11 @@ Result<void> ModuleLoader::prepare(lua_State* thread, const Ref& closure, const 
         lua_newtable(thread);
         lua_pushvalue(thread, LUA_GLOBALSINDEX);
         lua_setfield(thread, -2, "__index");
+        if (_options.shareGlobals) {
+            // Writes go to the shared globals; `require` below is set raw, so it stays in the module.
+            lua_pushvalue(thread, LUA_GLOBALSINDEX);
+            lua_setfield(thread, -2, "__newindex");
+        }
         lua_setreadonly(thread, -1, 1);
         lua_setmetatable(thread, -2);
         closure.push(thread);
@@ -329,7 +334,7 @@ Result<void> ModuleLoader::prepare(lua_State* thread, const Ref& closure, const 
         lua_pop(thread, 1);
     }
     detail::pushRequire(thread, _token, key);
-    lua_setfield(thread, -2, "require");
+    lua_rawsetfield(thread, -2, "require");
     return {};
 }
 

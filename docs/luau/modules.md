@@ -37,6 +37,11 @@ loader gives each module a table of its own that falls back on the shared global
 global writes and its `require` stay in the module, and the shared globals are untouched. Sandboxing remains the way to
 make the shared globals and libraries read-only.
 
+**Sharing globals (`ModuleLoader::Options::shareGlobals`).** A bridge for code that still shares data through globals:
+the module's table forwards writes to the shared globals (`__newindex`), so one module's global is seen by the others
+and by the host. `require` is still set on the module's own table, so it never leaks. It has no effect on a sandboxed
+runtime, whose globals are read-only and where each module keeps its own.
+
 **Return value.** 0 values give `nil`, 1 value is the module's value, 2 or more is an error. A returned table is frozen
 (shallow, like `table.freeze`); other values pass through. The value is cached by key: a module runs once, and every
 require gets the same instance. A root require from C++ follows the same rules; a module that returns nothing is fine
