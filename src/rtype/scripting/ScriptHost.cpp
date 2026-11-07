@@ -77,6 +77,7 @@ luau::RuntimeConfig makeRuntimeConfig() {
 }
 
 /// @brief Freezes a table and every table reachable from it (a table already seen is skipped, so cycles end).
+// NOLINTNEXTLINE(misc-no-recursion): the depth is the depth of the `engine` tree, and a table seen is skipped.
 luau::Result<> freezeTree(luau::Table table, std::vector<luau::Table>& seen) {
     for (const luau::Table& known : seen) {
         if (auto same = known.refersToSame(table); same && *same) {
@@ -235,6 +236,9 @@ luau::Result<> ScriptHost::seal() {
     }
     // The forms and the engine are written, from here on every script has globals of its own and cannot change them.
     _runtime.sandbox();
+    if (!_engine) {
+        return luau::Failure{luau::ErrorKind::kRuntime, "the engine library is not installed"};
+    }
     std::vector<luau::Table> seen;
     if (auto frozen = freezeTree(_engine->table(), seen); !frozen) {
         return frozen;
