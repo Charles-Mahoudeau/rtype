@@ -24,6 +24,7 @@ own.
 - **Systems** are the rules that run on that data every tick or frame. See [Systems](systems.md).
 - **Engine calls** let scripts use what plain data cannot express: loading an asset, playing a sound, asking the
   physics. See [Engine calls](engine-calls.md) and [Setup forms](setup-forms.md).
+- **The user interface** is built from tables: menus, HUDs, buttons, sliders. See [User interface](ui.md).
 
 ## Client and server
 
