@@ -45,7 +45,7 @@ end
 | Executable | Mode | Registers | Game code |
 |------------|------|-----------|-----------|
 | `aylo-runtime --server` (`src/rtype/runtime/`) | `kServer` | nothing (headless) | `game/` only |
-| `aylo-runtime` (`src/rtype/runtime/`) | `kClient` | GLFW, Vulkan, miniaudio | `game/` only |
+| `aylo-runtime` (`src/rtype/runtime/`) | `kClient` | the backends `project.luau` names (`platform`, `renderer`, `audio.backend`) | `game/` only |
 | `rtype_duel` (example) | `server` or `client`, the first argument | as the client, on the client side | its `game/` only (Luau) |
 | `ethan_game(bestoftheworld)` (example) | `kStandalone` | as the client | `setup` |
 

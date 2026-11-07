@@ -19,8 +19,9 @@ directory when the program starts.
 
 ## The command line is yours
 
-The engine reads only `--game`. Every other `--name value` (or `--name=value`, or a bare `--name`) is given to
-`project.luau` as `engine.args`, so your game decides its own options:
+The runtime keeps `--server` (it selects the server side) and the engine keeps `--game`. Every other `--name value` (or
+`--name=value`, or a bare `--name`) is given to `project.luau` as `engine.args`, so your game decides its own options, and
+`--server` is not one of them:
 
 ```luau
 engine.settings.network.port = engine.args.port or 4242
