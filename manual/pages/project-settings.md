@@ -54,6 +54,7 @@ end
 | `rtype.audio` | Sounds, music and the listener | client |
 | `rtype.Physics`, see [Physics](physics.md) | 2D physics | both |
 | `rtype.PhysicsDebug` | Draws the colliders and velocities | client |
+| `rtype.Capsule`, see [Capsules](capsules.md) | Actors and levels from capsule files | both |
 
 The time, the schedule and the transform are always there. A plugin that needs another brings it: listing
 `rtype.graphics` also loads `rtype.Input`, with a line on the error output, so list what you use and you may leave out

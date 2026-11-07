@@ -15,6 +15,7 @@ on the error output: what reloaded, which files, how long it took, and what chan
 | `scripts/**/*.luau` | The systems the file declares replace the running ones **in place**: entities and state are kept |
 | `project.luau` | If it still runs, the game is **rebuilt** from the new settings; the world is lost |
 | `assets/shaders/*` | A shader you loaded is compiled again; a typo keeps the last version on screen |
+| `assets/**/*.capsule`, `.scene`, `.actor` | With `rtype.Capsule`, the file is read again with the files that use it, and what was spawned from them is respawned **in place**; a mistake keeps the last version (see [Reading and writing capsule files](capsule-files.md#when-you-save-a-file)) |
 
 ## Scripts
 

@@ -611,3 +611,152 @@ TEST(ScriptCommands, ACxxComponentWithNoDefaultConstructorIsRefused) {
         << log;
     EXPECT_EQ(fixture.app.getWorld().getEntityCount(), 1U);
 }
+
+TEST(ScriptCommands, PatchWritesOnlyTheFieldsItNames) {
+    Fixture fixture;
+    ASSERT_EQ(fixture.run(R"(
+        local spawned = false
+        engine.ecs.system("game.Spawner", {
+            phase = "Update",
+            query = { with = { "game.Marker" } },
+            run = function(ctx)
+                if spawned then return end
+                spawned = true
+                local entity = ctx.commands:spawn({ ["game.Shield"] = { strength = 10, regen = 4 } })
+                ctx.commands:patch(entity, "game.Shield", { strength = 20 })   -- after the spawn: regen stays
+                ctx.commands:patch(ctx.commands:spawn(), "game.Shield", { strength = 1 })   -- no shield: skipped
+            end,
+        })
+        engine.ecs.system("game.Inspector", {
+            phase = "PostUpdate",
+            query = { read = { "game.Shield" } },
+            run = function(ctx)
+                shields = 0
+                for _, shield in ctx.query do
+                    shields += 1
+                    seenStrength, seenRegen = shield.strength, shield.regen
+                end
+            end,
+        })
+    )"),
+              "");
+
+    fixture.app.runFrame();
+
+    EXPECT_EQ(fixture.run("assert(shields == 1, tostring(shields))"), "");
+    EXPECT_EQ(fixture.run("assert(seenStrength == 20 and seenRegen == 4, tostring(seenRegen))"), "");
+}
+
+TEST(ScriptCommands, PatchWritesTheFieldsOfACxxComponentThatOwnsMemory) {
+    Fixture fixture;
+    static_cast<void>(fixture.app.getWorld().getComponents().registerType<rtype::test::commands::Cargo>());
+    ASSERT_EQ(fixture.run(R"(
+        local spawned = false
+        engine.ecs.system("game.Loader", {
+            phase = "Update",
+            query = { with = { "game.Marker" } },
+            run = function(ctx)
+                if spawned then return end
+                spawned = true
+                local first = ctx.commands:spawn({ ["test.Cargo"] = { items = { 1, 2 }, label = "first" } })
+                ctx.commands:patch(first, "test.Cargo", { label = string.rep("patched ", 8) })
+                local second = ctx.commands:spawn({ ["test.Cargo"] = { items = { 1, 2 }, label = "second" } })
+                ctx.commands:patch(second, "test.Cargo", { items = { 9, 9, 9 } })
+            end,
+        })
+        engine.ecs.system("game.Inspector", {
+            phase = "PostUpdate",
+            query = { read = { "test.Cargo" } },
+            run = function(ctx)
+                seen = {}
+                for _, cargo in ctx.query do
+                    seen[cargo.label] = #cargo.items
+                end
+            end,
+        })
+    )"),
+              "");
+
+    fixture.app.runFrame();
+
+    EXPECT_EQ(fixture.run(R"(assert(seen[string.rep("patched ", 8)] == 2 and seen["second"] == 3, "wrong cargo"))"),
+              "");
+}
+
+TEST(ScriptCommands, PatchRefusesAFieldTheComponentDoesNotHaveAndRecordsNothing) {
+    Fixture fixture;
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Typo", {
+            phase = "Update",
+            query = { with = { "game.Marker" } },
+            run = function(ctx)
+                local entity = ctx.commands:spawn({ ["game.Shield"] = { strength = 10 } })
+                ctx.commands:patch(entity, "game.Shield", { strenght = 20 })
+            end,
+        })
+        engine.ecs.system("game.Inspector", {
+            phase = "PostUpdate",
+            query = { read = { "game.Shield" } },
+            run = function(ctx)
+                for _, shield in ctx.query do
+                    seenStrength = shield.strength
+                end
+            end,
+        })
+    )"),
+              "");
+
+    testing::internal::CaptureStderr();
+    fixture.app.runFrame();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_NE(log.find("strenght"), std::string::npos) << log;
+    EXPECT_EQ(fixture.run("assert(seenStrength == 10, tostring(seenStrength))"), "")
+        << "the spawn before the error is applied, the patch is not";
+}
+
+TEST(ScriptCommands, AClientSystemCannotPatchAReplicatedCxxComponent) {
+    Fixture fixture;
+    static_cast<void>(fixture.app.getWorld().getComponents().registerType<rtype::test::commands::Beacon>(
+        {.replication = rtype::ecs::ReplicationMode::kEveryChange}));
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Tuner", {
+            phase = "Update",
+            side = "client",
+            query = { with = { "game.Marker" } },
+            run = function(ctx)
+                ctx.commands:patch(ctx.commands:spawn(), "test.Beacon", { channel = 2 })
+            end,
+        })
+    )"),
+              "");
+
+    testing::internal::CaptureStderr();
+    fixture.app.runFrame();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_NE(log.find("a client system cannot add 'test.Beacon'"), std::string::npos) << log;
+}
+
+TEST(ScriptCommands, PatchRefusesTheHierarchy) {
+    Fixture fixture;
+    static_cast<void>(
+        fixture.app.getWorld().getComponents().registerType<rtype::ecs::Parent>(rtype::ecs::kParentOptions));
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Reparent", {
+            phase = "Update",
+            query = { with = { "game.Marker" } },
+            run = function(ctx)
+                local parent = ctx.commands:spawn()
+                ctx.commands:patch(ctx.commands:spawn(), "rtype.Parent", { entity = parent })
+            end,
+        })
+    )"),
+              "");
+
+    testing::internal::CaptureStderr();
+    fixture.app.runFrame();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_NE(log.find("cannot patch 'rtype.Parent': use setParent and removeParent"), std::string::npos) << log;
+}

@@ -96,6 +96,7 @@ local ship = ctx.commands:spawn({
 	["rtype.Transform"] = { position = position },
 })
 ctx.commands:add(ship, "rtype.RigidBody", { type = 1 })
+ctx.commands:patch(ship, "game.Ship", { player = 1 })
 ctx.commands:setParent(child, parent)
 ctx.commands:removeParent(child)
 ctx.commands:despawn(ship)
@@ -104,6 +105,25 @@ ctx.commands:despawn(ship)
 `spawn` takes a table of component name to fields (fields left out keep their defaults) and returns the entity. It also
 builds the engine's components, such as `rtype.Collider` or `rtype.TextRenderer`. A command that names an unknown
 component, or that a client system may not write, is an error and records nothing.
+
+`add` and `patch` differ in what they keep:
+
+| Command | The component afterwards |
+|---|---|
+| `ctx.commands:add(entity, name, fields)` | Its defaults with `fields` written over them: the value the entity had is replaced, and the entity gets the component if it did not have it. |
+| `ctx.commands:patch(entity, name, fields)` | The value the entity has when the commands are applied, with only `fields` written over it. Nothing happens if the entity does not have the component then. |
+
+Use `patch` to change one field of something you did not build yourself, such as the position of a
+[capsule](capsules.md) you just spawned:
+
+```luau
+local bydo = ctx.call("rtype.capsule.spawn", { capsule = "actors/bydo.actor" })
+ctx.commands:patch(bydo, "rtype.Transform", { position = { x = 820, y = 140 } })   -- its rotation and scale stay
+```
+
+A patch sees the commands recorded before it in the same system, like that spawn. A field is written whole: a
+`position` takes both `x` and `y`, and a list is replaced by the one you give. `rtype.Parent` and `rtype.Children`
+cannot be patched; use `setParent` and `removeParent`.
 
 ### Events
 

@@ -63,7 +63,7 @@ something the ECS docs say, the change is listed in [Differences with the ECS do
   old packets.
 - **Never trust the network.** Every byte read from a socket is checked. A bad packet is dropped; it never
   crashes, throws or asserts.
-- **Names are the identity, short ids are the wire.** Components, packets, prefabs and input actions are
+- **Names are the identity, short ids are the wire.** Components, packets, capsules and input actions are
   identified by name. The server sends a manifest (name, hash, short id) at connection; the wire then uses
   the 2-byte short ids.
 
@@ -554,7 +554,7 @@ server's game.
 |---|---|---|
 | Component | short id `u16`, name, `wireHash` `u64` | `computeManifestHash()` of the client's component of that name: its `layoutHash`, or for a type with a list a hash of its name and fields |
 | Custom packet | short id `u16`, name, schema hash `u64` | The client's schema hash for that name ([8](#8-custom-packets)) |
-| Prefab | short id `u16`, name | The client knows the name |
+| Capsule | short id `u16`, path | The client knows the capsule |
 | Input action | index `u8`, name, kind `u8` (`kButton`, `kAxis`, `kVector2`) | Same name and kind at the same index. At most 32 `kButton` actions (one bit each in `kInput`'s `u32`): the server refuses to start with a larger manifest |
 
 - Short ids are indices in the manifest, entries sorted by name. They are **not** the world's dense
@@ -574,7 +574,7 @@ server's game.
 |---|---|---|---|---|
 | `0x20` | `kManifestComponent` | reliable | S → C | short id `u16`, name, wire hash `u64` |
 | `0x21` | `kManifestPacket` | reliable | S → C | short id `u16`, name, schema hash `u64` |
-| `0x22` | `kManifestPrefab` | reliable | S → C | short id `u16`, name |
+| `0x22` | `kManifestCapsule` | reliable | S → C | short id `u16`, path |
 | `0x23` | `kManifestInputAction` | reliable | S → C | index `u8`, name, kind `u8` |
 | `0x24` | `kManifestEnd` | reliable | S → C | entry count `u16`, manifest hash `u64`, tick rate `u8`, snapshot rate `u8` (Hz, [Configuration](#configuration)), reconnect grace `u16` (seconds) |
 | `0x30` | `kSnapshot` | unreliable | S → C | [7.4](#74-snapshots-server--client) |
@@ -590,7 +590,7 @@ u8   type = kSnapshot
 u32  tick                    server tick of this snapshot
 u32  last processed input    sequence of the last input of this client applied by the server (7.6)
 u16  spawn count
-     spawn   × { netId u32, prefab u16 (0xFFFF = none), component count u8,
+     spawn   × { netId u32, capsule u16 (0xFFFF = none), component count u8,
                  component count × { component u16, fields } }
 u16  update count
      update  × { netId u32, component count u8, component count × { component u16, fields } }
@@ -889,7 +889,8 @@ app:inputAction("fire", "button", { key = "Space", gamepad = "South" })
 function Shoot:run(ctx)
     for entity, transform, input in ctx.query do
         if input:isHeld("fire") then
-            ctx.commands:spawnPrefab("game.Bullet", { ["rtype.Transform"] = { position = transform.position } })
+            local bullet = ctx.call("rtype.capsule.spawn", { capsule = "actors/bullet.actor" })
+            ctx.commands:add(bullet, "rtype.Transform", { position = transform.position })
         end
     end
 end

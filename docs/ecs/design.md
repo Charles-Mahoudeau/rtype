@@ -28,7 +28,7 @@ The design builds on what already exists in the repository:
     [7. Scheduler](#7-scheduler) · [8. Commands](#8-commands) · [9. Resources](#9-resources) ·
     [10. Events](#10-events) · [11. Change Detection](#11-change-detection) ·
     [12. Hooks & Observers](#12-hooks--observers) · [13. Hierarchy & Relationships](#13-hierarchy--relationships) ·
-    [14. Actors & Scenes](#14-actors--scenes) · [15. Reflection & Serialization](#15-reflection--serialization) ·
+    [14. Capsules](#14-capsules-actors-and-scenes) · [15. Reflection & Serialization](#15-reflection--serialization) ·
     [16. App & Plugins](#16-app--plugins)
 - [Feature Catalog](#feature-catalog)
 - [Luau Integration](#luau-integration)
@@ -806,22 +806,22 @@ despawns its children. General relationships are left for later. Serves: R1, R4.
 
 **Details:** [`features/17-hierarchy.md`](features/17-hierarchy.md).
 
-### 14. Actors & Scenes
+### 14. Capsules (actors and scenes)
 
-**What it is.** Templates of entities (an enemy type, a bullet) and whole saved sets of entities (a
-level).
+**What it is.** Entities described once and spawned by copy: an enemy type, a bullet, a whole level.
 
 **What exists.** flecs prefabs (entities inherited from), Bevy scenes (serialized entity lists), Unity
 prefabs, Unreal Mass entity configs.
 
-**Our choice.** v2: an **actor** (a prefab, in other engines) is a named list of component values, built
-from C++ or Luau and spawned by name (`commands.spawnActor("game.Bydo")`, or `world.spawnActor` outside
-systems), with child actors spawned as a parented tree, overrides added after, and the components of the other
-side of the network left out. Because it only references components by name, the server can tell clients "spawn
-`game.Bydo`" cheaply. Scenes (v3) reuse the reflection serializer.
+**Our choice.** One behaviour, in a plugin (`plugin-capsule`) built on the ECS's public API: a **capsule** is an
+entity with components and child entities, any of which can be another capsule, described by a file (`.actor`,
+`.scene`, `.capsule`: the same format, the extension organizes) and spawned by copy, the components of the other side
+of the network left out. A file is parsed once; a spawn only copies bytes. Scripts spawn, load (switch levels) and
+reload through engine calls. Every spawned root carries its capsule's id, so the server can later tell clients "spawn
+`actors/bydo.actor`" cheaply.
 Serves: R2, R3, R4.
 
-**Details:** [`features/18-actors-and-scenes.md`](features/18-actors-and-scenes.md).
+**Details:** [`features/18-capsules.md`](features/18-capsules.md).
 
 ### 15. Reflection & Serialization
 
@@ -832,7 +832,7 @@ EnTT `meta`.
 
 **Our choice.** One `FieldInfo` list per component, filled by `RTYPE_ECS_COMPONENT` in C++ and by the
 Luau type in scripts. A single serializer walks `FieldInfo`s; it is used by replication (R3), the Luau
-bridge to convert tables to bytes (R2), actors, scenes and debug inspection (R4).
+bridge to convert tables to bytes (R2), capsule files and debug inspection (R4).
 
 **Details:** [`features/15-reflection-and-serialization.md`](features/15-reflection-and-serialization.md).
 
@@ -903,7 +903,7 @@ Everything above, with where it comes from, which requirement it serves (**L**ua
 | App + plugins + plugin groups | Bevy, flecs modules | | ✓ | ✓ | v1 |
 | Run conditions, States | Bevy | | ✓ | ✓ | v2 |
 | Hierarchy + transform propagation | Bevy, flecs | | | ✓ | v2 |
-| Actors (prefabs) | flecs, Unity, Mass | ✓ | ✓ | ✓ | v2 |
+| Capsules (prefabs and scenes as one) | Godot, flecs, Unity, Mass | ✓ | ✓ | ✓ | v2 |
 | Replication plugin | Unreal, bevy_replicon | | ✓ | | v2 |
 | Script systems, components, spawns | (ours) | ✓ | | | v2 |
 | Luau plugins (games written in Luau) | (ours) | ✓ | ✓ | ✓ | v2 |
@@ -1004,7 +1004,7 @@ function WaveSpawner:run(ctx)
         ["rtype.Transform"] = { position = vec2(800, 300) },
         ["game.Shield"] = {},                -- defaults
     })
-    ctx.commands:spawnActor("game.Bydo")
+    ctx.call("rtype.capsule.spawn", { capsule = "actors/bydo.actor" })
 end
 ```
 
@@ -1028,12 +1028,7 @@ function RtypePlugin:build(app)
     -- Other Luau plugins this one is built from.
     app:addPlugin("scripts/rtype/weapons/plugin.luau")
 
-    -- Actors, spawned by name on the server and announced to clients by name.
-    app:actor("game.Bydo", {
-        ["rtype.Transform"] = {},
-        ["rtype.SpriteRenderer"] = { texture = asset("sprites/bydo.png") },
-        ["game.Shield"] = { strength = 20 },
-    })
+    -- Actors and levels are capsule files under assets/ (features/18-capsules.md).
 
     -- Game flow (see Scheduler: States).
     app:state("game.Phase", { "Menu", "Lobby", "Playing", "GameOver" })
@@ -1059,7 +1054,7 @@ for hot reload.
   phase in one step, keeping a replaced system's place, and puts the old schedule back if the new one has a cycle or an
   ambiguity (all or nothing). The reload itself is driven by `core::reload::HotReloader` (`../engine/design.md`).
 - **Where scripts run.** Luau plugins are loaded on **both** the server and the clients: both need the
-  component layouts, actors and states. Each system declares a `side`:
+  component layouts and states, and spawns capsules. Each system declares a `side`:
   - `"server"` (the default): gameplay. Runs only on the server, which is authoritative.
   - `"client"`: presentation (effects, UI, animation). It may only **write** `kClientOnly` components;
     anything else would be overwritten by replication, so the bridge refuses it at registration.
@@ -1077,7 +1072,7 @@ sequenceDiagram
     participant C as Client App
     participant S as Server App (headless)
     C->>S: Connect
-    S->>C: Manifest: replicated components (name + layoutHash), input actions, actors
+    S->>C: Manifest: replicated components (name + layoutHash), input actions, capsules
     C->>C: Map names to local ids<br/>(refuse on unknown name or layout mismatch)
     S->>C: Full snapshot of replicated components
     loop Every server tick (FixedUpdate)

@@ -24,6 +24,9 @@ your game never needs a program of its own.
 - **Systems** are the rules that run on that data every tick or frame. See [Systems](systems.md).
 - **Engine calls** let scripts use what plain data cannot express: loading an asset, playing a sound, asking the
   physics. See [Engine calls](engine-calls.md) and [Setup forms](setup-forms.md).
+- **Capsules** are entity trees (an enemy, a boss and its turrets, a level) described in files under `assets/` and
+  spawned from systems. See [Capsules](capsules.md), the [Capsule file format](capsule-format.md) and
+  [Reading and writing capsule files](capsule-files.md).
 - **The user interface** is built from tables: menus, HUDs, buttons, sliders. See [User interface](ui.md).
 - **Particle effects** (sparks, smoke, trails) are tables too. See [Particles](particles.md).
 
@@ -42,4 +45,4 @@ clients draw it and send their inputs. The same scripts load on both sides, and 
 
 !!! note "Planned"
     Parts of the engine are still being built. Pages mark what does not exist yet as *planned*: do not rely on it.
-    Prefabs, game states, a way for scripts to send their own network messages, and hot reload of scripts are planned.
+    Game states and a way for scripts to send their own network messages are planned.

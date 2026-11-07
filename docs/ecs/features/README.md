@@ -39,7 +39,7 @@ The requirements are the ones from the design:
 | 15 | [Reflection and serialization](15-reflection-and-serialization.md) | Field lists and the one generic serializer | v1 / v2 |
 | 16 | [Hooks and observers](16-hooks-and-observers.md) | Lifecycle callbacks: memory only, observers later | v1 / v3 |
 | 17 | [Hierarchy](17-hierarchy.md) | Parent/child entities and transform propagation | v2 |
-| 18 | [Actors and scenes](18-actors-and-scenes.md) | Named entity templates and saved sets of entities | v2 / v3 |
+| 18 | [Capsules](18-capsules.md) | Entities described once and spawned by copy: actors and levels alike, in `plugin-capsule` | v2 |
 | 19 | [Luau bridge](19-luau-bridge.md) | How scripts declare components, systems, plugins and inputs | v2 |
 | 20 | [Replication](20-replication.md) | The network plugins for an R-Type-like game | v2 |
 
@@ -64,7 +64,7 @@ flowchart BT
     reflection["15 Reflection"]
     hooks["16 Hooks"]
     hierarchy["17 Hierarchy"]
-    actors["18 Actors"]
+    actors["18 Capsules"]
     luau["19 Luau bridge"]
     replication["20 Replication"]
 

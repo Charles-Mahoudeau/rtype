@@ -131,7 +131,7 @@ R-Type has hundreds of bullets whose motion is predictable. Each component choos
 | `kSpawnOnly` | Once, at spawn; the client simulates the rest with a `both`-side system | Bullets, enemies on fixed paths |
 | `kNone` | Never | Server-only AI state |
 
-A bullet costs about 20 bytes once (actor id, `NetworkId`, position, velocity, spawn tick) instead of
+A bullet costs about 20 bytes once (capsule id, `NetworkId`, position, velocity, spawn tick) instead of
 8 bytes × 60 times per second. The server sends a despawn when it hits something.
 
 Combined with **quantized fields** (positions as fixed-point `i16`, see
@@ -153,10 +153,10 @@ last one if it is missing).
 | Header | both | protocol id `u16`, type `u8`, tick `u32`, ack `u32`, ack bits `u32` |
 | Input | client → server | last 3 × (tick `u32`, buttons `u32`, axes `i16` × 2 × n) |
 | Snapshot | server → client | base tick `u32`, spawns[], despawns[], updates[] |
-| Spawn (in a snapshot) | server → client | network id `u32`, actor id `u16`, count `u8`, then count × (component id `u16`, fields…) |
+| Spawn (in a snapshot) | server → client | network id `u32`, capsule id `u16`, count `u8`, then count × (component id `u16`, fields…) |
 | Update (in a snapshot) | server → client | network id `u32`, component id `u16`, field mask, fields… |
 
-Component and actor ids are the short numbers from the **manifest**. Fields are written by the
+Component and capsule ids are the short numbers from the **manifest**. Fields are written by the
 reflection serializer, so Luau components need no network code.
 
 ### Connection
@@ -166,7 +166,7 @@ sequenceDiagram
     participant C as Client
     participant S as Server
     C->>S: hello (protocol version, plugin hash)
-    S->>C: manifest: components (name + layoutHash), actors, input actions, client id
+    S->>C: manifest: components (name + layoutHash), capsules, input actions, client id
     C->>C: map names to local ids, refuse on mismatch
     S->>C: full snapshot
     Note over S: ClientConnected event → Luau spawns the ship with Owner
@@ -195,7 +195,8 @@ local OnJoin = ecs.system("game.OnJoin", { events = { "net.ClientConnected" } })
 
 function OnJoin:run(ctx)
     for event in ctx.events["net.ClientConnected"] do
-        ctx.commands:spawnActor("game.Ship", { ["net.Owner"] = { client = event.client } })
+        local ship = ctx.call("rtype.capsule.spawn", { capsule = "actors/ship.actor" })
+        ctx.commands:add(ship, "net.Owner", { client = event.client })
     end
 end
 
@@ -216,7 +217,7 @@ game code sees; the same systems run in standalone mode, where `PlayerInput` com
 ## Connections
 
 - Uses: [Change detection](08-change-detection.md), [Reflection](15-reflection-and-serialization.md),
-  [Actors](18-actors-and-scenes.md), [Events](11-events.md), [Resources](10-resources.md),
+  [Capsules](18-capsules.md), [Events](11-events.md), [Resources](10-resources.md),
   [App and plugins](14-app-and-plugins.md) (`ServerPlugin`, `ClientPlugin`, `StandalonePlugin`),
   [Entity](01-entity.md) (`NetworkId` vs `Entity`).
 - External: Ethan's `Input` / `InputAction` (source of `PlayerInput`).

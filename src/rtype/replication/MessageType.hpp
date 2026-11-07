@@ -15,7 +15,7 @@ namespace rtype::replication {
 enum class MessageType : std::uint8_t {
     kManifestComponent = 0x20,    ///< S → C: a replicated component of the manifest.
     kManifestPacket = 0x21,       ///< S → C: a custom packet of the manifest.
-    kManifestPrefab = 0x22,       ///< S → C: a prefab of the manifest.
+    kManifestCapsule = 0x22,      ///< S → C: a capsule of the manifest.
     kManifestInputAction = 0x23,  ///< S → C: an input action of the manifest.
     kManifestEnd = 0x24,          ///< S → C: the end of the manifest, with the server's settings.
     kSnapshot = 0x30,             ///< S → C: the state of the world.

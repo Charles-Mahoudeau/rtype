@@ -43,6 +43,7 @@ class RTYPE_ECS_API Plugin {
     [[nodiscard]] virtual std::string_view getName() const noexcept = 0;
     [[nodiscard]] virtual std::span<const std::string_view> getDependencies() const noexcept;  // none by default
     virtual void build(App& app) = 0;
+    virtual void finish(App& app);  // once every plugin is built; nothing by default
 
   protected:  // plugins are values moved into the App; protected copy/move prevents slicing
     Plugin() = default;
@@ -55,6 +56,12 @@ class RTYPE_ECS_API Plugin {
 adding a plugin whose name was already added does nothing. A plugin is recorded before it is built, so two
 plugins adding each other from `build` are each built once. A `PluginGroup` (`app/PluginGroup.hpp`) adds
 several plugins through the App with its own `build`.
+
+`finish` runs once on every plugin, in the order they were added, after all of them are built and before the
+first frame (`App::finishPlugins()`, which `runFrame()` calls; a test or a tool that never runs a frame calls it
+itself). It is for work that needs what later plugins registered: a plugin added before the scripting plugin cannot
+see the components scripts declare from its `build`, but it can from its `finish` (the capsule plugin reads its
+files there). A plugin added after that point is finished right after its `build`.
 
 ### Plugin dependencies
 
@@ -248,7 +255,6 @@ function RtypePlugin:build(app)
     app:load("components/Shield.luau")
     app:load("systems/ShieldRegen.luau")
     app:addPlugin("scripts/rtype/weapons/plugin.luau")
-    app:actor("game.Bydo", { --[[ ... ]] })
 end
 
 return RtypePlugin

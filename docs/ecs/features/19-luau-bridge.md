@@ -3,8 +3,8 @@
 ## What it is
 
 The bridge is the layer that lets **Luau scripts declare and run game code on the ECS**: components
-(as Luau types), systems (as Luau classes), plugins, actors, events, resources, input actions and
-entities. It sits between Charles's `rtype-luau` runtime and the ECS's type-erased API, in the engine's
+(as Luau types), systems (as Luau classes), plugins, events, resources, input actions and
+entities; capsules (actors and levels) are files, which scripts spawn through engine calls. It sits between Charles's `rtype-luau` runtime and the ECS's type-erased API, in the engine's
 `ScriptPlugin` / `LuauPlugin`.
 
 This doc is the **contract** the ECS offers; the binding code itself belongs to the scripting side
@@ -78,7 +78,7 @@ flowchart LR
 ### Generated declarations for script components
 
 `generateTypes()` is extended to emit declarations for **script-defined** components, resources,
-events and actors, after loading the plugins:
+events and capsules, after loading the plugins:
 
 ```luau
 -- generated: game.d.luau
@@ -89,11 +89,11 @@ declare class ShieldComponent
 end
 
 type ComponentName = "rtype.Transform" | "rtype.SpriteRenderer" | "game.Shield" | "game.Health"
-type ActorName = "game.Bydo" | "game.Bullet"
+type CapsulePath = "actors/bydo.actor" | "scenes/level1.scene"
 ```
 
 Editors then autocomplete component fields, and the type checker flags a typo like
-`"game.Sheild"` in a query or actor before the game runs.
+`"game.Sheild"` in a query or a capsule path before the game runs.
 
 ### Systems
 
@@ -162,6 +162,7 @@ adds run on clients):
 | Audio | `rtype.audio.loadSound`, `rtype.audio.playSound` ([Audio](../../audio/design.md#from-scripts)) |
 | Input | `rtype.input.addAction`, `rtype.input.bind`, `rtype.input.bindAxis`, `rtype.input.bindVector`, `rtype.input.read` ([Input](../../Input.md#from-scripts)) |
 | Physics | `rtype.physics.raycast`, `rtype.physics.shapeCast`, `rtype.physics.overlap`, `rtype.physics.moveAndSlide`, `rtype.physics.applyForce`, `rtype.physics.applyImpulse`, `rtype.physics.applyTorque`, `rtype.physics.setGravity` ([Physics](../../physics/design.md#from-scripts)) |
+| Capsule | `rtype.capsule.spawn`, `rtype.capsule.load`, `rtype.capsule.reload` ([Capsules](18-capsules.md#from-scripts)) |
 | Replication | `rtype.replication.addInput`, `rtype.replication.readInput`, `rtype.replication.localClient` (clients) ([Replication](20-replication.md)) |
 
 ### Setup forms
@@ -208,6 +209,8 @@ engine.input.action("fire", "button", { bind = { "Space", "GamepadSouth" } })
 | `engine.assets.atlas{path \| texture, name, linear, grid, frames, animations}` | `rtype.sprite.loadAtlas` (a `path`) or `rtype.sprite.createAtlas` (a `texture`, named after it unless `name` is given), then `rtype.sprite.addFrame` per frame and `rtype.sprite.addAnimation` per animation, by name | the atlas's `AssetId` |
 | `engine.assets.particle({name, ...})` | `rtype.particle.beginEffect` (every key but the lists), then `rtype.particle.addBurst` per burst, `rtype.particle.addColorKey` per `colorOverLife` key and `rtype.particle.addCurveKey` per `sizeOverLife` and `speedOverLife` key, then `rtype.particle.addEffect` | the effect's `AssetId` |
 | `engine.input.action(name, type, {bind})` | `rtype.input.addAction` (`type`: `"button"` by default, `"axis"` or `"vector2"`), then one bind call per binding, in order | nothing |
+| `engine.capsule.spawn(ctx, path, overrides)`, `engine.capsule.load(ctx, path, overrides)` (in a system) | `rtype.capsule.spawn` / `load` through `ctx.call`, then `ctx.commands:patch` of the root per override | the root `Entity` |
+| `engine.capsule.reload(ctx, root)` (in a system) | `rtype.capsule.reload` through `ctx.call` | `true` if `root` was a capsule's root |
 
 - An atlas's `grid` takes `frameSize` and `count` (both needed), `spacing`, `columns` and `offset`; a frame takes a
   `position` and a `size`, and an optional `name` (its index otherwise) and `origin` (its centre otherwise). `grid`,
@@ -234,7 +237,6 @@ function RtypePlugin:build(app)
     app:load("components/Shield.luau")       -- by path: no require() across files
     app:load("systems/ShieldRegen.luau")
     app:addPlugin("scripts/rtype/weapons/plugin.luau")
-    app:actor("game.Bydo", { --[[ ... ]] })
     app:state("game.Phase", { "Menu", "Lobby", "Playing", "GameOver" })
     app:event("game.BossDefeated", { type = "BossDefeated" })
     app:resource("game.Score", { type = "Score", replication = "everyChange" })
@@ -289,7 +291,7 @@ engine.ecs.system("game.Ships", {
 
 ### Where scripts run
 
-Luau plugins load on the **server and the clients** (both need layouts, actors and input actions).
+Luau plugins load on the **server and the clients** (both need layouts, capsules and input actions).
 System sides decide what runs where: `server` (gameplay, default), `client` (presentation), `both`
 (identical simulation such as bullet motion). In standalone mode both sides run in one App.
 
@@ -310,7 +312,7 @@ engine.ecs.system("game.RemoveExplosions", { side = "client", ... })
 
 - Uses: [Component registry](02-component-registry.md), [Queries](07-queries.md),
   [Systems](12-systems.md), [Commands](09-commands.md), [Events](11-events.md),
-  [Resources](10-resources.md), [Actors](18-actors-and-scenes.md), [Reflection](15-reflection-and-serialization.md),
+  [Resources](10-resources.md), [Capsules](18-capsules.md), [Reflection](15-reflection-and-serialization.md),
   [App and plugins](14-app-and-plugins.md).
 - External: Charles's `rtype::luau::Runtime`, `Result`, `Error`, `generateTypes()`; Ethan's `Input` /
   `InputAction`.

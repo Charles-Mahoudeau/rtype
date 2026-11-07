@@ -28,6 +28,7 @@ and the materials are in `plugin-shader`.
 
 | Plugin | Brings | Requires |
 |---|---|---|
+| `capsule` | `Capsules`, `CapsuleInstance`: actors and levels described once, spawned, loaded and reloaded | |
 | `transform` | `Transform`, `GlobalTransform` | |
 | `input` | `Input`, actions, `PlatformEvent` and the input events | |
 | `graphics` | Starts the window and the renderer, frames, `Camera`, `TextureAssets`, `SpriteQueue` | `input`, `transform` |

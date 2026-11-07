@@ -139,7 +139,7 @@ A new hot-reloaded feature is a new `Reloadable` added to the reloader, nothing 
   that cannot be patched asks for a rebuild: a changed component layout, a new replicated component, a removed component,
   a system that changes phase or whose name another script owns, a deleted file.
 - Plugins add their own through the `HotReload` resource (`plugins/HotReload.hpp`, like `AssetDirectory`): the
-  `ShaderPlugin` adds a `ShaderReloadable`. The reloader is cleared on each build and the plugins add theirs again.
+  `ShaderPlugin` adds a `ShaderReloadable`, the `CapsulePlugin` a `CapsuleReloadable`. The reloader is cleared on each build and the plugins add theirs again.
 
 ### In the loop
 

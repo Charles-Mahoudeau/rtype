@@ -9,7 +9,6 @@
 
 #include <string_view>
 
-#include "rtype/ecs/actor/Actors.hpp"
 #include "rtype/ecs/call/Calls.hpp"
 #include "rtype/ecs/change/Tick.hpp"
 #include "rtype/ecs/component/Components.hpp"
@@ -41,7 +40,6 @@ struct WorldState {
     Components components{*this};  ///< Component registry, pools and values.
     Resources resources{*this};    ///< Resource registry, slots and values.
     Events events{*this};          ///< Event registry and queues.
-    Actors actors;                 ///< Named templates of entities.
     Calls calls;                   ///< Engine calls plugins give to scripts.
     Tick changeTick{0};            ///< Current tick, stamped on every value added or written.
     Tick lastCheckTick{0};         ///< Change tick at the last World::checkChangeTicks().

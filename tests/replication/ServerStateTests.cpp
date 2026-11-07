@@ -488,7 +488,7 @@ TEST_F(ServerStateTest, TheSnapshotListsEveryTrackedEntityInIdOrder) {
     ASSERT_EQ(decoded.spawns.size(), 2U);
     EXPECT_EQ(decoded.spawns[0].networkId, 1U);
     EXPECT_EQ(decoded.spawns[1].networkId, 2U);
-    EXPECT_EQ(decoded.spawns[0].prefab, snapshot::kNoPrefab);
+    EXPECT_EQ(decoded.spawns[0].capsule, snapshot::kNoCapsule);
     ASSERT_EQ(decoded.spawns[0].components.size(), 1U);
     EXPECT_EQ(decoded.spawns[0].components[0].shortId, shortId("test.server.Position"));
     EXPECT_EQ(decoded.spawns[0].components[0].bytes, positionBytes(1.F, -1.F));

@@ -32,7 +32,7 @@ namespace {
 /// @brief The most records a list holds: a count is a `u16`.
 constexpr std::size_t kMaxRecords = std::numeric_limits<std::uint16_t>::max();
 
-/// @brief NetworkId (4), prefab (2) and component count (1).
+/// @brief NetworkId (4), capsule (2) and component count (1).
 constexpr std::size_t kSpawnFixedSize = 7;
 
 /// @brief NetworkId (4) and component count (1).
@@ -135,7 +135,7 @@ void writeComponents(network::bytes::ByteWriter& writer, const std::vector<Compo
     for (std::size_t index = 0; index < *count; ++index) {
         SpawnRecord record;
         record.networkId = reader.readU32();
-        record.prefab = reader.readU16();
+        record.capsule = reader.readU16();
         if (!reader.isValid() || !takeId(seen, record.networkId) || !readComponents(reader, sizes, record.components)) {
             return false;
         }
@@ -227,7 +227,7 @@ std::optional<network::Bytes> encode(const Snapshot& snapshot) {
     writer.writeU16(static_cast<std::uint16_t>(snapshot.spawns.size()));
     for (const SpawnRecord& record : snapshot.spawns) {
         writer.writeU32(record.networkId);
-        writer.writeU16(record.prefab);
+        writer.writeU16(record.capsule);
         writeComponents(writer, record.components);
     }
     writer.writeU16(static_cast<std::uint16_t>(snapshot.updates.size()));
