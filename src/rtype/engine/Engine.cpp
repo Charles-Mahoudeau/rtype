@@ -139,6 +139,20 @@ std::map<std::string, std::string> readScriptAliases(const rtype::core::config::
     return result;
 }
 
+/// @return The `scripts.<key>` setting (an entry point of the scripts), or nothing if the game does not set it.
+/// @throws rtype::engine::exceptions::RuntimeError If it is not a string. Names the setting.
+std::optional<std::string> readScriptEntry(const rtype::core::config::Settings& scripts, const std::string_view key) {
+    if (!scripts.has(key)) {
+        return std::nullopt;
+    }
+    try {
+        return scripts.getString(key, "");
+    } catch (const rtype::core::config::exceptions::SettingsException&) {
+        throw rtype::engine::exceptions::RuntimeError{std::format(
+            "Invalid setting 'scripts.{}': it must be a string, a path in scripts/ without extension", key)};
+    }
+}
+
 /// @return The server or the client plugin the mode needs, from the `network` settings; null when standalone.
 /// @throws rtype::engine::exceptions::RuntimeError If the settings are invalid, or the server's host does not resolve.
 std::unique_ptr<rtype::ecs::Plugin> makeNetworkPlugin(const rtype::ecs::RunMode mode,
@@ -324,8 +338,11 @@ void Engine::build() {
     const bool client = runsClient(_config.mode);
     const bool server = runsServer(_config.mode);
     const rtype::core::config::Settings scripts = _settings.section("scripts");
-    scripts.checkKeys({"aliases"}, "scripts");
+    scripts.checkKeys({"main", "server", "client", "aliases"}, "scripts");
     std::map<std::string, std::string> aliases = readScriptAliases(scripts, _gameDirectory / kScriptsDirectory);
+    std::optional<std::string> mainEntry = readScriptEntry(scripts, "main");
+    std::optional<std::string> serverEntry = readScriptEntry(scripts, "server");
+    std::optional<std::string> clientEntry = readScriptEntry(scripts, "client");
     const std::filesystem::path assets = _gameDirectory / kAssetsDirectory;
     // A server can run with the scripts alone; a client always draws something, so it is checked before a window opens.
     if (client && !std::filesystem::is_directory(assets)) {
@@ -359,6 +376,9 @@ void Engine::build() {
     }
     app.addPlugin(rtype::scripting::ScriptingPlugin{{
         .directory = _gameDirectory / kScriptsDirectory,
+        .main = std::move(mainEntry),
+        .server = std::move(serverEntry),
+        .client = std::move(clientEntry),
         .aliases = std::move(aliases),
         .options = {.isClient = client, .isServer = server, .isDebug = kIsDebug},
         .onBuilt = [this](rtype::scripting::ScriptHost& host) { _scriptHost = &host; },
