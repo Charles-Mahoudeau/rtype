@@ -677,8 +677,8 @@ Not startable, for the same reason as SCR-08.
 **Goal.** A game's own setup is written in Luau: the executable only registers backends and adds the generic plugins,
 and everything specific to the game (assets, inputs, spawns, rules) lives in `game/scripts/`. `rtype_duel` needed C++
 for these (`GameAtlases`, `GameSounds`, `declareInputs`, `registerGame`).
-*Done:* `rtype_duel` is written in Luau (`examples/games/rtype_duel/game/scripts/`: `arena.luau` shared, `server/`,
-`client/`), and `aylo-runtime` runs it with `--game`. What it needed on the way: the backend plugin
+*Done:* `rtype_duel` is written in Luau (`examples/games/rtype_duel/game/scripts/`: `shared/` for what both sides require, `server/` and
+`client/`, each with a `main.luau` entry), and `aylo-runtime` runs it with `--game`. What it needed on the way: the backend plugin
 draws a `ShapeRenderer` component (its obstacles) and reflects `SpriteRenderer::source` (its planets), and the
 replication plugin registers `rtype.replication.localClient` on clients (who won), and `ctx.commands` builds the C++
 components that own memory, such as the `rtype.TextRenderer` of its texts (the players' names, the winner).
