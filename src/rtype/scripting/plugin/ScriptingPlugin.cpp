@@ -66,7 +66,8 @@ std::string_view ScriptingPlugin::getName() const noexcept { return "rtype.scrip
 
 void ScriptingPlugin::build(ecs::App& app) {
     const std::vector<std::string> keys = findScripts(_config.directory);
-    auto host = ScriptHost::create(app, _config.options, modules::ScriptResolver{_config.directory}.forLoader());
+    auto host = ScriptHost::create(app, _config.options,
+                                   modules::ScriptResolver{_config.directory, _config.aliases}.forLoader());
     if (!host) {
         throw exceptions::ScriptLoadException{
             std::format("Cannot create the script runtime: {}", host.error().message())};

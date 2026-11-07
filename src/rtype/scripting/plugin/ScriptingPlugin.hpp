@@ -9,7 +9,9 @@
 
 #include <filesystem>
 #include <functional>
+#include <map>
 #include <memory>
+#include <string>
 #include <string_view>
 
 #include "rtype/ecs/app/App.hpp"
@@ -37,6 +39,7 @@ class RTYPE_SCRIPTING_API ScriptingPlugin : public ecs::Plugin {
     /// @brief What the plugin loads and the flags the scripts see.
     struct Config {
         std::filesystem::path directory{"game/scripts"};  ///< Where the scripts are, searched recursively.
+        std::map<std::string, std::string> aliases;       ///< Extra `require` aliases: name, then a folder in scripts/.
         ScriptHost::Options options;                      ///< The flags of `engine`.
 
         /// @brief Called with the host once the scripts ran, so the program can reload them later (see

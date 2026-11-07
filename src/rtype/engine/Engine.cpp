@@ -15,6 +15,7 @@
 #include <format>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -23,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/config/exceptions/ConfigExceptions.hpp"
 #include "core/library/LibraryEntry.hpp"
 #include "core/system/ExecutablePath.hpp"
 #include "rtype/core/config/Settings.hpp"
@@ -52,6 +54,8 @@
 #include "rtype/replication/client/ClientPlugin.hpp"
 #include "rtype/replication/server/ServerPlugin.hpp"
 #include "rtype/scripting/ScriptHost.hpp"
+#include "rtype/scripting/exceptions/ScriptLoadException.hpp"
+#include "rtype/scripting/modules/ScriptResolver.hpp"
 #include "rtype/scripting/plugin/ScriptingPlugin.hpp"
 
 namespace {
@@ -109,6 +113,30 @@ std::uint16_t readPort(const rtype::core::config::Settings& network, const std::
             "Invalid setting 'network.port': {} is not a port (a whole number from {} to 65535)", port, lowest)};
     }
     return static_cast<std::uint16_t>(port);
+}
+
+/// @return The `scripts.aliases` setting: alias name, then its target folder in `scripts/`.
+/// @throws rtype::engine::exceptions::RuntimeError If a value is not a string, or an alias is invalid (`scripts` and
+/// `self` are reserved, names are `a-z 0-9 _ . -`, the target stays inside @p scriptsDirectory). Names the setting.
+std::map<std::string, std::string> readScriptAliases(const rtype::core::config::Settings& scripts,
+                                                     const std::filesystem::path& scriptsDirectory) {
+    const rtype::core::config::Settings aliases = scripts.section("aliases");
+    std::map<std::string, std::string> result;
+
+    for (const std::string& name : aliases.keys()) {
+        try {
+            result.emplace(name, aliases.getString(name, ""));
+            // Alone, so the error names this alias; duplicates (names ignore case) fail when the plugin builds.
+            const rtype::scripting::modules::ScriptResolver check{scriptsDirectory, {{name, result.at(name)}}};
+        } catch (const rtype::core::config::exceptions::SettingsException&) {
+            throw rtype::engine::exceptions::RuntimeError{
+                std::format("Invalid setting 'scripts.aliases.{}': it must be a string, the folder in scripts/", name)};
+        } catch (const rtype::scripting::exceptions::ScriptLoadException& error) {
+            throw rtype::engine::exceptions::RuntimeError{
+                std::format("Invalid setting 'scripts.aliases.{}': {}", name, error.what())};
+        }
+    }
+    return result;
 }
 
 /// @return The server or the client plugin the mode needs, from the `network` settings; null when standalone.
@@ -295,6 +323,9 @@ void Engine::build() {
     std::unique_ptr<ecs::Plugin> networkPlugin = makeNetworkPlugin(_config.mode, _settings);
     const bool client = runsClient(_config.mode);
     const bool server = runsServer(_config.mode);
+    const rtype::core::config::Settings scripts = _settings.section("scripts");
+    scripts.checkKeys({"aliases"}, "scripts");
+    std::map<std::string, std::string> aliases = readScriptAliases(scripts, _gameDirectory / kScriptsDirectory);
     const std::filesystem::path assets = _gameDirectory / kAssetsDirectory;
     // A server can run with the scripts alone; a client always draws something, so it is checked before a window opens.
     if (client && !std::filesystem::is_directory(assets)) {
@@ -328,6 +359,7 @@ void Engine::build() {
     }
     app.addPlugin(rtype::scripting::ScriptingPlugin{{
         .directory = _gameDirectory / kScriptsDirectory,
+        .aliases = std::move(aliases),
         .options = {.isClient = client, .isServer = server, .isDebug = kIsDebug},
         .onBuilt = [this](rtype::scripting::ScriptHost& host) { _scriptHost = &host; },
     }});
