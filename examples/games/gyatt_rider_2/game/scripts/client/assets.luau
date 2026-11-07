@@ -4,4 +4,11 @@
 Game.assets = {
 	-- The 8 roads, repeated down the view and scrolling on their own (the map's `scrolly`).
 	roads = engine.assets.tilemap("levels/roads.tmj"),
+	-- One rider per slot, in the players' colors: blue, red, green, purple.
+	riders = {
+		engine.assets.texture("riders/rider_0.png"),
+		engine.assets.texture("riders/rider_1.png"),
+		engine.assets.texture("riders/rider_2.png"),
+		engine.assets.texture("riders/rider_3.png"),
+	},
 }
