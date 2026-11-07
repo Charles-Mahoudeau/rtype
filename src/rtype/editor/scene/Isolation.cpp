@@ -11,6 +11,7 @@
 #include <optional>
 #include <string>
 
+#include "plugins/capsule/Capsule.hpp"
 #include "plugins/capsule/CapsuleSpawn.hpp"
 #include "plugins/capsule/Capsules.hpp"
 #include "plugins/capsule/exceptions/CapsuleException.hpp"

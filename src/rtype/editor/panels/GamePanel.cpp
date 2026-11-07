@@ -15,8 +15,10 @@
 #include <optional>
 
 #include "Panels.hpp"
+#include "editor/EditorState.hpp"
 #include "editor/gui/GameViewport.hpp"
 #include "editor/gui/GuiMesh.hpp"
+#include "rtype/contract/renderer/IRenderer.hpp"
 #include "rtype/contract/renderer/drawing/Texture.hpp"
 
 namespace rtype::editor::panels {

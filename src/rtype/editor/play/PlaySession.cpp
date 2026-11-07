@@ -14,6 +14,7 @@
 
 #include "editor/panels/WorldView.hpp"
 #include "editor/scene/SceneEdit.hpp"
+#include "plugins/capsule/Capsule.hpp"
 #include "plugins/capsule/LoadedCapsule.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/entity/Entity.hpp"

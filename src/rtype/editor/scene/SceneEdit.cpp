@@ -13,8 +13,10 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <ios>
 #include <iterator>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <string>
 #include <string_view>
@@ -84,7 +86,7 @@ bool isInSubtree(const capsule::Capsule& capsule, std::uint32_t node, std::uint3
 }
 
 std::string uniqueChildName(const capsule::Capsule& capsule, std::uint32_t parent, std::string_view base) {
-    const std::string stem = isValidNodeName(base) ? std::string{base} : std::string{"Node"};
+    std::string stem = isValidNodeName(base) ? std::string{base} : std::string{"Node"};
     const std::vector<std::uint32_t> siblings = childrenOf(capsule, parent);
     const auto taken = [&](std::string_view name) {
         return std::ranges::any_of(siblings, [&](std::uint32_t child) { return nodeAt(capsule, child).name == name; });
@@ -123,8 +125,8 @@ capsule::Capsule copyCapsule(const capsule::Capsule& source, const ecs::Componen
     copyNode(result.editNode(0), nodeAt(source, 0), components);
     // Depth first from the root: every parent is added before its children, as a capsule wants.
     std::vector<std::pair<std::uint32_t, std::uint32_t>> pending;  // a source node and its new parent's index
-    for (auto child = children.front().rbegin(); child != children.front().rend(); ++child) {
-        pending.emplace_back(*child, 0U);
+    for (const std::uint32_t child : std::views::reverse(children.front())) {
+        pending.emplace_back(child, 0U);
     }
     while (!pending.empty()) {
         const auto [node, parent] = pending.back();
@@ -132,8 +134,8 @@ capsule::Capsule copyCapsule(const capsule::Capsule& source, const ecs::Componen
         const capsule::CapsuleNode& original = nodeAt(source, node);
         const std::uint32_t added = result.addNode(uniqueChildName(result, parent, original.name), parent);
         copyNode(result.editNode(added), original, components);
-        for (auto child = children.at(node).rbegin(); child != children.at(node).rend(); ++child) {
-            pending.emplace_back(*child, added);
+        for (const std::uint32_t child : std::views::reverse(children.at(node))) {
+            pending.emplace_back(child, added);
         }
     }
     return result;

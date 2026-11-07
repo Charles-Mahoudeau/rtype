@@ -52,11 +52,13 @@ constexpr unsigned int kChunk = 4096;  ///< Bytes read at once.
 
 OutputCapture::OutputCapture(std::shared_ptr<ConsoleLog> log) : _log{std::move(log)} {
     std::array<int, 2> ends{-1, -1};
-    if (makePipe(ends) != 0) {
+    const bool made = makePipe(ends) == 0;
+    const auto [readEnd, writeEnd] = ends;
+    if (!made || readEnd < 0 || writeEnd < 0) {
         throw std::runtime_error{"OutputCapture: cannot make a pipe"};
     }
-    _pipeRead = ends[0];
-    _pipeWrite = ends[1];
+    _pipeRead = readEnd;
+    _pipeWrite = writeEnd;
     std::cout.flush();
     std::cerr.flush();
     static_cast<void>(std::fflush(stdout));

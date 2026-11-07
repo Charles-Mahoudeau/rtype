@@ -47,7 +47,8 @@ std::string buildOpenCommand(std::string_view editor, const std::filesystem::pat
 }
 
 bool openInTextEditor(std::string_view editor, const std::filesystem::path& file) {
-    // NOLINTNEXTLINE(concurrency-mt-unsafe,cert-env33-c): the user's own command, on the main thread.
+    // The user's own command, on the main thread.
+    // NOLINTNEXTLINE(concurrency-mt-unsafe,cert-env33-c,bugprone-command-processor)
     return std::system(buildOpenCommand(editor, file).c_str()) == 0;
 }
 

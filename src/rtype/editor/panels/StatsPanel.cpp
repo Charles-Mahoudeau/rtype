@@ -11,6 +11,8 @@
 #include <string>
 
 #include "Panels.hpp"
+#include "editor/EditorState.hpp"
+#include "rtype/contract/renderer/IRenderer.hpp"
 #include "rtype/contract/renderer/stats/FrameStats.hpp"
 #include "rtype/ecs/world/World.hpp"
 

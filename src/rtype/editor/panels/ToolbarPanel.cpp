@@ -11,8 +11,11 @@
 #include <string>
 
 #include "Panels.hpp"
+#include "editor/EditorState.hpp"
+#include "editor/gui/Text.hpp"
 #include "editor/scene/SceneEdit.hpp"
 #include "plugins/capsule/Capsules.hpp"
+#include "rtype/contract/platform/IPlatform.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
 #include "rtype/ecs/schedule/Schedules.hpp"
@@ -110,7 +113,7 @@ void drawToolbar(EditorState& state, contract::platform::IPlatform& platform) {
     }
     if (!state.status.empty()) {
         ImGui::Separator();
-        ImGui::TextDisabled("%s", state.status.c_str());
+        gui::textDisabled(state.status);
     }
     ImGui::EndMainMenuBar();
 }

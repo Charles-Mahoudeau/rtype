@@ -10,13 +10,14 @@
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
-#include <cstdint>
 #include <format>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "rtype/ecs/component/ComponentInfo.hpp"
+#include "rtype/ecs/component/Components.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/world/World.hpp"
 
 namespace rtype::editor::panels {

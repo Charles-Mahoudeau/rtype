@@ -10,15 +10,17 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <filesystem>
 #include <format>
 #include <optional>
 #include <string>
 
 #include "Panels.hpp"
+#include "editor/EditorState.hpp"
 #include "editor/gui/GuiMesh.hpp"
+#include "editor/gui/Text.hpp"
 #include "editor/scene/Isolation.hpp"
 #include "plugins/capsule/Capsules.hpp"
+#include "rtype/contract/renderer/IRenderer.hpp"
 #include "rtype/contract/renderer/drawing/Texture.hpp"
 #include "rtype/contract/renderer/view/ScenePreview.hpp"
 #include "rtype/contract/renderer/view/View.hpp"
@@ -72,7 +74,7 @@ void drawPrefabPanel(EditorState& state, contract::renderer::IRenderer& renderer
                 state.prefabZoom = std::clamp(state.prefabZoom * factor, kMinZoom, kMaxZoom);
             }
             ImGui::SetCursorPos(ImVec2{8.0F, 8.0F});
-            ImGui::TextDisabled("zoom x%.2f (wheel)", static_cast<double>(state.prefabZoom));
+            gui::textDisabled(std::format("zoom x{:.2f} (wheel)", state.prefabZoom));
         }
     } else {
         renderer.setScenePreview(std::nullopt);

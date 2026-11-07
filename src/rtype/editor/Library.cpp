@@ -6,11 +6,11 @@
 */
 
 #include <memory>
-#include <optional>
 #include <string>
 
 #include "core/config/Settings.hpp"
 #include "editor/EditorPlugin.hpp"
+#include "editor/EditorState.hpp"
 #include "rtype/ecs/app/PluginEntry.hpp"
 
 RTYPE_PLUGIN_LIBRARY(registrar) {

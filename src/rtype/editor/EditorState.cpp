@@ -15,7 +15,12 @@
 #include <optional>
 #include <vector>
 
+#include "editor/console/ConsoleLog.hpp"
+#include "editor/console/OutputCapture.hpp"
+#include "editor/gui/GuiContext.hpp"
+#include "editor/gui/GuiInput.hpp"
 #include "plugins/AssetDirectory.hpp"
+#include "plugins/capsule/Capsule.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/world/World.hpp"
 

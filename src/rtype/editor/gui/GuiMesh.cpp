@@ -12,8 +12,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <glm/ext/vector_float2.hpp>
-#include <glm/ext/vector_uint2.hpp>
-#include <glm/ext/vector_uint4_sized.hpp>
 #include <span>
 #include <vector>
 
@@ -32,11 +30,14 @@ std::vector<std::byte> toRgba(ImTextureData& texture) {
     const auto count = static_cast<std::size_t>(texture.Width) * static_cast<std::size_t>(texture.Height);
     const auto* pixels = static_cast<const std::byte*>(texture.GetPixels());
     if (texture.Format == ImTextureFormat_RGBA32) {
-        return {pixels, pixels + count * 4};
+        const std::span<const std::byte> all{pixels, count * 4};
+        return {all.begin(), all.end()};
     }
     std::vector<std::byte> rgba(count * 4, std::byte{0xFF});
-    for (std::size_t pixel = 0; pixel < count; ++pixel) {
-        rgba[pixel * 4 + 3] = pixels[pixel];
+    std::size_t alphaOffset = 3;
+    for (const std::byte alpha : std::span{pixels, count}) {
+        rgba.at(alphaOffset) = alpha;
+        alphaOffset += 4;
     }
     return rgba;
 }
@@ -110,8 +111,10 @@ contract::renderer::Mesh buildMesh(const ImDrawData& drawData) {
             }
             const auto firstIndex = static_cast<std::uint32_t>(mesh.indices.size());
             const std::uint32_t base = firstVertex + command.VtxOffset;
-            for (unsigned int index = 0; index < command.ElemCount; ++index) {
-                mesh.indices.push_back(base + list->IdxBuffer.Data[command.IdxOffset + index]);
+            const std::span<const ImDrawIdx> indices{list->IdxBuffer.Data,
+                                                     static_cast<std::size_t>(list->IdxBuffer.Size)};
+            for (const ImDrawIdx index : indices.subspan(command.IdxOffset, command.ElemCount)) {
+                mesh.indices.push_back(base + index);
             }
             mesh.commands.push_back(contract::renderer::MeshCommand{
                 .clipMin = (glm::vec2{command.ClipRect.x, command.ClipRect.y} - origin) * scale,

@@ -14,9 +14,9 @@
 #include <array>
 #include <filesystem>
 #include <format>
-#include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
 #include <memory>
+#include <span>
 #include <string>
 #include <utility>
 
