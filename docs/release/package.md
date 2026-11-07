@@ -12,7 +12,8 @@ One zip per platform and architecture, named `aylo-engine-<version>-<os>-<arch>.
 aylo-engine-<version>-<os>-<arch>/
 ├── runtime/                 what a game ships
 │   ├── aylo-runtime(.exe)
-│   ├── lib/                 the libraries that are not plugins: ecs, the contracts, the engine... and the C++ runtime
+│   ├── lib/                 the shared libraries that are not plugins: `ecs`, the contracts and the C++ runtime (the
+│   │                        other engine modules are static, inside aylo-runtime)
 │   ├── plugins/             the plugin libraries, real files; the engine scans this folder
 │   │   └── backends/        the platform, renderer and audio backends, scanned too
 │   └── licenses/            THIRD_PARTY_NOTICES.md

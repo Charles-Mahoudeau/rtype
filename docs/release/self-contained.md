@@ -41,6 +41,10 @@ names the ones we know: the Vulkan loader, and the window system libraries GLFW 
   `system = false`: xmake builds them, instead of linking the shared library of the machine that builds the release.
   A new dependency is added the same way (`add_requires`, never a system library), and stays private to the module that
   wraps it.
+- **The engine's own modules are static.** `luau`, `network`, `replication`, `scripting` and `engine` are linked into
+  `aylo-runtime` (and `aylo-sign`), so the release holds their code once, with the packages they wrap (`libsodium`,
+  Asio, Luau), and has five libraries fewer to bundle and to find. `ecs` and the contracts stay shared, as do the
+  plugins and the backends. The build refuses a shared library that links a static module (`rtype.static_modules`).
 - **GLFW is linked alone on Linux** (`platform-glfw`). It opens X11 and Wayland itself, but the xmake package lists
   them and thirty `libxcb-*` libraries as links, which the build trims to `glfw3` before linking.
 - **The Vulkan loader is opened, not linked** (`render-vulkan`, `core::Loader`), on Linux and Windows: the loader comes
