@@ -4,14 +4,15 @@ on:
   push:
     branches: [main]
   # No base filter: in a stack, the pull requests above the first target the branch below, not main.
+  # Not edited: bots such as CodeRabbit edit the description of every pull request, and each edit started a run whose jobs
+  # were all skipped. The cost: a pull request retargeted to main (the one below it merged) does not become the top of
+  # its stack by itself; re-run its checks by hand (gh run rerun, or workflow_dispatch).
   pull_request:
-    # edited: a pull request retargeted to main (the one below it merged) becomes the top of its stack.
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 concurrency:
-  # An edit that is not a base change (title, description) skips the gate: its own group keeps it from cancelling a run.
-  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ github.event.action == 'edited' && !github.event.changes.base && 'edit' || 'run' }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -27,7 +28,6 @@ jobs:
   # request stacked on top since then would not be seen.
   gate:
     name: Decide whether to run the checks
-    if: github.event.action != 'edited' || github.event.changes.base
     runs-on: ubuntu-latest
     outputs:
       run: ${{ steps.stack.outputs.run }}
