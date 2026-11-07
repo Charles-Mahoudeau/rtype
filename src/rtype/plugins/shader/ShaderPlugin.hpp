@@ -11,8 +11,6 @@
 #include <string_view>
 
 #include "plugins/shader/Export.hpp"
-#include "plugins/shader/ShaderConfig.hpp"
-#include "rtype/core/config/Settings.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
 
 namespace rtype::ecs {
@@ -31,8 +29,8 @@ namespace rtype::plugins::shader {
 /// It requires the GraphicsPlugin. Its system is ordered against the GraphicsPlugin's, so an App without a window (a
 /// server) does not add it: it inserts ShaderAssets and MaterialAssets itself if its gameplay code names materials.
 ///
-/// In a game, with `shader.hotReload`, a second system, Render "rtype.Shader.HotReload", follows `assets/shaders` of
-/// the game with a ShaderWatcher, just before the update. Without an AssetDirectory, nothing is followed.
+/// In a game with hot reload on (the `hotReload` setting), it adds a ShaderReloadable to the HotReload resource, which
+/// follows `assets/shaders` of the game. Without an AssetDirectory or a HotReload resource, nothing is followed.
 /// @code
 /// const rtype::core::asset::AssetId flash = shaders->load("assets/shaders/flash.glsl");
 /// const rtype::core::asset::AssetId hit =
@@ -41,13 +39,9 @@ namespace rtype::plugins::shader {
 /// @endcode
 class RTYPE_PLUGIN_SHADER_API ShaderPlugin : public ecs::Plugin {
   public:
-    static constexpr std::string_view kName = "rtype.Shader";                       ///< The plugin's name.
-    static constexpr std::string_view kUpdateSystem = "rtype.Shader.Update";        ///< Updates the renderer.
-    static constexpr std::string_view kHotReloadSystem = "rtype.Shader.HotReload";  ///< Follows the shader files.
+    static constexpr std::string_view kName = "rtype.Shader";                 ///< The plugin's name.
+    static constexpr std::string_view kUpdateSystem = "rtype.Shader.Update";  ///< Updates the renderer.
 
-    /// @param settings The project's settings, read by ShaderConfig::fromSettings().
-    /// @throws core::config::exceptions::SettingsException If they are invalid.
-    explicit ShaderPlugin(const core::config::Settings& settings);
     ShaderPlugin() = default;
     ~ShaderPlugin() override = default;
     ShaderPlugin(const ShaderPlugin& other) = default;
@@ -63,9 +57,6 @@ class RTYPE_PLUGIN_SHADER_API ShaderPlugin : public ecs::Plugin {
 
     /// @brief Inserts the resources and adds the system.
     void build(ecs::App& app) override;
-
-  private:
-    ShaderConfig _config;  ///< Hot reload.
 };
 
 }  // namespace rtype::plugins::shader

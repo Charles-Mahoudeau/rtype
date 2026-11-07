@@ -19,13 +19,16 @@
 #include "Export.hpp"
 #include "component/ComponentLayout.hpp"
 #include "plugin/PluginDeclaration.hpp"
+#include "rtype/core/reload/ReloadOutcome.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/luau/CallContext.hpp"
 #include "rtype/luau/Library.hpp"
 #include "rtype/luau/Result.hpp"
 #include "rtype/luau/Runtime.hpp"
 #include "rtype/luau/ValuePack.hpp"
 #include "system/RuntimeHandle.hpp"
+#include "system/SystemRegistration.hpp"
 
 namespace rtype::scripting {
 /// @brief Runs the scripts of a game on an App: owns their Luau runtime and the `engine` global they declare ECS data
@@ -50,6 +53,13 @@ namespace rtype::scripting {
 /// and `engine.assetId(path)` gives the id of an asset. `engine.assets` and `engine.input` hold the setup forms, which
 /// make those calls from a declarative table: each plugin brings its own (ecs::PluginRegistry::addScriptForms()),
 /// written with `engine.forms` (setup::getFormsPrelude()), and they run before the next script.
+///
+/// Hot reload: reloadScript() runs a script again while the game runs and swaps what it declares in the App, keeping
+/// the world: its systems replace the systems of the same name (in the same phase, with their new order), a system it
+/// no longer declares is removed, a component whose layout did not change takes its new defaults, and a Luau plugin it
+/// declares again is built again. What cannot be swapped in place (a component with a new layout, a component that
+/// disappeared, a new replicated component, a system that changed phase) is reported as a rebuild, and a script that
+/// raises an error changes nothing. The state a system kept in its script (an upvalue) starts again from the new code.
 ///
 /// The host and the App may be destroyed in either order. The systems a script added stay in the App when the host
 /// is destroyed first, but their script is gone with the runtime: they can no longer run it.
@@ -78,7 +88,22 @@ class RTYPE_SCRIPTING_API ScriptHost {
     /// @param name Name of the script, for the error messages.
     /// @param source Luau source code.
     /// @return Nothing, or the error of the script: it does not compile, or it raised one (a bad declaration is one).
-    [[nodiscard]] luau::Result<> run(std::string name, const std::string& source) const;
+    [[nodiscard]] luau::Result<> run(std::string name, const std::string& source);
+
+    /// @brief Runs a script again and swaps what it declares in the App (see the class).
+    ///
+    /// @details A script the host did not run before is added: its systems join the schedule. The App's schedules are
+    /// only touched when the whole script ran.
+    /// @param name Name of the script, as given to run().
+    /// @param source The new Luau source code.
+    /// @return `applied` with what changed ("system game.move"), `failed` with the error of the script (nothing was
+    /// changed), or `needsRebuild` with why it cannot be applied in place.
+    [[nodiscard]] core::reload::ReloadOutcome reloadScript(const std::string& name, const std::string& source);
+
+    /// @brief Forgets a script that was deleted: removes its systems from the App.
+    /// @param name Name of the script, as given to run().
+    /// @return As reloadScript(): a component or a plugin of the script cannot be removed in place.
+    [[nodiscard]] core::reload::ReloadOutcome removeScript(const std::string& name);
 
     /// @param name Name of a component a script declared.
     /// @return Its layout, with the default value a field left out of `Commands::add` or `spawn` takes, or null if no
@@ -133,7 +158,33 @@ class RTYPE_SCRIPTING_API ScriptHost {
         };
         plugin::PluginDeclaration declaration;  ///< What the script declared.
         State state{State::kDeclared};          ///< Where the addition is.
+        std::string file;                       ///< The script that declared it.
     };
+
+    /// @brief What one script declared, to tell what a new version of it removed.
+    struct FileDeclarations {
+        std::set<std::string> components;           ///< The components it declared.
+        std::map<std::string, ecs::Phase> systems;  ///< The systems it declared, with their phase.
+    };
+
+    /// @brief What a reload in progress holds back until the whole script ran.
+    struct Staging {
+        std::map<std::string, FileDeclarations> declared;    ///< What was declared, by the script that owns it.
+        std::vector<system::BuiltSystem> systems;            ///< The systems made, not in the schedule yet.
+        std::map<std::string, PluginEntry> replacedPlugins;  ///< The plugins declared again, as they were before.
+        std::set<std::string> declaredPlugins;               ///< The plugins the reload declared.
+        std::optional<std::string> rebuild;                  ///< Why the reload cannot be applied in place.
+    };
+
+    /// @brief The reload of one script, from running it to applying it: @p source is null for a script that was
+    /// deleted.
+    [[nodiscard]] core::reload::ReloadOutcome reloadFile(const std::string& file, const std::string* source);
+
+    /// @brief Puts the plugins back as they were before the reload in progress.
+    void restorePlugins();
+
+    /// @return The phase of the system this name, in the scripts' records; nothing if no script declared it.
+    [[nodiscard]] std::optional<ecs::Phase> findSystemPhase(const std::string& name) const;
 
     ecs::App& _app;          ///< The App scripts declare their ECS data on.
     luau::Runtime _runtime;  ///< The runtime of the scripts; declared before what holds references into it.
@@ -143,5 +194,8 @@ class RTYPE_SCRIPTING_API ScriptHost {
     component::ComponentLayouts _components;         ///< Components scripts declared.
     std::map<std::string, PluginEntry> _plugins;     ///< Luau plugins scripts declared, by name.
     std::vector<std::string> _pluginStack;           ///< Plugins being added, outermost first, to name a cycle.
+    std::map<std::string, FileDeclarations> _files;  ///< What each script declared, by its name.
+    std::string _owner;                              ///< The script a declaration made now belongs to.
+    std::unique_ptr<Staging> _staging;               ///< The reload in progress; null outside a reload.
 };
 }  // namespace rtype::scripting

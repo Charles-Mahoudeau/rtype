@@ -9,11 +9,13 @@
 
 #include <array>
 #include <filesystem>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
 
 #include "plugins/AssetDirectory.hpp"
+#include "plugins/HotReload.hpp"
 #include "plugins/graphics/BackendRegistry.hpp"
 #include "plugins/graphics/GraphicsPlugin.hpp"
 #include "plugins/graphics/GraphicsResources.hpp"  // IWYU pragma: keep
@@ -22,10 +24,9 @@
 #include "plugins/shader/MaterialInstance.hpp"
 #include "plugins/shader/ShaderAssets.hpp"
 #include "plugins/shader/ShaderCalls.hpp"
-#include "plugins/shader/ShaderConfig.hpp"
 #include "plugins/shader/ShaderHandles.hpp"
-#include "plugins/shader/ShaderWatcher.hpp"
-#include "rtype/core/config/Settings.hpp"
+#include "plugins/shader/ShaderReloadable.hpp"
+#include "rtype/core/reload/HotReloader.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
@@ -43,14 +44,7 @@ void updateShaders(ecs::NonSendMut<plugins::graphics::Backend> backend, ecs::Res
         handles->update(*shaders, *materials, *textures, *backend->renderer);
     }
 }
-
-/// @brief Render, client: compiles again the shader files edited since the last look.
-void reloadShaders(ecs::ResMut<ShaderAssets> shaders, ecs::ResMut<ShaderWatcher> watcher) {
-    watcher->update(*shaders, ShaderWatcher::Clock::now());
-}
 }  // namespace
-
-ShaderPlugin::ShaderPlugin(const core::config::Settings& settings) : _config{ShaderConfig::fromSettings(settings)} {}
 
 std::string_view ShaderPlugin::getName() const noexcept { return kName; }
 
@@ -73,11 +67,13 @@ void ShaderPlugin::build(ecs::App& app) {
     addShaderCalls(app);
     const std::filesystem::path directory = assetDirectoryOf(resources);
     resources.getMut<ShaderAssets>()->setDirectory(directory);
-    if (_config.hotReload && !directory.empty()) {
-        resources.insert(ShaderWatcher{directory});
-        app.addSystem(ecs::Phase::kRender, std::string{kHotReloadSystem}, &reloadShaders)
-            .before(std::string{kUpdateSystem})
-            .setSide(ecs::Side::kClient);
+    core::reload::HotReloader* reloader = hotReloaderOf(resources);
+    if (reloader != nullptr && !directory.empty()) {
+        // The reloader's paths are relative to the game; the assets' directory is a folder of it.
+        const std::filesystem::path assets = directory.lexically_relative(reloader->root());
+        if (!assets.empty() && *assets.begin() != "..") {
+            reloader->add(std::make_unique<ShaderReloadable>(&*resources.getMut<ShaderAssets>(), assets));
+        }
     }
 }
 

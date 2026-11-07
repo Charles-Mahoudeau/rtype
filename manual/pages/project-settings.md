@@ -15,6 +15,12 @@ too.
 | `engine.isDebug` | A debug build |
 | `engine.args` | The command line flags, typed (see [Getting started](getting-started.md)) |
 
+## Hot reload
+
+| Key | Default | Meaning |
+|---|---|---|
+| `hotReload` | `true` in a debug build, `false` otherwise | Watch the game's files while it runs, see [Hot reload](hot-reload.md) |
+
 ## Network
 
 | Key | Side | Default | Check |

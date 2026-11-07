@@ -16,9 +16,14 @@
 #include "EngineConfig.hpp"
 #include "Export.hpp"
 #include "rtype/core/config/Settings.hpp"
+#include "rtype/core/reload/HotReloader.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/engine/plugin/PluginLoader.hpp"
+
+namespace rtype::scripting {
+class ScriptHost;
+}  // namespace rtype::scripting
 
 namespace rtype::engine {
 /// @brief Runs a game: reads its project settings, builds the App with the engine's plugins, then runs it.
@@ -42,6 +47,13 @@ namespace rtype::engine {
 ///
 /// requestReload() reads the project again and builds a new App from it, between two frames. The world is not kept:
 /// its entities, resources and connections are lost, and the window is closed and opened again.
+///
+/// Hot reload (the `hotReload` setting, on by default in a debug build) follows the game's files while it runs, with a
+/// core::reload::HotReloader the engine looks at between two frames: a change to `project.luau` builds the App again; a
+/// change to a script swaps its systems and components in the live world (scripting::ScriptHost::reloadScript()), and
+/// builds the App again only when it cannot; a plugin follows its own files by adding a core::reload::Reloadable to the
+/// reloader (see plugins::HotReload). Each reload is logged: what, why, which files, how long. If a rebuild fails the
+/// engine says why and waits for the next change to try again, instead of stopping.
 /// @code
 /// rtype::engine::Engine engine{{.mode = rtype::ecs::RunMode::kServer, .args = {"--port", "4243"}}};
 /// return engine.run();
@@ -58,6 +70,8 @@ class RTYPE_ENGINE_API Engine {
         "backends";                                                 ///< The backends, in the plugins by the executable.
     static constexpr std::string_view kPluginsSetting = "plugins";  ///< The setting naming the plugins to add.
     static constexpr std::string_view kDefaultHost = "127.0.0.1";   ///< The server a client joins by default.
+    static constexpr std::string_view kHotReloadSetting =
+        "hotReload";  ///< The setting that turns hot reload on or off.
 
     /// @brief Reads the command line and the project settings, then builds the App.
     /// @param config What to run; kept to build the App again on a reload.
@@ -73,7 +87,8 @@ class RTYPE_ENGINE_API Engine {
     Engine(Engine&& other) = delete;
     Engine& operator=(Engine&& other) = delete;
 
-    /// @return The App the engine runs; a new one after each reload.
+    /// @return The App the engine runs; a new one after each reload. Only valid while the game is built: after a
+    /// hot reload whose build failed there is none until the files are fixed (run() is then waiting).
     [[nodiscard]] ecs::App& app() noexcept;
     [[nodiscard]] const ecs::App& app() const noexcept;
 
@@ -104,6 +119,16 @@ class RTYPE_ENGINE_API Engine {
     /// @brief Reads the project settings and builds a new App from them, replacing the current one.
     void build();
 
+    /// @brief Builds the App again between two frames. With hot reload on, a build that fails is reported and leaves
+    /// the engine without an App, waiting for the files to change; otherwise the error goes to the caller.
+    void reload();
+
+    /// @brief Looks at the files hot reload follows and asks for a reload if one of them needs it.
+    void pollHotReload();
+
+    /// @brief Makes the reloader follow `project.luau` and the scripts.
+    void addHotReloadSources();
+
     /// @brief Loads the plugin libraries, once, and registers them in the App, with the settings.
     void registerLibraries();
 
@@ -111,12 +136,15 @@ class RTYPE_ENGINE_API Engine {
     /// @throws exceptions::RuntimeError If a name is not registered.
     void addListedPlugins();
 
-    plugin::PluginLoader _loader;               ///< The plugin libraries; outlives every App built from them.
-    EngineConfig _config;                       ///< What to run, kept for the reloads.
-    CommandLine _commandLine;                   ///< The flags of EngineConfig::args.
-    std::filesystem::path _gameDirectory;       ///< The game directory, absolute.
-    core::config::Settings _settings;           ///< The settings of the last build.
-    std::unique_ptr<ecs::App> _app;             ///< The App; replaced by a reload.
-    std::atomic<bool> _reloadRequested{false};  ///< Set by requestReload(), cleared by the reload.
+    plugin::PluginLoader _loader;          ///< The plugin libraries; outlives every App built from them.
+    EngineConfig _config;                  ///< What to run, kept for the reloads.
+    CommandLine _commandLine;              ///< The flags of EngineConfig::args.
+    std::filesystem::path _gameDirectory;  ///< The game directory, absolute.
+    core::reload::HotReloader _reloader;   ///< What hot reload follows; outlives the Apps, forgets them on a build.
+    scripting::ScriptHost* _scriptHost{nullptr};  ///< The scripts of the current App, null when there is none.
+    bool _hotReload{false};                       ///< Whether hot reload is on, from the settings of the last build.
+    core::config::Settings _settings;             ///< The settings of the last build.
+    std::unique_ptr<ecs::App> _app;               ///< The App; replaced by a reload.
+    std::atomic<bool> _reloadRequested{false};    ///< Set by requestReload(), cleared by the reload.
 };
 }  // namespace rtype::engine

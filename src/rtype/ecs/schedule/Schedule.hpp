@@ -72,6 +72,13 @@ class RTYPE_ECS_API Schedule {
         std::size_t _index;   ///< The system's position among the schedule's systems.
     };
 
+    /// @brief A system to put in the schedule with its constraints, for replaceSystems().
+    struct SystemSpec {
+        System system;                    ///< The system.
+        std::vector<std::string> after;   ///< Names of the systems it runs after.
+        std::vector<std::string> before;  ///< Names of the systems it runs before.
+    };
+
     /// @param world The world the systems run on; it must outlive the schedule.
     /// @param mode What this process runs: it decides which systems run, from their side.
     /// @param phase The phase the schedule runs, for messages.
@@ -113,6 +120,18 @@ class RTYPE_ECS_API Schedule {
     /// @brief Adds a system. The schedule is built again before the next run.
     /// @throws exceptions::ScheduleException When a system of the schedule already has its name.
     SystemConfig addSystem(System system);
+
+    /// @brief Replaces, adds and removes systems in one step, then builds the schedule: all or nothing.
+    ///
+    /// @details A system of @p systems whose name is already in the schedule replaces it, in the same position, with
+    /// its own constraints and a fresh state; the others are added. This is what hot reload uses to swap the systems
+    /// of a changed script. If the result cannot be built, the schedule is left exactly as it was.
+    /// @param systems The systems to add or replace.
+    /// @param removed The names of the systems to remove.
+    /// @throws exceptions::ScheduleException When a name of @p removed is not in the schedule, a name is in both lists
+    /// or twice in @p systems, a client system writes replicated data (see SystemConfig::setSide()), or the new
+    /// schedule cannot be built (see build(): a constraint naming a removed system is one).
+    void replaceSystems(std::vector<SystemSpec> systems, std::span<const std::string> removed);
 
     /// @brief Checks the systems, sorts them and lists the events they write.
     /// @throws exceptions::ScheduleException When a constraint names a system that is not in the schedule,

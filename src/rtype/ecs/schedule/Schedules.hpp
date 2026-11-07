@@ -9,6 +9,7 @@
 
 #include <array>
 #include <memory>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -72,6 +73,12 @@ class RTYPE_ECS_API Schedules {
     /// @brief Adds a system to a phase. Its schedule is built again before it next runs.
     /// @throws exceptions::ScheduleException When a system of any phase already has its name.
     Schedule::SystemConfig addSystem(Phase phase, System system);
+
+    /// @brief Replaces, adds and removes the systems of one phase in one step (Schedule::replaceSystems()): all or
+    /// nothing for that phase.
+    /// @throws exceptions::ScheduleException As Schedule::replaceSystems(), and when a system put here has the name of
+    /// a system of another phase.
+    void replaceSystems(Phase phase, std::vector<Schedule::SystemSpec> systems, std::span<const std::string> removed);
 
     /// @brief Builds every schedule (Schedule::build()).
     /// @throws exceptions::ScheduleException When a schedule cannot be built.

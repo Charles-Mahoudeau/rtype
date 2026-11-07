@@ -163,6 +163,94 @@ Schedule::SystemConfig Schedule::addSystem(System system) {
     return SystemConfig{*this, _entries.size() - 1};
 }
 
+void Schedule::replaceSystems(std::vector<SystemSpec> systems, std::span<const std::string> removed) {
+    // Everything that can be refused is refused before the schedule changes.
+    for (const std::string& name : removed) {
+        if (!contains(name)) {
+            throw exceptions::ScheduleException{
+                std::format("Cannot remove system '{}': it is not a system of phase {}", name, toString(_phase))};
+        }
+    }
+    for (auto spec = systems.begin(); spec != systems.end(); ++spec) {
+        const std::string_view name = spec->system.getName();
+        if (std::ranges::find(removed, name) != removed.end() ||
+            std::any_of(systems.begin(), spec,
+                        [name](const SystemSpec& other) { return other.system.getName() == name; })) {
+            throw exceptions::ScheduleException{std::format(
+                "System '{}' of phase {} is put in the schedule twice, or removed and put", name, toString(_phase))};
+        }
+        if (spec->system.getSide() == Side::kClient) {
+            checkClientWrites(spec->system);
+        }
+    }
+
+    // The old state, kept to put back if the new schedule does not build.
+    std::vector<Entry> old = std::move(_entries);
+    std::vector<std::string> oldNames;
+    oldNames.reserve(old.size());
+    for (const Entry& entry : old) {
+        oldNames.emplace_back(entry.system.getName());
+    }
+    std::vector<bool> carried(old.size(), false);  // moved to _entries: the entry of `old` is hollow
+    const std::vector<std::size_t> oldOrder = _order;
+    const std::vector<EventId> oldEvents = _writtenEvents;
+    const bool wasBuilt = _built;
+    _entries.clear();
+
+    std::vector<bool> used(systems.size(), false);
+    for (std::size_t position = 0; position < old.size(); ++position) {
+        const std::string& name = oldNames.at(position);
+        if (std::ranges::find(removed, name) != removed.end()) {
+            continue;
+        }
+        const auto replacement =
+            std::ranges::find_if(systems, [&name](const SystemSpec& spec) { return spec.system.getName() == name; });
+        if (replacement != systems.end()) {
+            used.at(static_cast<std::size_t>(replacement - systems.begin())) = true;
+            _entries.push_back(Entry{
+                .system = std::move(replacement->system),
+                .after = std::move(replacement->after),
+                .before = std::move(replacement->before),
+            });
+            continue;
+        }
+        _entries.push_back(std::move(old.at(position)));
+        carried.at(position) = true;
+    }
+    for (std::size_t index = 0; index < systems.size(); ++index) {
+        if (!used.at(index)) {
+            SystemSpec& spec = systems.at(index);
+            _entries.push_back(Entry{
+                .system = std::move(spec.system),
+                .after = std::move(spec.after),
+                .before = std::move(spec.before),
+            });
+        }
+    }
+
+    try {
+        build();
+    } catch (...) {
+        std::vector<Entry> restored;
+        restored.reserve(old.size());
+        for (std::size_t position = 0; position < old.size(); ++position) {
+            if (!carried.at(position)) {
+                restored.push_back(std::move(old.at(position)));
+                continue;
+            }
+            const std::string& name = oldNames.at(position);
+            const auto kept =
+                std::ranges::find_if(_entries, [&name](const Entry& entry) { return entry.system.getName() == name; });
+            restored.push_back(std::move(*kept));
+        }
+        _entries = std::move(restored);
+        _order = oldOrder;
+        _writtenEvents = oldEvents;
+        _built = wasBuilt;
+        throw;
+    }
+}
+
 void Schedule::build() {
     _built = false;
     const std::vector<std::string_view> names = getNames();

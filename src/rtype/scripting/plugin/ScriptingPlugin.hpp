@@ -8,6 +8,7 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <string_view>
 
@@ -22,7 +23,8 @@ namespace rtype::scripting {
 /// @details build() creates a ScriptHost, then loads every `.luau` file found under the scripts directory, in sorted
 /// path order, so the order is the same on every machine. A missing directory loads nothing and logs a warning on
 /// `std::cerr`. The same files load on every side (server and clients): a script tells the sides apart with
-/// `engine.isClient` and `engine.isServer`. The host lives as long as the plugin, that is as long as the App.
+/// `engine.isClient` and `engine.isServer`. The host lives as long as the plugin, that is as long as the App;
+/// Config::onBuilt gives it to the program.
 /// @code
 /// app.addPlugin(rtype::scripting::ScriptingPlugin{{.options = {.isClient = true, .isServer = true}}});
 /// @endcode
@@ -32,6 +34,10 @@ class RTYPE_SCRIPTING_API ScriptingPlugin : public ecs::Plugin {
     struct Config {
         std::filesystem::path directory{"game/scripts"};  ///< Where the scripts are, searched recursively.
         ScriptHost::Options options;                      ///< The flags of `engine`.
+
+        /// @brief Called with the host once the scripts ran, so the program can reload them later (see
+        /// ScriptHost::reloadScript()). The host lives as long as the plugin, that is as long as the App. Optional.
+        std::function<void(ScriptHost&)> onBuilt;
     };
 
     /// @param config The scripts directory and the flags of `engine`.

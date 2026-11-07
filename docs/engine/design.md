@@ -114,22 +114,45 @@ is named by this path, the same on every side.
 
 ## Reloading
 
-`Engine::requestReload()` asks `run()` to read the project again and build a new `App` from it. It is groundwork for
-hot reload: nothing calls it yet. A file watcher, a debug key or a Luau call will.
+Two ways of changing a running game: a full rebuild of the `App`, and an in-place swap of what a script file declares.
+Both are driven by the `HotReloader` of `core` (`core/reload/`), which the `Engine` owns.
 
-- **When.** Between two frames, never during one: `run()` calls `App::runFrame()`, then reads `App::takeExit()` (an
-  exit wins over a reload asked in the same frame), then reloads if asked. `requestReload()` sets an atomic flag, so a
-  system or another thread (a file watcher) can call it.
-- **What is lost.** Everything in the world: entities, resources, the server's clients and the client's connection.
-  The window is closed and opened again, because the old `App` is destroyed before the new one is built, so the
-  window and the socket are released before they are needed again. The engine warns on `std::cerr` every time.
-- **Errors.** If the new build fails (a script error in `project.luau`, an invalid port...), `run()` throws and the
-  engine has no `App` left.
+### The reloader
 
-This full reload is what a change to `project.luau` needs: the window, the renderer and the network come from the
-settings and cannot change in place. A change to a file of `scripts/` will not need it. The Luau bridge can register a
-component again if its `layoutHash` is unchanged, and can replace a system (`../ecs/design.md`, *Hot reload*), so the
-world can be kept. That needs the ECS to replace a registered system, which it cannot do yet.
+A `core::reload::Reloadable` names the files it follows (`watched()`) and applies the changed ones (`reload()`), which
+returns a `ReloadOutcome`: `kApplied`, `kFailed` (the old version is kept) or `kNeedsRebuild`. The `HotReloader` polls
+each reloadable's `FileWatcher` every 250 ms, by modification time and size, and reports a file only after it has the
+same stamp on two looks in a row, so a half-written save is not read. A removal is reported at once. It times each
+reload, catches an exception as a failure and logs one line:
+`[HotReload] scripts: applied in 3.2 ms (modified scripts/ship.luau): system ship.move, component Ship`.
+A new hot-reloaded feature is a new `Reloadable` added to the reloader, nothing else.
+
+### Who watches what
+
+- `ProjectReloadable` follows `project.luau`. It runs the file again to check it loads: if not, the reload fails and the
+  game keeps its settings; if so, it asks for a rebuild.
+- `ScriptsReloadable` follows `scripts/**/*.luau` and calls `ScriptHost::removeScript` / `reloadScript` per file.
+  A script is run in a staging area and committed only if the whole file ran; its systems replace the previous ones of
+  the same name through `Schedules::replaceSystems`, which restores the old schedule if the new one has a cycle. A change
+  that cannot be patched asks for a rebuild: a changed component layout, a new replicated component, a removed component,
+  a system that changes phase or whose name another script owns, a deleted file.
+- Plugins add their own through the `HotReload` resource (`plugins/HotReload.hpp`, like `AssetDirectory`): the
+  `ShaderPlugin` adds a `ShaderReloadable`. The reloader is cleared on each build and the plugins add theirs again.
+
+### In the loop
+
+`run()` calls `App::runFrame()`, reads `App::takeExit()` (an exit wins over a reload), polls the reloader, then rebuilds
+if a reload asked for it or `requestReload()` was called (an atomic flag, safe from another thread). Reloads therefore
+run between two frames, on the main thread, which is the renderer's.
+
+- **On/off.** `engine.settings.hotReload`, true by default in a debug build. Off: no `HotReload` resource, no polling.
+- **Full rebuild.** Everything in the world is lost: entities, resources, the server's clients and the client's
+  connection. The old `App` is destroyed before the new one is built, so the window and the socket are released. The
+  plugin libraries stay loaded. The engine logs why.
+- **Errors.** With hot reload on, a failing rebuild is logged and the engine waits, with no `App`, for the next change of
+  the game files to try again. With it off, `run()` throws.
+- **Client and server.** Each process watches the same folder and reloads itself. A layout change makes both rebuild; a
+  side that differs from the other is refused by the manifest check.
 
 ## Dependencies
 

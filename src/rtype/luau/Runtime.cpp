@@ -23,6 +23,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "Bytecode.hpp"
@@ -104,8 +105,10 @@ Result<Bytecode> Runtime::compile(const std::string& source) const {
     }
     // NOLINTNEXTLINE(*-pro-bounds-avoid-unchecked-container-access)
     if (result[0] == 0) {
+        // The message is not null-terminated: its length is the buffer's, minus the null byte.
         // NOLINTNEXTLINE(*-pro-bounds-pointer-arithmetic)
-        return Failure{ErrorKind::kCompilation, std::format("unable to compile script: {}", result.get() + 1)};
+        const std::string_view message{result.get() + 1, size - 1};
+        return Failure{ErrorKind::kCompilation, std::format("unable to compile script: {}", message)};
     }
     return Bytecode{std::move(result), size};
 }

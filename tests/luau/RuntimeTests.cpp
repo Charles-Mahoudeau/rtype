@@ -105,6 +105,18 @@ TEST(Runtime, LoadSyntaxErrorReturnsCompilationError) {
     EXPECT_EQ(script.error().kind(), rtype::luau::ErrorKind::kCompilation);
 }
 
+TEST(Runtime, CompilationErrorMessageEndsWithTheErrorAndNothingMore) {
+    const auto runtime = makeRuntime();
+
+    // The error is at the end of the source, so the message ends where the buffer does.
+    const auto script = runtime.load("broken", "local x = (");
+
+    ASSERT_FALSE(script);
+    const std::string_view message = script.error().message();
+    EXPECT_TRUE(message.starts_with("unable to compile script: "));
+    EXPECT_TRUE(message.ends_with("<eof>")) << message;
+}
+
 TEST(Runtime, LoadDoesNotRunTheScript) {
     const auto runtime = makeRuntime();
 

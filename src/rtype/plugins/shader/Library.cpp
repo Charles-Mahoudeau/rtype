@@ -16,7 +16,7 @@
 RTYPE_PLUGIN_LIBRARY(registrar) {
     rtype::plugins::shader::addShaderForms(registrar.getPlugins());
     using rtype::plugins::shader::ShaderPlugin;
-    registrar.getPlugins().add(std::string{ShaderPlugin::kName}, [](const rtype::core::config::Settings& settings) {
-        return std::make_unique<ShaderPlugin>(settings);
+    registrar.getPlugins().add(std::string{ShaderPlugin::kName}, [](const rtype::core::config::Settings& /*settings*/) {
+        return std::make_unique<ShaderPlugin>();
     });
 }

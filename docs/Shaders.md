@@ -137,12 +137,14 @@ relative to the working directory.
 
 ## Hot reload
 
-With hot reload on, saving a shader changes the running game. The `ShaderWatcher` looks at `<game>/assets/shaders` and
-its subfolders twice a second, by the files' modification times.
+With hot reload on, saving a shader changes the running game. The `ShaderPlugin` adds a `ShaderReloadable` to the
+engine's `HotReloader` (the `rtype.HotReload` resource, `engine/design.md`, *Reloading*), which looks at
+`<game>/assets/shaders` and its subfolders by the files' modification times and logs each reload:
+`[HotReload] shaders: applied in 4.1 ms (modified assets/shaders/flash.glsl): shader shaders/flash.glsl`.
 
 ```lua
--- project.luau: true by default in a debug build, false in a release one.
-engine.settings.shader = { hotReload = true }
+-- project.luau: true by default in a debug build, false in a release one; one switch for the whole engine.
+engine.settings.hotReload = true
 ```
 
 - Only the shaders the game loaded are compiled. Another file in the folder is ignored until the game asks for it, and a

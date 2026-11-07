@@ -28,6 +28,7 @@
 #include "rtype/ecs/system/EventWriter.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/system/Side.hpp"
+#include "rtype/ecs/system/System.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/world/World.hpp"
 
@@ -480,4 +481,146 @@ TEST(Schedule, BuildsAgainAfterASideChange) {
     EXPECT_FALSE(schedule.isBuilt());
     schedule.build();
     EXPECT_EQ(writtenBy(schedule).size(), 1U);
+}
+
+namespace {
+/// @return A system spec named @p name that runs @p function, after the systems of @p after.
+template <typename Function>
+Schedule::SystemSpec makeSpec(World& world, const std::string& name, Function function,
+                              std::vector<std::string> after = {}, std::vector<std::string> before = {}) {
+    return {
+        .system = rtype::ecs::System{world, name, function}, .after = std::move(after), .before = std::move(before)};
+}
+
+/// @brief Expects replaceSystems() to throw a ScheduleException whose message contains @p text.
+void expectReplaceError(Schedule& schedule, std::vector<Schedule::SystemSpec> systems,
+                        const std::vector<std::string>& removed, const std::string_view text) {
+    try {
+        schedule.replaceSystems(std::move(systems), removed);
+        FAIL() << "replaceSystems() did not throw";
+    } catch (const ScheduleException& error) {
+        EXPECT_NE(std::string_view{error.what()}.find(text), std::string_view::npos) << error.what();
+    }
+}
+}  // namespace
+
+TEST(ScheduleReplace, ReplacesASystemByName) {
+    World world;
+    world.getResources().insert(ServerRuns{.count = 0});
+    world.getResources().insert(ClientRuns{.count = 0});
+    Schedule schedule{world, RunMode::kStandalone, Phase::kUpdate};
+    schedule.addSystem("a", &countServer);
+    schedule.addSystem("b", &noop);
+    std::vector<Schedule::SystemSpec> systems;
+    systems.push_back(makeSpec(world, "a", &countClient));
+
+    schedule.replaceSystems(std::move(systems), {});
+    schedule.run();
+
+    EXPECT_TRUE(schedule.isBuilt());
+    EXPECT_EQ(orderOf(schedule), (std::vector<std::string>{"a", "b"}));
+    EXPECT_EQ(world.getResources().get<ServerRuns>()->count, 0);
+    EXPECT_EQ(world.getResources().get<ClientRuns>()->count, 1);
+}
+
+TEST(ScheduleReplace, AddsAndRemovesInOneStep) {
+    World world;
+    Schedule schedule{world, RunMode::kStandalone, Phase::kUpdate};
+    schedule.addSystem("a", &noop);
+    schedule.addSystem("b", &noop);
+    std::vector<Schedule::SystemSpec> systems;
+    systems.push_back(makeSpec(world, "c", &noop));
+
+    schedule.replaceSystems(std::move(systems), std::vector<std::string>{"a"});
+
+    EXPECT_EQ(orderOf(schedule), (std::vector<std::string>{"b", "c"}));
+    EXPECT_FALSE(schedule.contains("a"));
+}
+
+TEST(ScheduleReplace, TakesTheConstraintsOfTheNewSystem) {
+    World world;
+    Schedule schedule{world, RunMode::kStandalone, Phase::kUpdate};
+    schedule.addSystem("a", &noop);
+    schedule.addSystem("b", &noop).before("a");
+    schedule.build();
+    EXPECT_EQ(orderOf(schedule), (std::vector<std::string>{"b", "a"}));
+    std::vector<Schedule::SystemSpec> systems;
+    systems.push_back(makeSpec(world, "b", &noop, {"a"}));
+
+    schedule.replaceSystems(std::move(systems), {});
+
+    EXPECT_EQ(orderOf(schedule), (std::vector<std::string>{"a", "b"}));
+}
+
+TEST(ScheduleReplace, LeavesTheScheduleAsItWasWhenTheNewOneCannotBeBuilt) {
+    World world;
+    world.getResources().insert(ServerRuns{.count = 0});
+    world.getResources().insert(BothRuns{.count = 0});
+    Schedule schedule{world, RunMode::kStandalone, Phase::kUpdate};
+    schedule.addSystem("a", &countServer);
+    schedule.addSystem("b", &countBoth).after("a");
+    schedule.build();
+    std::vector<Schedule::SystemSpec> systems;
+    systems.push_back(makeSpec(world, "a", &noop, {"b"}));
+
+    expectReplaceError(schedule, std::move(systems), {}, "form a cycle");
+
+    EXPECT_TRUE(schedule.isBuilt());
+    EXPECT_EQ(orderOf(schedule), (std::vector<std::string>{"a", "b"}));
+    schedule.run();
+    EXPECT_EQ(world.getResources().get<ServerRuns>()->count, 1) << "the old system is back";
+    EXPECT_EQ(world.getResources().get<BothRuns>()->count, 1);
+}
+
+TEST(ScheduleReplace, RefusesToRemoveASystemOthersAreOrderedAgainst) {
+    World world;
+    Schedule schedule{world, RunMode::kStandalone, Phase::kUpdate};
+    schedule.addSystem("a", &noop);
+    schedule.addSystem("b", &noop).after("a");
+    schedule.build();
+
+    expectReplaceError(schedule, {}, {"a"}, "which is not a system of phase");
+
+    EXPECT_EQ(orderOf(schedule), (std::vector<std::string>{"a", "b"}));
+    EXPECT_TRUE(schedule.contains("a"));
+}
+
+TEST(ScheduleReplace, RefusesToRemoveAnUnknownSystem) {
+    World world;
+    Schedule schedule{world, RunMode::kStandalone, Phase::kUpdate};
+    schedule.addSystem("a", &noop);
+
+    expectReplaceError(schedule, {}, {"missing"}, "Cannot remove system 'missing'");
+
+    EXPECT_TRUE(schedule.contains("a"));
+}
+
+TEST(ScheduleReplace, RefusesANameGivenTwice) {
+    World world;
+    Schedule schedule{world, RunMode::kStandalone, Phase::kUpdate};
+    schedule.addSystem("a", &noop);
+    std::vector<Schedule::SystemSpec> twice;
+    twice.push_back(makeSpec(world, "x", &noop));
+    twice.push_back(makeSpec(world, "x", &noop));
+    std::vector<Schedule::SystemSpec> removedAndPut;
+    removedAndPut.push_back(makeSpec(world, "a", &noop));
+
+    expectReplaceError(schedule, std::move(twice), {}, "twice");
+    expectReplaceError(schedule, std::move(removedAndPut), {"a"}, "twice, or removed and put");
+
+    EXPECT_EQ(schedule.getOrder().size(), 0U) << "never built: nothing changed";
+    EXPECT_TRUE(schedule.contains("a"));
+    EXPECT_FALSE(schedule.contains("x"));
+}
+
+TEST(ScheduleReplace, BuildsASchedulesThatWasNotBuiltYet) {
+    World world;
+    Schedule schedule{world, RunMode::kStandalone, Phase::kUpdate};
+
+    std::vector<Schedule::SystemSpec> systems;
+    systems.push_back(makeSpec(world, "a", &noop));
+    schedule.replaceSystems(std::move(systems), {});
+
+    EXPECT_TRUE(schedule.isBuilt());
+    EXPECT_EQ(orderOf(schedule), (std::vector<std::string>{"a"}));
 }

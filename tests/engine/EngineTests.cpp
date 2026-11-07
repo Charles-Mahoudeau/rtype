@@ -7,12 +7,14 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -344,4 +346,106 @@ TEST(Engine, ExitsBeforeAReloadRequestedInTheSameFrame) {
 
     EXPECT_EQ(engine.run(), 1);
     EXPECT_EQ(builds, 1);
+}
+
+namespace {
+/// @brief The settings of the games that follow their files: hot reload is off by default in a release build.
+constexpr std::string_view kHotProject = R"(
+    engine.settings.network.port = 0
+    engine.settings.hotReload = true
+)";
+
+/// @return A script whose system `game.Quit` ends the game with @p code, or does nothing if @p code is 0.
+std::string quitScript(const int code) {
+    return R"(engine.ecs.system("game.Quit", {
+        phase = "Update",
+        query = {},
+        events = { send = { "rtype.AppExit" } },
+        run = function(ctx) )" +
+           (code == 0 ? std::string{} : "ctx.events.send(\"rtype.AppExit\", { code = " + std::to_string(code) + " })") +
+           R"( end,
+    }))";
+}
+}  // namespace
+
+TEST(EngineHotReload, BuildsTheGameAgainWhenTheProjectChanges) {
+    const GameDirectory game{"rtype-engine-hot-project", kHotProject};
+    std::int32_t builds = 0;
+    EngineConfig config = serverConfig(game);
+    config.setup = countingSetup(builds, &exitOnSecondBuild);
+    Engine engine{std::move(config)};
+    game.write(std::string{Engine::kProjectFile}, std::string{kHotProject} + "engine.settings.version = 2\n");
+
+    testing::internal::CaptureStderr();
+    const int code = engine.run();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(code, 2);
+    EXPECT_EQ(engine.settings().getNumber("version", 0.0), 2.0);
+    EXPECT_NE(log.find("[HotReload] project: cannot apply in place"), std::string::npos) << log;
+    EXPECT_NE(log.find("modified project.luau"), std::string::npos) << log;
+}
+
+TEST(EngineHotReload, SwapsTheSystemsOfAChangedScriptWithoutBuildingTheGameAgain) {
+    const GameDirectory game{"rtype-engine-hot-scripts", kHotProject};
+    game.write("scripts/quit.luau", quitScript(0));
+    std::int32_t builds = 0;
+    EngineConfig config = serverConfig(game);
+    config.setup = [&builds](Engine& engine) {
+        engine.app().insertResource(Build{.number = ++builds});
+        static_cast<void>(engine.app().getWorld().getEvents().registerType<rtype::ecs::AppExit>());  // scripts send it
+    };
+    Engine engine{std::move(config)};
+    game.write("scripts/quit.luau", quitScript(7));
+
+    testing::internal::CaptureStderr();
+    const int code = engine.run();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(code, 7) << "the new system ran in the same world";
+    EXPECT_EQ(builds, 1) << "the game was not built again";
+    EXPECT_NE(log.find("[HotReload] scripts: applied in"), std::string::npos) << log;
+    EXPECT_NE(log.find("modified scripts/quit.luau"), std::string::npos) << log;
+    EXPECT_NE(log.find("system game.Quit"), std::string::npos) << log;
+}
+
+TEST(EngineHotReload, BuildsTheGameAgainWhenAScriptCannotBeSwappedInPlace) {
+    const GameDirectory game{"rtype-engine-hot-layout", kHotProject};
+    game.write("scripts/thing.luau", R"(engine.ecs.component("game.Thing", { fields = { a = "f32" } }))");
+    std::int32_t builds = 0;
+    EngineConfig config = serverConfig(game);
+    config.setup = countingSetup(builds, &exitOnSecondBuild);
+    Engine engine{std::move(config)};
+    game.write("scripts/thing.luau", R"(engine.ecs.component("game.Thing", { fields = { a = "f32", b = "f32" } }))");
+
+    testing::internal::CaptureStderr();
+    const int code = engine.run();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(code, 2);
+    EXPECT_NE(log.find("[HotReload] scripts: cannot apply in place"), std::string::npos) << log;
+    EXPECT_NE(log.find("game.Thing"), std::string::npos) << log;
+}
+
+TEST(EngineHotReload, WaitsForAFixWhenTheNewGameCannotBeBuilt) {
+    const GameDirectory game{"rtype-engine-hot-wait", kHotProject};
+    std::int32_t builds = 0;
+    EngineConfig config = serverConfig(game);
+    config.setup = countingSetup(builds, &exitOnSecondBuild);
+    Engine engine{std::move(config)};
+    game.write(std::string{Engine::kProjectFile},
+               std::string{kHotProject} + "engine.settings.plugins = { 'no.Such' }\n");
+
+    testing::internal::CaptureStderr();
+    int code = -1;
+    std::thread runner{[&engine, &code] { code = engine.run(); }};
+    std::this_thread::sleep_for(std::chrono::milliseconds{1500});
+    game.write(std::string{Engine::kProjectFile}, kHotProject);
+    runner.join();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(code, 2) << "the game was built when the project was fixed";
+    EXPECT_NE(log.find("The game cannot be built"), std::string::npos) << log;
+    EXPECT_NE(log.find("unknown plugin 'no.Such'"), std::string::npos) << log;
+    EXPECT_NE(log.find("Waiting for a change"), std::string::npos) << log;
 }

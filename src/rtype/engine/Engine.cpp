@@ -9,6 +9,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <exception>
 #include <filesystem>
 #include <format>
 #include <iostream>
@@ -16,11 +17,13 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <thread>
 #include <utility>
 
 #include "core/library/LibraryEntry.hpp"
 #include "core/system/ExecutablePath.hpp"
 #include "rtype/core/config/Settings.hpp"
+#include "rtype/core/reload/ReloadReport.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/MinimalPlugins.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
@@ -33,15 +36,19 @@
 #include "rtype/engine/Exceptions.hpp"
 #include "rtype/engine/NetworkInput.hpp"
 #include "rtype/engine/plugin/PluginSignature.hpp"
+#include "rtype/engine/reload/ProjectReloadable.hpp"
+#include "rtype/engine/reload/ScriptsReloadable.hpp"
 #include "rtype/engine/scripting/SettingsLoader.hpp"
 #include "rtype/network/NetworkSettings.hpp"
 #include "rtype/network/io/Address.hpp"
 #include "rtype/plugins/AssetDirectory.hpp"
+#include "rtype/plugins/HotReload.hpp"
 #include "rtype/plugins/transform/TransformPlugin.hpp"
 #include "rtype/replication/ReplicationPlugin.hpp"
 #include "rtype/replication/ReplicationSettings.hpp"
 #include "rtype/replication/client/ClientPlugin.hpp"
 #include "rtype/replication/server/ServerPlugin.hpp"
+#include "rtype/scripting/ScriptHost.hpp"
 #include "rtype/scripting/plugin/ScriptingPlugin.hpp"
 
 namespace {
@@ -145,7 +152,9 @@ void verifyGamePlugin(const std::filesystem::path& library) {
 Engine::Engine(EngineConfig config)
     : _config{std::move(config)},
       _commandLine{CommandLine::parse(_config.args)},
-      _gameDirectory{findGame(_commandLine, _config.game)} {
+      _gameDirectory{findGame(_commandLine, _config.game)},
+      _reloader{_gameDirectory},
+      _hotReload{kIsDebug} {
     build();
 }
 
@@ -167,16 +176,59 @@ void Engine::requestReload() noexcept { _reloadRequested = true; }
 
 int Engine::run() {
     while (true) {
-        _app->runFrame();
-        if (const std::optional<int> code = _app->takeExit()) {
-            return *code;
+        if (_app) {
+            _app->runFrame();
+            if (const std::optional<int> code = _app->takeExit()) {
+                return *code;
+            }
+        } else {
+            // The last reload could not build the game: wait for the files to change.
+            std::this_thread::sleep_for(core::reload::HotReloader::kInterval / 5);
         }
+        pollHotReload();
         if (_reloadRequested.exchange(false)) {
-            std::cerr << "[Engine] Reloading the game: the world is built again, its entities, resources and "
-                         "connections are lost.\n";
-            build();
+            reload();
         }
     }
+}
+
+void Engine::pollHotReload() {
+    if (!_hotReload) {
+        return;
+    }
+    // The reloaders log what they did; a rebuild is the only thing left to do here.
+    for (const core::reload::ReloadReport& report : _reloader.update(core::reload::HotReloader::Clock::now())) {
+        if (report.needsRebuild()) {
+            requestReload();
+        }
+    }
+}
+
+void Engine::reload() {
+    std::cerr << "[Engine] Reloading the game: the world is built again, its entities, resources and connections "
+                 "are lost.\n";
+    try {
+        build();
+    } catch (const std::exception& error) {
+        if (!_hotReload) {
+            throw;
+        }
+        _app.reset();
+        _scriptHost = nullptr;
+        std::cerr << std::format(
+            "[Engine] The game cannot be built: {}\n[Engine] Waiting for a change in the game files to try again.\n",
+            error.what());
+    }
+}
+
+void Engine::addHotReloadSources() {
+    _reloader.add(std::make_unique<reload::ProjectReloadable>(std::filesystem::path{kProjectFile}, [this] {
+        // The project is read again and its network settings checked, without building anything.
+        const core::config::Settings settings = loadSettings(_gameDirectory, _config.mode, _commandLine);
+        static_cast<void>(makeNetworkPlugin(_config.mode, settings));
+    }));
+    _reloader.add(std::make_unique<reload::ScriptsReloadable>(_gameDirectory, std::filesystem::path{kScriptsDirectory},
+                                                              [this] { return _scriptHost; }));
 }
 
 void Engine::registerLibraries() {
@@ -217,9 +269,15 @@ void Engine::addListedPlugins() {
 }
 
 void Engine::build() {
-    // The old App goes first: its window and its socket must be released before the new one opens them again.
+    // The old App goes first: its window and its socket must be released before the new one opens them again. What
+    // follows files may point into it, so it is forgotten first. The project and the scripts are followed before the
+    // project is read, so a project that fails to build is still watched.
+    _reloader.clear();
+    _scriptHost = nullptr;
     _app.reset();
+    addHotReloadSources();
     _settings = loadSettings(_gameDirectory, _config.mode, _commandLine);
+    _hotReload = _settings.getBool(kHotReloadSetting, kIsDebug);
     // Checked before anything is built, so a wrong address fails before a window opens; added last, see the class.
     std::unique_ptr<ecs::Plugin> networkPlugin = makeNetworkPlugin(_config.mode, _settings);
     const bool client = runsClient(_config.mode);
@@ -235,6 +293,9 @@ void Engine::build() {
     ecs::App& app = *_app;
     // Inserted first, so every plugin finds it when it is built.
     app.getWorld().getResources().insert(plugins::AssetDirectory{.path = assets});
+    if (_hotReload) {
+        app.getWorld().getResources().insert(plugins::HotReload{.reloader = &_reloader});
+    }
 
     registerLibraries();
     app.addPlugins(ecs::MinimalPlugins{});
@@ -249,9 +310,10 @@ void Engine::build() {
     if (_config.setup) {
         _config.setup(*this);
     }
-    app.addPlugin(::rtype::scripting::ScriptingPlugin{{
+    app.addPlugin(rtype::scripting::ScriptingPlugin{{
         .directory = _gameDirectory / kScriptsDirectory,
         .options = {.isClient = client, .isServer = server, .isDebug = kIsDebug},
+        .onBuilt = [this](rtype::scripting::ScriptHost& host) { _scriptHost = &host; },
     }});
     if (networkPlugin) {
         app.addPlugin(std::move(networkPlugin));

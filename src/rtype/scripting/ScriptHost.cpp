@@ -8,15 +8,20 @@
 #include "ScriptHost.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <format>
 #include <iterator>
 #include <memory>
+#include <optional>
+#include <ranges>
+#include <set>
 #include <span>
 #include <string>
 #include <string_view>
 #include <tl/expected.hpp>
 #include <utility>
+#include <vector>
 
 #include "call/EngineCall.hpp"
 #include "commands/ScriptCommands.hpp"
@@ -25,10 +30,17 @@
 #include "component/DeclarationReader.hpp"
 #include "core/asset/AssetId.hpp"
 #include "plugin/PluginDeclarationReader.hpp"
+#include "rtype/core/reload/ReloadOutcome.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/call/CallInfo.hpp"
 #include "rtype/ecs/call/Calls.hpp"
+#include "rtype/ecs/exceptions/ScheduleException.hpp"
+#include "rtype/ecs/schedule/Phase.hpp"
+#include "rtype/ecs/schedule/Schedule.hpp"
+#include "rtype/ecs/schedule/Schedules.hpp"
+#include "rtype/ecs/system/Side.hpp"
+#include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/ecs/world/World.hpp"
 #include "rtype/luau/CallContext.hpp"
 #include "rtype/luau/Exceptions.hpp"
@@ -40,6 +52,7 @@
 #include "rtype/luau/Usertype.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/ValuePack.hpp"
+#include "rtype/scripting/ErrorKind.hpp"
 #include "setup/FormsPrelude.hpp"
 #include "system/ContextTypes.hpp"
 #include "system/RuntimeHandle.hpp"
@@ -92,11 +105,14 @@ ScriptHost::ScriptHost(ecs::App& app, luau::Runtime runtime)
 
 ScriptHost::~ScriptHost() { _handle->runtime = nullptr; }
 
-luau::Result<> ScriptHost::run(std::string name, const std::string& source) const {
+luau::Result<> ScriptHost::run(std::string name, const std::string& source) {
     if (auto loaded = loadForms(); !loaded) {
         return loaded;
     }
-    return runSource(std::move(name), source);
+    _owner = name;
+    auto result = runSource(std::move(name), source);
+    _owner.clear();
+    return result;
 }
 
 luau::Result<> ScriptHost::runSource(std::string name, const std::string& source) const {
@@ -202,10 +218,21 @@ void ScriptHost::declareComponent(std::string name, const luau::Table& spec) {
     if (!declaration) {
         throw luau::exceptions::RuntimeError{std::string{declaration.error().message()}};
     }
+    // A reload can only add what the world already agrees with: a replicated component the network plugin did not see
+    // when it was built is not one of them.
+    if (_staging && !_components.contains(declaration->name) &&
+        declaration->replication != ecs::ReplicationMode::kNone) {
+        _staging->rebuild = std::format("component '{}' is new and replicated", declaration->name);
+    }
     auto layout = component::registerComponent(_app.getWorld().getComponents(), *declaration);
     if (!layout) {
+        if (_staging && (layout.error().kind() == ErrorKind::kLayoutMismatch ||
+                         layout.error().kind() == ErrorKind::kRegistration)) {
+            _staging->rebuild = std::format("component '{}' changed: {}", declaration->name, layout.error().message());
+        }
         throw luau::exceptions::RuntimeError{std::string{layout.error().message()}};
     }
+    (_staging ? _staging->declared[_owner] : _files[_owner]).components.insert(declaration->name);
     _components.insert_or_assign(declaration->name, std::move(*layout));
 }
 
@@ -214,9 +241,34 @@ void ScriptHost::declareSystem(std::string name, const luau::Table& spec) {
     if (!declaration) {
         throw luau::exceptions::RuntimeError{std::string{declaration.error().message()}};
     }
-    if (auto registered = system::registerSystem(_app, std::move(*declaration), _handle); !registered) {
-        throw luau::exceptions::RuntimeError{std::string{registered.error().message()}};
+    const std::string systemName = declaration->name;
+    const ecs::Phase phase = declaration->phase;
+    if (!_staging) {
+        if (auto registered = system::registerSystem(_app, std::move(*declaration), _handle); !registered) {
+            throw luau::exceptions::RuntimeError{std::string{registered.error().message()}};
+        }
+        _files[_owner].systems.insert_or_assign(systemName, phase);
+        return;
     }
+    for (const auto& [file, declared] : _files) {
+        if (file != _owner && declared.systems.contains(systemName)) {
+            throw luau::exceptions::RuntimeError{
+                std::format("System '{}': already declared by the script '{}'", systemName, file)};
+        }
+    }
+    if (std::ranges::any_of(_staging->systems,
+                            [&systemName](const auto& built) { return built.spec.system.getName() == systemName; })) {
+        throw luau::exceptions::RuntimeError{std::format("System '{}': declared twice", systemName)};
+    }
+    auto built = system::makeSystem(_app, std::move(*declaration), _handle);
+    if (!built) {
+        throw luau::exceptions::RuntimeError{std::string{built.error().message()}};
+    }
+    if (const std::optional<ecs::Side> side = built->side) {
+        built->spec.system.setSide(*side);
+    }
+    _staging->declared[_owner].systems.insert_or_assign(systemName, phase);
+    _staging->systems.push_back(std::move(*built));
 }
 
 void ScriptHost::declarePlugin(const std::string& name, const luau::Table& spec) {
@@ -224,11 +276,22 @@ void ScriptHost::declarePlugin(const std::string& name, const luau::Table& spec)
     if (!declaration) {
         throw luau::exceptions::RuntimeError{std::string{declaration.error().message()}};
     }
-    if (_plugins.contains(declaration->name)) {
-        throw luau::exceptions::RuntimeError{std::format("Plugin '{}': already declared", declaration->name)};
-    }
     const std::string key = declaration->name;
-    _plugins.emplace(key, PluginEntry{.declaration = std::move(*declaration)});
+    const auto known = _plugins.find(key);
+    if (known != _plugins.end()) {
+        // A reload may declare a plugin of its own script again; the old one is kept to put it back on failure.
+        if (!_staging || known->second.file != _owner || _staging->declaredPlugins.contains(key)) {
+            throw luau::exceptions::RuntimeError{std::format("Plugin '{}': already declared", key)};
+        }
+        _staging->replacedPlugins.emplace(key, std::move(known->second));
+        _plugins.erase(known);
+    }
+    if (_staging) {
+        _staging->declaredPlugins.insert(key);
+    }
+    _plugins.emplace(
+        key,
+        PluginEntry{.declaration = std::move(*declaration), .state = PluginEntry::State::kDeclared, .file = _owner});
 }
 
 // NOLINTNEXTLINE(misc-no-recursion): the depth is the depth of the plugin dependencies, and cycles are detected.
@@ -261,6 +324,10 @@ void ScriptHost::addPlugin(const std::string& name) {
             addPlugin(dependency);
         }
         if (entry.declaration.build) {
+            // What the build declares belongs to the script of the plugin, whoever adds it.
+            const std::string addedBy = std::exchange(_owner, entry.file);
+            const auto restoreOwner = [this, &addedBy](void*) { _owner = addedBy; };
+            const std::unique_ptr<void, decltype(restoreOwner)> ownerScope{this, restoreOwner};
             const auto handle = std::make_shared<bool>(true);
             auto app = _runtime.usertype<AppHandle>().create(AppHandle{.host = this, .alive = handle});
             if (!app) {
@@ -298,6 +365,158 @@ luau::ValuePack ScriptHost::callEngine(const luau::CallContext& arguments) {
                             [&world, info](const std::span<const std::byte> bytes, const std::span<std::byte> result) {
                                 world.getCalls().invoke(world, info->id, bytes, result);
                             });
+}
+
+core::reload::ReloadOutcome ScriptHost::reloadScript(const std::string& name, const std::string& source) {
+    if (auto loaded = loadForms(); !loaded) {
+        return core::reload::ReloadOutcome::failed(std::string{loaded.error().message()});
+    }
+    return reloadFile(name, &source);
+}
+
+core::reload::ReloadOutcome ScriptHost::removeScript(const std::string& name) { return reloadFile(name, nullptr); }
+
+std::optional<ecs::Phase> ScriptHost::findSystemPhase(const std::string& name) const {
+    for (const auto& declared : _files | std::views::values) {
+        if (const auto found = declared.systems.find(name); found != declared.systems.end()) {
+            return found->second;
+        }
+    }
+    return std::nullopt;
+}
+
+void ScriptHost::restorePlugins() {
+    for (const std::string& name : _staging->declaredPlugins) {
+        _plugins.erase(name);
+    }
+    for (auto& [name, entry] : _staging->replacedPlugins) {
+        _plugins.insert_or_assign(name, std::move(entry));
+    }
+}
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): one sequence of steps that must stay in this order.
+core::reload::ReloadOutcome ScriptHost::reloadFile(const std::string& file, const std::string* source) {
+    using core::reload::ReloadOutcome;
+
+    _staging = std::make_unique<Staging>();
+    _owner = file;
+    const auto finish = [this](void*) {
+        _staging.reset();
+        _owner.clear();
+    };
+    const std::unique_ptr<void, decltype(finish)> scope{this, finish};
+
+    if (source != nullptr) {
+        if (auto ran = runSource(file, *source); !ran) {
+            if (_staging->rebuild) {
+                return ReloadOutcome::needsRebuild(*_staging->rebuild);
+            }
+            restorePlugins();
+            return ReloadOutcome::failed(std::string{ran.error().message()});
+        }
+        // A plugin declared again was built before: build it again, as the script's own addPlugin would have.
+        for (const auto& [name, old] : _staging->replacedPlugins) {
+            if (old.state != PluginEntry::State::kAdded) {
+                continue;
+            }
+            try {
+                addPlugin(name);
+            } catch (const luau::exceptions::RuntimeError& error) {
+                if (_staging->rebuild) {
+                    return ReloadOutcome::needsRebuild(*_staging->rebuild);
+                }
+                restorePlugins();
+                return ReloadOutcome::failed(error.what());
+            }
+        }
+    }
+    if (_staging->rebuild) {
+        return ReloadOutcome::needsRebuild(*_staging->rebuild);
+    }
+
+    // Which files the reload touched, and what each one no longer declares.
+    std::set<std::string> touched{file};
+    for (const auto& [owner, declared] : _staging->declared) {
+        touched.insert(owner);
+    }
+    std::vector<std::pair<std::string, ecs::Phase>> removedSystems;
+    for (const std::string& owner : touched) {
+        const FileDeclarations before = _files.contains(owner) ? _files.at(owner) : FileDeclarations{};
+        const FileDeclarations after =
+            _staging->declared.contains(owner) ? _staging->declared.at(owner) : FileDeclarations{};
+        for (const std::string& component : before.components) {
+            if (!after.components.contains(component)) {
+                return ReloadOutcome::needsRebuild(
+                    std::format("component '{}' is no longer declared by '{}'", component, owner));
+            }
+        }
+        for (const auto& [name, phase] : before.systems) {
+            if (!after.systems.contains(name)) {
+                removedSystems.emplace_back(name, phase);
+            }
+        }
+    }
+    for (const system::BuiltSystem& built : _staging->systems) {
+        const std::string name{built.spec.system.getName()};
+        const std::optional<ecs::Phase> before = findSystemPhase(name);
+        if (before && *before != built.phase) {
+            return ReloadOutcome::needsRebuild(std::format("system '{}' moved from phase {} to phase {}", name,
+                                                           ecs::toString(*before), ecs::toString(built.phase)));
+        }
+    }
+
+    // Swapped one phase at a time: a phase is all or nothing.
+    std::vector<std::string> what;
+    std::array<std::vector<ecs::Schedule::SystemSpec>, ecs::kPhaseCount> put;
+    std::array<std::vector<std::string>, ecs::kPhaseCount> removed;
+    for (system::BuiltSystem& built : _staging->systems) {
+        what.push_back(std::format("system {}", built.spec.system.getName()));
+        put.at(static_cast<std::size_t>(built.phase)).push_back(std::move(built.spec));
+    }
+    for (const auto& [name, phase] : removedSystems) {
+        what.push_back(std::format("removed system {}", name));
+        removed.at(static_cast<std::size_t>(phase)).push_back(name);
+    }
+    bool swapped = false;
+    for (std::size_t index = 0; index < ecs::kPhaseCount; ++index) {
+        if (put.at(index).empty() && removed.at(index).empty()) {
+            continue;
+        }
+        try {
+            _app.getSchedules().replaceSystems(static_cast<ecs::Phase>(index), std::move(put.at(index)),
+                                               removed.at(index));
+            swapped = true;
+        } catch (const ecs::exceptions::ScheduleException& error) {
+            if (swapped) {
+                return ReloadOutcome::needsRebuild(
+                    std::format("part of the systems were replaced before an error: {}", error.what()));
+            }
+            restorePlugins();
+            return ReloadOutcome::failed(error.what());
+        }
+    }
+
+    // Done: the records follow the App.
+    for (const std::string& owner : touched) {
+        FileDeclarations after =
+            _staging->declared.contains(owner) ? std::move(_staging->declared.at(owner)) : FileDeclarations{};
+        for (const std::string& component : after.components) {
+            what.push_back(std::format("component {}", component));
+        }
+        if (after.components.empty() && after.systems.empty()) {
+            _files.erase(owner);
+        } else {
+            _files.insert_or_assign(owner, std::move(after));
+        }
+    }
+    for (const std::string& name : _staging->declaredPlugins) {
+        what.push_back(std::format("plugin {}", name));
+    }
+    // A plugin the script no longer declares goes with it.
+    std::erase_if(_plugins, [&](const auto& entry) {
+        return entry.second.file == file && !_staging->declaredPlugins.contains(entry.first);
+    });
+    return ReloadOutcome::applied(std::move(what));
 }
 
 luau::Result<> ScriptHost::registerAppType() {
