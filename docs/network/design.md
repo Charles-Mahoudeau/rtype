@@ -1,6 +1,6 @@
 # Network Design
 
-This document specifies the network of the R-Type engine: the transport library (`rtype-network`), the
+This document specifies the network of the AYLO Engine: the transport library (`rtype-network`), the
 replication library that connects it to the ECS (`rtype-replication`), and the `client` and `server`
 executables. Nothing here is implemented yet. For a shorter first read, see [`overview.md`](overview.md).
 

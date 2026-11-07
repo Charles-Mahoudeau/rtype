@@ -1,6 +1,6 @@
 # Audio Design
 
-This document describes the audio of the R-Type engine as planned: an ECS plugin, `AudioPlugin`, that plays sounds
+This document describes the audio of the AYLO Engine as planned: an ECS plugin, `AudioPlugin`, that plays sounds
 through a swappable audio backend chosen by the configuration, the same way `GraphicsPlugin` starts the platform and
 the renderer a config names. The first backend is [miniaudio](https://miniaud.io), chosen in
 [`../benchmarks/audio.md`](../benchmarks/audio.md); a silent `"null"` backend ships with the plugin, and FMOD can be

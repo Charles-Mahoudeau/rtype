@@ -1,6 +1,6 @@
 ---
 name: add-plugin
-description: Add a new engine plugin (an ECS plugin library under src/rtype/plugins) to the R-Type engine, from the build file to Luau reachability. Use when asked to "add a plugin", "create a new engine feature", or when a feature needs its own components, resources, events and systems.
+description: Add a new engine plugin (an ECS plugin library under src/rtype/plugins) to the AYLO Engine, from the build file to Luau reachability. Use when asked to "add a plugin", "create a new engine feature", or when a feature needs its own components, resources, events and systems.
 ---
 
 # Add an engine plugin

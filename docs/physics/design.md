@@ -1,6 +1,6 @@
 # Physics Design
 
-This document describes the physics of the R-Type engine as implemented: a 2D physics plugin for the ECS, built on
+This document describes the physics of the AYLO Engine as implemented: a 2D physics plugin for the ECS, built on
 [Jolt Physics](https://github.com/jrouwe/JoltPhysics). It covers the components, the systems and their order, the
 events, the scene queries, the network modes and how gameplay uses them. Why Jolt, and the alternatives that were
 weighed, are in [`../benchmarks/physics.md`](../benchmarks/physics.md); this document records what was built from

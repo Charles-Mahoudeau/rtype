@@ -1,6 +1,6 @@
 # Particles Design
 
-This document describes the 2D particle system of the R-Type engine as planned: a thin ECS plugin, `ParticlePlugin`,
+This document describes the 2D particle system of the AYLO Engine as planned: a thin ECS plugin, `ParticlePlugin`,
 that drives emitters from the world, and a renderer that simulates and draws their particles on the GPU through a
 contract of `IRenderer`. Each effect chooses where it runs, CPU or GPU, and an effect that asks for the GPU falls back to
 the CPU when the renderer cannot simulate it, so every backend can show every effect.
