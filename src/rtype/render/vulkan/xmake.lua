@@ -2,6 +2,8 @@
 add_requires("vulkan-memory-allocator 3.3.x", {alias = "vulkan-memory-allocator"})
 add_requires("vulkan-memory-allocator-hpp v3.3.0+3",
              {alias = "vulkan-memory-allocator-hpp", configs = {use_vulkanheaders = true}})
+-- Built against the same xmake vulkan-headers as the renderer, not the system ones (see the root xmake.lua).
+add_requireconfs("vulkan-memory-allocator-hpp.vulkan-headers", {system = false, override = true})
 add_requires("imgui 1.92.x", {alias = "imgui", configs = {vulkan = true}})
 -- glslangValidator compiles the shaders: from the glslang package required by the root xmake.lua, or from Homebrew on
 -- macOS (brew install glslang).
