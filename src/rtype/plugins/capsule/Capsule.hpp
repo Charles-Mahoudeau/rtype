@@ -49,12 +49,20 @@ struct CapsuleNode {
 /// @details Its nodes form a flat list, a parent always before its children, node 0 the root: the structure of its
 /// file, one node after the other. A node is a plain entity, or another capsule (`instance`), whose root takes the
 /// node's values over its own and gets the node's children too. Spawning creates one entity per node and parents each
-/// to its parent's entity. Capsules::define() empties it again and bumps its version, for a reload.
+/// to its parent's entity. Capsules::define() replaces a capsule's nodes and bumps its version, for a reload.
+/// @code
+/// rtype::plugins::capsule::Capsule boss{"actors/boss.actor"};
+/// boss.editNode(0).values.set(components, Health{.value = 50});
+/// const std::uint32_t turret = boss.addNode("LeftTurret", 0);
+/// boss.editNode(turret).instance = rtype::plugins::capsule::CapsuleRef{.id = turretId, .path = "actors/turret.actor"};
+/// capsules.define(std::move(boss));
+/// @endcode
 class RTYPE_PLUGIN_CAPSULE_API Capsule {
   public:
-    /// @param id The id of its path.
-    /// @param path Its path, normalized ("actors/bydo.actor").
-    Capsule(CapsuleId id, std::string path);
+    /// @brief A capsule with a root only.
+    /// @param path Its path ("actors/bydo.actor"), normalized here; its id is the AssetId of the normalized path.
+    /// @throws exceptions::CapsuleException When the path is empty.
+    explicit Capsule(std::string_view path);
     ~Capsule() = default;
     Capsule(const Capsule& other) = delete;
     Capsule& operator=(const Capsule& other) = delete;
@@ -67,7 +75,7 @@ class RTYPE_PLUGIN_CAPSULE_API Capsule {
     /// @return Its path, normalized.
     [[nodiscard]] std::string_view getPath() const noexcept;
 
-    /// @return How many times it was defined again (Capsules::define()): 0 for the first definition.
+    /// @return How many times it replaced an earlier definition (Capsules::define()): 0 for the first one.
     [[nodiscard]] std::uint32_t getVersion() const noexcept;
 
     /// @return Its nodes, a parent before its children, node 0 the root.
@@ -90,14 +98,11 @@ class RTYPE_PLUGIN_CAPSULE_API Capsule {
     [[nodiscard]] std::string getNodePath(std::size_t index) const;
 
   private:
-    friend class Capsules;  ///< Empties it and bumps its version.
-
-    /// @brief Leaves a fresh root only.
-    void clear();
+    friend class Capsules;  ///< Replaces its nodes and bumps its version.
 
     CapsuleId _id;                    ///< The id of its path.
     std::string _path;                ///< Its path, normalized.
-    std::uint32_t _version{0};        ///< How many times it was defined again.
+    std::uint32_t _version{0};        ///< How many times it replaced an earlier definition.
     std::vector<CapsuleNode> _nodes;  ///< Its nodes, node 0 the root.
 };
 }  // namespace rtype::plugins::capsule

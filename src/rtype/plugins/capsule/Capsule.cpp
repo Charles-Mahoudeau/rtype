@@ -21,10 +21,16 @@
 #include <utility>
 #include <vector>
 
+#include "core/asset/AssetFiles.hpp"
 #include "plugins/capsule/exceptions/CapsuleException.hpp"
 
 namespace rtype::plugins::capsule {
-Capsule::Capsule(CapsuleId id, std::string path) : _id{id}, _path{std::move(path)} { clear(); }
+Capsule::Capsule(std::string_view path) : _path{core::asset::normalizePath(path)}, _nodes(1) {
+    if (path.empty()) {
+        throw exceptions::CapsuleException{"A capsule needs a path"};
+    }
+    _id = CapsuleId::fromPath(_path);
+}
 
 CapsuleId Capsule::getId() const noexcept { return _id; }
 
@@ -97,10 +103,5 @@ std::string Capsule::getNodePath(std::size_t index) const {
         path += path.empty() ? std::string{name} : std::format("/{}", name);
     }
     return path;
-}
-
-void Capsule::clear() {
-    _nodes.clear();
-    _nodes.emplace_back();  // the root
 }
 }  // namespace rtype::plugins::capsule

@@ -21,29 +21,24 @@
 #include "rtype/ecs/type/TypeInfo.hpp"
 
 namespace rtype::plugins::capsule {
-ecs::RunMode Capsules::getRunMode() const noexcept { return _mode; }
-
 void Capsules::setRunMode(ecs::RunMode mode) noexcept { _mode = mode; }
 
 std::size_t Capsules::getCount() const noexcept { return _capsules.size(); }
 
-Capsule& Capsules::define(std::string_view path) {
-    if (path.empty()) {
-        throw exceptions::CapsuleException{"A capsule needs a path"};
+Capsule& Capsules::define(Capsule capsule) {
+    const auto found = _capsules.find(capsule.getId());
+    if (found == _capsules.end()) {
+        const CapsuleId id = capsule.getId();
+        return _capsules.try_emplace(id, std::move(capsule)).first->second;
     }
-    std::string normalized = core::asset::normalizePath(path);
-    const CapsuleId id = CapsuleId::fromPath(normalized);
-    if (const auto found = _capsules.find(id); found != _capsules.end()) {
-        Capsule& capsule = found->second;
-        if (capsule.getPath() != normalized) {
-            throw exceptions::CapsuleException{
-                std::format("Capsule '{}' has the same id as '{}': rename one of them", normalized, capsule.getPath())};
-        }
-        capsule.clear();
-        ++capsule._version;
-        return capsule;
+    Capsule& stored = found->second;
+    if (stored.getPath() != capsule.getPath()) {
+        throw exceptions::CapsuleException{std::format("Capsule '{}' has the same id as '{}': rename one of them",
+                                                       capsule.getPath(), stored.getPath())};
     }
-    return _capsules.try_emplace(id, id, std::move(normalized)).first->second;
+    stored._nodes = std::move(capsule._nodes);
+    ++stored._version;
+    return stored;
 }
 
 const Capsule* Capsules::find(CapsuleId id) const noexcept {

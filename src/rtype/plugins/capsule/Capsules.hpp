@@ -21,8 +21,8 @@
 namespace rtype::plugins::capsule {
 /// @brief The capsules of one world, by id, and the side they are spawned on: the "rtype.Capsules" resource the
 /// CapsulePlugin inserts.
-/// @details A capsule is defined by its path (define()), then filled (Capsule::addNode(), Capsule::editNode()), in code
-/// (addCapsule()) or from its file. Defining it again empties it and bumps its version, keeping its id, so the capsules
+/// @details A capsule is built (Capsule::addNode(), Capsule::editNode()), in code or from its file, then defined
+/// (define()). Defining it again replaces its nodes and bumps its version, keeping its id and address, so the capsules
 /// that instance it stay valid: hot reload. Pointers returned by the lookups stay valid for the registry's lifetime.
 /// The run mode (the App's, set by the CapsulePlugin) decides which nodes a spawn creates (loads()) and which
 /// components it keeps (keeps()).
@@ -35,21 +35,17 @@ class RTYPE_PLUGIN_CAPSULE_API Capsules {
     Capsules(Capsules&& other) noexcept = default;
     Capsules& operator=(Capsules&& other) noexcept = default;
 
-    /// @return The side spawns happen on.
-    [[nodiscard]] ecs::RunMode getRunMode() const noexcept;
-
     /// @brief Sets the side spawns happen on (the CapsulePlugin does, from the App's run mode).
     void setRunMode(ecs::RunMode mode) noexcept;
 
     /// @return The number of capsules.
     [[nodiscard]] std::size_t getCount() const noexcept;
 
-    /// @brief Defines the capsule at `path`: a new one with a root only, or an existing one emptied (a root only) with
-    /// the next version. Entities spawned before do not change until they are reloaded.
-    /// @param path Its path, normalized here ("actors/bydo.actor"); the extension is the developer's choice.
-    /// @return The capsule, to fill.
-    /// @throws exceptions::CapsuleException When the path is empty, or has the id of another path.
-    Capsule& define(std::string_view path);
+    /// @brief Adds a capsule, or replaces the nodes of the one with its id and bumps its version (hot reload: its
+    /// address stays). Entities spawned before do not change until they are reloaded.
+    /// @return The capsule stored.
+    /// @throws exceptions::CapsuleException When its id is another path's (a hash collision); nothing changes then.
+    Capsule& define(Capsule capsule);
 
     /// @return The capsule with this id, or nullptr.
     [[nodiscard]] const Capsule* find(CapsuleId id) const noexcept;
