@@ -3,10 +3,46 @@
 A script file can use another one with `require`. The other file is a **module**: it runs once, and what it returns is
 what every `require` of it gives back. This is how you share configuration and helpers between files.
 
-!!! note
-    This is a transitional state. Every file under `scripts/` still runs automatically, in sorted path order, and
-    global variables are still shared between files. Entry points chosen in `project.luau` and one set of globals per
-    file come next. Write new code with `require` and `local` so it keeps working when they land.
+Only the **entry points** you name in `project.luau` run by themselves; every other file runs because a file requires
+it. Each file has its own variables, so `require` is the only way files share data.
+
+## Entry points
+
+```luau
+-- project.luau
+engine.settings.scripts.main = "shared/main"
+engine.settings.scripts.server = "server/main"
+engine.settings.scripts.client = "client/main"
+```
+
+A process runs `main`, then `server` if it is a server, then `client` if it is a client (a standalone process is both).
+Without any of the three, the entry is `scripts/main.luau`. An entry is an ordinary module that returns nothing, and it
+requires the files of its side. See [Project settings](project-settings.md#scripts) for the rules, and
+[Getting started](getting-started.md#your-scripts) for a layout.
+
+A file that no entry requires, directly or not, never runs. If you forget to require a file, nothing complains: the
+components and systems it declares are simply missing.
+
+## Each file has its own globals
+
+The standard libraries (`math`, `string`, `table`...) and `engine` are the same for every file, and **read-only**: a
+script cannot add a field to them, change one, or replace `engine`. This includes what is inside `engine`
+(`engine.assets.x = 1` is an error), so one file cannot break another.
+
+A global variable you create (`Counter = 1`, without `local`) belongs to your file only: no other file sees it. Use
+`local` for what is private, and return a table from the file for what others need:
+
+```luau
+-- scripts/shared/arena.luau
+return { width = 800, height = 600 }
+```
+
+```luau
+-- scripts/server/ships.luau
+local arena = require("@scripts/shared/arena")
+```
+
+State that changes lives in a local behind functions (see below), not in a global.
 
 ## A first example
 
@@ -105,8 +141,8 @@ cached: fix it and it loads again.
 | `returned N values` | a module returned more than one value |
 | `failed: <error>` | the module itself raised an error or has a syntax error |
 
-When a file fails while the game starts, the game stops with `Script 'scripts/<file>' failed: ...`. Files are named
-`scripts/<path>` in every message.
+When a file fails while the game starts, the game stops with `Entry script 'scripts/<file>' ('scripts.<key>') failed:
+...`, followed by the error of the file that failed. Files are named `scripts/<path>` in every message.
 
 ## Editor setup
 
@@ -138,4 +174,4 @@ To add an alias of your own, declare it in `project.luau` with `engine.settings.
 
 ## See also
 
-[Hot reload](hot-reload.md) for what happens when you save a module (the files that require it run again too), and [Systems](systems.md).
+[Hot reload](hot-reload.md) for what happens when you save a module (the files that require it run again too), [Project settings](project-settings.md#scripts) for the entries, and [Systems](systems.md).

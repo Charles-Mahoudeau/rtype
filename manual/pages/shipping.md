@@ -73,7 +73,7 @@ MyGame/
   game/
     project.luau
     .luaurc             for the editor only, optional
-    scripts/
+    scripts/            the entries (`main`, `server`, `client`) and what they require
     assets/
   play.sh               or play.bat on Windows
 ```

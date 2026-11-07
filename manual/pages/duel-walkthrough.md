@@ -8,14 +8,21 @@ page reads it file by file.
 game/
   project.luau            settings
   scripts/
-    arena.luau            shared: constants, components, input actions, loads the arena
+    shared/               required by both sides
+      main.luau           the shared entry: requires rules.luau
+      arena.luau          the constants (a frozen table)
+      rules.luau          the replicated components and the input actions
     server/               gameplay (runs on the server)
+      main.luau           the server entry
+      match.luau          whether the match is over, in a local
+      weapons.luau        firing a laser or misfiring
       players.luau        gives each client a ship
       obstacles.luau      tells the clients where the obstacles are
       ships.luau          moving and firing
       lasers.luau         flying, hitting, winning
     client/               presentation (runs on the clients)
-      assets.luau         loads atlases, sounds, font, map
+      main.luau           the client entry
+      assets.luau         loads atlases, sounds, font, map, returns the ids
       scene.luau          camera, background, obstacles' look
       sprites.luau        looks of ships and lasers, explosion
       sounds.luau         music and shots
@@ -29,8 +36,16 @@ game/
 The arena and what the server spawns in it are [capsules](capsules.md): files you can open and change in the
 [editor](editor.md) (`./aylo-runtime --editor --game examples/games/rtype_duel/game` opens the arena).
 
-Scripts load in sorted path order on every side, so `arena.luau`, which sorts before the folders, runs first and gives
-the other files a shared `Duel` table.
+Nothing runs by itself: `project.luau` names three entries, and every other file runs because one requires it.
+
+```luau
+engine.settings.scripts.main = "shared/main"
+engine.settings.scripts.server = "server/main"
+engine.settings.scripts.client = "client/main"
+```
+
+The server runs `shared/main`, then `server/main`; a client runs `shared/main`, then `client/main`. Files share data
+only through `require`: each has its own globals.
 
 ## Run it
 
@@ -64,9 +79,13 @@ see the colliders (F3). The server lists only the physics; a client lists everyt
 also choose `platform = "glfw"`, `renderer = "vulkan"`, a window and an audio backend.
 See [Project settings](project-settings.md).
 
-## `arena.luau`: the rules both sides share
+## `shared/`: the rules both sides share
 
-It declares the constants (`Duel.shipSpeed`, the collision layers), then the replicated components:
+`arena.luau` returns the constants (`shipSpeed`, the collision layers) in a table, which `require` freezes, so no file
+can change the rules for the others. A file that needs them starts with
+`local Duel = require("@scripts/shared/arena")`.
+
+`rules.luau`, which `shared/main.luau` requires, declares the replicated components:
 
 ```luau
 engine.ecs.component("game.Ship", {
@@ -88,11 +107,15 @@ See [Components](components.md) and [Setup forms](setup-forms.md).
 
 ## The server
 
-Every server file starts with `if not engine.isServer then return end`, because its systems are ordered against
-systems only the server has. `players.luau`, `obstacles.luau` and `ships.luau` also return when `Duel.networked` is
-false: in the editor, the server and the client are one process with no network, so no player joins.
+`server/main.luau` requires the server files below. A client never loads them, so they need no test of
+`engine.isServer`. `players.luau`, `obstacles.luau` and `ships.luau` still return when `Duel.networked` is false: in the
+editor, the server and the client are one process with no network, so no player joins.
 
-`arena.luau` loads the arena on every side in a `Startup` system, with `engine.capsule.load(ctx, Duel.arena)`. The server
+- **`match.luau`** keeps whether the match is over in a local and gives `isOver()` and `finish()`. The state is private
+  to the module, so only the systems that require it can change it.
+- **`weapons.luau`** has the `fire` function the ship system calls.
+
+`shared/rules.luau` loads the arena on every side in a `Startup` system, with `engine.capsule.load(ctx, Duel.arena)`. The server
 spawns its walls and its rock and replicates them; a client spawns no node of it, as they are all the server's. The
 scene names no component of a client's plugin: a dedicated server reads it too, and has none of them.
 
@@ -115,9 +138,10 @@ scene names no component of a client's plugin: a dedicated server reads it too, 
 
 ## The client
 
-Every client file starts with `if not engine.isClient then return end` once it has declared what both sides need.
+`client/main.luau` requires the client files below, so the server never loads them.
 
-- **`assets.luau`** loads everything with the `engine.assets` forms and keeps the ids in `Duel.assets`. See
+- **`assets.luau`** loads everything with the `engine.assets` forms and returns the ids; the files that draw require
+  it. See
   [Setup forms](setup-forms.md).
 - **`scene.luau`** spawns the camera (`rtype.Camera` and `rtype.AudioListener`) in a `Startup` system, gives each
   obstacle a `rtype.ShapeRenderer` (and the `rtype.Transform` the server's `game.Obstacle` says, when it came through
@@ -134,6 +158,6 @@ Every client file starts with `if not engine.isClient then return end` once it h
 ## What to take from it
 
 1. The server decides everything that matters and writes replicated components; the clients only present them.
-2. One folder per side, shared declarations in a file that sorts first.
+2. One folder per side with an entry each, shared declarations in `shared/`, and data shared through `require`.
 3. Everything the engine does for the game is chosen in data: plugins and settings in `project.luau`, assets and
    inputs by forms, behavior by components and systems.

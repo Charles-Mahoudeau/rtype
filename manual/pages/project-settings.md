@@ -32,7 +32,29 @@ too.
 
 | Key | Default | Check |
 |---|---|---|
+| `scripts.main` | `"main"` when none of the three is set | the entry every process runs first |
+| `scripts.server` | none | the entry of the server side |
+| `scripts.client` | none | the entry of the client side |
 | `scripts.aliases.<name>` | none | the folder inside `scripts/` that `@<name>` points to, a string |
+
+An **entry** is a path inside `scripts/`, with no extension and no prefix: `"shared/main"` is
+`scripts/shared/main.luau` (or `scripts/shared/main/init.luau`). A process requires `main`, then `server` if it runs
+the server side, then `client` if it runs the client side. A standalone process runs both sides, so all three; a shared
+module that several entries require runs once. An entry may return nothing.
+
+```luau
+engine.settings.scripts.main = "shared/main"
+engine.settings.scripts.server = "server/main"
+engine.settings.scripts.client = "client/main"
+```
+
+- If you set none of the three, `main` is `"main"` (`scripts/main.luau`), which suits a game in one file. When that
+  default file does not exist, the game starts with a warning on the error output and runs no script.
+- A key you set whose file does not exist stops the start, with a message naming it
+  (`Setting 'scripts.server' = 'server/main': ...`). A server does not look for the `client` entry, and a client
+  does not look for the `server` one, so a game can ship without the other side's folder.
+- A file that no entry requires, directly or not, never runs, and saving it changes nothing while the game runs.
+- The same entries work in every mode: you need no `if engine.isServer` in `project.luau` to choose them.
 
 An alias is a short name for a folder of your scripts, usable in `require`:
 
@@ -54,7 +76,7 @@ The rules:
 - The target is a path relative to `scripts/` and stays inside it: no absolute path, no `..` past the root, no link
   pointing out.
 - An invalid alias stops the start with a message naming `scripts.aliases.<name>` and the reason. Any other key under
-  `scripts` is an unknown key and an error.
+  `scripts` than `main`, `server`, `client` and `aliases` is an unknown key and an error.
 
 The editor does not read `project.luau`, so mirror each alias in the `.luaurc` next to it (the targets there are
 relative to the game folder) or luau-lsp will flag the paths. See [Modules and require](modules.md#editor-setup).

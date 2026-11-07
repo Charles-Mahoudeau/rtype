@@ -145,18 +145,14 @@ component. Declaring your own event types from Luau is not available yet (*plann
 
 ## Where a system runs
 
-Scripts load on the server and on every client, so a system is declared on both. Its `side` decides where it runs. A
-client system may not write replicated or server-only components. What exists on only one side (sprites and audio on a
-client) must be named only there: a file that uses client-only things starts with
+A system lives in the file that declares it, and a file runs only where an entry requires it. Put what only the server
+needs under the `server` entry and what only a client needs under the `client` entry, so a file of the client never
+runs on the server and needs no test of `engine.isClient`. The components and input actions both sides must declare
+alike go in a file that the shared `main` entry requires, see [Getting started](getting-started.md#your-scripts).
 
-```luau
-if not engine.isClient then
-	return
-end
-```
-
-after declaring any component that must exist on both. Only engine calls may be missing on the side a system does not
-run on. See [Networking](networking.md).
+A system's `side` still decides where it runs. A client system may not write replicated or server-only components.
+What exists on only one side (sprites and audio on a client) must be named only by files that side loads. Only engine
+calls may be missing on the side a system does not run on. See [Networking](networking.md).
 
 ## Errors
 
