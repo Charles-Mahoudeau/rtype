@@ -186,7 +186,6 @@ TEST(Engine, ReadsTheGamesCapsuleFilesAfterItsScripts) {
     const GameDirectory game{"rtype-engine-capsule-files", R"(
         engine.settings.network.port = 0
         engine.settings.plugins = { "rtype.Capsule" }
-        engine.settings.capsule.hotReload = false
     )"};
     // The file names a component a script declares: it is read once every plugin, scripts included, is built.
     game.write("assets/actors/bydo.actor", "[node path=\".\"]\ngame.Health = { value = 3 }\n");
@@ -478,6 +477,54 @@ TEST(EngineHotReload, BuildsTheGameAgainWhenAScriptCannotBeSwappedInPlace) {
     EXPECT_EQ(code, 2);
     EXPECT_NE(log.find("[HotReload] scripts: cannot apply in place"), std::string::npos) << log;
     EXPECT_NE(log.find("game.Thing"), std::string::npos) << log;
+}
+
+TEST(EngineHotReload, RespawnsWhatACapsuleFileSpawnedWhenItIsSaved) {
+    const GameDirectory game{"rtype-engine-hot-capsule",
+                             std::string{kHotProject} + "engine.settings.plugins = { \"rtype.Capsule\" }\n"};
+    game.write("assets/actors/bydo.actor", "[node path=\".\"]\ngame.Health = { value = 3 }\n");
+    game.write("scripts/game.luau", R"(
+        engine.ecs.component("game.Health", { fields = { value = "i32" } })
+        local loaded = false
+        engine.ecs.system("game.Start", {
+            phase = "Update",
+            query = {},
+            calls = { "rtype.capsule.load" },
+            run = function(ctx)
+                if loaded then return end
+                loaded = true
+                ctx.call("rtype.capsule.load", { capsule = "actors/bydo.actor" })
+            end,
+        })
+        engine.ecs.system("game.Quit", {
+            phase = "Update",
+            query = { read = { "game.Health" } },
+            events = { send = { "rtype.AppExit" } },
+            run = function(ctx)
+                for _, health in ctx.query do
+                    if health.value == 42 then
+                        ctx.events.send("rtype.AppExit", { code = 42 })
+                    end
+                end
+            end,
+        })
+    )");
+    EngineConfig config = serverConfig(game);
+    config.setup = [](Engine& engine) {
+        static_cast<void>(engine.app().getWorld().getEvents().registerType<rtype::ecs::AppExit>());  // scripts send it
+    };
+    Engine engine{std::move(config)};
+    engine.app().runFrame();  // loads the capsule
+    game.write("assets/actors/bydo.actor", "[node path=\".\"]\ngame.Health = { value = 42 }\n");
+
+    testing::internal::CaptureStderr();
+    const int code = engine.run();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(code, 42) << "the loaded capsule was respawned with the saved value";
+    EXPECT_NE(log.find("[HotReload] capsules: applied in"), std::string::npos) << log;
+    EXPECT_NE(log.find("modified assets/actors/bydo.actor"), std::string::npos) << log;
+    EXPECT_NE(log.find("capsule actors/bydo.actor"), std::string::npos) << log;
 }
 
 TEST(EngineHotReload, WaitsForAFixWhenTheNewGameCannotBeBuilt) {

@@ -12,23 +12,27 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <memory>
 #include <random>
 #include <string>
 #include <string_view>
 #include <system_error>
-#include <thread>
 #include <vector>
 
 #include "plugins/AssetDirectory.hpp"
+#include "plugins/HotReload.hpp"
 #include "plugins/capsule/Capsule.hpp"
 #include "plugins/capsule/CapsuleFiles.hpp"
 #include "plugins/capsule/CapsuleInstance.hpp"
 #include "plugins/capsule/CapsulePlugin.hpp"
-#include "plugins/capsule/CapsuleSettings.hpp"
+#include "plugins/capsule/CapsuleReloadable.hpp"
 #include "plugins/capsule/CapsuleSpawn.hpp"
 #include "plugins/capsule/Capsules.hpp"
+#include "plugins/capsule/ReloadedCapsules.hpp"
 #include "plugins/capsule/exceptions/CapsuleException.hpp"
-#include "rtype/core/config/Settings.hpp"
+#include "rtype/core/reload/HotReloader.hpp"
+#include "rtype/core/reload/ReloadOutcome.hpp"
+#include "rtype/core/reload/ReloadReport.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/change/Mut.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
@@ -94,6 +98,12 @@ class CapsuleFilesTest : public ::testing::Test {
         return found != nullptr ? found->getNodes()[node].values.get<T>(world.getComponents()) : nullptr;
     }
 
+    /// @brief Polls the reloader twice, as its debounce wants the same stamp two times.
+    static std::vector<rtype::core::reload::ReloadReport> settle(rtype::core::reload::HotReloader& reloader) {
+        static_cast<void>(reloader.poll());
+        return reloader.poll();
+    }
+
     std::filesystem::path _game{std::filesystem::temp_directory_path() /
                                 std::format("rtype_capsule_files_{:08x}", std::random_device{}())};
     std::filesystem::file_time_type _time{std::filesystem::file_time_type::clock::now()};  ///< Of the last write.
@@ -137,11 +147,11 @@ TEST_F(CapsuleFilesTest, ReadsASavedFileAgainWithTheFilesThatInstanceIt) {
     write("actors/boss.actor", kBoss);
     capsule::CapsuleFiles files{_game, world.getComponents()};
     static_cast<void>(files.loadAll(capsules));
-    const auto start = capsule::CapsuleFiles::Clock::now();
     write("actors/turret.actor", "[node path=\".\"]\ntest.files.Armor = { value = 4 }\n");
-    EXPECT_TRUE(files.update(capsules, start).empty());  // before the interval
-    const std::vector<capsule::CapsuleId> reread = files.update(capsules, start + capsule::CapsuleFiles::kInterval * 2);
-    EXPECT_EQ(reread.size(), 2U);  // the turret, and the boss whose override starts from it
+    const std::vector<std::string> saved{"actors/turret.actor"};
+    const capsule::CapsuleFiles::Reread reread = files.reload(capsules, saved);
+    EXPECT_EQ(reread.capsules.size(), 2U);  // the turret, and the boss whose override starts from it
+    EXPECT_TRUE(reread.errors.empty());
     EXPECT_EQ(capsules.find("actors/turret.actor")->getVersion(), 1U);
     EXPECT_EQ(capsules.find("actors/boss.actor")->getVersion(), 1U);
     EXPECT_EQ(valueOf<tf::Armor>("actors/boss.actor", 1)->value, 4);  // the turret's new value
@@ -153,53 +163,94 @@ TEST_F(CapsuleFilesTest, KeepsTheOldVersionOfAFileSavedBroken) {
     capsule::CapsuleFiles files{_game, world.getComponents()};
     static_cast<void>(files.loadAll(capsules));
     write("actors/turret.actor", "[node path=\".\"]\ntest.files.Health = { value = oops }\n");
-    const auto later = capsule::CapsuleFiles::Clock::now() + capsule::CapsuleFiles::kInterval * 2;
-    EXPECT_TRUE(files.update(capsules, later).empty());
+    const std::vector<std::string> saved{"actors/turret.actor"};
+    const capsule::CapsuleFiles::Reread reread = files.reload(capsules, saved);
+    EXPECT_TRUE(reread.capsules.empty());
+    ASSERT_EQ(reread.errors.size(), 1U);
+    EXPECT_TRUE(reread.errors[0].starts_with("actors/turret.actor:2:")) << reread.errors[0];
     EXPECT_EQ(capsules.find("actors/turret.actor")->getVersion(), 0U);
     EXPECT_EQ(valueOf<tf::Health>("actors/turret.actor", 0)->value, 5);
 }
 
-TEST_F(CapsuleFilesTest, ReadsAFileThatAppears) {
+TEST_F(CapsuleFilesTest, ReadsAFileThatAppearsAndSkipsOtherFiles) {
     capsule::CapsuleFiles files{_game, world.getComponents()};
     static_cast<void>(files.loadAll(capsules));
     write("actors/turret.actor", kTurret);
-    const auto later = capsule::CapsuleFiles::Clock::now() + capsule::CapsuleFiles::kInterval * 2;
-    EXPECT_EQ(files.update(capsules, later).size(), 1U);
+    write("sprites/ship.png", "not a capsule");
+    const std::vector<std::string> added{"actors/turret.actor", "sprites/ship.png"};
+    EXPECT_EQ(files.reload(capsules, added).capsules.size(), 1U);
     EXPECT_NE(capsules.find("actors/turret.actor"), nullptr);
+}
+
+TEST_F(CapsuleFilesTest, TheReloadableReadsWhatTheReloaderSees) {
+    write("actors/turret.actor", kTurret);
+    write("actors/boss.actor", kBoss);
+    capsule::CapsuleFiles files{_game, world.getComponents()};
+    static_cast<void>(files.loadAll(capsules));
+    capsule::ReloadedCapsules reloaded;
+    std::vector<std::string> log;
+    rtype::core::reload::HotReloader reloader{_game.parent_path(),
+                                              [&](std::string_view line) { log.emplace_back(line); }};
+    const std::filesystem::path assets = _game.filename();  // the assets, in the reloader's root
+    auto reloadable = std::make_unique<capsule::CapsuleReloadable>(&files, &capsules, &reloaded, assets);
+    EXPECT_EQ(reloadable->name(), "capsules");
+    ASSERT_EQ(reloadable->watched().size(), 1U);
+    EXPECT_EQ(reloadable->watched()[0].path, assets);
+    EXPECT_EQ(reloadable->watched()[0].extensions, (std::vector<std::string>{".capsule", ".scene", ".actor"}));
+    reloader.add(std::move(reloadable));
+
+    write("actors/turret.actor", "[node path=\".\"]\ntest.files.Armor = { value = 4 }\n");
+    write("sprites/ship.png", "not followed");
+    std::vector<rtype::core::reload::ReloadReport> reports = settle(reloader);
+    ASSERT_EQ(reports.size(), 1U);
+    EXPECT_EQ(reports[0].outcome.status, rtype::core::reload::ReloadOutcome::Status::kApplied);
+    EXPECT_EQ(reloaded.capsules.size(), 2U);  // the turret and the boss, for the next frame
+    EXPECT_EQ(capsules.find("actors/boss.actor")->getVersion(), 1U);
+
+    write("actors/turret.actor", "[node path=\".\"]\ntest.files.Armor = { value = oops }\n");
+    reports = settle(reloader);
+    ASSERT_EQ(reports.size(), 1U);
+    EXPECT_EQ(reports[0].outcome.status, rtype::core::reload::ReloadOutcome::Status::kFailed);
+    EXPECT_NE(reports[0].outcome.message.find("actors/turret.actor:2:"), std::string::npos)
+        << reports[0].outcome.message;
+    EXPECT_EQ(capsules.find("actors/turret.actor")->getVersion(), 1U);  // kept
+    EXPECT_EQ(log.size(), 2U);
 }
 
 TEST_F(CapsuleFilesTest, TheGameLoadsItsFilesAndReloadsWhatTheySpawned) {
     write("actors/turret.actor", kTurret);
     write("scenes/level.scene", "[node path=\".\"]\n[node path=\"Turret\" instance=\"actors/turret.actor\"]\n");
+    rtype::core::reload::HotReloader reloader{_game.parent_path(), [](std::string_view /*line*/) {}};
     rtype::ecs::App app;
     app.insertResource(rtype::plugins::AssetDirectory{.path = _game});
+    app.insertResource(rtype::plugins::HotReload{.reloader = &reloader});
     static_cast<void>(app.getWorld().getComponents().registerType<tf::Health>());
     static_cast<void>(app.getWorld().getComponents().registerType<tf::Armor>());
-    app.addPlugin(capsule::CapsulePlugin{capsule::CapsuleSettings{.hotReload = true}});
+    app.addPlugin(capsule::CapsulePlugin{});
     app.finishPlugins();
+    EXPECT_EQ(reloader.size(), 1U);
     const rtype::ecs::Entity level = capsule::loadCapsule(app.getWorld(), "scenes/level.scene");
     const rtype::ecs::Entity turret = app.getWorld().getComponents().get<rtype::ecs::Children>(level)->entities.at(0);
     EXPECT_EQ(app.getWorld().getComponents().get<tf::Health>(turret)->value, 5);
 
     write("actors/turret.actor", "[node path=\".\"]\ntest.files.Health = { value = 8 }\n");
-    std::this_thread::sleep_for(capsule::CapsuleFiles::kInterval + std::chrono::milliseconds{50});
+    EXPECT_EQ(settle(reloader).size(), 1U);
     app.runFrame();
     ASSERT_TRUE(app.getWorld().isAlive(level));
     const rtype::ecs::Entity reloaded = app.getWorld().getComponents().get<rtype::ecs::Children>(level)->entities.at(0);
     EXPECT_EQ(app.getWorld().getComponents().get<tf::Health>(reloaded)->value, 8);
     EXPECT_EQ(app.getWorld().getComponents().get<capsule::CapsuleInstance>(reloaded)->version, 1U);
+    EXPECT_TRUE(app.getWorld().getResources().get<capsule::ReloadedCapsules>()->capsules.empty());
 }
 
-TEST(CapsuleSettings, ReadsHotReload) {
-    rtype::core::config::Settings settings;
-    settings.set("capsule.hotReload", true);
-    EXPECT_TRUE(capsule::CapsuleSettings::fromSettings(settings).hotReload);
-    settings.set("capsule.hotReload", false);
-    EXPECT_FALSE(capsule::CapsuleSettings::fromSettings(settings).hotReload);
-}
-
-TEST(CapsuleSettings, RejectsAnUnknownKey) {
-    rtype::core::config::Settings settings;
-    settings.set("capsule.hotReloadd", true);
-    EXPECT_ANY_THROW(static_cast<void>(capsule::CapsuleSettings::fromSettings(settings)));
+TEST_F(CapsuleFilesTest, WithoutHotReloadTheGameOnlyLoadsItsFiles) {
+    write("actors/turret.actor", kTurret);
+    rtype::ecs::App app;
+    app.insertResource(rtype::plugins::AssetDirectory{.path = _game});
+    static_cast<void>(app.getWorld().getComponents().registerType<tf::Health>());
+    static_cast<void>(app.getWorld().getComponents().registerType<tf::Armor>());
+    app.addPlugin(capsule::CapsulePlugin{});
+    app.finishPlugins();
+    EXPECT_NE(app.getWorld().getResources().get<capsule::Capsules>()->find("actors/turret.actor"), nullptr);
+    EXPECT_EQ(app.getWorld().getResources().get<capsule::ReloadedCapsules>(), nullptr);
 }
