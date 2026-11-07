@@ -14,6 +14,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 #include "core/asset/AssetId.hpp"
 
@@ -83,6 +84,9 @@ class AssetStore {
     /// @return Its id, and the asset if it was added now.
     /// @throws core::asset::exceptions::AssetLoadException If another name already has this id (a hash collision).
     Stored add(const std::string& name, T value);
+
+    /// @return The ids of every asset asked for, read or failed, in no order.
+    [[nodiscard]] std::vector<AssetId> getIds() const;
 
     /// @brief Forgets the asset @p id names.
     /// @return False, doing nothing, if no asset has this id.
