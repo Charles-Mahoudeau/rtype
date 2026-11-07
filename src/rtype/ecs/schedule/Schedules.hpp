@@ -64,6 +64,21 @@ class RTYPE_ECS_API Schedules {
     /// @brief Installs the frame clock, replacing the previous one.
     void setClock(std::unique_ptr<FrameClock> clock) noexcept;
 
+    /// @return Whether the simulation is paused (setPaused()).
+    [[nodiscard]] bool isPaused() const noexcept;
+
+    /// @brief Pauses or resumes the simulation, for a tool (an editor) that freezes the game to look at it.
+    /// @details While paused, a frame runs Startup (on the first frame), PreUpdate, PostUpdate and Render, but neither
+    /// FixedUpdate nor Update: the events still come in, what follows the gameplay (the global transforms, the
+    /// animations, the particles) and the drawing still run, the gameplay does not move. The clock still measures the
+    /// frames, so Time::delta keeps its value and the fixed ticks of a paused frame are dropped, not caught up later.
+    /// A game's own pause menu is gameplay, not this: its systems would stop with the rest.
+    void setPaused(bool paused) noexcept;
+
+    /// @brief While paused, makes the next frame run as a whole one, with exactly one fixed tick if a clock is
+    /// installed: to go forward step by step. Does nothing while the simulation runs.
+    void step() noexcept;
+
     /// @brief Makes a system of a function (or a lambda without captures) and adds it to a phase (System).
     /// @param configs The configurations of its configured parameters (see SystemParam), if any.
     /// @throws exceptions::ScheduleException When a system of any phase already has this name.
@@ -89,7 +104,8 @@ class RTYPE_ECS_API Schedules {
     void run(Phase phase);
 
     /// @brief Runs a whole frame: Startup on the first frame only, PreUpdate, FixedUpdate once per fixed tick the
-    /// clock gives, Update, PostUpdate, then Render, each followed by its commands.
+    /// clock gives, Update, PostUpdate, then Render, each followed by its commands. While paused, FixedUpdate and
+    /// Update are left out, but for a step (setPaused(), step()).
     /// @details Builds the schedules that changed first, so a bad schedule throws before the frame starts. Calls the
     /// clock's startFrame() first, finishFixedTick() after each FixedUpdate, startUpdate() before Update. Moves the
     /// queues of the events written in FixedUpdate forward after each fixed tick, and every other queue at the end of
@@ -115,6 +131,8 @@ class RTYPE_ECS_API Schedules {
     std::array<Schedule, kPhaseCount> _schedules;  ///< One schedule per phase, in phase order.
     std::unique_ptr<FrameClock> _clock;            ///< Decides the fixed ticks of each frame; may be null.
     bool _started{false};                          ///< Whether runFrame() has run Startup.
+    bool _paused{false};                           ///< Whether FixedUpdate and Update are left out (setPaused()).
+    bool _stepRequested{false};                    ///< Whether the next paused frame runs whole (step()).
 };
 }  // namespace rtype::ecs
 

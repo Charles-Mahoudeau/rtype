@@ -90,9 +90,24 @@ void Schedules::build() {
 
 void Schedules::run(Phase phase) { at(phase).run(); }
 
+bool Schedules::isPaused() const noexcept { return _paused; }
+
+void Schedules::setPaused(bool paused) noexcept {
+    _paused = paused;
+    _stepRequested = false;
+}
+
+void Schedules::step() noexcept { _stepRequested = _paused; }
+
 void Schedules::runFrame() {
     buildChanged();
-    const std::uint32_t ticks = _clock ? _clock->startFrame(*_world) : 0;
+    const std::uint32_t measured = _clock ? _clock->startFrame(*_world) : 0;
+    // A paused frame drops the ticks the clock counted, so resuming does not catch up on the time spent paused.
+    const bool simulates = !_paused || std::exchange(_stepRequested, false);
+    std::uint32_t ticks = 0;
+    if (simulates) {
+        ticks = _paused ? (_clock ? 1U : 0U) : measured;
+    }
     if (!_started) {
         run(Phase::kStartup);
         _started = true;
@@ -105,10 +120,12 @@ void Schedules::runFrame() {
             _clock->finishFixedTick(*_world);
         }
     }
-    if (_clock) {
-        _clock->startUpdate(*_world);
+    if (simulates) {
+        if (_clock) {
+            _clock->startUpdate(*_world);
+        }
+        run(Phase::kUpdate);
     }
-    run(Phase::kUpdate);
     run(Phase::kPostUpdate);
     run(Phase::kRender);
     updateFrameEvents();
