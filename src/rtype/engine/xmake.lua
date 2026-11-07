@@ -14,10 +14,6 @@ target("engine")
     add_deps("core", "ecs", {public = true})
     -- No plugin: the Engine loads them all, the transform and input plugins too, from their libraries.
     add_deps("luau", "scripting", "replication")
-    -- Those two plugin libraries are in `plugins/`, next to `lib/`, which holds the engine.
-    if not is_plat("windows") then
-        add_rpathdirs("@loader_path/../plugins")
-    end
     add_files("**.cpp")
     add_headerfiles("**.hpp")
     add_defines("RTYPE_ENGINE_BUILD", {public = false})
