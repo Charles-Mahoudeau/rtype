@@ -21,6 +21,7 @@ nav:
   - Home: index.md
   - Getting started: getting-started.md
   - Project settings: project-settings.md
+  - Modules and require: modules.md
   - Hot reload: hot-reload.md
   - Components: components.md
   - Systems: systems.md

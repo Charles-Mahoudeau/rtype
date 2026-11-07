@@ -8,7 +8,7 @@ make one.
 ```
 my_game/game/
   project.luau    the settings: window, renderer, audio, network, plugins, physics   (required)
-  scripts/        your Luau files, loaded in sorted path order                        (optional)
+  scripts/        your Luau files, which can `require` each other, see Modules         (optional)
   assets/         everything your game loads: images, sounds, fonts, maps             (required on a client)
 ```
 
@@ -20,6 +20,7 @@ your game never needs a program of its own.
 
 - **`project.luau`** chooses what the engine does: which plugins, which window, which network port.
   See [Project settings](project-settings.md).
+- **Modules** let a script file use another with `require`. See [Modules and `require`](modules.md).
 - **Components** are the data of your game. See [Components](components.md).
 - **Systems** are the rules that run on that data every tick or frame. See [Systems](systems.md).
 - **Engine calls** let scripts use what plain data cannot express: loading an asset, playing a sound, asking the

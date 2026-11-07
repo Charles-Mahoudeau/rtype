@@ -22,6 +22,10 @@ on the error output: what reloaded, which files, how long it took, and what chan
 Saving a script runs it again. Its `engine.system` calls replace the systems of the same name, and a system you removed
 from the file is removed from the game. If the file has an error, nothing changes and the error is logged.
 
+A file you [require](modules.md) is reloaded the same way, and the next `require` of it gives the new value. The files
+that already required it are **not** run again yet: they keep the value they got, until you save them too. Saving a
+module and then the files that use it gives the result you expect.
+
 Some changes cannot be applied in place, so the game is rebuilt (and the log says why):
 
 - a component whose fields changed, a new replicated component, or a component you removed;

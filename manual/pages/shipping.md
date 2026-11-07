@@ -72,6 +72,7 @@ MyGame/
     (lib/, plugins/, licenses/, untouched)
   game/
     project.luau
+    .luaurc             for the editor only, optional
     scripts/
     assets/
   play.sh               or play.bat on Windows
