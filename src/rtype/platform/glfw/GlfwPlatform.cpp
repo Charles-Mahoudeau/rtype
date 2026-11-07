@@ -15,6 +15,7 @@
 #include <glm/ext/vector_uint2.hpp>
 #include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -116,6 +117,17 @@ bool GlfwPlatform::isOpen() const noexcept { return _isOpen; }
 void GlfwPlatform::close() {
     _isOpen = false;
     glfwSetWindowShouldClose(_window, GLFW_TRUE);
+}
+
+void GlfwPlatform::setClipboardText(std::string_view text) {
+    if (_window != nullptr) {
+        glfwSetClipboardString(_window, std::string{text}.c_str());
+    }
+}
+
+std::string GlfwPlatform::getClipboardText() const {
+    const char* text = _window != nullptr ? glfwGetClipboardString(_window) : nullptr;
+    return text != nullptr ? std::string{text} : std::string{};
 }
 
 void GlfwPlatform::setCursorLocked(bool locked) {

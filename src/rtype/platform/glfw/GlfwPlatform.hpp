@@ -12,6 +12,7 @@
 #include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"
@@ -61,6 +62,10 @@ class RTYPE_PLATFORM_GLFW_API GlfwPlatform final : public contract::platform::IP
     [[nodiscard]] bool isOpen() const noexcept override;
     void close() override;
     void setCursorLocked(bool locked) override;
+    /// @brief Puts @p text on the clipboard (glfwSetClipboardString()).
+    void setClipboardText(std::string_view text) override;
+    /// @return The clipboard's text (glfwGetClipboardString()), empty if it holds none.
+    [[nodiscard]] std::string getClipboardText() const override;
     [[nodiscard]] double getTime() const override;
 
     /// @name IVulkanSurfaceSource
