@@ -37,8 +37,6 @@ VEHICLES = [
     ("limousine", (2, 7), (108, 52, 131, 255)),
 ]
 CYCLIST = ("cyclist", (1, 2), (250, 250, 250, 255))
-# The players' colors, in slot order: blue, red, green, purple.
-RIDERS = [(110, 193, 255, 255), (255, 154, 154, 255), (124, 252, 124, 255), (215, 155, 255, 255)]
 WINDSHIELD = (40, 52, 64, 255)
 
 
@@ -143,8 +141,6 @@ def main():
         save(body(size, color), f"vehicles/{name}.png")
     name, size, color = CYCLIST
     save(body(size, color), f"cyclists/{name}.png")
-    for slot, color in enumerate(RIDERS):
-        save(body((1, 2), color), f"riders/rider_{slot}.png")
     save(beam_square(), "beam.png")
 
 

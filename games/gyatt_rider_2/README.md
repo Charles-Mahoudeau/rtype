@@ -29,7 +29,7 @@ starts once 2 ride.
 ## What is in it so far
 
 - The 8 roads scrolling, and the strip on the left for the timer and the gauge.
-- A rider for each of the first 4 players, in their slot's color (blue, red, green, purple), moved by the server and
+- A rider for each of the first 4 players, blue on its own screen and red on the others', moved by the server and
   outlined in white on its own player's screen.
 - The traffic: cars, electric cars, vans, trucks, buses, limousines and cyclists come from behind, each kind at its
   speed, and slow down behind slower traffic. A vehicle that runs over a rider hits it.

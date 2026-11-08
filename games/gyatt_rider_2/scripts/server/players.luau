@@ -30,11 +30,12 @@ engine.ecs.system("game.SpawnRiders", {
 			end
 			taken[slot] = true
 			local position = Game.startOf(slot)
-			-- The rider's actor holds its body, its gun and its draw layer; the slot gives its start and its color.
+			-- The rider's actor holds its body, its gun and its draw layer; the slot gives its start. Every rider is the
+			-- white cyclist's image, which each client tints: blue for its own, red for the others.
 			local rider = engine.capsule.spawn(ctx, Game.riderActor, {
 				["game.Rider"] = { slot = slot },
 				["game.Position"] = { value = position },
-				["game.Look"] = { texture = `riders/rider_{slot}.png` },
+				["game.Look"] = { texture = "cyclists/cyclist.png" },
 				["rtype.Transform"] = { position = position },
 			})
 			ctx.commands:add(rider, "net.Owner", { client = joined.client })

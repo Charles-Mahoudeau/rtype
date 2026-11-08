@@ -10,14 +10,8 @@ return {
 	roads = engine.assets.tilemap("levels/roads.tmj"),
 	-- One square of a shot's beam, repeated from the shooter to what it hits (client/beams.luau).
 	beam = engine.assets.texture("beam.png", { linear = false }),
-	-- The looks of the riders, one per slot in the players' colors (blue, red, green, purple), and of the traffic: the
-	-- server names them in each rider's game.Look and the capsule files in theirs, these forms load them.
-	riders = {
-		engine.assets.texture("riders/rider_0.png", { linear = false }),
-		engine.assets.texture("riders/rider_1.png", { linear = false }),
-		engine.assets.texture("riders/rider_2.png", { linear = false }),
-		engine.assets.texture("riders/rider_3.png", { linear = false }),
-	},
+	-- The looks of the traffic and of the riders (the cyclist's, tinted): the capsule files and the server name them in
+	-- each game.Look, these forms load them.
 	traffic = {
 		engine.assets.texture("vehicles/car.png", { linear = false }),
 		engine.assets.texture("vehicles/electric_car.png", { linear = false }),

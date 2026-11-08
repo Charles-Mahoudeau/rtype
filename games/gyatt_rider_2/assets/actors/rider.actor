@@ -3,7 +3,8 @@
 # A player's rider: 1x2 tiles of 64 px, kinematic (moved by game.MoveRiders, nothing pushes it), on layer 1, its hitbox
 # 16 px smaller on each side than its image. A sensor: a vehicle (layer 2) or a cyclist (4) goes through it and sends
 # rtype.TriggerEntered, since two kinematic bodies send no contact, and a shot sees it. The server spawns it for a
-# client with its slot, its start and its slot's texture (scripts/server/players.luau), and gives it its owner.
+# client with its slot, its start and the cyclist's white image, which each client tints (scripts/server/players.luau),
+# and gives it its owner.
 [node path="."]
 game.Rider = {}
 game.Position = {}
