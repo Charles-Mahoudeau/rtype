@@ -11,11 +11,14 @@
 #include <string_view>
 
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/query/Query.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/ecs/system/EventWriter.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/replication/ReplicationPlugin.hpp"
 #include "rtype/replication/client/ClientCalls.hpp"
+#include "rtype/replication/component/Owner.hpp"
+#include "rtype/replication/component/PlayerInput.hpp"
 #include "rtype/replication/event/ClientConnected.hpp"
 #include "rtype/replication/packet/PacketCalls.hpp"
 #include "rtype/replication/packet/PacketCodec.hpp"
@@ -49,6 +52,22 @@ void receive(ecs::ResMut<LocalSession> session, ecs::Res<packet::PacketRegistry>
         });
     }
 }
+
+/// @brief FixedUpdate: writes the local input in the entity of client 1, as the server does with a client's.
+void applyInputs(ecs::Res<LocalSession> session, ecs::Query<component::PlayerInput, const component::Owner> players) {
+    for (auto [entity, input, owner] : players) {
+        input->previousButtons = input->buttons;
+        if (owner.client == LocalSession::kClient) {
+            input->buttons = session->input().buttons;
+            input->axes = session->input().axes;
+            input->sequence = session->input().sequence;
+        } else {
+            input->buttons = 0;
+            input->axes = {};
+            input->sequence = 0;
+        }
+    }
+}
 }  // namespace
 
 StandalonePlugin::~StandalonePlugin() = default;
@@ -61,5 +80,6 @@ void StandalonePlugin::build(ecs::App& app) {
     app.addPlugin(ReplicationPlugin{});
     app.addCall(std::string{client::kLocalClientCall}, &localClient);
     app.addSystem(ecs::Phase::kPreUpdate, std::string{kReceiveSystem}, &receive);
+    app.addSystem(ecs::Phase::kFixedUpdate, std::string{kApplyInputsSystem}, &applyInputs);
 }
 }  // namespace rtype::replication::standalone

@@ -26,15 +26,18 @@ namespace rtype::replication::standalone {
 /// | Phase       | System             | What it does                                                           |
 /// |-------------|--------------------|------------------------------------------------------------------------|
 /// | PreUpdate   | `net.receive`      | raises `net.ClientConnected` for client 1 once; delivers the packets   |
+/// | FixedUpdate | `net.applyInputs` | writes the local input in the PlayerInput of the entity client 1 owns  |
 ///
 /// `rtype.replication.localClient` answers `{connected = true, client = 1}`, and `rtype.net.sendToServer` and
 /// `rtype.net.sendToClients` loop the packet back into the world, one frame later, with the same checks as the
 /// network. A packet to the server has `sender` 1, one to the clients has `sender` 0: scripts tell the side they are
-/// for from it (`engine.net.received`).
+/// for from it (`engine.net.received`). The player's input is given with LocalSession::setInput(), in a system that
+/// runs before the FixedUpdate.
 class RTYPE_REPLICATION_API StandalonePlugin : public ecs::Plugin {
   public:
     static constexpr std::string_view kName = "rtype.replication.standalone";  ///< The plugin's name.
     static constexpr std::string_view kReceiveSystem = "net.receive";          ///< PreUpdate.
+    static constexpr std::string_view kApplyInputsSystem = "net.applyInputs";  ///< FixedUpdate.
 
     StandalonePlugin() = default;
     ~StandalonePlugin() override;
