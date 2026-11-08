@@ -496,7 +496,7 @@ void Engine::build() {
     if (networkPlugin) {
         app.addPlugin(std::move(networkPlugin));
     }
-    if (_config.mode == ecs::RunMode::kClient) {
+    if (_config.mode == ecs::RunMode::kClient || _config.mode == ecs::RunMode::kStandalone) {
         addNetworkInput(app);
     }
 }
