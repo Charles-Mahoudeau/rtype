@@ -1,10 +1,13 @@
--- The HUD, drawn with the UI over the game: the four scores along the top, in the players' colors, the time left in the
--- strip on the left, the player's own score in the bottom right corner, and a message in the middle while the match
--- waits. Its texts carry a game.HudText, and game.ShowHud rewrites them from what the server sends. It also tells the
--- other modules what it read (the results, client/results.luau).
+-- The HUD, drawn with the UI over the game: the four scores along the top, each on a text box (client/textbox.luau)
+-- in its player's color, the time left in the strip on the left, the player's own score on a text box in the bottom
+-- right corner, and a message on a text box in the middle while the match waits. Its texts carry a game.HudText, and
+-- game.ShowHud rewrites them from what the server sends. It also tells the other modules what it read (the results,
+-- client/results.luau).
 
 local Game = require("@scripts/shared/rules")
 local assets = require("@scripts/client/assets")
+local TextBox = require("@scripts/client/textbox")
+local Menu = require("@scripts/client/menu")
 
 -- What a game.HudText shows.
 local scoreText, timerText, ownScoreText, messageText = 0, 1, 2, 3
@@ -16,12 +19,15 @@ local playerColors = {
 	{ 0.49, 0.99, 0.49, 1 }, -- green
 	{ 0.84, 0.61, 1, 1 }, -- purple
 }
-local ink = { 0.08, 0.08, 0.1, 1 }
+local ink = TextBox.ink
 local white = { 1, 1, 1, 1 }
 local timerColor = { 1, 0.55, 0, 1 }
 local ownColor = { 0.8, 0.82, 0.85, 1 }
-local scoreBox = { width = 220, height = 44 }
+local scoreBox = { width = 220, height = 52, ignorePointer = true }
 local margin = 8
+
+-- The waiting message's box while it is shown, or nil.
+local waitingBox = nil
 
 -- What game.ReadRiders and game.ReadMatch saw this frame, for game.ShowHud.
 local pointsOf: { [number]: number } = {} -- by slot
@@ -38,7 +44,7 @@ local function textNode(role: number, slot: number, size: number, color)
 	}
 end
 
---- A box of color @p color holding one text node.
+--- A plain box of color @p color holding one small text node.
 local function box(style, color, text)
 	return {
 		style = { style, { justify = "center", alignItems = "center", ignorePointer = true } },
@@ -55,7 +61,7 @@ engine.ecs.system("game.SpawnHud", {
 	run = function(ctx)
 		local scores = {}
 		for slot = 0, Game.maxPlayers - 1 do
-			table.insert(scores, box(scoreBox, playerColors[slot + 1], textNode(scoreText, slot, 24, ink)))
+			table.insert(scores, TextBox.node(scoreBox, playerColors[slot + 1], { textNode(scoreText, slot, 26, ink) }))
 		end
 		engine.ui.spawn(ctx.commands, {
 			style = { width = "100%", height = "100%", ignorePointer = true },
@@ -77,15 +83,11 @@ engine.ecs.system("game.SpawnHud", {
 					timerColor,
 					textNode(timerText, 0, 18, ink)
 				),
-				box(
-					{ position = "absolute", right = 16, bottom = 16, width = 220, height = 72 },
+				TextBox.node(
+					{ position = "absolute", right = 16, bottom = 16, width = 240, height = 80, ignorePointer = true },
 					ownColor,
-					textNode(ownScoreText, 0, 36, ink)
+					{ textNode(ownScoreText, 0, 36, ink) }
 				),
-				{
-					style = { position = "absolute", top = "45%", left = 0, right = 0, alignItems = "center" },
-					children = { textNode(messageText, 0, 40, white) },
-				},
 			},
 		})
 	end,
@@ -138,6 +140,33 @@ local function textOf(hud): string
 	end
 	return ""
 end
+
+-- Update: the waiting message's text box, shown while the match waits for riders and the menu is closed (its text
+-- would show through the menu); game.ShowHud writes its text.
+engine.ecs.system("game.ShowWaiting", {
+	phase = "Update",
+	side = "client",
+	query = {},
+	after = { "game.ReadMatch" },
+	run = function(ctx)
+		local waiting = match.phase == Game.waiting and not Menu.isOpen()
+		if waiting and waitingBox == nil then
+			waitingBox = engine.ui.spawn(ctx.commands, {
+				style = { width = "100%", height = "100%", justify = "center", alignItems = "center", ignorePointer = true },
+				children = {
+					TextBox.node(
+						{ width = 760, height = 120, ignorePointer = true },
+						white,
+						{ textNode(messageText, 0, 36, ink) }
+					),
+				},
+			})
+		elseif not waiting and waitingBox ~= nil then
+			ctx.commands:despawn(waitingBox)
+			waitingBox = nil
+		end
+	end,
+})
 
 -- Update: writes each HUD text, only when it changes. The box of a slot nobody rides stays empty.
 engine.ecs.system("game.ShowHud", {

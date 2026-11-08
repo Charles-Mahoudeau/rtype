@@ -4,6 +4,7 @@
 
 local Game = require("@scripts/shared/rules")
 local RiderEvents = require("@scripts/client/riderevents")
+local Settings = require("@scripts/client/settings")
 
 local impact = engine.assets.particle({
 	name = "game.impact",
@@ -31,8 +32,12 @@ local shotShake = hitShake * 0.3 -- and of the player's own shot
 local shakeLeft = 0 -- seconds of shaking left
 local shakeStrength = 0 -- world units, at the start of the shake going on
 
---- Shakes the camera, @p strength world units at first, unless a stronger shake is still going on.
+--- Shakes the camera, @p strength world units at first, unless a stronger shake is still going on or the player
+--- asked for less motion (the settings).
 local function shake(strength: number)
+	if Settings.get("reduceMotion") then
+		return
+	end
 	if strength >= shakeStrength * shakeLeft / shakeSeconds then
 		shakeStrength = strength
 		shakeLeft = shakeSeconds

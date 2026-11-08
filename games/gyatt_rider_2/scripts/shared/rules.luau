@@ -175,6 +175,12 @@ engine.ecs.component("game.BeamSquare", { fields = { remaining = "f32" }, presen
 engine.ecs.component("game.GaugeFill", { fields = {}, presence = "clientOnly" })
 engine.ecs.component("game.GaugeDot", { fields = { cyclist = "entity" }, presence = "clientOnly" })
 
+-- The icon of a cyclist's boost (client/boosticons.luau), client only: the cyclist it floats over.
+engine.ecs.component("game.BoostIcon", { fields = { cyclist = "entity" }, presence = "clientOnly" })
+
+-- A button of the menu (client/menu.luau), client only: it lights up under the pointer or the focus.
+engine.ecs.component("game.MenuButton", { fields = {}, presence = "clientOnly" })
+
 -- The notice of a player who left (client/leaves.luau), client only: the seconds it is still shown.
 engine.ecs.component("game.LeaveNotice", { fields = { remaining = "f32" }, presence = "clientOnly" })
 

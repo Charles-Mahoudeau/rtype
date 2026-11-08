@@ -21,8 +21,10 @@ if engine.isClient then
 	engine.settings.plugins = {
 		"rtype.Physics", "rtype.Capsule", "rtype.Input", "rtype.graphics", "rtype.Shader", "rtype.Sprite",
 		"rtype.SpriteDraw", "rtype.Tilemap", "rtype.Text", "rtype.Ui", "rtype.audio", "rtype.Particle",
-		"rtype.PhysicsDebug",
+		"rtype.PhysicsDebug", "rtype.Persistence", "rtype.Json",
 	}
+	-- The player's settings (client/settings.luau), saved as JSON in the user's data folder under gyatt_rider_2/.
+	engine.settings.persistence.folder = "gyatt_rider_2"
 end
 engine.settings.physics.gravity = { 0, 0 }
 -- Room for many bodies: a client builds one for each vehicle that comes and never steps its world, and Jolt frees the

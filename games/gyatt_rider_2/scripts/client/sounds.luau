@@ -4,6 +4,7 @@
 
 local assets = require("@scripts/client/assets")
 local RiderEvents = require("@scripts/client/riderevents")
+local Settings = require("@scripts/client/settings")
 
 -- The effects, in assets/sounds/.
 local shotSound = engine.assets.sound("sounds/shot.mp3") -- any rider fires
@@ -21,7 +22,7 @@ engine.ecs.system("game.PlayMusic", {
 	end,
 })
 
--- Update: plays this frame's shots, hits and the player's kills.
+-- Update: plays this frame's shots, hits and the player's kills, at the effects volume of the settings.
 engine.ecs.system("game.PlayEffects", {
 	phase = "Update",
 	side = "client",
@@ -29,14 +30,18 @@ engine.ecs.system("game.PlayEffects", {
 	calls = { "rtype.audio.playSound" },
 	after = { "game.DetectRiderEvents" },
 	run = function(ctx)
+		local volume = Settings.get("effectsVolume")
+		if volume <= 0 then
+			return
+		end
 		for _, shot in RiderEvents.shots() do
-			ctx.call("rtype.audio.playSound", { sound = shotSound, position = shot.from })
+			ctx.call("rtype.audio.playSound", { sound = shotSound, position = shot.from, volume = volume })
 		end
 		for _, hit in RiderEvents.hits() do
-			ctx.call("rtype.audio.playSound", { sound = deathSound, position = hit.at })
+			ctx.call("rtype.audio.playSound", { sound = deathSound, position = hit.at, volume = volume })
 		end
 		if RiderEvents.kills() > 0 then
-			ctx.call("rtype.audio.playSound", { sound = killSound })
+			ctx.call("rtype.audio.playSound", { sound = killSound, volume = volume })
 		end
 	end,
 })

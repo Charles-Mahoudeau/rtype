@@ -25,7 +25,24 @@ and the clients, no build needed.
 | Z Q S D (W A S D on a QWERTY keyboard) | Move in every direction |
 | Arrows | Fire a beam up, down, left or right |
 | F3 | Show the hitboxes |
-| Escape, or the window's close button | Quit |
+| Escape | Open or close the menu (the game goes on behind it) |
+| The window's close button | Quit |
+
+## Menu
+
+Escape opens it over the game; the mouse, the keyboard (Tab, the arrows, Enter) or a gamepad work it. The settings
+are kept between games, in `gyatt_rider_2/settings.sav` of the user's data folder (`~/.local/share` on Linux).
+
+| Item | What it does |
+|---|---|
+| Resume | Closes the menu |
+| Effects volume | The volume of the shots, the deaths and the kills |
+| Reduce motion | No screen shake, and a hit rider stays faded instead of flashing |
+| Boost icons | The image of its boost over each colored cyclist, for players who do not tell the colors apart |
+| How to play | The rules in short |
+| Quit | Closes the game |
+
+The arrows still fire while the menu is open: the game does not pause, being shared with the other players.
 
 ## Rules
 
@@ -62,6 +79,8 @@ A score never goes below 0, and counts only while the match races.
   The cyclists are white.
 - The scores along the top, the time left and the race's gauge in the strip on the left (the covered part in orange,
   the cyclists as small orange cyclists riding), the player's own score in the bottom right corner.
+- Every big text (the scores, the results, the notices, the menu) sits on the same slanted text box (`text_box.png`),
+  tinted in the color of what it shows.
 - The results in the middle when a match is over: the winner, every rider's place and points.
 - "Player 2 left" under the scores, in that player's color, when a player leaves.
 - An impact at the start of each beam, where it stops and on each death; the view shakes when the player is hit.
