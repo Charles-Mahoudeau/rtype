@@ -200,13 +200,14 @@ class RTYPE_REPLICATION_API ClientState {
     /// @brief Records the spawn of every entity of the snapshot the client does not have.
     void spawnEntities(const snapshot::Snapshot& decoded, ecs::Commands& commands);
 
-    /// @brief Records the values of the components of an entity.
+    /// @brief Records the values of the components of an entity, but those it already holds: the world sees a
+    /// replicated component change only when its value does.
     void writeValues(std::uint32_t networkId, const std::vector<snapshot::ComponentValue>& values,
-                     const manifest::Manifest& manifest, ecs::Commands& commands) const;
+                     const manifest::Manifest& manifest, ecs::Commands& commands);
 
     /// @brief Records the removal of the components the snapshot lists.
     void removeComponents(const snapshot::Snapshot& decoded, const manifest::Manifest& manifest,
-                          ecs::Commands& commands) const;
+                          ecs::Commands& commands);
 
     /// @brief Records the despawn of the entities the snapshot lists, and forgets them.
     void despawnEntities(const snapshot::Snapshot& decoded, ecs::Commands& commands);
@@ -218,7 +219,7 @@ class RTYPE_REPLICATION_API ClientState {
     /// @brief Of a complete snapshot, or of a part of one: records the removal of the components its records do not
     /// list, since a record lists all of its entity's.
     void removeUnlistedComponents(const snapshot::Snapshot& decoded, const manifest::Manifest& manifest,
-                                  ecs::Commands& commands) const;
+                                  ecs::Commands& commands);
 
     /// @brief Of a complete snapshot, once all of it is in: records the despawn of the entities it does not list, and
     /// forgets them.
@@ -240,19 +241,21 @@ class RTYPE_REPLICATION_API ClientState {
     std::vector<std::size_t> _componentSizes;                    ///< The wire size of each component by short id.
     std::unordered_map<std::uint32_t, ecs::Entity> _entities;    ///< NetworkId → local entity.
     std::unordered_set<ecs::Entity> _reserved;                   ///< Entities spawned by commands not flushed yet.
-    std::uint32_t _lastAppliedTick{0};                           ///< The tick of the last snapshot applied.
-    std::uint32_t _lastProcessedInput{0};                        ///< From the last snapshot applied.
-    std::uint32_t _partTick{0};                                  ///< The tick of the parts being put together.
-    std::uint8_t _partCount{0};                                  ///< How many parts that tick has.
-    std::bitset<snapshot::kMaxParts> _partsSeen;                 ///< The parts of that tick already applied.
-    std::unordered_set<std::uint32_t> _partListed;               ///< The NetworkIds those parts listed.
-    std::uint32_t _nextInputSequence{1};                         ///< The sequence of the next input sent.
-    std::optional<component::PlayerInput> _input;                ///< The game's input for the frame.
-    std::deque<input::InputSample> _recentInputs;                ///< The last three, oldest first.
-    std::vector<network::Bytes> _packets;                        ///< Custom packets waiting for takePackets().
-    bool _serverReady{false};                                    ///< The server answered after our `Ready`.
-    std::size_t _dropped{0};                                     ///< Messages that could not be used.
-    std::size_t _stale{0};                                       ///< Snapshots that were not applied.
+    std::unordered_set<std::uint64_t>
+        _pending;                          ///< Components (NetworkId, ComponentId) commands not flushed yet touch.
+    std::uint32_t _lastAppliedTick{0};     ///< The tick of the last snapshot applied.
+    std::uint32_t _lastProcessedInput{0};  ///< From the last snapshot applied.
+    std::uint32_t _partTick{0};            ///< The tick of the parts being put together.
+    std::uint8_t _partCount{0};            ///< How many parts that tick has.
+    std::bitset<snapshot::kMaxParts> _partsSeen;    ///< The parts of that tick already applied.
+    std::unordered_set<std::uint32_t> _partListed;  ///< The NetworkIds those parts listed.
+    std::uint32_t _nextInputSequence{1};            ///< The sequence of the next input sent.
+    std::optional<component::PlayerInput> _input;   ///< The game's input for the frame.
+    std::deque<input::InputSample> _recentInputs;   ///< The last three, oldest first.
+    std::vector<network::Bytes> _packets;           ///< Custom packets waiting for takePackets().
+    bool _serverReady{false};                       ///< The server answered after our `Ready`.
+    std::size_t _dropped{0};                        ///< Messages that could not be used.
+    std::size_t _stale{0};                          ///< Snapshots that were not applied.
 };
 
 RTYPE_ECS_RESOURCE(ClientState, "net.ClientState");
