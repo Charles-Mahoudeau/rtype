@@ -11,7 +11,6 @@
 #include <cstdint>
 #include <format>
 #include <optional>
-#include <ranges>
 #include <string>
 #include <string_view>
 #include <tl/expected.hpp>
@@ -21,8 +20,10 @@
 #include "core/asset/AssetId.hpp"
 #include "rtype/ecs/component/ComponentInfo.hpp"
 #include "rtype/ecs/component/Components.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/type/Field.hpp"
 #include "rtype/luau/Exceptions.hpp"
+#include "rtype/luau/Result.hpp"
 #include "rtype/luau/Table.hpp"
 #include "rtype/luau/Usertype.hpp"
 #include "rtype/scripting/view/FieldAccess.hpp"
@@ -34,17 +35,27 @@ constexpr std::string_view kKeys = "__keys";  ///< The pseudo-field listing the 
 
 /// @brief A console line's handle on an entity.
 struct ConsoleEntity {
-    ConsoleAccess access;       ///< What the line may reach.
-    std::uint64_t generation;   ///< The scope's generation when it was made.
-    ecs::Entity entity;         ///< The entity.
+    ConsoleAccess access;      ///< What the line may reach.
+    std::uint64_t generation;  ///< The scope's generation when it was made.
+    ecs::Entity entity;        ///< The entity.
 };
 
 /// @brief A console line's handle on one component of an entity.
 struct ConsoleComponent {
-    ConsoleAccess access;       ///< What the line may reach.
-    std::uint64_t generation;   ///< The scope's generation when it was made.
-    ecs::Entity entity;         ///< The entity.
-    ecs::ComponentId id;        ///< The component.
+    ConsoleAccess access;      ///< What the line may reach.
+    std::uint64_t generation;  ///< The scope's generation when it was made.
+    ecs::Entity entity;        ///< The entity.
+    ecs::ComponentId id;       ///< The component.
+};
+
+/// @brief A console line's handle on a `vec2` or `vec4` field: writing its `x` writes the component, where a table
+/// copy would lose the write.
+struct ConsoleVector {
+    ConsoleAccess access;      ///< What the line may reach.
+    std::uint64_t generation;  ///< The scope's generation when it was made.
+    ecs::Entity entity;        ///< The entity.
+    ecs::ComponentId id;       ///< The component.
+    std::string field;         ///< The field.
 };
 
 /// @brief Raises a Luau error unless the line that made the handle is still running.
@@ -85,7 +96,7 @@ struct Match {
 Match match(const ConsoleAccess& access, const ecs::Entity entity, const std::string_view name) {
     const ecs::Components& components = access.world->getComponents();
     if (const auto exact = components.find(name)) {
-        return {.id = *exact, .problem = {}};
+        return {.id = components.find(name), .problem = {}};
     }
     const std::size_t count = components.getRegistry().getCount();
     std::vector<ecs::ComponentId> known;
@@ -152,25 +163,133 @@ void checkPresent(const ConsoleComponent& handle) {
     }
 }
 
-luau::Result<luau::Usertype<ConsoleComponent>> registerComponent(luau::Runtime& runtime) {
+/// @return The names of the parts of a vector field.
+std::vector<std::string> partsOf(const ecs::FieldInfo& field) {
+    return field.type == ecs::FieldType::kVec2 ? std::vector<std::string>{"x", "y"}
+                                               : std::vector<std::string>{"x", "y", "z", "w"};
+}
+
+/// @return The current value of the vector field, as a table of its parts.
+luau::Table readParts(const view::FieldReadContext& context, const ConsoleVector& handle) {
+    checkAlive(handle.access, handle.generation);
+    const ecs::Components& components = handle.access.world->getComponents();
+    if (!handle.access.world->isAlive(handle.entity) || !components.has(handle.entity, handle.id)) {
+        throw luau::exceptions::RuntimeError{"the entity no longer has this component"};
+    }
+    const ecs::ComponentInfo& info = infoOf(handle.access, handle.id);
+    auto value = view::readField(info.type.name, findField(info, handle.field),
+                                 components.get(handle.entity, handle.id), context);
+    const luau::Table* table = value ? value->tryAs<luau::Table>() : nullptr;
+    if (table == nullptr) {
+        throw luau::exceptions::RuntimeError{"cannot read the field"};
+    }
+    return *table;
+}
+
+/// @brief Writes one part of the vector field, keeping the others.
+void writePart(const view::FieldReadContext& context, const ConsoleVector& handle, const std::string_view name,
+               const luau::Value& value) {
+    luau::Table table = readParts(context, handle);
+    if (!handle.access.writable) {
+        throw luau::exceptions::RuntimeError{
+            std::format("cannot write '{}': the console only reads here (the server owns the data)", name)};
+    }
+    const auto current = table.get(name);
+    if (!current || current->tryAs<double>() == nullptr) {
+        throw luau::exceptions::RuntimeError{std::format("a vector has no part '{}'", name)};
+    }
+    if (value.tryAs<double>() == nullptr) {
+        throw luau::exceptions::RuntimeError{std::format("part '{}' expects a number", name)};
+    }
+    if (auto set = table.set(name, value); !set) {
+        throw luau::exceptions::RuntimeError{std::string{set.error().message()}};
+    }
+    const ecs::ComponentInfo& info = infoOf(handle.access, handle.id);
+    auto written =
+        view::writeField(info.type.name, findField(info, handle.field),
+                         handle.access.world->getComponents().getMut(handle.entity, handle.id), luau::Value{table});
+    if (!written) {
+        throw luau::exceptions::RuntimeError{std::string{written.error().message()}};
+    }
+}
+
+/// @return The vector written as Luau.
+std::string describe(const luau::Table& table) {
+    std::string text = "{ ";
+    for (const std::string_view key : {"x", "y", "z", "w"}) {
+        const auto part = table.get(key);
+        if (part && part->tryAs<double>() != nullptr) {
+            text += std::format("{}{} = {}", text.size() > 2 ? ", " : "", key, *part->tryAs<double>());
+        }
+    }
+    return text + " }";
+}
+
+luau::Result<luau::Usertype<ConsoleVector>> registerVector(luau::Runtime& runtime) {
+    auto type = runtime.usertype<ConsoleVector>("ConsoleVector");
+    if (!type) {
+        return tl::unexpected{std::move(type.error())};
+    }
+    const view::FieldReadContext context{
+        .runtime = &runtime,
+        .entities = runtime.usertype<ecs::Entity>(),
+        .assetIds = runtime.usertype<core::asset::AssetId>(),
+    };
+    type->index([&runtime, context](const ConsoleVector& handle, const std::string_view name) {
+            const luau::Table table = readParts(context, handle);
+            if (name == kKeys) {
+                return listOf(runtime, partsOf(findField(infoOf(handle.access, handle.id), handle.field)));
+            }
+            auto part = table.get(name);
+            if (!part || part->tryAs<double>() == nullptr) {
+                throw luau::exceptions::RuntimeError{std::format("a vector has no part '{}'", name)};
+            }
+            return std::move(*part);
+        })
+        .newIndex([context](const ConsoleVector& handle, const std::string_view name, const luau::Value& value) {
+            writePart(context, handle, name, value);
+        })
+        .tostring([context](const ConsoleVector& handle) { return describe(readParts(context, handle)); });
+    return *type;
+}
+
+luau::Result<luau::Usertype<ConsoleComponent>> registerComponent(luau::Runtime& runtime,
+                                                                 const luau::Usertype<ConsoleVector>& vectors) {
     auto type = runtime.usertype<ConsoleComponent>("ConsoleComponent");
     if (!type) {
         return tl::unexpected{std::move(type.error())};
     }
-    const view::FieldReadContext context{.runtime = &runtime,
-                                         .entities = runtime.usertype<ecs::Entity>(),
-                                         .assetIds = runtime.usertype<core::asset::AssetId>()};
-    type->index([&runtime, context](const ConsoleComponent& handle, const std::string_view name) {
+    const view::FieldReadContext context{
+        .runtime = &runtime,
+        .entities = runtime.usertype<ecs::Entity>(),
+        .assetIds = runtime.usertype<core::asset::AssetId>(),
+    };
+    type->index([&runtime, context, vectors](const ConsoleComponent& handle, const std::string_view name) {
             checkPresent(handle);
             const ecs::ComponentInfo& info = infoOf(handle.access, handle.id);
             if (name == kKeys) {
                 std::vector<std::string> names;
+                names.reserve(info.type.fields.size());
                 for (const ecs::FieldInfo& field : info.type.fields) {
                     names.push_back(field.name);
                 }
                 return listOf(runtime, names);
             }
             const ecs::FieldInfo& field = findField(info, name);
+            if (field.type == ecs::FieldType::kVec2 || field.type == ecs::FieldType::kVec4) {
+                // A handle, so that `position.x = 0` writes the component.
+                auto made = vectors.create(ConsoleVector{
+                    .access = handle.access,
+                    .generation = handle.generation,
+                    .entity = handle.entity,
+                    .id = handle.id,
+                    .field = std::string{name},
+                });
+                if (!made) {
+                    throw luau::exceptions::RuntimeError{std::string{made.error().message()}};
+                }
+                return luau::Value{std::move(*made)};
+            }
             auto value = view::readField(info.type.name, field,
                                          handle.access.world->getComponents().get(handle.entity, handle.id), context);
             if (!value) {
@@ -182,13 +301,13 @@ luau::Result<luau::Usertype<ConsoleComponent>> registerComponent(luau::Runtime& 
             checkPresent(handle);
             const ecs::ComponentInfo& info = infoOf(handle.access, handle.id);
             if (!handle.access.writable) {
-                throw luau::exceptions::RuntimeError{std::format(
-                    "cannot write '{}': the console only reads here (the server owns the data)", name)};
+                throw luau::exceptions::RuntimeError{
+                    std::format("cannot write '{}': the console only reads here (the server owns the data)", name)};
             }
             const ecs::FieldInfo& field = findField(info, name);
             // Through the access that marks the value changed, so the systems that watch it see it.
-            auto written = view::writeField(info.type.name, field,
-                                            handle.access.world->getComponents().getMut(handle.entity, handle.id), value);
+            auto written = view::writeField(
+                info.type.name, field, handle.access.world->getComponents().getMut(handle.entity, handle.id), value);
             if (!written) {
                 throw luau::exceptions::RuntimeError{std::string{written.error().message()}};
             }
@@ -227,7 +346,12 @@ luau::Result<> registerEntity(luau::Runtime& runtime, const luau::Usertype<Conso
             if (!handle.access.world->getComponents().has(handle.entity, *found.id)) {
                 return luau::Value{luau::Value::Nil{}};
             }
-            auto made = components.create(ConsoleComponent{handle.access, handle.generation, handle.entity, *found.id});
+            auto made = components.create(ConsoleComponent{
+                .access = handle.access,
+                .generation = handle.generation,
+                .entity = handle.entity,
+                .id = *found.id,
+            });
             if (!made) {
                 throw luau::exceptions::RuntimeError{std::string{made.error().message()}};
             }
@@ -241,7 +365,11 @@ luau::Result<> registerEntity(luau::Runtime& runtime, const luau::Usertype<Conso
 }  // namespace
 
 luau::Result<> registerConsoleTypes(luau::Runtime& runtime) {
-    auto components = registerComponent(runtime);
+    auto vectors = registerVector(runtime);
+    if (!vectors) {
+        return tl::unexpected{std::move(vectors.error())};
+    }
+    auto components = registerComponent(runtime, *vectors);
     if (!components) {
         return tl::unexpected{std::move(components.error())};
     }
@@ -250,7 +378,8 @@ luau::Result<> registerConsoleTypes(luau::Runtime& runtime) {
 
 luau::Result<luau::Value> makeConsoleEntity(const luau::Runtime& runtime, const ConsoleAccess& access,
                                             const ecs::Entity entity) {
-    auto made = runtime.usertype<ConsoleEntity>().create(ConsoleEntity{access, access.scope->generation, entity});
+    auto made = runtime.usertype<ConsoleEntity>().create(
+        ConsoleEntity{.access = access, .generation = access.scope->generation, .entity = entity});
     if (!made) {
         return tl::unexpected{std::move(made.error())};
     }
