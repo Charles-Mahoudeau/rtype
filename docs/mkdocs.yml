@@ -1,0 +1,90 @@
+site_name: AYLO Engine developer documentation
+site_description: How the AYLO Engine works, for the people who build it.
+site_url: https://charles-mahoudeau.github.io/rtype/engine/
+repo_url: https://github.com/Charles-Mahoudeau/rtype
+docs_dir: .
+site_dir: site
+exclude_docs: |
+  site/
+  mkdocs.yml
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - content.code.copy
+    - search.highlight
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Home: index.md
+  - Architecture:
+      - Modules: Modules.md
+      - Plugins: Plugins.md
+      - Backends: Backend.md
+      - Engine: engine/design.md
+      - Code style: CodeStyle.md
+  - Technical study:
+      - study/index.md
+      - Technologies: study/technologies.md
+      - Algorithms and data structures: study/algorithms.md
+      - Storage: study/storage.md
+      - Security: study/security.md
+  - Network:
+      - Overview: network/overview.md
+      - Protocol (RFC): network/protocol.md
+      - Design: network/design.md
+      - Implementation: network/implementation.md
+      - Custom packets: network/custom-packets.md
+  - ECS:
+      - Design: ecs/design.md
+      - ecs/features/README.md
+  - Scripting:
+      - Plan: scripting/plan.md
+      - Luau modules: luau/modules.md
+      - Luau sandbox: luau/sandbox.md
+      - Luau errors: luau/error-handling.md
+      - Luau types: luau/type-definitions.md
+  - Subsystems:
+      - Vulkan: Vulkan.md
+      - Shaders: Shaders.md
+      - Sprites: Sprites.md
+      - Text: Text.md
+      - Tilemap: Tilemap.md
+      - User interface: Ui.md
+      - Input: Input.md
+      - Audio: audio/design.md
+      - Physics: physics/design.md
+      - Particles: particles/design.md
+      - Capsule format: CapsuleFormat.md
+      - HTTP: Http.md
+      - JSON: Json.md
+  - Tools:
+      - Editor: Editor.md
+      - Headless and UI checks: HeadlessAndUiCheck.md
+      - GPU debugging: gpu-debugging.md
+  - Benchmarks:
+      - Physics: benchmarks/physics.md
+      - Audio: benchmarks/audio.md
+      - Capsule format: benchmarks/capsule-format.md
+  - Accessibility: Accessibility.md
+  - Release:
+      - release/README.md
+      - Plan: release/plan.md
+      - Package: release/package.md
+      - Process: release/release-process.md
+      - Self-contained: release/self-contained.md
+      - Signing: release/signing.md
