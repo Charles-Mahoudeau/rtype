@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Draws the placeholder assets of GyattRider 2: flat shapes of one or two colors, to replace with real art.
 
-Run it from anywhere: python3 examples/games/gyatt_rider_2/tools/make_placeholders.py
+Run it from anywhere: python3 games/gyatt_rider_2/tools/make_placeholders.py
 It overwrites the files it makes in game/assets/. A replacement keeps the same file name and the same size in tiles.
 The roads are vertical: everything faces up, the way the riders go.
 """

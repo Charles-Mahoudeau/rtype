@@ -9,8 +9,8 @@ minutes wins.
 Build the engine (`xmake build -y`), then from the repository root:
 
 ```sh
-./r-type_server --game examples/games/gyatt_rider_2/game
-./r-type_client --game examples/games/gyatt_rider_2/game     # once per player
+./r-type_server --game games/gyatt_rider_2/game
+./r-type_client --game games/gyatt_rider_2/game     # once per player
 ```
 
 `--port <port>` on both sides and `--host <address>` on a client play over the network. The first 4 clients ride, the
