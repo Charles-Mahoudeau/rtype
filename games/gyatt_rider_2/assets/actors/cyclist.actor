@@ -5,8 +5,8 @@
 [node path="."]
 rtype.Transform = {}
 game.Position = {}
-game.Look = { texture = "cyclists/cyclist.png", layer = 0 }   # under the riders
+game.Look = { texture = "cyclists/cyclist.png", size = (64, 128), layer = 0 }   # under the riders
 game.Driving = { speed = 25 }   # world units per second, up the view
 game.Cyclist = {}   # the server draws its boost when it spawns it
-rtype.Collider = { shape = 0, size = (64, 128), layer = 4, mask = 0 }   # meets nothing; a shot hits it
+rtype.Collider = { shape = 0, size = (32, 96), layer = 4, mask = 1 }   # meets the riders; a shot hits it
 rtype.RigidBody = { type = 1 }   # kinematic: moved by its Transform, pushed by nothing

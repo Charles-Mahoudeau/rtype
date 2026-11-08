@@ -1,8 +1,8 @@
 -- The shots: a rider fires up, down, left or right with the arrows, every Game.fireCooldown while one is held. A shot
--- is instant: a ray goes from the rider until the first rider, vehicle or cyclist it meets, or the view's edge, and
--- leaves a beam there for Game.beamLifetime. What it meets gets a game.Hit, which server/hits.luau resolves. With the
+-- is instant: a box as wide as the beam (Game.beamSquare) is cast from the rider until the first rider, vehicle or
+-- cyclist it meets, or the view's edge, and leaves a beam there for Game.beamLifetime. What it meets gets a game.Hit, which server/hits.luau resolves. With the
 -- sniper boost, a shot goes through everything to the view's edge, and hits every rider and cyclist on its way:
--- game.PierceShots finds them by their boxes, since a ray stops at the first body and ignores only one.
+-- game.PierceShots finds them by their boxes, since a cast stops at the first body and ignores only one.
 
 local Game = require("@scripts/shared/rules")
 local Match = require("@scripts/server/match")
@@ -39,11 +39,14 @@ local function reachToEdge(from: { x: number, y: number }, direction: { x: numbe
 	return from.y
 end
 
---- Fires a shot of the rider in @p slot from @p from: spawns a game.Hit for the first thing the ray meets, and returns
---- how far the shot goes.
+--- Fires a shot of the rider in @p slot from @p from: spawns a game.Hit for the first thing the beam meets, and returns
+--- how far the shot goes. The beam is a thin box as wide as it is drawn, cast along the shot.
 local function shoot(ctx, shooter, slot: number, from, direction, reach: number): number
-	local hit = ctx.call("rtype.physics.raycast", {
-		origin = from,
+	local thin = 2 -- world units along the shot: the box only needs the beam's width across it
+	local hit = ctx.call("rtype.physics.shapeCast", {
+		shape = Game.box,
+		size = if direction.x ~= 0 then { x = thin, y = Game.beamSquare } else { x = Game.beamSquare, y = thin },
+		from = from,
 		direction = direction,
 		maxDistance = reach,
 		mask = shotMask,
@@ -57,9 +60,9 @@ local function shoot(ctx, shooter, slot: number, from, direction, reach: number)
 	return hit.distance
 end
 
---- Whether the axis-aligned segment from @p from to @p to crosses the box of @p size centred on @p at.
+--- Whether the beam from @p from to @p to, as wide as Game.beamSquare, crosses the box of @p size centred on @p at.
 local function crosses(from, to, at, size): boolean
-	local halfX, halfY = size.x / 2, size.y / 2
+	local halfX, halfY = (size.x + Game.beamSquare) / 2, (size.y + Game.beamSquare) / 2
 	return math.max(from.x, to.x) >= at.x - halfX
 		and math.min(from.x, to.x) <= at.x + halfX
 		and math.max(from.y, to.y) >= at.y - halfY
@@ -77,7 +80,7 @@ engine.ecs.system("game.Fire", {
 		write = { "game.Gun" },
 		with = { "net.PlayerInput" },
 	},
-	calls = { "rtype.replication.readInput", "rtype.physics.raycast" },
+	calls = { "rtype.replication.readInput", "rtype.physics.shapeCast" },
 	after = { "net.applyInputs", "rtype.Physics.Events" },
 	run = function(ctx)
 		for entity, rider, position, boosts, score, gun in ctx.query do

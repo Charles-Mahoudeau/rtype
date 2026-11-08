@@ -18,7 +18,8 @@ local Game = {
 	startRoads = { 1, 3, 4, 6 }, -- the road each slot starts on, counted from 0 on the left
 	fireCooldown = 0.25, -- seconds between two shots while an arrow is held
 	beamLifetime = 0.2, -- seconds a shot's beam stays, long enough for a snapshot to carry it
-	beamSquare = 32, -- world units: a beam is drawn as a row of squares this big
+	beamSquare = 40, -- world units: a beam is drawn as a row of squares this big, and hits what it covers
+	hitboxMargin = 16, -- world units: each hitbox (the capsules' colliders) is this much smaller than its image on a side
 
 	-- The score, counted only while a match races.
 	pointsPerSecond = 5, -- every rider, every second
@@ -91,10 +92,14 @@ function Game.startOf(slot: number): { x: number, y: number }
 end
 
 -- What moves and is drawn, riders and traffic alike: the server writes where it is, and the clients draw its look
--- there, at its collider's size (client/looks.luau).
+-- there (client/looks.luau).
 engine.ecs.component("game.Position", { fields = { value = "vec2" }, replication = "everyChange" })
--- What it looks like, sent once: its texture, and its draw layer (Game.trafficDrawLayer...).
-engine.ecs.component("game.Look", { fields = { texture = "assetId", layer = "i8" }, replication = "spawnOnly" })
+-- What it looks like, sent once: its texture, the size of its image in world units (a bit bigger than its hitbox),
+-- and its draw layer (Game.trafficDrawLayer...).
+engine.ecs.component("game.Look", {
+	fields = { texture = "assetId", size = "vec2", layer = "i8" },
+	replication = "spawnOnly",
+})
 
 -- A player's rider (assets/actors/rider.actor), sent once. Its slot (0 to 3) gives its start and its color.
 engine.ecs.component("game.Rider", { fields = { slot = "u32" }, replication = "spawnOnly" })

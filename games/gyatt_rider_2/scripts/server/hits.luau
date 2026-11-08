@@ -30,8 +30,8 @@ local function winBoost(slot: number, boost: number)
 	boostsOf[slot] = boosts
 end
 
--- FixedUpdate, once the physics sent this tick's events: a vehicle that enters a rider (a sensor) hits it. The event
--- names the sensor and what entered it; their colliders' layers tell a rider and a vehicle.
+-- FixedUpdate, once the physics sent this tick's events: a vehicle or a cyclist that enters a rider (a sensor) hits
+-- it. The event names the sensor and what entered it; their colliders' layers tell a rider and the traffic.
 engine.ecs.system("game.HitByTraffic", {
 	phase = "FixedUpdate",
 	side = "server",
@@ -51,7 +51,9 @@ engine.ecs.system("game.HitByTraffic", {
 			layerOf[entity.bits] = collider.layer
 		end
 		for _, entry in entries do
-			if layerOf[entry.rider.bits] == Game.riderLayer and layerOf[entry.other.bits] == Game.vehicleLayer then
+			local other = layerOf[entry.other.bits]
+			local traffic = other == Game.vehicleLayer or other == Game.cyclistLayer
+			if layerOf[entry.rider.bits] == Game.riderLayer and traffic then
 				ctx.commands:spawn({ ["game.Hit"] = { victim = entry.rider, shooter = -1 } })
 			end
 		end
