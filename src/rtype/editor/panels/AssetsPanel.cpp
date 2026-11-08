@@ -261,7 +261,6 @@ void drawPathBar(EditorState& state) {
     ImGui::SameLine(ImGui::GetContentRegionMax().x - kSliderWidth);
     ImGui::SetNextItemWidth(kSliderWidth);
     ImGui::SliderFloat("##iconSize", &state.assetIconSize, kMinIcon, kMaxIcon, "");
-    gui::tooltip("Icon size");
 }
 
 /// @brief Draws one entry of the folder shown as an icon with its name: a click selects it, a double-click enters a
@@ -303,9 +302,6 @@ void drawItem(EditorState& state, const std::filesystem::directory_entry& entry,
             fileMenu(state, relative, name, isCapsule);
         }
         ImGui::EndPopup();
-    }
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip | ImGuiHoveredFlags_DelayNormal)) {
-        gui::tooltip(std::format("{}\n{}", relative, labelOf(kind)));
     }
 
     ImDrawList* draw = ImGui::GetWindowDrawList();
