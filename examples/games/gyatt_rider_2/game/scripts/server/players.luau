@@ -1,9 +1,6 @@
 -- The players: each of the first four clients gets a rider, removed when they leave. The next ones watch.
 
--- The server's systems only.
-if not engine.isServer then
-	return
-end
+local Game = require("@scripts/shared/rules")
 
 print(`[server] up to {Game.maxPlayers} players`)
 

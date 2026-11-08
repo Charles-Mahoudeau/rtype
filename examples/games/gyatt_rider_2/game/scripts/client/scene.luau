@@ -1,12 +1,10 @@
 -- The scene around the game: the camera, the roads scrolling down as the riders race up, and the strip on the left.
 
+local Game = require("@scripts/shared/rules")
+local assets = require("@scripts/client/assets")
+
 local roadsDrawLayer = -100 -- under every sprite
 local sidebarColor = { x = 0.8, y = 0.82, z = 0.85, w = 1 }
-
--- The rest draws: the server has none of the plugins it names.
-if not engine.isClient then
-	return
-end
 
 -- Startup: the camera looks at the middle of the view.
 engine.ecs.system("game.SpawnCamera", {
@@ -29,7 +27,7 @@ engine.ecs.system("game.SpawnRoads", {
 	calls = { "rtype.tilemap.spawn" },
 	run = function(ctx)
 		ctx.call("rtype.tilemap.spawn", {
-			map = Game.assets.roads,
+			map = assets.roads,
 			position = { x = 0, y = 0 },
 			scale = { x = 1, y = 1 },
 			firstDrawLayer = roadsDrawLayer,

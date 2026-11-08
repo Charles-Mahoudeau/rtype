@@ -1,14 +1,12 @@
 -- The look of the riders the server spawns: the sprite of their slot, where the server puts them, and an outline
 -- around the player's own rider.
 
+local Game = require("@scripts/shared/rules")
+local assets = require("@scripts/client/assets")
+
 local riderDrawLayer = 1
 local ownOutline = { x = 1, y = 1, z = 1, w = 1 }
 local ownOutlineThickness = 3
-
--- The rest draws: the server has none of the plugins it names.
-if not engine.isClient then
-	return
-end
 
 -- Update: gives the riders the server spawned the sprite of their slot.
 engine.ecs.system("game.DressRiders", {
@@ -20,7 +18,7 @@ engine.ecs.system("game.DressRiders", {
 		for entity, rider in ctx.query do
 			ctx.commands:add(entity, "rtype.Transform", { position = rider.position })
 			ctx.commands:add(entity, "rtype.SpriteRenderer", {
-				texture = Game.assets.riders[rider.slot + 1],
+				texture = assets.riders[rider.slot + 1],
 				source = { x = 0, y = 0, z = size.x, w = size.y }, -- the whole image
 				origin = { x = size.x / 2, y = size.y / 2 }, -- centred on its position, like its collider
 				layer = riderDrawLayer,

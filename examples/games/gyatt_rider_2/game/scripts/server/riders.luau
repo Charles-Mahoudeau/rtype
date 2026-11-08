@@ -1,10 +1,7 @@
 -- The riders: they move in every direction with ZQSD, inside the roads and the view. Vehicles do not block them: a
 -- vehicle that touches a rider hits it.
 
--- The server's systems only: clients have none of the systems they are ordered against.
-if not engine.isServer then
-	return
-end
+local Game = require("@scripts/shared/rules")
 
 -- FixedUpdate, after the inputs of the tick are applied and before the Transforms drive the bodies.
 engine.ecs.system("game.MoveRiders", {

@@ -2,6 +2,11 @@
 local GAME_WIDTH = 1088
 local GAME_HEIGHT = 640
 
+-- The scripts: the shared entry runs first on both sides, then the entry of the side (see scripts/).
+engine.settings.scripts.main = "shared/main"
+engine.settings.scripts.server = "server/main"
+engine.settings.scripts.client = "client/main"
+
 -- The network, from the command line: `--port 4243` on both sides, `--host 10.0.0.2` on a client.
 engine.settings.network.port = engine.args.port or 4242
 if engine.isClient then
