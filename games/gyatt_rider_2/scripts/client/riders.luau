@@ -2,7 +2,7 @@
 -- the player's own and red for the others.
 
 local ownColor = { x = 0.3, y = 0.55, z = 1 } -- blue
-local enemyColor = { x = 1, y = 0.25, z = 0.25 } -- red
+local enemyColor = { x = 1, y = 0.48, z = 0.48 } -- light red, lighter than the sniper cyclists
 
 -- Update, once the riders have their sprites (client/looks.luau): tints the player's own rider blue and the others red,
 -- keeping the alpha the shield's twinkle sets.

@@ -7,7 +7,7 @@ local tints = {
 	[Game.pointsBoost] = { x = 1, y = 0.85, z = 0.2, w = 1 }, -- gold: points
 	[Game.speedBoost] = { x = 0.3, y = 0.9, z = 1, w = 1 }, -- cyan: speed
 	[Game.shieldBoost] = { x = 0.4, y = 1, z = 0.4, w = 1 }, -- green: invincibility
-	[Game.sniperBoost] = { x = 1, y = 0.3, z = 0.3, w = 1 }, -- red: sniper shots
+	[Game.sniperBoost] = { x = 0.7, y = 0.08, z = 0.08, w = 1 }, -- dark red: sniper shots, darker than the riders
 }
 
 -- Update, once the cyclist has its sprite (client/looks.luau): tints the cyclists that carry a boost, once.
