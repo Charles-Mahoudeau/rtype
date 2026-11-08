@@ -1,6 +1,8 @@
 -- The client's assets. The forms load them on the clients, and give their ids on the server too, without loading
 -- anything there. The textures are not smoothed (`linear = false`): hard edges, even when the view is scaled.
 
+local rideFrameSeconds = 0.12 -- how long each frame of the riding animation shows
+
 return {
 	-- The music, decoded while it plays (stream): a long track.
 	music = engine.assets.sound("sounds/music.ogg", { stream = true }),
@@ -27,8 +29,9 @@ return {
 		texture = "cyclists/cyclist_sheet.png",
 		linear = false,
 		grid = { frameSize = { x = 64, y = 128 }, count = 3 },
-		animations = { ride = { frames = { 0, 1, 2 }, frameDuration = 0.12, direction = "pingPong" } },
+		animations = { ride = { frames = { 0, 1, 2 }, frameDuration = rideFrameSeconds, direction = "pingPong" } },
 	}),
+	rideFrameSeconds = rideFrameSeconds,
 	-- The looks of the traffic: the capsule files name them in each game.Look, these forms load them.
 	traffic = {
 		engine.assets.texture("vehicles/car.png", { linear = false }),
