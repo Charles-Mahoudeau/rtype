@@ -1,0 +1,83 @@
+name: Set up clang on Linux
+description: >
+  Installs LLVM from apt.llvm.org on a Linux runner and, optionally, makes it the clang of the build. The version of
+  the toolchain of the project is the default of the `version` input: it is the only place the number is written, and
+  the CI (build and lint) and the release workflows all use this action. macOS and Windows do not: they build with
+  Apple Clang and MSVC.
+
+inputs:
+  version:
+    description: The LLVM major version
+    default: "22"
+  compiler:
+    description: Install clang and make it `clang` and `clang++`; `false` only adds the apt.llvm.org source
+    default: "true"
+  tools:
+    description: Install clang-format and clang-tidy
+    default: "false"
+  libstdcxx-ppa:
+    description: >
+      Install g++-13 from the ubuntu-toolchain-r PPA, for a runner whose libstdc++ is too old for C++23 (Ubuntu 22.04
+      ships libstdc++ 12)
+    default: "false"
+  packages:
+    description: Other apt packages to install, separated by spaces
+    default: ""
+
+outputs:
+  version:
+    description: The LLVM major version installed, for the names clang-format-<version> and clang-tidy-<version>
+    value: ${{ inputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install LLVM from apt.llvm.org
+      shell: bash
+      env:
+        LLVM_VERSION: ${{ inputs.version }}
+        INSTALL_COMPILER: ${{ inputs.compiler }}
+        INSTALL_TOOLS: ${{ inputs.tools }}
+        LIBSTDCXX_PPA: ${{ inputs.libstdcxx-ppa }}
+        PACKAGES: ${{ inputs.packages }}
+      run: |
+        if [[ "$LIBSTDCXX_PPA" == "true" ]]; then
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+        fi
+        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
+        codename="$(lsb_release -cs)"
+        echo "deb http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-${LLVM_VERSION} main" \
+          | sudo tee /etc/apt/sources.list.d/llvm.list
+        sudo apt-get update
+
+        install=()
+        [[ "$LIBSTDCXX_PPA" == "true" ]] && install+=("g++-13")
+        [[ "$INSTALL_COMPILER" == "true" ]] && install+=("clang-${LLVM_VERSION}")
+        [[ "$INSTALL_TOOLS" == "true" ]] && install+=("clang-format-${LLVM_VERSION}" "clang-tidy-${LLVM_VERSION}")
+        # PACKAGES is split on purpose: a list of package names.
+        # shellcheck disable=SC2206
+        install+=($PACKAGES)
+        if (( ${#install[@]} > 0 )); then
+          sudo apt-get install -y "${install[@]}"
+        fi
+
+    - name: Select clang ${{ inputs.version }}
+      if: inputs.compiler == 'true'
+      shell: bash
+      env:
+        LLVM_VERSION: ${{ inputs.version }}
+      run: |
+        sudo update-alternatives --install /usr/bin/clang clang "/usr/bin/clang-${LLVM_VERSION}" 100
+        sudo update-alternatives --install /usr/bin/clang++ clang++ "/usr/bin/clang++-${LLVM_VERSION}" 100
+        # --install alone can leave the image's own clang selected (a higher priority, or a /usr/bin/clang it does not
+        # manage), and an older clang cannot parse libstdc++ 13 in C++23 (auto(x) in basic_string.tcc). Selected by
+        # hand, linked directly if that is not enough, and checked.
+        sudo update-alternatives --set clang "/usr/bin/clang-${LLVM_VERSION}" || true
+        sudo update-alternatives --set clang++ "/usr/bin/clang++-${LLVM_VERSION}" || true
+        if ! clang++ --version | grep -q "clang version ${LLVM_VERSION}\."; then
+          sudo ln -sf "/usr/bin/clang-${LLVM_VERSION}" /usr/bin/clang
+          sudo ln -sf "/usr/bin/clang++-${LLVM_VERSION}" /usr/bin/clang++
+        fi
+        clang++ --version
+        clang++ --version | grep -q "clang version ${LLVM_VERSION}\." \
+          || { echo "::error::clang++ is not clang ${LLVM_VERSION}"; exit 1; }
