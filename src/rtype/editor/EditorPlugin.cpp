@@ -136,6 +136,9 @@ void runFrame(EditorState& state, contract::platform::IPlatform& platform, contr
             panels::openPrefab(state, start);  // an actor opens alone, as a double-click in the Assets does
         }
     }
+    if (!state.windowTitle.empty()) {
+        platform.setTitle(std::exchange(state.windowTitle, {}));
+    }
     beginFrameIo(state, platform);
     ImGui::NewFrame();
     panels::drawToolbar(state, platform);
@@ -192,6 +195,8 @@ void EditorPlugin::build(ecs::App& app) {
             state->session->reopenScene.empty() ? _options.scene : std::move(state->session->reopenScene);
         state->session->reopenScene.clear();
     }
+    state->windowTitle =
+        _options.gameTitle.empty() ? "AYLO Editor" : std::format("AYLO Editor - {}", _options.gameTitle);
     state->textEditor = _options.textEditor.empty() ? shell::defaultTextEditor() : _options.textEditor;
     ecs::Resources& resources = app.getWorld().getResources();
     // The graphics plugin, which this one requires, inserted both hooks; they live and die with this App.

@@ -25,6 +25,10 @@ target("editor")
     add_packages("imgui")
     -- Not app/: the program's main().
     add_files("**.cpp|app/**.cpp")
+    -- The UI fonts, embedded as byte arrays (included as "JetBrainsMonoNerdFont-Regular.ttf.h"...): the editor needs no
+    -- file next to it to look the same everywhere.
+    add_rules("utils.bin2c", {extensions = {".ttf"}})
+    add_files("fonts/*.ttf")
     add_headerfiles("**.hpp", "**.tpp")
 
 -- aylo-editor: the program that runs a game inside the editor, always as a debug run. The Engine loads the plugins and

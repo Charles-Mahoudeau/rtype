@@ -36,10 +36,11 @@ A program of its own, not a feature of a game and not a mode of the runtime. Gam
 | Folder | Holds |
 |---|---|
 | `editor/` | `EditorPlugin` (the two hooks, the frame, the default layout), `EditorState` (everything kept between frames) |
-| `gui/` | `GuiContext` (the ImGui context), `GuiInput` (the window's events to ImGui and to the game), `GameViewport`, `GuiMesh` (ImGui's draw data and textures for the renderer) |
+| `gui/` | `GuiContext` (the ImGui context and the UI fonts), `Theme` (the Catppuccin Mocha colors, shapes and tone widgets), `GuiInput` (the window's events to ImGui and to the game), `GameViewport`, `GuiMesh` (ImGui's draw data and textures for the renderer) |
 | `play/` | `PlaySession`: Play, Pause, Step and Stop; `OnlinePlay`: the steps of Play online |
 | `scene/` | `SceneEdit`: the capsule changes (copy a tree with a node removed or moved, add, rename), commit, open, save, new files; `Isolation`: a capsule shown alone (prefab mode) |
 | `console/` | `ConsoleLog` (the last lines, from any thread), `OutputCapture` (the process's output into it) |
+| `fonts/` | JetBrains Mono Nerd Font, Regular (the text) and Bold (`gui::pushEmphasisFont()`: dark text on a filled button or chip, where thin strokes look faded), with its OFL license. Embedded in the program by `utils.bin2c`, so the editor needs no file at run time; the Nerd Font icons (Font Awesome in the Play controls) come with it |
 | `shell/` | `TextEditor`: a file opened in an external text editor |
 | `panels/` | The panels, `FieldEditor` (the widgets of a reflected value, the drag-and-drop of assets) and `WorldView` |
 
@@ -100,7 +101,7 @@ and the resources and the scripts' state stay as they are.
 
 ### Playing online
 
-The menu bar has a choice next to Play: **Standalone** (the default, above) or **Online**, locked while a Play is under
+The toolbar has a choice next to Play: **Standalone** (the default, above) or **Online**, locked while a Play is under
 way. Online tests the real thing, a server and its clients:
 
 1. Play remembers the open scene, then starts the child server with the options of the Server panel (game folder, port,
@@ -196,7 +197,7 @@ background (`shell::buildOpenCommand()`): Visual Studio Code by default, through
 
 | Panel | File | What it does |
 |---|---|---|
-| Menu bar | `panels/ToolbarPanel.cpp` | File (Save scene, Ctrl+S; Quit, through `IPlatform::close()`), View (panels, Reset layout), the Standalone / Online choice, Play / Pause / Step / Stop, the mode and the last message |
+| Toolbar | `panels/ToolbarPanel.cpp` | One padded row (`gui::beginToolbar()`): on the left File (Save scene, Ctrl+S; Quit, through `IPlatform::close()`) and View (panels, Reset layout), as flat buttons opening popups; in the center the mode chip and the last message; on the right the Standalone / Online choice and Play / Pause / Step / Stop. The three groups are placed by `gui::beginToolbarGroup()` |
 | Prefab | `panels/PrefabPanel.cpp` | The capsule opened alone, from the renderer's preview, centred; the wheel zooms; its cross goes back to the scene |
 | Game | `panels/GamePanel.cpp` | Asks for a scene texture as big as its content, draws it as an image, tells the input bridge where it is (`GameViewport`) |
 | Hierarchy | `panels/HierarchyPanel.cpp` | Editing: the scene's node tree; drag a node onto another to move it, drop a capsule file to place an instance, right-click to add or delete. Playing: the world's entities by their `Parent` and `Children`, named by their `Name`, or a flat list filtered by component name |
@@ -235,7 +236,7 @@ particles run in PostUpdate and Render, they play while editing.
    covers it, so the scale is 1; where both are pixels (X11, including through XWayland, and Windows) it is the
    content scale. `GuiContext::setScale()` rebuilds the style from its defaults at that scale (`ScaleAllSizes()`) and
    sets `FontScaleDpi`, so ImGui renders its glyphs again at that size and the text stays sharp.
-3. `ImGui::NewFrame()`, the menu bar, the dockspace over the window (the panels are docked as by default on the first
+3. `ImGui::NewFrame()`, the toolbar, the dockspace over the window (the panels are docked as by default on the first
    frame if no layout was kept; the layout file is `<cache>/rtype/editor/layout-<version>.ini`, its version raised when
    the panels change), then the panels.
 4. `ImGui::Render()`, `gui::updateTextures()` (ImGui's font atlas, sent whole when it grows) and `gui::buildMesh()`, one
@@ -261,6 +262,8 @@ particles run in PostUpdate and Render, they play while editing.
 | `editor.textEditor` | Visual Studio Code | The command that opens a file, its arguments included: `"code"`, `"subl"`, `"open -a TextEdit"` |
 
 The section is read when the editor is built (`readEditorOptions()`), and an unknown key in it is an error.
+
+The window is titled `AYLO Editor - <Game>`, where `<Game>` is the game's `window.title`; with none, `AYLO Editor`.
 
 ## Limits
 

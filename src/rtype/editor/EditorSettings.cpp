@@ -18,6 +18,7 @@ EditorOptions readEditorOptions(const core::config::Settings& settings) {
     return EditorOptions{
         .scene = editor.getString("scene", ""),
         .textEditor = editor.getString("textEditor", ""),
+        .gameTitle = settings.section("window").getString("title", ""),
     };
 }
 }  // namespace rtype::editor

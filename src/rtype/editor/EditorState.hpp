@@ -55,6 +55,7 @@ struct EditorOptions {
     std::string
         textEditor;  ///< The command that opens a file (`editor.textEditor`); empty: shell::defaultTextEditor().
     bool captureOutput{true};  ///< Whether the Console shows the program's output (OutputCapture).
+    std::string gameTitle;     ///< The game's window title (`window.title`), shown in the editor's own; empty: none.
     /// What survives from one App to the next (the child server, the Console, Play online); null: the plugin makes
     /// its own, which lives and dies with its App.
     std::shared_ptr<EditorSession> session;
@@ -98,6 +99,7 @@ struct RTYPE_EDITOR_API EditorState {
     std::array<char, 64> filter{};                 ///< What the Hierarchy keeps while playing: a component name.
     std::array<char, 64> componentFilter{};        ///< What the Inspector's "Add component" list keeps.
     std::string status;                            ///< The last thing that happened, shown in the menu bar.
+    std::string windowTitle;                       ///< The title the first frame gives the window; then empty.
     std::string startScene;                        ///< The scene the first frame opens (`editor.scene`); then empty.
     std::string textEditor;                        ///< The command that opens a file in a text editor.
     std::shared_ptr<console::ConsoleLog> console;  ///< The program's output; null if it could not be captured.

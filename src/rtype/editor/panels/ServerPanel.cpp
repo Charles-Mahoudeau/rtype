@@ -22,6 +22,7 @@
 #include "editor/EditorState.hpp"
 #include "editor/console/ConsoleLog.hpp"
 #include "editor/gui/Text.hpp"
+#include "editor/gui/Theme.hpp"
 #include "editor/process/ClientLauncher.hpp"
 #include "editor/process/Runtime.hpp"
 #include "editor/server/AdminSession.hpp"
@@ -37,26 +38,18 @@ namespace rtype::editor::panels {
 namespace {
 namespace admin = network::admin;
 
-constexpr ImVec4 kRed{1.0F, 0.45F, 0.4F, 1.0F};
-constexpr ImVec4 kYellow{1.0F, 0.8F, 0.35F, 1.0F};
-constexpr ImVec4 kGreen{0.45F, 0.85F, 0.5F, 1.0F};
-
 void line(const std::string& text) { ImGui::TextUnformatted(text.c_str()); }
 
-void coloredLine(const ImVec4& color, const std::string& text) {
-    ImGui::PushStyleColor(ImGuiCol_Text, color);
-    ImGui::TextUnformatted(text.c_str());
-    ImGui::PopStyleColor();
-}
+void coloredLine(const gui::Tone tone, const std::string& text) { gui::textTone(text, tone); }
 
-ImVec4 colorOf(const console::Level level) {
+gui::Tone colorOf(const console::Level level) {
     switch (level) {
         case console::Level::kError:
-            return kRed;
+            return gui::Tone::kDanger;
         case console::Level::kWarning:
-            return kYellow;
+            return gui::Tone::kWarning;
         default:
-            return ImGui::GetStyleColorVec4(ImGuiCol_Text);
+            return gui::Tone::kText;
     }
 }
 
@@ -142,7 +135,7 @@ void drawControls(EditorState& state) {
         ImGui::Checkbox("Restart the clients too", &panel.restartClients);
     }
     if (!panel.message.empty()) {
-        coloredLine(kRed, panel.message);
+        coloredLine(gui::Tone::kDanger, panel.message);
     }
 }
 
@@ -153,15 +146,15 @@ void drawStatusLine(const EditorState& state) {
             gui::textDisabled("Stopped");
             return;
         case server::ServerStatus::kStarting:
-            coloredLine(kYellow, std::format("Starting on port {}...", supervisor.options().port));
+            coloredLine(gui::Tone::kWarning, std::format("Starting on port {}...", supervisor.options().port));
             return;
         case server::ServerStatus::kExited:
-            coloredLine(kRed, std::format("Exited with code {}", supervisor.exitCode().value_or(0)));
+            coloredLine(gui::Tone::kDanger, std::format("Exited with code {}", supervisor.exitCode().value_or(0)));
             return;
         case server::ServerStatus::kRunning:
             break;
     }
-    coloredLine(kGreen, std::format("Running on port {}", supervisor.options().port));
+    coloredLine(gui::Tone::kSuccess, std::format("Running on port {}", supervisor.options().port));
     const server::AdminSession& session = *supervisor.session();
     if (const auto& status = session.status()) {
         line(std::format("Tick {}   Entities {}   Clients {}   Up {}", status->tick, status->entityCount,
@@ -170,7 +163,7 @@ void drawStatusLine(const EditorState& state) {
                          status->datagramsReceived, sizeText(status->bytesSent), status->datagramsSent));
     }
     if (!session.lastError().empty()) {
-        coloredLine(kRed, session.lastError());
+        coloredLine(gui::Tone::kDanger, session.lastError());
     }
 }
 
@@ -425,7 +418,7 @@ void drawLaunch(EditorState& state) {
         clients.removeEnded();
     }
     if (!panel.message.empty()) {
-        coloredLine(kRed, panel.message);
+        coloredLine(gui::Tone::kDanger, panel.message);
     }
     if (ImGui::BeginTable("##launched", 5, ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders)) {
         ImGui::TableSetupColumn("#");
