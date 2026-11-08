@@ -27,8 +27,8 @@ constexpr unsigned char kRegular[] = {
 #include "JetBrainsMonoNerdFont-Regular.ttf.h"
 };
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
-constexpr unsigned char kSemiBold[] = {
-#include "JetBrainsMonoNerdFont-SemiBold.ttf.h"
+constexpr unsigned char kBold[] = {
+#include "JetBrainsMonoNerdFont-Bold.ttf.h"
 };
 
 /// @brief Adds @p data, the bytes of a TTF with a trailing NUL, to the atlas, at the style's base size.
@@ -45,7 +45,7 @@ void addFont(const ImGuiIO& io,
 /// @brief Makes the embedded fonts the ones ImGui draws with: the text one first, so it is the default.
 void loadFonts(const ImGuiIO& io) {
     addFont(io, kRegular);
-    addFont(io, kSemiBold);
+    addFont(io, kBold);
 }
 }  // namespace
 
