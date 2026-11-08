@@ -145,6 +145,43 @@ TEST(ScriptJson, DecodeErrorsNameTheByte) {
               "");
 }
 
+TEST(ScriptJson, MetatablesCannotHideOrInventEntries) {
+    JsonScripts s;
+    EXPECT_EQ(s.run(R"(
+        local json = engine.json
+        -- __index must not fill a hole: {1, nil, 3} with a default is still a mixed/holed table, not an array.
+        local holed = setmetatable({ [1] = "a", [3] = "c" }, { __index = function() return "x" end })
+        assert(not pcall(json.encode, holed))
+        -- a custom __len must not drop stored entries
+        local short = setmetatable({ 1, 2, 3 }, { __len = function() return 1 end })
+        assert(json.encode(short) == "[1,2,3]", json.encode(short))
+        local long = setmetatable({ 1, 2 }, { __len = function() return 9 end })
+        assert(json.encode(long) == "[1,2]")
+        -- a map with a gap or a non-sequence key is refused, not truncated
+        assert(not pcall(json.encode, json.map({ { "a", 1 }, [3] = { "c", 3 } })))
+        assert(not pcall(json.encode, json.map({ { "a", 1 }, extra = { "b", 2 } })))
+        local lenMap = setmetatable({ { "a", 1 }, { "b", 2 } }, { __len = function() return 1 end })
+        assert(json.encode(json.map(lenMap)) == '{"a":1,"b":2}')
+    )"),
+              "");
+}
+
+TEST(ScriptJson, InvalidUtf8IsWrittenByEncodeAndRefusedByDecode) {
+    JsonScripts s;
+    EXPECT_EQ(s.run(R"(
+        local json = engine.json
+        local text = json.encode({ s = "a\255b" })
+        assert(#text > 0)
+        local ok, message = pcall(json.decode, '"a\255b"')
+        assert(not ok and string.find(message, "malformed JSON at byte", 1, true), tostring(message))
+        local value, err = json.tryDecode('"\192\128"')
+        assert(value == nil and err ~= nil)
+        local ok2, message2 = pcall(json.decode, 5)
+        assert(not ok2 and string.find(message2, "expected a string", 1, true) and not string.find(message2, "byte", 1, true))
+    )"),
+              "");
+}
+
 TEST(ScriptJson, TryDecodeNeverThrows) {
     JsonScripts s;
     EXPECT_EQ(s.run(R"(

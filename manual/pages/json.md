@@ -41,7 +41,7 @@ print(reply.items[2]) -- 2
 ```
 
 Objects and arrays become tables, `null` becomes `nil`. A `null` in an array takes no place: `[1,null,2]` gives
-`{ 1, 2 }`. Bad text raises an error that names the byte: `json: expected ':' at byte 6`.
+`{ 1, 2 }`. Bad text raises an error that names the byte: `json: malformed JSON at byte 6: ...`. Passing something that is not a string raises `json: expected a string, got a number`, with no byte.
 
 ### Text you do not trust
 
@@ -59,7 +59,7 @@ It returns the value, or `nil` and the message. (A text that is just `null` give
 
 ## Limits
 
-Nesting stops at 64 levels, so a hostile text cannot crash the game. The empty object decodes to `{}`, which encodes
+Nesting stops at 64 levels, so a deeply nested text cannot overflow the stack. That limit does not bound the size of the text or the time and memory decoding it takes: a huge body is still costly, so limit what you accept (for instance the size of an HTTP response) before decoding it. The empty object decodes to `{}`, which encodes
 back as `[]`; write `engine.json.map({})` to get `{}`.
 
 `encode` does not check a string for valid UTF-8: it writes the bytes you give it as they are. `decode` does, since it

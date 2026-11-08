@@ -20,18 +20,25 @@ local NULL, FALSE, TRUE, NUMBER, STRING, ARRAY, OBJECT, ORDERED_OBJECT = 0, 1, 2
 -- The tables json.map marked. A weak set rather than a field, so that a table's own keys are never read as a marker.
 local ordered = setmetatable({}, { __mode = "k" })
 
--- A table of 1..n with no hole (and no other key) is an array; the empty table is the empty array.
-local function isArray(t)
+-- Stored entries only: rawget and a pairs count, so a metatable's __index or __len can neither fill a hole nor hide an
+-- entry. Returns the number of stored keys, and whether they are exactly 1..n.
+local function sequenceLength(t)
 	local n = 0
 	for _ in pairs(t) do
 		n += 1
 	end
 	for i = 1, n do
-		if t[i] == nil then
-			return false
+		if rawget(t, i) == nil then
+			return n, false
 		end
 	end
-	return true
+	return n, true
+end
+
+-- A table of 1..n with no hole (and no other key) is an array; the empty table is the empty array.
+local function isArray(t)
+	local _, ok = sequenceLength(t)
+	return ok
 end
 
 -- flattenValue writes its stream into a table of four parallel lists plus a text pool (kinds, numbers, counts,
@@ -50,19 +57,25 @@ local function flattenTable(v, depth, stream)
 	end
 	if ordered[v] then
 		stream.kinds[#stream.kinds + 1] = ORDERED_OBJECT
-		stream.counts[#stream.counts + 1] = #v
-		for i, entry in ipairs(v) do
-			if type(entry) ~= "table" or type(entry[1]) ~= "string" then
+		local n, sequence = sequenceLength(v)
+		if not sequence then
+			error("json: a map must be a list of { key, value } entries with no gap and no other key", 0)
+		end
+		stream.counts[#stream.counts + 1] = n
+		for i = 1, n do
+			local entry = rawget(v, i)
+			if type(entry) ~= "table" or type(rawget(entry, 1)) ~= "string" then
 				error("json: map entry " .. i .. " must be { key, value } with a string key", 0)
 			end
-			pushText(stream, entry[1])
-			flattenValue(entry[2], depth + 1, stream)
+			pushText(stream, rawget(entry, 1))
+			flattenValue(rawget(entry, 2), depth + 1, stream)
 		end
 	elseif isArray(v) then
+		local n = sequenceLength(v)
 		stream.kinds[#stream.kinds + 1] = ARRAY
-		stream.counts[#stream.counts + 1] = #v
-		for i = 1, #v do
-			flattenValue(v[i], depth + 1, stream)
+		stream.counts[#stream.counts + 1] = n
+		for i = 1, n do
+			flattenValue(rawget(v, i), depth + 1, stream)
 		end
 	else
 		local keys = {}
@@ -77,7 +90,7 @@ local function flattenTable(v, depth, stream)
 		-- C++ sorts a plain object's keys before writing them: their order here does not matter.
 		for _, k in keys do
 			pushText(stream, k)
-			flattenValue(v[k], depth + 1, stream)
+			flattenValue(rawget(v, k), depth + 1, stream)
 		end
 	end
 end

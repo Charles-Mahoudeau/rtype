@@ -20,8 +20,8 @@ decode a text (an HTTP body, an AI model's reply, a save). It requires no other 
   `engine.json.map` is the way out when a layout must keep a chosen order.
 - **Mistakes are errors, untrusted input is data.** `encode` and `decode` raise a Luau error (a message starting
   `json:`); `tryDecode` never raises, for text a script does not control.
-- **Bounded.** Nesting is limited to 64 levels, both ways, checked in C++ even when a script calls `rtype.json.encode`
-  or `rtype.json.decode` directly, skipping `JsonForms.luau`: a hostile body cannot exhaust the stack, and a table
+- **Bounded nesting, not bounded size.** Nesting is limited to 64 levels, both ways, checked in C++ even when a script calls `rtype.json.encode`
+  or `rtype.json.decode` directly, skipping `JsonForms.luau`: a hostile body cannot exhaust the stack through depth (its size and decoding cost are not limited: cap what you accept, e.g. the HTTP response size), and a table
   that contains itself is an error, not an endless loop.
 - **A Luau string is bytes, not checked UTF-8.** `encode` writes an invalid byte sequence as is, instead of
   nlohmann::json's default of raising on it. `decode`, reading a text a script did not write, does validate UTF-8 (one
@@ -31,17 +31,31 @@ decode a text (an HTTP body, an AI model's reply, a save). It requires no other 
 
 ```luau
 -- project.luau
-engine.settings.plugins = { "rtype.Json" }
+engine.settings.plugins = { "rtype.Json", "rtype.Http" }
+```
 
-local text = engine.json.encode({ name = "ship", pos = { x = 1, y = 2 }, tags = { "a", "b" } })
--- {"name":"ship","pos":{"x":1,"y":2},"tags":["a","b"]}
-local value, err = engine.json.tryDecode(response.body)
+```luau
+-- a game script: encode a request body, decode the reply in the response handler
+engine.ecs.system("game.Ask", {
+    phase = "Update",
+    query = {},
+    calls = { "rtype.http.request" },
+    events = { read = { "rtype.HttpResponse" } },
+    run = function(ctx)
+        local body = engine.json.encode({ question = "where to mine?" })
+        -- engine.http.request(ctx, { url = ..., method = "POST", body = body })
+        for response in ctx.events.read("rtype.HttpResponse") do
+            local value, err = engine.json.tryDecode(response.body)
+            if err ~= nil then print("bad reply: " .. err) else print(value) end
+        end
+    end,
+})
 ```
 
 | Helper | Result |
 |---|---|
 | `engine.json.encode(value)` | The text. `nil` is `null`; a table of `1..n` with no hole (and the empty table) is an array; a table with string keys is an object with **sorted** keys. Errors: NaN or infinite number, function, thread or userdata, a table mixing array and string keys (or with holes, or non-string keys), nesting over 64 |
-| `engine.json.decode(text)` | The value. Objects and arrays are tables, `null` is `nil`. Errors, naming the byte of a malformed text (an invalid token, an invalid UTF-8 sequence, trailing data), a number no finite double can hold, nesting over 64, a `text` that is not a string |
+| `engine.json.decode(text)` | The value. Objects and arrays are tables, `null` is `nil`. Errors, naming the byte of a malformed text (an invalid token, an invalid UTF-8 sequence, trailing data), a number no finite double can hold, nesting over 64. A `text` that is not a string raises `json: expected a string, got a <type>`, with no byte position |
 | `engine.json.tryDecode(text)` | `value` on success, or `nil, message` on error. A text that is `null` gives `nil` and no message |
 | `engine.json.map(entries)` | `entries` (a list of `{ key, value }`) marked, so that it encodes as an object with the keys in that order; returns `entries` |
 
