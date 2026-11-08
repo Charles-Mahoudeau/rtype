@@ -529,6 +529,85 @@ TEST_F(ClientStateTest, AnIncompleteSnapshotKeepsWhatItDoesNotList) {
     EXPECT_TRUE(_world.getComponents().has<Follow>(_state.find(1)));
 }
 
+namespace {
+/// @return A part of a complete snapshot of `tick`.
+snapshot::Snapshot partOf(const std::uint32_t tick, const std::uint8_t part, const std::uint8_t count,
+                          std::vector<snapshot::SpawnRecord> spawns) {
+    return {.tick = tick,
+            .flags = snapshot::kPart | snapshot::kComplete,
+            .part = part,
+            .partCount = count,
+            .spawns = std::move(spawns)};
+}
+}  // namespace
+
+TEST_F(ClientStateTest, ThePartsOfACompleteSnapshotRemoveWhatNoneListsOnceAllAreIn) {
+    accept();
+    ASSERT_TRUE(apply({.tick = 1,
+                       .spawns = {{.networkId = 1, .components = {position(1.F, 1.F)}},
+                                  {.networkId = 2, .components = {position(2.F, 2.F)}},
+                                  {.networkId = 3, .components = {position(3.F, 3.F), follow(1)}}}}));
+    const Entity second = _state.find(2);
+    const Entity third = _state.find(3);
+
+    ASSERT_TRUE(apply(partOf(2, 0, 2, {{.networkId = 1, .components = {position(5.F, 5.F)}}})));
+    EXPECT_TRUE(_world.isAlive(second));  // the other part may list it
+    EXPECT_TRUE(_world.isAlive(third));
+    EXPECT_FLOAT_EQ(positionOf(_state.find(1))->x, 5.F);
+
+    ASSERT_TRUE(apply(partOf(2, 1, 2, {{.networkId = 3, .components = {position(6.F, 6.F)}}})));
+    EXPECT_FALSE(_world.isAlive(second));
+    EXPECT_EQ(_state.find(2), Entity{});
+    EXPECT_TRUE(_world.isAlive(third));
+    EXPECT_FLOAT_EQ(positionOf(third)->x, 6.F);
+    EXPECT_FALSE(_world.getComponents().has<Follow>(third));  // its record lists all its components
+    EXPECT_EQ(_state.lastAppliedTick(), 2U);
+}
+
+TEST_F(ClientStateTest, PartsApplyInAnyOrderAndEachOnce) {
+    accept();
+    ASSERT_TRUE(apply(partOf(4, 1, 2, {{.networkId = 2, .components = {position(2.F, 2.F)}}})));
+    ASSERT_TRUE(apply(partOf(4, 0, 2, {{.networkId = 1, .components = {position(1.F, 1.F)}}})));
+    EXPECT_NE(_state.find(1), Entity{});
+    EXPECT_NE(_state.find(2), Entity{});
+
+    EXPECT_FALSE(apply(partOf(4, 1, 2, {{.networkId = 2, .components = {position(9.F, 9.F)}}})));
+    EXPECT_FALSE(apply(partOf(4, 0, 3, {{.networkId = 2, .components = {position(9.F, 9.F)}}})));
+    EXPECT_FALSE(apply({.tick = 4, .spawns = {{.networkId = 2, .components = {position(9.F, 9.F)}}}}));
+    EXPECT_FLOAT_EQ(positionOf(_state.find(2))->x, 2.F);
+    EXPECT_EQ(_state.staleCount(), 3U);
+}
+
+TEST_F(ClientStateTest, ALostPartRemovesNothingAndALatePartIsStale) {
+    accept();
+    ASSERT_TRUE(apply({.tick = 1,
+                       .spawns = {{.networkId = 1, .components = {position(1.F, 1.F)}},
+                                  {.networkId = 2, .components = {position(2.F, 2.F)}}}}));
+    ASSERT_TRUE(apply(partOf(2, 0, 2, {{.networkId = 1, .components = {position(3.F, 3.F)}}})));
+    ASSERT_TRUE(apply(partOf(3, 0, 2, {{.networkId = 1, .components = {position(4.F, 4.F)}}})));
+    EXPECT_NE(_state.find(2), Entity{});  // part 1 of tick 2 never came: nothing is removed
+
+    EXPECT_FALSE(apply(partOf(2, 1, 2, {{.networkId = 2, .components = {position(9.F, 9.F)}}})));
+    ASSERT_TRUE(apply(partOf(3, 1, 2, {{.networkId = 2, .components = {position(5.F, 5.F)}}})));
+    EXPECT_FLOAT_EQ(positionOf(_state.find(2))->x, 5.F);
+    EXPECT_FLOAT_EQ(positionOf(_state.find(1))->x, 4.F);
+}
+
+TEST_F(ClientStateTest, ThePartsOfAnIncompleteSnapshotRemoveNothing) {
+    accept();
+    ASSERT_TRUE(apply({.tick = 1,
+                       .spawns = {{.networkId = 1, .components = {position(1.F, 1.F), follow(1)}},
+                                  {.networkId = 2, .components = {position(2.F, 2.F)}}}}));
+    ASSERT_TRUE(apply({.tick = 2,
+                       .flags = snapshot::kPart,
+                       .part = 0,
+                       .partCount = 2,
+                       .spawns = {{.networkId = 1, .components = {position(3.F, 3.F)}}}}));
+    ASSERT_TRUE(apply({.tick = 2, .flags = snapshot::kPart, .part = 1, .partCount = 2}));
+    EXPECT_NE(_state.find(2), Entity{});
+    EXPECT_TRUE(_world.getComponents().has<Follow>(_state.find(1)));
+}
+
 TEST_F(ClientStateTest, AMalformedSnapshotAtAnyTruncationChangesNothing) {
     accept();
     ASSERT_TRUE(apply({.tick = 1, .spawns = {{.networkId = 1, .components = {position(1.F, 1.F)}}}}));
