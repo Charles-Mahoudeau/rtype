@@ -227,6 +227,14 @@ void warnAboutServerOnlyWrites(const ecs::Components& components, const SystemDe
         }
     }
 }
+
+/// @return What `ctx.side` says for a system declared for @p side; none means the server, the ECS default.
+[[nodiscard]] std::string_view sideName(const std::optional<ecs::Side> side) noexcept {
+    if (side == ecs::Side::kClient) {
+        return "client";
+    }
+    return side == ecs::Side::kBoth ? "both" : "server";
+}
 }  // namespace
 
 Result<BuiltSystem> makeSystem(ecs::App& app, SystemDeclaration declaration, std::shared_ptr<RuntimeHandle> runtime) {
@@ -255,9 +263,7 @@ Result<BuiltSystem> makeSystem(ecs::App& app, SystemDeclaration declaration, std
         .events = std::move(events->first),
         .calls = std::move(calls->first),
         .clientSide = declaration.side == ecs::Side::kClient,
-        .side = declaration.side == ecs::Side::kClient ? "client"
-                : declaration.side == ecs::Side::kBoth ? "both"
-                                                       : "server",
+        .side = sideName(declaration.side),
         .components = &components.getRegistry(),
         .runtime = std::move(runtime),
         .scope = std::make_shared<view::ViewScope>(),
