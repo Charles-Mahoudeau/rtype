@@ -171,7 +171,7 @@ end
 
 | Key | Meaning |
 |---|---|
-| `platform`, `renderer` | the backends by name (`"glfw"`, `"vulkan"` today); required on a client |
+| `platform`, `renderer` | the backends by name; required on a client. Platforms: `"glfw"` or `"sdl"` (SDL3), both with the renderer `"vulkan"` |
 | `window.size`, `window.title`, `window.resizable`, `window.fullscreen` | the window |
 | `window.system` | Linux only: `"auto"` (default: Wayland in a Wayland session, X11 otherwise or if Wayland fails), `"x11"` or `"wayland"` |
 | `audio.backend` | `"miniaudio"` or `"null"` (silent) |

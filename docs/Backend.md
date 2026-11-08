@@ -345,3 +345,11 @@ libraries.
 window, no event, nothing drawn, textures and particle systems only get ids. A client that names them in `project.luau`
 (`platform = "null"`, `renderer = "null"`) runs its UI, graphics and input scripts on a machine with no display, so a
 headless client test can exist. `close()` ends the run with one `Closed` event.
+
+## The SDL3 platform
+
+`src/rtype/platform/sdl/` (`platform-sdl`, `rtype-platform-sdl`) registers the platform `sdl`: the window, keyboard,
+mouse, text input and clipboard through SDL3. Like `platform-glfw`, it implements `IVulkanSurfaceSource`, so the Vulkan
+renderer draws in its window unchanged: `platform = "sdl"`, `renderer = "vulkan"`. Gamepads are not reported yet. SDL3
+is private to this folder; on Linux only SDL itself is linked, as for GLFW, so a headless server still loads it.
+
