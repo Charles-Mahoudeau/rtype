@@ -165,6 +165,7 @@ struct PhysicsWorld::Impl {
     std::uint64_t steps = 0;                                    ///< Steps done.
     std::uint64_t pass = 0;                                     ///< The current body pass.
     bool droppedContacts = false;                               ///< Whether the last step ignored contacts.
+    bool broadPhaseDirty = false;                               ///< Whether bodies came or went since the last release.
     JPH::TempAllocatorImpl tempAllocator;                       ///< Scratch memory for the steps.
     JPH::JobSystemSingleThreaded jobSystem;                     ///< Runs Jolt's jobs on the caller's thread.
     detail::BroadPhaseLayers broadPhaseLayers;                  ///< Object layer to broad phase layer.
@@ -232,6 +233,7 @@ struct PhysicsWorld::Impl {
         JPH::BodyInterface& bodyInterface = system.GetBodyInterface();
         bodyInterface.RemoveBody(id);
         bodyInterface.DestroyBody(id);
+        broadPhaseDirty = true;
     }
 };
 
@@ -338,7 +340,16 @@ void PhysicsWorld::step(float deltaSeconds) {
         _impl->system.Update(deltaSeconds, kCollisionSteps, &_impl->tempAllocator, &_impl->jobSystem);
     _impl->contacts.settle(_impl->system.GetBodyInterfaceNoLock());
     _impl->droppedContacts = errors != JPH::EPhysicsUpdateError::None;
+    _impl->broadPhaseDirty = false;
     ++_impl->steps;
+}
+
+void PhysicsWorld::releaseBroadPhase() {
+    if (!_impl->broadPhaseDirty) {
+        return;
+    }
+    _impl->system.OptimizeBroadPhase();
+    _impl->broadPhaseDirty = false;
 }
 
 PhysicsHandle PhysicsWorld::createBody(ecs::Entity entity, const Collider& collider, const RigidBody* body,
@@ -364,6 +375,7 @@ PhysicsHandle PhysicsWorld::createBody(ecs::Entity entity, const Collider& colli
     }
     const JPH::BodyID id = created->GetID();
     const bool moving = settings.mMotionType != JPH::EMotionType::Static;
+    _impl->broadPhaseDirty = true;
     bodyInterface.AddBody(id, moving ? JPH::EActivation::Activate : JPH::EActivation::DontActivate);
     if (moving) {
         bodyInterface.SetLinearAndAngularVelocity(id, linearVelocity, angularVelocity);

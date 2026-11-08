@@ -276,6 +276,17 @@ TEST(PhysicsWorldBodies, ThrowsWhenFull) {
     EXPECT_THROW(static_cast<void>(world.createBody(Entity{3, 1}, Collider{}, nullptr, Transform{})), PhysicsException);
 }
 
+TEST(PhysicsWorldBodies, ANeverSteppedWorldSurvivesEndlessChurnOnceItReleasesTheBroadPhase) {
+    PhysicsWorld world{smallSettings()};
+    for (std::uint32_t round = 0; round < 20000; ++round) {
+        const Entity entity{round % 8U, 1};
+        static_cast<void>(world.createBody(entity, Collider{}, nullptr, Transform{}));
+        static_cast<void>(world.destroyBody(entity));
+        world.releaseBroadPhase();
+    }
+    EXPECT_EQ(world.getBodyCount(), 0U);
+}
+
 TEST(PhysicsWorldBodies, EveryShapeBuilds) {
     PhysicsWorld world{smallSettings()};
     const std::array colliders{
