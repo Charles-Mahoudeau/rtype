@@ -43,6 +43,13 @@ void ScriptPrompt::setBackend(ScriptBackend backend) {
 
 bool ScriptPrompt::hasBackend() const noexcept { return static_cast<bool>(_backend.evaluate); }
 
+void ScriptPrompt::setTarget(const ScriptTarget& target) noexcept {
+    if (target != _target) {
+        _target = target;
+        forget();
+    }
+}
+
 void ScriptPrompt::submit(const std::string_view line, ConsoleLog& log) {
     const std::size_t first = line.find_first_not_of(" \t");
     if (first == std::string_view::npos || !hasBackend()) {
@@ -59,7 +66,7 @@ void ScriptPrompt::submit(const std::string_view line, ConsoleLog& log) {
     _draft.clear();
     forget();
     log.addLine("> " + std::string{trimmed});
-    const ScriptOutcome outcome = _backend.evaluate(trimmed);
+    const ScriptOutcome outcome = _backend.evaluate(trimmed, _target);
     if (!outcome.ok) {
         addLines(log, "error: " + outcome.text);
     } else if (!outcome.text.empty()) {
@@ -98,7 +105,7 @@ std::vector<std::string> ScriptPrompt::suggestions(const std::string_view text, 
     }
     if (!_hasCompletions || _word != word) {
         _word = word;
-        _completions = _backend.complete(word);
+        _completions = _backend.complete(word, _target);
         _hasCompletions = true;
     }
     if (_completions.size() > kMaxSuggestions) {

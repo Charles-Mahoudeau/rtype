@@ -135,6 +135,8 @@ void drawSuggestions(EditorState& state) {
 
 /// @brief The input line: runs what is typed in the game's scripts (see console::ScriptPrompt).
 void drawPrompt(EditorState& state) {
+    // `self` is the entity selected in the Hierarchy; online the world is the server's copy, which a client never writes.
+    state.session->prompt.setTarget({.self = state.selected, .writable = !state.session->online.isActive()});
     drawSuggestions(state);
     if (std::exchange(state.focusPrompt, false)) {
         ImGui::SetKeyboardFocusHere();

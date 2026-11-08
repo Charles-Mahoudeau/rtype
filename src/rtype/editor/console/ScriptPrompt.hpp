@@ -16,6 +16,7 @@
 
 #include "editor/Export.hpp"
 #include "editor/console/ConsoleLog.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
 
 namespace rtype::editor::console {
 
@@ -25,10 +26,19 @@ struct ScriptOutcome {
     std::string text;  ///< The values it gave written as Luau (empty if none), or the error message.
 };
 
+/// @brief What a line reaches in the world: the entity `self` stands for, and whether components may be written.
+struct ScriptTarget {
+    ecs::Entity self;     ///< The selected entity; null: none.
+    bool writable{true};  ///< False when the world is a server's copy (a client never writes it).
+
+    friend bool operator==(const ScriptTarget& lhs, const ScriptTarget& rhs) noexcept = default;
+};
+
 /// @brief What the prompt runs Luau with: the program gives it (the editor knows no Luau, the engine does).
 struct ScriptBackend {
-    std::function<ScriptOutcome(std::string_view)> evaluate;             ///< Runs one line.
-    std::function<std::vector<std::string>(std::string_view)> complete;  ///< The words that complete a name.
+    std::function<ScriptOutcome(std::string_view, const ScriptTarget&)> evaluate;             ///< Runs one line.
+    std::function<std::vector<std::string>(std::string_view, const ScriptTarget&)> complete;  ///< The words that
+                                                                                              ///< complete a name.
 };
 
 /// @brief The input line of the Console: runs what is typed in the game's scripts, remembers it, and completes names.
@@ -52,6 +62,9 @@ class RTYPE_EDITOR_API ScriptPrompt {
 
     /// @return Whether a line can be run.
     [[nodiscard]] bool hasBackend() const noexcept;
+
+    /// @brief Sets what the next lines and completions reach; the kept completions are forgotten if it changed.
+    void setTarget(const ScriptTarget& target) noexcept;
 
     /// @brief Runs @p line, writes `> line` and then what it gave (or its error) in @p log, and remembers it.
     ///
@@ -85,6 +98,7 @@ class RTYPE_EDITOR_API ScriptPrompt {
     [[nodiscard]] std::optional<std::string> newer();
 
   private:
+    ScriptTarget _target;                   ///< What the lines reach.
     ScriptBackend _backend;                 ///< What runs and completes.
     std::vector<std::string> _history;      ///< The lines run, the oldest first.
     std::size_t _cursor{0};                 ///< Where browsing is in the history; the size when not browsing.
