@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <set>
@@ -158,12 +159,16 @@ class RTYPE_LUAU_API ModuleLoader {
     /// @brief Takes a module out of the cache and the graph, into the transaction.
     void setAside(const std::string& key);
 
+    /// @brief Removes a module from the graph: its own edges and the ones leading to it.
+    void forget(const std::string& key);
+
     Runtime& _runtime;                                    ///< Runtime the modules run in.
     Resolver _resolver;                                   ///< Maps paths to sources.
     RunHook _runHook;                                     ///< Called around each run.
     std::map<std::string, Entry, std::less<>> _cache;     ///< Loaded modules by key.
     std::map<std::string, std::set<std::string>> _edges;  ///< Requester key to the keys it requires.
     std::vector<Frame> _stack;                            ///< Modules being loaded, outermost first.
+    std::uint64_t _token{0};                              ///< Identifies this loader to its `require` functions.
     std::size_t _rootDepth{0};                            ///< Root requires in progress.
     bool _inTransaction{false};                           ///< Whether a transaction is active.
     Transaction _transaction;                             ///< State of the active transaction.

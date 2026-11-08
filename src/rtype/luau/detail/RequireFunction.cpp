@@ -11,6 +11,7 @@
 #include <lualib.h>
 
 #include <cstddef>
+#include <cstdint>
 #include <format>
 #include <string>
 #include <string_view>
@@ -23,7 +24,8 @@ namespace rtype::luau::detail {
 namespace {
 constexpr int kLoaderUpvalue = 1;
 constexpr int kKeyUpvalue = 2;
-constexpr int kWhereLevel = 1;  ///< The function that called `require`.
+constexpr const char* kLoadersSlot = "rtype.luau.loaders";  ///< Registry table: token to loader, and `next`.
+constexpr int kWhereLevel = 1;                              ///< The function that called `require`.
 
 /// @brief Reads the string at a stack index.
 std::string toString(lua_State* state, const int index) {
@@ -34,11 +36,16 @@ std::string toString(lua_State* state, const int index) {
 
 /// @brief Finds the loader behind the token of the running function, nullptr if it is gone.
 ModuleLoader* findLoader(lua_State* state) {
-    void* token = lua_tolightuserdata(state, lua_upvalueindex(kLoaderUpvalue));
-    lua_pushlightuserdata(state, token);
-    lua_rawget(state, LUA_REGISTRYINDEX);
+    const double token = lua_tonumber(state, lua_upvalueindex(kLoaderUpvalue));
+    lua_getfield(state, LUA_REGISTRYINDEX, kLoadersSlot);
+    if (!lua_istable(state, -1)) {
+        lua_pop(state, 1);
+        return nullptr;
+    }
+    lua_pushnumber(state, token);
+    lua_rawget(state, -2);
     auto* loader = static_cast<ModuleLoader*>(lua_tolightuserdata(state, -1));
-    lua_pop(state, 1);
+    lua_pop(state, 2);
     return loader;
 }
 }  // namespace
@@ -76,20 +83,39 @@ int requireFunction(lua_State* state) {
     lua_error(state);
 }
 
-void attachLoader(lua_State* state, ModuleLoader* loader) {
+std::uint64_t attachLoader(lua_State* state, ModuleLoader* loader) {
+    lua_getfield(state, LUA_REGISTRYINDEX, kLoadersSlot);
+    if (!lua_istable(state, -1)) {
+        lua_pop(state, 1);
+        lua_newtable(state);
+        lua_pushvalue(state, -1);
+        lua_setfield(state, LUA_REGISTRYINDEX, kLoadersSlot);
+    }
+    // `next` counts the tokens given: one is never given twice, unlike the address of a loader.
+    lua_getfield(state, -1, "next");
+    const auto token = static_cast<std::uint64_t>(lua_tonumber(state, -1)) + 1;
+    lua_pop(state, 1);
+    lua_pushnumber(state, static_cast<double>(token));
+    lua_setfield(state, -2, "next");
+    lua_pushnumber(state, static_cast<double>(token));
     lua_pushlightuserdata(state, loader);
-    lua_pushlightuserdata(state, loader);
-    lua_rawset(state, LUA_REGISTRYINDEX);
+    lua_rawset(state, -3);
+    lua_pop(state, 1);
+    return token;
 }
 
-void detachLoader(lua_State* state, ModuleLoader* loader) noexcept {
-    lua_pushlightuserdata(state, loader);
-    lua_pushnil(state);
-    lua_rawset(state, LUA_REGISTRYINDEX);
+void detachLoader(lua_State* state, const std::uint64_t token) noexcept {
+    lua_getfield(state, LUA_REGISTRYINDEX, kLoadersSlot);
+    if (lua_istable(state, -1)) {
+        lua_pushnumber(state, static_cast<double>(token));
+        lua_pushnil(state);
+        lua_rawset(state, -3);
+    }
+    lua_pop(state, 1);
 }
 
-void pushRequire(lua_State* state, ModuleLoader* loader, const std::string_view key) {
-    lua_pushlightuserdata(state, loader);
+void pushRequire(lua_State* state, const std::uint64_t token, const std::string_view key) {
+    lua_pushnumber(state, static_cast<double>(token));
     lua_pushlstring(state, key.data(), key.size());
     lua_pushcclosurek(state, requireFunction, "require", 2, nullptr);
 }

@@ -16,11 +16,14 @@ auto value = loader.require("main");  // a root require, from C++
 - `ModuleSource { key, chunkName, source }`: the `key` is the identity of a module (two paths with the same key are one
   module), the `chunkName` is what errors show (`<chunkName>:<line>:`), `source` is the code.
 - The **resolver** gets the key of the module that asks (empty for a root require) and the path. On failure its error
-  message is the reason the script sees.
+  message is the reason the script sees. A resolver must never return an empty `key` (it stands for "no requester"):
+  such a module fails to load.
 - The **run hook** is called with `entering = true` before a module runs and `false` after, also when it fails, nested
   like the requires. A cache hit runs nothing and calls nothing. The host uses it to track who owns what a module declares.
 - The runtime must outlive the loader, and the loader cannot be moved. A `require` called after the loader is destroyed
-  raises a Luau error (it never dangles).
+  raises a Luau error (it never dangles), even if another loader was created later on the same runtime, at the same
+  address (each loader has its own token).
+- A run hook that throws propagates to the caller of `require()`; the loader stays usable.
 
 ## What a module is
 
@@ -50,6 +53,8 @@ A `require` from Luau raises `<requester chunk>:<line>: require("<path>"): <reas
 | the resolver's message | the path does not resolve |
 | `cycle: a.luau -> b.luau -> a.luau` | the module is being loaded: the whole loading stack, by chunk name |
 | `returned N values` | N is 2 or more |
+| `'<chunk>' is too deep: ...` | more than 64 modules are being loaded one inside the other (`kStackOverflow` inside) |
+| `'<chunk>' has an empty module key` | the resolver returned an empty key |
 | `failed: <inner error>` | the module did not compile or raised an error |
 | `'<chunk>' is not loaded: require it at the top of a module` | a runtime require (below) missed the cache |
 
@@ -68,6 +73,7 @@ Every successful require records an edge requester to required, cache hits inclu
 
 - `dependents(keys)`: the keys and every module depending on them, directly or not, in topological order (dependencies
   first, ties broken by key, so it is deterministic).
+  A module that requires itself at runtime is part of its own dependents.
 - `reachableFrom(roots)`: the roots and everything they require, sorted.
 - `isLoaded(key)`, `value(key)`, `loadedKeys()`.
 
@@ -80,6 +86,6 @@ A hot reload is a transaction:
 4. `commit()` drops what was set aside, or `rollback()` restores the cache and the graph exactly as they were at
    `begin()` (modules loaded during the transaction are forgotten).
 
-`unload(keys)` removes modules that are no longer reachable; inside a transaction it behaves like `invalidate`, so a
+`unload(keys)` removes modules that are no longer reachable, with their edges and the edges leading to them; inside a transaction it behaves like `invalidate`, so a
 rollback brings them back. Misuse (`begin` twice, `invalidate`/`commit`/`rollback` without a transaction) throws
 `exceptions::InvalidOperation`.

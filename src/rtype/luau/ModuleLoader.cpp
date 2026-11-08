@@ -47,6 +47,23 @@ class StackGuard {
     int _top;           ///< Height to restore.
 };
 
+constexpr std::size_t kMaxDepth = 64;  ///< Modules being loaded at once, at most.
+
+/// @brief Runs a function on destruction, whatever way the scope is left.
+template <typename Function>
+class Finally {
+  public:
+    explicit Finally(Function function) : _function{std::move(function)} {}
+    ~Finally() { _function(); }
+    Finally(const Finally&) = delete;
+    Finally& operator=(const Finally&) = delete;
+    Finally(Finally&&) = delete;
+    Finally& operator=(Finally&&) = delete;
+
+  private:
+    Function _function;
+};
+
 using Edges = std::map<std::string, std::set<std::string>>;
 
 /// @brief Reverses a graph: required key to the keys requiring it.
@@ -83,15 +100,15 @@ ModuleLoader::ModuleLoader(Runtime& runtime, Resolver resolver, RunHook runHook)
     if (!_resolver) {
         throw exceptions::InvalidOperation{"a module loader needs a resolver"};
     }
-    detail::attachLoader(detail::rawState(_runtime), this);
+    _token = detail::attachLoader(detail::rawState(_runtime), this);
 }
 
-ModuleLoader::~ModuleLoader() noexcept { detail::detachLoader(detail::rawState(_runtime), this); }
+ModuleLoader::~ModuleLoader() noexcept { detail::detachLoader(detail::rawState(_runtime), _token); }
 
 Result<Ref> ModuleLoader::require(const std::string_view path) {
     ++_rootDepth;
+    const Finally leave{[this] { --_rootDepth; }};
     Result<Ref> result = requireFrom({}, path);
-    --_rootDepth;
     if (!result) {
         return Failure{ErrorKind::kRuntime, std::format("require(\"{}\"): {}", path, result.error().message())};
     }
@@ -147,6 +164,12 @@ std::vector<std::string> ModuleLoader::dependents(const std::vector<std::string>
         }
         ordered.push_back(std::move(next));
     }
+    // Members of a cycle (a module requiring itself, say) never become ready: they are affected all the same.
+    for (const auto& [member, count] : waiting) {
+        if (count != 0 && !std::ranges::contains(ordered, member)) {
+            ordered.push_back(member);
+        }
+    }
     return ordered;
 }
 
@@ -173,6 +196,13 @@ void ModuleLoader::setAside(const std::string& key) {
         _cache.erase(found);
     }
     _edges.erase(key);
+}
+
+void ModuleLoader::forget(const std::string& key) {
+    _edges.erase(key);
+    for (auto& [from, targets] : _edges) {
+        targets.erase(key);
+    }
 }
 
 void ModuleLoader::invalidate(const std::vector<std::string>& keys) {
@@ -211,11 +241,12 @@ void ModuleLoader::unload(const std::vector<std::string>& keys) {
     for (const auto& key : keys) {
         if (_inTransaction) {
             setAside(key);
+            forget(key);
         } else {
             if (const auto found = _cache.find(key); found != _cache.end()) {
                 _cache.erase(found);
             }
-            _edges.erase(key);
+            forget(key);
         }
     }
 }
@@ -236,6 +267,9 @@ Result<Ref> ModuleLoader::requireFrom(const std::string_view requester, const st
         return Failure{ErrorKind::kRuntime, std::string{resolved.error().message()}};
     }
     const ModuleSource& module = *resolved;
+    if (module.key.empty()) {
+        return Failure{ErrorKind::kRuntime, std::format("'{}' has an empty module key", module.chunkName)};
+    }
 
     if (const auto cached = _cache.find(module.key); cached != _cache.end()) {
         if (!requester.empty()) {
@@ -255,6 +289,12 @@ Result<Ref> ModuleLoader::requireFrom(const std::string_view requester, const st
         }
         chain += module.chunkName;
         return Failure{ErrorKind::kRuntime, std::format("cycle: {}", chain)};
+    }
+
+    if (_stack.size() >= kMaxDepth) {
+        return Failure{ErrorKind::kStackOverflow,
+                       std::format("'{}' is too deep: modules require each other more than {} levels", module.chunkName,
+                                   kMaxDepth)};
     }
 
     Result<Ref> loaded = execute(module);
@@ -288,7 +328,7 @@ Result<void> ModuleLoader::prepare(lua_State* thread, const Ref& closure, const 
         lua_setfenv(thread, -2);
         lua_pop(thread, 1);
     }
-    detail::pushRequire(thread, this, key);
+    detail::pushRequire(thread, _token, key);
     lua_setfield(thread, -2, "require");
     return {};
 }
@@ -308,6 +348,7 @@ Result<Ref> ModuleLoader::execute(const ModuleSource& module) {
     script->closure().push(thread);
 
     _stack.push_back({.key = module.key, .chunkName = module.chunkName});
+    const Finally leave{[this] { _stack.pop_back(); }};
     if (_runHook) {
         _runHook(module.key, true);
     }
@@ -315,7 +356,6 @@ Result<Ref> ModuleLoader::execute(const ModuleSource& module) {
     if (_runHook) {
         _runHook(module.key, false);
     }
-    _stack.pop_back();
 
     if (status != LUA_OK) {
         const char* text = lua_tostring(thread, -1);
