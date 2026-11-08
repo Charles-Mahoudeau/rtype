@@ -35,9 +35,12 @@ void receive(ecs::ResMut<LocalSession> session, ecs::Res<packet::PacketRegistry>
     }
     for (const QueuedPacket& queued : session->takePackets()) {
         const auto decoded = packet::decodePacket(*packets, queued.direction, queued.message);
-        const packet::PacketSchema* schema = decoded.has_value() ? packets->find(decoded->name) : nullptr;
-        if (schema == nullptr) {
+        if (!decoded) {
             continue;  // cannot happen for a packet the send call encoded; dropped like a bad network one
+        }
+        const packet::PacketSchema* schema = packets->find(decoded->name);
+        if (schema == nullptr) {
+            continue;
         }
         received.send(packet::PacketReceived{
             .name = decoded->name,
