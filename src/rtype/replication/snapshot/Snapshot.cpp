@@ -73,8 +73,20 @@ void writeComponents(network::bytes::ByteWriter& writer, const std::vector<Compo
     }
 }
 
-/// @return True when no list or record is larger than its count allows.
+/// @return True when the flags are known, and a part's index is below its count of at least 2.
+[[nodiscard]] bool hasValidFlags(const Snapshot& snapshot) noexcept {
+    constexpr auto kKnown = static_cast<std::uint8_t>(kComplete | kPart);
+    if ((snapshot.flags & kKnown) != snapshot.flags) {
+        return false;
+    }
+    return (snapshot.flags & kPart) == 0 || (snapshot.partCount >= 2 && snapshot.part < snapshot.partCount);
+}
+
+/// @return True when the flags are valid and no list or record is larger than its count allows.
 [[nodiscard]] bool fitsCounts(const Snapshot& snapshot) noexcept {
+    if (!hasValidFlags(snapshot)) {
+        return false;
+    }
     const auto tooMany = [](const auto& records) {
         return std::ranges::any_of(records,
                                    [](const auto& record) { return record.components.size() > kMaxRecordComponents; });
@@ -204,7 +216,7 @@ std::size_t computeWireSize(const SpawnRecord& record) noexcept {
 }
 
 std::size_t computeWireSize(const Snapshot& snapshot) noexcept {
-    std::size_t size = kEmptySize;
+    std::size_t size = (snapshot.flags & kPart) != 0 ? kEmptyPartSize : kEmptySize;
     for (const SpawnRecord& record : snapshot.spawns) {
         size += computeWireSize(record);
     }
@@ -224,6 +236,10 @@ std::optional<network::Bytes> encode(const Snapshot& snapshot) {
     writer.writeU32(snapshot.tick);
     writer.writeU32(snapshot.lastProcessedInput);
     writer.writeU8(snapshot.flags);
+    if ((snapshot.flags & kPart) != 0) {
+        writer.writeU8(snapshot.part);
+        writer.writeU8(snapshot.partCount);
+    }
     writer.writeU16(static_cast<std::uint16_t>(snapshot.spawns.size()));
     for (const SpawnRecord& record : snapshot.spawns) {
         writer.writeU32(record.networkId);
@@ -261,8 +277,11 @@ std::optional<Snapshot> decode(const std::span<const std::byte> message,
         snapshot.tick = reader.readU32();
         snapshot.lastProcessedInput = reader.readU32();
         snapshot.flags = reader.readU8();
-        if (!reader.isValid() || (snapshot.flags | kComplete) != kComplete ||
-            !readSpawns(reader, componentSizes, snapshot.spawns) ||
+        if ((snapshot.flags & kPart) != 0) {
+            snapshot.part = reader.readU8();
+            snapshot.partCount = reader.readU8();
+        }
+        if (!reader.isValid() || !hasValidFlags(snapshot) || !readSpawns(reader, componentSizes, snapshot.spawns) ||
             !readUpdates(reader, componentSizes, snapshot.updates) ||
             !readRemovals(reader, componentSizes, snapshot.removals) || !readDespawns(reader, snapshot.despawns) ||
             !reader.isFinished()) {
