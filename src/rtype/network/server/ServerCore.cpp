@@ -24,6 +24,7 @@
 #include "rtype/network/io/Address.hpp"
 #include "rtype/network/protocol/Constants.hpp"
 #include "rtype/network/protocol/Packets.hpp"
+#include "rtype/network/server/ClientInfo.hpp"
 #include "rtype/network/server/RoomMessages.hpp"
 #include "rtype/network/server/Session.hpp"
 
@@ -140,6 +141,24 @@ std::vector<ServerEvent> ServerCore::takeEvents() {
 }
 
 std::size_t ServerCore::sessionCount() const noexcept { return _sessions.size(); }
+
+std::vector<ClientInfo> ServerCore::clients() const {
+    std::vector<ClientInfo> infos;
+    infos.reserve(_sessions.size());
+    for (const auto& [id, session] : _sessions) {
+        infos.push_back(ClientInfo{
+            .client = id,
+            .state = session.state,
+            .address = session.address,
+            .rttMs = session.connection.rtt().count(),
+            .droppedMessages = session.connection.droppedMessageCount(),
+            .protocolErrors = session.connection.protocolErrorCount(),
+        });
+    }
+    return infos;
+}
+
+bool ServerCore::hasSession(const ClientId client) const noexcept { return _sessions.contains(client); }
 
 std::size_t ServerCore::pendingChallengeCount() const noexcept { return _pending.size(); }
 
