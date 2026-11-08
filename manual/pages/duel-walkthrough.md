@@ -34,7 +34,7 @@ game/
 ```
 
 The arena and what the server spawns in it are [capsules](capsules.md): files you can open and change in the
-[editor](editor.md) (`./aylo-editor --game examples/games/rtype_duel/game` opens the arena).
+[editor](editor.md) (`./aylo-editor examples/games/rtype_duel/game` opens the arena).
 
 Nothing runs by itself: `project.luau` names three entries, and every other file runs because one requires it.
 
@@ -50,8 +50,8 @@ only through `require`: each has its own globals.
 ## Run it
 
 ```sh
-./aylo-runtime --server --game examples/games/rtype_duel/game
-./aylo-runtime --game examples/games/rtype_duel/game      # twice
+./aylo-runtime --server examples/games/rtype_duel/game
+./aylo-runtime examples/games/rtype_duel/game      # twice
 ```
 
 Or `xmake f -y --rtype_duel=y` then `xmake run rtype_duel server` and `xmake run rtype_duel client`.

@@ -108,14 +108,14 @@ scripting, replication  <-  engine  <-  executables, examples
 
 - Configure: `xmake f -y` (`-m release` for release). Build all: `xmake build -y`. One target: `xmake build engine`.
 - Run (the build copies `aylo-runtime` to the repository root): `./aylo-runtime` (client) and `./aylo-runtime --server`,
-  on `game/` or `--game <dir>`; other `--name value` flags reach `project.luau` as `engine.args`. `./r-type_server` and
+  on `game/` or the folder given as first argument (`<dir>`); other `--name value` flags reach `project.luau` as `engine.args`. `./r-type_server` and
   `./r-type_client` at the root are `sh` wrappers (`.bat` ones on Windows) that start it with the right side (the names
   the subject asks for).
-- The editor: `./aylo-editor --game <dir>` (both sides in one world, the scenes edited in panels:
+- The editor: `./aylo-editor <dir>` (both sides in one world, the scenes edited in panels:
   `docs/Editor.md`).
 - Duel example: `xmake f -y --rtype_duel=y`, then `xmake run rtype_duel server [--port <port>]` and
   `xmake run rtype_duel client [--host <host>] [--port <port>]` (or the generic executables with
-  `--game examples/games/rtype_duel/game`).
+  `examples/games/rtype_duel/game`).
 - Examples are opt-in: `xmake f --AllExamples=y`, or one by folder name (`--BasicGLFWWindow=y`, `--EcsTypedQueries=y`).
   `--AllVulkanExamples=y`, `--AllLuauExamples=y`, `--AllEcsExamples=y` currently enable every example too.
 - Tests (GoogleTest, opt-in): `xmake f -y --Tests=y`, `xmake build -y`, `xmake test -v` (`-v` shows which test failed).

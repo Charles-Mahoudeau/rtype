@@ -18,6 +18,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -75,19 +76,27 @@ bool runsClient(const rtype::ecs::RunMode mode) { return rtype::ecs::runsIn(rtyp
 /// @return Whether @p mode runs the server side.
 bool runsServer(const rtype::ecs::RunMode mode) { return rtype::ecs::runsIn(rtype::ecs::Side::kServer, mode); }
 
-/// @return The game directory: `--game`, or @p fallback, made absolute.
+/// @return Whether @p args start with the game directory: a first argument that is not a flag.
+bool startsWithGame(const std::vector<std::string>& args) { return !args.empty() && !args.front().starts_with("--"); }
+
+/// @return The game directory: the first of @p args if it is not a flag, or @p fallback, made absolute.
 /// @throws rtype::engine::exceptions::RuntimeError If it has no project file.
-std::filesystem::path findGame(const rtype::engine::CommandLine& commandLine, const std::filesystem::path& fallback) {
-    const std::optional<std::string> flag = commandLine.get(rtype::engine::Engine::kGameFlag);
-    std::filesystem::path directory = std::filesystem::absolute(flag ? std::filesystem::path{*flag} : fallback);
+std::filesystem::path findGame(const std::vector<std::string>& args, const std::filesystem::path& fallback) {
+    std::filesystem::path directory =
+        std::filesystem::absolute(startsWithGame(args) ? std::filesystem::path{args.front()} : fallback);
 
     directory = directory.lexically_normal();
     if (!std::filesystem::is_regular_file(directory / rtype::engine::Engine::kProjectFile)) {
         throw rtype::engine::exceptions::RuntimeError{
-            std::format("No game in '{}': it has no {} (give another directory with --{} <directory>)",
-                        directory.string(), rtype::engine::Engine::kProjectFile, rtype::engine::Engine::kGameFlag)};
+            std::format("No game in '{}': it has no {} (give the game directory as the first argument)",
+                        directory.string(), rtype::engine::Engine::kProjectFile)};
     }
     return directory;
+}
+
+/// @return The flags of @p args, which are what follows the game directory if there is one.
+rtype::engine::CommandLine parseFlags(const std::vector<std::string>& args) {
+    return rtype::engine::CommandLine::parse(std::span{args}.subspan(startsWithGame(args) ? 1 : 0));
 }
 
 /// @return The settings `project.luau` gives for this mode and command line.
@@ -200,8 +209,8 @@ void verifyGamePlugin(const std::filesystem::path& library) {
 
 Engine::Engine(EngineConfig config)
     : _config{std::move(config)},
-      _commandLine{CommandLine::parse(_config.args)},
-      _gameDirectory{findGame(_commandLine, _config.game)},
+      _commandLine{parseFlags(_config.args)},
+      _gameDirectory{findGame(_config.args, _config.game)},
       _reloader{_gameDirectory},
       _hotReload{_config.debug.value_or(kIsDebug)} {
     build();

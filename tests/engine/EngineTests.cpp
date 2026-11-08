@@ -125,16 +125,38 @@ TEST(Engine, FailsWithoutAProjectFile) {
     EXPECT_THROW(Engine{serverConfig(game)}, RuntimeError);
 }
 
-TEST(Engine, FindsTheGameGivenByTheGameFlag) {
-    const GameDirectory game{"rtype-engine-game-flag"};
+TEST(Engine, FindsTheGameGivenAsTheFirstArgument) {
+    const GameDirectory game{"rtype-engine-game-argument"};
     const EngineConfig config{.mode = rtype::ecs::RunMode::kServer,
                               .game = game.path() / "missing",
-                              .args = {"--game", game.path().string()}};
+                              .args = {game.path().string(), "--port", "4243"}};
 
     const Engine engine{config};
 
     EXPECT_EQ(engine.gameDirectory(), game.path().lexically_normal());
-    EXPECT_EQ(engine.commandLine().get("game"), game.path().string());
+    EXPECT_EQ(engine.commandLine().get("port"), "4243");
+    EXPECT_EQ(engine.commandLine().flags().size(), 1U);  // the directory is not a flag
+}
+
+TEST(Engine, KeepsTheConfiguredGameWhenTheCommandLineStartsWithAFlag) {
+    const GameDirectory game{"rtype-engine-flag-first"};
+    const EngineConfig config{.mode = rtype::ecs::RunMode::kServer, .game = game.path(), .args = {"--port", "4243"}};
+
+    const Engine engine{config};
+
+    EXPECT_EQ(engine.gameDirectory(), game.path().lexically_normal());
+    EXPECT_EQ(engine.commandLine().get("port"), "4243");
+}
+
+TEST(Engine, TreatsGameAsAnOrdinaryFlag) {
+    const GameDirectory game{"rtype-engine-game-is-a-flag"};
+    const EngineConfig config{
+        .mode = rtype::ecs::RunMode::kServer, .game = game.path(), .args = {"--game", "elsewhere"}};
+
+    const Engine engine{config};
+
+    EXPECT_EQ(engine.gameDirectory(), game.path().lexically_normal());
+    EXPECT_EQ(engine.commandLine().get("game"), "elsewhere");
 }
 
 TEST(Engine, MakesTheGameDirectoryAbsolute) {

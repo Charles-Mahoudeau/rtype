@@ -7,7 +7,7 @@ scene's capsule, saved to its file; while playing, they change the running world
 a game developer does with it, see `manual/pages/editor.md`.
 
 ```sh
-./aylo-editor --game examples/games/rtype_duel/game
+./aylo-editor examples/games/rtype_duel/game
 ```
 
 ```lua

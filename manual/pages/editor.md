@@ -10,7 +10,7 @@ change while editing is saved, what you change while playing is lost at Stop.
 The editor is its own program, `aylo-editor`. You make your game in it, and you ship it with `aylo-runtime`:
 
 ```sh
-./aylo-editor --game path/to/game
+./aylo-editor path/to/game
 ```
 
 Nothing changes in your project. The editor runs both sides of the game in one process, the server's gameplay included,

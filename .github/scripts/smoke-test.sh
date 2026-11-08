@@ -114,10 +114,10 @@ if [ -x "$runtime" ]; then
     # The server's output is a file, so its stdio is buffered: without line buffering a player joining is not seen
     # until the server stops.
     if command -v stdbuf >/dev/null 2>&1; then
-        stdbuf -oL "$runtime" --server --game "$game" --port "$port" > "$work/server.log" 2>&1 &
+        stdbuf -oL "$runtime" --server "$game" --port "$port" > "$work/server.log" 2>&1 &
         watch_connection=1
     else
-        "$runtime" --server --game "$game" --port "$port" > "$work/server.log" 2>&1 &
+        "$runtime" --server "$game" --port "$port" > "$work/server.log" 2>&1 &
         watch_connection=0
         warn "no stdbuf: the server's output is buffered, so the client connecting is not checked, only that both stay up"
     fi
@@ -131,7 +131,7 @@ if [ -x "$runtime" ]; then
     fi
 
     if [ -n "$server_pid" ]; then
-        "$runtime" --game "$game" --port "$port" --headless > "$work/client.log" 2>&1 &
+        "$runtime" "$game" --port "$port" --headless > "$work/client.log" 2>&1 &
         client_pid=$!
         connected=0
         waited=0

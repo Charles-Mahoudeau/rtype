@@ -5,10 +5,10 @@
 ** main
 */
 
-// aylo-editor: the editor of a game, in `game/` (or `--game <directory>`). It runs both sides of the game in one world
-// (no network) inside the editor's panels, always as a debug run (`engine.isDebug`). The game is shipped with
+// aylo-editor: the editor of a game, in `game/` (or the <directory> given first). It runs both sides of the game in one
+// world (no network) inside the editor's panels, always as a debug run (`engine.isDebug`). The game is shipped with
 // aylo-runtime. Every flag goes to project.luau as `engine.args`, and `engine.args.editor` is always there.
-//   aylo-editor [--game <directory>] [--<flag> <value>]...
+//   aylo-editor [<directory>] [--<flag> <value>]...
 //   aylo-editor --version
 
 #include <algorithm>

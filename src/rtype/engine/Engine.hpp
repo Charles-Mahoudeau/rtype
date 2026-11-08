@@ -28,9 +28,9 @@ class ScriptHost;
 namespace rtype::engine {
 /// @brief Runs a game: reads its project settings, builds the App with the engine's plugins, then runs it.
 ///
-/// @details A game is a directory (`game` by default, `--game <dir>` on the command line) holding `project.luau` (the
-/// settings, see scripting::SettingsLoader) and `scripts/` (the Luau files of scripting::ScriptingPlugin). Each build
-/// of the App adds, in this order:
+/// @details A game is a directory (`game` by default, or the first argument on the command line) holding `project.luau`
+/// (the settings, see scripting::SettingsLoader) and `scripts/` (the Luau files of scripting::ScriptingPlugin). Each
+/// build of the App adds, in this order:
 /// 1. the MinimalPlugins and the transform plugin (from its library), which every game has;
 /// 2. the plugins of the program, EngineConfig::addPlugins, with the settings: a client adds its window and what it
 ///    draws there, so the Engine names no backend and a server links none;
@@ -60,7 +60,6 @@ namespace rtype::engine {
 /// @endcode
 class RTYPE_ENGINE_API Engine {
   public:
-    static constexpr std::string_view kGameFlag = "game";             ///< The flag that names the game directory.
     static constexpr std::string_view kProjectFile = "project.luau";  ///< The settings, in the game directory.
     static constexpr std::string_view kScriptsDirectory = "scripts";  ///< The scripts, in the game directory.
     static constexpr std::string_view kAssetsDirectory = "assets";    ///< The assets, in the game directory.
