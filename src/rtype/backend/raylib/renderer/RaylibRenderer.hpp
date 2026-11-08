@@ -17,6 +17,16 @@
 #include "backend/raylib/Export.hpp"
 #include "rtype/contract/platform/IPlatform.hpp"
 #include "rtype/contract/renderer/IRenderer.hpp"
+#include "rtype/contract/renderer/drawing/Color.hpp"
+#include "rtype/contract/renderer/drawing/Mesh.hpp"
+#include "rtype/contract/renderer/drawing/Overlay.hpp"
+#include "rtype/contract/renderer/drawing/Shape.hpp"
+#include "rtype/contract/renderer/drawing/Sprite.hpp"
+#include "rtype/contract/renderer/drawing/Text.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
+#include "rtype/contract/renderer/view/View.hpp"
 
 namespace rtype::backend::raylib::renderer {
 

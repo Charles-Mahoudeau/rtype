@@ -9,6 +9,7 @@
 
 #include <glm/ext/vector_uint2.hpp>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "interop/vulkan/IVulkanSurfaceSource.hpp"

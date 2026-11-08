@@ -8,7 +8,7 @@
 #pragma once
 
 #include <array>
-#include <glm/ext/vector_float2.hpp>
+#include <cstddef>
 #include <glm/ext/vector_uint2.hpp>
 #include <string>
 #include <string_view>
