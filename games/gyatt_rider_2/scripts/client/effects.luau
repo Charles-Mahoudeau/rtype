@@ -1,5 +1,5 @@
--- The particles and the screen shake. One effect, the impact (assets/particles/impact.png): a single particle the
--- size of a rider's width that grows and fades out, at the start of each beam, where a beam stops on something, and
+-- The particles and the screen shake. One effect, the impact (assets/particles/impact.png): a single particle 1.6 times
+-- a rider's width that grows and fades out, at the start of each beam, where a beam stops on something, and
 -- on each rider hit. The camera shakes when the player's own rider is hit.
 
 local Game = require("@scripts/shared/rules")
@@ -13,9 +13,9 @@ local impact = engine.assets.particle({
 	duration = 0.05,
 	bursts = { { count = 1 } },
 	lifetime = 0.35,
-	size = Game.riderSize.x, -- square, as wide as a rider
+	size = Game.riderSize.x * 1.6, -- square, 1.6 times as wide as a rider
 	sizeOverLife = { { t = 0, value = 1 }, { t = 1, value = 2 } },
-	color = { 1, 1, 1, 0.5 },
+	color = { 1, 1, 1, 1 }, -- fully visible at first, then fades out to nothing
 	colorOverLife = { { t = 0, color = { 1, 1, 1, 1 } }, { t = 1, color = { 1, 1, 1, 0 } } },
 })
 local effectsLayer = 3 -- over the riders
