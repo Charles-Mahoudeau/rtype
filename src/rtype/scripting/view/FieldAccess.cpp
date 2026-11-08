@@ -296,6 +296,8 @@ Result<luau::Value> readScalar(const std::string_view component, const ecs::Fiel
             const auto* text = reinterpret_cast<const char*>(bytes.data() + field.offset + 1);  // NOLINT
             return luau::Value{std::string{text, length}};
         }
+        case ecs::FieldType::kText:  // A byte of a std::string: only read whole, through its list.
+            break;
     }
     return tl::unexpected{fieldError(component, field, "this field type is not supported")};
 }
