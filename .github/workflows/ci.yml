@@ -102,6 +102,10 @@ jobs:
           actions-cache-folder: ".xmake-cache"
           actions-cache-key: "${{ matrix.os }}-compilation"
 
+      # The key names the packages this job installs, read once the project is configured with the job's options but
+      # before anything is installed (--require=no). `xmake l` does not load that configuration by itself, so the key
+      # used to miss what the options add (GoogleTest, the examples' packages) and to change too seldom. A new key saves
+      # a new cache, since a saved one can never be replaced.
       - name: Locate xmake packages
         id: packages
         shell: bash
@@ -109,7 +113,8 @@ jobs:
           XMAKE_ROOT: y
         run: |
           xmake repo --update
-          echo "hash=$(xmake l utils.ci.packageskey | tr -d '\r')" >> "$GITHUB_OUTPUT"
+          xmake f -y --Tests=y --require=no
+          echo "hash=$(xmake l -c 'import("core.project.config"); config.load(); import("utils.ci.packageskey")()' | tr -d '\r')" >> "$GITHUB_OUTPUT"
           echo "dir=$(xmake l -c 'import("core.package.package"); print(package.installdir())' | tr -d '\r')" >> "$GITHUB_OUTPUT"
 
       - name: Restore package cache
@@ -138,10 +143,9 @@ jobs:
           xmake build -y
         timeout-minutes: 30
 
-      - name: Remove unused packages
-        if: github.ref == 'refs/heads/main' && steps.package-cache.outputs.cache-hit != 'true'
-        run: xmake require --clean --clean_modes=package -y
-
+      # Saved as the build left it. `xmake require --clean` must not run before: it uninstalls the packages no project
+      # references, among them the dependencies of a package found installed (OpenSSL under libcurl), so the cache was
+      # saved without them and every run built them again.
       - name: Save package cache
         if: github.ref == 'refs/heads/main' && steps.package-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
@@ -193,16 +197,19 @@ jobs:
           XMAKE_ROOT: y
         run: |
           xmake repo --update
-          echo "hash=$(xmake l utils.ci.packageskey | tr -d '\r')" >> "$GITHUB_OUTPUT"
+          xmake f -y --Tests=y --AllExamples=y --require=no
+          echo "hash=$(xmake l -c 'import("core.project.config"); config.load(); import("utils.ci.packageskey")()' | tr -d '\r')" >> "$GITHUB_OUTPUT"
           echo "dir=$(xmake l -c 'import("core.package.package"); print(package.installdir())' | tr -d '\r')" >> "$GITHUB_OUTPUT"
 
+      # Its own cache: the examples need packages the build job does not (SFML, SDL3, freetype...), which it built again
+      # on every run when it borrowed that job's cache.
       - name: Restore package cache
         id: package-cache
         uses: actions/cache/restore@v4
         with:
           path: ${{ steps.packages.outputs.dir }}
-          key: xmake-package-cache-ubuntu-latest-tests-${{ steps.packages.outputs.hash }}
-          restore-keys: xmake-package-cache-ubuntu-latest-tests-
+          key: xmake-package-cache-ubuntu-latest-lint-${{ steps.packages.outputs.hash }}
+          restore-keys: xmake-package-cache-ubuntu-latest-lint-
 
       - name: Prefetch package sources
         shell: bash
@@ -210,6 +217,13 @@ jobs:
 
       - name: Configure xmake
         run: xmake f -y --Tests=y --AllExamples=y
+
+      - name: Save package cache
+        if: github.ref == 'refs/heads/main' && steps.package-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.packages.outputs.dir }}
+          key: ${{ steps.package-cache.outputs.cache-primary-key }}
 
       - name: Generate compile_commands.json
         run: xmake project -k compile_commands
