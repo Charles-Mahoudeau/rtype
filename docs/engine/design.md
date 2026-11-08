@@ -27,7 +27,7 @@ does not move the game. If the directory has no `project.luau`, the constructor 
 ## The command line
 
 `CommandLine` reads flags only: `--name value`, `--name=value`, or a bare `--name` (`true`). A flag given twice keeps
-its last value. Any other argument is an error. The engine itself reads only the game directory, which must come first: a flag takes the argument after it as its value. **Every** flag is also given to
+its last value. Any other argument is an error. The engine itself reads only the game directory, which must come first (a flag takes the argument after it as its value), and, on a server in a debug run, `--admin-port` and `--admin-token` (below). **Every** flag is also given to
 `project.luau` as `engine.args`, so the game decides its own command line:
 
 ```lua
@@ -39,6 +39,16 @@ end
 
 `project.luau` has no standard library (no `tonumber`), so `engine.args` holds typed values (`CommandLine::toValue()`):
 `true` and `false` are booleans, a decimal number (`4242`, `-3`, `0.5`, `1e3`) is a number, anything else is a string.
+
+### The admin flags
+
+A server started with `--admin-port <port> --admin-token <secret>` opens the admin channel, a UDP socket bound to
+`127.0.0.1` that a tool (the editor) uses to read the server and kick clients (`../network/design.md`, Admin channel).
+The two go together; the port is a whole number from 1 to 65535 and the token is not empty. They are read in
+`makeNetworkPlugin()` (`Engine.cpp`) into `network::admin::AdminSettings`, given to `ServerPlugin::setAdmin()`. Outside a debug run
+(`EngineConfig::debug`, or a debug build) the engine refuses them with a `RuntimeError`, so a shipped server never opens
+the channel. They are still flags of the game too (`engine.args`). A flag on the command line shows in the process list:
+the token protects against other users' programs reaching the port, not against local users who can list processes.
 
 ## Executables
 
@@ -175,6 +185,11 @@ run between two frames, on the main thread, which is the renderer's.
 - **Full rebuild.** Everything in the world is lost: entities, resources, the server's clients and the client's
   connection. The old `App` is destroyed before the new one is built, so the window and the socket are released. The
   plugin libraries stay loaded. The engine logs why.
+- **Changing the mode.** `requestReload(mode, args)` is `requestReload()` with a new run mode and command line for the
+  next build (the game directory stays). It is for a tool that switches a running game between sides: the editor, from
+  standalone to a client of its server and back. The command line is checked when it is requested (`RuntimeError`).
+  If the build with the new setup fails, the engine logs why and builds again with the setup it had, so the program
+  keeps a game whatever the new mode needs (assets, a resolvable host).
 - **Errors.** With hot reload on, a failing rebuild is logged and the engine waits, with no `App`, for the next change of
   the game files to try again. With it off, `run()` throws.
 - **Client and server.** Each process watches the same folder and reloads itself. A layout change makes both rebuild; a
