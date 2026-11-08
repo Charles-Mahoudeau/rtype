@@ -258,6 +258,8 @@ particles run in PostUpdate and Render, they play while editing.
 
 The section is read when the editor is built (`readEditorOptions()`), and an unknown key in it is an error.
 
+The window is titled `AYLO Editor - <Game>`, where `<Game>` is the game's `window.title`; with none, `AYLO Editor`.
+
 ## Limits
 
 - One window: no ImGui viewports outside it. A renderer without the tool calls of `IRenderer` shows no panel.
