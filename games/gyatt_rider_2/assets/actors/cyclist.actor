@@ -1,6 +1,6 @@
 [capsule format=1]
 
-# A cyclist, 1x2 tiles: faster than every vehicle (a car goes 70), slowing down behind slower traffic like them, and
+# A cyclist, 1x2 tiles: faster than every vehicle (a car goes 80.5), slowing down behind slower traffic like them, and
 # a boost for the one who shoots it.
 # Placed and moved by server/traffic.luau.
 [node path="."]
