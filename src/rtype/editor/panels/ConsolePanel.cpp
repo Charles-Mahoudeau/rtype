@@ -19,8 +19,8 @@
 #include "Panels.hpp"
 #include "editor/EditorState.hpp"
 #include "editor/console/ConsoleLog.hpp"
-#include "editor/gui/Theme.hpp"
 #include "editor/console/ScriptPrompt.hpp"
+#include "editor/gui/Theme.hpp"
 
 namespace rtype::editor::panels {
 
