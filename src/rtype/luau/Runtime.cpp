@@ -65,10 +65,30 @@ void Runtime::StateDeleter::operator()(lua_State* state) const noexcept { lua_cl
 
 Runtime::Runtime(lua_State* state, const RuntimeConfig config)
     : _config{config}, _state{state}, _usertypes{std::make_unique<detail::UsertypeRegistry>(state)} {
-    if (has(_config.libs, RuntimeConfig::Libs::kStandard)) {
+    if (_config.libs == RuntimeConfig::Libs::kStandard) {
         luaL_openlibs(_state.get());
-    } else if (_config.libs != RuntimeConfig::Libs::kNone) {
-        throw std::runtime_error{"unsupported library configuration"};
+        return;
+    }
+    using Libs = RuntimeConfig::Libs;
+    struct Entry {
+        Libs flag;
+        const char* name;
+        lua_CFunction open;
+    };
+    const Entry entries[] = {
+        {Libs::kBase, "", luaopen_base},         {Libs::kMath, LUA_MATHLIBNAME, luaopen_math},
+        {Libs::kTable, LUA_TABLIBNAME, luaopen_table}, {Libs::kString, LUA_STRLIBNAME, luaopen_string},
+        {Libs::kCoroutine, LUA_COLIBNAME, luaopen_coroutine}, {Libs::kBit32, LUA_BITLIBNAME, luaopen_bit32},
+        {Libs::kUtf8, LUA_UTF8LIBNAME, luaopen_utf8}, {Libs::kOs, LUA_OSLIBNAME, luaopen_os},
+        {Libs::kDebug, LUA_DBLIBNAME, luaopen_debug}, {Libs::kBuffer, LUA_BUFFERLIBNAME, luaopen_buffer},
+        {Libs::kVector, LUA_VECLIBNAME, luaopen_vector},
+    };
+    for (const auto& [flag, name, open] : entries) {
+        if (has(_config.libs, flag)) {
+            lua_pushcfunction(_state.get(), open, nullptr);
+            lua_pushstring(_state.get(), name);
+            lua_call(_state.get(), 1, 0);
+        }
     }
 }
 
