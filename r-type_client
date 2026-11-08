@@ -1,4 +1,5 @@
 #!/bin/sh
-# R-Type client: starts the AYLO runtime on the game in `game/`; any argument is passed on
-# (`<directory>`, `--port <port>`...).
-exec "$(dirname "$0")/aylo-runtime" "$@"
+# R-Type client: starts the AYLO runtime on the game in `games/gyatt_rider_2/`; any argument is passed on
+# (`--port <port>`, `--host <host>`...).
+dir="$(dirname "$0")"
+exec "$dir/aylo-runtime" "$dir/games/gyatt_rider_2" "$@"
