@@ -63,7 +63,7 @@ The art and the sounds are generated, so the game owns them. From the repository
 
 ```sh
 python3 games/haxball/tools/make_art.py      # needs Pillow: the pitch, the players, the ball, the particle textures
-python3 games/haxball/tools/make_sounds.py   # needs numpy: kicks, bounces, whistles, beeps, the crowd, the click
+python3 games/haxball/tools/make_sounds.py   # needs numpy: kicks, bounces, whistles, beeps, the crowd, the click, the music loop
 ```
 
 Both overwrite their files in `assets/` and give the same files on every run. The sizes in `make_art.py` repeat
