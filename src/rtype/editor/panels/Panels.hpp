@@ -11,6 +11,7 @@
 
 #include "editor/EditorState.hpp"
 #include "editor/Export.hpp"
+#include "editor/server/ServerSupervisor.hpp"
 #include "rtype/contract/platform/IPlatform.hpp"
 #include "rtype/contract/renderer/IRenderer.hpp"
 

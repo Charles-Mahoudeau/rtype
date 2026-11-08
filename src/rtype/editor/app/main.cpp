@@ -29,6 +29,7 @@
 #include "editor/EditorPlugin.hpp"
 #include "editor/EditorSession.hpp"
 #include "editor/EditorSettings.hpp"
+#include "editor/EditorState.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/engine/Engine.hpp"

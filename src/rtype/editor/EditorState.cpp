@@ -17,11 +17,8 @@
 #include <vector>
 
 #include "editor/EditorSession.hpp"
-#include "editor/console/ConsoleLog.hpp"
 #include "editor/gui/GuiContext.hpp"
 #include "editor/gui/GuiInput.hpp"
-#include "editor/process/ClientLauncher.hpp"
-#include "editor/server/ServerSupervisor.hpp"
 #include "plugins/AssetDirectory.hpp"
 #include "plugins/capsule/Capsule.hpp"
 #include "rtype/ecs/app/App.hpp"

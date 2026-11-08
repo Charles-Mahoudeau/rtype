@@ -8,12 +8,14 @@
 #pragma once
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <optional>
 #include <string>
 
 #include "editor/Export.hpp"
+#include "rtype/network/Types.hpp"
 #include "rtype/network/admin/AdminClient.hpp"
 #include "rtype/network/admin/AdminProtocol.hpp"
 #include "rtype/network/admin/WorldProtocol.hpp"

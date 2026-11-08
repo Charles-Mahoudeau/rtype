@@ -18,6 +18,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <span>
 #include <string>
@@ -274,7 +275,7 @@ void Engine::requestReload() noexcept { _reloadRequested = true; }
 void Engine::requestReload(const ecs::RunMode mode, std::vector<std::string> args) {
     CommandLine commandLine = parseFlags(args);  // checked here, so the caller hears of a bad command line
     {
-        const std::lock_guard lock{_pendingMutex};
+        const std::scoped_lock lock{_pendingMutex};
         _pending = Setup{.mode = mode, .args = std::move(args), .commandLine = std::move(commandLine)};
     }
     _reloadRequested = true;
@@ -283,7 +284,7 @@ void Engine::requestReload(const ecs::RunMode mode, std::vector<std::string> arg
 std::optional<Engine::Setup> Engine::adoptPendingSetup() {
     std::optional<Setup> next;
     {
-        const std::lock_guard lock{_pendingMutex};
+        const std::scoped_lock lock{_pendingMutex};
         next = std::exchange(_pending, std::nullopt);
     }
     if (!next) {

@@ -44,7 +44,7 @@ void saveScene(EditorState& state) {
 }
 
 /// @brief The choice between playing standalone (both sides in the editor's world) and online (a client of the server).
-void drawModeSelector(EditorState& state) {
+void drawModeSelector(const EditorState& state) {
     play::OnlinePlay& online = state.session->online;
     const bool isOnline = online.mode() == play::PlayMode::kOnline;
     ImGui::BeginDisabled(state.play.isPlaying() || online.stage() != play::OnlineStage::kIdle);
@@ -60,8 +60,8 @@ void drawModeSelector(EditorState& state) {
     }
     ImGui::EndDisabled();
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        ImGui::SetTooltip("%s", isOnline ? "Play starts the server (Server panel) and joins it as a client"
-                                         : "Play runs both sides of the game in the editor's world");
+        gui::tooltip(isOnline ? "Play starts the server (Server panel) and joins it as a client"
+                              : "Play runs both sides of the game in the editor's world");
     }
 }
 
@@ -119,6 +119,39 @@ void drawPlayButtons(EditorState& state) {
         state.status = error ? *error : std::string{"Stopped: back to the scene"};
     }
 }
+void drawViewMenu(EditorState& state) {
+    if (ImGui::BeginMenu("View")) {
+        ImGui::MenuItem("Game", nullptr, &state.showGame);
+        ImGui::MenuItem("Hierarchy", nullptr, &state.showHierarchy);
+        ImGui::MenuItem("Inspector", nullptr, &state.showInspector);
+        ImGui::MenuItem("Assets", nullptr, &state.showAssets);
+        ImGui::MenuItem("Stats", nullptr, &state.showStats);
+        ImGui::MenuItem("Particles", nullptr, &state.showParticles);
+        ImGui::MenuItem("Console", nullptr, &state.showConsole);
+        ImGui::MenuItem("Server", nullptr, &state.showServer);
+        ImGui::Separator();
+        if (ImGui::MenuItem("Reset layout")) {
+            state.resetLayout = true;
+            state.showGame = state.showHierarchy = state.showInspector = state.showAssets = state.showStats = true;
+            state.showParticles = state.showConsole = state.showServer = true;
+        }
+        ImGui::EndMenu();
+    }
+}
+
+/// @return What the bar says about the run: playing, paused, online, or the scene's edit state.
+std::string modeText(const EditorState& state) {
+    if (!state.play.isPlaying()) {
+        const char* mode = state.prefab ? "Editing alone" : "Editing";
+        return state.isEditedUnsaved() ? std::format("{} (not saved)", mode) : std::string{mode};
+    }
+    const bool paused = state.app->getSchedules().isPaused();
+    if (state.session->online.isActive()) {
+        return paused ? "Online (paused)" : "Online";
+    }
+    return paused ? "Paused" : "Playing";
+}
+
 }  // namespace
 
 void drawToolbar(EditorState& state, contract::platform::IPlatform& platform) {
@@ -138,35 +171,12 @@ void drawToolbar(EditorState& state, contract::platform::IPlatform& platform) {
         }
         ImGui::EndMenu();
     }
-    if (ImGui::BeginMenu("View")) {
-        ImGui::MenuItem("Game", nullptr, &state.showGame);
-        ImGui::MenuItem("Hierarchy", nullptr, &state.showHierarchy);
-        ImGui::MenuItem("Inspector", nullptr, &state.showInspector);
-        ImGui::MenuItem("Assets", nullptr, &state.showAssets);
-        ImGui::MenuItem("Stats", nullptr, &state.showStats);
-        ImGui::MenuItem("Particles", nullptr, &state.showParticles);
-        ImGui::MenuItem("Console", nullptr, &state.showConsole);
-        ImGui::MenuItem("Server", nullptr, &state.showServer);
-        ImGui::Separator();
-        if (ImGui::MenuItem("Reset layout")) {
-            state.resetLayout = true;
-            state.showGame = state.showHierarchy = state.showInspector = state.showAssets = state.showStats = true;
-            state.showParticles = state.showConsole = state.showServer = true;
-        }
-        ImGui::EndMenu();
-    }
+    drawViewMenu(state);
     ImGui::Separator();
     drawModeSelector(state);
     drawPlayButtons(state);
     ImGui::Separator();
-    if (state.play.isPlaying()) {
-        const bool paused = state.app->getSchedules().isPaused();
-        const bool online = state.session->online.isActive();
-        ImGui::TextUnformatted(online ? (paused ? "Online (paused)" : "Online") : (paused ? "Paused" : "Playing"));
-    } else {
-        const char* mode = state.prefab ? "Editing alone" : "Editing";
-        ImGui::TextUnformatted(state.isEditedUnsaved() ? std::format("{} (not saved)", mode).c_str() : mode);
-    }
+    ImGui::TextUnformatted(modeText(state).c_str());
     if (const std::string& problem = state.session->online.message(); !problem.empty()) {
         ImGui::Separator();
         gui::textDisabled(problem);

@@ -7,7 +7,6 @@
 
 #pragma once
 
-#include <cstdint>
 #include <optional>
 
 #include "rtype/network/admin/AdminProtocol.hpp"

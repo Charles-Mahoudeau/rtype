@@ -146,7 +146,7 @@ void drawControls(EditorState& state) {
     }
 }
 
-void drawStatusLine(EditorState& state) {
+void drawStatusLine(const EditorState& state) {
     server::ServerSupervisor& supervisor = *state.supervisor;
     switch (supervisor.status()) {
         case server::ServerStatus::kStopped:

@@ -258,7 +258,7 @@ void drawInspectorPanel(EditorState& state) {
             // Online, the world is the server's copy: a client never writes it. Edit it from the Server panel.
             const bool online = state.session->online.isActive();
             if (online) {
-                ImGui::TextDisabled("Online: read-only. Edit the server's world in the Server panel.");
+                gui::textDisabled("Online: read-only. Edit the server's world in the Server panel.");
             }
             ImGui::BeginDisabled(online);
             drawEntity(state);
