@@ -206,6 +206,14 @@ is not safe). The tables the modules reach are unfrozen with `Table::unfreeze()`
 the tables of `engine` and of the helpers. A line runs between two systems, in the tool frame. `manual/pages/editor.md`
 explains it to the game developer.
 
+The selected entity travels with each call as a `ScriptTarget{self, writable}` (`ScriptPrompt::setTarget()`, set by the
+panel each frame; `writable` is false while the editor is online, a client of the server). The host binds it as `self`
+and `entity(index, generation)` in `scripting/console/ConsoleTypes.cpp`: two usertypes, `ConsoleEntity` and
+`ConsoleComponent`, whose indexes go through `view::readField()` / `view::writeField()` on the component's bytes in the
+world (`getMut()` marks the component changed). They hold no pointer into the world: each access fetches the bytes, and
+a handle checks the console's `ViewScope` generation, bumped after every line, so one kept past its line is an error.
+The `__keys` pseudo-field lists the component and field names for the completion in the prelude.
+
 ## Opening a file in a text editor
 
 "Open in text editor" (the Assets' menu, the Hierarchy's header) runs the `editor.textEditor` command on the file, in the
