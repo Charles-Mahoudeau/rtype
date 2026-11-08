@@ -69,7 +69,6 @@ local Game = {
 	-- The enums of the engine's components, as their reflected numbers.
 	box = 0, -- rtype.Collider shape
 	rectShape = 0, -- rtype.ShapeRenderer kind
-	circleShape = 1,
 }
 
 --- The size of something counted in tiles, in world units.

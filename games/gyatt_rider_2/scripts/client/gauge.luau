@@ -14,7 +14,7 @@ local fillColor = { x = 1, y = 0.55, z = 0, w = 1 }
 local finishColor = { x = 1, y = 1, z = 1, w = 1 }
 local dotColor = { x = 1, y = 1, z = 1, w = 1 }
 local dotOutline = { x = 0.1, y = 0.1, z = 0.1, w = 1 }
-local dotRadius = 7
+local dotSize = 14
 -- The shapes' layers, over the strip's (0): the track, then its orange part and the finish line, then the dots.
 local trackLayer, fillLayer, dotLayer = 1, 2, 3
 
@@ -40,7 +40,6 @@ engine.ecs.system("game.SpawnGauge", {
 			["rtype.ShapeRenderer"] = {
 				kind = Game.rectShape,
 				size = { x = gaugeWidth, y = gaugeHeight },
-				cornerRadius = 4,
 				fillColor = trackColor,
 				layer = trackLayer,
 			},
@@ -60,7 +59,6 @@ engine.ecs.system("game.SpawnGauge", {
 			["rtype.ShapeRenderer"] = {
 				kind = Game.rectShape,
 				size = { x = gaugeWidth, y = 0 },
-				cornerRadius = 4,
 				fillColor = fillColor,
 				layer = fillLayer,
 			},
@@ -100,8 +98,8 @@ engine.ecs.system("game.PlaceCyclists", {
 					["game.GaugeDot"] = { cyclist = entity },
 					["rtype.Transform"] = { position = { x = gaugeX, y = gaugeBottom } },
 					["rtype.ShapeRenderer"] = {
-						kind = Game.circleShape,
-						radius = dotRadius,
+						kind = Game.rectShape,
+						size = { x = dotSize, y = dotSize },
 						fillColor = dotColor,
 						outlineColor = dotOutline,
 						outlineThickness = 2,

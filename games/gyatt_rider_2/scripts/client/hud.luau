@@ -41,7 +41,7 @@ end
 local function box(style, color, text)
 	return {
 		style = { style, { justify = "center", alignItems = "center", ignorePointer = true } },
-		background = { color = color, radius = 6 },
+		background = { color = color },
 		children = { text },
 	}
 end

@@ -21,7 +21,6 @@ engine.ecs.system("game.OutlineOwnRider", {
 				ctx.commands:add(entity, "rtype.ShapeRenderer", {
 					kind = Game.rectShape,
 					size = Game.riderSize,
-					cornerRadius = 12,
 					fillColor = { x = 0, y = 0, z = 0, w = 0 },
 					outlineColor = ownOutline,
 					outlineThickness = ownOutlineThickness,

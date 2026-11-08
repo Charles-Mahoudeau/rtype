@@ -59,11 +59,11 @@ def body(size_tiles, color, windshield=True):
     image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
     margin = 4
-    draw.rounded_rectangle((margin, margin, width - margin - 1, height - margin - 1), radius=12, fill=color,
+    draw.rounded_rectangle((margin, margin, width - margin - 1, height - margin - 1), radius=0, fill=color,
                            outline=darker(color), width=4)
     if windshield:
         top = margin + 14
-        draw.rounded_rectangle((margin + 12, top, width - margin - 13, top + min(36, height // 5)), radius=6,
+        draw.rounded_rectangle((margin + 12, top, width - margin - 13, top + min(36, height // 5)), radius=0,
                                fill=WINDSHIELD)
     return image
 
