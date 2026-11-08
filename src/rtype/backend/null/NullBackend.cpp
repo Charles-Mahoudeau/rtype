@@ -8,6 +8,15 @@
 #include "backend/null/NullBackend.hpp"
 
 #include <chrono>
+#include <cstddef>
+#include <span>
+#include <vector>
+
+#include "rtype/contract/platform/WindowConfig.hpp"
+#include "rtype/contract/platform/event/Event.hpp"
+#include "rtype/contract/renderer/drawing/Texture.hpp"
+#include "rtype/contract/renderer/particle/Particle.hpp"
+#include "rtype/contract/renderer/particle/ParticleSystemDesc.hpp"
 
 namespace rtype::backend::null {
 
