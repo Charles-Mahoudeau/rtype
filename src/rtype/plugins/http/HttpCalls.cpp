@@ -23,9 +23,7 @@ namespace rtype::plugins::http {
 namespace {
 /// @return @p value as a whole priority, clamped; a NaN is 0.
 std::int32_t toPriority(const float value) {
-    return !std::isnan(value)
-               ? static_cast<std::int32_t>(std::clamp(std::round(value), -1.0e9F, 1.0e9F))
-               : 0;
+    return !std::isnan(value) ? static_cast<std::int32_t>(std::clamp(std::round(value), -1.0e9F, 1.0e9F)) : 0;
 }
 
 RequestResult request(ecs::ResMut<HttpClient> client, const RequestArguments& arguments) {

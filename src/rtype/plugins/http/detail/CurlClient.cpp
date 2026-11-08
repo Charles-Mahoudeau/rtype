@@ -17,12 +17,12 @@
 #include <array>
 #include <cctype>
 #include <chrono>
-#include <functional>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <format>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -141,8 +141,8 @@ RequestId CurlClient::send(const HttpRequest& request) {
             _failed.push_back(HttpResult{.request = id, .error = std::string{kQueueFull}});
         } else {
             // After the last request of at least this priority: FIFO among equals.
-            const auto position = std::ranges::upper_bound(_queue, checked.priority, std::ranges::greater{},
-                                                           &Checked::priority);
+            const auto position =
+                std::ranges::upper_bound(_queue, checked.priority, std::ranges::greater{}, &Checked::priority);
             _queue.insert(position, std::move(checked));
         }
     }
