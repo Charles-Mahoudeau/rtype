@@ -36,6 +36,7 @@
 #include "rtype/replication/input/InputBuffer.hpp"
 #include "rtype/replication/input/InputLayout.hpp"
 #include "rtype/replication/manifest/Manifest.hpp"
+#include "rtype/replication/packet/PacketSchema.hpp"
 
 namespace rtype::ecs {
 class Commands;
@@ -55,6 +56,8 @@ using ServerNotification = std::variant<event::ClientConnected, event::ClientDis
 /// is an ECS resource, named "net.ServerState". It keeps a pointer to the world it was made for, which must outlive it.
 class RTYPE_REPLICATION_API ServerState {
   public:
+    static constexpr std::size_t kMaxPendingPackets = 256;  ///< The most custom packets kept between two receive().
+
     /// @brief Gives the time of the transport.
     using TimeSource = std::function<network::TimePoint()>;
 
@@ -159,6 +162,26 @@ class RTYPE_REPLICATION_API ServerState {
     [[nodiscard]] std::optional<ServerNotification> handle(const network::server::ServerEvent& serverEvent,
                                                            const input::InputLayout& inputs);
 
+    /// @brief A custom packet message of a client, not decoded yet.
+    struct RawPacket {
+        network::ClientId client{};  ///< Who sent it.
+        network::Bytes payload;      ///< The message, type byte included.
+    };
+
+    /// @brief Takes the custom packets that arrived since the last call, oldest first. At most kMaxPendingPackets are
+    /// kept between two calls: the rest are dropped and counted.
+    [[nodiscard]] std::vector<RawPacket> takePackets();
+
+    /// @brief Sends a custom packet message.
+    /// @param client The client, or 0 for every connected client.
+    /// @param channel How to send it.
+    /// @param payload The message (packet::encodePacket()).
+    /// @return Whether at least one client could get it.
+    bool sendPacket(network::ClientId client, network::Channel channel, network::Bytes payload);
+
+    /// @return How many custom packets were dropped because too many arrived in one frame.
+    [[nodiscard]] std::size_t droppedPacketCount() const noexcept;
+
     /// @brief Writes the next input of a client in the PlayerInput of its entity: the neutral input when the client is
     /// not connected.
     /// @param client The owner of the entity.
@@ -216,6 +239,8 @@ class RTYPE_REPLICATION_API ServerState {
     std::uint32_t _serverTick{0};                                  ///< The tick of the last snapshot built.
     std::uint32_t _snapshotInterval{1};                            ///< Ticks between two snapshots, set by start().
     std::size_t _droppedInputs{0};                                 ///< Inputs that could not be decoded.
+    std::vector<RawPacket> _packets;                               ///< Custom packets waiting for takePackets().
+    std::size_t _droppedPackets{0};                                ///< Custom packets dropped for lack of room.
     std::size_t _ignoredMessages{0};                               ///< Messages that were not inputs of a client.
     std::size_t _incompleteSnapshots{0};                           ///< Snapshots that did not list every entity.
     std::optional<network::TimePoint> _lastWarning;                ///< When the last warning was written.

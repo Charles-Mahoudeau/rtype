@@ -245,6 +245,15 @@ std::optional<ServerNotification> ServerState::handle(const network::server::Ser
     }
     const auto& message = std::get<network::server::ClientMessage>(serverEvent);
     const auto client = _clients.find(message.client);
+    if (client != _clients.end() && !message.payload.empty() &&
+        message.payload.front() == static_cast<std::byte>(MessageType::kCustomPacket)) {
+        if (_packets.size() >= kMaxPendingPackets) {
+            ++_droppedPackets;
+        } else {
+            _packets.push_back(RawPacket{.client = message.client, .payload = message.payload});
+        }
+        return std::nullopt;
+    }
     if (client == _clients.end() || message.payload.empty() ||
         message.payload.front() != static_cast<std::byte>(MessageType::kInput)) {
         ++_ignoredMessages;
@@ -261,6 +270,21 @@ std::optional<ServerNotification> ServerState::handle(const network::server::Ser
     client->second.lastAppliedSnapshot = std::max(client->second.lastAppliedSnapshot, decoded->lastAppliedSnapshot);
     return std::nullopt;
 }
+
+std::vector<ServerState::RawPacket> ServerState::takePackets() { return std::exchange(_packets, {}); }
+
+bool ServerState::sendPacket(const network::ClientId client, const network::Channel channel, network::Bytes payload) {
+    if (_server == nullptr || (client != 0 && !_clients.contains(client)) || _clients.empty()) {
+        return false;
+    }
+    _server->execute(network::server::SendMessage{.client = client == 0 ? network::server::kAllClients : client,
+                                                  .channel = channel,
+                                                  .payload = std::move(payload)});
+    _server->flush(_time());
+    return true;
+}
+
+std::size_t ServerState::droppedPacketCount() const noexcept { return _droppedPackets; }
 
 void ServerState::applyInput(const network::ClientId client, component::PlayerInput& input) {
     const auto found = _clients.find(client);

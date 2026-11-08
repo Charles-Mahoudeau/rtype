@@ -232,6 +232,14 @@ void ClientState::handle(const network::client::ClientEvent& clientEvent, input:
         static_cast<void>(applySnapshot(message.payload, commands));
         return;
     }
+    if (type == static_cast<std::uint8_t>(MessageType::kCustomPacket)) {
+        if (_manifestStatus != ManifestStatus::kAccepted || _packets.size() >= kMaxPendingPackets) {
+            ++_dropped;
+        } else {
+            _packets.push_back(message.payload);
+        }
+        return;
+    }
     const bool isManifest = type >= static_cast<std::uint8_t>(MessageType::kManifestComponent) &&
                             type <= static_cast<std::uint8_t>(MessageType::kManifestEnd);
     if (!isManifest || _manifestStatus != ManifestStatus::kWaiting || !_receiver.receive(message.payload)) {
@@ -433,5 +441,16 @@ void ClientState::sendInput(const input::InputLayout& inputs) {
         static_cast<void>(_client->send(network::Channel::kUnreliable, *message));
         _client->flush(_time());
     }
+}
+
+std::vector<network::Bytes> ClientState::takePackets() { return std::exchange(_packets, {}); }
+
+bool ClientState::sendPacket(const network::Channel channel, const std::span<const std::byte> payload) {
+    if (!_client || _connection != ConnectionStatus::kConnected || _manifestStatus != ManifestStatus::kAccepted) {
+        return false;
+    }
+    const bool queued = _client->send(channel, payload);
+    _client->flush(_time());
+    return queued;
 }
 }  // namespace rtype::replication::client

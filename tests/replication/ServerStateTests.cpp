@@ -359,13 +359,49 @@ TEST_F(ServerStateTest, OtherMessagesAreIgnoredAndCounted) {
     join(kFirst);
     EXPECT_FALSE(_state->handle(
         network::server::ClientMessage{
-            .client = kFirst, .channel = network::Channel::kReliable, .payload = {std::byte{0x32}, std::byte{0x01}}},
+            .client = kFirst, .channel = network::Channel::kReliable, .payload = {std::byte{0x7F}, std::byte{0x01}}},
         _layout));
     EXPECT_FALSE(_state->handle(
         network::server::ClientMessage{.client = kFirst, .channel = network::Channel::kReliable, .payload = {}},
         _layout));
     EXPECT_EQ(_state->ignoredMessageCount(), 2U);
     EXPECT_EQ(_state->droppedInputCount(), 0U);
+}
+
+TEST_F(ServerStateTest, KeepsTheCustomPacketsOfAConnectedClientForTheGame) {
+    makeState();
+    join(kFirst);
+    const network::Bytes message{std::byte{0x32}, std::byte{0x01}};
+
+    EXPECT_FALSE(_state->handle(
+        network::server::ClientMessage{.client = kFirst, .channel = network::Channel::kReliable, .payload = message},
+        _layout));
+    EXPECT_FALSE(_state->handle(
+        network::server::ClientMessage{.client = 99, .channel = network::Channel::kReliable, .payload = message},
+        _layout));  // not connected: ignored
+
+    const auto packets = _state->takePackets();
+    ASSERT_EQ(packets.size(), 1U);
+    EXPECT_EQ(packets[0].client, kFirst);
+    EXPECT_EQ(packets[0].payload, message);
+    EXPECT_TRUE(_state->takePackets().empty());
+    EXPECT_EQ(_state->ignoredMessageCount(), 1U);
+}
+
+TEST_F(ServerStateTest, DropsTheCustomPacketsOfAFloodAndCountsThem) {
+    makeState();
+    join(kFirst);
+    const network::Bytes message{std::byte{0x32}, std::byte{0x01}};
+
+    for (std::size_t sent = 0; sent < ServerState::kMaxPendingPackets + 5; ++sent) {
+        static_cast<void>(_state->handle(
+            network::server::ClientMessage{
+                .client = kFirst, .channel = network::Channel::kReliable, .payload = message},
+            _layout));
+    }
+
+    EXPECT_EQ(_state->takePackets().size(), ServerState::kMaxPendingPackets);
+    EXPECT_EQ(_state->droppedPacketCount(), 5U);
 }
 
 TEST_F(ServerStateTest, AnInputFromAnUnknownClientIsIgnoredAndCounted) {

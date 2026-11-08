@@ -34,17 +34,25 @@
 #include "rtype/replication/event/ClientConnected.hpp"
 #include "rtype/replication/event/ClientDisconnected.hpp"
 #include "rtype/replication/input/InputLayout.hpp"
+#include "rtype/replication/packet/PacketCalls.hpp"
+#include "rtype/replication/packet/PacketCodec.hpp"
+#include "rtype/replication/packet/PacketSchema.hpp"
 #include "rtype/replication/query/ReplicatedQueries.hpp"
 #include "rtype/replication/server/ServerState.hpp"
 
 namespace rtype::replication::server {
 namespace {
 /// @brief Startup: opens the server.
-void start(ecs::ResMut<ServerState> state, ecs::ResMut<input::InputLayout> inputs) { state->start(*inputs); }
+void start(ecs::ResMut<ServerState> state, ecs::ResMut<input::InputLayout> inputs,
+           ecs::ResMut<packet::PacketRegistry> packets) {
+    packets->freeze();
+    state->start(*inputs);
+}
 
 /// @brief PreUpdate: receives, and tells the game who joined and left.
 void receive(ecs::ResMut<ServerState> state, ecs::Res<input::InputLayout> inputs, ecs::Commands& commands,
-             ecs::EventWriter<event::ClientConnected> connected, ecs::EventWriter<event::ClientDisconnected> left) {
+             ecs::EventWriter<event::ClientConnected> connected, ecs::EventWriter<event::ClientDisconnected> left,
+             ecs::Res<packet::PacketRegistry> packets, ecs::EventWriter<packet::PacketReceived> received) {
     state->bindCommands(&commands);  // the admin channel records its world changes there, applied after the phase
     const std::vector<ServerNotification> notifications = state->receive(inputs.get());
     state->bindCommands(nullptr);
@@ -53,6 +61,14 @@ void receive(ecs::ResMut<ServerState> state, ecs::Res<input::InputLayout> inputs
             connected.send(*joined);
         } else {
             left.send(std::get<event::ClientDisconnected>(notification));
+        }
+    }
+    // Only what passes the schema reaches the scripts: the rest is dropped, and they validate what it means.
+    for (const ServerState::RawPacket& raw : state->takePackets()) {
+        if (auto decoded = packet::decodePacket(*packets, packet::PacketDirection::kToServer, raw.payload)) {
+            const packet::PacketSchema* schema = packets->find(decoded->name);
+            received.send(packet::PacketReceived{
+                .name = decoded->name, .sender = raw.client, .values = packet::formatValues(*schema, decoded->values)});
         }
     }
 }

@@ -551,7 +551,7 @@ loader only warns on `std::cerr` when a `both` system writes a `serverOnly` comp
   registry refuses a replicated event). `docs/network/design.md` section 8 designs **custom packets** for this
   (`net.packet`, `toServer` / `toClients`, with a `string` field: `u8` length, `maxLength` 64 by default, at most
   255), received as events in the receiver's world (NET-34, NET-35). Only `MessageType::kCustomPacket = 0x32` exists
-  today: none of it is implemented, and NET-35 is itself blocked on this bridge. So an event can hold a string once
+  today: a minimal slice is implemented since GR5-88 ([custom-packets](../network/custom-packets.md): `engine.net.packet`, typed fields, one `net.PacketReceived` event); the manifest check, the C++ macro and per-packet events are not. So an event can hold a string once
   `kString` exists, but text that has to reach other machines is a replicated component (a `ChatLine` spawned by the
   server) until custom packets land.
 - **A name cannot ride the handshake as it is.** Checked in `network/protocol/Packets.hpp`: `ConnectRequest` and

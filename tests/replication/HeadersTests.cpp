@@ -26,6 +26,9 @@
 #include "rtype/replication/manifest/Manifest.hpp"
 #include "rtype/replication/manifest/ManifestMessages.hpp"
 #include "rtype/replication/manifest/ManifestReceiver.hpp"
+#include "rtype/replication/packet/PacketCalls.hpp"
+#include "rtype/replication/packet/PacketCodec.hpp"
+#include "rtype/replication/packet/PacketSchema.hpp"
 #include "rtype/replication/serialization/EntityMapper.hpp"
 #include "rtype/replication/serialization/FieldSerializer.hpp"
 
