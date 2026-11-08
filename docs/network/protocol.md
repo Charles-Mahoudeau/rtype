@@ -293,7 +293,8 @@ carried it (section 10, `lastAppliedSnapshot`). Applying the same snapshot twice
 | 1 | type `0x30` |
 | 4 | tick: the server tick of this snapshot |
 | 4 | lastProcessedInput: the sequence of this client's last input the server applied, 0 if none |
-| 1 | flags: bit 0 `complete` (every replicated entity is listed, so the client removes the ones absent); other bits MUST be 0 |
+| 1 | flags: bit 0 `complete` (every replicated entity is listed, so the client removes the ones absent); bit 1 `part` (one of several messages of this tick); other bits MUST be 0 |
+| 0 or 2 | only with `part`: `u8` index of this part, then `u8` number of parts; the index MUST be below the number, and the number at least 2 |
 | 2 + … | spawns: `u16` count, then spawn records |
 | 2 + … | updates: `u16` count, then update records |
 | 2 + … | removals: `u16` count, then removal records |
@@ -310,8 +311,13 @@ carried it (section 10, `lastAppliedSnapshot`). Applying the same snapshot twice
   components in increasing short id, each once.
 - **Spawn**: create the entity with these components. **Update**: set these components. **Removal**: remove one
   component. **Despawn**: destroy the entity.
-- A snapshot whose `tick` is not newer than the last one applied MUST be ignored.
-- A snapshot never exceeds one message; what does not fit is sent in the next one.
+- A snapshot whose `tick` is not newer than the last one applied MUST be ignored (except the other parts of that tick).
+- A snapshot that does not fit in one message is split by entity into **parts**: messages of the same `tick`, each
+  with the `part` flag, its index and the number of parts, and the same `complete` flag. An entity is never split
+  across parts. A client applies each part as it comes; for a `complete` snapshot, it removes the components a part's
+  records do not list at once, but despawns the entities no part listed only once every part of the tick is in. A part
+  of a tick older than the last applied, or a part already applied, MUST be ignored; the first part of a newer tick
+  abandons the parts of an older one, which then despawns nothing.
 
 ### 9.1 Component values
 
