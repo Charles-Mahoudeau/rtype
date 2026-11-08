@@ -80,6 +80,7 @@ optionalRead, optionalWrite (inside each, in the order you listed them). The vie
 | Field | What it gives |
 |---|---|
 | `ctx.query` | The loop over matching entities. |
+| `ctx.side` | The side the system runs on: `"server"` (the default), `"client"` or `"both"`. |
 | `ctx.time` | `delta` (seconds of the frame), `fixedDelta` (the fixed step), `elapsed`, `tick` and `alpha` (progress between two fixed steps). `ctx.delta` and `ctx.fixedDelta` also exist. |
 | `ctx.commands` | Deferred changes to the world, see below. |
 | `ctx.resources` | The resources the system declared: `ctx.resources["rtype.Input"]` is a view (read-only unless declared in `write`). |

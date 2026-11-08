@@ -104,6 +104,60 @@ class TrackingMapper final : public serialization::EntityMapper {
     bytes.resize(writer.bytesWritten());
     return bytes;
 }
+
+/// @brief Puts the records of a tick in one snapshot, or in parts (snapshot::kPart) when they do not fit in one
+/// message.
+/// @param tick The server tick.
+/// @param records The records, in increasing NetworkId, each with its components sorted.
+/// @return The snapshot, or its parts in order. A record that cannot fit in a part of its own, or that comes after
+/// snapshot::kMaxParts full parts, is left out, and then no part is flagged complete.
+[[nodiscard]] std::vector<snapshot::Snapshot> splitIntoParts(const std::uint32_t tick,
+                                                             std::vector<snapshot::SpawnRecord> records) {
+    // A record that cannot be sent at all: too many components, or too big for a part of its own.
+    const std::size_t total = records.size();
+    std::erase_if(records, [](const snapshot::SpawnRecord& record) {
+        return record.components.size() > snapshot::kMaxRecordComponents ||
+               snapshot::kEmptyPartSize + snapshot::computeWireSize(record) > network::protocol::kMaxMessageSize;
+    });
+    bool complete = records.size() == total;
+
+    std::size_t size = snapshot::kEmptySize;
+    for (const snapshot::SpawnRecord& record : records) {
+        size += snapshot::computeWireSize(record);
+    }
+    if (size <= network::protocol::kMaxMessageSize) {
+        snapshot::Snapshot whole{.tick = tick, .flags = complete ? snapshot::kComplete : std::uint8_t{0}};
+        whole.spawns = std::move(records);
+        return {std::move(whole)};
+    }
+
+    // Too big for one message: as many parts as needed, in increasing NetworkId, each as full as it can be.
+    std::vector<snapshot::Snapshot> parts;
+    size = network::protocol::kMaxMessageSize;  // no part yet: the first record starts one
+    for (snapshot::SpawnRecord& record : records) {
+        const std::size_t recordSize = snapshot::computeWireSize(record);
+        if (size + recordSize > network::protocol::kMaxMessageSize) {
+            if (parts.size() == snapshot::kMaxParts) {
+                complete = false;
+                break;
+            }
+            parts.push_back({.tick = tick});
+            size = snapshot::kEmptyPartSize;
+        }
+        size += recordSize;
+        parts.back().spawns.push_back(std::move(record));
+    }
+    const auto count = static_cast<std::uint8_t>(parts.size());
+    const std::uint8_t flags =
+        complete ? static_cast<std::uint8_t>(snapshot::kPart | snapshot::kComplete) : snapshot::kPart;
+    std::uint8_t index = 0;
+    for (snapshot::Snapshot& part : parts) {
+        part.flags = flags;
+        part.part = index++;
+        part.partCount = count;
+    }
+    return parts;
+}
 }  // namespace
 
 ServerState::ServerState(const network::NetworkSettings& network, const ReplicationSettings& settings,
@@ -356,8 +410,9 @@ void ServerState::reportIncomplete(const std::size_t sent, const std::size_t tot
         return;
     }
     _lastWarning = now;
-    std::clog << std::format("[replication] a snapshot lists {} of {} entities: it does not fit in {} bytes\n", sent,
-                             total, network::protocol::kMaxMessageSize);
+    std::clog << std::format(
+        "[replication] a snapshot lists {} of {} entities: the others do not fit in {} parts of {} bytes\n", sent,
+        total, snapshot::kMaxParts, network::protocol::kMaxMessageSize);
 }
 
 std::vector<network::server::SendMessage> ServerState::buildSnapshots(const std::uint32_t tick,
@@ -390,25 +445,28 @@ std::vector<network::server::SendMessage> ServerState::buildSnapshots(const std:
         }
     }
 
-    snapshot::Snapshot body{.tick = tick};
-    std::size_t size = snapshot::kEmptySize;
+    std::vector<snapshot::SpawnRecord> listed;
+    listed.reserve(records.size());
     for (auto& [networkId, record] : records) {
         std::ranges::sort(record.components, std::ranges::less{}, &snapshot::ComponentValue::shortId);
-        const std::size_t recordSize = snapshot::computeWireSize(record);
-        if (record.components.size() <= snapshot::kMaxRecordComponents &&
-            size + recordSize <= network::protocol::kMaxMessageSize) {
-            size += recordSize;
-            body.spawns.push_back(std::move(record));
+        listed.push_back(std::move(record));
+    }
+    const std::vector<snapshot::Snapshot> parts = splitIntoParts(tick, std::move(listed));
+    std::size_t sent = 0;
+    for (const snapshot::Snapshot& part : parts) {
+        sent += part.spawns.size();
+    }
+    if (sent != records.size()) {
+        reportIncomplete(sent, records.size());
+    }
+    std::vector<network::Bytes> encoded;
+    encoded.reserve(parts.size());
+    for (const snapshot::Snapshot& part : parts) {
+        std::optional<network::Bytes> bytes = snapshot::encode(part);
+        if (!bytes) {
+            return {};
         }
-    }
-    if (body.spawns.size() == records.size()) {
-        body.flags = snapshot::kComplete;
-    } else {
-        reportIncomplete(body.spawns.size(), records.size());
-    }
-    const std::optional<network::Bytes> encoded = snapshot::encode(body);
-    if (!encoded) {
-        return {};
+        encoded.push_back(std::move(*bytes));
     }
 
     std::vector<network::ClientId> clients;
@@ -418,11 +476,14 @@ std::vector<network::server::SendMessage> ServerState::buildSnapshots(const std:
     }
     std::ranges::sort(clients);
     std::vector<network::server::SendMessage> commands;
-    commands.reserve(clients.size());
+    commands.reserve(clients.size() * encoded.size());
     for (const network::ClientId client : clients) {
-        network::Bytes payload = *encoded;
-        snapshot::setLastProcessedInput(payload, _clients.at(client).inputs.lastProcessed());
-        commands.push_back({.client = client, .channel = network::Channel::kUnreliable, .payload = std::move(payload)});
+        for (const network::Bytes& part : encoded) {
+            network::Bytes payload = part;
+            snapshot::setLastProcessedInput(payload, _clients.at(client).inputs.lastProcessed());
+            commands.push_back(
+                {.client = client, .channel = network::Channel::kUnreliable, .payload = std::move(payload)});
+        }
     }
     return commands;
 }

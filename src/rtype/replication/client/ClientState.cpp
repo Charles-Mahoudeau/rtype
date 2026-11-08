@@ -29,6 +29,7 @@
 #include "rtype/network/NetworkSettings.hpp"
 #include "rtype/network/Types.hpp"
 #include "rtype/network/bytes/ByteReader.hpp"
+#include "rtype/network/bytes/ByteWriter.hpp"
 #include "rtype/network/client/ClientEvent.hpp"
 #include "rtype/network/client/NetClient.hpp"
 #include "rtype/network/io/Address.hpp"
@@ -84,6 +85,59 @@ class MapMapper final : public serialization::EntityMapper {
   private:
     const std::unordered_map<std::uint32_t, ecs::Entity>* _entities;  ///< The `NetworkId → Entity` map.
 };
+
+/// @brief Gives back the NetworkId of a local entity, to write a value of the world as the server wrote it.
+/// @details A search through the map: only a value with an entity field asks, and its entity is usually found first.
+class NetworkIdMapper final : public serialization::EntityMapper {
+  public:
+    /// @param entities The `NetworkId → Entity` map; it must outlive the mapper.
+    explicit NetworkIdMapper(const std::unordered_map<std::uint32_t, ecs::Entity>& entities) noexcept
+        : _entities{&entities} {}
+    ~NetworkIdMapper() override = default;
+    NetworkIdMapper(const NetworkIdMapper& other) = delete;
+    NetworkIdMapper& operator=(const NetworkIdMapper& other) = delete;
+    NetworkIdMapper(NetworkIdMapper&& other) = delete;
+    NetworkIdMapper& operator=(NetworkIdMapper&& other) = delete;
+
+    /// @return The NetworkId the entity was received as, or 0 (the null entity) for one the server did not send.
+    [[nodiscard]] std::uint32_t toNetwork(const ecs::Entity entity) const noexcept override {
+        const auto found = std::ranges::find(*_entities, entity, [](const auto& known) { return known.second; });
+        return found == _entities->end() ? 0 : found->first;
+    }
+
+    /// @return The null entity: only used to write.
+    [[nodiscard]] ecs::Entity toLocal(const std::uint32_t /*networkId*/) const noexcept override { return {}; }
+
+  private:
+    const std::unordered_map<std::uint32_t, ecs::Entity>* _entities;  ///< The `NetworkId → Entity` map.
+};
+
+/// @brief Tells whether an entity already holds a value received from the server: its own value, written as the
+/// server writes it, gives the same bytes. Exact for every serializable type, lists and entity fields included.
+[[nodiscard]] bool holdsValue(const ecs::Components& components, const ecs::Entity entity, const ecs::ComponentId id,
+                              const ecs::TypeInfo& type, const std::span<const std::byte> received,
+                              const serialization::EntityMapper& mapper) {
+    if (!components.has(entity, id)) {
+        return false;
+    }
+    if (type.size == 0) {
+        return true;  // a tag has no value: having it is holding it
+    }
+    const std::span<const std::byte> current = components.get(entity, id);
+    if (current.size() < type.size || serialization::computeWireSize(type, current) != received.size()) {
+        return false;
+    }
+    network::Bytes bytes(received.size());
+    network::bytes::ByteWriter writer{bytes};
+    serialization::writeFields(writer, type, current, mapper);
+    return writer.isValid() && writer.bytesWritten() == received.size() && std::ranges::equal(bytes, received);
+}
+
+/// @brief The key of a component of a replicated entity in ClientState::_pending.
+[[nodiscard]] constexpr std::uint64_t pendingKey(const std::uint32_t networkId, const ecs::ComponentId id) noexcept {
+    constexpr std::uint64_t kIdBits = 32;
+    return (static_cast<std::uint64_t>(networkId) << kIdBits) | id;
+}
 
 /// @brief One value of a component read from the network. A type that owns memory (a list field) is a live object,
 /// built here and destroyed with this: the world takes a copy of it.
@@ -311,13 +365,15 @@ void ClientState::spawnEntities(const snapshot::Snapshot& decoded, ecs::Commands
 }
 
 void ClientState::writeValues(const std::uint32_t networkId, const std::vector<snapshot::ComponentValue>& values,
-                              const manifest::Manifest& manifest, ecs::Commands& commands) const {
+                              const manifest::Manifest& manifest, ecs::Commands& commands) {
     const auto entity = _entities.find(networkId);
     if (entity == _entities.end()) {
         return;
     }
-    const auto& registry = _world->getComponents().getRegistry();
+    const ecs::Components& components = _world->getComponents();
+    const auto& registry = components.getRegistry();
     const MapMapper mapper{_entities};
+    const NetworkIdMapper back{_entities};
     for (const snapshot::ComponentValue& value : values) {
         const std::optional<ecs::ComponentId> id = manifest.toLocal(value.shortId);
         if (!id) {
@@ -327,19 +383,27 @@ void ClientState::writeValues(const std::uint32_t networkId, const std::vector<s
         if (info == nullptr) {
             continue;
         }
+        // A value the entity already holds is not written again, so that `Changed` means changed: a snapshot lists
+        // every component every time. Unless commands not applied yet touch it: the world is then not up to date.
+        const std::uint64_t key = pendingKey(networkId, *id);
+        if (!_pending.contains(key) && holdsValue(components, entity->second, *id, info->type, value.bytes, back)) {
+            continue;
+        }
         if (std::optional<ReceivedValue> received = readValue(info->type, value.bytes, mapper)) {
             static_cast<void>(commands.add(entity->second, *id, received->getBytes()));
+            _pending.insert(key);
         }
     }
 }
 
 void ClientState::removeComponents(const snapshot::Snapshot& decoded, const manifest::Manifest& manifest,
-                                   ecs::Commands& commands) const {
+                                   ecs::Commands& commands) {
     for (const snapshot::RemovalRecord& record : decoded.removals) {
         const auto entity = _entities.find(record.networkId);
         const std::optional<ecs::ComponentId> id = manifest.toLocal(record.shortId);
         if (entity != _entities.end() && id) {
             static_cast<void>(commands.remove(entity->second, *id));
+            _pending.insert(pendingKey(record.networkId, *id));
         }
     }
 }
@@ -354,12 +418,15 @@ void ClientState::despawnEntities(const snapshot::Snapshot& decoded, ecs::Comman
     }
 }
 
-void ClientState::removeUnlisted(const snapshot::Snapshot& decoded, const manifest::Manifest& manifest,
-                                 ecs::Commands& commands) {
-    std::unordered_set<std::uint32_t> listed;
-    for (const snapshot::SpawnRecord& record : decoded.spawns) {
-        listed.insert(record.networkId);
+bool ClientState::acceptsPart(const snapshot::Snapshot& decoded) const {
+    if (decoded.tick > _lastAppliedTick) {
+        return true;
     }
+    return decoded.tick == _lastAppliedTick && decoded.tick == _partTick && decoded.partCount == _partCount &&
+           !_partsSeen.test(decoded.part);
+}
+
+void ClientState::removeUnlistedEntities(const std::unordered_set<std::uint32_t>& listed, ecs::Commands& commands) {
     for (auto entity = _entities.begin(); entity != _entities.end();) {
         if (listed.contains(entity->first)) {
             ++entity;
@@ -368,6 +435,10 @@ void ClientState::removeUnlisted(const snapshot::Snapshot& decoded, const manife
         commands.despawn(entity->second);
         entity = _entities.erase(entity);
     }
+}
+
+void ClientState::removeUnlistedComponents(const snapshot::Snapshot& decoded, const manifest::Manifest& manifest,
+                                           ecs::Commands& commands) {
     const std::span<const ecs::ComponentId> replicated = manifest.components();
     for (const snapshot::SpawnRecord& record : decoded.spawns) {
         const ecs::Entity entity = find(record.networkId);
@@ -377,7 +448,8 @@ void ClientState::removeUnlisted(const snapshot::Snapshot& decoded, const manife
         }
         for (std::size_t shortId = 0; shortId < replicated.size(); ++shortId) {
             if (!isListed.at(shortId)) {
-                static_cast<void>(commands.remove(entity, replicated[shortId]));  // NOLINT
+                static_cast<void>(commands.remove(entity, replicated[shortId]));     // NOLINT
+                _pending.insert(pendingKey(record.networkId, replicated[shortId]));  // NOLINT
             }
         }
     }
@@ -394,12 +466,14 @@ bool ClientState::applySnapshot(const std::span<const std::byte> message, ecs::C
         ++_dropped;
         return false;
     }
-    if (decoded->tick <= _lastAppliedTick) {
+    const bool isPart = (decoded->flags & snapshot::kPart) != 0;
+    if (isPart ? !acceptsPart(*decoded) : decoded->tick <= _lastAppliedTick) {
         ++_stale;
         return false;
     }
     if (commands.isEmpty()) {
         _reserved.clear();  // what was reserved is alive by now, or gone
+        _pending.clear();   // and the world holds what was written
     }
 
     // Every spawn first, so that a field can refer to an entity spawned by the same snapshot.
@@ -412,8 +486,26 @@ bool ClientState::applySnapshot(const std::span<const std::byte> message, ecs::C
     }
     removeComponents(*decoded, manifest, commands);
     despawnEntities(*decoded, commands);
-    if ((decoded->flags & snapshot::kComplete) != 0) {
-        removeUnlisted(*decoded, manifest, commands);
+    const bool complete = (decoded->flags & snapshot::kComplete) != 0;
+    if (isPart) {
+        if (decoded->tick != _partTick) {  // the first part of a newer tick: the older one's are given up
+            _partTick = decoded->tick;
+            _partCount = decoded->partCount;
+            _partsSeen.reset();
+            _partListed.clear();
+        }
+        _partsSeen.set(decoded->part);
+    }
+    if (complete) {
+        removeUnlistedComponents(*decoded, manifest, commands);
+        std::unordered_set<std::uint32_t> single;
+        std::unordered_set<std::uint32_t>& listed = isPart ? _partListed : single;
+        for (const snapshot::SpawnRecord& record : decoded->spawns) {
+            listed.insert(record.networkId);
+        }
+        if (!isPart || _partsSeen.count() == _partCount) {
+            removeUnlistedEntities(listed, commands);
+        }
     }
 
     _lastAppliedTick = decoded->tick;

@@ -393,6 +393,24 @@ TEST(Schedule, AcceptsConflictingSystemsOnceOrdered) {
     EXPECT_NO_THROW(schedule.build());
 }
 
+TEST(Schedule, StandaloneRunsAServerSystemBeforeAClientSystemThatTouchesTheSameData) {
+    World world;
+    Schedule schedule{world, RunMode::kStandalone, Phase::kUpdate};
+    schedule.addSystem("a.client", &readHealth).setSide(Side::kClient);  // added first, and first by name
+    schedule.addSystem("b.server", &writeHealth).setSide(Side::kServer);
+    schedule.addSystem("c.both", &readScore).setSide(Side::kBoth);
+    EXPECT_NO_THROW(schedule.build());
+    EXPECT_THAT(orderOf(schedule), ::testing::ElementsAre("b.server", "a.client", "c.both"));
+}
+
+TEST(Schedule, StandaloneStillRejectsTwoServerSystemsWithNoOrder) {
+    World world;
+    Schedule schedule{world, RunMode::kStandalone, Phase::kUpdate};
+    schedule.addSystem("a", &writeHealth).setSide(Side::kServer);
+    schedule.addSystem("b", &readHealth).setSide(Side::kServer);
+    expectBuildError(schedule, {"'a' and 'b'"});
+}
+
 TEST(Schedule, ChecksAmbiguitiesWhateverTheRunMode) {
     World world;
     Schedule schedule{world, RunMode::kServer, Phase::kUpdate};

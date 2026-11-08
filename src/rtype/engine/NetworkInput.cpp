@@ -22,6 +22,7 @@
 #include "rtype/ecs/call/DynamicCalls.hpp"
 #include "rtype/ecs/exceptions/MissingResourceException.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
+#include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/system/Side.hpp"
 #include "rtype/ecs/type/String.hpp"
@@ -32,6 +33,7 @@
 #include "rtype/replication/component/PlayerInput.hpp"
 #include "rtype/replication/input/InputKind.hpp"
 #include "rtype/replication/input/InputLayout.hpp"
+#include "rtype/replication/standalone/LocalSession.hpp"
 
 namespace rtype::engine {
 namespace {
@@ -72,6 +74,15 @@ void fillNetworkInput(ecs::DynamicCalls calls, ecs::Res<replication::input::Inpu
                       ecs::ResMut<replication::client::ClientState> client) {
     if (!layout->actions().empty()) {
         client->setInput(
+            readNetworkInput(*layout, [&calls](const std::string_view name) { return readThroughCall(calls, name); }));
+    }
+}
+
+/// @brief Standalone: the same input, kept for the FixedUpdate to hand to the entity of the local client.
+void fillLocalInput(ecs::DynamicCalls calls, ecs::Res<replication::input::InputLayout> layout,
+                    ecs::ResMut<replication::standalone::LocalSession> session) {
+    if (!layout->actions().empty()) {
+        session->setInput(
             readNetworkInput(*layout, [&calls](const std::string_view name) { return readThroughCall(calls, name); }));
     }
 }
@@ -121,6 +132,12 @@ void addNetworkInput(ecs::App& app) {
         return;
     }
     checkReadCall(*call);
+    if (app.getSchedules().getRunMode() == ecs::RunMode::kStandalone) {
+        app.addSystem(ecs::Phase::kPostUpdate, std::string{kNetworkInputSystem}, &fillLocalInput,
+                      ecs::CallList{{call->id}})
+            .setSide(ecs::Side::kClient);
+        return;
+    }
     app.addSystem(ecs::Phase::kPostUpdate, std::string{kNetworkInputSystem}, &fillNetworkInput,
                   ecs::CallList{{call->id}})
         .before(std::string{replication::client::ClientPlugin::kSendInputSystem})

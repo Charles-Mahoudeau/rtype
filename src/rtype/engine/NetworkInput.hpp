@@ -19,7 +19,7 @@
 
 namespace rtype::engine {
 /// @brief The client system that fills the input sent to the server: PostUpdate, before the client plugin's
-/// `net.sendInput`.
+/// `net.sendInput`. Standalone: PostUpdate too, it fills the LocalSession for the FixedUpdate.
 inline constexpr std::string_view kNetworkInputSystem = "rtype.engine.networkInput";
 
 /// @brief The engine call the system reads the input actions through: the input plugin's `rtype.input.read`. The Engine

@@ -30,8 +30,19 @@ namespace rtype::replication::snapshot {
 inline constexpr std::uint16_t kNoCapsule = 0xFFFF;
 
 /// @brief Flag bit: the snapshot lists every replicated entity, with all its replicated components, so the client
-/// removes what is absent. The other bits are reserved and must be 0.
+/// removes what is absent. With kPart, it is all the parts of the tick together that list them. The other bits are
+/// reserved and must be 0.
 inline constexpr std::uint8_t kComplete = 0x01;
+
+/// @brief Flag bit: the tick's snapshot did not fit in one message and is split into several, each with records of
+/// its own. The two bytes after the flags give this part's index and the count of parts (at least 2).
+inline constexpr std::uint8_t kPart = 0x02;
+
+/// @brief The most parts a tick's snapshot is split into: the count is a `u8`.
+inline constexpr std::size_t kMaxParts = 255;
+
+/// @brief The bytes a part adds after the header: its index (1) and the count of parts (1).
+inline constexpr std::size_t kPartHeaderSize = 2;
 
 /// @brief The most components one record holds: their count is a `u8`.
 inline constexpr std::size_t kMaxRecordComponents = 255;
@@ -44,6 +55,9 @@ inline constexpr std::size_t kLastProcessedInputOffset = 5;
 
 /// @brief The size of a snapshot with no record: the header and the four counts (`u16`).
 inline constexpr std::size_t kEmptySize = kHeaderSize + (4 * sizeof(std::uint16_t));
+
+/// @brief The size of a part (kPart) with no record.
+inline constexpr std::size_t kEmptyPartSize = kEmptySize + kPartHeaderSize;
 
 /// @brief The size computeComponentSizes() gives to a component whose size depends on its value (it has a list or a
 /// string): each of its values is then written after its length, a `u16`.
@@ -90,7 +104,9 @@ struct RemovalRecord {
 struct Snapshot {
     std::uint32_t tick{0};                ///< The server tick of the snapshot.
     std::uint32_t lastProcessedInput{0};  ///< The last input of the receiving client the server applied, 0 if none.
-    std::uint8_t flags{0};                ///< kComplete, or 0.
+    std::uint8_t flags{0};                ///< kComplete and kPart, or 0.
+    std::uint8_t part{0};                 ///< With kPart: this part's index, below partCount.
+    std::uint8_t partCount{0};            ///< With kPart: how many parts the tick's snapshot has, at least 2.
     std::vector<SpawnRecord> spawns;      ///< Entities to create, in increasing NetworkId.
     std::vector<UpdateRecord> updates;    ///< Entities to update.
     std::vector<RemovalRecord> removals;  ///< Components to remove.
@@ -109,8 +125,8 @@ struct Snapshot {
 
 /// @brief Writes a snapshot.
 /// @param snapshot The snapshot to write.
-/// @return The bytes, starting with the message type, or nothing when a list holds more than 65 535 records or a
-/// record more than kMaxRecordComponents components.
+/// @return The bytes, starting with the message type, or nothing when a list holds more than 65 535 records, a record
+/// more than kMaxRecordComponents components, or a part (kPart) has an index not below its count or a count below 2.
 [[nodiscard]] RTYPE_REPLICATION_API std::optional<network::Bytes> encode(const Snapshot& snapshot);
 
 /// @brief Reads a snapshot from bytes of the network; never throws.
@@ -118,8 +134,8 @@ struct Snapshot {
 /// @param componentSizes The wire size of every component by short id (see computeComponentSizes()), or
 /// kVariableSize; its length is the number of components in the manifest.
 /// @return The snapshot, or nothing when a count is larger than the remaining bytes allow, a short id is unknown or
-/// listed twice in a record, a NetworkId is 0 or listed twice in a list, a reserved flag is set, or bytes are missing
-/// or left over.
+/// listed twice in a record, a NetworkId is 0 or listed twice in a list, a reserved flag is set, a part's index is not
+/// below its count or the count is below 2, or bytes are missing or left over.
 [[nodiscard]] RTYPE_REPLICATION_API std::optional<Snapshot> decode(
     std::span<const std::byte> message, std::span<const std::size_t> componentSizes) noexcept;
 

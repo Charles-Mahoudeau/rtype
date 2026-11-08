@@ -128,7 +128,7 @@ packet blocks everything behind it until it is resent (head-of-line blocking), w
 | Dedicated server | `server` | Binds one UDP port (default `4242`) and hosts every room. |
 | Client | `client` | Connects to a server. |
 | Listen server ("Host" button) | `client` | Starts a **server thread inside the client process**: the same server code, with its own rooms, worlds and Luau VMs, bound on `0.0.0.0`. The client connects to `127.0.0.1` like any other player; friends connect to the host's IP. Closing the game stops and joins that thread. |
-| Standalone (single player) | `client` | No network at all: the ECS `StandalonePlugin` runs server and client systems in one world. |
+| Standalone (single player, the editor) | `client` | No network at all: the `replication::standalone::StandalonePlugin` runs server and client systems in one world, as a server with one local client (see [Standalone](#standalone-a-server-with-one-local-client)). |
 
 The listen server runs in a thread rather than a child process: there is no executable to locate, no
 per-OS process API (`CreateProcess`, `posix_spawn`), and no orphaned server left running if the client
@@ -759,6 +759,35 @@ something the client did not: another ship that pushed it, a wall, damage that s
 
 **The listen server's own player and standalone mode** have no network delay, so they apply the input directly
 and never reconcile.
+
+### Standalone: a server with one local client
+
+A standalone world (`RunMode::kStandalone`: the editor, single player) is a server with one client, **client 1**, in
+the same world and with no socket, so a networked game written once runs unchanged. The `StandalonePlugin`
+(`src/rtype/replication/standalone/`) adds the `ReplicationPlugin` (the whole vocabulary: components, events, calls,
+the `engine.net` forms) and a `LocalSession` resource, and these systems:
+
+- `net.receive` (PreUpdate) raises `net.ClientConnected { client = 1 }` once, so the server side spawns the player as
+  for a real client, and delivers the packets sent since the last frame.
+- `net.applyInputs` (FixedUpdate, the name of the server's) writes the local input in the `PlayerInput` of the entities
+  `net.Owner` gives to client 1, setting `previousButtons` first, so pressed and released edges are right on the fixed
+  step. The input is read by `rtype.engine.networkInput` (PostUpdate, `engine/NetworkInput`) from the same actions and
+  the same `InputLayout` as a client, and kept in the `LocalSession`.
+- `rtype.replication.localClient` answers `{ connected = true, client = 1 }`.
+- `rtype.net.sendToServer` and `rtype.net.sendToClients` check the packet like the network path (same schema and
+  `parseValues`), encode it, and queue it in the `LocalSession`; `net.receive` decodes it with the same `decodePacket`
+  and raises `net.PacketReceived`, one frame later. A packet to the server has `sender = 1`, one to the clients
+  `sender = 0`; `sendToClients` to a client other than 1 returns false.
+
+**The side rule.** Both sides share one event queue, so `engine.net.received(ctx)` filters by the reading system's side
+(`ctx.side`: `"server"` by default, `"client"` or `"both"`): a server system gets the packets with a `sender` (those
+toward the server), a client system those with `sender = 0`, and a system of both sides gets every one. On the network
+a process only has its own packets, so nothing changes there. Nothing is frozen (packets, input layout) in standalone,
+so a hot reload can declare them again.
+
+Systems of a server and of a client side that touch the same data in one world are ordered server first (the client
+sees what the server did, as over the network) instead of being refused as ambiguous; two systems of the same side
+still need an order.
 
 **Cost.** One `u32` per snapshot, a ring of unconfirmed inputs (64 entries) per client, plus a copy of the predicted components, and the replay of a few
 cheap steps per snapshot.

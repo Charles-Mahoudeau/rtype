@@ -308,6 +308,21 @@ detail::DependencyGraph Schedule::makeGraph() const {
             graph.addEdge(position, resolve(names, entry, "before", target));
         }
     }
+    if (_mode == RunMode::kStandalone) {
+        // Both sides share one world: a server system and a client system that touch the same data are not ambiguous,
+        // the server's runs first, as the client of a network game sees what the server did. A pair the game ordered
+        // itself keeps its order.
+        for (std::size_t server = 0; server < _entries.size(); ++server) {
+            for (std::size_t client = 0; client < _entries.size(); ++client) {
+                const System& first = _entries.at(server).system;
+                const System& second = _entries.at(client).system;
+                if (first.getSide() == Side::kServer && second.getSide() == Side::kClient &&
+                    !graph.reaches(server, client) && !graph.reaches(client, server) && findConflict(first, second)) {
+                    graph.addEdge(server, client);
+                }
+            }
+        }
+    }
     return graph;
 }
 

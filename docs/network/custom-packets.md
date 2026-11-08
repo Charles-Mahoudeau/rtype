@@ -12,8 +12,8 @@ game (`buy`, `set_speed`, a free-form directive...). State still goes down as [r
 | Client → server, commands | A `toServer` packet, `engine.net.sendToServer` | At most 1000 bytes per message (strings up to about 960 bytes) |
 | Server → clients, one-shot | A `toClients` packet, `engine.net.sendToClients` | Same |
 
-State is sent as **snapshots**, unreliably, not as deltas: each one lists the replicated entities that fit in a
-message, **unchanged components included**, and a `spawnOnly` component is listed again too while its entity is alive
+State is sent as **snapshots**, unreliably, not as deltas: each one lists every replicated entity, split over several
+messages of the same tick when it does not fit in one, **unchanged components included**, and a `spawnOnly` component is listed again too while its entity is alive
 (it is not delivered once). So the bandwidth of state grows with entities × component size × `snapshotRate`, whatever
 changes, and a lost snapshot is repaired by the next one. A `spawnOnly` component suits what the client simulates
 itself, not a feed line to receive once: send that as a `toClients` packet.
@@ -71,6 +71,10 @@ engine.ecs.system("game.Rules", {
     end,
 })
 ```
+
+In a standalone world (the editor, single player) packets loop back inside the world: `sendToServer` arrives with
+`sender = 1`, `sendToClients` with `sender = 0` (client 1 is the local player). `engine.net.received(ctx)` gives a
+system only the packets toward its side, from `ctx.side`; a `"both"` system gets every one (design, "Standalone").
 
 `engine.net.sendToClients(ctx, name, values, client?)` sends to every connected client, or to `client` (an id from
 `net.ClientConnected` or a packet's `sender`); it returns `false` when nobody got it: unknown client, no client ready, or

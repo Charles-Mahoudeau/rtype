@@ -382,7 +382,7 @@ class EventsContext {
             return set;
         }
     }
-    auto ctx = luau::Table::create(runtime, 0, 8);
+    auto ctx = luau::Table::create(runtime, 0, 9);
     if (!ctx) {
         return tl::unexpected{std::move(ctx.error())};
     }
@@ -395,6 +395,7 @@ class EventsContext {
              {"resources", luau::Value{std::move(*resourcesHandle)}},
              {"events", luau::Value{*eventsTable}},
              {"call", luau::Value{engineCall.ref()}},
+             {"side", luau::Value{std::string{system.side}}},
          }) {
         if (auto set = ctx->set(name, value); !set) {
             return set;
