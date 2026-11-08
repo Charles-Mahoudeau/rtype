@@ -16,6 +16,7 @@
 #include <functional>
 #include <iterator>
 #include <map>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -137,12 +138,13 @@ std::optional<std::size_t> takeFrameLimit(std::vector<std::string>& args) {
     }
     const std::string value = *(flag + 1);
     std::size_t count = 0;
-    const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), count);
+    const char* const last = std::to_address(value.end());
+    const auto [end, error] = std::from_chars(value.data(), last, count);
 
     if (error == std::errc::result_out_of_range) {
         throw exceptions::RuntimeError(std::format("--ticks is too large: '{}'", value));
     }
-    if (error != std::errc{} || end != value.data() + value.size()) {
+    if (error != std::errc{} || end != last) {
         throw exceptions::RuntimeError(std::format("--ticks needs a number of frames, got '{}'", value));
     }
     args.erase(flag, flag + 2);
