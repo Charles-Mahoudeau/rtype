@@ -21,8 +21,10 @@
 #include "plugin/PluginDeclaration.hpp"
 #include "rtype/core/reload/ReloadOutcome.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
 #include "rtype/luau/CallContext.hpp"
+#include "rtype/luau/Function.hpp"
 #include "rtype/luau/Library.hpp"
 #include "rtype/luau/ModuleLoader.hpp"
 #include "rtype/luau/ModuleSource.hpp"
@@ -31,6 +33,7 @@
 #include "rtype/luau/Table.hpp"
 #include "rtype/luau/ValuePack.hpp"
 #include "system/RuntimeHandle.hpp"
+#include "view/ViewScope.hpp"
 #include "system/SystemRegistration.hpp"
 
 namespace rtype::scripting {
@@ -152,6 +155,12 @@ class RTYPE_SCRIPTING_API ScriptHost {
     /// points): it is ignored until a module requires it.
     void setAdoptsNewFiles(bool adopts) noexcept;
 
+    /// @brief What a console line reaches in the world, set by the tool that runs it.
+    struct ConsoleTarget {
+        ecs::Entity self;      ///< The entity `self` stands for in the line; null or dead: `self` is nil.
+        bool writable{true};   ///< False: the line reads components but cannot write them (a client of a server).
+    };
+
     /// @brief What evaluate() gives back.
     struct Evaluation {
         bool ok{true};     ///< False when the code did not compile or raised an error.
@@ -166,13 +175,25 @@ class RTYPE_SCRIPTING_API ScriptHost {
     /// whole key with `_` for `/`). The tables of the modules are writable while it runs (a module returns its table
     /// frozen), then frozen again. A global it assigns is gone with the line. Scripts run through it as through any
     /// code: an error is returned, never thrown.
+    ///
+    /// It also reaches the components of the entities: `self` is the entity of @p target, `entity(index, generation)`
+    /// or `entity(bits)` another one, and `self.Ship.speed = 3` writes a field in place (see
+    /// console::registerConsoleTypes()). The handles live for the line.
     /// @param source One line of Luau.
+    /// @param target The entity `self` stands for, and whether the line may write components.
     /// @return The outcome. Not ok before the scripts ran.
+    [[nodiscard]] Evaluation evaluate(std::string_view source, const ConsoleTarget& target);
+
+    /// @brief evaluate() with no entity: `self` is nil and components can be written.
     [[nodiscard]] Evaluation evaluate(std::string_view source);
 
     /// @brief Completes the dotted name a console is typing, among the modules, `engine` and the globals.
-    /// @param word The name up to the cursor (`config.pl`, `math.`, `en`).
+    /// @param word The name up to the cursor (`config.pl`, `math.`, `en`, `self.Sh`).
+    /// @param target As for evaluate(): the components of `self` are offered.
     /// @return The whole words that complete it (`config.player`), sorted, at most 64; none when nothing matches.
+    [[nodiscard]] std::vector<std::string> complete(std::string_view word, const ConsoleTarget& target);
+
+    /// @brief complete() with no entity.
     [[nodiscard]] std::vector<std::string> complete(std::string_view word);
 
     /// @param name Name of a component a script declared.
@@ -231,7 +252,8 @@ class RTYPE_SCRIPTING_API ScriptHost {
     };
 
     /// @brief Collects what a console line sees: the loaded modules by name, `modules` and `engine`.
-    [[nodiscard]] luau::Result<ConsoleBindings> consoleBindings(const luau::Table& tools);
+    [[nodiscard]] luau::Result<ConsoleBindings> consoleBindings(const luau::Table& tools, const ConsoleTarget& target,
+                                                                std::optional<luau::Function>& entityFunction);
 
     /// @brief Registers the `App` usertype that `build` receives.
     [[nodiscard]] luau::Result<> registerAppType();
@@ -317,6 +339,7 @@ class RTYPE_SCRIPTING_API ScriptHost {
     bool _adoptsNewFiles{true};                      ///< Whether a new file is a root (see setAdoptsNewFiles()).
     std::vector<std::string> _ownerStack;            ///< The owners to give back when a module ends, innermost last.
     std::unique_ptr<luau::ModuleLoader> _loader;     ///< The module cache; null without a resolver. After `_runtime`.
+    std::shared_ptr<view::ViewScope> _consoleScope{std::make_shared<view::ViewScope>()};  ///< What the handles of a console line are valid against.
     std::optional<luau::Table> _consoleTools;        ///< The console's helpers; none until a console is used.
 };
 }  // namespace rtype::scripting

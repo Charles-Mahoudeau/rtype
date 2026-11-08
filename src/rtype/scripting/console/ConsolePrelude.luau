@@ -88,6 +88,18 @@ local function format(...)
 	return table.concat(parts, ", ")
 end
 
+-- What a dot gives on `value`: a table's entry, or the same on the console's handles (an entity, a component), which
+-- can fail.
+local function child(value, key)
+	if type(value) == "table" then
+		return value[key]
+	end
+	local ok, result = pcall(function()
+		return value[key]
+	end)
+	return if ok then result else nil
+end
+
 -- The names of the entries of `value` that a script can reach with a dot.
 local function namesOf(value)
 	local names = {}
@@ -95,6 +107,16 @@ local function namesOf(value)
 		for key in value do
 			if type(key) == "string" and isIdentifier(key) then
 				table.insert(names, key)
+			end
+		end
+	elseif type(value) == "userdata" then
+		-- The console's handles list their names in `__keys`.
+		local keys = child(value, "__keys")
+		if type(keys) == "table" then
+			for _, key in keys do
+				if type(key) == "string" and isIdentifier(key) then
+					table.insert(names, key)
+				end
 			end
 		end
 	end
@@ -135,8 +157,8 @@ local function complete(roots, word)
 					current = _G[step]
 				end
 				first = false
-			elseif type(current) == "table" then
-				current = current[step]
+			elseif type(current) == "table" or type(current) == "userdata" then
+				current = child(current, step)
 			else
 				return {}
 			end

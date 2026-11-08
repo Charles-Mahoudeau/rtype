@@ -26,6 +26,7 @@
 
 #include "call/EngineCall.hpp"
 #include "commands/ScriptCommands.hpp"
+#include "console/ConsoleTypes.hpp"
 #include "component/ComponentLayout.hpp"
 #include "component/ComponentRegistration.hpp"
 #include "component/DeclarationReader.hpp"
@@ -266,6 +267,9 @@ const component::ComponentLayout* ScriptHost::findComponent(const std::string_vi
 
 luau::Result<> ScriptHost::installEngine(const Options options) {
     if (auto registered = view::registerViewTypes(_runtime); !registered) {
+        return registered;
+    }
+    if (auto registered = console::registerConsoleTypes(_runtime); !registered) {
         return registered;
     }
     if (auto registered = commands::registerCommandsType(_runtime); !registered) {

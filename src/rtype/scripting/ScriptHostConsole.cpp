@@ -12,7 +12,9 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <format>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -22,6 +24,11 @@
 
 #include "ScriptHost.hpp"
 #include "console/ConsolePrelude.hpp"
+#include "console/ConsoleTypes.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
+#include "rtype/ecs/world/World.hpp"
+#include "rtype/luau/CallContext.hpp"
+#include "rtype/luau/Exceptions.hpp"
 #include "rtype/luau/ErrorKind.hpp"
 #include "rtype/luau/Failure.hpp"
 #include "rtype/luau/Function.hpp"
@@ -149,7 +156,9 @@ luau::Result<luau::Table> ScriptHost::consoleTools() {
     return *_consoleTools;
 }
 
-luau::Result<ScriptHost::ConsoleBindings> ScriptHost::consoleBindings(const luau::Table& tools) {
+luau::Result<ScriptHost::ConsoleBindings> ScriptHost::consoleBindings(const luau::Table& tools,
+                                                                      const ConsoleTarget& target,
+                                                                      std::optional<luau::Function>& entityFunction) {
     auto table = luau::Table::create(_runtime);
     auto modules = luau::Table::create(_runtime);
     if (!table || !modules) {
@@ -209,10 +218,59 @@ luau::Result<ScriptHost::ConsoleBindings> ScriptHost::consoleBindings(const luau
     if (auto bound = bind("engine", view->values().front()); !bound) {
         return tl::unexpected{std::move(bound.error())};
     }
+    // The entities: `self`, and `entity(index, generation)` or `entity(bits)` for another.
+    ecs::World& world = _app.getWorld();
+    const console::ConsoleAccess access{.world = &world, .writable = target.writable, .scope = _consoleScope};
+    if (!target.self.isNull() && world.isAlive(target.self)) {
+        auto self = console::makeConsoleEntity(_runtime, access, target.self);
+        if (!self) {
+            return tl::unexpected{std::move(self.error())};
+        }
+        if (auto bound = bind("self", *self); !bound) {
+            return tl::unexpected{std::move(bound.error())};
+        }
+    } else if (auto bound = bind("self", luau::Value{luau::Value::Nil{}}); !bound) {
+        return tl::unexpected{std::move(bound.error())};
+    }
+    entityFunction.emplace(luau::Function::create(_runtime, "entity"));
+    entityFunction->setHandler([this, access](const luau::CallContext& call) {
+        const auto numberAt = [&call](const std::size_t position) -> std::optional<double> {
+            if (position >= call.argCount()) {
+                return std::nullopt;
+            }
+            const auto* number = call.args()[position].tryAs<double>();
+            return number == nullptr ? std::nullopt : std::optional{*number};
+        };
+        const auto first = numberAt(0);
+        const auto second = numberAt(1);
+        if (!first || (call.argCount() > 1 && !second) || call.argCount() > 2 || *first < 0.0) {
+            throw luau::exceptions::RuntimeError{"entity(index, generation) or entity(bits) expects numbers"};
+        }
+        constexpr int kGenerationShift = 32;  // an Entity's bits: the generation over the index
+        const auto bits = static_cast<std::uint64_t>(*first);
+        const ecs::Entity entity = second ? ecs::Entity{static_cast<std::uint32_t>(*first),
+                                                        static_cast<std::uint32_t>(*second)}
+                                          : ecs::Entity{static_cast<std::uint32_t>(bits),
+                                                        static_cast<std::uint32_t>(bits >> kGenerationShift)};
+        if (!access.world->isAlive(entity)) {
+            throw luau::exceptions::RuntimeError{std::format("no entity {}:{} is alive", entity.getIndex(),
+                                                              entity.getGeneration())};
+        }
+        auto made = console::makeConsoleEntity(_runtime, access, entity);
+        if (!made) {
+            throw luau::exceptions::RuntimeError{std::string{made.error().message()}};
+        }
+        luau::ValuePack pack;
+        pack.add(std::move(*made));
+        return pack;
+    });
+    if (auto bound = bind("entity", luau::Value{entityFunction->ref()}); !bound) {
+        return tl::unexpected{std::move(bound.error())};
+    }
     return bindings;
 }
 
-ScriptHost::Evaluation ScriptHost::evaluate(const std::string_view source) {
+ScriptHost::Evaluation ScriptHost::evaluate(const std::string_view source, const ConsoleTarget& target) {
     const auto failure = [](const std::string_view message) {
         return Evaluation{.ok = false, .text = std::string{message}};
     };
@@ -220,7 +278,8 @@ ScriptHost::Evaluation ScriptHost::evaluate(const std::string_view source) {
     if (!tools) {
         return failure(tools.error().message());
     }
-    auto bindings = consoleBindings(*tools);
+    std::optional<luau::Function> entityFunction;
+    auto bindings = consoleBindings(*tools, target, entityFunction);
     if (!bindings) {
         return failure(bindings.error().message());
     }
@@ -264,6 +323,7 @@ ScriptHost::Evaluation ScriptHost::evaluate(const std::string_view source) {
     for (luau::Table& table : unfrozen) {
         std::ignore = table.freeze();
     }
+    ++_consoleScope->generation;  // the handles the line made are over
 
     if (!returned) {
         return failure(returned.error().message());
@@ -277,12 +337,17 @@ ScriptHost::Evaluation ScriptHost::evaluate(const std::string_view source) {
     return Evaluation{.ok = true, .text = std::move(text)};
 }
 
-std::vector<std::string> ScriptHost::complete(const std::string_view word) {
+ScriptHost::Evaluation ScriptHost::evaluate(const std::string_view source) { return evaluate(source, ConsoleTarget{}); }
+
+std::vector<std::string> ScriptHost::complete(const std::string_view word) { return complete(word, ConsoleTarget{}); }
+
+std::vector<std::string> ScriptHost::complete(const std::string_view word, const ConsoleTarget& target) {
     auto tools = consoleTools();
     if (!tools) {
         return {};
     }
-    auto bindings = consoleBindings(*tools);
+    std::optional<luau::Function> entityFunction;
+    auto bindings = consoleBindings(*tools, target, entityFunction);
     if (!bindings) {
         return {};
     }
@@ -294,6 +359,7 @@ std::vector<std::string> ScriptHost::complete(const std::string_view word) {
         return {};
     }
     const auto returned = function->call(arguments);
+    ++_consoleScope->generation;
     if (!returned || returned->size() != 1) {
         return {};
     }
