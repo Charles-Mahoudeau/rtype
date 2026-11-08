@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <cstddef>
 #include <cstdlib>
 #include <format>
@@ -19,12 +20,15 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
+#include <vector>
 
 #include "rtype/engine/Exceptions.hpp"
 
 namespace {
 constexpr std::string_view kFlagPrefix = "--";
+constexpr std::string_view kTicksFlag = "--ticks";  ///< The runtime flag of takeFrameLimit().
 
 /// @return Whether @p argument names a flag (`--name`), rather than being a value (`-3` and `-` are values).
 bool isFlag(const std::string_view argument) { return argument.starts_with(kFlagPrefix); }
@@ -121,5 +125,30 @@ CommandLine::Value CommandLine::toValue(const std::string_view text) {
         return std::strtod(number.c_str(), nullptr);
     }
     return std::string{text};
+}
+
+std::optional<std::size_t> takeFrameLimit(std::vector<std::string>& args) {
+    const auto flag = std::ranges::find(args, kTicksFlag);
+    if (flag == args.end()) {
+        return std::nullopt;
+    }
+    if (flag + 1 == args.end()) {
+        throw exceptions::RuntimeError("--ticks needs a number of frames");
+    }
+    const std::string value = *(flag + 1);
+    std::size_t count = 0;
+    const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), count);
+
+    if (error == std::errc::result_out_of_range) {
+        throw exceptions::RuntimeError(std::format("--ticks is too large: '{}'", value));
+    }
+    if (error != std::errc{} || end != value.data() + value.size()) {
+        throw exceptions::RuntimeError(std::format("--ticks needs a number of frames, got '{}'", value));
+    }
+    args.erase(flag, flag + 2);
+    if (std::ranges::find(args, kTicksFlag) != args.end()) {
+        throw exceptions::RuntimeError("--ticks is given more than once");
+    }
+    return count;
 }
 }  // namespace rtype::engine

@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <functional>
 #include <map>
 #include <optional>
@@ -14,6 +15,7 @@
 #include <string>
 #include <string_view>
 #include <variant>
+#include <vector>
 
 #include "Export.hpp"
 
@@ -63,4 +65,13 @@ class RTYPE_ENGINE_API CommandLine {
   private:
     std::map<std::string, std::string, std::less<>> _flags;  ///< The text of each flag, by name.
 };
+
+/// @brief Takes `--ticks <n>` out of @p args: the runtime's frame limit for a test run.
+///
+/// @details The limit counts frames, not fixed-timestep ticks: a frame runs `FixedUpdate` zero or several times.
+/// @param args The arguments, without the program name; the flag and its value are removed.
+/// @return The frame count, or nothing when the flag is absent.
+/// @throws exceptions::RuntimeError If the value is missing, is not a whole number that fits a `std::size_t`, or the
+/// flag is given more than once.
+[[nodiscard]] RTYPE_ENGINE_API std::optional<std::size_t> takeFrameLimit(std::vector<std::string>& args);
 }  // namespace rtype::engine
