@@ -38,6 +38,7 @@ An `.actor` named there opens alone (see below).
 | **Particles** | Your particle effects, to tune and preview |
 | **Console** | What your game writes: your scripts' `print`, the engine's errors and warnings |
 | **Stats** | The frame rate, the last frame times, and what the frame drew |
+| **Plugins** | The plugins your game loaded, in build order, each with its kind (engine or game), the plugins it needs and those that need it; a filter; and the plugins available but not loaded |
 
 Drag a panel by its tab to dock it elsewhere. The editor remembers where they are, and **View**, **Reset layout** docks
 them as they were the first time. **File**, **Save scene** (Ctrl+S) saves the scene; **File**, **Quit** closes the editor.

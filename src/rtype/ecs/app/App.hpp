@@ -85,6 +85,10 @@ class RTYPE_ECS_API App {
     /// @return Whether a plugin with this name was added.
     [[nodiscard]] bool hasPlugin(std::string_view name) const noexcept;
 
+    /// @return Every plugin added, in the order they were recorded (a plugin's dependencies come before it). The
+    /// pointers stay valid until the App is destroyed.
+    [[nodiscard]] std::vector<const Plugin*> getPlugins() const;
+
     /// @brief Makes a system of a function (or a lambda without captures) and adds it to a phase
     /// (Schedules::addSystem()).
     /// @param configs The configurations of its configured parameters (see SystemParam), if any.

@@ -2,7 +2,7 @@ target("plugins-tests")
     set_kind("binary")
     set_default(false)
     set_group("tests")
-    add_deps("plugin-capsule", "plugin-ui", "plugin-transform", "plugin-input", "plugin-graphics", "plugin-shader", "plugin-sprite", "plugin-shape", "plugin-tilemap", "plugin-text", "plugin-particle", "plugin-audio", "plugin-physics", "plugin-physics-debug", "plugin-http", "editor")
+    add_deps("plugin-capsule", "plugin-ui", "plugin-transform", "plugin-input", "plugin-graphics", "plugin-shader", "plugin-sprite", "plugin-shape", "plugin-tilemap", "plugin-text", "plugin-particle", "plugin-audio", "plugin-physics", "plugin-physics-debug", "plugin-http", "plugin-persistence", "editor")
     add_files("*.cpp", "../main.cpp")
     add_packages("gtest")
     -- LocalHttpServer.hpp: a plain HTTP server for the http plugin's tests, so none reaches the internet.

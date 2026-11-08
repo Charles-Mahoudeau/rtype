@@ -44,7 +44,7 @@ A program of its own, not a feature of a game and not a mode of the runtime. Gam
 | `panels/` | The panels, `FieldEditor` (the widgets of a reflected value, the drag-and-drop of assets) and `WorldView` |
 
 `play/`, `scene/`, `console/` and `shell/` include no ImGui: the tests (`tests/plugins/EditorPlaySessionTests.cpp`,
-`EditorSceneEditTests.cpp`, `EditorIsolationTests.cpp`, `EditorConsoleTests.cpp`) drive them without a window.
+`EditorSceneEditTests.cpp`, `EditorIsolationTests.cpp`, `EditorConsoleTests.cpp`, `EditorPluginInfoTests.cpp`) drive them without a window.
 
 ## How it reaches the screen and the window
 
@@ -205,6 +205,7 @@ background (`shell::buildOpenCommand()`): Visual Studio Code by default, through
 | Console | `panels/ConsolePanel.cpp` | The program's output: filters by kind (info, warnings, errors) and by text, Clear, right-click to copy a line, follows new lines unless scrolled up |
 | Particles | `panels/ParticlesPanel.cpp` | The effects of `ParticleEffectAssets`: edit the spawning, each particle and the forces, preview at the middle of the view, Copy as Luau |
 | Stats | `panels/StatsPanel.cpp` | `io.Framerate`, the plot of the last frame times, `getFrameStats()` |
+| Plugins | `panels/PluginsPanel.cpp` | The plugins added to the App (`App::getPlugins()`), in the order recorded: kind (engine for an `rtype.` name, else game), requires, required by, a name filter, and the registered plugins not added. The data is gathered by `collectPlugins()` (`panels/PluginInfo.cpp`), without ImGui |
 
 `FieldEditor::editFields()` shows a reflected value field by field (`TypeInfo::fields`). It works on a byte copy of the
 value, which shares what the value owns (a list's elements): only plain fields are changed in it, and the caller writes

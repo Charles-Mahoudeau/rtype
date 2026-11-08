@@ -128,12 +128,13 @@ void drawViewMenu(EditorState& state) {
         ImGui::MenuItem("Stats", nullptr, &state.showStats);
         ImGui::MenuItem("Particles", nullptr, &state.showParticles);
         ImGui::MenuItem("Console", nullptr, &state.showConsole);
+        ImGui::MenuItem("Plugins", nullptr, &state.showPlugins);
         ImGui::MenuItem("Server", nullptr, &state.showServer);
         ImGui::Separator();
         if (ImGui::MenuItem("Reset layout")) {
             state.resetLayout = true;
             state.showGame = state.showHierarchy = state.showInspector = state.showAssets = state.showStats = true;
-            state.showParticles = state.showConsole = state.showServer = true;
+            state.showParticles = state.showConsole = state.showPlugins = state.showServer = true;
         }
         ImGui::EndMenu();
     }
