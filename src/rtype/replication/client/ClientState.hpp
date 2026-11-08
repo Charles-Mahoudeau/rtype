@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <bitset>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -151,7 +152,9 @@ class RTYPE_REPLICATION_API ClientState {
     /// @param commands Where the changes to the world are recorded.
     void handle(const network::client::ClientEvent& clientEvent, input::InputLayout& inputs, ecs::Commands& commands);
 
-    /// @brief Applies a snapshot, all or nothing, if it is newer than the last one applied.
+    /// @brief Applies a snapshot, all or nothing, if it is newer than the last one applied. A part (snapshot::kPart)
+    /// is applied when it is of a newer tick, or of the last tick and not applied yet; once every part of a complete
+    /// snapshot is in, the entities none of them listed are removed.
     /// @param message The bytes of the message, starting with the message type.
     /// @param commands Where the changes to the world are recorded.
     /// @return Whether the snapshot was applied; a dropped one leaves the world and the state as they were.
@@ -208,9 +211,18 @@ class RTYPE_REPLICATION_API ClientState {
     /// @brief Records the despawn of the entities the snapshot lists, and forgets them.
     void despawnEntities(const snapshot::Snapshot& decoded, ecs::Commands& commands);
 
-    /// @brief Of a complete snapshot: records the despawn of the entities it does not list and the removal of their
-    /// components it does not list.
-    void removeUnlisted(const snapshot::Snapshot& decoded, const manifest::Manifest& manifest, ecs::Commands& commands);
+    /// @brief Tells whether a part (snapshot::kPart) may be applied: of a newer tick than the last snapshot applied, or
+    /// of the same tick, of as many parts, and not applied yet.
+    [[nodiscard]] bool acceptsPart(const snapshot::Snapshot& decoded) const;
+
+    /// @brief Of a complete snapshot, or of a part of one: records the removal of the components its records do not
+    /// list, since a record lists all of its entity's.
+    void removeUnlistedComponents(const snapshot::Snapshot& decoded, const manifest::Manifest& manifest,
+                                  ecs::Commands& commands) const;
+
+    /// @brief Of a complete snapshot, once all of it is in: records the despawn of the entities it does not list, and
+    /// forgets them.
+    void removeUnlistedEntities(const std::unordered_set<std::uint32_t>& listed, ecs::Commands& commands);
 
     network::io::Address _server;                                ///< The server's address.
     network::NetworkSettings _settings;                          ///< The transport settings.
@@ -230,6 +242,10 @@ class RTYPE_REPLICATION_API ClientState {
     std::unordered_set<ecs::Entity> _reserved;                   ///< Entities spawned by commands not flushed yet.
     std::uint32_t _lastAppliedTick{0};                           ///< The tick of the last snapshot applied.
     std::uint32_t _lastProcessedInput{0};                        ///< From the last snapshot applied.
+    std::uint32_t _partTick{0};                                  ///< The tick of the parts being put together.
+    std::uint8_t _partCount{0};                                  ///< How many parts that tick has.
+    std::bitset<snapshot::kMaxParts> _partsSeen;                 ///< The parts of that tick already applied.
+    std::unordered_set<std::uint32_t> _partListed;               ///< The NetworkIds those parts listed.
     std::uint32_t _nextInputSequence{1};                         ///< The sequence of the next input sent.
     std::optional<component::PlayerInput> _input;                ///< The game's input for the frame.
     std::deque<input::InputSample> _recentInputs;                ///< The last three, oldest first.

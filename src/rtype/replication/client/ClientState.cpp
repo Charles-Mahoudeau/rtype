@@ -354,12 +354,15 @@ void ClientState::despawnEntities(const snapshot::Snapshot& decoded, ecs::Comman
     }
 }
 
-void ClientState::removeUnlisted(const snapshot::Snapshot& decoded, const manifest::Manifest& manifest,
-                                 ecs::Commands& commands) {
-    std::unordered_set<std::uint32_t> listed;
-    for (const snapshot::SpawnRecord& record : decoded.spawns) {
-        listed.insert(record.networkId);
+bool ClientState::acceptsPart(const snapshot::Snapshot& decoded) const {
+    if (decoded.tick > _lastAppliedTick) {
+        return true;
     }
+    return decoded.tick == _lastAppliedTick && decoded.tick == _partTick && decoded.partCount == _partCount &&
+           !_partsSeen.test(decoded.part);
+}
+
+void ClientState::removeUnlistedEntities(const std::unordered_set<std::uint32_t>& listed, ecs::Commands& commands) {
     for (auto entity = _entities.begin(); entity != _entities.end();) {
         if (listed.contains(entity->first)) {
             ++entity;
@@ -368,6 +371,10 @@ void ClientState::removeUnlisted(const snapshot::Snapshot& decoded, const manife
         commands.despawn(entity->second);
         entity = _entities.erase(entity);
     }
+}
+
+void ClientState::removeUnlistedComponents(const snapshot::Snapshot& decoded, const manifest::Manifest& manifest,
+                                           ecs::Commands& commands) const {
     const std::span<const ecs::ComponentId> replicated = manifest.components();
     for (const snapshot::SpawnRecord& record : decoded.spawns) {
         const ecs::Entity entity = find(record.networkId);
@@ -394,7 +401,8 @@ bool ClientState::applySnapshot(const std::span<const std::byte> message, ecs::C
         ++_dropped;
         return false;
     }
-    if (decoded->tick <= _lastAppliedTick) {
+    const bool isPart = (decoded->flags & snapshot::kPart) != 0;
+    if (isPart ? !acceptsPart(*decoded) : decoded->tick <= _lastAppliedTick) {
         ++_stale;
         return false;
     }
@@ -412,8 +420,26 @@ bool ClientState::applySnapshot(const std::span<const std::byte> message, ecs::C
     }
     removeComponents(*decoded, manifest, commands);
     despawnEntities(*decoded, commands);
-    if ((decoded->flags & snapshot::kComplete) != 0) {
-        removeUnlisted(*decoded, manifest, commands);
+    const bool complete = (decoded->flags & snapshot::kComplete) != 0;
+    if (isPart) {
+        if (decoded->tick != _partTick) {  // the first part of a newer tick: the older one's are given up
+            _partTick = decoded->tick;
+            _partCount = decoded->partCount;
+            _partsSeen.reset();
+            _partListed.clear();
+        }
+        _partsSeen.set(decoded->part);
+    }
+    if (complete) {
+        removeUnlistedComponents(*decoded, manifest, commands);
+        std::unordered_set<std::uint32_t> single;
+        std::unordered_set<std::uint32_t>& listed = isPart ? _partListed : single;
+        for (const snapshot::SpawnRecord& record : decoded->spawns) {
+            listed.insert(record.networkId);
+        }
+        if (!isPart || _partsSeen.count() == _partCount) {
+            removeUnlistedEntities(listed, commands);
+        }
     }
 
     _lastAppliedTick = decoded->tick;
