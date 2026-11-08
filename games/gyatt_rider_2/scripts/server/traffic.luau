@@ -7,15 +7,16 @@ local Game = require("@scripts/shared/rules")
 -- from the road's middle: a vehicle in the middle, a cyclist on any of the three. A cyclist may carry a boost.
 local middle = { 0 }
 local anyTile = { -1, 0, 1 }
+local vehicleSpawnFactor = 1.3
+local cyclistSpawnFactor = 1.5
 local kinds = {
-	{ capsule = "actors/car.actor", weight = 6, tiles = middle },
-	{ capsule = "actors/electric_car.actor", weight = 3, tiles = middle },
-	{ capsule = "actors/van.actor", weight = 3, tiles = middle },
-	{ capsule = "actors/truck.actor", weight = 2, tiles = middle },
-	{ capsule = "actors/bus.actor", weight = 1, tiles = middle },
-	{ capsule = "actors/limousine.actor", weight = 1, tiles = middle },
-	-- 8.25 of 24.25: a third of the arrivals, 1.7 times the share a weight of 4 had (4 of 20).
-	{ capsule = "actors/cyclist.actor", weight = 8.25, tiles = anyTile, cyclist = true },
+	{ capsule = "actors/car.actor", weight = 6 * vehicleSpawnFactor, tiles = middle },
+	{ capsule = "actors/electric_car.actor", weight = 3 * vehicleSpawnFactor, tiles = middle },
+	{ capsule = "actors/van.actor", weight = 3 * vehicleSpawnFactor, tiles = middle },
+	{ capsule = "actors/truck.actor", weight = 2 * vehicleSpawnFactor, tiles = middle },
+	{ capsule = "actors/bus.actor", weight = 1 * vehicleSpawnFactor, tiles = middle },
+	{ capsule = "actors/limousine.actor", weight = 1 * vehicleSpawnFactor, tiles = middle },
+	{ capsule = "actors/cyclist.actor", weight = 8.25 * cyclistSpawnFactor, tiles = anyTile, cyclist = true },
 }
 local totalWeight = 0
 for _, kind in kinds do
