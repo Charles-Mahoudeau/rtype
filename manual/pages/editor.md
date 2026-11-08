@@ -190,6 +190,10 @@ has it. If two components share the last part, the one the entity has settles it
 fails and lists the whole names to write. A component the entity does not have gives `nil`; a name no component has is an
 error, and so is a field the component does not have, or a value of the wrong type.
 
+A `vec2` or `vec4` field gives a handle, so you can write one part: `self.Transform.position.x = 0`. To move it whole,
+write a table: `self.Transform.position = { x = 0, y = 0 }`. A `vec3` is a Luau `vector`, which cannot be changed
+in place: write the whole value.
+
 The handles live for the line that made them: keep a number, not `self.Ship`, for the next line. The Console only
 reads while you play online: the editor is then a client, and a client never writes replicated data.
 
