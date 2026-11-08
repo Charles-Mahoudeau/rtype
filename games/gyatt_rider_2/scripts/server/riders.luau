@@ -4,13 +4,15 @@
 local Game = require("@scripts/shared/rules")
 local Boosts = require("@scripts/server/boosts")
 
--- FixedUpdate, after the inputs of the tick are applied and before the Transforms drive the bodies.
+-- FixedUpdate, after the inputs of the tick are applied and before the Transforms drive the bodies. The position is
+-- read, and patched only when the rider moved: a system that goes through a component in `write` marks it changed,
+-- which sends it every tick.
 engine.ecs.system("game.MoveRiders", {
 	phase = "FixedUpdate",
 	side = "server",
 	query = {
-		read = { "game.Boosts" },
-		write = { "game.Position", "rtype.Transform" },
+		read = { "game.Boosts", "game.Position" },
+		write = { "rtype.Transform" },
 		with = { "game.Rider", "net.PlayerInput" },
 	},
 	calls = { "rtype.replication.readInput" },
@@ -31,12 +33,11 @@ engine.ecs.system("game.MoveRiders", {
 				x = math.clamp(current.value.x + move.x * step, Game.roadsLeft + halfX, Game.roadsRight - halfX),
 				y = math.clamp(current.value.y - move.y * step, halfY, Game.viewHeight - halfY),
 			}
-			-- A write marks the position changed, which sends it to the clients: only a rider that moved is written.
 			if position.x == current.value.x and position.y == current.value.y then
 				continue
 			end
 			transform.position = position
-			current.value = position
+			ctx.commands:patch(entity, "game.Position", { value = position })
 		end
 	end,
 })

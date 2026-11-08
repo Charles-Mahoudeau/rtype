@@ -4,20 +4,22 @@
 
 local Game = require("@scripts/shared/rules")
 
--- FixedUpdate, before this tick's hits are resolved: a shield whose time is out turns off.
+-- FixedUpdate, before this tick's hits are resolved: a shield whose time is out turns off. The shield is read, and
+-- patched only when it turns off: a system that goes through a component in `write` marks it changed, which sends it
+-- every tick.
 engine.ecs.system("game.LowerShields", {
 	phase = "FixedUpdate",
 	side = "server",
-	query = { write = { "game.Shield", "game.ShieldClock" }, with = { "game.Rider" } },
+	query = { read = { "game.Shield" }, write = { "game.ShieldClock" }, with = { "game.Rider" } },
 	before = { "game.ResolveRiderHits" },
 	run = function(ctx)
-		for _, shield, clock in ctx.query do
+		for entity, shield, clock in ctx.query do
 			if not shield.active then
 				continue
 			end
 			clock.remaining -= ctx.time.fixedDelta
 			if clock.remaining <= 0 then
-				shield.active = false -- written only when it turns off
+				ctx.commands:patch(entity, "game.Shield", { active = false })
 			end
 		end
 	end,

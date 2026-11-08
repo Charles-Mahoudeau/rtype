@@ -143,6 +143,9 @@ engine.ecs.component("game.Cyclist", { fields = { boost = "u8" }, replication = 
 -- A text of the HUD (client/hud.luau), client only: what it shows (its role) and, for a score, whose (its slot).
 engine.ecs.component("game.HudText", { fields = { role = "u8", slot = "u8" }, presence = "clientOnly" })
 
+-- A square of a shot's beam (client/beams.luau), client only: the seconds it is still shown.
+engine.ecs.component("game.BeamSquare", { fields = { remaining = "f32" }, presence = "clientOnly" })
+
 -- The race's gauge (client/gauge.luau), client only: its orange part, and the dot of a cyclist.
 engine.ecs.component("game.GaugeFill", { fields = {}, presence = "clientOnly" })
 engine.ecs.component("game.GaugeDot", { fields = { cyclist = "entity" }, presence = "clientOnly" })

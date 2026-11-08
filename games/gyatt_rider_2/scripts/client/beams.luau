@@ -1,5 +1,7 @@
 -- The shots' beams: a row of white squares from the shooter to what the shot hit, far back under the traffic and the
--- riders. The squares are children of the beam: the server removes the beam, and its squares go with it.
+-- riders. The squares are children of the beam, so they leave with it, and they also leave on their own after
+-- Game.beamLifetime: the server can remove a beam before the client confirmed it, and the client then never hears of
+-- it (engine issue).
 
 local Game = require("@scripts/shared/rules")
 local assets = require("@scripts/client/assets")
@@ -19,6 +21,7 @@ engine.ecs.system("game.DrawBeams", {
 			for index = 0, math.max(1, math.round(length / size)) - 1 do
 				local offset = (index + 0.5) * size -- along the beam, from its start: the square's middle
 				local square = ctx.commands:spawn({
+					["game.BeamSquare"] = { remaining = Game.beamLifetime },
 					["rtype.Transform"] = { position = { x = direction.x * offset, y = direction.y * offset } },
 					["rtype.SpriteRenderer"] = {
 						texture = assets.beam,
@@ -28,6 +31,21 @@ engine.ecs.system("game.DrawBeams", {
 					},
 				})
 				ctx.commands:setParent(square, entity)
+			end
+		end
+	end,
+})
+
+-- Update: a square leaves once it was shown for Game.beamLifetime.
+engine.ecs.system("game.FadeBeams", {
+	phase = "Update",
+	side = "client",
+	query = { write = { "game.BeamSquare" } },
+	run = function(ctx)
+		for entity, square in ctx.query do
+			square.remaining -= ctx.time.delta
+			if square.remaining <= 0 then
+				ctx.commands:despawn(entity)
 			end
 		end
 	end,

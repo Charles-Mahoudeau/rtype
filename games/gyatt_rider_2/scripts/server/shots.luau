@@ -67,19 +67,20 @@ local function crosses(from, to, at, size): boolean
 end
 
 -- FixedUpdate, once the physics stepped, so that the ray meets the scene of this tick: a rider whose gun is ready
--- fires the way its arrows point, and pays Game.shotCost while the match races.
+-- fires the way its arrows point, and pays Game.shotCost while the match races. The score is read, and patched only
+-- when a shot costs: a system that goes through a component in `write` marks it changed, which sends it every tick.
 engine.ecs.system("game.Fire", {
 	phase = "FixedUpdate",
 	side = "server",
 	query = {
-		read = { "game.Rider", "game.Position", "game.Boosts" },
-		write = { "game.Gun", "game.Score" },
+		read = { "game.Rider", "game.Position", "game.Boosts", "game.Score" },
+		write = { "game.Gun" },
 		with = { "net.PlayerInput" },
 	},
 	calls = { "rtype.replication.readInput", "rtype.physics.raycast" },
 	after = { "net.applyInputs", "rtype.Physics.Events" },
 	run = function(ctx)
-		for entity, rider, position, boosts, gun, score in ctx.query do
+		for entity, rider, position, boosts, score, gun in ctx.query do
 			if gun.cooldown > 0 then
 				gun.cooldown = math.max(0, gun.cooldown - ctx.time.fixedDelta)
 				continue
@@ -91,7 +92,7 @@ engine.ecs.system("game.Fire", {
 			end
 			gun.cooldown = Game.fireCooldown
 			if Match.racing() and score.points > 0 then
-				score.points = math.max(0, score.points - Game.shotCost)
+				ctx.commands:patch(entity, "game.Score", { points = math.max(0, score.points - Game.shotCost) })
 			end
 			local from = position.value
 			local reach = reachToEdge(from, direction)
