@@ -26,9 +26,8 @@
 namespace rtype::editor::panels {
 
 namespace {
-constexpr float kModeWidth = 130.0F;      ///< Width of the Standalone / Online choice, in pixels.
-constexpr float kMenuBarMarginX = 10.0F;  ///< Space left of the first menu of the menu bar, in pixels.
-constexpr float kGroupGap = 20.0F;        ///< Space between the groups of the toolbar, in pixels.
+constexpr float kModeWidth = 130.0F;  ///< Width of the Standalone / Online choice, in pixels.
+constexpr float kMenuGap = 4.0F;      ///< Space between a menu button and its popup, in pixels.
 
 // Nerd Font icons (Font Awesome, UTF-8 bytes of U+F04B, U+F04C, U+F04D, U+F051), spelled out so the file does not
 // depend on the compiler's source charset.
@@ -137,24 +136,48 @@ void drawPlayButtons(EditorState& state) {
         state.status = error ? *error : std::string{"Stopped: back to the scene"};
     }
 }
-void drawViewMenu(EditorState& state) {
-    if (ImGui::BeginMenu("View")) {
-        ImGui::MenuItem("Game", nullptr, &state.showGame);
-        ImGui::MenuItem("Hierarchy", nullptr, &state.showHierarchy);
-        ImGui::MenuItem("Inspector", nullptr, &state.showInspector);
-        ImGui::MenuItem("Assets", nullptr, &state.showAssets);
-        ImGui::MenuItem("Stats", nullptr, &state.showStats);
-        ImGui::MenuItem("Particles", nullptr, &state.showParticles);
-        ImGui::MenuItem("Console", nullptr, &state.showConsole);
-        ImGui::MenuItem("Plugins", nullptr, &state.showPlugins);
-        ImGui::MenuItem("Server", nullptr, &state.showServer);
-        ImGui::Separator();
-        if (ImGui::MenuItem("Reset layout")) {
-            state.resetLayout = true;
-            state.showGame = state.showHierarchy = state.showInspector = state.showAssets = state.showStats = true;
-            state.showParticles = state.showConsole = state.showPlugins = state.showServer = true;
-        }
-        ImGui::EndMenu();
+
+/// @brief The items of the View menu: which panels are shown, and the layout.
+void drawViewMenuItems(EditorState& state) {
+    ImGui::MenuItem("Game", nullptr, &state.showGame);
+    ImGui::MenuItem("Hierarchy", nullptr, &state.showHierarchy);
+    ImGui::MenuItem("Inspector", nullptr, &state.showInspector);
+    ImGui::MenuItem("Assets", nullptr, &state.showAssets);
+    ImGui::MenuItem("Stats", nullptr, &state.showStats);
+    ImGui::MenuItem("Particles", nullptr, &state.showParticles);
+    ImGui::MenuItem("Console", nullptr, &state.showConsole);
+    ImGui::MenuItem("Plugins", nullptr, &state.showPlugins);
+    ImGui::MenuItem("Server", nullptr, &state.showServer);
+    ImGui::Separator();
+    if (ImGui::MenuItem("Reset layout")) {
+        state.resetLayout = true;
+        state.showGame = state.showHierarchy = state.showInspector = state.showAssets = state.showStats = true;
+        state.showParticles = state.showConsole = state.showPlugins = state.showServer = true;
+    }
+}
+
+/// @brief The items of the File menu.
+void drawFileMenuItems(EditorState& state, contract::platform::IPlatform& platform) {
+    if (ImGui::MenuItem("Save", "Ctrl+S", false, state.getEdited().has_value())) {
+        saveScene(state);
+    }
+    ImGui::Separator();
+    if (ImGui::MenuItem("Quit")) {
+        platform.close();
+    }
+}
+
+/// @brief A menu of the toolbar: a flat button that opens a popup of items under it. While another menu is open,
+/// hovering this one opens it instead, as in a menu bar.
+template <typename Items>
+void drawMenu(const char* label, const char* popup, const char* other, Items items) {
+    if (gui::flatButton(label) || (ImGui::IsItemHovered() && ImGui::IsPopupOpen(other))) {
+        ImGui::OpenPopup(popup);
+    }
+    ImGui::SetNextWindowPos(ImVec2{ImGui::GetItemRectMin().x, ImGui::GetItemRectMax().y + kMenuGap});
+    if (ImGui::BeginPopup(popup)) {
+        items();
+        ImGui::EndPopup();
     }
 }
 
@@ -182,47 +205,38 @@ gui::Tone modeTone(const EditorState& state) {
     return state.session->online.isActive() ? gui::Tone::kOnline : gui::Tone::kSuccess;
 }
 
-/// @brief The mode selector, the play controls, the mode chip and the messages, in a row.
-void drawToolbarItems(EditorState& state) {
-    drawModeSelector(state);
-    ImGui::SameLine(0.0F, kGroupGap);
-    drawPlayButtons(state);
-    ImGui::SameLine(0.0F, kGroupGap);
+/// @brief The mode chip and the messages: what the editor is doing.
+void drawStatus(const EditorState& state) {
     gui::chip(modeText(state), modeTone(state));
-    ImGui::AlignTextToFramePadding();
     if (const std::string& problem = state.session->online.message(); !problem.empty()) {
-        ImGui::SameLine(0.0F, kGroupGap);
+        ImGui::SameLine();
+        ImGui::AlignTextToFramePadding();
         gui::textTone(problem, gui::Tone::kDanger);
     }
     if (!state.status.empty()) {
-        ImGui::SameLine(0.0F, kGroupGap);
+        ImGui::SameLine();
         ImGui::AlignTextToFramePadding();
         gui::textDisabled(state.status);
     }
 }
 
-void drawMenuBar(EditorState& state, contract::platform::IPlatform& platform) {
-    // The first menu is placed by the safe-area padding: widen it for the duration of the bar, for a left margin.
-    ImGuiStyle& style = ImGui::GetStyle();
-    const ImVec2 safeArea = style.DisplaySafeAreaPadding;
-    style.DisplaySafeAreaPadding.x = kMenuBarMarginX;
-    const bool visible = ImGui::BeginMainMenuBar();
-    style.DisplaySafeAreaPadding = safeArea;
-    if (!visible) {
-        return;
-    }
-    if (ImGui::BeginMenu("File")) {
-        if (ImGui::MenuItem("Save", "Ctrl+S", false, state.getEdited().has_value())) {
-            saveScene(state);
-        }
-        ImGui::Separator();
-        if (ImGui::MenuItem("Quit")) {
-            platform.close();
-        }
-        ImGui::EndMenu();
-    }
-    drawViewMenu(state);
-    ImGui::EndMainMenuBar();
+/// @brief The toolbar's row: the menus on the left, the status in the center, the play controls on the right.
+void drawToolbarItems(EditorState& state, contract::platform::IPlatform& platform) {
+    gui::beginToolbarGroup("menus", 0.0F);
+    drawMenu("File", "##fileMenu", "##viewMenu", [&] { drawFileMenuItems(state, platform); });
+    ImGui::SameLine();
+    drawMenu("View", "##viewMenu", "##fileMenu", [&] { drawViewMenuItems(state); });
+    gui::endToolbarGroup();
+
+    gui::beginToolbarGroup("status", 0.5F);
+    drawStatus(state);
+    gui::endToolbarGroup();
+
+    gui::beginToolbarGroup("play", 1.0F);
+    drawModeSelector(state);
+    ImGui::SameLine();
+    drawPlayButtons(state);
+    gui::endToolbarGroup();
 }
 
 }  // namespace
@@ -231,9 +245,8 @@ void drawToolbar(EditorState& state, contract::platform::IPlatform& platform) {
     if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S, ImGuiInputFlags_RouteGlobal)) {
         saveScene(state);
     }
-    drawMenuBar(state, platform);
     if (gui::beginToolbar("##toolbar")) {
-        drawToolbarItems(state);
+        drawToolbarItems(state, platform);
     }
     gui::endToolbar();
 }
