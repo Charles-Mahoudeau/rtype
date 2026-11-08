@@ -232,7 +232,6 @@ void drawPathBar(EditorState& state) {
     if (ImGui::SmallButton(toUtf8(U'').c_str()) && !state.assetFolder.empty()) {
         enter(state, std::filesystem::path{state.assetFolder}.parent_path().generic_string());
     }
-    gui::tooltip("Up one folder");
     ImGui::SameLine();
     std::optional<std::string> target;
     bool first = true;
