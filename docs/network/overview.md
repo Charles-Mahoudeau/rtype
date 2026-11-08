@@ -163,7 +163,8 @@ A snapshot holds four lists:
 | Despawns | Entities destroyed |
 
 Spawns and despawns are **in the snapshot**, not on the reliable channel: one lost bullet spawn never delays
-anything else. If a snapshot would be too big, what does not fit simply goes in the next one.
+anything else. If a snapshot would be too big, what does not fit simply goes in the next one. (Until deltas land, every
+snapshot lists every entity: one too big for a message is split into parts of the same tick.)
 
 **Bullets** are `kSpawnOnly`: sent once when they appear, then moved by the same system on both sides. With
 positions packed into 16-bit integers, a steady-state snapshot of 300 entities fits in one datagram instead of

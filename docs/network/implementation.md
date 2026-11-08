@@ -291,7 +291,10 @@ To report in `design.md` when the matching task lands (the task says so in its c
 1. **Snapshot `flags` byte.** The snapshot layout gets a `u8 flags` right after `last processed input`. Bit 0,
    `kComplete`, means "this snapshot lists every replicated entity of the room, with all its replicated
    components": the client despawns every replicated entity it knows that is absent, and removes every replicated
-   component absent from a listed entity. The M1 server sets it whenever everything fits in one snapshot. From M2
+   component absent from a listed entity. The M1 server sets it whenever every entity is sent. Bit 1, `kPart`, says
+   the snapshot is one of several messages of the same tick, and is followed by its index and the number of parts
+   (two `u8`): a snapshot too big for one message is split by entity, and a complete one removes what none of its
+   parts lists only once every part is in. From M2
    on, the server never sets it (deltas are never complete), so the flag costs one byte and changes nothing. It is
    also a cheap tool for later (a full resynchronization after a reconnection).
 2. **The server's `net.*` systems are split by phase, not one per step.** The design names `net.receive`,
@@ -2398,12 +2401,15 @@ own pace.
       every replicated component the entity has, in short id order, written with NET-13 (entity fields through the
       tracking table). The components are read by `ComponentId` through the `ReplicatedRead` parameter;
     - records are added while the message stays within `kMaxMessageSize` (`computeWireSize` tells the size in advance).
-      An entity is written whole or not at all. If every entity fits, the `kComplete` flag is set; if not, the flag is
-      cleared (clients then remove nothing) and a rate-limited warning is logged;
+      An entity is written whole or not at all. When they do not all fit in one message, the snapshot is split into
+      parts (`kPart`, at most `kMaxParts`), each a message of the same tick with its index and the number of parts,
+      filled in `NetworkId` order. An entity too big for a message on its own (a long list or text) is left out, as is
+      what does not fit in `kMaxParts` parts: the `kComplete` flag is then cleared on every part (clients remove
+      nothing) and a rate-limited warning is logged; otherwise it is set on every part;
     - updates, removals and despawns are empty in M1.
     The body is the same for every client: build it once and only change the header.
-11. Each snapshot becomes a `SendMessage{client, kUnreliable, bytes}` command given to `NetServer::execute`, then
-    `NetServer::flush`. Never more than one snapshot per client per frame.
+11. Each snapshot, or each of its parts, becomes a `SendMessage{client, kUnreliable, bytes}` command given to
+    `NetServer::execute`, then `NetServer::flush`. Never more than one snapshot (all its parts) per client per frame.
 
 **Snapshot layout** (design 7.4 plus the `flags` byte of deviation 1; this is the final layout, M2 only changes what
 the server puts in it):
@@ -2412,7 +2418,8 @@ the server puts in it):
 u8   type = kSnapshot (0x30)
 u32  tick                    server tick of this snapshot
 u32  last processed input    of the receiving client (0 before its first input)
-u8   flags                   bit 0: kComplete; other bits must be 0
+u8   flags                   bit 0: kComplete; bit 1: kPart; other bits must be 0
+u8   part, u8 part count     only with kPart: this part's index, below the count, and the count, at least 2
 u16  spawn count    × { netId u32, prefab u16 (0xFFFF = none), component count u8, × { short id u16, fields } }
 u16  update count   × { netId u32, component count u8, × { short id u16, fields } }
 u16  removal count  × { netId u32, short id u16 }
@@ -2422,7 +2429,7 @@ u16  despawn count  × { netId u32 }
 `snapshot/Snapshot.hpp` holds a decoded `Snapshot` (header and the four lists, component values as bytes per
 short id) with its encoder and decoder, shared by both plugins. The decoder fails on: counts larger than the
 remaining bytes allow, an unknown short id, a component listed twice in one record, a net id listed twice in one
-list, a net id of 0, reserved flag bits set, or bytes left over.
+list, a net id of 0, reserved flag bits set, a part index not below its count or a count below 2, or bytes left over.
 
 **Used by.** NET-18 (the prototype server), NET-19 / NET-20 (M2 replaces the snapshot selection), NET-25 (runs in a
 room), NET-38 (engine glue).
@@ -2566,7 +2573,11 @@ therefore be added in any order; the manifest check reads the registry when the 
    3. **removals**: remove the component if present;
    4. **despawns**: despawn the entity and remove it from the map;
    5. if `kComplete` is set: despawn every mapped entity that is not in the spawn list, and remove from each listed
-      entity every replicated component the record did not list.
+      entity every replicated component the record did not list. For a part, the second half waits for every part of
+      the tick: each part removes the components its own records do not list, and once all the parts are in, the
+      entities none of them listed are despawned. A part of an older tick than the last applied, or one applied
+      already, is stale; the first part of a newer tick gives up the parts of an older one, which then removes
+      nothing.
 8. Then remember the snapshot's tick (sent back in every `kInput`) and its last processed input (kept for M6).
 
 *Inputs.*
@@ -2752,8 +2763,8 @@ changed components, removals, despawns, filled in priority order up to the budge
 - [ ] Client: nothing new (NET-17 already applies the four lists); verify updates add missing components.
 - [ ] Hierarchy: a `Parent` read while its target is unknown is dropped, and complete snapshots send it again. A delta
   must keep sending it until the parent's spawn is confirmed, or the child stays a root.
-- [ ] Values larger than a message (a long list or text) are left out today, and snapshots stay incomplete: decide what
-  happens to them.
+- [ ] Values larger than a message (a long list or text) are left out today (a snapshot too big for one message is split
+  into parts, but an entity is never split), and snapshots stay incomplete: decide what happens to them.
 - [ ] Update `design.md` 7.4 with the `flags` byte (deviation 1).
 - [ ] Tests: each row of the design's table; budget overflow completed over the next snapshots; no starvation
   (an entity left out is sent within N snapshots); spawn-then-despawn before any snapshot never sent.
