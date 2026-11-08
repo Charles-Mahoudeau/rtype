@@ -8,15 +8,15 @@
 #include "EditorState.hpp"
 
 #include <algorithm>
-#include <exception>
+#include <cstddef>
 #include <filesystem>
-#include <iostream>
 #include <memory>
 #include <optional>
+#include <string>
+#include <utility>
 #include <vector>
 
-#include "editor/console/ConsoleLog.hpp"
-#include "editor/console/OutputCapture.hpp"
+#include "editor/EditorSession.hpp"
 #include "editor/gui/GuiContext.hpp"
 #include "editor/gui/GuiInput.hpp"
 #include "plugins/AssetDirectory.hpp"
@@ -26,21 +26,21 @@
 
 namespace rtype::editor {
 
-EditorState::EditorState(ecs::App& app, const std::filesystem::path& layoutFile, bool captureOutput)
-    : app{&app},
+EditorState::EditorState(ecs::App& app, const std::filesystem::path& layoutFile, std::shared_ptr<EditorSession> session)
+    : session{std::move(session)},
+      app{&app},
       world{&app.getWorld()},
       context{std::make_unique<gui::GuiContext>(layoutFile)},
       input{std::make_shared<gui::GuiInput>(context->get())},
-      assets{plugins::assetDirectoryOf(app.getWorld().getResources())} {
-    if (!captureOutput) {
-        return;
-    }
-    try {
-        console = std::make_shared<console::ConsoleLog>();
-        capture = std::make_unique<console::OutputCapture>(console);
-    } catch (const std::exception& error) {
-        console.reset();
-        std::cerr << "[editor] warning: the Console shows nothing: " << error.what() << '\n';
+      assets{plugins::assetDirectoryOf(app.getWorld().getResources())},
+      console{this->session->console},
+      supervisor{this->session->supervisor.get()},
+      clients{this->session->clients.get()},
+      serverPanel{this->session->serverPanel} {
+    if (!assets.empty() && serverPanel.gameDirectory.front() == '\0') {
+        const std::string game = assets.parent_path().string();
+        const std::size_t length = std::min(game.size(), serverPanel.gameDirectory.size() - 1);
+        std::copy_n(game.begin(), length, serverPanel.gameDirectory.begin());
     }
 }
 

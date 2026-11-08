@@ -10,7 +10,11 @@
 #include <atomic>
 #include <filesystem>
 #include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "CommandLine.hpp"
 #include "EngineConfig.hpp"
@@ -108,6 +112,15 @@ class RTYPE_ENGINE_API Engine {
     /// Safe to call from a system, or from another thread (a file watcher). The world is lost: see the class.
     void requestReload() noexcept;
 
+    /// @brief Like requestReload(), and the next build runs in @p mode with the command line @p args (as
+    /// EngineConfig::args: the game directory is the one the engine already has, the flags are the new ones).
+    ///
+    /// For a tool that switches a running game between sides, as the editor between standalone and a client of its
+    /// server. Safe from a system or another thread. If the build with the new mode fails, the engine reports why and
+    /// builds again with the mode and the command line it had, so the program is not left without a game.
+    /// @throws exceptions::RuntimeError If @p args is not a valid command line.
+    void requestReload(ecs::RunMode mode, std::vector<std::string> args);
+
     /// @brief Runs frames until a system sends AppExit, building a new App between two frames when a reload was
     /// requested.
     /// @return The code of the first AppExit read.
@@ -115,6 +128,20 @@ class RTYPE_ENGINE_API Engine {
     int run();
 
   private:
+    /// @brief The mode and command line a build runs with.
+    struct Setup {
+        ecs::RunMode mode;
+        std::vector<std::string> args;
+        CommandLine commandLine;
+    };
+
+    /// @brief Makes the pending setup of requestReload(mode, args) the current one.
+    /// @return The setup it replaces; nothing when none was pending.
+    std::optional<Setup> adoptPendingSetup();
+
+    /// @brief Makes @p setup the mode and command line of the next build.
+    void useSetup(Setup setup);
+
     /// @brief Reads the project settings and builds a new App from them, replacing the current one.
     void build();
 
@@ -145,5 +172,7 @@ class RTYPE_ENGINE_API Engine {
     core::config::Settings _settings;             ///< The settings of the last build.
     std::unique_ptr<ecs::App> _app;               ///< The App; replaced by a reload.
     std::atomic<bool> _reloadRequested{false};    ///< Set by requestReload(), cleared by the reload.
+    std::mutex _pendingMutex;                     ///< Guards _pending.
+    std::optional<Setup> _pending;  ///< The setup of the last requestReload(mode, args), until the reload.
 };
 }  // namespace rtype::engine

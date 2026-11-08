@@ -996,6 +996,97 @@ attacker who can read the traffic. The resume token has the same scope: it is a 
 anyone who can read the traffic can steal it and take over the session. Cheating is limited by design (the server only accepts inputs), not by
 cryptography.
 
+### Admin channel
+
+A tool that runs next to the server (the editor) reads and controls it through a separate channel, so game traffic and
+the rules of the game port stay untouched. It lives in `rtype/network/admin/` and knows no ECS.
+
+- **Socket.** A `UdpSocket` bound to `127.0.0.1` (`loopbackOnly`), opened by `ServerState::start()` only when
+  `ServerPlugin::setAdmin(AdminSettings{port, token})` was called with a token that is not empty. The engine calls it
+  from `--admin-port` and `--admin-token`, in a debug run only (`docs/engine/design.md`).
+- **Authentication.** Every request carries the token (compared in time that depends on the length only). A wrong token
+  gets `Error{kBadToken}` and nothing else happens; a datagram that does not even decode is dropped without a reply.
+- **Wire format** (little-endian, one datagram per message, at most `kMaxPacketSize`):
+
+  | Datagram | Layout |
+  |----------|--------|
+  | Request | `u8 type`, `u32 id`, `string token` (`u8` length + bytes), body |
+  | Reply | `u8 type`, `u32 id` (the request's), body |
+
+  | Type | Request body | Reply type, body |
+  |------|--------------|------------------|
+  | `0x01` Hello | none | `0x81`: `u8 version` |
+  | `0x02` Status | none | `0x82`: `u32 tick`, `u32 entities`, `u32 clients`, `u64 uptimeMs`, `u64 datagramsReceived`, `u64 datagramsSent`, `u64 bytesReceived`, `u64 bytesSent` |
+  | `0x03` Clients | none | `0x83`: `u32 total`, `u16 count`, then per client `u32 id`, `u8 state`, 16 address bytes, `u16 port`, `f32 rttMs`, `u64 dropped`, `u64 protocolErrors` |
+  | `0x04` Kick | `u32 client` | `0x84`: `u32 client` |
+  | `0x10` SimulationGet | none | `0x90`: `u16 latencyMs`, `u16 jitterMs`, `f32 lossPercent` |
+  | `0x11` SimulationSet | `u16 latencyMs`, `u16 jitterMs`, `f32 lossPercent` | `0x90`, the settings in force (clamped) |
+  | `0x20` to `0x25` | the world messages, below | `0xA0` to `0xA5` |
+  | any | | `0x7F`: `u8 code` (1 bad token, 2 malformed, 3 unsupported, 4 unknown client, 5 unknown entity, 6 unknown component, 7 unknown field, 8 bad value) |
+
+  A clients reply holds as many entries as fit in one datagram (`maxClientEntries()`, 27); `total` tells the real count.
+  The status counters are those of the game socket.
+- **Room for more.** `0x10` to `0x1F` is the network simulation (`0x12` to `0x1F` still free: `kUnsupported`) and
+  `0x20` to `0x3F` is the world (`0x26` to `0x3F` still free). The transport decodes none of the world range: it
+  gives the request to `AdminServer::setExtensionHandler()` and answers `kUnsupported` when there is none, so
+  features add messages without changing this format. `SimulationSet` is answered with the type `0x90` too, the
+  reply of `SimulationGet`: the one exception to "request type plus `0x80`".
+- **World messages** (`0x20` to `0x25`, `network/admin/WorldProtocol.hpp`; answered by
+  `replication/admin/WorldAdmin`, which `ServerState::start()` installs as the extension handler). A tool looks at the
+  entities of the server's world and edits them. The messages are plain data: an entity is the `u64` bits of its
+  handle (index + generation), a value is a text, so the network module still knows no ECS and the tool needs no
+  component registry. Every reply is bounded by `kMaxWorldBody` (1100 bytes); a name is cut to `kMaxWorldName` (63
+  bytes) and a value to `kMaxWorldValue` (96 bytes, ending with `...` when cut). Strings are `u8` length + bytes.
+
+  | Type | Request body | Reply body (type + `0x80`) |
+  |------|--------------|----------------------------|
+  | `0x20` Entities | `u32 first` | `u32 total`, `u32 first`, `u16 count`, per entity `u64 entity`, `string name`, `u16 components` |
+  | `0x21` Inspect | `u64 entity`, `u16 firstComponent` | `u64 entity`, `string name`, `u16 total`, `u16 next`, `u8 count`, per component `string name`, `u8 fields`, per field `string name`, `string type`, `u16 count`, `string value`, `u8 editable` |
+  | `0x22` SetField | `u64 entity`, `string component`, `string field`, `u16 index`, `string value` | empty (accepted) |
+  | `0x23` Spawn | `string name` | `u64 entity` |
+  | `0x24` Despawn | `u64 entity` | `u64 entity` |
+  | `0x25` Run | `u8 action` (0 query, 1 pause, 2 resume, 3 step) | `u8 paused` |
+
+  *Entities* lists the entities that have a component (the world keeps no list of others), by slot index; a page
+  holds as many entries as fit (about 15) and the tool asks again from `first` + count. *Inspect* lists the
+  components in registry order with their fields; a reply holds as many components as fit, `next` is the index to
+  ask from while it is below `total`, and one component too big alone loses its last fields. A value is shown as
+  text: numbers, `true`/`false`, vectors as `x y z`, an `ecs::String` as its text, an array as `[a, b]` (at most 32
+  values), a list field as `<n items>` (a `std::string` list of `text` bytes as its text), an entity as its handle.
+  *SetField* reads the value as the field's type (numbers must fit, floats must be finite, a vector has 2, 3 or 4
+  numbers separated by spaces or commas); an entity field, a list (but a text) and the components `Parent` and
+  `Children` are refused with `kBadValue`, an unknown name with `kUnknownComponent` or `kUnknownField`, a dead entity
+  with `kUnknownEntity`. *Spawn* gives the entity a `rtype.Name` (`Entity` when empty), since an entity without a
+  component cannot be listed. *Run* acts on the `Schedules` as the editor's own pause does (`setPaused`, `step`).
+
+  **When it happens.** A read is answered from the world as it is. SetField, Spawn and Despawn are recorded in the
+  `Commands` that the `receive` system (PreUpdate) binds around `ServerState::receive()`, and applied at the end of
+  that phase: never in the middle of a system, always before the tick's FixedUpdate. The reply says the request was
+  accepted, not that it is applied. Without bound commands (`receive()` called outside the system) those requests
+  are refused with `kUnsupported`, and Run is refused without schedules. The server stays authoritative: the tool
+  edits the server's world, and replication sends the result to the clients as it does for any change.
+- **Link simulation.** `simulation/LinkSimulator` imitates a bad link on the game socket, one instance per direction
+  in `NetServer`, set by `NetServer::setSimulation()` (the admin `SimulationSet`) and off by default. Each datagram
+  received or sent is dropped with probability `lossPercent` (0 to 100), then held for `latencyMs` plus a random 0 to
+  `jitterMs` (both up to `kMaxDelayMs`, 5000), so the round trip grows by twice the latency and jitter can reorder
+  datagrams; datagrams with the same due time keep their order. Values out of range are clamped, and the reply says
+  what is in force. The simulator knows no socket and no clock (the caller gives datagrams and time) and takes a
+  `RandomSource`, so tests fix the drops (`NetServer(settings, random)`). While it is off and holds nothing,
+  `NetServer` skips it entirely (one test per poll and per flush). Turning it off releases what it holds at the
+  datagrams' due time; `shutdown()` sends it all at once, with the goodbyes. It is reachable only through the admin
+  channel, so only in a debug run. The admin channel's own socket is never simulated.
+- **Client.** `AdminClient` sends a `Request` (it returns the id) and `poll()` gives the `DecodedReply`s; requests may
+  be lost, so a caller asks again after a delay. A kick is a `KickClient` command: the client is told and the usual
+  `ClientLeft` event follows.
+- **Client list.** `NetServer::clients()` (`ServerCore::clients()`) copies, per session, the id, state, address, smoothed
+  RTT and the dropped and protocol-error counters (`ClientInfo`). `SocketStats` counts datagrams and bytes, sent and
+  received.
+- **Tests.** `tests/network/AdminTests.cpp` (codec, malformed bytes, token, status, clients, kick, simulation messages, extension handler),
+  `WorldProtocolTests.cpp` (world codec, bounds, truncation), `tests/replication/WorldAdminTests.cpp` (listing, paging,
+  inspect, set, spawn, despawn, run, refusals),
+  `SimulationTests.cpp` (drops, delays, jitter, clamping), `ServerPluginTests.cpp` (the channel on a running server) and
+  `EngineTests.cpp` (the flags).
+
 ## 11. Bandwidth estimate
 
 300 moving entities, of which 250 are bullets, 4 clients:

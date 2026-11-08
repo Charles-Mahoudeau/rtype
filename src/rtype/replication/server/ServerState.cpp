@@ -33,6 +33,9 @@
 #include "rtype/ecs/world/World.hpp"
 #include "rtype/network/NetworkSettings.hpp"
 #include "rtype/network/Types.hpp"
+#include "rtype/network/admin/AdminProtocol.hpp"
+#include "rtype/network/admin/AdminServer.hpp"
+#include "rtype/network/admin/AdminSettings.hpp"
 #include "rtype/network/bytes/ByteWriter.hpp"
 #include "rtype/network/protocol/Constants.hpp"
 #include "rtype/network/server/NetServer.hpp"
@@ -120,6 +123,24 @@ bool ServerState::isStarted() const noexcept { return _server != nullptr; }
 
 network::server::NetServer& ServerState::netServer() noexcept { return *_server; }
 
+void ServerState::setAdmin(network::admin::AdminSettings settings) {
+    if (_server == nullptr && !settings.token.empty()) {
+        _adminSettings = std::move(settings);
+    }
+}
+
+std::uint16_t ServerState::adminPort() const { return _admin ? _admin->localPort() : 0; }
+
+network::admin::AdminServer* ServerState::adminServer() noexcept { return _admin.get(); }
+
+void ServerState::setSchedules(ecs::Schedules* schedules) noexcept { _schedules = schedules; }
+
+void ServerState::bindCommands(ecs::Commands* commands) noexcept {
+    if (_worldAdmin) {
+        _worldAdmin->bind(commands);
+    }
+}
+
 const manifest::Manifest& ServerState::manifest() const noexcept { return _manifest; }
 
 std::size_t ServerState::droppedInputCount() const noexcept { return _droppedInputs; }
@@ -183,11 +204,25 @@ void ServerState::start(input::InputLayout& inputs) {
     prepare(inputs);
     _server = std::make_unique<network::server::NetServer>(_network);
     _server->setWelcomeMessages(_manifest.encode(_settings));
+    if (_adminSettings) {
+        _admin = std::make_unique<network::admin::AdminServer>(_adminSettings->port, _adminSettings->token, _time());
+        _worldAdmin = std::make_unique<admin::WorldAdmin>(*_world, _schedules);
+        _admin->setExtensionHandler([world = _worldAdmin.get()](const network::admin::ExtensionRequest& request) {
+            return world->handle(request);
+        });
+    }
 }
 
 std::vector<ServerNotification> ServerState::receive(const input::InputLayout& inputs) {
     std::vector<ServerNotification> notifications;
     _server->poll(_time());
+    if (_admin) {
+        _admin->poll(_time(), *_server,
+                     network::admin::GameStatus{
+                         .tick = _serverTick,
+                         .entityCount = static_cast<std::uint32_t>(_entities.size()),
+                     });
+    }
     for (const network::server::ServerEvent& serverEvent : _server->takeEvents()) {
         if (std::optional<ServerNotification> notification = handle(serverEvent, inputs)) {
             notifications.push_back(*notification);

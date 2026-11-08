@@ -23,10 +23,13 @@
 #include "rtype/ecs/system/DynamicQueries.hpp"
 #include "rtype/network/NetworkSettings.hpp"
 #include "rtype/network/Types.hpp"
+#include "rtype/network/admin/AdminServer.hpp"
+#include "rtype/network/admin/AdminSettings.hpp"
 #include "rtype/network/server/NetServer.hpp"
 #include "rtype/network/server/RoomMessages.hpp"
 #include "rtype/replication/Export.hpp"
 #include "rtype/replication/ReplicationSettings.hpp"
+#include "rtype/replication/admin/WorldAdmin.hpp"
 #include "rtype/replication/component/PlayerInput.hpp"
 #include "rtype/replication/event/ClientConnected.hpp"
 #include "rtype/replication/event/ClientDisconnected.hpp"
@@ -35,6 +38,8 @@
 #include "rtype/replication/manifest/Manifest.hpp"
 
 namespace rtype::ecs {
+class Commands;
+class Schedules;
 class World;
 }  // namespace rtype::ecs
 
@@ -78,6 +83,23 @@ class RTYPE_REPLICATION_API ServerState {
 
     /// @return The transport, to read its statistics. Only after start().
     [[nodiscard]] network::server::NetServer& netServer() noexcept;
+
+    /// @brief Turns the admin channel on: start() opens it. Does nothing once started, or for an empty token.
+    void setAdmin(network::admin::AdminSettings settings);
+
+    /// @return The local port of the admin channel, 0 when it is off. Only after start().
+    [[nodiscard]] std::uint16_t adminPort() const;
+
+    /// @return The admin channel, to give it an extension handler; null when it is off. Only after start().
+    [[nodiscard]] network::admin::AdminServer* adminServer() noexcept;
+
+    /// @brief Gives the schedules that the admin channel's pause, resume and step requests act on. Call it before
+    /// start(); without them those requests are refused.
+    void setSchedules(ecs::Schedules* schedules) noexcept;
+
+    /// @brief Gives the commands that the admin channel's world changes (set a value, spawn, despawn) are recorded in,
+    /// for the length of a receive(); null takes them back. Without commands those requests are refused.
+    void bindCommands(ecs::Commands* commands) noexcept;
 
     /// @return The manifest sent to the clients. Only after start().
     [[nodiscard]] const manifest::Manifest& manifest() const noexcept;
@@ -182,6 +204,10 @@ class RTYPE_REPLICATION_API ServerState {
     std::vector<ecs::ComponentId> _replicated;                     ///< The components the queries were built from.
     TimeSource _time;                                              ///< The transport time.
     std::unique_ptr<network::server::NetServer> _server;           ///< Created by start() (a NetServer cannot move).
+    std::optional<network::admin::AdminSettings> _adminSettings;   ///< Set by setAdmin().
+    std::unique_ptr<network::admin::AdminServer> _admin;           ///< Created by start() when the settings ask.
+    std::unique_ptr<admin::WorldAdmin> _worldAdmin;                ///< Answers the world requests of the channel.
+    ecs::Schedules* _schedules{nullptr};                           ///< For the pause requests; may be null.
     manifest::Manifest _manifest;                                  ///< What the clients are told to expect.
     std::unordered_map<network::ClientId, ClientRecord> _clients;  ///< The connected clients.
     std::map<std::uint32_t, ecs::Entity> _entities;                ///< By NetworkId, in id order for snapshots.

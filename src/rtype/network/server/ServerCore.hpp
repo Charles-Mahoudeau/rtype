@@ -20,6 +20,7 @@
 #include "rtype/network/Types.hpp"
 #include "rtype/network/io/Address.hpp"
 #include "rtype/network/protocol/Packets.hpp"
+#include "rtype/network/server/ClientInfo.hpp"
 #include "rtype/network/server/RoomMessages.hpp"
 #include "rtype/network/server/Session.hpp"
 
@@ -86,6 +87,12 @@ class RTYPE_NETWORK_API ServerCore {
 
     /// @brief Gives the number of sessions, welcoming or ready.
     [[nodiscard]] std::size_t sessionCount() const noexcept;
+
+    /// @brief Gives a copy of what is known of each session, by client id.
+    [[nodiscard]] std::vector<ClientInfo> clients() const;
+
+    /// @brief Tells whether a session exists for `client`.
+    [[nodiscard]] bool hasSession(ClientId client) const noexcept;
 
     /// @brief Gives the number of challenges awaiting their echo.
     [[nodiscard]] std::size_t pendingChallengeCount() const noexcept;

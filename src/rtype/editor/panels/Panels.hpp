@@ -11,6 +11,7 @@
 
 #include "editor/EditorState.hpp"
 #include "editor/Export.hpp"
+#include "editor/server/ServerSupervisor.hpp"
 #include "rtype/contract/platform/IPlatform.hpp"
 #include "rtype/contract/renderer/IRenderer.hpp"
 
@@ -62,6 +63,16 @@ RTYPE_EDITOR_API void closePrefab(EditorState& state);
 /// @brief The Console panel: the program's output (the scripts' `print`, the engine's and the renderer's messages),
 /// filtered by kind and by text, errors and warnings in colour.
 RTYPE_EDITOR_API void drawConsolePanel(EditorState& state);
+
+/// @brief The Server panel: runs the game's server as a child process (start, stop, restart, its log), shows its status
+/// and its clients through the admin channel (kick), sets the network simulation, inspects and edits the server's world
+/// (entities, components, spawn, despawn, pause, step), and launches detached clients. It also keeps watching the
+/// server and the clients while closed.
+RTYPE_EDITOR_API void drawServerPanel(EditorState& state);
+
+/// @return How the Server panel starts the server now: its game folder, port and flags as typed. Play online starts the
+/// server the same way.
+[[nodiscard]] RTYPE_EDITOR_API server::ServerOptions serverOptionsOf(const EditorState& state);
 
 /// @brief The Stats panel: the frame rate, the plot of the last frame times, and what the renderer drew.
 RTYPE_EDITOR_API void drawStatsPanel(EditorState& state, const contract::renderer::IRenderer& renderer);

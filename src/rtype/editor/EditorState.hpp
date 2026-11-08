@@ -17,13 +17,16 @@
 #include <vector>
 
 #include "core/asset/AssetId.hpp"
+#include "editor/EditorSession.hpp"
 #include "editor/Export.hpp"
 #include "editor/console/ConsoleLog.hpp"
-#include "editor/console/OutputCapture.hpp"
 #include "editor/gui/GuiContext.hpp"
 #include "editor/gui/GuiInput.hpp"
 #include "editor/play/PlaySession.hpp"
+#include "editor/process/ClientLauncher.hpp"
 #include "editor/scene/Isolation.hpp"
+#include "editor/server/ServerPanelState.hpp"
+#include "editor/server/ServerSupervisor.hpp"
 #include "plugins/capsule/Capsule.hpp"
 #include "rtype/contract/platform/IPlatform.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
@@ -52,6 +55,9 @@ struct EditorOptions {
     std::string
         textEditor;  ///< The command that opens a file (`editor.textEditor`); empty: shell::defaultTextEditor().
     bool captureOutput{true};  ///< Whether the Console shows the program's output (OutputCapture).
+    /// What survives from one App to the next (the child server, the Console, Play online); null: the plugin makes
+    /// its own, which lives and dies with its App.
+    std::shared_ptr<EditorSession> session;
 };
 
 /// @brief Everything the editor keeps between two frames: the Dear ImGui context, the bridge that feeds it, the play
@@ -62,14 +68,15 @@ struct RTYPE_EDITOR_API EditorState {
 
     /// @param app The App the editor runs in; it must outlive the state.
     /// @param layoutFile Where the layout of the panels is kept; empty: it is not.
-    /// @param captureOutput Whether the Console shows the program's output.
-    EditorState(ecs::App& app, const std::filesystem::path& layoutFile, bool captureOutput);
+    /// @param session What outlives the App: the child server, the Console, the steps of Play online.
+    EditorState(ecs::App& app, const std::filesystem::path& layoutFile, std::shared_ptr<EditorSession> session);
     ~EditorState() = default;
     EditorState(const EditorState& other) = delete;
     EditorState& operator=(const EditorState& other) = delete;
     EditorState(EditorState&& other) = delete;
     EditorState& operator=(EditorState&& other) = delete;
 
+    std::shared_ptr<EditorSession> session;    ///< What outlives this App; the members below point into it.
     ecs::App* app;                             ///< The App: its schedules (pause) and its world.
     ecs::World* world;                         ///< What the panels show: the App's world.
     std::unique_ptr<gui::GuiContext> context;  ///< The ImGui context, destroyed with the editor.
@@ -84,23 +91,25 @@ struct RTYPE_EDITOR_API EditorState {
     std::vector<plugins::capsule::CapsuleId> unsaved;  ///< The capsules changed since they were saved or opened.
     ecs::Entity selected;                              ///< The entity the Inspector shows while playing.
 
-    AssetAction assetAction{AssetAction::kNone};      ///< What the Assets panel's popup asks for.
-    std::string assetTarget;                          ///< The folder or file of assetAction, in the assets.
-    bool openAssetPopup{false};                       ///< Whether the popup opens at the end of the panel.
-    std::array<char, 256> textField{};                ///< The text the popups and the rename fields edit.
-    std::array<char, 64> filter{};                    ///< What the Hierarchy keeps while playing: a component name.
-    std::array<char, 64> componentFilter{};           ///< What the Inspector's "Add component" list keeps.
-    std::string status;                               ///< The last thing that happened, shown in the menu bar.
-    std::string startScene;                           ///< The scene the first frame opens (`editor.scene`); then empty.
-    std::string textEditor;                           ///< The command that opens a file in a text editor.
-    std::shared_ptr<console::ConsoleLog> console;     ///< The program's output; null if it could not be captured.
-    std::unique_ptr<console::OutputCapture> capture;  ///< Fills the console; destroyed before it.
-    std::array<char, 128> consoleFilter{};            ///< What the Console keeps: a part of a line.
-    std::array<char, 64> pluginFilter{};              ///< What the Plugins panel keeps: a part of a name.
-    std::size_t consoleSeen{0};                       ///< The lines the Console has shown, to scroll to new ones.
-    bool consoleInfo{true};                           ///< Whether the Console shows the other lines.
-    bool consoleWarnings{true};                       ///< Whether it shows the warnings.
-    bool consoleErrors{true};                         ///< Whether it shows the errors.
+    AssetAction assetAction{AssetAction::kNone};   ///< What the Assets panel's popup asks for.
+    std::string assetTarget;                       ///< The folder or file of assetAction, in the assets.
+    bool openAssetPopup{false};                    ///< Whether the popup opens at the end of the panel.
+    std::array<char, 256> textField{};             ///< The text the popups and the rename fields edit.
+    std::array<char, 64> filter{};                 ///< What the Hierarchy keeps while playing: a component name.
+    std::array<char, 64> componentFilter{};        ///< What the Inspector's "Add component" list keeps.
+    std::string status;                            ///< The last thing that happened, shown in the menu bar.
+    std::string startScene;                        ///< The scene the first frame opens (`editor.scene`); then empty.
+    std::string textEditor;                        ///< The command that opens a file in a text editor.
+    std::shared_ptr<console::ConsoleLog> console;  ///< The program's output; null if it could not be captured.
+    server::ServerSupervisor* supervisor;          ///< The server run as a child process (Server panel); the session's.
+    process::ClientLauncher* clients;              ///< The detached clients; the session's.
+    server::ServerPanelState& serverPanel;         ///< What the Server panel remembers between frames; the session's.
+    std::array<char, 64> pluginFilter{};           ///< What the Plugins panel keeps: a part of a name.
+    std::array<char, 128> consoleFilter{};         ///< What the Console keeps: a part of a line.
+    std::size_t consoleSeen{0};                    ///< The lines the Console has shown, to scroll to new ones.
+    bool consoleInfo{true};                        ///< Whether the Console shows the other lines.
+    bool consoleWarnings{true};                    ///< Whether it shows the warnings.
+    bool consoleErrors{true};                      ///< Whether it shows the errors.
     contract::platform::IPlatform* platform{nullptr};    ///< The window of the frame being built: its clipboard.
     std::string clipboard;                               ///< The clipboard's text, kept for ImGui until its next read.
     std::optional<core::asset::AssetId> selectedEffect;  ///< The particle effect the Particles panel edits.
@@ -116,6 +125,7 @@ struct RTYPE_EDITOR_API EditorState {
     bool showStats{true};      ///< Whether the Stats panel is open.
     bool showParticles{true};  ///< Whether the Particles panel is open.
     bool showConsole{true};    ///< Whether the Console panel is open.
+    bool showServer{true};     ///< Whether the Server panel is open.
     bool showPlugins{true};    ///< Whether the Plugins panel is open.
     std::array<float, kFrameHistory> frameTimes{};  ///< The last frames' durations, in milliseconds, as a ring.
     std::size_t frameCursor{0};                     ///< Where the next frame time goes in frameTimes.

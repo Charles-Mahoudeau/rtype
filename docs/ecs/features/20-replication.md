@@ -206,6 +206,16 @@ return OnJoin
 Plus `replication = "everyChange"` or `replication = "spawnOnly"` on its components. That is all the networking the
 game code sees; the same systems run in standalone mode, where `PlayerInput` comes from local input.
 
+### Looking at the world from a tool
+
+In a debug run the server can open the admin channel (`docs/network/design.md`, Admin channel). The world messages
+of that channel are answered by `replication/admin/WorldAdmin`, the only code that knows both the ECS and the admin
+protocol: it lists the entities that have a component, shows the components of one entity with their values as text
+(read from the reflected `FieldInfo`s, so script-defined components show up like C++ ones), sets one value, spawns and
+despawns an entity, and pauses, resumes or steps the schedules. Changes are recorded in the `Commands` of the
+`receive` system and applied at the end of its phase, so they land between systems, before the tick's FixedUpdate,
+and replicate to the clients like any other change. Nothing from a client reaches this path.
+
 ### Build order
 
 1. `rtype-network`: UDP socket on a thread, packet header, acks; test with two processes.

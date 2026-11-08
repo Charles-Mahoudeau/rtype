@@ -35,10 +35,14 @@
 #include "rtype/ecs/time/TimePlugin.hpp"
 #include "rtype/network/NetworkSettings.hpp"
 #include "rtype/network/Types.hpp"
+#include "rtype/network/admin/AdminClient.hpp"
+#include "rtype/network/admin/AdminProtocol.hpp"
+#include "rtype/network/admin/WorldProtocol.hpp"
 #include "rtype/network/client/ClientEvent.hpp"
 #include "rtype/network/client/NetClient.hpp"
 #include "rtype/network/exceptions/NetworkExceptions.hpp"
 #include "rtype/network/io/Address.hpp"
+#include "rtype/network/io/UdpSocket.hpp"
 #include "rtype/network/server/NetServer.hpp"
 #include "rtype/replication/MessageType.hpp"
 #include "rtype/replication/ReplicationPlugin.hpp"
@@ -301,6 +305,93 @@ TEST(ServerPlugin, OpensTheServerInServerMode) {
     EXPECT_TRUE(server.state().isStarted());
     EXPECT_NE(server.state().netServer().localPort(), 0U);
     EXPECT_TRUE(server.layout().isFrozen());
+}
+
+TEST(ServerPlugin, OpensTheAdminChannelOnlyWhenAskedAndAnswersIt) {
+    {
+        Server server{RunMode::kServer};
+        server.app().runFrame();
+        EXPECT_EQ(server.state().adminPort(), 0U);  // off by default
+    }
+    App app{RunMode::kServer};
+    app.addPlugin(TimePlugin::manual(kFrame, FixedTimestep{kTickRate, 5}));
+    network::NetworkSettings settings = makeNetworkSettings();
+    std::uint16_t adminPort = 0;
+    // A free port for the admin channel: ask the system for one, then release it.
+    {
+        network::io::UdpSocket probe{0, true};
+        adminPort = probe.localPort();
+    }
+    ServerPlugin plugin{settings, makeSettings()};
+    plugin.setAdmin({.port = adminPort, .token = "tok"});
+    app.addPlugin(std::move(plugin));
+    app.runFrame();
+    auto state = app.getWorld().getResources().getMut<ServerState>();
+    ASSERT_NE(state->adminPort(), 0U);
+
+    network::admin::AdminClient tool{state->adminPort(), "tok"};
+    const std::uint32_t id = tool.send(network::admin::StatusRequest{});
+    bool answered = false;
+    const auto deadline = network::Clock::now() + std::chrono::seconds{2};
+    while (!answered && network::Clock::now() < deadline) {
+        app.runFrame();
+        for (const auto& reply : tool.poll()) {
+            answered = answered || (reply.id == id && std::holds_alternative<network::admin::StatusReply>(reply.reply));
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    }
+    EXPECT_TRUE(answered);
+}
+
+TEST(ServerPlugin, TheAdminChannelEditsTheWorldBetweenFramesAndPausesIt) {
+    App app{RunMode::kServer};
+    app.addPlugin(TimePlugin::manual(kFrame, FixedTimestep{kTickRate, 5}));
+    std::uint16_t adminPort = 0;
+    {
+        network::io::UdpSocket probe{0, true};
+        adminPort = probe.localPort();
+    }
+    ServerPlugin plugin{makeNetworkSettings(), makeSettings()};
+    plugin.setAdmin({.port = adminPort, .token = "tok"});
+    app.addPlugin(std::move(plugin));
+    app.runFrame();
+    auto state = app.getWorld().getResources().getMut<ServerState>();
+    ASSERT_NE(state->adminPort(), 0U);
+    network::admin::AdminClient tool{state->adminPort(), "tok"};
+
+    // Sends a world request and runs frames until its reply comes.
+    const auto ask = [&](const network::admin::WorldRequest& request) -> std::optional<network::admin::Reply> {
+        const std::uint32_t id = tool.send(network::admin::encodeWorldRequest(request));
+        const auto deadline = network::Clock::now() + std::chrono::seconds{2};
+        while (network::Clock::now() < deadline) {
+            app.runFrame();
+            for (auto& reply : tool.poll()) {
+                if (reply.id == id) {
+                    return std::move(reply.reply);
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+        }
+        return std::nullopt;
+    };
+
+    const auto spawned = ask(network::admin::SpawnRequest{.name = "Probe"});
+    ASSERT_TRUE(spawned.has_value());
+    const auto reply = network::admin::decodeWorldReply(std::get<network::admin::ExtensionReply>(*spawned));
+    ASSERT_TRUE(reply.has_value());
+    const std::uint64_t bits = std::get<network::admin::SpawnReply>(*reply).entity;
+    app.runFrame();  // the spawn is applied after the phase that answered it
+    const rtype::ecs::Entity entity{static_cast<std::uint32_t>(bits), static_cast<std::uint32_t>(bits >> 32U)};
+    ASSERT_TRUE(app.getWorld().isAlive(entity));
+
+    ASSERT_TRUE(ask(network::admin::RunRequest{.action = network::admin::RunAction::kPause}).has_value());
+    EXPECT_TRUE(app.getSchedules().isPaused());
+    ASSERT_TRUE(ask(network::admin::RunRequest{.action = network::admin::RunAction::kResume}).has_value());
+    EXPECT_FALSE(app.getSchedules().isPaused());
+
+    ASSERT_TRUE(ask(network::admin::DespawnRequest{.entity = bits}).has_value());
+    app.runFrame();
+    EXPECT_FALSE(app.getWorld().isAlive(entity));
 }
 
 TEST(ServerPlugin, OpensTheServerInStandaloneMode) {
