@@ -45,7 +45,7 @@ TEST(EditorAssetKind, EveryKindHasAnIconAndALabel) {
 
 TEST(EditorAssetKind, EncodesCodePointsAsUtf8) {
     EXPECT_EQ(rtype::editor::panels::toUtf8(U'A'), "A");
-    EXPECT_EQ(rtype::editor::panels::toUtf8(U'é'), "\xC3\xA9");
+    EXPECT_EQ(rtype::editor::panels::toUtf8(U'\u00e9'), "\xC3\xA9");
     EXPECT_EQ(rtype::editor::panels::toUtf8(U'\uf07b'), "\xEF\x81\xBB");
     EXPECT_EQ(rtype::editor::panels::toUtf8(U'\U0001F600'), "\xF0\x9F\x98\x80");
 }
