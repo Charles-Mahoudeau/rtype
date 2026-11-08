@@ -19,7 +19,7 @@ SIDEBAR_TILES = 1  # the strip on the left, under the timer and the gauge
 VIEW_WIDTH = (SIDEBAR_TILES + ROAD_TILES * ROAD_COUNT) * TILE  # 25 tiles: 1600
 VIEW_HEIGHT = 900  # 16:9 with that width
 ROAD_SCROLL = 600  # pixels per second the roads scroll down: Game.roadSpeed
-BEAM_SQUARE = 40  # pixels: one square of a shot's beam, Game.beamSquare
+BEAM_SQUARE = 52  # pixels: one square of a shot's beam, Game.beamSquare
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 

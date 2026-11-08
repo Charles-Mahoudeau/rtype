@@ -22,7 +22,7 @@ local Game = {
 	-- The replicated entities the game keeps at once at most: each snapshot sends every entity whole and holds 9 of
 	-- them, and the ones left out never reach the clients (engine issue), so the traffic stays under it.
 	maxReplicated = 9,
-	beamSquare = 40, -- world units: a beam is drawn as a row of squares this big, and hits what it covers
+	beamSquare = 52, -- world units: a beam is drawn as a row of squares this big, and hits what it covers
 	hitboxMargin = 16, -- world units: each hitbox (the capsules' colliders) is this much smaller than its image on a side
 
 	-- The score, counted only while a match races.
