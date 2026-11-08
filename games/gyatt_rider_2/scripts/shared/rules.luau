@@ -8,6 +8,7 @@ local Game = {
 	roadCount = 8,
 	sidebarTiles = 1, -- the strip on the left, under the timer and the gauge
 	viewHeight = 900, -- world units: with the 8 roads' width, 16:9, the shape of most screens
+	roadSpeed = 600, -- world units per second the roads scroll down: the riders' speed along the course (roads.tmj)
 	maxPlayers = 4, -- the next players watch
 	minPlayers = 2, -- a match starts once this many ride
 	matchDuration = 240, -- seconds: whoever has the best score then wins
@@ -63,6 +64,7 @@ local Game = {
 	-- The enums of the engine's components, as their reflected numbers.
 	box = 0, -- rtype.Collider shape
 	rectShape = 0, -- rtype.ShapeRenderer kind
+	circleShape = 1,
 }
 
 --- The size of something counted in tiles, in world units.
@@ -140,6 +142,10 @@ engine.ecs.component("game.Cyclist", { fields = { boost = "u8" }, replication = 
 
 -- A text of the HUD (client/hud.luau), client only: what it shows (its role) and, for a score, whose (its slot).
 engine.ecs.component("game.HudText", { fields = { role = "u8", slot = "u8" }, presence = "clientOnly" })
+
+-- The race's gauge (client/gauge.luau), client only: its orange part, and the dot of a cyclist.
+engine.ecs.component("game.GaugeFill", { fields = {}, presence = "clientOnly" })
+engine.ecs.component("game.GaugeDot", { fields = { cyclist = "entity" }, presence = "clientOnly" })
 
 -- Markers of the scene's client nodes (assets/scenes/roads.scene): a server reads the file too, and the camera and the
 -- shape are not its components, so the client gives them to the marked entities.
