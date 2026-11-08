@@ -1,12 +1,23 @@
 -- The hits: a vehicle that runs over a rider and a shot that reaches anything spawn a game.Hit, and the hits are
--- resolved here, in one place, whatever made them. A rider is not removed by a hit: it loses points and keeps riding. A
--- cyclist is: knocked off the road, it gives its boost once. A vehicle just stops the shot.
+-- resolved here, in one place, whatever made them. A rider is not removed by a hit: it loses Game.hitLoss of its points
+-- and keeps riding, and its shooter wins Game.hitReward plus what it lost. A cyclist is: knocked off the road, it gives
+-- Game.hitReward (and its boost) once. A vehicle just stops the shot. The points count only while the match races.
 
 local Game = require("@scripts/shared/rules")
+local Match = require("@scripts/server/match")
 
 -- This tick's hits by victim (entity bits): the shooter of each, filled by game.CollectHits for the systems that
 -- resolve them.
 local hitsOf: { [number]: { number } } = {}
+
+-- This tick's points won by shooters, by their slot: filled while the hits are resolved, paid by game.PayShooters, so
+-- that a victim loses its share before anyone is paid.
+local winningsOf: { [number]: number } = {}
+
+--- Gives @p points to the shooter in @p slot, paid at the end of the tick.
+local function win(slot: number, points: number)
+	winningsOf[slot] = (winningsOf[slot] or 0) + points
+end
 
 -- FixedUpdate, once the physics sent this tick's events: a vehicle that enters a rider (a sensor) hits it. The event
 -- names the sensor and what entered it; their colliders' layers tell a rider and a vehicle.
@@ -54,20 +65,32 @@ engine.ecs.system("game.CollectHits", {
 	end,
 })
 
--- FixedUpdate: applies each rider's hits of this tick.
+-- FixedUpdate: applies each rider's hits of this tick: each one takes Game.hitLoss of its points, which its shooter
+-- wins with Game.hitReward.
 engine.ecs.system("game.ResolveRiderHits", {
 	phase = "FixedUpdate",
 	side = "server",
-	query = { read = { "game.Rider" } },
+	query = { read = { "game.Rider" }, write = { "game.Score" } },
 	after = { "game.CollectHits" },
 	run = function(ctx)
 		if next(hitsOf) == nil then
 			return
 		end
-		for entity, rider in ctx.query do
+		local counts = Match.racing()
+		for entity, rider, score in ctx.query do
 			for _, shooter in hitsOf[entity.bits] or {} do
 				local by = if shooter < 0 then "the traffic" else `player {shooter + 1}`
 				print(`[server] player {rider.slot + 1} hit by {by}`)
+				if not counts then
+					continue
+				end
+				local lost = math.floor(score.points * Game.hitLoss)
+				if lost > 0 then
+					score.points -= lost
+				end
+				if shooter >= 0 then
+					win(shooter, Game.hitReward + lost)
+				end
 			end
 		end
 	end,
@@ -87,8 +110,31 @@ engine.ecs.system("game.ResolveCyclistHits", {
 			local shooters = hitsOf[entity.bits]
 			if shooters then
 				print(`[server] player {shooters[1] + 1} shot a cyclist`)
+				if Match.racing() then
+					win(shooters[1], Game.hitReward)
+				end
 				ctx.commands:despawn(entity)
 			end
 		end
+	end,
+})
+
+-- FixedUpdate, once every hit of the tick is resolved: pays the shooters what they won.
+engine.ecs.system("game.PayShooters", {
+	phase = "FixedUpdate",
+	side = "server",
+	query = { read = { "game.Rider" }, write = { "game.Score" } },
+	after = { "game.ResolveRiderHits", "game.ResolveCyclistHits" },
+	run = function(ctx)
+		if next(winningsOf) == nil then
+			return
+		end
+		for _, rider, score in ctx.query do
+			local points = winningsOf[rider.slot]
+			if points then
+				score.points += points
+			end
+		end
+		table.clear(winningsOf)
 	end,
 })

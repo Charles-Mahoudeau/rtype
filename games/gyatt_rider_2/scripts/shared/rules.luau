@@ -19,6 +19,12 @@ local Game = {
 	beamLifetime = 0.2, -- seconds a shot's beam stays, long enough for a snapshot to carry it
 	beamSquare = 32, -- world units: a beam is drawn as a row of squares this big
 
+	-- The score, counted only while a match races.
+	pointsPerSecond = 5, -- every rider, every second
+	shotCost = 20, -- each shot fired
+	hitReward = 40, -- each rider or cyclist a shot reaches
+	hitLoss = 0.1, -- the share of its points a hit rider loses; the shooter takes it, the traffic takes it from nobody
+
 	-- The collision categories: each Collider belongs to some (layer) and collides with some (mask). A shot is a ray,
 	-- which picks the categories it sees: it needs none of its own.
 	riderLayer = 1,
@@ -76,6 +82,8 @@ engine.ecs.component("game.Look", { fields = { texture = "assetId", layer = "i8"
 
 -- A player's rider (assets/actors/rider.actor), sent once. Its slot (0 to 3) gives its start and its color.
 engine.ecs.component("game.Rider", { fields = { slot = "u32" }, replication = "spawnOnly" })
+-- A rider's points, on every change: written only when they change. Never below 0.
+engine.ecs.component("game.Score", { fields = { points = "u32" }, replication = "everyChange" })
 -- Server only: the seconds before a rider can fire again.
 engine.ecs.component("game.Gun", { fields = { cooldown = "f32" }, presence = "serverOnly" })
 -- A shot's beam, an entity of its own sent once: it goes from the rider in slot `shooter` to what it hit, or to the

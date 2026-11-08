@@ -6,6 +6,10 @@ local Game = require("@scripts/shared/rules")
 -- The riders of this tick, counted by game.CountRiders for game.RunMatch.
 local riderCount = 0
 
+-- The match as the other modules see it, written by game.RunMatch: its phase, its whole seconds left, and how many
+-- matches started (a new one resets the scores).
+local current = { phase = Game.waiting, secondsLeft = Game.matchDuration, round = 0 }
+
 --- Puts the match in @p phase, with @p seconds to go in it.
 local function enter(match, clock, phase: number, seconds: number)
 	match.phase = phase
@@ -50,8 +54,10 @@ engine.ecs.system("game.RunMatch", {
 			if match.phase == Game.waiting then
 				if riderCount >= Game.minPlayers then
 					enter(match, clock, Game.racing, Game.matchDuration)
+					current.round += 1
 					print(`[server] the match starts: {Game.matchDuration} seconds`)
 				end
+				current.phase, current.secondsLeft = match.phase, match.secondsLeft
 				continue
 			end
 			clock.remaining = math.max(0, clock.remaining - ctx.time.fixedDelta)
@@ -62,16 +68,35 @@ engine.ecs.system("game.RunMatch", {
 					print(`[server] {seconds // 60} minute(s) left`)
 				end
 			end
-			if clock.remaining > 0 then
-				continue
+			if clock.remaining <= 0 then
+				if match.phase == Game.racing then
+					enter(match, clock, Game.over, Game.resultsDuration)
+					print("[server] the match is over")
+				else
+					enter(match, clock, Game.waiting, Game.matchDuration)
+					print(`[server] waiting for {Game.minPlayers} players`)
+				end
 			end
-			if match.phase == Game.racing then
-				enter(match, clock, Game.over, Game.resultsDuration)
-				print("[server] the match is over")
-			else
-				enter(match, clock, Game.waiting, Game.matchDuration)
-				print(`[server] waiting for {Game.minPlayers} players`)
-			end
+			current.phase, current.secondsLeft = match.phase, match.secondsLeft
 		end
 	end,
 })
+
+return {
+	--- The match's phase: Game.waiting, Game.racing or Game.over.
+	phase = function(): number
+		return current.phase
+	end,
+	--- The whole seconds left in the match's phase.
+	secondsLeft = function(): number
+		return current.secondsLeft
+	end,
+	--- How many matches started: it changes when a new one starts.
+	round = function(): number
+		return current.round
+	end,
+	--- Whether the match races, the only time the score counts.
+	racing = function(): boolean
+		return current.phase == Game.racing
+	end,
+}

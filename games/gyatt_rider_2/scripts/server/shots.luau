@@ -3,6 +3,7 @@
 -- leaves a beam there for Game.beamLifetime. What it meets gets a game.Hit, which server/hits.luau resolves.
 
 local Game = require("@scripts/shared/rules")
+local Match = require("@scripts/server/match")
 
 -- What a shot meets: the riders, which are sensors, and the traffic.
 local shotMask = bit32.bor(Game.riderLayer, Game.vehicleLayer, Game.cyclistLayer)
@@ -33,15 +34,19 @@ local function reachToEdge(from: { x: number, y: number }, direction: { x: numbe
 end
 
 -- FixedUpdate, once the physics stepped, so that the ray meets the scene of this tick: a rider whose gun is ready
--- fires the way its arrows point.
+-- fires the way its arrows point, and pays Game.shotCost while the match races.
 engine.ecs.system("game.Fire", {
 	phase = "FixedUpdate",
 	side = "server",
-	query = { read = { "game.Rider", "game.Position" }, write = { "game.Gun" }, with = { "net.PlayerInput" } },
+	query = {
+		read = { "game.Rider", "game.Position" },
+		write = { "game.Gun", "game.Score" },
+		with = { "net.PlayerInput" },
+	},
 	calls = { "rtype.replication.readInput", "rtype.physics.raycast" },
 	after = { "net.applyInputs", "rtype.Physics.Events" },
 	run = function(ctx)
-		for entity, rider, position, gun in ctx.query do
+		for entity, rider, position, gun, score in ctx.query do
 			if gun.cooldown > 0 then
 				gun.cooldown = math.max(0, gun.cooldown - ctx.time.fixedDelta)
 				continue
@@ -52,6 +57,9 @@ engine.ecs.system("game.Fire", {
 				continue
 			end
 			gun.cooldown = Game.fireCooldown
+			if Match.racing() and score.points > 0 then
+				score.points = math.max(0, score.points - Game.shotCost)
+			end
 			local from = position.value
 			local reach = reachToEdge(from, direction)
 			local hit = ctx.call("rtype.physics.raycast", {
