@@ -114,7 +114,8 @@ class RTYPE_REPLICATION_API ServerState {
     /// @return How many messages were ignored: of another type, or from a client that is not connected.
     [[nodiscard]] std::size_t ignoredMessageCount() const noexcept;
 
-    /// @return How many snapshots did not list every entity because they did not fit in a message.
+    /// @return How many snapshots did not list every entity: a record too big for a message of its own, or more than
+    /// snapshot::kMaxParts parts.
     [[nodiscard]] std::size_t incompleteSnapshotCount() const noexcept;
 
     /// @return Whether the client is connected.
@@ -205,11 +206,12 @@ class RTYPE_REPLICATION_API ServerState {
     /// @return Whether a snapshot is due: at least `tickRate / snapshotRate` ticks passed since the last one.
     [[nodiscard]] bool isSnapshotDue(std::uint32_t tick) const noexcept;
 
-    /// @brief Forgets the entities that are not alive, then writes one snapshot per connected client.
+    /// @brief Forgets the entities that are not alive, then writes one snapshot per connected client. A snapshot that
+    /// does not fit in one message is split into parts (snapshot::kPart), all sent in the same tick.
     /// @param tick The server tick the snapshots carry.
     /// @param replicated The queries of the replicated components, one per component in the order of
     /// query::listReplicatedComponents().
-    /// @return One command per connected client, by client id; empty when nobody is connected.
+    /// @return One command per connected client and part, by client id then part; empty when nobody is connected.
     [[nodiscard]] std::vector<network::server::SendMessage> buildSnapshots(std::uint32_t tick,
                                                                            const ecs::DynamicQueries& replicated);
 
