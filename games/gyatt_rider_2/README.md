@@ -88,7 +88,7 @@ A score never goes below 0, and counts only while the match races.
 - An impact at the start of each beam, where it stops and on each death; the view shakes when the player is hit.
 - Each boost's effect on its rider: rising arrows for the speed, a burst of twinkles for the points, a bubble shading
   white and green for the invincibility, a pulsing red scope for the sniper shots.
-- The music, and a sound for each shot, each death and the player's own kills.
+- The music while a match races, and a sound for each shot, each death and the player's own kills.
 
 ## Layout
 
