@@ -87,9 +87,9 @@ jobs:
 
       - name: Setup Linux dependencies
         if: contains(runner.os, 'linux')
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y vulkan-tools libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+        uses: ./.github/actions/setup-clang
+        with:
+          packages: vulkan-tools libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
 
       - name: Setup macOS dependencies
         if: contains(runner.os, 'macos')
@@ -165,24 +165,19 @@ jobs:
     needs: gate
     if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
-    env:
-      LLVM_VERSION: "22"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
+      # clang is the compiler of the compile database clang-tidy reads, as in the build: same version everywhere.
       - name: Setup Linux dependencies
-        run: |
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-          codename="$(lsb_release -cs)"
-          echo "deb http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-${LLVM_VERSION} main" \
-            | sudo tee /etc/apt/sources.list.d/llvm.list
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            "clang-format-${LLVM_VERSION}" "clang-tidy-${LLVM_VERSION}" \
-            vulkan-tools libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev
+        id: clang
+        uses: ./.github/actions/setup-clang
+        with:
+          tools: "true"
+          packages: vulkan-tools libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev
 
       - name: Install xmake
         uses: xmake-io/github-action-setup-xmake@v1
@@ -250,6 +245,6 @@ jobs:
 
       - name: Check the changed files with clang-format and clang-tidy
         env:
-          CLANG_FORMAT: clang-format-${{ env.LLVM_VERSION }}
-          CLANG_TIDY: clang-tidy-${{ env.LLVM_VERSION }}
+          CLANG_FORMAT: clang-format-${{ steps.clang.outputs.version }}
+          CLANG_TIDY: clang-tidy-${{ steps.clang.outputs.version }}
         run: bash .github/scripts/lint.sh "${{ steps.base.outputs.sha }}"
