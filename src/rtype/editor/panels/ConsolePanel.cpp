@@ -15,19 +15,20 @@
 #include "Panels.hpp"
 #include "editor/EditorState.hpp"
 #include "editor/console/ConsoleLog.hpp"
+#include "editor/gui/Theme.hpp"
 
 namespace rtype::editor::panels {
 
 namespace {
 /// @return The colour a line of @p level is written in.
-ImVec4 colorOf(console::Level level) {
+gui::Tone toneOf(console::Level level) {
     switch (level) {
         case console::Level::kError:
-            return ImVec4{1.0F, 0.45F, 0.4F, 1.0F};
+            return gui::Tone::kDanger;
         case console::Level::kWarning:
-            return ImVec4{1.0F, 0.8F, 0.35F, 1.0F};
+            return gui::Tone::kWarning;
         default:
-            return ImGui::GetStyleColorVec4(ImGuiCol_Text);
+            return gui::Tone::kText;
     }
 }
 
@@ -46,9 +47,9 @@ bool shows(const EditorState& state, console::Level level) {
 /// @brief Shows @p line, row @p row of the list, in the color of its level, with a menu that copies it.
 void drawLine(const console::Line& line, int row) {
     ImGui::PushID(row);
-    ImGui::PushStyleColor(ImGuiCol_Text, colorOf(line.level));
+    gui::pushTextTone(toneOf(line.level));
     ImGui::TextUnformatted(line.text.c_str());
-    ImGui::PopStyleColor();
+    gui::popTextTone();
     if (ImGui::BeginPopupContextItem("##line")) {
         if (ImGui::MenuItem("Copy")) {
             ImGui::SetClipboardText(line.text.c_str());

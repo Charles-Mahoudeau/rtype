@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
 #include <string>
 #include <string_view>
@@ -44,6 +45,13 @@ class RTYPE_HEADER_ONLY_API IPlatform {
     /// @return The window's size in the units of the mouse events, which differs from the framebuffer on a high density
     /// display.
     [[nodiscard]] virtual glm::uvec2 getWindowSize() const { return getFramebufferSize(); }
+
+    /// @return The scale the desktop asks of the window's content: 2 on a screen set to 200%. Where the window is
+    /// measured in points (macOS, Wayland), the framebuffer is already that much bigger than the window; where both are
+    /// pixels (Windows, X11), it is not, and what is drawn in window units must be scaled by this. So a tool scales its
+    /// interface by getContentScale() over the framebuffer to window ratio. Default: 1, for a platform that cannot
+    /// tell.
+    [[nodiscard]] virtual glm::vec2 getContentScale() const { return {1.0F, 1.0F}; }
 
     /// @return Current window title.
     [[nodiscard]] virtual const std::string& getTitle() const = 0;

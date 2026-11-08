@@ -36,15 +36,16 @@ A program of its own, not a feature of a game and not a mode of the runtime. Gam
 | Folder | Holds |
 |---|---|
 | `editor/` | `EditorPlugin` (the two hooks, the frame, the default layout), `EditorState` (everything kept between frames) |
-| `gui/` | `GuiContext` (the ImGui context), `GuiInput` (the window's events to ImGui and to the game), `GameViewport`, `GuiMesh` (ImGui's draw data and textures for the renderer) |
+| `gui/` | `GuiContext` (the ImGui context and the UI fonts), `Theme` (the Catppuccin Mocha colors, shapes and tone widgets), `GuiInput` (the window's events to ImGui and to the game), `GameViewport`, `GuiMesh` (ImGui's draw data and textures for the renderer) |
 | `play/` | `PlaySession`: Play, Pause, Step and Stop; `OnlinePlay`: the steps of Play online |
 | `scene/` | `SceneEdit`: the capsule changes (copy a tree with a node removed or moved, add, rename), commit, open, save, new files; `Isolation`: a capsule shown alone (prefab mode) |
 | `console/` | `ConsoleLog` (the last lines, from any thread), `OutputCapture` (the process's output into it) |
+| `fonts/` | JetBrains Mono Nerd Font, Regular (the text) and Bold (`gui::pushEmphasisFont()`: dark text on a filled button or chip, where thin strokes look faded), with its OFL license. Embedded in the program by `utils.bin2c`, so the editor needs no file at run time; the Nerd Font icons (Font Awesome in the Play controls) come with it |
 | `shell/` | `TextEditor`: a file opened in an external text editor |
 | `panels/` | The panels, `FieldEditor` (the widgets of a reflected value, the drag-and-drop of assets) and `WorldView` |
 
 `play/`, `scene/`, `console/` and `shell/` include no ImGui: the tests (`tests/plugins/EditorPlaySessionTests.cpp`,
-`EditorSceneEditTests.cpp`, `EditorIsolationTests.cpp`, `EditorConsoleTests.cpp`, `EditorPluginInfoTests.cpp`) drive them without a window.
+`EditorSceneEditTests.cpp`, `EditorIsolationTests.cpp`, `EditorConsoleTests.cpp`, `EditorPluginInfoTests.cpp`, `EditorAssetKindTests.cpp`) drive them without a window.
 
 ## How it reaches the screen and the window
 
@@ -100,7 +101,7 @@ and the resources and the scripts' state stay as they are.
 
 ### Playing online
 
-The menu bar has a choice next to Play: **Standalone** (the default, above) or **Online**, locked while a Play is under
+The toolbar has a choice next to Play: **Standalone** (the default, above) or **Online**, locked while a Play is under
 way. Online tests the real thing, a server and its clients:
 
 1. Play remembers the open scene, then starts the child server with the options of the Server panel (game folder, port,
@@ -200,12 +201,12 @@ background it would fail out of sight.
 
 | Panel | File | What it does |
 |---|---|---|
-| Menu bar | `panels/ToolbarPanel.cpp` | File (Save scene, Ctrl+S; Quit, through `IPlatform::close()`), View (panels, Reset layout), the Standalone / Online choice, Play / Pause / Step / Stop, the mode and the last message |
+| Toolbar | `panels/ToolbarPanel.cpp` | One padded row (`gui::beginToolbar()`): on the left File (Save scene, Ctrl+S; Quit, through `IPlatform::close()`) and View (panels, Reset layout), as flat buttons opening popups; in the center the mode chip and the last message; on the right the Standalone / Online choice and Play / Pause / Step / Stop. The three groups are placed by `gui::beginToolbarGroup()` |
 | Actor | `panels/ActorPanel.cpp` | One tab per capsule opened alone (`EditorState::actors`), docked with the Game panel; the one in front is drawn from the renderer's preview, centred; the wheel zooms; a tab's cross closes it |
 | Game | `panels/GamePanel.cpp` | Asks for a scene texture as big as its content, draws it as an image, tells the input bridge where it is (`GameViewport`) |
 | Hierarchy | `panels/HierarchyPanel.cpp` | Editing: the scene's node tree; drag a node onto another to move it, drop a capsule file to place an instance, right-click to add or delete. Playing: the world's entities by their `Parent` and `Children`, named by their `Name`, or a flat list filtered by component name |
 | Inspector | `panels/InspectorPanel.cpp` | Editing: the selected node's name, side, instance and components (added with their type's default value, removed, edited). Playing: the selected entity's components, the same way, lost at Stop |
-| Assets | `panels/AssetsPanel.cpp` | The tree of `<game>/assets`: open a scene, new scene / actor / folder, rename, delete, drag a file |
+| Assets | `panels/AssetsPanel.cpp` | A file explorer: on the left a small tree of the folders of `<game>/assets`; on the right the folder shown as a grid of icons (one per file type, told by `kindOf()` in `panels/AssetKind.cpp`, drawn with Nerd Font glyphs), with a breadcrumb, an up button and an icon size slider. Click selects, double-click enters a folder or opens a capsule, drag carries a file's path, right-click opens the menu (new scene / actor / folder, open, rename, delete) |
 | Console | `panels/ConsolePanel.cpp` | The program's output: filters by kind (info, warnings, errors) and by text, Clear, right-click to copy a line, follows new lines unless scrolled up |
 | Particles | `panels/ParticlesPanel.cpp` | The effects of `ParticleEffectAssets`: edit the spawning, each particle and the forces, preview at the middle of the view, Copy as Luau |
 | Stats | `panels/StatsPanel.cpp` | `io.Framerate`, the plot of the last frame times, `getFrameStats()` |
@@ -233,8 +234,13 @@ particles run in PostUpdate and Render, they play while editing.
 `ToolFrame` runs `runFrame()` in `EditorPlugin.cpp`:
 
 1. Open `editor.scene` on the first frame (the capsule files are read once every plugin is built).
-2. Tell ImGui the size of the window, the density of its pixels, the last frame's duration and the clipboard.
-3. `ImGui::NewFrame()`, the menu bar, the dockspace over the window (the panels are docked as by default on the first
+2. Tell ImGui the size of the window, the density of its pixels, the last frame's duration and the clipboard, and
+   scale the panels to the screen (`gui::interfaceScale()`): the platform's content scale (2 on a screen set to 200%)
+   over the framebuffer to window ratio. Where the window is measured in points (macOS, Wayland) that ratio already
+   covers it, so the scale is 1; where both are pixels (X11, including through XWayland, and Windows) it is the
+   content scale. `GuiContext::setScale()` rebuilds the style from its defaults at that scale (`ScaleAllSizes()`) and
+   sets `FontScaleDpi`, so ImGui renders its glyphs again at that size and the text stays sharp.
+3. `ImGui::NewFrame()`, the toolbar, the dockspace over the window (the panels are docked as by default on the first
    frame if no layout was kept; the layout file is `<cache>/rtype/editor/layout-<version>.ini`, its version raised when
    the panels change), then the panels.
 4. `ImGui::Render()`, `gui::updateTextures()` (ImGui's font atlas, sent whole when it grows) and `gui::buildMesh()`, one
@@ -260,6 +266,8 @@ particles run in PostUpdate and Render, they play while editing.
 | `editor.textEditor` | Visual Studio Code | The command that opens a file, its arguments included: `"code"`, `"subl"`, `"open -a TextEdit"` |
 
 The section is read when the editor is built (`readEditorOptions()`), and an unknown key in it is an error.
+
+The window is titled `AYLO Editor - <Game>`, where `<Game>` is the game's `window.title`; with none, `AYLO Editor`.
 
 ## Limits
 

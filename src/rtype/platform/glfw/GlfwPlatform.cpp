@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <glm/ext/vector_double2.hpp>
+#include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
 #include <span>
 #include <string>
@@ -41,6 +42,16 @@ glm::uvec2 GlfwPlatform::getWindowSize() const {
     return {static_cast<unsigned int>(width), static_cast<unsigned int>(height)};
 }
 
+glm::vec2 GlfwPlatform::getContentScale() const {
+    if (_window == nullptr) {
+        return {1.0F, 1.0F};
+    }
+    float x = 1.0F;
+    float y = 1.0F;
+    glfwGetWindowContentScale(_window, &x, &y);
+    return {x, y};
+}
+
 glm::uvec2 GlfwPlatform::getFramebufferSize() const {
     int width = 0;
     int height = 0;
@@ -59,16 +70,38 @@ void GlfwPlatform::setSize(glm::uvec2 size) {
     glfwSetWindowSize(_window, static_cast<int>(size.x), static_cast<int>(size.y));
 }
 
+#ifdef __linux__
+namespace {
+/// @return The GLFW_PLATFORM hint for a WindowConfig::system: any for "auto".
+int platformHint(const std::string& system) {
+    if (system == "x11") {
+        return GLFW_PLATFORM_X11;
+    }
+    if (system == "wayland") {
+        return GLFW_PLATFORM_WAYLAND;
+    }
+    return GLFW_ANY_PLATFORM;
+}
+}  // namespace
+#endif
+
 /// @details Window hints:
 /// - `GLFW_CLIENT_API = GLFW_NO_API`: by default GLFW creates an OpenGL context with the window. The renderer
 ///   brings its own graphics API instead, and attaches to the window (Vulkan: through IVulkanSurfaceSource).
 /// - `GLFW_RESIZABLE`: from the config. A resizable window makes the renderer rebuild its swapchain on resize.
+/// On Linux, `GLFW_PLATFORM` comes from `WindowConfig::system`: any (GLFW takes Wayland in a Wayland session, X11
+/// otherwise or if Wayland fails), or the one asked for.
 void GlfwPlatform::init(const contract::platform::WindowConfig& config) {
     if (_glfwInitialized) {
         throw exceptions::GLFWWindowException("GlfwPlatform::init() called twice");
     }
+#ifdef __linux__
+    glfwInitHint(GLFW_PLATFORM, platformHint(config.system));
+#endif
     if (glfwInit() == GLFW_FALSE) {
-        throw exceptions::GLFWWindowException("Failed to initialize GLFW");
+        throw exceptions::GLFWWindowException(
+            config.system == "auto" ? std::string{"Failed to initialize GLFW"}
+                                    : "Failed to initialize GLFW with the window system \"" + config.system + "\"");
     }
     _glfwInitialized = true;
     _title = config.title;

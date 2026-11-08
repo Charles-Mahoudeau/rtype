@@ -173,6 +173,7 @@ end
 |---|---|
 | `platform`, `renderer` | the backends by name (`"glfw"`, `"vulkan"` today); required on a client |
 | `window.size`, `window.title`, `window.resizable`, `window.fullscreen` | the window |
+| `window.system` | Linux only: `"auto"` (default: Wayland in a Wayland session, X11 otherwise or if Wayland fails), `"x11"` or `"wayland"` |
 | `audio.backend` | `"miniaudio"` or `"null"` (silent) |
 | `audio.required` | if the device cannot open: `false` falls back to `"null"`, `true` is an error |
 | `audio.maxVoices` | sounds playing at once; the oldest effect is stolen beyond that |
@@ -185,6 +186,20 @@ end
 The `vulkan` section also accepts `engineName`, `extraExtensions`, `minSeverity`, `preferredDeviceType`,
 `synchronizationValidation` and `bestPractices`; the `miniaudio` section accepts `sampleRate`, `channels` and
 `periodSizeInMilliseconds`. Leave them unset unless you know you need them.
+
+On Linux the window opens natively on Wayland when your desktop runs it, so a screen scaled to 150% or 200% is drawn
+sharp and at the right size. If a machine has trouble with Wayland (an old graphics driver), let players choose the
+window system with a flag of their own:
+
+```luau
+if engine.isClient then
+	engine.settings.window.system = engine.args.windowSystem or "auto"
+end
+```
+
+```sh
+./aylo-runtime my_game/game --windowSystem x11
+```
 
 A common pattern is to turn on validation only in debug builds:
 

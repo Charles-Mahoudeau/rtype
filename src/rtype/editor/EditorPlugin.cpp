@@ -23,6 +23,7 @@
 #include "EditorState.hpp"
 #include "core/system/CacheDirectory.hpp"
 #include "editor/EditorSession.hpp"
+#include "editor/gui/GuiContext.hpp"
 #include "editor/gui/GuiMesh.hpp"
 #include "editor/panels/Panels.hpp"
 #include "editor/play/OnlinePlay.hpp"
@@ -93,7 +94,8 @@ void drawDockspace(EditorState& state) {
     }
 }
 
-/// @brief Tells ImGui the size of the window, the density of its pixels and how long the last frame took.
+/// @brief Tells ImGui the size of the window, the density of its pixels and how long the last frame took, and scales
+/// the panels to the desktop's content scale.
 void beginFrameIo(EditorState& state, contract::platform::IPlatform& platform) {
     state.platform = &platform;
     const glm::uvec2 window = platform.getWindowSize();
@@ -102,6 +104,8 @@ void beginFrameIo(EditorState& state, contract::platform::IPlatform& platform) {
     io.DisplaySize = ImVec2{static_cast<float>(window.x), static_cast<float>(window.y)};
     io.DisplayFramebufferScale = ImVec2{static_cast<float>(framebuffer.x) / static_cast<float>(std::max(window.x, 1U)),
                                         static_cast<float>(framebuffer.y) / static_cast<float>(std::max(window.y, 1U))};
+    // A scaled screen (200%) where the window is measured in pixels (X11, Windows): the panels are drawn bigger.
+    state.context->setScale(gui::interfaceScale(platform.getContentScale().x, io.DisplayFramebufferScale.x));
     const double now = platform.getTime();
     io.DeltaTime = state.lastTime > 0.0 ? std::max(static_cast<float>(now - state.lastTime), 1.0e-5F) : kFallbackFrame;
     state.lastTime = now;
@@ -131,6 +135,9 @@ void runFrame(EditorState& state, contract::platform::IPlatform& platform, contr
         } else {
             panels::openPrefab(state, start);  // an actor opens alone, as a double-click in the Assets does
         }
+    }
+    if (!state.windowTitle.empty()) {
+        platform.setTitle(std::exchange(state.windowTitle, {}));
     }
     beginFrameIo(state, platform);
     ImGui::NewFrame();
@@ -188,6 +195,8 @@ void EditorPlugin::build(ecs::App& app) {
             state->session->reopenScene.empty() ? _options.scene : std::move(state->session->reopenScene);
         state->session->reopenScene.clear();
     }
+    state->windowTitle =
+        _options.gameTitle.empty() ? "AYLO Editor" : std::format("AYLO Editor - {}", _options.gameTitle);
     state->textEditor = _options.textEditor.empty() ? shell::defaultTextEditor() : _options.textEditor;
     ecs::Resources& resources = app.getWorld().getResources();
     // The graphics plugin, which this one requires, inserted both hooks; they live and die with this App.

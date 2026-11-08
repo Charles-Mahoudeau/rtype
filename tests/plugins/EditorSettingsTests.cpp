@@ -35,6 +35,14 @@ TEST(EditorSettings, ReadsTheSceneAndTheTextEditor) {
     EXPECT_EQ(options.textEditor, "subl");
 }
 
+TEST(EditorSettings, ReadsTheGameWindowTitle) {
+    Settings settings;
+    settings.set("window.title", std::string{"R-Type Duel"});
+
+    EXPECT_EQ(rtype::editor::readEditorOptions(settings).gameTitle, "R-Type Duel");
+    EXPECT_TRUE(rtype::editor::readEditorOptions(Settings{}).gameTitle.empty());
+}
+
 TEST(EditorSettings, RefusesAnUnknownKey) {
     Settings settings;
     settings.set("editor.sceen", std::string{"level"});
