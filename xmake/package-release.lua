@@ -17,6 +17,7 @@ task("package-release")
     on_run(function ()
         import("core.base.json")
         import("core.base.option")
+        import("core.base.semver")
         import("core.project.config")
         import("lib.detect.find_tool")
         import("utils.archive")
@@ -92,6 +93,42 @@ task("package-release")
                 if windows and (filename == "rtype-plugin-transform.dll" or filename == "rtype-plugin-input.dll") then
                     os.cp(file, path.join(runtime, filename))
                 end
+            end
+        end
+        -- Windows: the Visual C++ runtime of the toolchain (vcruntime140*.dll, msvcp140*.dll...), next to the executable,
+        -- where the DLLs of plugins/ find it too (it is loaded once, by name). From %VCToolsRedistDir% when the build runs
+        -- in a developer prompt, otherwise from the Visual Studio vswhere finds.
+        if windows then
+            local redistdir = os.getenv("VCToolsRedistDir")
+            if not redistdir or not os.isdir(redistdir) then
+                redistdir = nil
+                local programfiles = os.getenv("ProgramFiles(x86)") or "C:\\Program Files (x86)"
+                local vswhere = path.join(programfiles, "Microsoft Visual Studio", "Installer", "vswhere.exe")
+                if os.isfile(vswhere) then
+                    local installdir = try { function ()
+                        return os.iorunv(vswhere, {"-latest", "-products", "*", "-requires",
+                                                   "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+                                                   "-property", "installationPath"}):trim()
+                    end }
+                    -- Redist/MSVC/<version>/: the highest version is the one of the newest toolset.
+                    local best
+                    for _, dir in ipairs(installdir and os.dirs(path.join(installdir, "VC", "Redist", "MSVC", "*")) or {}) do
+                        local name = path.filename(dir)
+                        if name:match("^%d+%.%d+%.%d+$") and (not best or semver.compare(name, path.filename(best)) > 0) then
+                            best = dir
+                        end
+                    end
+                    redistdir = best
+                end
+            end
+            local redistarch = ({x86_64 = "x64", arm64 = "arm64", x86 = "x86"})[arch] or arch
+            local crt = redistdir and os.dirs(path.join(redistdir, redistarch, "Microsoft.VC*.CRT"))[1]
+            if not crt then
+                raise("the Visual C++ runtime was not found (no VCToolsRedistDir, nor a Visual Studio with the C++ tools): " ..
+                      "the zip would not run where it is not installed")
+            end
+            for _, file in ipairs(os.files(path.join(crt, "*.dll"))) do
+                os.cp(file, path.join(runtime, path.filename(file)))
             end
         end
         -- The tool finds the engine's DLLs next to itself.
