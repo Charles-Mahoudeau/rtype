@@ -177,6 +177,7 @@ void EditorPlugin::build(ecs::App& app) {
     }
     const auto state =
         std::make_shared<EditorState>(app, _options.layoutFile.value_or(layoutFilePath()), _options.session);
+    state->session->prompt.forget();  // the modules are new: what was kept for completion is not theirs
     play::OnlinePlay& online = state->session->online;
     if (online.isActive() && app.getSchedules().getRunMode() == ecs::RunMode::kClient) {
         // Play online: this App is the client of the server. The game runs at once, and the scene is not shown: the

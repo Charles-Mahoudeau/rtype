@@ -115,6 +115,9 @@ struct RTYPE_EDITOR_API EditorState {
     server::ServerPanelState& serverPanel;         ///< What the Server panel remembers between frames; the session's.
     std::array<char, 64> pluginFilter{};           ///< What the Plugins panel keeps: a part of a name.
     std::array<char, 128> consoleFilter{};         ///< What the Console keeps: a part of a line.
+    std::array<char, 512> consoleInput{};          ///< What is typed in the Console's input line.
+    bool focusPrompt{false};                       ///< Whether the next frame gives the input line the keyboard.
+    bool promptActive{false};                      ///< Whether the input line had the keyboard in the last frame.
     std::size_t consoleSeen{0};                    ///< The lines the Console has shown, to scroll to new ones.
     bool consoleInfo{true};                        ///< Whether the Console shows the other lines.
     bool consoleWarnings{true};                    ///< Whether it shows the warnings.
