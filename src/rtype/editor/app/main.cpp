@@ -30,6 +30,7 @@
 #include "editor/EditorSession.hpp"
 #include "editor/EditorSettings.hpp"
 #include "editor/EditorState.hpp"
+#include "editor/console/ScriptPrompt.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/engine/Engine.hpp"
@@ -100,7 +101,10 @@ int main(const int argc, char** argv) {
             .evaluate =
                 [&engine](const std::string_view line) {
                     auto evaluation = engine.evaluateScript(line);
-                    return rtype::editor::console::ScriptOutcome{.ok = evaluation.ok, .text = std::move(evaluation.text)};
+                    return rtype::editor::console::ScriptOutcome{
+                        .ok = evaluation.ok,
+                        .text = std::move(evaluation.text),
+                    };
                 },
             .complete = [&engine](const std::string_view word) { return engine.completeScript(word); },
         });

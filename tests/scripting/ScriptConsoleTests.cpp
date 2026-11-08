@@ -153,8 +153,8 @@ TEST(ScriptConsole, CompletesNamesAmongModulesFieldsAndGlobals) {
     const Game game{scripts.path()};
 
     EXPECT_EQ(game.host->complete("config.pl"), (std::vector<std::string>{"config.player"}));
-    EXPECT_EQ(game.host->complete("config.player.size."), (std::vector<std::string>{"config.player.size.x",
-                                                                                      "config.player.size.y"}));
+    EXPECT_EQ(game.host->complete("config.player.size."),
+              (std::vector<std::string>{"config.player.size.x", "config.player.size.y"}));
     EXPECT_EQ(game.host->complete("conf"), (std::vector<std::string>{"config"}));
     const std::vector<std::string> globals = game.host->complete("mat");
     EXPECT_NE(std::ranges::find(globals, "math"), globals.end());

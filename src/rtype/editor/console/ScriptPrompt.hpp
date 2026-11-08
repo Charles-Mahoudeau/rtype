@@ -27,8 +27,8 @@ struct ScriptOutcome {
 
 /// @brief What the prompt runs Luau with: the program gives it (the editor knows no Luau, the engine does).
 struct ScriptBackend {
-    std::function<ScriptOutcome(std::string_view)> evaluate;                   ///< Runs one line.
-    std::function<std::vector<std::string>(std::string_view)> complete;        ///< The words that complete a name.
+    std::function<ScriptOutcome(std::string_view)> evaluate;             ///< Runs one line.
+    std::function<std::vector<std::string>(std::string_view)> complete;  ///< The words that complete a name.
 };
 
 /// @brief The input line of the Console: runs what is typed in the game's scripts, remembers it, and completes names.
@@ -85,13 +85,13 @@ class RTYPE_EDITOR_API ScriptPrompt {
     [[nodiscard]] std::optional<std::string> newer();
 
   private:
-    ScriptBackend _backend;                  ///< What runs and completes.
-    std::vector<std::string> _history;       ///< The lines run, the oldest first.
-    std::size_t _cursor{0};                  ///< Where browsing is in the history; the size when not browsing.
-    std::string _draft;                      ///< What was typed when browsing started.
-    std::string _word;                       ///< The name the kept completions are for.
-    std::vector<std::string> _completions;   ///< The kept completions of _word.
-    bool _hasCompletions{false};             ///< Whether _completions is for _word.
+    ScriptBackend _backend;                 ///< What runs and completes.
+    std::vector<std::string> _history;      ///< The lines run, the oldest first.
+    std::size_t _cursor{0};                 ///< Where browsing is in the history; the size when not browsing.
+    std::string _draft;                     ///< What was typed when browsing started.
+    std::string _word;                      ///< The name the kept completions are for.
+    std::vector<std::string> _completions;  ///< The kept completions of _word.
+    bool _hasCompletions{false};            ///< Whether _completions is for _word.
 };
 
 }  // namespace rtype::editor::console

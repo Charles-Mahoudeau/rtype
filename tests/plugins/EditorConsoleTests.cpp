@@ -242,13 +242,14 @@ TEST(EditorScriptPrompt, AsksAgainOnceTheModulesChanged) {
 TEST(EditorScriptPrompt, ShowsAFewCompletionsAndCountsTheOthers) {
     console::ScriptPrompt prompt;
     prompt.setBackend({.evaluate = [](std::string_view) { return console::ScriptOutcome{.ok = true, .text = ""}; },
-                       .complete = [](std::string_view) {
-                           std::vector<std::string> words;
-                           for (int index = 0; index < 20; ++index) {
-                               words.push_back(std::format("word{:02}", index));
-                           }
-                           return words;
-                       }});
+                       .complete =
+                           [](std::string_view) {
+                               std::vector<std::string> words;
+                               for (int index = 0; index < 20; ++index) {
+                                   words.push_back(std::format("word{:02}", index));
+                               }
+                               return words;
+                           }});
     std::size_t hidden = 0;
 
     const std::vector<std::string> shown = prompt.suggestions("w", hidden);

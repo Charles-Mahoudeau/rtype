@@ -38,7 +38,6 @@
 #include "Script.hpp"
 #include "Table.hpp"
 #include "ValuePack.hpp"
-#include "detail/Stack.hpp"
 #include "detail/UsertypeRegistry.hpp"
 
 namespace {
@@ -208,6 +207,7 @@ Result<> Runtime::run(const Ref& closure) const { return runClosure(_state.get()
 // NOLINTNEXTLINE(*-convert-member-functions-to-static)
 Result<> Runtime::run(const Script& script) const { return runClosure(script.state(), script.closure()); }
 
+// NOLINTNEXTLINE(*-convert-member-functions-to-static)
 Result<ValuePack> Runtime::call(const Script& script, const ValuePack& args) const {
     lua_State* const state = script.state();
     if (lua_checkstack(state, 2) == 0) {

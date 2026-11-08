@@ -79,7 +79,7 @@ void replaceWord(ImGuiInputTextCallbackData& data, const std::string& word) {
 
 /// @brief The input line's callback: Tab completes the name before the cursor, Up and Down browse the history.
 int onPromptEvent(ImGuiInputTextCallbackData* data) {
-    auto& context = *static_cast<PromptContext*>(data->UserData);
+    const auto& context = *static_cast<PromptContext*>(data->UserData);
     console::ScriptPrompt& prompt = context.state->session->prompt;
     if (data->EventFlag == ImGuiInputTextFlags_CallbackCompletion) {
         std::size_t hidden = 0;
@@ -119,13 +119,14 @@ void drawSuggestions(EditorState& state) {
             text.resize(text.size() - console::ScriptPrompt::wordAt(text).size());
             text += word;
             text.resize(std::min(text.size(), state.consoleInput.size() - 1));
-            std::copy(text.begin(), text.end(), state.consoleInput.begin());
+            std::ranges::copy(text, state.consoleInput.begin());
             state.consoleInput.at(text.size()) = '\0';
             state.focusPrompt = true;
         }
         ImGui::SameLine();
     }
     if (hidden > 0) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg): a constant format.
         ImGui::Text("+%zu", hidden);
     } else {
         ImGui::NewLine();
@@ -139,13 +140,13 @@ void drawPrompt(EditorState& state) {
         ImGui::SetKeyboardFocusHere();
     }
     PromptContext context{.state = &state};
+    // NOLINTNEXTLINE(bugprone-signed-bitwise): Dear ImGui flags are ints.
     constexpr ImGuiInputTextFlags kFlags = ImGuiInputTextFlags_EnterReturnsTrue |
-                                           ImGuiInputTextFlags_CallbackCompletion |
-                                           ImGuiInputTextFlags_CallbackHistory;
+                                           ImGuiInputTextFlags_CallbackCompletion | ImGuiInputTextFlags_CallbackHistory;
     ImGui::SetNextItemWidth(-FLT_MIN);
-    const bool entered = ImGui::InputTextWithHint("##consoleInput", "Luau: config.player.size.x = 10   (Tab completes)",
-                                                  state.consoleInput.data(), state.consoleInput.size(), kFlags,
-                                                  onPromptEvent, &context);
+    const bool entered =
+        ImGui::InputTextWithHint("##consoleInput", "Luau: config.player.size.x = 10   (Tab completes)",
+                                 state.consoleInput.data(), state.consoleInput.size(), kFlags, onPromptEvent, &context);
     state.promptActive = ImGui::IsItemActive();
     if (entered) {
         state.session->prompt.submit(state.consoleInput.data(), *state.console);

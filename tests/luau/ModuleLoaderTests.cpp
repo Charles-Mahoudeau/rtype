@@ -27,8 +27,8 @@
 #include "rtype/luau/Ref.hpp"
 #include "rtype/luau/Result.hpp"
 #include "rtype/luau/Runtime.hpp"
-#include "rtype/luau/Table.hpp"
 #include "rtype/luau/RuntimeConfig.hpp"
+#include "rtype/luau/Table.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/luau/detail/RawState.hpp"
 

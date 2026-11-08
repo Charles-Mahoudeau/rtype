@@ -93,7 +93,7 @@ void collectTables(const luau::Table& root, std::vector<luau::Table>& found) {
     };
     std::vector<luau::Table> pending{root};
     while (!pending.empty() && found.size() < kMaxTables) {
-        luau::Table table = std::move(pending.back());
+        const luau::Table table = std::move(pending.back());
         pending.pop_back();
         if (known(table)) {
             continue;
@@ -188,6 +188,9 @@ luau::Result<ScriptHost::ConsoleBindings> ScriptHost::consoleBindings(const luau
         return tl::unexpected{std::move(engineView.error())};
     }
     luau::ValuePack arguments;
+    if (!_engine) {
+        return luau::Failure{luau::ErrorKind::kRuntime, "the engine library is not set up"};
+    }
     arguments.add(luau::Value{_engine->table()});
     auto view = engineView->call(arguments);
     if (!view || view->size() != 1) {
@@ -241,6 +244,9 @@ ScriptHost::Evaluation ScriptHost::evaluate(const std::string_view source) {
     // The modules return frozen tables: the line may change them, then they are frozen as they were. `engine` and the
     // console's own tables are not the game's data, they stay as they are.
     std::vector<luau::Table> protectedTables;
+    if (!_engine) {
+        return failure("the engine library is not set up");
+    }
     collectTables(_engine->table(), protectedTables);
     collectTables(*tools, protectedTables);
     const std::size_t protectedCount = protectedTables.size();

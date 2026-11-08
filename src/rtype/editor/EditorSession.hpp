@@ -25,9 +25,9 @@ namespace rtype::editor {
 ///
 /// @details The editor lives in an App, and a rebuild (a reload, or Play online switching between standalone and a
 /// client) replaces the App, so the EditorState goes with it. What must survive is here: the child server and the
-/// detached clients (a rebuild must not kill them), the Console, its capture and its input line's history, what the Server panel remembers, and
-/// the steps of Play online. The program creates one session and gives it to every EditorPlugin it builds
-/// (EditorOptions::session); without one, each plugin makes its own.
+/// detached clients (a rebuild must not kill them), the Console, its capture and its input line's history, what the
+/// Server panel remembers, and the steps of Play online. The program creates one session and gives it to every
+/// EditorPlugin it builds (EditorOptions::session); without one, each plugin makes its own.
 struct RTYPE_EDITOR_API EditorSession {
     /// @param captureOutput Whether the Console shows the program's output (console::OutputCapture).
     explicit EditorSession(bool captureOutput);

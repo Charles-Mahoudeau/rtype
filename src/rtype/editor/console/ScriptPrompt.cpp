@@ -7,7 +7,6 @@
 
 #include "ScriptPrompt.hpp"
 
-#include <algorithm>
 #include <cstddef>
 #include <optional>
 #include <sstream>
@@ -70,7 +69,7 @@ void ScriptPrompt::submit(const std::string_view line, ConsoleLog& log) {
 
 std::string_view ScriptPrompt::wordAt(const std::string_view text) noexcept {
     std::size_t begin = text.size();
-    while (begin > 0 && isNameLetter(text[begin - 1])) {
+    while (begin > 0 && isNameLetter(text.at(begin - 1))) {
         --begin;
     }
     return text.substr(begin);
@@ -83,7 +82,7 @@ std::string ScriptPrompt::commonPrefix(const std::vector<std::string>& words) {
     std::string prefix = words.front();
     for (const std::string& word : words) {
         std::size_t length = 0;
-        while (length < prefix.size() && length < word.size() && prefix[length] == word[length]) {
+        while (length < prefix.size() && length < word.size() && prefix.at(length) == word.at(length)) {
             ++length;
         }
         prefix.resize(length);
@@ -123,7 +122,7 @@ std::optional<std::string> ScriptPrompt::older(const std::string_view current) {
         _draft = current;
     }
     --_cursor;
-    return _history[_cursor];
+    return _history.at(_cursor);
 }
 
 std::optional<std::string> ScriptPrompt::newer() {
@@ -131,7 +130,7 @@ std::optional<std::string> ScriptPrompt::newer() {
         return std::nullopt;
     }
     ++_cursor;
-    return _cursor == _history.size() ? _draft : _history[_cursor];
+    return _cursor == _history.size() ? _draft : _history.at(_cursor);
 }
 
 }  // namespace rtype::editor::console
