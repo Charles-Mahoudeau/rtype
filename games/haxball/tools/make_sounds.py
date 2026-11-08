@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Synthesizes the sounds of Haxball: kicks, bounces, the referee's whistle, the countdown beeps, the crowd's cheer and
-the menu's click. Everything is made from sines and noise, so the game owns its sounds.
+the menu's click, and a looping background music. Everything is made from sines and noise, so the game owns its sounds.
 
 Run it from anywhere (needs numpy): `python3 games/haxball/tools/make_sounds.py`. It overwrites assets/sounds/*.wav,
 16-bit mono at 44.1 kHz. The same seed gives the same files.
@@ -54,8 +54,9 @@ def fade(signal: np.ndarray, seconds: float = 0.01) -> np.ndarray:
     return signal
 
 
-def save(name: str, signal: np.ndarray, peak: float = 0.9) -> None:
-    signal = fade(signal)
+def save(name: str, signal: np.ndarray, peak: float = 0.9, loop: bool = False) -> None:
+    if not loop:  # a loop keeps its ends, so it joins itself without a gap or a dip
+        signal = fade(signal)
     signal = signal / max(np.max(np.abs(signal)), 1e-9) * peak
     data = (signal * 32767).astype("<i2").tobytes()
     with wave.open(str(SOUNDS / name), "wb") as file:
@@ -123,6 +124,45 @@ def click() -> np.ndarray:
     return sweep(1800, 900, seconds) * envelope(int(seconds * RATE), 0.0005, 0.008)
 
 
+def music() -> np.ndarray:
+    """The background loop: 8 bars at 120 BPM in A minor (Am F C G, twice), a bass, a plucked arpeggio and a soft
+    kick and hat. Every note's tail wraps around to the start, so the loop is seamless."""
+    beat = 0.5
+    bars = 8
+    total = int(bars * 4 * beat * RATE)
+    out = np.zeros(total)
+
+    def put(signal: np.ndarray, start: float) -> None:
+        begin = int(start * RATE)
+        for index in range(0, len(signal), total):  # wraps past the end
+            chunk = signal[index:index + total]
+            positions = (begin + index + np.arange(len(chunk))) % total
+            np.add.at(out, positions, chunk)
+
+    def note(midi: int, seconds: float, decay: float, harmonics: float = 0.3) -> np.ndarray:
+        t = times(seconds)
+        frequency = 440 * 2 ** ((midi - 69) / 12)
+        tone = np.sin(2 * np.pi * frequency * t) + harmonics * np.sin(4 * np.pi * frequency * t)
+        return tone * envelope(len(t), 0.005, decay)
+
+    chords = [(45, (57, 60, 64)), (41, (53, 57, 60)), (48, (60, 64, 67)), (43, (55, 59, 62))]  # bass, triad
+    for bar in range(bars):
+        bass, triad = chords[bar % 4]
+        start = bar * 4 * beat
+        for step in range(8):  # eighth notes
+            at = start + step * beat / 2
+            put(0.5 * note(bass, 0.4, 0.12, 0.15), at) if step % 2 == 0 else None
+            pluck = triad[[0, 1, 2, 1, 0, 1, 2, 2][step]] + (12 if step % 4 == 3 else 0)
+            put(0.22 * note(pluck + 12, 0.5, 0.1, 0.5), at)
+        for kick_beat in (0, 2):
+            thump = sweep(120, 45, 0.2) * envelope(int(0.2 * RATE), 0.002, 0.06)
+            put(0.7 * thump, start + kick_beat * beat)
+        for hat in range(8):
+            noise = bandpass(rng.standard_normal(int(0.05 * RATE)), 6000, 12000)
+            put(0.06 * noise * envelope(len(noise), 0.0005, 0.012), start + hat * beat / 2 + beat / 4)
+    return out
+
+
 def main() -> None:
     SOUNDS.mkdir(parents=True, exist_ok=True)
     save("kick.wav", kick())
@@ -133,6 +173,7 @@ def main() -> None:
     save("beep.wav", beep(880, 0.16), 0.5)
     save("cheer.wav", cheer(), 0.8)
     save("click.wav", click(), 0.5)
+    save("music.wav", music(), 0.5, loop=True)
 
 
 if __name__ == "__main__":
