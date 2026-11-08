@@ -20,8 +20,8 @@
 namespace rtype::engine {
 /// @brief The flags an executable was started with: `--name value`, `--name=value` or a bare `--name`.
 ///
-/// @details The engine reads the flags it knows (`--game`); the project script reads every flag as `engine.args`
-/// (SettingsLoader::setArgs()), so a game decides its own command line:
+/// @details The engine reads the game directory before the flags (it is not one); the project script reads every flag
+/// as `engine.args` (SettingsLoader::setArgs()), so a game decides its own command line:
 /// @code{.lua}
 /// engine.settings.network.port = engine.args.port or 4242
 /// @endcode

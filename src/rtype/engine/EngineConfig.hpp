@@ -38,11 +38,11 @@ struct EngineConfig {
     /// @brief What the process runs: the client side, the server side, or both (standalone, no network).
     ecs::RunMode mode{ecs::RunMode::kStandalone};
 
-    /// @brief The game directory when the command line has no `--game`; relative to the working directory.
+    /// @brief The game directory when the command line starts with no directory; relative to the working directory.
     std::filesystem::path game{"game"};
 
-    /// @brief The command line, without the program name: `--game <dir>`, then any flag `project.luau` reads from
-    /// `engine.args`.
+    /// @brief The command line, without the program name: the game directory (optional), then any flag `project.luau`
+    /// reads from `engine.args`.
     std::vector<std::string> args;
 
     /// @brief Adds the plugins this program uses, with the project's settings: a server without a window adds none of

@@ -5,10 +5,10 @@
 ** main
 */
 
-// aylo-runtime: runs a game in `game/` (or `--game <directory>`), with the plugins and backends its project.luau names,
-// loaded from their libraries. It runs the client side by default, and the headless server side with `--server`. Every
-// other flag goes to project.luau as `engine.args`. The editor is another program, `aylo-editor`.
-//   aylo-runtime [--server] [--game <directory>] [--<flag> <value>]...
+// aylo-runtime: runs a game in `game/` (or the <directory> given first), with the plugins and backends its project.luau
+// names, loaded from their libraries. It runs the client side by default, and the headless server side with `--server`.
+// Every other flag goes to project.luau as `engine.args`. The editor is another program, `aylo-editor`.
+//   aylo-runtime [--server] [<directory>] [--<flag> <value>]...
 //   aylo-runtime --version
 
 #include <algorithm>
