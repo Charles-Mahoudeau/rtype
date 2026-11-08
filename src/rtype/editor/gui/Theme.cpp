@@ -60,17 +60,20 @@ constexpr ImVec4 kClear = rgb(0x000000, 0.0F);
 
 constexpr float kToolbarPaddingX = 14.0F;  ///< Space left and right of the toolbar's items.
 constexpr float kToolbarPaddingY = 9.0F;   ///< Space above and below them.
+constexpr float kToolbarGroupGap = 2.0F;   ///< Least space between two groups, in item spacings.
 constexpr float kTreePaddingX = 4.0F;      ///< Horizontal padding of a tree row: the arrow's room is made of it.
 constexpr float kTreePaddingY = 3.0F;      ///< Vertical padding of a tree row.
 constexpr float kTreeIndent = 16.0F;       ///< Indent of a level of a tree.
 
-constexpr float kHoverMix = 0.18F;      ///< How much lighter a filled button gets under the pointer.
-constexpr float kPressMix = 0.2F;       ///< How much darker it gets pressed.
-constexpr float kChipFill = 0.16F;      ///< Alpha of the pill's tint.
-constexpr float kChipOutline = 0.5F;    ///< Alpha of the pill's outline.
-constexpr float kChipInset = 3.0F;      ///< Space above and below a pill in its row.
-constexpr float kChipPadding = 10.0F;   ///< Space left and right of a pill's text.
-constexpr float kChipFontScale = 0.5F;  ///< Half: a pill is a capsule, its radius half its height.
+constexpr float kButtonFill = 0.16F;       ///< Alpha of the tint of a tone button.
+constexpr float kButtonHoverFill = 0.3F;   ///< ... under the pointer.
+constexpr float kButtonPressFill = 0.44F;  ///< ... pressed.
+constexpr float kButtonOutline = 0.55F;    ///< Alpha of its outline.
+constexpr float kChipFill = 0.16F;         ///< Alpha of the pill's tint.
+constexpr float kChipOutline = 0.5F;       ///< Alpha of the pill's outline.
+constexpr float kChipInset = 3.0F;         ///< Space above and below a pill in its row.
+constexpr float kChipPadding = 10.0F;      ///< Space left and right of a pill's text.
+constexpr float kChipFontScale = 0.5F;     ///< Half: a pill is a capsule, its radius half its height.
 
 ImVec4 colorOf(Tone tone) {
     switch (tone) {
@@ -142,9 +145,10 @@ void applyColors(ImGuiStyle& style) {
     set(ImGuiCol_ResizeGripHovered, withAlpha(kAccent, 0.7F));
     set(ImGuiCol_ResizeGripActive, kAccent);
 
-    // Tabs: the selected one is the panel itself, underlined with the accent.
+    // Tabs: flat. The selected one is the panel itself with a line of the accent; the others are bare on the strip and
+    // take a soft tint of the accent when hovered.
     set(ImGuiCol_Tab, kMantle);
-    set(ImGuiCol_TabHovered, withAlpha(kAccent, 0.35F));
+    set(ImGuiCol_TabHovered, withAlpha(kAccent, 0.16F));
     set(ImGuiCol_TabSelected, kBase);
     set(ImGuiCol_TabSelectedOverline, kAccent);
     set(ImGuiCol_TabDimmed, kMantle);
@@ -195,7 +199,7 @@ void applyShapes(ImGuiStyle& style) {
     style.ChildRounding = 6.0F;
     style.FrameRounding = 6.0F;
     style.PopupRounding = 8.0F;
-    style.TabRounding = 6.0F;
+    style.TabRounding = 0.0F;
     style.ScrollbarRounding = 12.0F;
     style.GrabRounding = 12.0F;
 
@@ -204,7 +208,7 @@ void applyShapes(ImGuiStyle& style) {
     style.PopupBorderSize = 1.0F;
     style.FrameBorderSize = 0.0F;
     style.TabBorderSize = 0.0F;
-    style.TabBarBorderSize = 0.0F;
+    style.TabBarBorderSize = 1.0F;
     style.TabBarOverlineSize = 2.0F;
 
     style.WindowTitleAlign = ImVec2{0.0F, 0.5F};
@@ -233,6 +237,35 @@ bool beginToolbar(const char* id) {
 
 void endToolbar() { ImGui::End(); }
 
+void beginToolbarGroup(const char* id, float alignment) {
+    ImGui::PushID(id);
+    if (alignment > 0.0F) {
+        const ImGuiStyle& style = ImGui::GetStyle();
+        const float width = ImGui::GetStateStorage()->GetFloat(ImGui::GetID("width"), 0.0F);
+        const float span = ImGui::GetWindowWidth() - (2.0F * style.WindowPadding.x);
+        const float wanted = style.WindowPadding.x + ((span - width) * alignment);
+        const float earliest =
+            ImGui::GetItemRectMax().x - ImGui::GetWindowPos().x + (kToolbarGroupGap * ImGui::GetStyle().ItemSpacing.x);
+        ImGui::SameLine(ImMax(wanted, earliest));
+    }
+    ImGui::BeginGroup();
+}
+
+void endToolbarGroup() {
+    ImGui::EndGroup();
+    ImGui::GetStateStorage()->SetFloat(ImGui::GetID("width"), ImGui::GetItemRectSize().x);
+    ImGui::PopID();
+}
+
+bool flatButton(const std::string& label) {
+    ImGui::PushStyleColor(ImGuiCol_Button, kClear);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, kSurface0);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, kSurface1);
+    const bool pressed = ImGui::Button(label.c_str());
+    ImGui::PopStyleColor(3);
+    return pressed;
+}
+
 void pushTreeMetrics() {
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{kTreePaddingX, kTreePaddingY});
     ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, kTreeIndent);
@@ -259,15 +292,20 @@ void textTone(const std::string& text, Tone tone) {
 }
 
 bool toneButton(const std::string& label, Tone tone) {
+    // Tonal, like the chip: a tint of the color under text in the color, with a thin outline. Dark text on a solid fill
+    // washes out when the window is scaled; colored text on a tint reads at any scale.
     const ImVec4 color = colorOf(tone);
-    ImGui::PushStyleColor(ImGuiCol_Button, color);
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, mix(color, kText, kHoverMix));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, mix(color, kCrust, kPressMix));
-    ImGui::PushStyleColor(ImGuiCol_Text, kCrust);
+    ImGui::PushStyleColor(ImGuiCol_Button, withAlpha(color, kButtonFill));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, withAlpha(color, kButtonHoverFill));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, withAlpha(color, kButtonPressFill));
+    ImGui::PushStyleColor(ImGuiCol_Text, color);
+    ImGui::PushStyleColor(ImGuiCol_Border, withAlpha(color, kButtonOutline));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0F);
     pushEmphasisFont();
     const bool pressed = ImGui::Button(label.c_str());
     popEmphasisFont();
-    ImGui::PopStyleColor(4);
+    ImGui::PopStyleVar();
+    ImGui::PopStyleColor(5);
     return pressed;
 }
 

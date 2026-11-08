@@ -40,6 +40,19 @@ RTYPE_EDITOR_API bool beginToolbar(const char* id);
 /// @brief Ends what beginToolbar() started.
 RTYPE_EDITOR_API void endToolbar();
 
+/// @brief Starts a group of the toolbar, placed on the line of the previous one at @p alignment of the toolbar's
+/// width: 0 is the start (the first group), 0.5 the center, 1 the end. It uses the width the group had the frame
+/// before (kept in the toolbar's own storage), and never overlaps the previous group. Pair it with endToolbarGroup().
+/// @param id The group's name, unique in the toolbar.
+RTYPE_EDITOR_API void beginToolbarGroup(const char* id, float alignment);
+
+/// @brief Ends what beginToolbarGroup() started, and keeps the group's width for the next frame.
+RTYPE_EDITOR_API void endToolbarGroup();
+
+/// @brief A button with no fill until it is hovered: a menu of the toolbar.
+/// @return Whether it was pressed.
+RTYPE_EDITOR_API bool flatButton(const std::string& label);
+
 /// @brief Compact metrics for the rows of a tree (padding and indent), until popTreeMetrics(). The roomy padding of
 /// the theme widens the arrow every row reserves, so the labels of a tree drift away from their parents.
 RTYPE_EDITOR_API void pushTreeMetrics();
@@ -63,7 +76,7 @@ RTYPE_EDITOR_API void popEmphasisFont();
 /// @brief Shows @p text in @p tone, without a format string.
 RTYPE_EDITOR_API void textTone(const std::string& text, Tone tone);
 
-/// @brief A button filled with @p tone (green Play, red Stop...), the label dark on top of it.
+/// @brief A button tinted with @p tone (green Play, red Stop...), its label and outline in that color.
 /// @return Whether it was pressed.
 RTYPE_EDITOR_API bool toneButton(const std::string& label, Tone tone);
 
