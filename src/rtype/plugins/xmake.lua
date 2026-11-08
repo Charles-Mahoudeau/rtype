@@ -9,8 +9,11 @@
 add_requires("joltphysics 5.6.x", {alias = "joltphysics", configs = {object_layer_bits = "32"}})
 add_requires("nlohmann_json 3.12.x", {alias = "nlohmann_json"})
 add_requires("yoga 3.2.x", {alias = "yoga"})
--- HTTPS for the http plugin: Schannel on Windows, OpenSSL 3 elsewhere (the package picks it).
-add_requires("libcurl 8.x", {alias = "libcurl"})
+-- HTTPS for the http plugin: Schannel on Windows, OpenSSL 3 elsewhere (the package picks it). Never the system's, nor
+-- its OpenSSL: xmake builds both, static, as the system's (apt's libcurl4 and libssl3, Homebrew's openssl@4) are shared
+-- libraries the release does not hold (docs/release/self-contained.md).
+add_requires("libcurl 8.x", {alias = "libcurl", system = false})
+add_requireconfs("libcurl.openssl3", "libcurl.openssl", {system = false, override = true})
 
 -- Starts the target of the plugin `name` and what every plugin shares. `deps`: the libraries its public headers use.
 local function plugin(name, deps)
