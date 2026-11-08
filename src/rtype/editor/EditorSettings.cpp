@@ -7,6 +7,9 @@
 
 #include "editor/EditorSettings.hpp"
 
+#include "core/config/Settings.hpp"
+#include "editor/EditorState.hpp"
+
 namespace rtype::editor {
 EditorOptions readEditorOptions(const core::config::Settings& settings) {
     const core::config::Settings editor = settings.section("editor");

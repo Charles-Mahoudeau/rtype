@@ -12,7 +12,7 @@
 /// interface or an exception, takes RTYPE_HEADER_ONLY_API.
 #ifdef RTYPE_EDITOR_STATIC
 #define RTYPE_EDITOR_API
-#elif defined(_WIN32)
+#elifdef _WIN32
 #ifdef RTYPE_EDITOR_BUILD
 #define RTYPE_EDITOR_API __declspec(dllexport)
 #else

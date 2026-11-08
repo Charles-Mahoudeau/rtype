@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/config/Settings.hpp"
 #include "core/library/LibraryEntry.hpp"
 #include "core/version/Version.hpp"
 #include "editor/EditorPlugin.hpp"
