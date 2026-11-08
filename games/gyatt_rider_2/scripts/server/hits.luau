@@ -18,6 +18,7 @@ local hitsOf: { [number]: { number } } = {}
 local winningsOf: { [number]: number } = {}
 local boostsOf: { [number]: { number } } = {}
 local killsOf: { [number]: number } = {} -- the riders each shooter hit
+local cyclistsOf: { [number]: number } = {} -- the cyclists each shooter knocked off the road
 
 --- Gives @p points to the shooter in @p slot, paid at the end of the tick.
 local function win(slot: number, points: number)
@@ -161,6 +162,7 @@ engine.ecs.system("game.ResolveCyclistHits", {
 				if Match.racing() then
 					win(shooters[1], Game.hitReward)
 				end
+				cyclistsOf[shooters[1]] = (cyclistsOf[shooters[1]] or 0) + 1
 				if cyclist.boost ~= Game.noBoost then
 					winBoost(shooters[1], cyclist.boost)
 				end
@@ -178,7 +180,7 @@ engine.ecs.system("game.RewardShooters", {
 	query = { read = { "game.Rider" }, write = { "game.Score", "game.Shield", "game.ShieldClock", "game.Boosts" } },
 	after = { "game.ResolveRiderHits", "game.ResolveCyclistHits" },
 	run = function(ctx)
-		if next(winningsOf) == nil and next(boostsOf) == nil and next(killsOf) == nil then
+		if next(winningsOf) == nil and next(boostsOf) == nil and next(killsOf) == nil and next(cyclistsOf) == nil then
 			return
 		end
 		local counts = Match.racing()
@@ -194,9 +196,14 @@ engine.ecs.system("game.RewardShooters", {
 			if kills then
 				score.kills = (score.kills + kills) % 65536
 			end
+			local cyclists = cyclistsOf[rider.slot]
+			if cyclists then
+				score.cyclists = (score.cyclists + cyclists) % 65536
+			end
 		end
 		table.clear(winningsOf)
 		table.clear(boostsOf)
 		table.clear(killsOf)
+		table.clear(cyclistsOf)
 	end,
 })

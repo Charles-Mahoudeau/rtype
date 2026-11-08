@@ -27,7 +27,7 @@ local Game = {
 
 	-- The score, counted only while a match races.
 	pointsPerSecond = 5, -- every rider, every second
-	shotCost = 20, -- each shot fired
+	shotCost = 20, -- each shot fired; a rider with fewer points cannot fire
 	hitReward = 40, -- each rider or cyclist a shot reaches
 	hitLoss = 0.1, -- the share of its points a hit rider loses; the shooter takes it, the traffic takes it from nobody
 	hitShield = 2, -- seconds a hit rider cannot be hit again
@@ -106,9 +106,12 @@ engine.ecs.component("game.Look", {
 
 -- A player's rider (assets/actors/rider.actor), sent once. Its slot (0 to 3) gives its start and its color.
 engine.ecs.component("game.Rider", { fields = { slot = "u32" }, replication = "spawnOnly" })
--- A rider's points, on every change: written only when they change. Never below 0. And how many riders its shots hit,
--- which tells its client to play the kill sound.
-engine.ecs.component("game.Score", { fields = { points = "u32", kills = "u16" }, replication = "everyChange" })
+-- A rider's points, on every change: written only when they change. Never below 0. And how many riders and cyclists
+-- its shots hit, which tells the clients a kill and a cyclist knocked off the road (client/riderevents.luau).
+engine.ecs.component("game.Score", {
+	fields = { points = "u32", kills = "u16", cyclists = "u16" },
+	replication = "everyChange",
+})
 -- Whether a rider is invincible, on every change: written only when it turns on or off, and the clients make it
 -- twinkle. Nothing hits a rider while it is on.
 -- A ghost (shielded by a hit) cannot shoot either; an invincible rider (the boost) can.
