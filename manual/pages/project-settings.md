@@ -123,7 +123,7 @@ is then an error.
 ### `http`
 
 Every key is optional and the values are checked when `rtype.Http` is listed. The keys are in [HTTP](http.md#settings):
-`allowedHosts`, `allowHttp`, `maxConcurrent`, `timeout`, `maxResponseBytes` and `secrets`.
+`allowedHosts`, `allowHttp`, `maxConcurrent`, `maxQueued`, `timeout`, `maxResponseBytes` and `secrets`.
 
 ### `physics`
 

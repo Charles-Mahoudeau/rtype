@@ -70,7 +70,8 @@ engine.ecs.system("game.Ask", {
 | `method` | string | `"GET"` | `GET`, `POST`, `PUT`, `PATCH`, `DELETE` or `HEAD`, any case |
 | `headers` | table | none | Header name to value, both strings: `{ ["Content-Type"] = "application/json" }` |
 | `body` | string | `""` | Sent as is, of any length (a JSON text, for instance). A `GET` or `HEAD` has none |
-| `timeout` | number | `http.timeout` | Seconds; it can be shorter than the setting, never longer |
+| `timeout` | number | `http.timeout` | Seconds, from the call; it can be shorter than the setting, never longer |
+| `priority` | number | `0` | A whole number; when requests wait for a slot, the higher is sent first |
 
 It is a thin form over the engine call `rtype.http.request`, which takes the same fields with `headers` as text, one
 `Name: value` per line. `rtype.http.cancel` (`{ request = id }`) stops a request; it returns `true`, or `false` when
@@ -86,7 +87,7 @@ Sent once per request, whatever happened, except for a cancelled one.
 | `status` | number | The HTTP status (`200`, `404`...); `0` when no response came |
 | `ok` | boolean | A response came with a status from 200 to 299 |
 | `body` | string | The response's body, of any length; empty when no response came |
-| `error` | string | Why no response came: no network, the timeout, a body over `http.maxResponseBytes`; empty otherwise |
+| `error` | string | Why no response came: no network, the timeout, a body over `http.maxResponseBytes`; `queue_full` when `http.maxQueued` was reached; empty otherwise |
 
 An error status is still a response: a `404` has `status = 404`, `ok = false` and an empty `error`.
 
@@ -110,8 +111,9 @@ The `http` section of `project.luau`; every key is optional.
 |---|---|---|
 | `allowedHosts` | `{}` | The hosts a request may go to, without scheme, port or path: `{ "api.example.com" }` |
 | `allowHttp` | `false` | Also allow `http://` URLs, for a server on your own machine |
-| `maxConcurrent` | `8` | Requests in flight at once; the next ones wait their turn, in order |
-| `timeout` | `30` | The longest a request may take, in seconds |
+| `maxConcurrent` | `8` | Requests in flight at once; the next ones wait their turn, highest `priority` first, then in order |
+| `maxQueued` | `256` | Requests that may wait for a slot; one more ends at once with the error `queue_full` |
+| `timeout` | `30` | The longest a request may take, in seconds, counted from when you send it (waiting included) |
 | `maxResponseBytes` | `1048576` | A longer response ends with an error instead |
 | `secrets` | `{}` | The environment variables a header may name as `{{env:NAME}}` |
 

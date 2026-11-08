@@ -11,7 +11,9 @@
 #include <curl/multi.h>
 
 #include <array>
+#include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <map>
 #include <memory>
@@ -52,6 +54,8 @@ class CurlClient {
         std::vector<std::string> headers;
         std::string body;
         long timeoutMs{0};  // NOLINT(google-runtime-int): curl takes a long
+        std::int32_t priority{0};
+        std::chrono::steady_clock::time_point deadline;  ///< send() + the timeout: queue time counts.
     };
 
     /// @brief One transfer in flight. Its address is given to curl, so it stays where it is.
@@ -75,6 +79,8 @@ class CurlClient {
     /// @brief Starts queued requests while fewer than maxConcurrent are in flight; one that cannot start ends with an
     /// error, given by the next poll().
     void startQueued();
+    /// @brief Ends queued requests whose deadline passed, given by the next poll().
+    void expireQueued();
     /// @brief Removes @p transfer from the multi handle and frees it.
     void release(Transfer& transfer) noexcept;
     /// @return The result of @p transfer, which curl finished with @p code.
