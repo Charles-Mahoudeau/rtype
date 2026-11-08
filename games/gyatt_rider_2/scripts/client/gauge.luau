@@ -15,7 +15,7 @@ local trackColor = { x = 0.2, y = 0.2, z = 0.22, w = 1 }
 local fillColor = { x = 1, y = 0.55, z = 0, w = 1 }
 local finishColor = { x = 1, y = 1, z = 1, w = 1 }
 local dotColor = { x = 1, y = 0.35, z = 0, w = 1 } -- orange, deeper than the covered part
-local dotScale = 0.32 -- of the cyclist's 64x128 image
+local dotScale = 0.45 -- of the cyclist's 64x128 image
 -- The draw layers, over the strip's (10): the track, then its orange part and the finish line, then the cyclists. All
 -- are sprites, the track and its parts blocks (client/blocks.luau): a shape would draw over the cyclists.
 local trackLayer, fillLayer, dotLayer = 11, 12, 13
