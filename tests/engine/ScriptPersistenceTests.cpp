@@ -20,7 +20,8 @@
 
 TEST(ScriptPersistence, TheWriteHelperAcceptsItsDataField) {
     static std::atomic<int> counter{0};
-    const auto directory = std::filesystem::temp_directory_path() / ("rtype-script-persistence-" + std::to_string(++counter));
+    const auto directory =
+        std::filesystem::temp_directory_path() / ("rtype-script-persistence-" + std::to_string(++counter));
     std::filesystem::remove_all(directory);
     {
         rtype::ecs::App app;
