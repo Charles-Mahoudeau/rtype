@@ -40,7 +40,7 @@ A program of its own, not a feature of a game and not a mode of the runtime. Gam
 | `play/` | `PlaySession`: Play, Pause, Step and Stop; `OnlinePlay`: the steps of Play online |
 | `scene/` | `SceneEdit`: the capsule changes (copy a tree with a node removed or moved, add, rename), commit, open, save, new files; `Isolation`: a capsule shown alone (prefab mode) |
 | `console/` | `ConsoleLog` (the last lines, from any thread), `OutputCapture` (the process's output into it) |
-| `fonts/` | JetBrains Mono Nerd Font, Regular (the text) and SemiBold (`gui::pushEmphasisFont()`: dark text on a filled button or chip, where thin strokes look faded), with its OFL license. Embedded in the program by `utils.bin2c`, so the editor needs no file at run time; the Nerd Font icons (Font Awesome in the Play controls) come with it |
+| `fonts/` | JetBrains Mono Nerd Font, Regular (the text) and Bold (`gui::pushEmphasisFont()`: dark text on a filled button or chip, where thin strokes look faded), with its OFL license. Embedded in the program by `utils.bin2c`, so the editor needs no file at run time; the Nerd Font icons (Font Awesome in the Play controls) come with it |
 | `shell/` | `TextEditor`: a file opened in an external text editor |
 | `panels/` | The panels, `FieldEditor` (the widgets of a reflected value, the drag-and-drop of assets) and `WorldView` |
 
