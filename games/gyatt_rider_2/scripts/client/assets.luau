@@ -10,6 +10,8 @@ return {
 	font = engine.assets.font("fonts/orbitron.json"),
 	-- The 8 roads, repeated down the view and scrolling on their own (the map's `scrolly`).
 	roads = engine.assets.tilemap("levels/roads.tmj"),
+	-- The text box every big text sits on (client/textbox.luau).
+	textBox = engine.assets.texture("text_box.png", { linear = false }),
 	-- A white square, tinted and stretched into the plain rectangles of the strip on the left (client/blocks.luau).
 	white = engine.assets.texture("white.png", { linear = false }),
 	-- One square of a shot's beam, repeated from the shooter to what it hits (client/beams.luau).

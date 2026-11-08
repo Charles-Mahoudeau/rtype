@@ -1,11 +1,10 @@
--- A player who leaves is announced: "Player 2 left", in a box of its color under the scores, for a few seconds. A
+-- A player who leaves is announced: "Player 2 left", on a text box of its color under the scores, for a few seconds. A
 -- client sees it from the riders the server replicates: a slot that had a rider and has none any more.
 
 local Hud = require("@scripts/client/hud")
-local assets = require("@scripts/client/assets")
+local TextBox = require("@scripts/client/textbox")
 
 local shownSeconds = 4
-local ink = { 0.08, 0.08, 0.1, 1 }
 
 -- The column the notices stack in, and the slots that had a rider last frame.
 local column = nil
@@ -40,17 +39,16 @@ engine.ecs.system("game.NoticeLeaves", {
 		local now = Hud.pointsOf()
 		for slot in ridden do
 			if now[slot] == nil and column ~= nil then
-				engine.ui.spawn(ctx.commands, {
-					style = { paddingX = 16, paddingY = 8, ignorePointer = true },
-					background = { color = Hud.colorOf(slot) },
-					components = { ["game.LeaveNotice"] = { remaining = shownSeconds } },
-					children = {
-						{
-							style = { ignorePointer = true },
-							text = { text = `Player {slot + 1} left`, font = assets.font, size = 24, color = ink },
-						},
-					},
-				}, column)
+				engine.ui.spawn(
+					ctx.commands,
+					TextBox.node(
+						{ width = 300, height = 60, ignorePointer = true },
+						Hud.colorOf(slot),
+						{ TextBox.text(`Player {slot + 1} left`, 24) },
+						{ components = { ["game.LeaveNotice"] = { remaining = shownSeconds } } }
+					),
+					column
+				)
 			end
 		end
 		table.clear(ridden)
