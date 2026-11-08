@@ -159,11 +159,16 @@ end
 
 -- engine.net.received(ctx): the packets that arrived this frame, as a list of { name =, sender =, values = } where `values`
 -- is a table of the packet's fields. The system lists `events = { read = { "net.PacketReceived" } }`. A packet this
--- script did not declare is skipped.
+-- script did not declare is skipped, and so is one travelling toward the other side (see ctx.side).
 engine.net.received = function(ctx)
 	local list = {}
+	-- A packet from the server has sender 0, one from a client has a client id. On the network a side only gets its own;
+	-- in a standalone world both travel in one, so a system gets those toward its side (both: all of them).
+	local side = ctx.side
 	for packet in ctx.events.read("net.PacketReceived") do
-		if schemas[packet.name] ~= nil then
+		local toClient = packet.sender == 0
+		local wanted = side == "both" or (side == "client") == toClient
+		if wanted and schemas[packet.name] ~= nil then
 			table.insert(list, { name = packet.name, sender = packet.sender, values = decode(packet.name, packet.values) })
 		end
 	end

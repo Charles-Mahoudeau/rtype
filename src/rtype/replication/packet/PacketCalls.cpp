@@ -29,6 +29,7 @@
 #include "rtype/replication/packet/PacketCodec.hpp"
 #include "rtype/replication/packet/PacketSchema.hpp"
 #include "rtype/replication/server/ServerState.hpp"
+#include "rtype/replication/standalone/LocalSession.hpp"
 
 namespace rtype::replication::packet {
 namespace {
@@ -181,6 +182,28 @@ SendResult sendToClients(ecs::ResMut<server::ServerState> state, ecs::Res<Packet
         makeMessage(*registry, arguments.name, PacketDirection::kToClients, arguments.values, channel);
     return SendResult{.sent = state->sendPacket(arguments.client, channel, std::move(message))};
 }
+
+/// @brief Standalone: the packet waits in the session for the next PreUpdate, which delivers it to the server side.
+SendResult sendToServerLocally(ecs::ResMut<standalone::LocalSession> session, ecs::Res<PacketRegistry> registry,
+                               const SendToServerArguments& arguments) {
+    network::Channel channel{};
+    session->queuePacket(PacketDirection::kToServer,
+                         makeMessage(*registry, arguments.name, PacketDirection::kToServer, arguments.values, channel));
+    return SendResult{.sent = true};
+}
+
+/// @brief Standalone: as above toward the client side; the only client is client 1.
+SendResult sendToClientsLocally(ecs::ResMut<standalone::LocalSession> session, ecs::Res<PacketRegistry> registry,
+                                const SendToClientsArguments& arguments) {
+    network::Channel channel{};
+    network::Bytes message =
+        makeMessage(*registry, arguments.name, PacketDirection::kToClients, arguments.values, channel);
+    if (arguments.client != 0 && arguments.client != standalone::LocalSession::kClient) {
+        return SendResult{.sent = false};
+    }
+    session->queuePacket(PacketDirection::kToClients, std::move(message));
+    return SendResult{.sent = true};
+}
 }  // namespace
 
 void addPacketCalls(ecs::App& app) {
@@ -192,6 +215,11 @@ void addPacketCalls(ecs::App& app) {
     app.addCall(std::string{kDeclareCall}, &declare);
     app.addCall(std::string{kListCall}, &list);
     const ecs::RunMode mode = app.getSchedules().getRunMode();
+    if (app.getWorld().getResources().has<standalone::LocalSession>()) {
+        app.addCall(std::string{kSendToServerCall}, &sendToServerLocally);
+        app.addCall(std::string{kSendToClientsCall}, &sendToClientsLocally);
+        return;
+    }
     if (ecs::runsIn(ecs::Side::kClient, mode)) {
         app.addCall(std::string{kSendToServerCall}, &sendToServer);
     }
