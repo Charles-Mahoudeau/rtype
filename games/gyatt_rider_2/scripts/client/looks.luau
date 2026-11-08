@@ -31,3 +31,21 @@ engine.ecs.system("game.FollowPositions", {
 		end
 	end,
 })
+
+-- Update, after the positions the server sent: the vehicles go up at their speed between two of their positions, which
+-- the server sends only now and then.
+engine.ecs.system("game.DriveLooks", {
+	phase = "Update",
+	side = "client",
+	query = { read = { "game.Speed" }, write = { "rtype.Transform" } },
+	after = { "game.FollowPositions" },
+	before = { "game.FillGauge" },
+	run = function(ctx)
+		for _, speed, transform in ctx.query do
+			if speed.value ~= 0 then
+				local at = transform.position
+				transform.position = { x = at.x, y = at.y - speed.value * ctx.time.delta }
+			end
+		end
+	end,
+})

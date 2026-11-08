@@ -4,6 +4,7 @@
 [node path="."]
 rtype.Transform = {}
 game.Position = {}
+game.Speed = {}
 game.Look = { texture = "vehicles/car.png", size = (128, 192), layer = 0 }   # under the riders
 game.Driving = { speed = 70 }   # world units per second, up the view
 rtype.Collider = { shape = 0, size = (96, 160), layer = 2, mask = 1 }   # meets the riders, stops shots

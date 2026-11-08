@@ -10,6 +10,7 @@ game.Position = {}
 game.Look = { size = (64, 128), layer = 1 }   # Game.riderDrawLayer: over the traffic
 game.Gun = {}
 game.Score = {}
+game.Shot = {}
 game.Shield = {}
 game.ShieldClock = {}
 game.Boosts = {}

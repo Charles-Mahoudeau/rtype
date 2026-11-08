@@ -52,11 +52,12 @@ local function drawBoost(): number
 end
 
 -- FixedUpdate, once the physics stepped, so that it asks the scene of this tick: now and then, a vehicle of a random
--- kind enters a random road whose entrance is free, on one of the tiles its kind drives on.
+-- kind enters a random road whose entrance is free, on one of the tiles its kind drives on, unless the game already
+-- has Game.maxReplicated entities (the riders, the traffic and the match).
 engine.ecs.system("game.SpawnTraffic", {
 	phase = "FixedUpdate",
 	side = "server",
-	query = {},
+	query = { read = { "game.Position" } },
 	calls = { "rtype.capsule.spawn", "rtype.physics.overlap" },
 	after = { "rtype.Physics.Events" },
 	run = function(ctx)
@@ -65,6 +66,13 @@ engine.ecs.system("game.SpawnTraffic", {
 			return
 		end
 		countdown = spawnDelayMin + math.random() * (spawnDelayMax - spawnDelayMin)
+		local moving = 0 -- the riders and the traffic
+		for _ in ctx.query do
+			moving += 1
+		end
+		if moving + 1 >= Game.maxReplicated then -- the match is one more
+			return
+		end
 		local roadX = Game.roadCenterX(math.random(0, Game.roadCount - 1))
 		local entrance = ctx.call("rtype.physics.overlap", {
 			shape = Game.box,
@@ -95,17 +103,18 @@ engine.ecs.system("game.SpawnTraffic", {
 engine.ecs.system("game.DriveTraffic", {
 	phase = "FixedUpdate",
 	side = "server",
-	query = { read = { "game.Driving", "rtype.Collider" }, write = { "game.Position", "rtype.Transform" } },
+	query = { read = { "game.Driving", "rtype.Collider", "game.Speed" }, write = { "rtype.Transform" } },
 	calls = { "rtype.physics.shapeCast" },
 	after = { "rtype.Physics.SyncBodies", "game.MoveRiders" },
 	before = { "rtype.Physics.SyncToPhysics" },
 	run = function(ctx)
-		for entity, driving, collider, current, transform in ctx.query do
+		for entity, driving, collider, speed, transform in ctx.query do
+			local at = transform.position -- the server's own place of the vehicle, every tick
 			local step = driving.speed * ctx.time.fixedDelta
 			local ahead = ctx.call("rtype.physics.shapeCast", {
 				shape = Game.box,
 				size = { x = collider.size.x - castMargin, y = castThickness },
-				from = { x = current.value.x, y = current.value.y - (collider.size.y + castThickness) / 2 },
+				from = { x = at.x, y = at.y - (collider.size.y + castThickness) / 2 },
 				direction = { x = 0, y = -1 },
 				maxDistance = followGap + step,
 				mask = trafficMask,
@@ -114,16 +123,21 @@ engine.ecs.system("game.DriveTraffic", {
 			if ahead.hit then
 				step = math.max(0, ahead.distance - followGap)
 			end
-			if step == 0 then
-				continue -- stuck behind slower traffic: not written, so not sent again
+			-- The speed it goes at, sent when it changes by more than a world unit per second.
+			local going = math.round(step / ctx.time.fixedDelta)
+			if math.abs(going - speed.value) >= 1 then
+				ctx.commands:patch(entity, "game.Speed", { value = going })
 			end
-			local position = { x = current.value.x, y = current.value.y - step }
+			local position = { x = at.x, y = at.y - step }
 			if position.y + collider.size.y / 2 < 0 then
 				ctx.commands:despawn(entity)
 				continue
 			end
 			transform.position = position
-			current.value = position
+			-- Its position, sent only now and then: the vehicles take turns, by their entity.
+			if (ctx.time.tick + entity.bits) % Game.trafficSyncTicks == 0 then
+				ctx.commands:patch(entity, "game.Position", { value = position })
+			end
 		end
 	end,
 })

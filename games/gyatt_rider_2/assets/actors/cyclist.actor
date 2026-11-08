@@ -5,6 +5,7 @@
 [node path="."]
 rtype.Transform = {}
 game.Position = {}
+game.Speed = {}
 game.Look = { texture = "cyclists/cyclist.png", size = (64, 128), layer = 0 }   # under the riders
 game.Driving = { speed = 25 }   # world units per second, up the view
 game.Cyclist = {}   # the server draws its boost when it spawns it

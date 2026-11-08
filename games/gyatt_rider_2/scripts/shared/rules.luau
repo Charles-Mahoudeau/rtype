@@ -9,6 +9,7 @@ local Game = {
 	sidebarTiles = 1, -- the strip on the left, under the timer and the gauge
 	viewHeight = 900, -- world units: with the 8 roads' width, 16:9, the shape of most screens
 	roadSpeed = 600, -- world units per second the roads scroll down: the riders' speed along the course (roads.tmj)
+	trafficSyncTicks = 30, -- ticks between two positions a vehicle sends; the clients move it at its speed meanwhile
 	maxPlayers = 4, -- the next players watch
 	minPlayers = 2, -- a match starts once this many ride
 	matchDuration = 240, -- seconds: whoever has the best score then wins
@@ -17,7 +18,10 @@ local Game = {
 	riderSpeed = 400, -- world units per second, in every direction
 	startRoads = { 1, 3, 4, 6 }, -- the road each slot starts on, counted from 0 on the left
 	fireCooldown = 0.25, -- seconds between two shots while an arrow is held
-	beamLifetime = 0.2, -- seconds a shot's beam stays, long enough for a snapshot to carry it
+	beamLifetime = 0.2, -- seconds a shot's beam stays on the clients' screens
+	-- The replicated entities the game keeps at once at most: each snapshot sends every entity whole and holds 9 of
+	-- them, and the ones left out never reach the clients (engine issue), so the traffic stays under it.
+	maxReplicated = 9,
 	beamSquare = 40, -- world units: a beam is drawn as a row of squares this big, and hits what it covers
 	hitboxMargin = 16, -- world units: each hitbox (the capsules' colliders) is this much smaller than its image on a side
 
@@ -114,14 +118,13 @@ engine.ecs.component("game.ShieldClock", { fields = { remaining = "f32" }, prese
 engine.ecs.component("game.Boosts", { fields = { speed = "f32", sniper = "f32" }, presence = "serverOnly" })
 -- Server only: the seconds before a rider can fire again.
 engine.ecs.component("game.Gun", { fields = { cooldown = "f32" }, presence = "serverOnly" })
--- A shot's beam, an entity of its own sent once: it goes from the rider in slot `shooter` to what it hit, or to the
--- view's edge, and the clients draw it as a row of squares (client/beams.luau).
-engine.ecs.component("game.Beam", {
-	fields = { from = "vec2", to = "vec2", shooter = "u32" },
-	replication = "spawnOnly",
+-- A rider's last shot, on every change: from where to where its beam went, and how many shots it fired, which tells
+-- the clients a new one to draw (client/beams.luau). A component of the rider rather than an entity per shot, which
+-- the snapshots had no room for.
+engine.ecs.component("game.Shot", {
+	fields = { from = "vec2", to = "vec2", serial = "u16" },
+	replication = "everyChange",
 })
--- Server only: the seconds before a beam is removed.
-engine.ecs.component("game.BeamTimer", { fields = { remaining = "f32" }, presence = "serverOnly" })
 
 -- The match, one entity, on every change: its phase (Game.waiting, racing or over) and the whole seconds left,
 -- written only when they change, so that the clients get a new value once a second.
@@ -141,6 +144,10 @@ engine.ecs.component("game.Hit", {
 -- The traffic: one capsule file per kind in assets/actors/, which gives its size (its collider), its look and its
 -- speed. Server only: how fast it goes up the view, in world units per second. Slow: the traffic overtakes the riders.
 engine.ecs.component("game.Driving", { fields = { speed = "f32" }, presence = "serverOnly" })
+-- How fast a vehicle goes up the view right now, on every change: slower than its game.Driving behind slower traffic.
+-- The clients move it at that speed between the positions it sends, every Game.trafficSyncTicks ticks: sending its
+-- position every tick filled the snapshots, and the clients then lost spawns (invisible cars, missing beams).
+engine.ecs.component("game.Speed", { fields = { value = "f32" }, replication = "everyChange" })
 -- The vehicles that are cyclists, sent once: the boost a shot that hits it gives (Game.noBoost...), which the clients
 -- show by its color, and the gauge follows them.
 engine.ecs.component("game.Cyclist", { fields = { boost = "u8" }, replication = "spawnOnly" })

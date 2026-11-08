@@ -1,8 +1,9 @@
 -- The shots: a rider fires up, down, left or right with the arrows, every Game.fireCooldown while one is held. A shot
 -- is instant: a box as wide as the beam (Game.beamSquare) is cast from the rider until the first rider, vehicle or
--- cyclist it meets, or the view's edge, and leaves a beam there for Game.beamLifetime. What it meets gets a game.Hit, which server/hits.luau resolves. With the
--- sniper boost, a shot goes through everything to the view's edge, and hits every rider and cyclist on its way:
--- game.PierceShots finds them by their boxes, since a cast stops at the first body and ignores only one.
+-- cyclist it meets, or the view's edge, and the rider's game.Shot tells the clients its beam. What it meets gets a
+-- game.Hit, which server/hits.luau resolves. With the sniper boost, a shot goes through everything to the view's edge,
+-- and hits every rider and cyclist on its way: game.PierceShots finds them by their boxes, since a cast stops at the
+-- first body and ignores only one.
 
 local Game = require("@scripts/shared/rules")
 local Match = require("@scripts/server/match")
@@ -76,14 +77,14 @@ engine.ecs.system("game.Fire", {
 	phase = "FixedUpdate",
 	side = "server",
 	query = {
-		read = { "game.Rider", "game.Position", "game.Boosts", "game.Score" },
+		read = { "game.Rider", "game.Position", "game.Boosts", "game.Score", "game.Shot" },
 		write = { "game.Gun" },
 		with = { "net.PlayerInput" },
 	},
 	calls = { "rtype.replication.readInput", "rtype.physics.shapeCast" },
 	after = { "net.applyInputs", "rtype.Physics.Events" },
 	run = function(ctx)
-		for entity, rider, position, boosts, score, gun in ctx.query do
+		for entity, rider, position, boosts, score, shot, gun in ctx.query do
 			if gun.cooldown > 0 then
 				gun.cooldown = math.max(0, gun.cooldown - ctx.time.fixedDelta)
 				continue
@@ -106,13 +107,10 @@ engine.ecs.system("game.Fire", {
 			else
 				length = shoot(ctx, entity, rider.slot, from, direction, reach)
 			end
-			ctx.commands:spawn({
-				["game.Beam"] = {
-					from = from,
-					to = { x = from.x + direction.x * length, y = from.y + direction.y * length },
-					shooter = rider.slot,
-				},
-				["game.BeamTimer"] = { remaining = Game.beamLifetime },
+			ctx.commands:patch(entity, "game.Shot", {
+				from = from,
+				to = { x = from.x + direction.x * length, y = from.y + direction.y * length },
+				serial = (shot.serial + 1) % 65536,
 			})
 		end
 	end,
@@ -123,38 +121,23 @@ engine.ecs.system("game.Fire", {
 engine.ecs.system("game.PierceShots", {
 	phase = "FixedUpdate",
 	side = "server",
-	query = { read = { "game.Position", "rtype.Collider" }, optionalRead = { "game.Rider", "game.Cyclist" } },
+	query = { read = { "rtype.Transform", "rtype.Collider" }, optionalRead = { "game.Rider", "game.Cyclist" } },
 	after = { "game.Fire" },
 	before = { "game.CollectHits" },
 	run = function(ctx)
 		if #piercing == 0 then
 			return
 		end
-		for entity, position, collider, rider, cyclist in ctx.query do
+		for entity, transform, collider, rider, cyclist in ctx.query do
 			if rider == nil and cyclist == nil then
 				continue -- a vehicle
 			end
 			for _, shot in piercing do
-				if entity.bits ~= shot.shooter and crosses(shot.from, shot.to, position.value, collider.size) then
+				if entity.bits ~= shot.shooter and crosses(shot.from, shot.to, transform.position, collider.size) then
 					ctx.commands:spawn({ ["game.Hit"] = { victim = entity, shooter = shot.slot } })
 				end
 			end
 		end
 		table.clear(piercing)
-	end,
-})
-
--- FixedUpdate: removes the beams once a snapshot had time to carry them to the clients.
-engine.ecs.system("game.ExpireBeams", {
-	phase = "FixedUpdate",
-	side = "server",
-	query = { write = { "game.BeamTimer" } },
-	run = function(ctx)
-		for entity, timer in ctx.query do
-			timer.remaining -= ctx.time.fixedDelta
-			if timer.remaining <= 0 then
-				ctx.commands:despawn(entity)
-			end
-		end
 	end,
 })
