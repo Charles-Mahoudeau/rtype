@@ -17,6 +17,7 @@ local hitsOf: { [number]: { number } } = {}
 -- game.RewardShooters, so that a victim loses its share before anyone is paid.
 local winningsOf: { [number]: number } = {}
 local boostsOf: { [number]: { number } } = {}
+local killsOf: { [number]: number } = {} -- the riders each shooter hit
 
 --- Gives @p points to the shooter in @p slot, paid at the end of the tick.
 local function win(slot: number, points: number)
@@ -123,6 +124,9 @@ engine.ecs.system("game.ResolveRiderHits", {
 			for _, shooter in hits do
 				local by = if shooter < 0 then "the traffic" else `player {shooter + 1}`
 				print(`[server] player {rider.slot + 1} hit by {by}`)
+				if shooter >= 0 then
+					killsOf[shooter] = (killsOf[shooter] or 0) + 1
+				end
 				if not counts then
 					continue
 				end
@@ -166,14 +170,15 @@ engine.ecs.system("game.ResolveCyclistHits", {
 	end,
 })
 
--- FixedUpdate, once every hit of the tick is resolved: gives the shooters the points and the boosts they won.
+-- FixedUpdate, once every hit of the tick is resolved: gives the shooters the points and the boosts they won, and
+-- counts the riders they hit.
 engine.ecs.system("game.RewardShooters", {
 	phase = "FixedUpdate",
 	side = "server",
 	query = { read = { "game.Rider" }, write = { "game.Score", "game.Shield", "game.ShieldClock", "game.Boosts" } },
 	after = { "game.ResolveRiderHits", "game.ResolveCyclistHits" },
 	run = function(ctx)
-		if next(winningsOf) == nil and next(boostsOf) == nil then
+		if next(winningsOf) == nil and next(boostsOf) == nil and next(killsOf) == nil then
 			return
 		end
 		local counts = Match.racing()
@@ -185,8 +190,13 @@ engine.ecs.system("game.RewardShooters", {
 			for _, boost in boostsOf[rider.slot] or {} do
 				Boosts.give(boost, counts, score, shield, clock, boosts)
 			end
+			local kills = killsOf[rider.slot]
+			if kills then
+				score.kills = (score.kills + kills) % 65536
+			end
 		end
 		table.clear(winningsOf)
 		table.clear(boostsOf)
+		table.clear(killsOf)
 	end,
 })
