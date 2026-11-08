@@ -11,7 +11,9 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
+#include <vector>
 
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/command/Commands.hpp"
@@ -23,6 +25,7 @@
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/time/Time.hpp"
 #include "rtype/network/NetworkSettings.hpp"
+#include "rtype/network/admin/AdminSettings.hpp"
 #include "rtype/replication/ReplicationPlugin.hpp"
 #include "rtype/replication/ReplicationSettings.hpp"
 #include "rtype/replication/component/NetworkId.hpp"
@@ -40,9 +43,12 @@ namespace {
 void start(ecs::ResMut<ServerState> state, ecs::ResMut<input::InputLayout> inputs) { state->start(*inputs); }
 
 /// @brief PreUpdate: receives, and tells the game who joined and left.
-void receive(ecs::ResMut<ServerState> state, ecs::Res<input::InputLayout> inputs,
+void receive(ecs::ResMut<ServerState> state, ecs::Res<input::InputLayout> inputs, ecs::Commands& commands,
              ecs::EventWriter<event::ClientConnected> connected, ecs::EventWriter<event::ClientDisconnected> left) {
-    for (const ServerNotification& notification : state->receive(inputs.get())) {
+    state->bindCommands(&commands);  // the admin channel records its world changes there, applied after the phase
+    const std::vector<ServerNotification> notifications = state->receive(inputs.get());
+    state->bindCommands(nullptr);
+    for (const ServerNotification& notification : notifications) {
         if (const auto* joined = std::get_if<event::ClientConnected>(&notification)) {
             connected.send(*joined);
         } else {
@@ -83,11 +89,18 @@ ServerPlugin::ServerPlugin(const network::NetworkSettings& network, const Replic
 
 ServerPlugin::~ServerPlugin() = default;
 
+void ServerPlugin::setAdmin(network::admin::AdminSettings settings) { _admin = std::move(settings); }
+
 std::string_view ServerPlugin::getName() const noexcept { return kName; }
 
 void ServerPlugin::build(ecs::App& app) {
     app.addPlugin(ReplicationPlugin{});
-    app.insertResource(ServerState{_network, _settings, app.getWorld()});
+    ServerState state{_network, _settings, app.getWorld()};
+    if (_admin) {
+        state.setAdmin(*_admin);
+    }
+    state.setSchedules(&app.getSchedules());
+    app.insertResource(std::move(state));
 
     app.addSystem(ecs::Phase::kStartup, std::string{kStartSystem}, &start);
     app.addSystem(ecs::Phase::kPreUpdate, std::string{kReceiveSystem}, &receive);
