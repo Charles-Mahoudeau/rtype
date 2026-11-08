@@ -12,6 +12,7 @@
 #include <string>
 #include <utility>
 
+#include "ScriptProbe.hpp"
 #include "core/library/LibraryEntry.hpp"
 #include "core/system/ExecutablePath.hpp"
 #include "plugins/physics/PhysicsPlugin.hpp"
@@ -19,6 +20,7 @@
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/PluginEntry.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/time/FixedTimestep.hpp"
 #include "rtype/ecs/time/TimePlugin.hpp"
@@ -55,6 +57,7 @@ struct ServerScripts {
         rtype::core::library::LibraryRegistrar registrar;
         registrar.provide(rtype::ecs::kPluginRegistryService, app.getPluginRegistry());
         loader.registerInto(registrar);
+        app.getPluginRegistry().addScriptForms("test.Probe", rtype::tests::kProbeForms);
         auto created = rtype::scripting::ScriptHost::create(app, {.isServer = true});
         EXPECT_TRUE(created) << (created ? "" : std::string{created.error().message()});
         host = std::move(*created);
@@ -97,14 +100,14 @@ TEST(ScriptPhysics, AScriptSpawnsBodiesAndReadsTheirCollision) {
                 })
             end,
         })
-        hits = 0
+        probe.hits = 0
         engine.ecs.system("game.Hits", {
             phase = "Update",
             query = {},
             events = { read = { "rtype.CollisionStarted" } },
             run = function(ctx)
                 for collision in ctx.events.read("rtype.CollisionStarted") do
-                    hits += 1
+                    probe.hits += 1
                 end
             end,
         })
@@ -113,7 +116,7 @@ TEST(ScriptPhysics, AScriptSpawnsBodiesAndReadsTheirCollision) {
 
     server.runFrames();
 
-    EXPECT_EQ(server.run("assert(hits == 1, tostring(hits))"), "");
+    EXPECT_EQ(server.run("assert(probe.hits == 1, tostring(probe.hits))"), "");
 }
 
 TEST(ScriptPhysics, AScriptMovesAShipAndCastsARayThroughTheCalls) {
@@ -152,8 +155,8 @@ TEST(ScriptPhysics, AScriptMovesAShipAndCastsARayThroughTheCalls) {
                     local hit = ctx.call("rtype.physics.raycast", {
                         origin = transform.position, direction = { x = 1, y = 0 }, maxDistance = 500, ignore = entity,
                     })
-                    shipX = transform.position.x
-                    wallDistance = if hit.hit then hit.distance else -1
+                    probe.shipX = transform.position.x
+                    probe.wallDistance = if hit.hit then hit.distance else -1
                 end
             end,
         })
@@ -163,8 +166,8 @@ TEST(ScriptPhysics, AScriptMovesAShipAndCastsARayThroughTheCalls) {
     server.runFrames();
 
     // Stopped a skin (0.5) away from the wall's face at x = 90, which the ray then hits.
-    EXPECT_EQ(server.run("assert(math.abs(shipX - 79.5) < 0.1, tostring(shipX))"), "");
-    EXPECT_EQ(server.run("assert(math.abs(wallDistance - 10.5) < 0.1, tostring(wallDistance))"), "");
+    EXPECT_EQ(server.run("assert(math.abs(probe.shipX - 79.5) < 0.1, tostring(probe.shipX))"), "");
+    EXPECT_EQ(server.run("assert(math.abs(probe.wallDistance - 10.5) < 0.1, tostring(probe.wallDistance))"), "");
 }
 
 TEST(ScriptPhysics, AServerScriptSpawnsAShipForEachClientAndReadsItsInput) {
@@ -188,9 +191,9 @@ TEST(ScriptPhysics, AServerScriptSpawnsAShipForEachClientAndReadsItsInput) {
             calls = { "rtype.replication.readInput" },
             run = function(ctx)
                 for entity, owner in ctx.query do
-                    seenOwner = owner.client
-                    seenShoot = ctx.call("rtype.replication.readInput", { entity = entity, action = "shoot" }).held
-                    seenMove = ctx.call("rtype.replication.readInput", { entity = entity, action = "move" }).vector
+                    probe.seenOwner = owner.client
+                    probe.seenShoot = ctx.call("rtype.replication.readInput", { entity = entity, action = "shoot" }).held
+                    probe.seenMove = ctx.call("rtype.replication.readInput", { entity = entity, action = "move" }).vector
                 end
             end,
         })
@@ -203,5 +206,7 @@ TEST(ScriptPhysics, AServerScriptSpawnsAShipForEachClientAndReadsItsInput) {
     server.app.getWorld().getEvents().send(rtype::replication::event::ClientConnected{.client = 7});
     server.app.runFrame();
 
-    EXPECT_EQ(server.run("assert(seenOwner == 7 and seenShoot == false and seenMove.x == 0, tostring(seenOwner))"), "");
+    EXPECT_EQ(server.run("assert(probe.seenOwner == 7 and probe.seenShoot == false and probe.seenMove.x == 0, "
+                         "tostring(probe.seenOwner))"),
+              "");
 }

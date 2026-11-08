@@ -1,5 +1,6 @@
 -- A component, and a system that counts: the smallest game that does something on the server.
--- Every file of `scripts/` is loaded, in sorted order, on the server and on every client.
+-- This is the entry of the game (`scripts/main.luau`, the default of `scripts.main`): the server and every client run
+-- it, and it can `require` other files. A bigger game gives each side its own entry (see the rtype_duel example).
 
 engine.ecs.component("game.Counter", { fields = { value = "u32" } })
 

@@ -20,11 +20,7 @@ Nothing can be reached until you list its host in `allowedHosts`.
 ## A first request
 
 ```luau
--- scripts/server/ask.luau
-if engine.isClient then
-	return
-end
-
+-- scripts/server/ask.luau, required by the server entry
 local pending = nil
 
 engine.ecs.system("game.Ask", {
@@ -141,8 +137,7 @@ whose `error` says why.
 
 !!! warning "Server only"
     `rtype.http.request` and `rtype.HttpResponse` exist where the plugin is added. With it on the server only, give
-    the systems that use them `side = "server"` (the default), in a file that starts with
-    `if engine.isClient then return end`.
+    the systems that use them `side = "server"` (the default), in a file only the server entry requires.
 
 ## See also
 

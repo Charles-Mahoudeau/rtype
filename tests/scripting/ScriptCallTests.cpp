@@ -14,7 +14,9 @@
 #include <utility>
 #include <vector>
 
+#include "ScriptProbe.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/call/CallTraits.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
 #include "rtype/ecs/schedule/Phase.hpp"
@@ -124,6 +126,7 @@ struct Fixture {
         app.addCall("test.widen", &rtype::test::script_call::widen);
         app.addCall("test.broken", &rtype::test::script_call::broken);
         app.addCall("test.echo", &rtype::test::script_call::echo);
+        app.getPluginRegistry().addScriptForms("test.Probe", rtype::tests::kProbeForms);
         auto created = rtype::scripting::ScriptHost::create(app, {});
         EXPECT_TRUE(created) << (created ? "" : std::string{created.error().message()});
         host = std::move(*created);
@@ -340,7 +343,7 @@ TEST(ScriptCall, ATextFieldRefusesAValueOfAnotherType) {
 TEST(ScriptCall, ASystemPassesALongTextToTheCallsItDeclares) {
     Fixture fixture;
     ASSERT_EQ(fixture.run(R"(
-        lengths = {}
+        probe.lengths = {}
         engine.ecs.system("test.Echoes", {
             phase = "Update",
             side = "both",
@@ -348,13 +351,14 @@ TEST(ScriptCall, ASystemPassesALongTextToTheCallsItDeclares) {
             calls = { "test.echo" },
             run = function(ctx)
                 local echo = ctx.call("test.echo", { text = string.rep("x", 4000) })
-                table.insert(lengths, #echo.text)
+                table.insert(probe.lengths, #echo.text)
             end,
         })
     )"),
               "");
     fixture.app.runFrame();
     fixture.app.runFrame();
-    EXPECT_EQ(fixture.run("assert(#lengths == 2 and lengths[1] == 8000 and lengths[2] == 8000, tostring(#lengths))"),
+    EXPECT_EQ(fixture.run("assert(#probe.lengths == 2 and probe.lengths[1] == 8000 and probe.lengths[2] == 8000, "
+                          "tostring(#probe.lengths))"),
               "");
 }

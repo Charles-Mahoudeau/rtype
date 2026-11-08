@@ -7,50 +7,30 @@
 
 #include "rtype/scripting/plugin/ScriptingPlugin.hpp"
 
-#include <algorithm>
 #include <filesystem>
 #include <format>
 #include <iostream>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <utility>
 #include <vector>
 
-#include "rtype/core/asset/AssetFiles.hpp"
-#include "rtype/core/asset/exceptions/AssetExceptions.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/scripting/ErrorKind.hpp"
 #include "rtype/scripting/ScriptHost.hpp"
 #include "rtype/scripting/exceptions/ScriptLoadException.hpp"
+#include "rtype/scripting/modules/ScriptResolver.hpp"
 
 namespace rtype::scripting {
 namespace {
-constexpr std::string_view kScriptExtension = ".luau";
+constexpr std::string_view kDefaultEntry = "main";
 
-/// @return The `.luau` files under @p directory, sorted by path; none, with a warning, if it is not a directory.
-/// @throws exceptions::ScriptLoadException If @p directory cannot be read.
-std::vector<std::filesystem::path> findScripts(const std::filesystem::path& directory) {
-    std::error_code error;
-    if (!std::filesystem::is_directory(directory, error)) {
-        std::cerr << std::format("[ScriptingPlugin] Scripts directory '{}' not found, no script loaded\n",
-                                 directory.string());
-        return {};
-    }
-    std::vector<std::filesystem::path> scripts;
-    for (std::filesystem::recursive_directory_iterator it{directory, error}, end; !error && it != end;
-         it.increment(error)) {
-        if (it->is_regular_file() && it->path().extension() == kScriptExtension) {
-            scripts.push_back(it->path());
-        }
-    }
-    if (error) {
-        throw exceptions::ScriptLoadException{
-            std::format("Cannot read scripts directory '{}': {}", directory.string(), error.message())};
-    }
-    // Sorted on the portable form, so the order does not depend on the platform's separator.
-    std::ranges::sort(scripts, {}, [](const std::filesystem::path& path) { return core::asset::normalizePath(path); });
-    return scripts;
-}
+/// @brief One entry point to run: the setting that names it and the path it holds.
+struct Entry {
+    std::string_view setting;  ///< `main`, `server` or `client`.
+    std::string path;          ///< The entry, relative to `scripts/`, with no extension.
+    bool isDefault{false};     ///< Whether no setting gave it: a missing file is then only a warning.
+};
 }  // namespace
 
 ScriptingPlugin::ScriptingPlugin(Config config) : _config{std::move(config)} {}
@@ -64,24 +44,46 @@ ScriptingPlugin& ScriptingPlugin::operator=(ScriptingPlugin&& other) noexcept = 
 std::string_view ScriptingPlugin::getName() const noexcept { return "rtype.scripting"; }
 
 void ScriptingPlugin::build(ecs::App& app) {
-    auto host = ScriptHost::create(app, _config.options);
+    const modules::ScriptResolver resolver{_config.directory, _config.aliases};
+    auto host = ScriptHost::create(app, _config.options, resolver.forLoader());
     if (!host) {
         throw exceptions::ScriptLoadException{
             std::format("Cannot create the script runtime: {}", host.error().message())};
     }
     _host = std::move(*host);
+    // The files nobody requires are not part of the game: a changed one is ignored by a reload until one requires it.
+    _host->setAdoptsNewFiles(false);
 
-    for (const auto& path : findScripts(_config.directory)) {
-        const std::string name = core::asset::normalizePath(path);
-        std::string source;
-        try {
-            source = core::asset::readTextFile(path);
-        } catch (const core::asset::exceptions::AssetLoadException& e) {
-            throw exceptions::ScriptLoadException{std::format("Cannot read script '{}': {}", name, e.what())};
+    // main first, then the side(s) of this process; with no setting at all, `main` alone, by its default name.
+    std::vector<Entry> entries;
+    const bool anySet = _config.main || _config.server || _config.client;
+    if (!anySet) {
+        entries.push_back({.setting = "main", .path = std::string{kDefaultEntry}, .isDefault = true});
+    }
+    if (_config.main) {
+        entries.push_back({.setting = "main", .path = *_config.main});
+    }
+    if (_config.options.isServer && _config.server) {
+        entries.push_back({.setting = "server", .path = *_config.server});
+    }
+    if (_config.options.isClient && _config.client) {
+        entries.push_back({.setting = "client", .path = *_config.client});
+    }
+    for (const Entry& entry : entries) {
+        const auto found = resolver.resolveEntry(entry.path);
+        if (!found && entry.isDefault && found.error().kind() == ErrorKind::kModuleNotFound) {
+            std::cerr << std::format("[ScriptingPlugin] No entry script '{}' in '{}', no script loaded\n", entry.path,
+                                     _config.directory.string());
+            continue;
         }
-        if (auto result = _host->run(name, source); !result) {
+        if (!found) {
             throw exceptions::ScriptLoadException{
-                std::format("Script '{}' failed: {}", name, result.error().message())};
+                std::format("Setting 'scripts.{}' = '{}': {}", entry.setting, entry.path, found.error().message())};
+        }
+        if (auto result = _host->require(std::format("@scripts/{}", entry.path)); !result) {
+            throw exceptions::ScriptLoadException{std::format("Entry script '{}' ('scripts.{}') failed: {}",
+                                                              found->chunkName, entry.setting,
+                                                              result.error().message())};
         }
     }
     if (_config.onBuilt) {

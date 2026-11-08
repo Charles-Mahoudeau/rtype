@@ -13,6 +13,7 @@
 #include <utility>
 
 #include "FakeBackend.hpp"
+#include "ScriptProbe.hpp"
 #include "plugins/graphics/GraphicsPlugin.hpp"
 #include "plugins/input/InputPlugin.hpp"
 #include "plugins/particle/ParticlePlugin.hpp"
@@ -20,6 +21,7 @@
 #include "plugins/shader/ShaderPlugin.hpp"
 #include "plugins/transform/TransformPlugin.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/time/TimePlugin.hpp"
 #include "rtype/scripting/ScriptHost.hpp"
@@ -39,6 +41,7 @@ struct ClientScripts {
             rtype::test::plugins::makeFakeSettings()});
         app.addPlugin(rtype::plugins::shader::ShaderPlugin{});
         app.addPlugin(rtype::plugins::particle::ParticlePlugin{});
+        app.getPluginRegistry().addScriptForms("test.Probe", rtype::tests::kProbeForms);
         auto created = rtype::scripting::ScriptHost::create(app, {.isClient = true});
         EXPECT_TRUE(created) << (created ? "" : std::string{created.error().message()});
         host = std::move(*created);
@@ -82,7 +85,7 @@ TEST(ScriptParticles, AScriptPlaysAnEmitterAndAOneShotOfItsEffects) {
             end,
         })
 
-        finished = 0
+        probe.finished = 0
         engine.ecs.system("game.Finished", {
             phase = "Update",
             side = "client",
@@ -90,7 +93,7 @@ TEST(ScriptParticles, AScriptPlaysAnEmitterAndAOneShotOfItsEffects) {
             events = { read = { "rtype.ParticlesFinished" } },
             run = function(ctx)
                 for _ in ctx.events.read("rtype.ParticlesFinished") do
-                    finished += 1
+                    probe.finished += 1
                 end
             end,
         })
@@ -104,7 +107,7 @@ TEST(ScriptParticles, AScriptPlaysAnEmitterAndAOneShotOfItsEffects) {
         client.app.runFrame();
     }
     EXPECT_EQ(client.playing(), 1U);  // the one-shot is over and gone; the looping emitter plays on
-    EXPECT_EQ(client.run("assert(finished == 1, tostring(finished))"), "");
+    EXPECT_EQ(client.run("assert(probe.finished == 1, tostring(probe.finished))"), "");
 }
 
 TEST(ScriptParticles, AnEmitterCanNameItsEffect) {

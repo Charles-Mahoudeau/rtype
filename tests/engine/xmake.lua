@@ -18,6 +18,8 @@ target("engine-tests")
     add_files("*.cpp", "../main.cpp")
     -- FakeBackend.hpp (header-only): the fake platform and renderer, for a client App that runs frames.
     add_includedirs("../plugins")
+    -- ScriptProbe.hpp (header-only): the `probe` global that tests read what a script recorded through.
+    add_includedirs("../scripting")
     -- asio: LocalHttpServer.hpp, the HTTP server of the http plugin's script tests.
     add_packages("gtest", "libsodium", "asio")
     -- LocalHttpServer.hpp uses Asio's sockets, as the network module does.

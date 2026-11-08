@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -226,7 +227,7 @@ TEST(Engine, ReadsTheGamesCapsuleFilesAfterItsScripts) {
     )"};
     // The file names a component a script declares: it is read once every plugin, scripts included, is built.
     game.write("assets/actors/bydo.actor", "[node path=\".\"]\ngame.Health = { value = 3 }\n");
-    game.write("scripts/game.luau", R"(
+    game.write("scripts/main.luau", R"(
         engine.ecs.component("game.Health", { fields = { value = "i32" } })
         local loaded = false
         engine.ecs.system("game.Start", {
@@ -371,11 +372,134 @@ TEST(Engine, RunsTheSetupBeforeTheScriptsAndTheNetwork) {
 
 TEST(Engine, LoadsTheScriptsOfTheGame) {
     const GameDirectory game{"rtype-engine-scripts"};
-    game.write("scripts/shield.luau", R"(engine.ecs.component("game.Shield", { fields = {} }))");
+    game.write("scripts/main.luau", R"(engine.ecs.component("game.Shield", { fields = {} }))");
 
     const Engine engine{serverConfig(game)};
 
     EXPECT_TRUE(engine.app().getWorld().getComponents().find("game.Shield"));
+}
+
+TEST(Engine, TheScriptsOfAGameRequireEachOtherThroughTheScriptsAlias) {
+    const GameDirectory game{"rtype-engine-require"};
+    game.write("scripts/shared/config.luau", "return { name = 'Configured' }");
+    game.write("scripts/main.luau", R"(
+        local config = require("@scripts/shared/config")
+        engine.ecs.component("game." .. config.name, { fields = {} })
+    )");
+
+    const Engine engine{serverConfig(game)};
+
+    EXPECT_TRUE(engine.app().getWorld().getComponents().find("game.Configured"));
+}
+
+TEST(Engine, ScriptsRequireThroughAnAliasTheSettingsDeclare) {
+    const GameDirectory game{"rtype-engine-alias", R"(
+        engine.settings.network.port = 0
+        engine.settings.scripts.aliases = { shared = "shared" }
+    )"};
+    game.write("scripts/shared/x.luau", "return { name = 'Aliased' }");
+    game.write("scripts/main.luau", R"(
+        local x = require("@shared/x")
+        engine.ecs.component("game." .. x.name, { fields = {} })
+    )");
+
+    const Engine engine{serverConfig(game)};
+
+    EXPECT_TRUE(engine.app().getWorld().getComponents().find("game.Aliased"));
+}
+
+/// @return What building a game whose project is @p project throws, empty if nothing.
+std::string buildError(const std::string_view name, const std::string_view project,
+                       const rtype::ecs::RunMode mode = rtype::ecs::RunMode::kServer) {
+    const GameDirectory game{name, project};
+    game.write("scripts/main.luau", "return 1");
+    try {
+        EngineConfig config = serverConfig(game);
+        config.mode = mode;
+        const Engine engine{std::move(config)};
+    } catch (const std::exception& error) {
+        return error.what();
+    }
+    return {};
+}
+
+TEST(Engine, EntryComesFromTheProjectPerSide) {
+    constexpr std::string_view kEntries = R"(
+        engine.settings.network.port = 0
+        engine.settings.scripts.main = "shared/main"
+        engine.settings.scripts.server = "server/main"
+        engine.settings.scripts.client = "client/main"
+    )";
+    const auto build = [&](const std::string_view name, const rtype::ecs::RunMode mode) {
+        const GameDirectory game{name, kEntries};
+        game.write("scripts/shared/main.luau", R"(engine.ecs.component("game.Main", { fields = {} }))");
+        game.write("scripts/server/main.luau", R"(engine.ecs.component("game.Server", { fields = {} }))");
+        game.write("scripts/client/main.luau", R"(engine.ecs.component("game.Client", { fields = {} }))");
+        game.write("assets/placeholder.txt", "");
+        EngineConfig config = serverConfig(game);
+        config.mode = mode;
+        const Engine engine{std::move(config)};
+        const auto& components = engine.app().getWorld().getComponents();
+        return std::array{components.find("game.Main").has_value(), components.find("game.Server").has_value(),
+                          components.find("game.Client").has_value()};
+    };
+
+    EXPECT_EQ(build("rtype-engine-entry-server", rtype::ecs::RunMode::kServer), (std::array{true, true, false}));
+    EXPECT_EQ(build("rtype-engine-entry-standalone", rtype::ecs::RunMode::kStandalone), (std::array{true, true, true}));
+}
+
+TEST(Engine, AMissingExplicitEntryFailsTheBuildNamingItsSetting) {
+    const std::string message = buildError("rtype-engine-entry-missing", R"(
+        engine.settings.network.port = 0
+        engine.settings.scripts.server = "server/main"
+    )");
+    EXPECT_NE(message.find("scripts.server"), std::string::npos) << message;
+}
+
+TEST(Engine, AMissingDefaultEntryOnlyWarns) {
+    const GameDirectory game{"rtype-engine-entry-default"};
+
+    testing::internal::CaptureStderr();
+    const Engine engine{serverConfig(game)};
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_NE(log.find("No entry script 'main'"), std::string::npos) << log;
+}
+
+TEST(Engine, RejectsAScriptsAliasOutsideTheScripts) {
+    const std::string message = buildError("rtype-engine-alias-outside", R"(
+        engine.settings.network.port = 0
+        engine.settings.scripts.aliases = { escape = "../assets" }
+    )");
+    EXPECT_NE(message.find("scripts.aliases.escape"), std::string::npos) << message;
+    EXPECT_NE(message.find("inside scripts/"), std::string::npos) << message;
+}
+
+TEST(Engine, RejectsAReservedScriptsAlias) {
+    const std::string message = buildError("rtype-engine-alias-reserved", R"(
+        engine.settings.network.port = 0
+        engine.settings.scripts.aliases = { self = "shared" }
+    )");
+    EXPECT_NE(message.find("scripts.aliases.self"), std::string::npos) << message;
+    EXPECT_NE(message.find("reserved"), std::string::npos) << message;
+}
+
+TEST(Engine, RejectsAScriptsAliasThatIsNotAString) {
+    const std::string message = buildError("rtype-engine-alias-type", R"(
+        engine.settings.network.port = 0
+        engine.settings.scripts.aliases = { shared = 3 }
+    )");
+    EXPECT_NE(message.find("scripts.aliases.shared"), std::string::npos) << message;
+    EXPECT_NE(message.find("string"), std::string::npos) << message;
+}
+
+TEST(Engine, RejectsAnUnknownScriptsSetting) {
+    const std::string message = buildError("rtype-engine-scripts-key", R"(
+        engine.settings.network.port = 0
+        engine.settings.scripts.alias = { shared = "shared" }
+    )");
+    EXPECT_NE(message.find("alias.shared"), std::string::npos) << message;
+    EXPECT_NE(message.find("'scripts'"), std::string::npos) << message;
 }
 
 TEST(Engine, RunsUntilAppExit) {
@@ -477,6 +601,7 @@ TEST(EngineHotReload, BuildsTheGameAgainWhenTheProjectChanges) {
 
 TEST(EngineHotReload, SwapsTheSystemsOfAChangedScriptWithoutBuildingTheGameAgain) {
     const GameDirectory game{"rtype-engine-hot-scripts", kHotProject};
+    game.write("scripts/main.luau", "require('./quit')");
     game.write("scripts/quit.luau", quitScript(0));
     std::int32_t builds = 0;
     EngineConfig config = serverConfig(game);
@@ -498,8 +623,97 @@ TEST(EngineHotReload, SwapsTheSystemsOfAChangedScriptWithoutBuildingTheGameAgain
     EXPECT_NE(log.find("system game.Quit"), std::string::npos) << log;
 }
 
+namespace {
+/// @return A script whose system @p name ends the game with the code of the module `config`, if it is not 0.
+std::string configuredQuitScript(const std::string_view name) {
+    return "local config = require('./config')\nengine.ecs.system(\"" + std::string{name} + R"(", {
+        phase = "Update",
+        query = {},
+        events = { send = { "rtype.AppExit" } },
+        run = function(ctx)
+            if config.code ~= 0 then ctx.events.send("rtype.AppExit", { code = config.code }) end
+        end,
+    }))";
+}
+
+/// @return A script whose system `game.Other` ends the game with @p code, or does nothing if @p code is 0.
+std::string otherScript(const int code) {
+    std::string script = quitScript(code);
+    script.replace(script.find("game.Quit"), std::string_view{"game.Quit"}.size(), "game.Other");
+    // Both send the exit event: an order between them is required.
+    constexpr std::string_view kPhase = "phase = \"Update\",";
+    script.replace(script.find(kPhase), kPhase.size(), "phase = \"Update\", after = { \"game.Quit\" },");
+    return script;
+}
+
+/// @brief Setup that registers the exit event scripts send.
+void registerExit(Engine& engine) {
+    static_cast<void>(engine.app().getWorld().getEvents().registerType<rtype::ecs::AppExit>());
+}
+}  // namespace
+
+TEST(EngineHotReload, ReRunsTheDependentsOfAChangedModule) {
+    const GameDirectory game{"rtype-engine-hot-dependents", kHotProject};
+    game.write("scripts/main.luau", "require('./quit')");
+    game.write("scripts/config.luau", "return { code = 0 }");
+    game.write("scripts/quit.luau", configuredQuitScript("game.Quit"));
+    EngineConfig config = serverConfig(game);
+    config.setup = &registerExit;
+    Engine engine{std::move(config)};
+    game.write("scripts/config.luau", "return { code = 9 }");
+
+    testing::internal::CaptureStderr();
+    const int code = engine.run();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(code, 9) << "quit.luau ran again and saw the new value of config.luau";
+    EXPECT_NE(log.find("[HotReload] scripts: applied in"), std::string::npos) << log;
+    EXPECT_NE(log.find("system game.Quit"), std::string::npos) << log;
+}
+
+TEST(EngineHotReload, DoesNotReRunTheModulesThatDoNotRequireTheChangedOne) {
+    const GameDirectory game{"rtype-engine-hot-unrelated", kHotProject};
+    game.write("scripts/main.luau", "require('./quit')\nrequire('./other')");
+    game.write("scripts/config.luau", "return { code = 0 }");
+    game.write("scripts/quit.luau", configuredQuitScript("game.Quit"));
+    game.write("scripts/other.luau", otherScript(0));
+    EngineConfig config = serverConfig(game);
+    config.setup = &registerExit;
+    Engine engine{std::move(config)};
+    game.write("scripts/other.luau", otherScript(5));
+
+    testing::internal::CaptureStderr();
+    const int code = engine.run();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(code, 5) << log;
+    EXPECT_NE(log.find("system game.Other"), std::string::npos) << log;
+    EXPECT_EQ(log.find("system game.Quit"), std::string::npos) << log;
+}
+
+TEST(EngineHotReload, IgnoresAChangedFileNoModuleRequires) {
+    const GameDirectory game{"rtype-engine-hot-ignored", kHotProject};
+    game.write("scripts/main.luau", "require('./quit')");
+    game.write("scripts/quit.luau", quitScript(0));
+    game.write("scripts/unused.luau", "return 1");
+    EngineConfig config = serverConfig(game);
+    config.setup = &registerExit;
+    Engine engine{std::move(config)};
+    // Both are saved in the same batch: the unused file would fail the reload if it were run.
+    game.write("scripts/unused.luau", "error('never run')");
+    game.write("scripts/quit.luau", quitScript(3));
+
+    testing::internal::CaptureStderr();
+    const int code = engine.run();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(code, 3) << log;
+    EXPECT_EQ(log.find("never run"), std::string::npos) << log;
+}
+
 TEST(EngineHotReload, BuildsTheGameAgainWhenAScriptCannotBeSwappedInPlace) {
     const GameDirectory game{"rtype-engine-hot-layout", kHotProject};
+    game.write("scripts/main.luau", "require('./thing')");
     game.write("scripts/thing.luau", R"(engine.ecs.component("game.Thing", { fields = { a = "f32" } }))");
     std::int32_t builds = 0;
     EngineConfig config = serverConfig(game);
@@ -520,7 +734,7 @@ TEST(EngineHotReload, RespawnsWhatACapsuleFileSpawnedWhenItIsSaved) {
     const GameDirectory game{"rtype-engine-hot-capsule",
                              std::string{kHotProject} + "engine.settings.plugins = { \"rtype.Capsule\" }\n"};
     game.write("assets/actors/bydo.actor", "[node path=\".\"]\ngame.Health = { value = 3 }\n");
-    game.write("scripts/game.luau", R"(
+    game.write("scripts/main.luau", R"(
         engine.ecs.component("game.Health", { fields = { value = "i32" } })
         local loaded = false
         engine.ecs.system("game.Start", {

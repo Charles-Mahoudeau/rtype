@@ -86,7 +86,7 @@ class ScriptsDirectory {
         : _path{std::filesystem::temp_directory_path() / std::string{name}} {
         std::filesystem::remove_all(_path);
         std::filesystem::create_directories(_path);
-        std::ofstream{_path / "shield.luau"} << content;
+        std::ofstream{_path / "main.luau"} << content;
     }
 
     ~ScriptsDirectory() {

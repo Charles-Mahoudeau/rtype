@@ -1,6 +1,9 @@
 -- The look of what the server spawns: the ships and the lasers fly animated where the server puts them, and the loser
 -- explodes.
 
+local assets = require("@scripts/client/assets")
+local Duel = require("@scripts/shared/arena")
+
 local explosionScale = 1.5
 
 -- A finished explosion: removed when its animation ends.
@@ -22,7 +25,7 @@ engine.ecs.system("game.DressShips", {
 			ctx.commands:add(entity, "rtype.Transform", { position = ship.position })
 			ctx.commands:add(entity, "rtype.SpriteRenderer", { layer = 1 })
 			ctx.commands:add(entity, "rtype.SpriteAnimator", {
-				atlas = if ship.player == 0 then Duel.assets.leftShip else Duel.assets.rightShip,
+				atlas = if ship.player == 0 then assets.leftShip else assets.rightShip,
 				animation = "fly",
 			})
 		end
@@ -39,7 +42,7 @@ engine.ecs.system("game.DressLasers", {
 			ctx.commands:add(entity, "rtype.Transform", { position = laser.position })
 			ctx.commands:add(entity, "rtype.SpriteRenderer", { layer = 2 })
 			ctx.commands:add(entity, "rtype.SpriteAnimator", {
-				atlas = Duel.assets.laser,
+				atlas = assets.laser,
 				animation = if laser.shooter == 0 then "right" else "left",
 			})
 		end
@@ -106,7 +109,7 @@ engine.ecs.system("game.ExplodeLoser", {
 						scale = { x = explosionScale, y = explosionScale },
 					},
 					["rtype.SpriteRenderer"] = { layer = 3, blend = Duel.additive },
-					["rtype.SpriteAnimator"] = { atlas = Duel.assets.explosion, animation = "explode" },
+					["rtype.SpriteAnimator"] = { atlas = assets.explosion, animation = "explode" },
 					["game.Explosion"] = {},
 				})
 			end

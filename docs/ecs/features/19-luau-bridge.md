@@ -247,8 +247,9 @@ end
 return RtypePlugin
 ```
 
-Files are loaded **by path** because cross-file `require` is a non-goal of the Luau proposal; it also
-gives the bridge every file it must watch for hot reload.
+This section is the original proposal. Today files `require` each other (by string path, `docs/scripting/plan.md`
+D10, `docs/luau/modules.md`) and the `app:load` form above does not exist; only the entry points named in `project.luau`
+(`scripts.main/server/client`) run by themselves, and each file has its own sandboxed globals (epic #489).
 
 ### Input actions from Luau
 
@@ -299,8 +300,7 @@ System sides decide what runs where: `server` (gameplay, default), `client` (pre
 
 A system is declared on both sides, whatever its side, and only its engine calls may be missing on the side it does not
 run on: its components, resources and events must exist there, and the systems it is ordered against too. A script that
-names what only one side has (the sprites, the audio, `net.applyInputs`) declares it on that side only, returning early
-on the other once its components are declared, as `examples/games/rtype_duel/game/scripts/` does:
+names what only one side has (the sprites, the audio, `net.applyInputs`) lives in files only that side's entry requires (`server/main`, `client/main`), as `examples/games/rtype_duel/game/scripts/` does; a test of `engine.isClient` is the way to share one file:
 
 ```luau
 engine.ecs.component("game.Explosion", { fields = {}, presence = "clientOnly" }) -- on both sides

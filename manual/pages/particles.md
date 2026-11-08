@@ -9,14 +9,14 @@ engine.settings.plugins = { "rtype.SpriteDraw", "rtype.Particle" }
 ```
 
 `rtype.Particle` lives on the **client** only: particles are something you see, not gameplay. The server has no
-particles. It still runs `engine.assets.particle`, which checks the table and gives you the effect's id, so the same
-script loads everywhere. Systems that play effects are client systems (`side = "client"`).
+particles, so the files that build and play effects are required by the client entry only. Systems that play effects are
+client systems (`side = "client"`).
 
 ## A first effect
 
 ```luau
--- scripts/assets.luau: on every side, so the server knows the ids too
-Game.effects = {
+-- scripts/client/effects_assets.luau: returns the ids, for the files that play the effects
+return {
 	sparks = engine.assets.particle({
 		name = "game.sparks",
 		texture = engine.assets.texture("particles/spark.png"),
@@ -42,10 +42,8 @@ Game.effects = {
 ```
 
 ```luau
--- scripts/effects.luau: sparks where each new laser appears
-if not engine.isClient then
-	return
-end
+-- scripts/client/effects.luau: sparks where each new laser appears
+local effects = require("@scripts/client/effects_assets")
 
 engine.ecs.system("game.MuzzleSparks", {
 	phase = "Update",
@@ -55,7 +53,7 @@ engine.ecs.system("game.MuzzleSparks", {
 	run = function(ctx)
 		for _, transform in ctx.query do
 			local at = transform.position
-			ctx.events.send("rtype.SpawnParticles", { effect = Game.effects.sparks, position = { x = at.x, y = at.y } })
+			ctx.events.send("rtype.SpawnParticles", { effect = effects.sparks, position = { x = at.x, y = at.y } })
 		end
 	end,
 })
@@ -161,13 +159,15 @@ with the entity.
 | `overrideSimulation`, `simulation` | boolean, number | `false`, `0` | `true` replaces the effect's `simulation` with this one: `0` auto, `1` GPU, `2` CPU |
 
 ```luau
+local effects = require("@scripts/client/effects_assets")
+
 engine.ecs.system("game.ShipTrail", {
 	phase = "Update",
 	side = "client",
 	query = { with = { "game.Ship" }, without = { "rtype.ParticleEmitter" } },
 	run = function(ctx)
 		for ship in ctx.query do
-			ctx.commands:add(ship, "rtype.ParticleEmitter", { effect = Game.effects.trail, layer = -1 })
+			ctx.commands:add(ship, "rtype.ParticleEmitter", { effect = effects.trail, layer = -1 })
 		end
 	end,
 })
@@ -200,9 +200,8 @@ Building an effect twice with the same `name` keeps the first one.
 
 !!! warning "Only on the client"
     `rtype.ParticleEmitter`, `rtype.SpawnParticles` and `rtype.ParticlesFinished` exist only where `rtype.Particle`
-    is, on the client. Declare the systems that name them with `side = "client"`, in a file that starts with
-    `if not engine.isClient then return end` (see [Systems](systems.md#where-a-system-runs)). Keep
-    `engine.assets.particle` outside that file, so that the server has the ids too.
+    is, on the client. Declare the systems that name them with `side = "client"`, in files only the client entry requires (see
+    [Systems](systems.md#where-a-system-runs)).
 
 ## See also
 

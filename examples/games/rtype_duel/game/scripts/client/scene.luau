@@ -1,6 +1,9 @@
 -- The scene around the game: the camera, the obstacles' look, and a space background whose layers scroll at their own
 -- speed (a Tiled map), where a planet passes now and then.
 
+local assets = require("@scripts/client/assets")
+local Duel = require("@scripts/shared/arena")
+
 local backgroundSize = { x = 272, y = 160 } -- the map's images, in pixels: scaled to the view's height
 local backgroundScale = Duel.viewHeight / backgroundSize.y
 local backgroundDrawLayer = -100 -- under every sprite
@@ -15,11 +18,6 @@ engine.ecs.component("game.BackgroundPlanet", {
 	fields = { width = "f32" }, -- on screen, in world units
 	presence = "clientOnly",
 })
-
--- The rest draws and plays: the server has none of the plugins it names.
-if not engine.isClient then
-	return
-end
 
 -- Startup: the camera looks at the middle of the arena and listens there.
 engine.ecs.system("game.SpawnCamera", {
@@ -71,7 +69,7 @@ engine.ecs.system("game.SpawnBackground", {
 	calls = { "rtype.tilemap.spawn" },
 	run = function(ctx)
 		ctx.call("rtype.tilemap.spawn", {
-			map = Duel.assets.background,
+			map = assets.background,
 			position = {
 				x = (Duel.viewWidth - backgroundSize.x * backgroundScale) / 2,
 				y = (Duel.viewHeight - backgroundSize.y * backgroundScale) / 2,
@@ -95,7 +93,7 @@ engine.ecs.system("game.SpawnPlanets", {
 			return
 		end
 		countdown = planetDelayMin + math.random() * (planetDelayMax - planetDelayMin)
-		local planet = Duel.assets.planets[math.random(1, #Duel.assets.planets)]
+		local planet = assets.planets[math.random(1, #assets.planets)]
 		local closeness = math.random()
 		local scale = backgroundScale * math.lerp(planetScaleMin, 1, closeness)
 		local speed = backgroundScale * math.lerp(planetSpeedMin, planetSpeedMax, closeness)

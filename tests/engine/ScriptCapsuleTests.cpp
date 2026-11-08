@@ -15,12 +15,14 @@
 #include <utility>
 #include <vector>
 
+#include "ScriptProbe.hpp"
 #include "core/asset/AssetId.hpp"
 #include "plugins/capsule/Capsule.hpp"
 #include "plugins/capsule/CapsulePlugin.hpp"
 #include "plugins/capsule/Capsules.hpp"
 #include "plugins/capsule/LoadedCapsule.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/component/Components.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
@@ -67,6 +69,7 @@ struct ScriptApp {
                 .id = capsule::CapsuleId::fromPath("actors/bydo.actor"), .path = "actors/bydo.actor"};
             capsules.define(std::move(level));
         }
+        app.getPluginRegistry().addScriptForms("test.Probe", rtype::tests::kProbeForms);
         auto created = rtype::scripting::ScriptHost::create(app, {});
         EXPECT_TRUE(created) << (created ? "" : std::string{created.error().message()});
         host = std::move(*created);
@@ -93,11 +96,11 @@ TEST(ScriptCapsule, ASystemSpawnsLoadsAndReloadsCapsules) {
                 if frame == 1 then
                     bydo = ctx.call("rtype.capsule.spawn", { capsule = "actors/bydo.actor" })
                     ctx.commands:add(bydo, "test.scriptcapsule.Health", { value = 10 })   -- over the capsule's
-                    first = ctx.call("rtype.capsule.load", { capsule = "scenes/one.scene" })
+                    probe.first = ctx.call("rtype.capsule.load", { capsule = "scenes/one.scene" })
                 elseif frame == 2 then
-                    second = ctx.call("rtype.capsule.load", { capsule = "scenes/two.scene" })
+                    probe.second = ctx.call("rtype.capsule.load", { capsule = "scenes/two.scene" })
                 elseif frame == 3 then
-                    reloaded = ctx.call("rtype.capsule.reload", { root = bydo })
+                    probe.reloaded = ctx.call("rtype.capsule.reload", { root = bydo })
                 end
             end,
         })
@@ -109,12 +112,12 @@ TEST(ScriptCapsule, ASystemSpawnsLoadsAndReloadsCapsules) {
     script.app.runFrame();
     EXPECT_EQ(world.getEntityCount(), 5U);  // the first level replaced by the second
     script.app.runFrame();
-    EXPECT_EQ(script.run("assert(reloaded == true)"), "");
+    EXPECT_EQ(script.run("assert(probe.reloaded == true)"), "");
 
     const auto* loaded = world.getResources().get<capsule::LoadedCapsule>();
     ASSERT_NE(loaded, nullptr);
     EXPECT_EQ(loaded->capsule, rtype::core::asset::AssetId::fromPath("scenes/two.scene"));
-    EXPECT_EQ(script.run("assert(first ~= second)"), "");
+    EXPECT_EQ(script.run("assert(probe.first ~= probe.second)"), "");
 }
 
 TEST(ScriptCapsule, AnOverrideAddedAfterTheSpawnReplacesTheCapsulesValue) {
@@ -162,13 +165,13 @@ TEST(ScriptCapsule, TheFormsSpawnLoadAndReloadInOneCallEach) {
             run = function(ctx)
                 frame += 1
                 if frame == 1 then
-                    bydo = engine.capsule.spawn(ctx, "actors/bydo.actor", {
+                    probe.bydo = engine.capsule.spawn(ctx, "actors/bydo.actor", {
                         ["test.scriptcapsule.Armor"] = { extra = 9 },   -- the capsule's value stays
                     })
-                    level = engine.capsule.load(ctx, "scenes/one.scene")
+                    probe.level = engine.capsule.load(ctx, "scenes/one.scene")
                 elseif frame == 2 then
-                    reloaded = engine.capsule.reload(ctx, bydo)
-                    notARoot = engine.capsule.reload(ctx, ctx.commands:spawn())
+                    probe.reloaded = engine.capsule.reload(ctx, probe.bydo)
+                    probe.notARoot = engine.capsule.reload(ctx, ctx.commands:spawn())
                 end
             end,
         })
@@ -188,26 +191,26 @@ TEST(ScriptCapsule, TheFormsSpawnLoadAndReloadInOneCallEach) {
               (std::vector<std::pair<std::int32_t, std::int32_t>>{{1, 2}, {1, 9}}));  // level's bydo, patched one
     EXPECT_EQ(world.getResources().get<capsule::LoadedCapsule>()->capsule,
               rtype::core::asset::AssetId::fromPath("scenes/one.scene"));
-    EXPECT_EQ(script.run("assert(level ~= nil and bydo ~= nil)"), "");
+    EXPECT_EQ(script.run("assert(probe.level ~= nil and probe.bydo ~= nil)"), "");
 
     script.app.runFrame();
-    EXPECT_EQ(script.run("assert(reloaded == true and notARoot == false)"), "");
+    EXPECT_EQ(script.run("assert(probe.reloaded == true and probe.notARoot == false)"), "");
 }
 
 TEST(ScriptCapsule, TheFormsCheckWhatTheyAreGiven) {
     ScriptApp script;
     ASSERT_EQ(script.run(R"(
-        errors = {}
+        probe.errors = {}
         local function try(...)
             local done, message = pcall(...)
-            table.insert(errors, done and "" or tostring(message))
+            table.insert(probe.errors, done and "" or tostring(message))
         end
         engine.ecs.system("game.Mistakes", {
             phase = "Update",
             query = {},
             calls = { "rtype.capsule.spawn" },
             run = function(ctx)
-                if #errors > 0 then return end
+                if #probe.errors > 0 then return end
                 try(engine.capsule.spawn, "actors/bydo.actor")
                 try(engine.capsule.spawn, ctx, 42)
                 try(engine.capsule.spawn, ctx, "actors/bydo.actor", { ["test.scriptcapsule.Armor"] = 3 })
@@ -230,10 +233,11 @@ TEST(ScriptCapsule, TheFormsCheckWhatTheyAreGiven) {
         "engine.capsule.spawn: expected at most 3 argument(s), got 4",
     };
     for (std::size_t index = 0; index < expected.size(); ++index) {
-        const std::string lua = "local text = errors[" + std::to_string(index + 1) + "]; assert(string.find(text, \"" +
-                                expected[index] + "\", 1, true), text)";
+        const std::string lua = "local text = probe.errors[" + std::to_string(index + 1) +
+                                "]; assert(string.find(text, \"" + expected[index] + "\", 1, true), text)";
         EXPECT_EQ(script.run(lua), "") << expected[index];
     }
-    EXPECT_EQ(script.run(R"(assert(string.find(errors[4], "No capsule has the id", 1, true), errors[4]))"), "");
-    EXPECT_EQ(script.run(R"(assert(string.find(errors[6], "extar", 1, true), errors[6]))"), "");
+    EXPECT_EQ(script.run(R"(assert(string.find(probe.errors[4], "No capsule has the id", 1, true), probe.errors[4]))"),
+              "");
+    EXPECT_EQ(script.run(R"(assert(string.find(probe.errors[6], "extar", 1, true), probe.errors[6]))"), "");
 }

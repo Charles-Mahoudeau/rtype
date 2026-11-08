@@ -15,14 +15,14 @@ issue (`plan-issues` skill) instead of working around it.
 ```
 my_game/game/
   project.luau      settings, run before anything else (required)
-  scripts/          every .luau file, loaded in sorted path order on the server and on every client
+  scripts/          the entries named in project.luau (default main.luau) and the files they require
   assets/           everything loaded, named by its path under assets/ (clients require the folder)
 ```
 
 Run it: `./aylo-runtime --server --game my_game/game` and `./aylo-runtime --game my_game/game` (`./r-type_server` and
 `./r-type_client` are wrappers for them); every `--name value` flag is
-`engine.args.name` in `project.luau`. Model it on `examples/games/rtype_duel/game/`: `scripts/arena.luau` (the shared
-rules, loaded first because of its name), `scripts/server/*.luau` (gameplay), `scripts/client/*.luau` (presentation).
+`engine.args.name` in `project.luau`. Model it on `examples/games/rtype_duel/game/`: `scripts/shared/` (the rules and the replicated declarations, required by both sides), `scripts/server/` and
+`scripts/client/` (an entry `main.luau` each, plus the gameplay and the presentation).
 
 ## project.luau
 
@@ -31,6 +31,14 @@ It chooses everything about the engine: `network.port`/`network.host`, `plugins`
 themselves, such as `{ "rtype.Physics", "rtype.PhysicsDebug" }`; a client lists `rtype.graphics`, `rtype.Sprite`... too)
 and their sections (`physics.gravity`...), on clients `platform`, `renderer`, `window.title`/`size`, `audio`... Unknown
 keys are errors: a typo fails at start. Never change engine code to change a setting.
+
+## Entry points and require
+
+`engine.settings.scripts.main/server/client = "shared/main"` (paths in `scripts/`, no extension) name the files that run:
+main, then server on a server, then client on a client; standalone runs all three. With none set, `scripts/main.luau`
+runs. A file nobody requires never runs. Share data only with `require("@scripts/shared/x")`: every file has its own
+globals, the standard libraries and `engine` are read-only, and a returned table is frozen (keep state in a local behind
+functions). Never write a global to pass data.
 
 ## Components
 
@@ -60,8 +68,8 @@ engine.ecs.system("game.MoveShips", {
 ```
 
 `ctx` gives `query`, `commands` (spawn, add, remove, despawn: deferred), `time`, `resources`, `events` and `call`.
-A system must declare every call, resource and event it uses. A system is declared on both sides whatever its side; a
-file that uses client-only plugins returns early on the server (`if not engine.isClient then return end`).
+A system must declare every call, resource and event it uses. A file runs only where an entry requires it: put what needs client-only plugins under the client entry, with no
+`engine.isClient` guard. Components and input actions both sides must declare alike go in a shared module both entries require.
 
 ## Setup forms and calls
 
@@ -74,7 +82,7 @@ at load, `ctx.call` in a declared system. The list of calls is in the manual (an
 ## Method
 
 1. Write down the data (components, which side), the inputs, the systems and the settings before coding.
-2. Put shared rules in a file that sorts first; server gameplay in `server/`, presentation in `client/`.
+2. Put shared rules in `shared/` (required by both entries); server gameplay in `server/`, presentation in `client/`.
 3. Run a server and a client and play it. A script error is printed with the system and does not stop the game: read
    the output, fix, run again.
 4. If something is missing from the API, stop, file the issue, tell the user. Do not edit C++.

@@ -1,3 +1,4 @@
+engine.settings.scripts.main = "menu"
 engine.settings.plugins = { "rtype.Input", "rtype.graphics", "rtype.Shader", "rtype.Text", "rtype.Ui" }
 engine.settings.platform = "glfw"
 engine.settings.renderer = "vulkan"

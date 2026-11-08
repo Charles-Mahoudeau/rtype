@@ -1,6 +1,10 @@
 -- The ships: they move in their half of the arena, sliding along the obstacles, and fire on a click until someone has
 -- won. One shot in Duel.misfireOdds misfires: a Misfire replaces the laser, for the clients to play its sound.
 
+local Duel = require("@scripts/shared/arena")
+local Match = require("@scripts/server/match")
+local Weapons = require("@scripts/server/weapons")
+
 -- The server's systems only, and only with the network: the ships are the players'.
 if not engine.isServer or not Duel.networked then
 	return
@@ -15,7 +19,7 @@ engine.ecs.system("game.MoveShips", {
 	after = { "net.applyInputs", "rtype.Physics.SyncBodies" },
 	before = { "rtype.Physics.SyncToPhysics" },
 	run = function(ctx)
-		if Duel.over then
+		if Match.isOver() then
 			return
 		end
 		for entity, ship, transform in ctx.query do
@@ -37,34 +41,11 @@ engine.ecs.system("game.MoveShips", {
 			transform.position = position
 			ship.position = position
 			if ctx.call("rtype.replication.readInput", { entity = entity, action = "shoot" }).pressed then
-				Duel.fire(ctx, ship.player, position)
+				Weapons.fire(ctx, ship.player, position)
 			end
 		end
 	end,
 })
-
---- Fires a laser from a player's ship at @p position, or misfires.
-function Duel.fire(ctx, player: number, position)
-	local direction = Duel.directionOf(player)
-	local muzzle = {
-		x = position.x + direction * (Duel.shipHalfSize.x + Duel.laserHalfSize.x + 1),
-		y = position.y,
-	}
-	if math.random(1, Duel.misfireOdds) == 1 then
-		ctx.commands:spawn({
-			["game.Misfire"] = { position = muzzle, shooter = player },
-			["game.MisfireTimer"] = { remaining = Duel.misfireLifetime },
-		})
-		return
-	end
-	-- The laser's actor (assets/actors/laser.actor) is the body; the shot gives where, who, which way and whom it hits.
-	engine.capsule.spawn(ctx, Duel.laser, {
-		["game.Laser"] = { position = muzzle, shooter = player },
-		["rtype.Transform"] = { position = muzzle },
-		["rtype.Collider"] = { mask = bit32.bor(Duel.obstacleLayer, Duel.shipLayerOf(1 - player)) },
-		["rtype.Velocity"] = { linear = { x = direction * Duel.laserSpeed, y = 0 } },
-	})
-end
 
 -- FixedUpdate: removes the Misfires once a snapshot had time to carry them to the clients.
 engine.ecs.system("game.ExpireMisfires", {

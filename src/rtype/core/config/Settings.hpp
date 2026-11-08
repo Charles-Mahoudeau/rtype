@@ -46,6 +46,10 @@ class Settings {
     /// @return The keys under `prefix.`, without the prefix: section("window") turns `window.title` into `title`.
     [[nodiscard]] Settings section(std::string_view prefix) const;
 
+    /// @return Every key, sorted, as stored (nested tables stay dotted). With section(), it lists the entries of an
+    /// open-ended table such as `scripts.aliases`, whose names no code knows in advance.
+    [[nodiscard]] std::vector<std::string> keys() const;
+
     /// @name Typed reads
     /// @brief Return the value of the key, or the fallback if it has none.
     /// @throws exceptions::SettingsException If the key has a value of another type.

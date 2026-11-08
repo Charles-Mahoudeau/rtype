@@ -17,7 +17,7 @@ return engine.run();
 ```
 game/
 ├── project.luau    settings: window, renderer, audio, network...   (required)
-└── scripts/        the Luau files of ScriptingPlugin, loaded in sorted path order (optional)
+└── scripts/        the Luau files of ScriptingPlugin: the entry points (`scripts.main/server/client`, default `main`) and what they `require` (optional)
 ```
 
 The directory is `EngineConfig::game` (`game` by default), or `--game <directory>` on the command line. A relative path
@@ -83,6 +83,14 @@ The network reads the `network` section of the settings and refuses unknown keys
 | `network.port` | both | 4242 | a whole number from 1 to 65535; 0 also on a server (the system picks a free port) |
 | `network.host` | client | `"127.0.0.1"` | must resolve to an address |
 
+The `scripts` section is read when the `ScriptingPlugin` is added (step 8) but checked before anything is built, with the
+network: `checkKeys({"main", "server", "client", "aliases"}, "scripts")`. The entries (`scripts.main`, `scripts.server`, `scripts.client`, strings) go to `ScriptingPlugin::Config`; the plugin requires `main`, then `server` if the mode runs the server side, then `client` if it runs the client side (`runsServer`/`runsClient` of the run mode, so standalone runs all three). With none set, `main` defaults to `"main"` and a missing file only warns; a missing explicit entry fails the build naming `scripts.<key>`. `scripts.aliases` is an
+open-ended table, so `readScriptAliases` lists it with `Settings::keys()`. Each value must be a string, and each alias is
+tried alone on a `scripting::modules::ScriptResolver`, so the error is a `RuntimeError` naming
+`scripts.aliases.<name>` with the resolver's reason (bad name, `scripts`/`self` reserved, target outside `scripts/`). The
+map goes to `ScriptingPlugin::Config::aliases`. The game mirrors the aliases in its `.luaurc` for luau-lsp; the engine
+does not read that file.
+
 `addPlugins` runs again on every build, so it creates what the plugins own, such as their registries, each time.
 
 ### Plugins
@@ -134,9 +142,24 @@ A new hot-reloaded feature is a new `Reloadable` added to the reloader, nothing 
 
 - `ProjectReloadable` follows `project.luau`. It runs the file again to check it loads: if not, the reload fails and the
   game keeps its settings; if so, it asks for a rebuild.
-- `ScriptsReloadable` follows `scripts/**/*.luau` and calls `ScriptHost::removeScript` / `reloadScript` per file.
-  A script is run in a staging area and committed only if the whole file ran; its systems replace the previous ones of
-  the same name through `Schedules::replaceSystems`, which restores the old schedule if the new one has a cycle. A change
+- `ScriptsReloadable` follows `scripts/**/*.luau` and makes one `ScriptHost::reloadModules(changed, removed)` call per
+  change set (a batch). A script is known by its chunk name, `scripts/<key>` (the path in the game folder; also the
+  owner of what it declares and the name in errors). The scripts are modules of a `luau::ModuleLoader`, and a batch is
+  one staging area and one loader transaction:
+  - The loaded modules among the changed and removed files are the seeds; `loader.dependents(seeds)` adds everything
+    that requires them, directly or not, dependencies first. A changed file no module loaded is ignored, unless the
+    host adopts new files (`setAdoptsNewFiles`; the plugin sets false, so with entry points the file is ignored until a module requires it).
+  - The affected modules are invalidated and required again in that order; one that an earlier module required is
+    already cached and is skipped. The new source of a changed file is given to the resolver as a one-shot override.
+  - The host keeps the roots, the modules required from outside (`ScriptHost::require`). After the run, the modules no
+    root reaches (`reachableFrom`) are unloaded; what they declared goes away like what a deleted file declared (a
+    component means a rebuild). A deleted file stops being a root; a module that still requires it fails with "not
+    found".
+  - Any failure (a script error, a cycle, a missing file) rolls the loader back and keeps the old systems, plugins and
+    cache: the old code keeps running. `reloadScript` and `removeScript` are batches of one file.
+  Every script of the batch runs in the staging area, committed only if all of them ran; their systems replace the previous ones of
+  the same name through `Schedules::replaceSystems` (a system that moved from one script of the batch to another is
+  a replacement, not a removal), which restores the old schedule if the new one has a cycle. A change
   that cannot be patched asks for a rebuild: a changed component layout, a new replicated component, a removed component,
   a system that changes phase or whose name another script owns, a deleted file.
 - Plugins add their own through the `HotReload` resource (`plugins/HotReload.hpp`, like `AssetDirectory`): the

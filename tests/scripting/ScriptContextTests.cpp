@@ -15,7 +15,9 @@
 #include <utility>
 #include <vector>
 
+#include "ScriptProbe.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/event/EventCursor.hpp"
 #include "rtype/ecs/event/EventTraits.hpp"
 #include "rtype/ecs/resource/ResourceTraits.hpp"
@@ -90,6 +92,7 @@ struct Fixture {
         app.getWorld().getEvents().registerType<rtype::test::script_context::Crowd>();
         app.getWorld().getEvents().registerType<rtype::test::script_context::Message>();
         app.getWorld().getEvents().registerType<rtype::test::script_context::Handle>();
+        app.getPluginRegistry().addScriptForms("test.Probe", rtype::tests::kProbeForms);
         auto created = rtype::scripting::ScriptHost::create(app, {});
         EXPECT_TRUE(created) << (created ? "" : std::string{created.error().message()});
         host = std::move(*created);
@@ -284,17 +287,17 @@ TEST(ScriptContext, AnEventThatOwnsMemoryGoesBothWaysWhole) {
     using rtype::test::script_context::Message;
     Fixture fixture;
     ASSERT_EQ(fixture.run(R"(
-        lengths = {}
+        probe.lengths = {}
         engine.ecs.system("game.Talk", {
             phase = "Update",
             query = {},
             events = { read = { "test.ctx.Message" }, send = { "test.ctx.Message" } },
             run = function(ctx)
                 for message in ctx.events.read("test.ctx.Message") do
-                    table.insert(lengths, #message.text)
+                    table.insert(probe.lengths, #message.text)
                     assert(#message.members == 3 and message.members[3] == 30)
                 end
-                if #lengths == 1 then
+                if #probe.lengths == 1 then
                     ctx.events.send("test.ctx.Message", { text = string.rep("r", 20000), members = { 5 }, priority = 2 })
                 end
             end,
@@ -308,7 +311,7 @@ TEST(ScriptContext, AnEventThatOwnsMemoryGoesBothWaysWhole) {
     for (const Message& message : fixture.app.getWorld().getEvents().read<Message>(cursor)) {
         answers.push_back(message);
     }
-    EXPECT_EQ(fixture.run("assert(#lengths == 1 and lengths[1] == 10000, tostring(lengths[1]))"), "");
+    EXPECT_EQ(fixture.run("assert(#probe.lengths == 1 and probe.lengths[1] == 10000, tostring(probe.lengths[1]))"), "");
     ASSERT_EQ(answers.size(), 2U);  // the one sent from C++, then the script's answer
     EXPECT_EQ(answers[1].text.size(), 20000U);
     EXPECT_EQ(answers[1].members, std::vector<int>{5});

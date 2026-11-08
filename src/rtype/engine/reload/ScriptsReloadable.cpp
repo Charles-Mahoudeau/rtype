@@ -10,7 +10,7 @@
 #include <exception>
 #include <filesystem>
 #include <format>
-#include <iterator>
+#include <map>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -27,32 +27,7 @@ namespace rtype::engine::reload {
 namespace {
 using core::reload::ReloadOutcome;
 
-/// @brief What is known of a reload of several files.
-struct Summary {
-    std::vector<std::string> what;      ///< What was swapped.
-    std::vector<std::string> failures;  ///< "file: why" for each file that failed.
-    std::string rebuild;                ///< Why a rebuild is needed; empty if none is.
-};
-
-/// @brief Adds the outcome of @p file to @p summary.
-void add(Summary& summary, const std::string_view file, ReloadOutcome outcome) {
-    switch (outcome.status) {
-        case ReloadOutcome::Status::kApplied:
-            summary.what.insert(summary.what.end(), std::make_move_iterator(outcome.what.begin()),
-                                std::make_move_iterator(outcome.what.end()));
-            break;
-        case ReloadOutcome::Status::kFailed:
-            summary.failures.push_back(std::format("{}: {}", file, outcome.message));
-            break;
-        case ReloadOutcome::Status::kNeedsRebuild:
-            if (summary.rebuild.empty()) {
-                summary.rebuild = std::format("{}: {}", file, outcome.message);
-            }
-            break;
-    }
-}
-
-/// @return The failures, one per line.
+/// @return The failures, joined with "; ".
 std::string joinFailures(const std::vector<std::string>& failures) {
     std::string text;
     for (const std::string& failure : failures) {
@@ -79,29 +54,30 @@ core::reload::ReloadOutcome ScriptsReloadable::reload(const core::reload::Change
     if (host == nullptr) {
         return ReloadOutcome::needsRebuild("the game is not running: it is built again");
     }
-    // The host knows a script by the path it was loaded with: the game directory and the file's path in it.
-    const auto nameOf = [this](const std::string& file) { return core::asset::normalizePath(_gameDirectory / file); };
+    // The host knows a script by its chunk name, `scripts/<key>`: the file's path in the game directory.
+    const auto nameOf = [](const std::string& file) { return core::asset::normalizePath(file); };
 
-    Summary summary;
-    for (const std::string& file : changes.removed) {
-        add(summary, file, host->removeScript(nameOf(file)));
-    }
+    // One batch: the host runs the changed files and what requires them together, or none of them.
+    std::map<std::string, std::string> changed;
+    std::vector<std::string> failures;
     for (const std::vector<std::string>* files : {&changes.added, &changes.modified}) {
         for (const std::string& file : *files) {
             try {
-                add(summary, file, host->reloadScript(nameOf(file), core::asset::readTextFile(_gameDirectory / file)));
+                changed.insert_or_assign(nameOf(file), core::asset::readTextFile(_gameDirectory / file));
             } catch (const std::exception& error) {
-                summary.failures.push_back(std::format("{}: {}", file, error.what()));
+                failures.push_back(std::format("{}: {}", file, error.what()));
             }
         }
     }
-    if (!summary.rebuild.empty()) {
-        return ReloadOutcome::needsRebuild(std::move(summary.rebuild));
+    if (!failures.empty()) {
+        return ReloadOutcome::failed(joinFailures(failures));
     }
-    if (!summary.failures.empty()) {
-        return ReloadOutcome::failed(joinFailures(summary.failures));
+    std::vector<std::string> removed;
+    removed.reserve(changes.removed.size());
+    for (const std::string& file : changes.removed) {
+        removed.push_back(nameOf(file));
     }
-    return ReloadOutcome::applied(std::move(summary.what));
+    return host->reloadModules(changed, removed);
 }
 
 }  // namespace rtype::engine::reload

@@ -1,5 +1,7 @@
 -- The players: each of the first two clients gets a ship, removed when they leave.
 
+local Duel = require("@scripts/shared/arena")
+
 -- The server's systems only, and only with the network: players join through it.
 if not engine.isServer or not Duel.networked then
 	return

@@ -143,3 +143,32 @@ TEST(Settings, CheckKeysDoesNotLetAKeyThatSharesAPrefixPass) {
     settings.set("sizes", 1.0);
     EXPECT_THROW(settings.checkKeys({"size"}, "window"), SettingsException);
 }
+
+TEST(Settings, KeysOfAnEmptySettingsIsEmpty) {
+    const Settings settings;
+    EXPECT_TRUE(settings.keys().empty());
+}
+
+TEST(Settings, KeysAreSorted) {
+    Settings settings;
+    settings.set("zeta", 1.0);
+    settings.set("alpha", true);
+    settings.set("mid", "x");
+    EXPECT_EQ(settings.keys(), (std::vector<std::string>{"alpha", "mid", "zeta"}));
+}
+
+TEST(Settings, KeysOfASectionListTheEntriesOfATable) {
+    Settings settings;
+    settings.set("scripts.aliases.shared", "shared");
+    settings.set("scripts.aliases.lib", "vendor/lib");
+    settings.set("scripts.main", "main");
+    EXPECT_EQ(settings.section("scripts.aliases").keys(), (std::vector<std::string>{"lib", "shared"}));
+    EXPECT_TRUE(settings.section("scripts.none").keys().empty());
+}
+
+TEST(Settings, KeysKeepNestedTablesDotted) {
+    Settings settings;
+    settings.set("a.b", 1.0);
+    settings.set("a.c.d", 2.0);
+    EXPECT_EQ(settings.section("a").keys(), (std::vector<std::string>{"b", "c.d"}));
+}

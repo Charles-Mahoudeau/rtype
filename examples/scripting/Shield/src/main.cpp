@@ -5,8 +5,9 @@
 ** main
 */
 
-// A game made of Luau files: the ScriptingPlugin loads every file of game/scripts, in sorted path order, and the
-// components and systems they declare join the App. The program only creates the entity the scripts start from.
+// A game made of Luau files: the ScriptingPlugin runs the entry game/scripts/main.luau, which requires the other
+// files, and the components and systems they declare join the App. The program only creates the entity the scripts
+// start from.
 
 #include <chrono>
 #include <exception>

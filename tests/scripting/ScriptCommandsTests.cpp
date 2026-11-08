@@ -14,7 +14,9 @@
 #include <utility>
 #include <vector>
 
+#include "ScriptProbe.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/component/ComponentTraits.hpp"
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/hierarchy/Children.hpp"
@@ -72,6 +74,7 @@ struct Fixture {
 
     Fixture() {
         app.addPlugin(rtype::ecs::TimePlugin::manual(std::chrono::seconds{1}, rtype::ecs::FixedTimestep{1, 5}));
+        app.getPluginRegistry().addScriptForms("test.Probe", rtype::tests::kProbeForms);
         auto created = rtype::scripting::ScriptHost::create(app, {});
         EXPECT_TRUE(created) << (created ? "" : std::string{created.error().message()});
         host = std::move(*created);
@@ -129,7 +132,7 @@ TEST(ScriptCommands, ASpawnerCreatesEntitiesASecondSystemSeesInTheNextPhase) {
             run = function(ctx)
                 for entity, shield in ctx.query do
                     -- `strength` is the value given, `regen` the default
-                    seenStrength = shield.strength + shield.regen
+                    probe.seenStrength = shield.strength + shield.regen
                 end
             end,
         })
@@ -139,7 +142,7 @@ TEST(ScriptCommands, ASpawnerCreatesEntitiesASecondSystemSeesInTheNextPhase) {
     fixture.app.runFrame();
 
     EXPECT_EQ(fixture.app.getWorld().getEntityCount(), 2U);
-    EXPECT_EQ(fixture.run("assert(seenStrength == 12, tostring(seenStrength))"), "");
+    EXPECT_EQ(fixture.run("assert(probe.seenStrength == 12, tostring(probe.seenStrength))"), "");
 }
 
 TEST(ScriptCommands, SpawningWithAnUnknownComponentIsAnErrorAndRecordsNothing) {
@@ -269,19 +272,19 @@ TEST(ScriptCommands, SetParentAndRemoveParentLinkEntitiesAndDespawnCascades) {
             phase = "PostUpdate",
             query = { read = { "rtype.Parent" } },
             run = function(ctx)
-                linked = 0
+                probe.linked = 0
                 for _ in ctx.query do
-                    linked += 1
+                    probe.linked += 1
                 end
             end,
         })
     )"),
               "");
     fixture.app.runFrame();
-    EXPECT_EQ(fixture.run("assert(linked == 2, tostring(linked))"), "");
+    EXPECT_EQ(fixture.run("assert(probe.linked == 2, tostring(probe.linked))"), "");
     EXPECT_EQ(fixture.app.getWorld().getEntityCount(), 4U);
     fixture.app.runFrame();
-    EXPECT_EQ(fixture.run("assert(linked == 1, tostring(linked))"), "");
+    EXPECT_EQ(fixture.run("assert(probe.linked == 1, tostring(probe.linked))"), "");
     fixture.app.runFrame();
     EXPECT_EQ(fixture.app.getWorld().getEntityCount(), 2U);  // the marker and the detached child
 }
@@ -294,7 +297,7 @@ TEST(ScriptCommands, SetParentRefusesWhatIsNotAnEntity) {
             query = { with = { "game.Marker" } },
             run = function(ctx)
                 for _ in ctx.query do
-                    wrong = pcall(function()
+                    probe.wrong = pcall(function()
                         ctx.commands:setParent(ctx.commands:spawn(), ctx.commands)
                     end)
                 end
@@ -303,7 +306,7 @@ TEST(ScriptCommands, SetParentRefusesWhatIsNotAnEntity) {
     )"),
               "");
     fixture.app.runFrame();
-    EXPECT_EQ(fixture.run("assert(wrong == false, tostring(wrong))"), "");
+    EXPECT_EQ(fixture.run("assert(probe.wrong == false, tostring(probe.wrong))"), "");
 }
 
 TEST(ScriptHierarchy, ScriptsReadChildrenAndParentThroughDeclaredTerms) {
@@ -322,8 +325,8 @@ TEST(ScriptHierarchy, ScriptsReadChildrenAndParentThroughDeclaredTerms) {
             query = { read = { "rtype.Children" } },
             run = function(ctx)
                 for entity, children in ctx.query do
-                    owner = entity
-                    list = children.entities
+                    probe.owner = entity
+                    probe.list = children.entities
                 end
             end,
         })
@@ -331,19 +334,21 @@ TEST(ScriptHierarchy, ScriptsReadChildrenAndParentThroughDeclaredTerms) {
             phase = "Update",
             query = { read = { "rtype.Parent" } },
             run = function(ctx)
-                parents = {}
+                probe.parents = {}
                 for entity, parent in ctx.query do
-                    parents[entity.bits] = parent.entity
+                    probe.parents[entity.bits] = parent.entity
                 end
             end,
         })
     )"),
               "");
     fixture.app.runFrame();
-    EXPECT_EQ(fixture.run("assert(#list == 2, tostring(#list))"), "");
-    EXPECT_EQ(fixture.run("assert(typeof(list[1]) == 'Entity')"), "");
-    EXPECT_EQ(fixture.run("assert(parents[list[1].bits] == owner and parents[list[2].bits] == owner)"), "");
-    EXPECT_EQ(fixture.run("assert(list[1] ~= list[2])"), "");
+    EXPECT_EQ(fixture.run("assert(#probe.list == 2, tostring(#probe.list))"), "");
+    EXPECT_EQ(fixture.run("assert(typeof(probe.list[1]) == 'Entity')"), "");
+    EXPECT_EQ(fixture.run("assert(probe.parents[probe.list[1].bits] == probe.owner and "
+                          "probe.parents[probe.list[2].bits] == probe.owner)"),
+              "");
+    EXPECT_EQ(fixture.run("assert(probe.list[1] ~= probe.list[2])"), "");
 }
 
 TEST(ScriptHierarchy, ChangingTheListGivenToAScriptChangesNothing) {
@@ -403,14 +408,16 @@ TEST(ScriptLists, ReadsAListAsATableOfItsValues) {
             query = { read = { "test.script.Inventory" } },
             run = function(ctx)
                 for _, inventory in ctx.query do
-                    items = inventory.items
+                    probe.items = inventory.items
                 end
             end,
         })
     )"),
               "");
     fixture.app.runFrame();
-    EXPECT_EQ(fixture.run("assert(#items == 3 and items[1] == 4 and items[3] == 6, tostring(#items))"), "");
+    EXPECT_EQ(fixture.run(
+                  "assert(#probe.items == 3 and probe.items[1] == 4 and probe.items[3] == 6, tostring(#probe.items))"),
+              "");
 }
 
 TEST(ScriptLists, ReplacesAListFromATable) {
@@ -493,16 +500,16 @@ TEST(ScriptLists, ReadsAndWritesATextOfAnyLength) {
             query = { write = { "test.script.Sign" } },
             run = function(ctx)
                 for _, sign in ctx.query do
-                    seen = sign.text
+                    probe.seen = sign.text
                     sign.text = string.rep("a", 1000)
-                    refused = pcall(function() sign.text = 3 end)
+                    probe.refused = pcall(function() sign.text = 3 end)
                 end
             end,
         })
     )"),
               "");
     fixture.app.runFrame();
-    EXPECT_EQ(fixture.run("assert(seen == 'hello' and refused == false)"), "");
+    EXPECT_EQ(fixture.run("assert(probe.seen == 'hello' and probe.refused == false)"), "");
     EXPECT_EQ(world.getComponents().get<Sign>(entity)->text, std::string(1000, 'a'));
 }
 
@@ -522,7 +529,7 @@ TEST(ScriptCommands, AScriptSpawnsACxxComponentFromItsCxxDefaults) {
             query = { read = { "test.Hull" } },
             run = function(ctx)
                 for entity, hull in ctx.query do
-                    seenArmor, seenPlates = hull.armor, hull.plates
+                    probe.seenArmor, probe.seenPlates = hull.armor, hull.plates
                 end
             end,
         })
@@ -531,7 +538,7 @@ TEST(ScriptCommands, AScriptSpawnsACxxComponentFromItsCxxDefaults) {
 
     fixture.app.runFrame();
 
-    EXPECT_EQ(fixture.run("assert(seenArmor == 7 and seenPlates == 5, tostring(seenArmor))"), "");
+    EXPECT_EQ(fixture.run("assert(probe.seenArmor == 7 and probe.seenPlates == 5, tostring(probe.seenArmor))"), "");
 }
 
 TEST(ScriptCommands, AClientSystemCannotAddAReplicatedCxxComponent) {
@@ -575,9 +582,9 @@ TEST(ScriptCommands, AScriptSpawnsACxxComponentThatOwnsMemory) {
             phase = "PostUpdate",
             query = { read = { "test.Cargo" } },
             run = function(ctx)
-                seen = {}
+                probe.seen = {}
                 for _, cargo in ctx.query do
-                    seen[cargo.label] = #cargo.items
+                    probe.seen[cargo.label] = #cargo.items
                 end
             end,
         })
@@ -586,7 +593,9 @@ TEST(ScriptCommands, AScriptSpawnsACxxComponentThatOwnsMemory) {
 
     fixture.app.runFrame();
 
-    EXPECT_EQ(fixture.run(R"(assert(seen[string.rep("cargo ", 8)] == 3 and seen["empty"] == 0, "wrong cargo"))"), "");
+    EXPECT_EQ(
+        fixture.run(R"(assert(probe.seen[string.rep("cargo ", 8)] == 3 and probe.seen["empty"] == 0, "wrong cargo"))"),
+        "");
 }
 
 TEST(ScriptCommands, ACxxComponentWithNoDefaultConstructorIsRefused) {
@@ -631,10 +640,10 @@ TEST(ScriptCommands, PatchWritesOnlyTheFieldsItNames) {
             phase = "PostUpdate",
             query = { read = { "game.Shield" } },
             run = function(ctx)
-                shields = 0
+                probe.shields = 0
                 for _, shield in ctx.query do
-                    shields += 1
-                    seenStrength, seenRegen = shield.strength, shield.regen
+                    probe.shields += 1
+                    probe.seenStrength, probe.seenRegen = shield.strength, shield.regen
                 end
             end,
         })
@@ -643,8 +652,8 @@ TEST(ScriptCommands, PatchWritesOnlyTheFieldsItNames) {
 
     fixture.app.runFrame();
 
-    EXPECT_EQ(fixture.run("assert(shields == 1, tostring(shields))"), "");
-    EXPECT_EQ(fixture.run("assert(seenStrength == 20 and seenRegen == 4, tostring(seenRegen))"), "");
+    EXPECT_EQ(fixture.run("assert(probe.shields == 1, tostring(probe.shields))"), "");
+    EXPECT_EQ(fixture.run("assert(probe.seenStrength == 20 and probe.seenRegen == 4, tostring(probe.seenRegen))"), "");
 }
 
 TEST(ScriptCommands, PatchWritesTheFieldsOfACxxComponentThatOwnsMemory) {
@@ -668,9 +677,9 @@ TEST(ScriptCommands, PatchWritesTheFieldsOfACxxComponentThatOwnsMemory) {
             phase = "PostUpdate",
             query = { read = { "test.Cargo" } },
             run = function(ctx)
-                seen = {}
+                probe.seen = {}
                 for _, cargo in ctx.query do
-                    seen[cargo.label] = #cargo.items
+                    probe.seen[cargo.label] = #cargo.items
                 end
             end,
         })
@@ -679,7 +688,8 @@ TEST(ScriptCommands, PatchWritesTheFieldsOfACxxComponentThatOwnsMemory) {
 
     fixture.app.runFrame();
 
-    EXPECT_EQ(fixture.run(R"(assert(seen[string.rep("patched ", 8)] == 2 and seen["second"] == 3, "wrong cargo"))"),
+    EXPECT_EQ(fixture.run(
+                  R"(assert(probe.seen[string.rep("patched ", 8)] == 2 and probe.seen["second"] == 3, "wrong cargo"))"),
               "");
 }
 
@@ -699,7 +709,7 @@ TEST(ScriptCommands, PatchRefusesAFieldTheComponentDoesNotHaveAndRecordsNothing)
             query = { read = { "game.Shield" } },
             run = function(ctx)
                 for _, shield in ctx.query do
-                    seenStrength = shield.strength
+                    probe.seenStrength = shield.strength
                 end
             end,
         })
@@ -711,7 +721,7 @@ TEST(ScriptCommands, PatchRefusesAFieldTheComponentDoesNotHaveAndRecordsNothing)
     const std::string log = testing::internal::GetCapturedStderr();
 
     EXPECT_NE(log.find("strenght"), std::string::npos) << log;
-    EXPECT_EQ(fixture.run("assert(seenStrength == 10, tostring(seenStrength))"), "")
+    EXPECT_EQ(fixture.run("assert(probe.seenStrength == 10, tostring(probe.seenStrength))"), "")
         << "the spawn before the error is applied, the patch is not";
 }
 

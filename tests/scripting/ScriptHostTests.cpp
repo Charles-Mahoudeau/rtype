@@ -16,6 +16,7 @@
 
 #include "core/asset/AssetId.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/app/PluginRegistry.hpp"
 #include "rtype/ecs/type/TypeInfo.hpp"
 #include "rtype/luau/Value.hpp"
 #include "rtype/scripting/ScriptHost.hpp"
@@ -249,4 +250,23 @@ TEST(ScriptHost, ScriptsHaveTheStandardLibraries) {
 TEST(ScriptHost, SyntaxErrorIsReported) {
     const Fixture fixture;
     EXPECT_NE(fixture.run("engine.ecs.component("), "");
+}
+
+TEST(ScriptHost, FormsRegisteredAfterTheFirstScriptFail) {
+    Fixture fixture;
+    EXPECT_EQ(fixture.run("local ready = true"), "");
+
+    fixture.app.getPluginRegistry().addScriptForms("late.Forms", "engine.late = {}");
+
+    const std::string error = fixture.run("local again = true");
+    EXPECT_NE(error.find("late.Forms"), std::string::npos) << error;
+    EXPECT_NE(error.find("after the first script"), std::string::npos) << error;
+}
+
+TEST(ScriptHost, FormsRegisteredBeforeTheFirstScriptAreLoadedThenSealed) {
+    Fixture fixture;
+    fixture.app.getPluginRegistry().addScriptForms("early.Forms", "engine.early = { value = 1 }");
+
+    EXPECT_EQ(fixture.run("assert(engine.early.value == 1)"), "");
+    EXPECT_NE(fixture.run("engine.early.value = 2"), "");
 }

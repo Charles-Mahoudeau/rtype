@@ -5,8 +5,8 @@
 ** main
 */
 
-// A game whose only content is its user interface, in game/scripts/menu.luau. No C++ knows the UI: the Engine loads the
-// plugins project.luau names, as for any game.
+// A game whose only content is its user interface, in game/scripts/menu.luau (its `scripts.main` entry). No C++ knows
+// the UI: the Engine loads the plugins project.luau names, as for any game.
 
 #include <exception>
 #include <iostream>

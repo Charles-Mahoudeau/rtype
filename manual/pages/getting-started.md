@@ -42,7 +42,11 @@ twice keeps its last value. Any other argument is an error.
 ## What runs where
 
 In `project.luau`, three flags tell you where the file is running: `engine.isClient`, `engine.isServer` and
-`engine.isDebug`. They are also available to your scripts, which load on the server and on every client.
+`engine.isDebug`. They are also available to your scripts.
+
+A process runs the scripts of its own side only: the server runs the `server` entry, a client the `client` entry, and
+both run the shared `main` entry first (see [Your scripts](#your-scripts)). So a server file never needs a test of
+`engine.isServer`: the client does not load it.
 
 ## Your first game
 
@@ -74,5 +78,33 @@ engine.ecs.system("game.Count", {
 ```
 
 Run `./aylo-runtime --server --game hello/game`. Read on to learn what every part of it means.
+
+## Your scripts
+
+Nothing under `scripts/` runs by itself. The game starts from **entry points**, files you name in `project.luau`,
+and everything else runs because an entry (or a file an entry requires) calls `require` on it. A file nobody requires
+is never run.
+
+```
+my_game/game/
+  project.luau
+  scripts/
+    shared/main.luau       components and input actions both sides declare
+    server/main.luau       the server's gameplay
+    client/main.luau       what the client shows and plays
+```
+
+```luau
+-- project.luau
+engine.settings.scripts.main = "shared/main"
+engine.settings.scripts.server = "server/main"
+engine.settings.scripts.client = "client/main"
+```
+
+A process requires `main`, then `server` if it is a server, then `client` if it is a client. A standalone process is
+both, so it runs all three, and a module that two of them require runs once. A game with a single side, or a first
+game like the one above, sets nothing: the entry is `scripts/main.luau`. See
+[Project settings](project-settings.md#scripts) for the rules and [Modules and `require`](modules.md) for how files
+share data.
 
 When your game is ready, [Shipping your game](shipping.md) explains what to give your players.

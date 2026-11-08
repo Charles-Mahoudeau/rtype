@@ -1,6 +1,11 @@
 local GAME_WIDTH = 800
 local GAME_HEIGHT = 600
 
+-- The scripts: the shared entry runs first on both sides, then the entry of the side (see scripts/).
+engine.settings.scripts.main = "shared/main"
+engine.settings.scripts.server = "server/main"
+engine.settings.scripts.client = "client/main"
+
 -- The network, from the command line: `rtype_duel server --port 4243`, `rtype_duel client --host 10.0.0.2`.
 engine.settings.network.port = engine.args.port or 4242
 if engine.isClient then
