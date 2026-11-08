@@ -24,6 +24,10 @@ if engine.isClient then
 	}
 end
 engine.settings.physics.gravity = { 0, 0 }
+-- Room for many bodies: a client builds one for each vehicle that comes and never steps its world, and Jolt frees the
+-- room of the removed ones only when the world steps, so a client ran out of it after a minute or two of traffic and
+-- aborted. This only delays it, by hours: the engine's physics plugin must free it on clients (engine issue).
+engine.settings.physics.maxBodies = 65536
 
 if engine.isClient then
 	engine.settings.physicsDebug.enabled = false
