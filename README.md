@@ -25,7 +25,7 @@ not contain a game: it runs one. A game is a folder of Luau scripts and assets; 
 |---|---|---|---|
 | Compiler | Clang (C++23) | Clang or MSVC (Visual Studio 2022) | Apple Clang (Xcode) |
 | Build | [xmake](https://xmake.io) | xmake | xmake |
-| System libraries | Vulkan loader, X11 and xkbcommon headers (GLFW builds its X11 and Wayland support with them): `vulkan-tools libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxkbcommon-dev` | A Vulkan driver | `brew install molten-vk vulkan-loader` |
+| System libraries | Vulkan loader, X11 and xkbcommon headers (GLFW builds its X11 and Wayland support with them): `vulkan-tools libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxkbcommon-dev` (and `libgl-dev` for the raylib backend) | A Vulkan driver | `brew install molten-vk vulkan-loader` |
 
 Every other dependency (GLFW, GLM, Luau, Asio, Jolt, miniaudio, Yoga, ImGui, libcurl...) is downloaded and built by
 xmake's package manager into a per-user cache: nothing else is installed on the system.

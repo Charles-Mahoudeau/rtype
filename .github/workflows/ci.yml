@@ -89,7 +89,7 @@ jobs:
         if: contains(runner.os, 'linux')
         uses: ./.github/actions/setup-clang
         with:
-          packages: vulkan-tools libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxkbcommon-dev
+          packages: vulkan-tools libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev libxkbcommon-dev
 
       - name: Setup macOS dependencies
         if: contains(runner.os, 'macos')
