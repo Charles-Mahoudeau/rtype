@@ -17,6 +17,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/app/Plugin.hpp"
@@ -44,6 +45,15 @@ const Schedules& App::getSchedules() const noexcept { return _schedules; }
 PluginRegistry& App::getPluginRegistry() noexcept { return _pluginRegistry; }
 
 const PluginRegistry& App::getPluginRegistry() const noexcept { return _pluginRegistry; }
+
+std::vector<const Plugin*> App::getPlugins() const {
+    std::vector<const Plugin*> plugins;
+    plugins.reserve(_plugins.size());
+    for (const std::unique_ptr<Plugin>& plugin : _plugins) {
+        plugins.push_back(plugin.get());
+    }
+    return plugins;
+}
 
 // NOLINTNEXTLINE(misc-no-recursion): the depth is the depth of the plugins' dependency tree, cycles are refused.
 App& App::addPlugin(std::unique_ptr<Plugin> plugin) {

@@ -43,7 +43,7 @@ namespace {
 constexpr float kLeftShare = 0.2F;     ///< Share of the window the Hierarchy takes in the default layout.
 constexpr float kRightShare = 0.25F;   ///< Share of what is left the Inspector takes.
 constexpr float kBottomShare = 0.25F;  ///< Share of what is left the Assets and the Stats take.
-constexpr int kLayoutVersion = 5;  ///< Raised when the panels change, so a kept layout is not read with the wrong ones.
+constexpr int kLayoutVersion = 6;  ///< Raised when the panels change, so a kept layout is not read with the wrong ones.
 constexpr float kFallbackFrame = 1.0F / 60.0F;  ///< The duration of the first frame, which has no previous one.
 
 /// @return Where the layout of the panels is kept: the user's cache, as the editor is a tool and not a game's data.
@@ -71,6 +71,7 @@ void buildDefaultLayout(ImGuiID dockspace) {
     ImGui::DockBuilderDockWindow("Inspector", right);
     ImGui::DockBuilderDockWindow("Assets", bottom);
     ImGui::DockBuilderDockWindow("Stats", bottom);
+    ImGui::DockBuilderDockWindow("Plugins", bottom);
     ImGui::DockBuilderDockWindow("Particles", bottom);
     ImGui::DockBuilderDockWindow("Console", bottom);
     ImGui::DockBuilderDockWindow("Game", center);
@@ -138,6 +139,7 @@ void runFrame(EditorState& state, contract::platform::IPlatform& platform, contr
     panels::drawStatsPanel(state, renderer);
     panels::drawParticlesPanel(state);
     panels::drawConsolePanel(state);
+    panels::drawPluginsPanel(state);
     ImGui::Render();
     ImDrawData& drawData = *ImGui::GetDrawData();
     gui::updateTextures(drawData, renderer);

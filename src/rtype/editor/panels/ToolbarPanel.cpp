@@ -94,11 +94,12 @@ void drawToolbar(EditorState& state, contract::platform::IPlatform& platform) {
         ImGui::MenuItem("Stats", nullptr, &state.showStats);
         ImGui::MenuItem("Particles", nullptr, &state.showParticles);
         ImGui::MenuItem("Console", nullptr, &state.showConsole);
+        ImGui::MenuItem("Plugins", nullptr, &state.showPlugins);
         ImGui::Separator();
         if (ImGui::MenuItem("Reset layout")) {
             state.resetLayout = true;
             state.showGame = state.showHierarchy = state.showInspector = state.showAssets = state.showStats = true;
-            state.showParticles = state.showConsole = true;
+            state.showParticles = state.showConsole = state.showPlugins = true;
         }
         ImGui::EndMenu();
     }

@@ -66,4 +66,8 @@ RTYPE_EDITOR_API void drawConsolePanel(EditorState& state);
 /// @brief The Stats panel: the frame rate, the plot of the last frame times, and what the renderer drew.
 RTYPE_EDITOR_API void drawStatsPanel(EditorState& state, const contract::renderer::IRenderer& renderer);
 
+/// @brief The Plugins panel: the plugins added to the App in the order they were recorded, each with its kind (engine
+/// or game), the plugins it requires and those that require it, a filter, and the plugins registered but not added.
+RTYPE_EDITOR_API void drawPluginsPanel(EditorState& state);
+
 }  // namespace rtype::editor::panels

@@ -96,6 +96,7 @@ struct RTYPE_EDITOR_API EditorState {
     std::shared_ptr<console::ConsoleLog> console;     ///< The program's output; null if it could not be captured.
     std::unique_ptr<console::OutputCapture> capture;  ///< Fills the console; destroyed before it.
     std::array<char, 128> consoleFilter{};            ///< What the Console keeps: a part of a line.
+    std::array<char, 64> pluginFilter{};              ///< What the Plugins panel keeps: a part of a name.
     std::size_t consoleSeen{0};                       ///< The lines the Console has shown, to scroll to new ones.
     bool consoleInfo{true};                           ///< Whether the Console shows the other lines.
     bool consoleWarnings{true};                       ///< Whether it shows the warnings.
@@ -115,6 +116,7 @@ struct RTYPE_EDITOR_API EditorState {
     bool showStats{true};      ///< Whether the Stats panel is open.
     bool showParticles{true};  ///< Whether the Particles panel is open.
     bool showConsole{true};    ///< Whether the Console panel is open.
+    bool showPlugins{true};    ///< Whether the Plugins panel is open.
     std::array<float, kFrameHistory> frameTimes{};  ///< The last frames' durations, in milliseconds, as a ring.
     std::size_t frameCursor{0};                     ///< Where the next frame time goes in frameTimes.
 
