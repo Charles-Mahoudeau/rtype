@@ -1,6 +1,7 @@
 -- The shots' beams: when a rider's game.Shot counts a new shot, a row of squares (assets/beam.png, drawn for a shot
 -- to the right) from where it fired to what the shot hit, turned the way the shot went, far back under the traffic and
--- the riders, each square leaving on its own after Game.beamLifetime.
+-- the riders, each square leaving on its own after Game.beamLifetime. The squares glow a little, with the glow material
+-- (assets/shaders/glow.glsl).
 
 local Game = require("@scripts/shared/rules")
 local assets = require("@scripts/client/assets")
@@ -38,6 +39,7 @@ engine.ecs.system("game.DrawBeams", {
 						source = { x = 0, y = 0, z = size, w = size }, -- the whole image
 						origin = { x = size / 2, y = size / 2 },
 						layer = Game.beamDrawLayer,
+						material = assets.beamGlow,
 					},
 				})
 			end

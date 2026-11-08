@@ -10,6 +10,12 @@ return {
 	roads = engine.assets.tilemap("levels/roads.tmj"),
 	-- One square of a shot's beam, repeated from the shooter to what it hits (client/beams.luau).
 	beam = engine.assets.texture("beam.png", { linear = false }),
+	-- Its glow: a material of the glow shader (shaders/glow.glsl), a white core pulsing along the beam.
+	beamGlow = engine.assets.material({
+		name = "game.beamGlow",
+		shader = engine.assets.shader("shaders/glow.glsl"),
+		values = { core = 0.25, pulses = 25 },
+	}),
 	-- The looks of the traffic and of the riders (the cyclist's, tinted): the capsule files and the server name them in
 	-- each game.Look, these forms load them.
 	traffic = {
