@@ -47,36 +47,40 @@ AssetKind kindOf(std::string_view name, bool isFolder) {
     std::string extension = std::filesystem::path{name}.extension().string();
     std::ranges::transform(extension, extension.begin(),
                            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    const auto found = std::ranges::find(kExtensions, extension, &Extension::first);
-    return found == kExtensions.end() ? AssetKind::kOther : found->second;
+    for (const auto& [known, kind] : kExtensions) {
+        if (known == extension) {
+            return kind;
+        }
+    }
+    return AssetKind::kOther;
 }
 
 char32_t iconOf(AssetKind kind, bool open) {
     switch (kind) {
         case AssetKind::kFolder:
-            return open ? U'' : U'';
+            return open ? U'\uf07c' : U'\uf07b';
         case AssetKind::kScene:
-            return U'';
+            return U'\uf1b2';
         case AssetKind::kActor:
-            return U'';
+            return U'\uf007';
         case AssetKind::kCapsule:
-            return U'';
+            return U'\uf1b3';
         case AssetKind::kScript:
-            return U'';
+            return U'\uf121';
         case AssetKind::kImage:
-            return U'';
+            return U'\uf03e';
         case AssetKind::kAudio:
-            return U'';
+            return U'\uf001';
         case AssetKind::kFont:
-            return U'';
+            return U'\uf031';
         case AssetKind::kData:
-            return U'';
+            return U'\uf1c0';
         case AssetKind::kText:
-            return U'';
+            return U'\uf15c';
         case AssetKind::kOther:
             break;
     }
-    return U'';
+    return U'\uf016';
 }
 
 std::string_view labelOf(AssetKind kind) {
