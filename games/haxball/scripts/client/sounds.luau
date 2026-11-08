@@ -40,6 +40,10 @@ engine.ecs.system("game.PlaySounds", {
 			if packet.name == "game.Kicked" then
 				local strength = math.clamp(values.power / hardestKick, 0.3, 1)
 				play(assets.sounds.kick, strength, at, math.lerp(0.95, 1.08, math.random()))
+			elseif packet.name == "game.Dashed" then
+				play(assets.sounds.bounce, 0.5, at, 1.6)
+			elseif packet.name == "game.PowerupTaken" then
+				play(assets.sounds.beep, 0.6, at, 1.5)
 			elseif packet.name == "game.Bounce" then
 				play(assets.sounds.bounce, math.clamp(values.speed / hardestBounce, 0.15, 0.8), at, math.lerp(0.9, 1.1, math.random()))
 			elseif packet.name == "game.Goal" then

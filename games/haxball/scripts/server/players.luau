@@ -82,6 +82,7 @@ engine.ecs.system("game.JoinTeams", {
 				local entity = ctx.commands:spawn({
 					["game.Player"] = { team = team, name = name, position = spot },
 					["game.Kicker"] = {},
+					["game.Buffs"] = {},
 					["rtype.Transform"] = { position = spot },
 					["rtype.Collider"] = {
 						shape = Game.circleShape,
@@ -133,13 +134,18 @@ engine.ecs.system("game.RemovePlayers", {
 	end,
 })
 
--- FixedUpdate, after the inputs of the tick and before the velocities drive the bodies: moves and kicks.
+-- Whether each player is big (its collider and mass changed), by entity bits: a collider is only patched on a change,
+-- since a changed collider rebuilds the body.
+local isBig: { [number]: boolean } = {}
+
+-- FixedUpdate, after the inputs of the tick and before the velocities drive the bodies: the power-ups' clocks, then
+-- moves, dashes and kicks.
 engine.ecs.system("game.MovePlayers", {
 	phase = "FixedUpdate",
 	side = "server",
 	query = {
 		read = { "rtype.Transform" },
-		write = { "game.Player", "game.Kicker", "rtype.Velocity" },
+		write = { "game.Player", "game.Kicker", "game.Buffs", "rtype.Velocity" },
 		with = { "net.PlayerInput" },
 	},
 	calls = { "rtype.replication.readInput", "rtype.physics.applyImpulse", "rtype.net.sendToClients" },
@@ -150,9 +156,38 @@ engine.ecs.system("game.MovePlayers", {
 		local frozen = State.frozen()
 		local ball = State.ball()
 		local ballAt = State.ballPosition()
-		local reach = Game.playerRadius + Game.ballRadius + Game.kickReach
 
-		for entity, transform, player, kicker, velocity in ctx.query do
+		for entity, transform, player, kicker, buffs, velocity in ctx.query do
+			-- The power-ups run out; game.Player.buffs tells the clients which are left.
+			buffs.speed = math.max(0, buffs.speed - dt)
+			buffs.big = math.max(0, buffs.big - dt)
+			buffs.direct = math.max(0, buffs.direct - dt)
+			buffs.strongKick = math.max(0, buffs.strongKick - dt)
+			local mask = 0
+			if buffs.speed > 0 then
+				mask += bit32.lshift(1, Game.speed - 1)
+			end
+			if buffs.big > 0 then
+				mask += bit32.lshift(1, Game.big - 1)
+			end
+			if buffs.direct > 0 then
+				mask += bit32.lshift(1, Game.direct - 1)
+			end
+			if buffs.strongKick > 0 then
+				mask += bit32.lshift(1, Game.strongKick - 1)
+			end
+			if player.buffs ~= mask then
+				player.buffs = mask
+			end
+			local big = buffs.big > 0
+			if big ~= (isBig[entity.bits] or false) then
+				isBig[entity.bits] = big
+				local factor = if big then Game.bigFactor else 1
+				ctx.commands:patch(entity, "rtype.Collider", { radius = Game.playerRadius * factor })
+				ctx.commands:patch(entity, "rtype.RigidBody", { mass = Game.playerMass * (if big then Game.bigMassFactor else 1) })
+			end
+			local reach = Game.playerRadius * (if big then Game.bigFactor else 1) + Game.ballRadius + Game.kickReach
+
 			local kick = ctx.call("rtype.replication.readInput", { entity = entity, action = "kick" })
 			player.kicking = kick.held
 			if kick.pressed then
@@ -161,6 +196,9 @@ engine.ecs.system("game.MovePlayers", {
 				kicker.armed = false
 			end
 			kicker.cooldown = math.max(0, kicker.cooldown - dt)
+			if player.dash > 0 then
+				player.dash = math.max(0, player.dash - dt)
+			end
 
 			if frozen then
 				velocity.linear = { x = 0, y = 0 }
@@ -172,13 +210,42 @@ engine.ecs.system("game.MovePlayers", {
 			local length = Game.length(move)
 			if length > 1 then
 				move = { x = move.x / length, y = move.y / length }
+				length = 1
 			end
 			local acceleration = if kick.held then Game.kickingAcceleration else Game.playerAcceleration
+			if buffs.speed > 0 then
+				acceleration *= Game.speedFactor
+			end
 			local linear = velocity.linear
-			velocity.linear = {
-				x = linear.x + move.x * acceleration * dt,
-				y = linear.y - move.y * acceleration * dt,
-			}
+			if buffs.direct > 0 then
+				-- No inertia: the velocity is the input times the top speed, so a player stops and turns at once.
+				local top = acceleration / Game.playerDamping
+				velocity.linear = { x = move.x * top, y = -move.y * top }
+			else
+				velocity.linear = {
+					x = linear.x + move.x * acceleration * dt,
+					y = linear.y - move.y * acceleration * dt,
+				}
+			end
+
+			-- The dash: once per press, along the input (or along the velocity when no key is held).
+			local dash = ctx.call("rtype.replication.readInput", { entity = entity, action = "dash" })
+			if dash.pressed and player.dash <= 0 then
+				local direction = { x = move.x, y = -move.y }
+				if length < 0.1 then
+					local speed = Game.length(velocity.linear)
+					direction = if speed > 20 then { x = velocity.linear.x / speed, y = velocity.linear.y / speed } else { x = 0, y = 0 }
+				else
+					direction = { x = direction.x / length, y = direction.y / length }
+				end
+				if direction.x ~= 0 or direction.y ~= 0 then
+					local now = velocity.linear
+					velocity.linear = { x = now.x + direction.x * Game.dashSpeed, y = now.y + direction.y * Game.dashSpeed }
+					player.dash = Game.dashCooldown
+					local at = transform.position
+					engine.net.sendToClients(ctx, "game.Dashed", { x = at.x, y = at.y })
+				end
+			end
 
 			-- The kick: once per press, as soon as the ball is in reach.
 			if kicker.armed and kicker.cooldown <= 0 and ball ~= nil then
@@ -187,7 +254,8 @@ engine.ecs.system("game.MovePlayers", {
 				local distance = Game.length(away)
 				if distance > 0 and distance <= reach then
 					local direction = { x = away.x / distance, y = away.y / distance }
-					local impulse = Game.kickSpeed * Game.ballMass
+					local kickSpeed = Game.kickSpeed * (if buffs.strongKick > 0 then Game.strongKickFactor else 1)
+					local impulse = kickSpeed * Game.ballMass
 					ctx.call("rtype.physics.applyImpulse", {
 						entity = ball,
 						value = { x = direction.x * impulse, y = direction.y * impulse },
@@ -197,8 +265,8 @@ engine.ecs.system("game.MovePlayers", {
 					State.touched(player.name, player.team)
 					local after = State.ballVelocity()
 					local power = Game.length({
-						x = after.x + direction.x * Game.kickSpeed,
-						y = after.y + direction.y * Game.kickSpeed,
+						x = after.x + direction.x * kickSpeed,
+						y = after.y + direction.y * kickSpeed,
 					})
 					engine.net.sendToClients(ctx, "game.Kicked", { x = ballAt.x, y = ballAt.y, power = power })
 				end

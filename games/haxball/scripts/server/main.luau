@@ -3,4 +3,5 @@
 require("@scripts/server/pitch")
 require("@scripts/server/players")
 require("@scripts/server/ball")
+require("@scripts/server/powerups")
 require("@scripts/server/match")

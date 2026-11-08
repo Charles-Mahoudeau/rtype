@@ -71,6 +71,13 @@ function State.lastTouch(): { name: string, team: number }
 	return lastTouch
 end
 
+-- The power-ups on the pitch: { entity, kind, position }.
+local powerups: { { entity: any, kind: number, position: { x: number, y: number } } } = {}
+
+function State.powerups(): typeof(powerups)
+	return powerups
+end
+
 function State.setTeamCounts(red: number, blue: number)
 	teamCounts[Game.red] = red
 	teamCounts[Game.blue] = blue

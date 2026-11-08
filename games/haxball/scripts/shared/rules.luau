@@ -31,6 +31,22 @@ local Game = {
 	kickReach = 6, -- the gap between a player and the ball still in reach of a kick
 	kickCooldown = 0.25, -- seconds between two kicks
 
+	-- The dash: a burst of speed along the move input, then a long wait.
+	dashSpeed = 380, -- what a dash adds to the velocity, world units per second
+	dashCooldown = 10, -- seconds
+
+	-- The power-ups: they appear on the pitch while a match is played, and a player touching one gets it for a while.
+	-- `powerupKinds` are the order of the icons in sprites/powerups.png, and the bit of each in game.Player.buffs.
+	powerupRadius = 14,
+	powerupDuration = 12, -- seconds a power-up lasts on a player
+	powerupInterval = { min = 6, max = 16 }, -- seconds between two appearances, picked at random
+	maxPowerups = 3, -- on the pitch at once
+	speedFactor = 1.6, -- speed: the acceleration, so the top speed
+	bigFactor = 1.7, -- big: the radius of the body and of the sprite
+	bigMassFactor = 2.5, -- big: and its mass, so it pushes harder
+	directDamping = 14, -- no inertia: the velocity follows the input at once (see MovePlayers)
+	strongKickFactor = 2.2, -- strong kick: what a kick adds to the ball's speed
+
 	-- The match.
 	teamSize = 4,
 	matchDuration = 180, -- seconds
@@ -67,6 +83,18 @@ local Game = {
 	dynamicBody = 2,
 }
 
+-- The kinds of power-up, as game.Powerup.kind says, and the bits of game.Player.buffs.
+Game.speed = 1
+Game.big = 2
+Game.direct = 3 -- no inertia
+Game.strongKick = 4
+Game.powerupNames = { [1] = "Speed", [2] = "Big", [3] = "No inertia", [4] = "Strong kick" }
+
+--- Whether the `buffs` bit mask of a player has the power-up `kind`.
+function Game.hasBuff(buffs: number, kind: number): boolean
+	return bit32.btest(buffs, bit32.lshift(1, kind - 1))
+end
+
 -- Where the pitch's lines are.
 Game.pitchLeft = Game.pitchCenter.x - Game.pitchSize.x / 2
 Game.pitchRight = Game.pitchCenter.x + Game.pitchSize.x / 2
@@ -94,7 +122,15 @@ end
 
 -- A player on the pitch, spawned when its client joins a team. Its position and velocity are copied from its body.
 engine.ecs.component("game.Player", {
-	fields = { team = "u8", name = "string", position = "vec2", velocity = "vec2", kicking = "bool" },
+	fields = {
+		team = "u8",
+		name = "string",
+		position = "vec2",
+		velocity = "vec2",
+		kicking = "bool",
+		dash = "f32", -- seconds until the next dash
+		buffs = "u8", -- the power-ups it has, one bit each (Game.hasBuff)
+	},
 	replication = "everyChange",
 })
 -- The ball, copied from its body like the players.
@@ -119,6 +155,13 @@ engine.ecs.component("game.Match", {
 
 -- A wall or a post of the pitch, sent once so that a client can place its collider (F3 shows it).
 engine.ecs.component("game.Fixture", { fields = { position = "vec2" }, replication = "spawnOnly" })
+-- A power-up lying on the pitch, sent once: it is gone (despawned) when a player takes it.
+engine.ecs.component("game.Powerup", { fields = { kind = "u8", position = "vec2" }, replication = "spawnOnly" })
+-- Server only: the seconds left of each power-up of a player, by kind.
+engine.ecs.component("game.Buffs", {
+	fields = { speed = "f32", big = "f32", direct = "f32", strongKick = "f32" },
+	presence = "serverOnly",
+})
 -- Server only: a player's kick. A kick fires once per press, as soon as the ball is in reach while the key is held.
 engine.ecs.component("game.Kicker", { fields = { armed = "bool", cooldown = "f32" }, presence = "serverOnly" })
 
@@ -127,6 +170,7 @@ engine.ecs.component("game.Kicker", { fields = { armed = "bool", cooldown = "f32
 engine.ecs.component("game.NameTag", { fields = { player = "entity" }, presence = "clientOnly" })
 engine.ecs.component("game.KickRing", { fields = { player = "entity" }, presence = "clientOnly" })
 engine.ecs.component("game.Marker", { fields = { player = "entity" }, presence = "clientOnly" })
+engine.ecs.component("game.BuffIcon", { fields = { player = "entity", kind = "u8" }, presence = "clientOnly" })
 engine.ecs.component("game.HudNode", { fields = { kind = "u8" }, presence = "clientOnly" })
 
 -- The actions both sides agree on: the clients send them, the server reads them. The keys are physical positions
@@ -138,5 +182,6 @@ engine.input.action("move", "vector2", {
 	},
 })
 engine.input.action("kick", "button", { bind = { "Space", "X" } })
+engine.input.action("dash", "button", { bind = { "LeftShift", "C" } })
 
 return Game

@@ -17,8 +17,22 @@ local function vec4(hex: number, alpha: number?): { x: number, y: number, z: num
 	return { x = color[1], y = color[2], z = color[3], w = color[4] }
 end
 
+-- The dash's reload sweep (shaders/reload.glsl) is a uniform of the material, shared by all the sprites using it: each
+-- player slot has a material of its own, so that each player shows its own cooldown.
+local reloadShader = engine.assets.shader("shaders/reload.glsl")
+local reloadMaterials = {}
+for slot = 1, 8 do
+	reloadMaterials[slot] = engine.assets.material({
+		name = `game.reload{slot}`,
+		shader = reloadShader,
+		values = { progress = 1 },
+	})
+end
+
 return {
 	rgb = rgb,
+	reloadMaterials = reloadMaterials,
+	powerups = engine.assets.texture("sprites/powerups.png"),
 	vec4 = vec4,
 	-- The teams' colors, by team.
 	teamColors = { [1] = 0xE53935, [2] = 0x2F74E8 },

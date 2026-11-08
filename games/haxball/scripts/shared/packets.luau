@@ -22,6 +22,18 @@ engine.net.packet("game.Bounce", {
 	channel = "unreliable",
 	fields = { { "x", "f32" }, { "y", "f32" }, { "speed", "f32" } },
 })
+-- A player dashed, from `x`, `y`.
+engine.net.packet("game.Dashed", {
+	direction = "toClients",
+	channel = "unreliable",
+	fields = { { "x", "f32" }, { "y", "f32" } },
+})
+-- A player took the power-up `kind`, at `x`, `y`.
+engine.net.packet("game.PowerupTaken", {
+	direction = "toClients",
+	channel = "reliable",
+	fields = { { "kind", "u8" }, { "x", "f32" }, { "y", "f32" } },
+})
 -- A goal for `team`, by `scorer` (empty when nobody touched the ball), `ownGoal` when the scorer is of the other team.
 engine.net.packet("game.Goal", {
 	direction = "toClients",

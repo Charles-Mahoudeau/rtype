@@ -147,6 +147,10 @@ engine.ecs.system("game.ReadPackets", {
 			if packet.name == "game.Kicked" then
 				burst(effects.kick, values.x, values.y)
 				burst(effects.kickWave, values.x, values.y)
+			elseif packet.name == "game.Dashed" then
+				burst(effects.kickWave, values.x, values.y)
+			elseif packet.name == "game.PowerupTaken" then
+				burst(effects.stars, values.x, values.y)
 			elseif packet.name == "game.Bounce" then
 				burst(effects.bounce, values.x, values.y)
 			elseif packet.name == "game.Goal" then
