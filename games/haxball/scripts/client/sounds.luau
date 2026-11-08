@@ -1,4 +1,4 @@
--- The sounds: kicks and bounces where they happen, louder the harder, the crowd and the whistle on a goal, the beeps
+-- The sounds: the background music, kicks and bounces where they happen, louder the harder, the crowd and the whistle on a goal, the beeps
 -- of the countdown, the whistle at each kickoff and at the end, and a click on the menu's buttons.
 
 local Game = require("@scripts/shared/rules")
@@ -10,6 +10,17 @@ local hardestBounce = 600
 
 -- What the last frame saw of the match, to hear when it changes.
 local heard = { state = Game.waiting, second = 0, overtime = false }
+
+-- Startup: the background music fades in and loops.
+engine.ecs.system("game.PlayMusic", {
+	phase = "Startup",
+	side = "client",
+	query = {},
+	events = { send = { "rtype.PlayMusic" } },
+	run = function(ctx)
+		ctx.events.send("rtype.PlayMusic", { sound = assets.music, crossfade = 1 })
+	end,
+})
 
 -- Update: plays what the server told and what changed in the match.
 engine.ecs.system("game.PlaySounds", {

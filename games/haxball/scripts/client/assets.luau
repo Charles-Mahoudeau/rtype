@@ -43,6 +43,7 @@ return {
 		cheer = engine.assets.sound("sounds/cheer.wav"),
 		click = engine.assets.sound("sounds/click.wav"),
 	},
+	music = engine.assets.sound("sounds/music.wav", { stream = true }),
 
 	-- The particles' textures (effects.luau makes the effects).
 	dot = engine.assets.texture("particles/dot.png"),

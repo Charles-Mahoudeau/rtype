@@ -36,6 +36,7 @@ if engine.isClient then
 	engine.settings.window.resizable = true
 
 	engine.settings.audio.backend = "miniaudio"
+	engine.settings.audio.volume.music = 0.35 -- under the effects
 
 	engine.settings.vulkan.virtualResolution = { GAME_WIDTH, GAME_HEIGHT }
 
