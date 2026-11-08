@@ -6,8 +6,9 @@
 */
 
 // aylo-editor: the editor of a game, in `game/` (or the <directory> given first). It runs both sides of the game in one
-// world (no network) inside the editor's panels, always as a debug run (`engine.isDebug`). The game is shipped with
-// aylo-runtime. Every flag goes to project.luau as `engine.args`, and `engine.args.editor` is always there.
+// world (no network) inside the editor's panels, always as a debug run (`engine.isDebug`); "Play online" instead runs a
+// server as a child process and rebuilds the editor as a client of it. The game is shipped with aylo-runtime. Every
+// flag goes to project.luau as `engine.args`, and `engine.args.editor` is always there.
 //   aylo-editor [<directory>] [--<flag> <value>]...
 //   aylo-editor --version
 
@@ -15,6 +16,7 @@
 #include <cstddef>
 #include <exception>
 #include <iostream>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -25,6 +27,7 @@
 #include "core/library/LibraryEntry.hpp"
 #include "core/version/Version.hpp"
 #include "editor/EditorPlugin.hpp"
+#include "editor/EditorSession.hpp"
 #include "editor/EditorSettings.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
@@ -77,15 +80,26 @@ int main(const int argc, char** argv) {
         if (std::ranges::find(args, kEditorFlag) == args.end()) {
             args.emplace_back(kEditorFlag);
         }
+        // What outlives each App: the child server and the Console. Every build of the editor gets the same one.
+        const auto session = std::make_shared<rtype::editor::EditorSession>(true);
+        const std::vector<std::string> baseArgs = args;
         rtype::engine::Engine engine{{
             .mode = rtype::ecs::RunMode::kStandalone,
             .args = std::move(args),
             .addPlugins =
-                [](rtype::ecs::App& app, const rtype::core::config::Settings& settings) {
-                    app.addPlugin(rtype::editor::EditorPlugin{rtype::editor::readEditorOptions(settings)});
+                [session](rtype::ecs::App& app, const rtype::core::config::Settings& settings) {
+                    rtype::editor::EditorOptions options = rtype::editor::readEditorOptions(settings);
+                    options.session = session;
+                    app.addPlugin(rtype::editor::EditorPlugin{std::move(options)});
                 },
             .debug = true,
         }};
+        // Play online rebuilds the game as a client of the server, and Stop as standalone again.
+        session->online.setRebuild(
+            [&engine](const rtype::ecs::RunMode mode, std::vector<std::string> flags) {
+                engine.requestReload(mode, std::move(flags));
+            },
+            baseArgs);
 
         return engine.run();
     } catch (const std::exception& error) {
