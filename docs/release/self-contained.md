@@ -37,10 +37,11 @@ names the ones we know: the Vulkan loader, and the window system libraries GLFW 
 
 ## How the build gets there
 
-- **Packages are static and come from xmake.** `libsodium` and the SPIRV-Tools of glslang are declared with
-  `system = false`: xmake builds them, instead of linking the shared library of the machine that builds the release.
-  A new dependency is added the same way (`add_requires`, never a system library), and stays private to the module that
-  wraps it.
+- **Packages are static and come from xmake.** `libsodium`, the SPIRV-Tools of glslang, `libcurl` and its OpenSSL are
+  declared with `system = false`: xmake builds them, instead of linking the shared library of the machine that builds
+  the release. A new dependency is added the same way (`add_requires`, never a system library), and stays private to
+  the module that wraps it. A dependency of a package does not inherit `system = false` from a root requirement of the
+  same name: it takes its own `add_requireconfs` (`vma-hpp.vulkan-headers`, `libcurl.openssl3`).
 - **The engine's own modules are static.** `luau`, `network`, `replication`, `scripting` and `engine` are linked into
   `aylo-runtime` (and `aylo-sign`), so the release holds their code once, with the packages they wrap (`libsodium`,
   Asio, Luau), and has five libraries fewer to bundle and to find. `ecs` and the contracts stay shared, as do the
@@ -69,10 +70,13 @@ The build does not put these in the folder; the packaging task (REL-04) does, an
   needs `libgcc_s`). Bundled rather than linked statically: each library would otherwise hold its own copy of the C++
   runtime, and the exceptions and type information that cross them would not agree. The release is built on an old
   glibc (an Ubuntu 22.04 container), as a binary runs on any glibc at least as recent as the one it was linked against.
-- **Windows:** the Visual C++ runtime DLLs of the toolchain (`%VCToolsRedistDir%`), next to the executable.
-- **macOS:** the Vulkan loader and MoltenVK (`libvulkan.1.dylib`, `libMoltenVK.dylib` and its ICD manifest), with their
-  install names and the rpaths of the binaries rewritten (`install_name_tool`) to point into the folder. The renderer
-  still links Homebrew's loader on macOS, whose rpath the check reports until then.
+- **Windows:** the Visual C++ runtime DLLs of the toolchain (`Microsoft.VC*.CRT` of `%VCToolsRedistDir%`, or of the
+  Visual Studio `vswhere` finds), next to the executable.
+- **macOS:** the Vulkan loader and MoltenVK of Homebrew (`libvulkan.1.dylib`, `libMoltenVK.dylib`) in `lib/`, their
+  install names set to `@rpath/...`, and MoltenVK's driver manifest in `runtime/vulkan/icd.d/` (library path
+  `../../lib/libMoltenVK.dylib`): the loader searches the resources of the main bundle, which for an executable outside
+  a bundle is its own folder. Every binary then names the bundled libraries by `@rpath` and loses its search paths
+  outside the folder (the renderer's `/opt/homebrew/lib`), with `install_name_tool`, before the signature.
 
 The package holds real files only: the build makes `lib/` and `plugins/` of real files, and the check reports a
 symbolic link that leaves the folder.
@@ -81,4 +85,6 @@ symbolic link that leaves the folder.
 
 Verified on Linux: the `runtime/` folder of the package (`lib/`, `plugins/`, `plugins/backends/` of real files, the C++
 runtime added as above) passes the check, and its server runs a game with only glibc loaded from outside the
-folder. The Windows (`.ps1`, `/MD`) and macOS parts are written and not yet run: the first CI run of the release workflow, which calls the check, is where they are tried.
+folder. Verified on macOS: the package passes the check and the smoke test, and its client loads the bundled MoltenVK
+through the bundled loader (`VK_LOADER_DEBUG=driver` shows `runtime/vulkan/icd.d/` searched first). The Windows part
+(`.ps1`, `/MD`, the bundled C++ runtime) runs in the release workflow only.

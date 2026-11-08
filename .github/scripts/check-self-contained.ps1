@@ -150,3 +150,6 @@ if ($script:offenders -gt 0) {
     exit 1
 }
 Write-Output "Self-contained: $count binaries of $root need nothing outside it."
+# Explicit: a script that ends without `exit` leaves $LASTEXITCODE as the last native command set it, which the caller
+# (smoke-test.ps1) would read as this check's result.
+exit 0
