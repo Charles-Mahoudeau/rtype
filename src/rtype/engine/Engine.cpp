@@ -59,6 +59,7 @@
 #include "rtype/replication/ReplicationSettings.hpp"
 #include "rtype/replication/client/ClientPlugin.hpp"
 #include "rtype/replication/server/ServerPlugin.hpp"
+#include "rtype/replication/standalone/StandalonePlugin.hpp"
 #include "rtype/scripting/ScriptHost.hpp"
 #include "rtype/scripting/exceptions/ScriptLoadException.hpp"
 #include "rtype/scripting/modules/ScriptResolver.hpp"
@@ -474,7 +475,9 @@ void Engine::build() {
     if (_config.addPlugins) {
         _config.addPlugins(app, _settings);
     }
-    if (_config.mode != ecs::RunMode::kStandalone) {
+    if (_config.mode == ecs::RunMode::kStandalone) {
+        app.addPlugin(replication::standalone::StandalonePlugin{});
+    } else {
         app.addPlugin(replication::ReplicationPlugin{});
     }
     addListedPlugins();
