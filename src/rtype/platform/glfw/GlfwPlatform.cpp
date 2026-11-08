@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <glm/ext/vector_double2.hpp>
+#include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
 #include <span>
 #include <string>
@@ -39,6 +40,16 @@ glm::uvec2 GlfwPlatform::getWindowSize() const {
     int height = 0;
     glfwGetWindowSize(_window, &width, &height);
     return {static_cast<unsigned int>(width), static_cast<unsigned int>(height)};
+}
+
+glm::vec2 GlfwPlatform::getContentScale() const {
+    if (_window == nullptr) {
+        return {1.0F, 1.0F};
+    }
+    float x = 1.0F;
+    float y = 1.0F;
+    glfwGetWindowContentScale(_window, &x, &y);
+    return {x, y};
 }
 
 glm::uvec2 GlfwPlatform::getFramebufferSize() const {

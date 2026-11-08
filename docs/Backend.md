@@ -142,6 +142,7 @@ The window, and every native event translated into an engine `Event` (see [`Inpu
 | `getFramebufferSize()`, `getTitle()`, `setTitle()`, `setSize()` | Window properties. |
 | `setCursorLocked()`, `getTime()` | Cursor capture, seconds since `init()` (delta time). |
 | `setClipboardText()`, `getClipboardText()` | Optional (default: none). The system's clipboard, UTF-8: the editor copies and pastes with it. |
+| `getWindowSize()`, `getContentScale()` | Optional (defaults: the framebuffer's size, and 1). The window in the units of the mouse, and the scale the desktop asks of its content (2 at 200%, from `glfwGetWindowContentScale()`): the editor sizes its panels with both. |
 
 ### `IRenderer`
 

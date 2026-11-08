@@ -229,7 +229,12 @@ particles run in PostUpdate and Render, they play while editing.
 `ToolFrame` runs `runFrame()` in `EditorPlugin.cpp`:
 
 1. Open `editor.scene` on the first frame (the capsule files are read once every plugin is built).
-2. Tell ImGui the size of the window, the density of its pixels, the last frame's duration and the clipboard.
+2. Tell ImGui the size of the window, the density of its pixels, the last frame's duration and the clipboard, and
+   scale the panels to the screen (`gui::interfaceScale()`): the platform's content scale (2 on a screen set to 200%)
+   over the framebuffer to window ratio. Where the window is measured in points (macOS, Wayland) that ratio already
+   covers it, so the scale is 1; where both are pixels (X11, including through XWayland, and Windows) it is the
+   content scale. `GuiContext::setScale()` rebuilds the style from its defaults at that scale (`ScaleAllSizes()`) and
+   sets `FontScaleDpi`, so ImGui renders its glyphs again at that size and the text stays sharp.
 3. `ImGui::NewFrame()`, the menu bar, the dockspace over the window (the panels are docked as by default on the first
    frame if no layout was kept; the layout file is `<cache>/rtype/editor/layout-<version>.ini`, its version raised when
    the panels change), then the panels.
