@@ -1,5 +1,6 @@
 -- The boosts a rider wins by shooting a cyclist that carries one: points at once, a shield through Shield.grant, or
--- seconds of speed or of sniper shots, which game.WearBoosts counts down.
+-- seconds of speed or of sniper shots, which game.WearBoosts counts down. game.ShowBoosts tells the clients which are
+-- on.
 
 local Game = require("@scripts/shared/rules")
 local Shield = require("@scripts/server/shield")
@@ -22,6 +23,24 @@ engine.ecs.system("game.WearBoosts", {
 	end,
 })
 
+-- FixedUpdate, once the boosts are won and worn: each rider's game.Boosted tells the clients the boosts it has on. It
+-- is read, and patched only when a boost starts or ends: a system that goes through a component in `write` marks it
+-- changed, which sends it every tick.
+engine.ecs.system("game.ShowBoosts", {
+	phase = "FixedUpdate",
+	side = "server",
+	query = { read = { "game.Boosts", "game.Boosted" } },
+	after = { "game.WearBoosts", "game.RewardShooters" },
+	run = function(ctx)
+		for entity, boosts, boosted in ctx.query do
+			local speed, sniper = boosts.speed > 0, boosts.sniper > 0
+			if boosted.speed ~= speed or boosted.sniper ~= sniper or boosted.points ~= boosts.points then
+				ctx.commands:patch(entity, "game.Boosted", { speed = speed, sniper = sniper, points = boosts.points })
+			end
+		end
+	end,
+})
+
 return {
 	--- Gives @p boost to a rider, from a system that writes its score, its shield and its boosts. @p counts says
 	--- whether points count (the match races).
@@ -30,6 +49,7 @@ return {
 			if counts then
 				score.points += Game.boostPoints
 			end
+			boosts.points = (boosts.points + 1) % 65536
 		elseif boost == Game.speedBoost then
 			boosts.speed = Game.boostSpeedSeconds
 		elseif boost == Game.shieldBoost then
