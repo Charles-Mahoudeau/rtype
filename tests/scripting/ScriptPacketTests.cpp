@@ -346,13 +346,15 @@ local outcomes = {
     declare("game.Zero", { { "text", "string", 0 } }),
     declare("game.Delimiter", { { "qty:u8\ncount", "u8" } }),
     declare("game.Fine", { { "a", "u8" }, { "text", "string", 12 } }),
+    declare("game.Sparse", { { "a", "u8" }, [3] = { "b", "u8" }, [4] = { "c", "u8" } }),
+    declare("game.SparseEnd", { [1] = { "a", "u8" }, [2] = { "b", "u8" }, [4] = { "c", "u8" } }),
 }
 engine.ecs.system("game.Report", {
     phase = "Update", side = "server", query = {},
     events = { send = { "test.packets.Checked" } },
     run = function(ctx)
         -- every frame: the first frame runs in the constructor of Pair, before anyone reads the events
-        for index = 1, 6 do
+        for index = 1, 8 do
             ctx.events.send("test.packets.Checked", { what = (outcomes[index] and "accepted" or "refused") .. index })
         end
     end,
@@ -360,10 +362,11 @@ engine.ecs.system("game.Report", {
 )";
     Pair pair{"rtype-packets-declarations", std::string{kDeclarations}, withShared(kClient)};
 
-    ASSERT_TRUE(pair.runUntil([&] { return pair.serverChecked.size() >= 6; }));
+    ASSERT_TRUE(pair.runUntil([&] { return pair.serverChecked.size() >= 8; }));
 
-    const std::vector<std::string> expected{"refused1", "refused2", "refused3", "refused4", "refused5", "accepted6"};
-    EXPECT_EQ(std::vector<std::string>(pair.serverChecked.begin(), pair.serverChecked.begin() + 6), expected);
+    const std::vector<std::string> expected{"refused1", "refused2",  "refused3", "refused4",
+                                            "refused5", "accepted6", "refused7", "refused8"};
+    EXPECT_EQ(std::vector<std::string>(pair.serverChecked.begin(), pair.serverChecked.begin() + 8), expected);
 }
 
 TEST(ScriptPackets, AScriptSendsAndReadsAPacketDeclaredInCpp) {
@@ -447,10 +450,14 @@ TEST(ScriptPackets, AnUnreliableCommandWaitsUntilTheServerAnswered) {
 
     // Once the server's snapshots arrive, unreliable commands go.
     ASSERT_TRUE(pair.runUntil([&] { return pair.clientState().sendPacket(network::Channel::kUnreliable, message); }));
+    // `game.Buy` is declared reliable: the reliable one reaches the server's scripts, the one that came on the
+    // unreliable channel is refused and counted (it could be duplicated or reordered).
+    const std::size_t before = pair.state().droppedPacketCount();
     EXPECT_TRUE(pair.runUntil([&] {
-        // Both of ours (the reliable one and the unreliable one) reached the server's scripts.
-        return std::ranges::count(pair.serverReceived, "5:laser1:1", &PacketReceived::values) >= 2;
+        return std::ranges::count(pair.serverReceived, "5:laser1:1", &PacketReceived::values) >= 1 &&
+               pair.state().droppedPacketCount() > before;
     }));
+    EXPECT_EQ(std::ranges::count(pair.serverReceived, "5:laser1:1", &PacketReceived::values), 1);
 }
 
 TEST(ScriptPackets, TheServerPushesASnapshotAtTenHertzWhileCommandsFlow) {

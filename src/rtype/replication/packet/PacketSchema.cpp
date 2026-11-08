@@ -109,6 +109,12 @@ std::size_t PacketSchema::maxMessageSize() const noexcept {
 }
 
 void PacketRegistry::declare(PacketSchema schema) {
+    if (schema.direction != PacketDirection::kToServer && schema.direction != PacketDirection::kToClients) {
+        throw exceptions::PacketException{std::format("Packet '{}': invalid direction", schema.name)};
+    }
+    if (!network::isValidWireValue(schema.channel)) {
+        throw exceptions::PacketException{std::format("Packet '{}': invalid channel", schema.name)};
+    }
     if (!isPacketName(schema.name)) {
         throw exceptions::PacketException{
             std::format("Invalid packet name '{}': expected identifiers separated by dots, at most {} bytes",

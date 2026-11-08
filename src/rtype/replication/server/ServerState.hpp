@@ -167,6 +167,7 @@ class RTYPE_REPLICATION_API ServerState {
     /// @brief A custom packet message of a client, not decoded yet.
     struct RawPacket {
         network::ClientId client{};  ///< Who sent it.
+        network::Channel channel{};  ///< The channel it came on: it must be the one its schema declares.
         network::Bytes payload;      ///< The message, type byte included.
     };
 

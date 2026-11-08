@@ -23,9 +23,9 @@ itself, not a feed line to receive once: send that as a `toClients` packet.
 Both sides load the same declaration (put it in a shared file). Declare while the scripts load: the registry is frozen
 when the server or client starts, and a later declaration is an error. The one exception is a script reload (hot
 reload): declaring a packet again **identically** is accepted; a changed declaration is refused with a message asking to
-restart, since the other side would still hold the old one. Packets are declared by scripts, with `engine.net.packet`;
-`PacketRegistry` can hold one declared from C++, but `engine.net.sendToServer` and `engine.net.received` only know the
-packets the script itself declared.
+restart, since the other side would still hold the old one. Scripts declare packets with `engine.net.packet`. A packet
+declared from C++ before the scripts load is also available to `engine.net.sendToServer` and `engine.net.received`: do
+not declare it again in Luau, that is an "already declared" error.
 
 ```luau
 engine.net.packet("game.Buy", {

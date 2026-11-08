@@ -288,4 +288,14 @@ std::optional<DecodedPacket> decodePacket(const PacketRegistry& registry, const 
     }
     return decoded;
 }
+
+bool isAcceptedPacket(const PacketRegistry& registry, const PacketDirection direction, const network::Channel channel,
+                      const std::span<const std::byte> payload) {
+    const std::optional<DecodedPacket> decoded = decodePacket(registry, direction, payload);
+    if (!decoded) {
+        return false;
+    }
+    const PacketSchema* schema = registry.find(decoded->name);
+    return schema != nullptr && schema->channel == channel;
+}
 }  // namespace rtype::replication::packet

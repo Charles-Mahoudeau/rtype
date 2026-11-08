@@ -190,6 +190,14 @@ TEST(Packet, ARegistryRefusesBadDeclarations) {
     PacketSchema badName = buy();
     badName.name = "1bad";
     EXPECT_THROW(registry.declare(badName), PacketException);
+    PacketSchema direction = buy();
+    direction.name = "game.Direction";
+    direction.direction = static_cast<PacketDirection>(7);
+    EXPECT_THROW(registry.declare(direction), PacketException);
+    PacketSchema channel = buy();
+    channel.name = "game.Channel";
+    channel.channel = static_cast<rtype::network::Channel>(9);
+    EXPECT_THROW(registry.declare(channel), PacketException);
     PacketSchema twice = buy();
     twice.name = "game.Twice";
     twice.fields.push_back(twice.fields.front());
@@ -224,4 +232,16 @@ TEST(Packet, AFrozenRegistryRefusesDeclarations) {
     EXPECT_TRUE(registry.isFrozen());
     EXPECT_THROW(registry.declare(buy()), PacketException);
     EXPECT_EQ(registry.size(), 0U);
+}
+
+TEST(Packet, AMessageIsAcceptedOnItsDeclaredChannelOnly) {
+    PacketRegistry registry;
+    const PacketSchema schema = buy();
+    registry.declare(schema);
+    const auto message = encodePacket(schema, buyValues());
+
+    EXPECT_TRUE(isAcceptedPacket(registry, PacketDirection::kToServer, schema.channel, message));
+    const auto other = schema.channel == rtype::network::Channel::kReliable ? rtype::network::Channel::kUnreliable
+                                                                            : rtype::network::Channel::kReliable;
+    EXPECT_FALSE(isAcceptedPacket(registry, PacketDirection::kToServer, other, message));
 }

@@ -65,8 +65,10 @@ void receive(ecs::ResMut<ServerState> state, ecs::Res<input::InputLayout> inputs
     }
     // Only what passes the schema reaches the scripts: the rest is dropped, and they validate what it means.
     for (const ServerState::RawPacket& raw : state->takePackets()) {
-        if (auto decoded = packet::decodePacket(*packets, packet::PacketDirection::kToServer, raw.payload)) {
-            const packet::PacketSchema* schema = packets->find(decoded->name);
+        auto decoded = packet::decodePacket(*packets, packet::PacketDirection::kToServer, raw.payload);
+        const packet::PacketSchema* schema = decoded ? packets->find(decoded->name) : nullptr;
+        // A reliable packet sent unreliably could be duplicated or reordered: it is refused too.
+        if (schema != nullptr && schema->channel == raw.channel) {
             received.send(packet::PacketReceived{
                 .name = decoded->name,
                 .sender = raw.client,

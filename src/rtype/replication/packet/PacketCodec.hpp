@@ -52,4 +52,10 @@ struct DecodedPacket {
 [[nodiscard]] RTYPE_REPLICATION_API std::optional<DecodedPacket> decodePacket(const PacketRegistry& registry,
                                                                               PacketDirection direction,
                                                                               std::span<const std::byte> payload);
+
+/// @brief Tells whether decodePacket() accepts a message that came on a channel: the channel must be the one the
+/// packet's schema declares.
+/// @param channel The channel the message arrived on.
+[[nodiscard]] RTYPE_REPLICATION_API bool isAcceptedPacket(const PacketRegistry& registry, PacketDirection direction,
+                                                          network::Channel channel, std::span<const std::byte> payload);
 }  // namespace rtype::replication::packet

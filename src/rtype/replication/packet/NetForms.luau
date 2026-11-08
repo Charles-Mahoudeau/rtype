@@ -35,14 +35,16 @@ engine.net.packet = function(...)
 		forms.fail(form, "expected 'fields', a list of { name, type }")
 	end
 	-- ipairs would skip a hole or a named key and leave the field out on both sides: count every key instead.
-	local count = 0
+	local count, maxKey = 0, 0
 	for key in pairs(spec.fields) do
 		if type(key) ~= "number" or key < 1 or key ~= math.floor(key) then
 			forms.fail(form, "'fields' of '" .. name .. "' must be a plain list, found the key " .. tostring(key))
 		end
 		count += 1
+		maxKey = math.max(maxKey, key)
 	end
-	if count ~= #spec.fields then
+	-- #t is any border of a table with holes, so compare with the largest key instead.
+	if count ~= maxKey then
 		forms.fail(form, "'fields' of '" .. name .. "' must be a list without holes")
 	end
 	local lines, list = {}, {}
