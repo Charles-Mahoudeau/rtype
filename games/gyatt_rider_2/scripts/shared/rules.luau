@@ -68,7 +68,6 @@ local Game = {
 
 	-- The enums of the engine's components, as their reflected numbers.
 	box = 0, -- rtype.Collider shape
-	rectShape = 0, -- rtype.ShapeRenderer kind
 }
 
 --- The size of something counted in tiles, in world units.
@@ -172,7 +171,7 @@ engine.ecs.component("game.HudText", { fields = { role = "u8", slot = "u8" }, pr
 -- A square of a shot's beam (client/beams.luau), client only: the seconds it is still shown.
 engine.ecs.component("game.BeamSquare", { fields = { remaining = "f32" }, presence = "clientOnly" })
 
--- The race's gauge (client/gauge.luau), client only: its orange part, and the dot of a cyclist.
+-- The race's gauge (client/gauge.luau), client only: its orange part, and the small cyclist standing for a cyclist.
 engine.ecs.component("game.GaugeFill", { fields = {}, presence = "clientOnly" })
 engine.ecs.component("game.GaugeDot", { fields = { cyclist = "entity" }, presence = "clientOnly" })
 

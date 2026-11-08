@@ -8,6 +8,8 @@ return {
 	font = engine.assets.font("fonts/orbitron.json"),
 	-- The 8 roads, repeated down the view and scrolling on their own (the map's `scrolly`).
 	roads = engine.assets.tilemap("levels/roads.tmj"),
+	-- A white square, tinted and stretched into the plain rectangles of the strip on the left (client/blocks.luau).
+	white = engine.assets.texture("white.png", { linear = false }),
 	-- One square of a shot's beam, repeated from the shooter to what it hits (client/beams.luau).
 	beam = engine.assets.texture("beam.png", { linear = false }),
 	-- Its glow: a material of the glow shader (shaders/glow.glsl), a white core pulsing along the beam.

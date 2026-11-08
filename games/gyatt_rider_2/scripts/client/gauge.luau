@@ -1,8 +1,10 @@
 -- The race's gauge, in the strip on the left: the course from its start (bottom) to its finish (top, the end of the
--- match), its covered part in orange as the time passes, and a dot for each cyclist at its place on the course: the
--- riders' place, plus how far ahead of them it is on the road.
+-- match), its covered part in orange as the time passes, and a small orange cyclist riding for each cyclist at its
+-- place on the course: the riders' place, plus how far ahead of them it is on the road.
 
 local Game = require("@scripts/shared/rules")
+local assets = require("@scripts/client/assets")
+local Blocks = require("@scripts/client/blocks")
 
 local gaugeX = Game.roadsLeft / 2
 local gaugeTop, gaugeBottom = 64, Game.viewHeight - 16 -- under the timer, above the bottom
@@ -12,11 +14,11 @@ local courseLength = Game.roadSpeed * Game.matchDuration -- world units the ride
 local trackColor = { x = 0.2, y = 0.2, z = 0.22, w = 1 }
 local fillColor = { x = 1, y = 0.55, z = 0, w = 1 }
 local finishColor = { x = 1, y = 1, z = 1, w = 1 }
-local dotColor = { x = 1, y = 1, z = 1, w = 1 }
-local dotOutline = { x = 0.1, y = 0.1, z = 0.1, w = 1 }
-local dotSize = 14
--- The shapes' layers, over the strip's (0): the track, then its orange part and the finish line, then the dots.
-local trackLayer, fillLayer, dotLayer = 1, 2, 3
+local dotColor = { x = 1, y = 0.35, z = 0, w = 1 } -- orange, deeper than the covered part
+local dotScale = 0.32 -- of the cyclist's 64x128 image
+-- The draw layers, over the strip's (10): the track, then its orange part and the finish line, then the cyclists. All
+-- are sprites, the track and its parts blocks (client/blocks.luau): a shape would draw over the cyclists.
+local trackLayer, fillLayer, dotLayer = 11, 12, 13
 
 -- The covered share of the course (0 to 1), each cyclist's place on it this frame by its bits, and the cyclists that
 -- have a dot: filled by game.ReadCourse and game.PlaceCyclists for the systems that draw.
@@ -36,32 +38,26 @@ engine.ecs.system("game.SpawnGauge", {
 	query = {},
 	run = function(ctx)
 		ctx.commands:spawn({
-			["rtype.Transform"] = { position = { x = gaugeX, y = (gaugeTop + gaugeBottom) / 2 } },
-			["rtype.ShapeRenderer"] = {
-				kind = Game.rectShape,
-				size = { x = gaugeWidth, y = gaugeHeight },
-				fillColor = trackColor,
-				layer = trackLayer,
+			["rtype.Transform"] = {
+				position = { x = gaugeX, y = (gaugeTop + gaugeBottom) / 2 },
+				scale = Blocks.scale({ x = gaugeWidth, y = gaugeHeight }),
 			},
+			["rtype.SpriteRenderer"] = Blocks.sprite(trackColor, trackLayer),
 		})
 		ctx.commands:spawn({
-			["rtype.Transform"] = { position = { x = gaugeX, y = gaugeTop } },
-			["rtype.ShapeRenderer"] = {
-				kind = Game.rectShape,
-				size = { x = gaugeWidth + 16, y = 4 },
-				fillColor = finishColor,
-				layer = fillLayer,
+			["rtype.Transform"] = {
+				position = { x = gaugeX, y = gaugeTop },
+				scale = Blocks.scale({ x = gaugeWidth + 16, y = 4 }),
 			},
+			["rtype.SpriteRenderer"] = Blocks.sprite(finishColor, fillLayer),
 		})
 		ctx.commands:spawn({
 			["game.GaugeFill"] = {},
-			["rtype.Transform"] = { position = { x = gaugeX, y = gaugeBottom } },
-			["rtype.ShapeRenderer"] = {
-				kind = Game.rectShape,
-				size = { x = gaugeWidth, y = 0 },
-				fillColor = fillColor,
-				layer = fillLayer,
+			["rtype.Transform"] = {
+				position = { x = gaugeX, y = gaugeBottom },
+				scale = Blocks.scale({ x = gaugeWidth, y = 0 }),
 			},
+			["rtype.SpriteRenderer"] = Blocks.sprite(fillColor, fillLayer),
 		})
 	end,
 })
@@ -82,7 +78,7 @@ engine.ecs.system("game.ReadCourse", {
 	end,
 })
 
--- Update: each cyclist's place on the course, and a dot for each new one.
+-- Update: each cyclist's place on the course, and a small cyclist on the gauge for each new one.
 engine.ecs.system("game.PlaceCyclists", {
 	phase = "Update",
 	side = "client",
@@ -96,15 +92,18 @@ engine.ecs.system("game.PlaceCyclists", {
 				dotted[entity.bits] = true
 				ctx.commands:spawn({
 					["game.GaugeDot"] = { cyclist = entity },
-					["rtype.Transform"] = { position = { x = gaugeX, y = gaugeBottom } },
-					["rtype.ShapeRenderer"] = {
-						kind = Game.rectShape,
-						size = { x = dotSize, y = dotSize },
-						fillColor = dotColor,
-						outlineColor = dotOutline,
-						outlineThickness = 2,
+					["rtype.Transform"] = {
+						position = { x = gaugeX, y = gaugeBottom },
+						scale = { x = dotScale, y = dotScale },
+					},
+					["rtype.SpriteRenderer"] = {
+						texture = assets.cyclistSheet,
+						source = { x = 0, y = 0, z = 64, w = 128 },
+						origin = { x = 32, y = 64 },
+						color = dotColor,
 						layer = dotLayer,
 					},
+					["rtype.SpriteAnimator"] = { atlas = assets.cyclist, animation = "ride" },
 				})
 			end
 		end
@@ -115,20 +114,21 @@ engine.ecs.system("game.PlaceCyclists", {
 engine.ecs.system("game.FillGauge", {
 	phase = "Update",
 	side = "client",
-	query = { write = { "rtype.Transform", "rtype.ShapeRenderer" }, with = { "game.GaugeFill" } },
+	query = { write = { "rtype.Transform" }, with = { "game.GaugeFill" } },
 	after = { "game.ReadCourse", "game.FollowPositions" },
 	run = function(ctx)
 		local height = heightOf(covered)
-		for _, transform, shape in ctx.query do
-			if shape.size.y ~= height then
-				shape.size = { x = gaugeWidth, y = height }
+		local scale = Blocks.scale({ x = gaugeWidth, y = height })
+		for _, transform in ctx.query do
+			if transform.scale.y ~= scale.y then
+				transform.scale = scale
 				transform.position = { x = gaugeX, y = gaugeBottom - height / 2 }
 			end
 		end
 	end,
 })
 
--- Update: each dot goes to its cyclist's place; the dot of a cyclist that left the road goes too.
+-- Update: each small cyclist goes to its cyclist's place, and leaves with it.
 engine.ecs.system("game.MoveGaugeDots", {
 	phase = "Update",
 	side = "client",

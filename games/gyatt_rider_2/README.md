@@ -60,7 +60,7 @@ A score never goes below 0, and counts only while the match races.
 
 - Each player sees its own rider in blue and the others in red; the cyclists are white.
 - The scores along the top, the time left and the race's gauge in the strip on the left (the covered part in orange,
-  the cyclists as dots), the player's own score in the bottom right corner.
+  the cyclists as small orange cyclists riding), the player's own score in the bottom right corner.
 - The results in the middle when a match is over: the winner, every rider's place and points.
 - An impact at the start of each beam, where it stops and on each death; the view shakes when the player is hit.
 - Each boost's effect on its rider: rising arrows for the speed, a burst of twinkles for the points, a bubble shading

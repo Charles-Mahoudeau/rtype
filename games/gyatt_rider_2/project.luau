@@ -20,7 +20,7 @@ engine.settings.plugins = { "rtype.Physics", "rtype.Capsule" }
 if engine.isClient then
 	engine.settings.plugins = {
 		"rtype.Physics", "rtype.Capsule", "rtype.Input", "rtype.graphics", "rtype.Shader", "rtype.Sprite",
-		"rtype.SpriteDraw", "rtype.Shape", "rtype.Tilemap", "rtype.Text", "rtype.Ui", "rtype.audio", "rtype.Particle",
+		"rtype.SpriteDraw", "rtype.Tilemap", "rtype.Text", "rtype.Ui", "rtype.audio", "rtype.Particle",
 		"rtype.PhysicsDebug",
 	}
 end

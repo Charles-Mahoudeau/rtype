@@ -3,9 +3,11 @@
 
 local Game = require("@scripts/shared/rules")
 local assets = require("@scripts/client/assets")
+local Blocks = require("@scripts/client/blocks")
 
 local roadsDrawLayer = -100 -- under every sprite
 local sidebarColor = { x = 0.8, y = 0.82, z = 0.85, w = 1 }
+local sidebarLayer = 10 -- over what may go past the roads' left edge; the gauge is over it (client/gauge.luau)
 
 -- Startup: loads the scene (assets/scenes/roads.scene): the places of the camera and of the strip on the left of the
 -- roads. Its nodes are the client's, so the server spawns nothing of it.
@@ -31,17 +33,16 @@ engine.ecs.system("game.DressScene", {
 	end,
 })
 
--- Update: gives the scene's sidebar marker its rectangle.
+-- Update: gives the scene's sidebar marker its rectangle, a block (client/blocks.luau) as big as the strip.
 engine.ecs.system("game.DressSidebar", {
 	phase = "Update",
 	side = "client",
-	query = { read = { "game.Sidebar" }, without = { "rtype.ShapeRenderer" } },
+	query = { read = { "game.Sidebar" }, without = { "rtype.SpriteRenderer" } },
 	run = function(ctx)
 		for entity in ctx.query do
-			ctx.commands:add(entity, "rtype.ShapeRenderer", {
-				kind = Game.rectShape,
-				size = { x = Game.roadsLeft, y = Game.viewHeight },
-				fillColor = sidebarColor,
+			ctx.commands:add(entity, "rtype.SpriteRenderer", Blocks.sprite(sidebarColor, sidebarLayer))
+			ctx.commands:patch(entity, "rtype.Transform", {
+				scale = Blocks.scale({ x = Game.roadsLeft, y = Game.viewHeight }),
 			})
 		end
 	end,
