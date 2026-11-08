@@ -14,7 +14,7 @@ target("engine-tests")
     add_deps("backend-libraries", {inherit = false})
     set_default(false)
     set_group("tests")
-    add_deps("engine-test-plugin", "plugin-libraries", "engine", "replication", "plugin-capsule", "plugin-graphics", "plugin-http", "plugin-json", "plugin-input", "plugin-particle", "plugin-physics", "plugin-physics-debug", "plugin-shader", "plugin-shape", "plugin-sprite", "plugin-text", "plugin-tilemap", "plugin-transform")
+    add_deps("engine-test-plugin", "plugin-libraries", "engine", "replication", "plugin-capsule", "plugin-graphics", "plugin-http", "plugin-json", "plugin-input", "plugin-particle", "plugin-persistence", "plugin-physics", "plugin-physics-debug", "plugin-shader", "plugin-shape", "plugin-sprite", "plugin-text", "plugin-tilemap", "plugin-transform")
     add_files("*.cpp", "../main.cpp")
     -- FakeBackend.hpp (header-only): the fake platform and renderer, for a client App that runs frames.
     add_includedirs("../plugins")
