@@ -39,6 +39,8 @@ linux_allow=(
     'libc.so.6' 'libm.so.6' 'libdl.so.2' 'libpthread.so.0' 'librt.so.1' 'libutil.so.1' 'libresolv.so.2'
     # The Vulkan loader is installed with the GPU driver.
     'libvulkan.so.1'
+    # Xlib: the raylib backend links it for the clipboard; every X11 or XWayland desktop has it.
+    'libX11.so.6'
 )
 # Paths: what the system image holds. @-prefixed ones are resolved against the folder, not allowed by this list.
 macos_allow=('/usr/lib/*' '/System/Library/*')
