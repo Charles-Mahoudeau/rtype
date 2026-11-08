@@ -33,7 +33,7 @@ return {
 		elseif boost == Game.speedBoost then
 			boosts.speed = Game.boostSpeedSeconds
 		elseif boost == Game.shieldBoost then
-			Shield.grant(shield, clock, Game.boostShieldSeconds)
+			Shield.grant(shield, clock, Game.boostShieldSeconds, false)
 		elseif boost == Game.sniperBoost then
 			boosts.sniper = Game.boostSniperSeconds
 		end

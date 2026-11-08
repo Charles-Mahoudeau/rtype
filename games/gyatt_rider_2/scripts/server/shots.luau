@@ -71,22 +71,26 @@ local function crosses(from, to, at, size): boolean
 end
 
 -- FixedUpdate, once the physics stepped, so that the ray meets the scene of this tick: a rider whose gun is ready
--- fires the way its arrows point, and pays Game.shotCost while the match races. The score is read, and patched only
--- when a shot costs: a system that goes through a component in `write` marks it changed, which sends it every tick.
+-- fires the way its arrows point, unless it is a ghost (just hit), and pays Game.shotCost while the match races. The
+-- score is read, and patched only when a shot costs: a system that goes through a component in `write` marks it
+-- changed, which sends it every tick.
 engine.ecs.system("game.Fire", {
 	phase = "FixedUpdate",
 	side = "server",
 	query = {
-		read = { "game.Rider", "game.Position", "game.Boosts", "game.Score", "game.Shot" },
+		read = { "game.Rider", "game.Position", "game.Boosts", "game.Score", "game.Shot", "game.Shield" },
 		write = { "game.Gun" },
 		with = { "net.PlayerInput" },
 	},
 	calls = { "rtype.replication.readInput", "rtype.physics.shapeCast" },
 	after = { "net.applyInputs", "rtype.Physics.Events" },
 	run = function(ctx)
-		for entity, rider, position, boosts, score, shot, gun in ctx.query do
+		for entity, rider, position, boosts, score, shot, shield, gun in ctx.query do
 			if gun.cooldown > 0 then
 				gun.cooldown = math.max(0, gun.cooldown - ctx.time.fixedDelta)
+				continue
+			end
+			if shield.ghost then
 				continue
 			end
 			local fire = ctx.call("rtype.replication.readInput", { entity = entity, action = "fire" }).vector

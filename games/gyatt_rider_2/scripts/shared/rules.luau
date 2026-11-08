@@ -110,7 +110,8 @@ engine.ecs.component("game.Rider", { fields = { slot = "u32" }, replication = "s
 engine.ecs.component("game.Score", { fields = { points = "u32" }, replication = "everyChange" })
 -- Whether a rider is invincible, on every change: written only when it turns on or off, and the clients make it
 -- twinkle. Nothing hits a rider while it is on.
-engine.ecs.component("game.Shield", { fields = { active = "bool" }, replication = "everyChange" })
+-- A ghost (shielded by a hit) cannot shoot either; an invincible rider (the boost) can.
+engine.ecs.component("game.Shield", { fields = { active = "bool", ghost = "bool" }, replication = "everyChange" })
 -- Server only: the seconds before a rider's shield turns off.
 engine.ecs.component("game.ShieldClock", { fields = { remaining = "f32" }, presence = "serverOnly" })
 -- Server only: the seconds a rider's speed and sniper boosts still last.

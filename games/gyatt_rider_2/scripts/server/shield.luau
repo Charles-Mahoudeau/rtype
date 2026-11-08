@@ -19,15 +19,19 @@ engine.ecs.system("game.LowerShields", {
 			end
 			clock.remaining -= ctx.time.fixedDelta
 			if clock.remaining <= 0 then
-				ctx.commands:patch(entity, "game.Shield", { active = false })
+				ctx.commands:patch(entity, "game.Shield", { active = false, ghost = false })
 			end
 		end
 	end,
 })
 
 return {
-	--- Shields a rider for @p seconds, or longer if it already was for longer.
-	grant = function(shield, clock, seconds: number)
+	--- Shields a rider for @p seconds, or longer if it already was for longer. A @p ghost cannot shoot while it lasts:
+	--- a hit makes one, the invincibility boost does not, and turns a ghost back into a rider that shoots.
+	grant = function(shield, clock, seconds: number, ghost: boolean)
+		if shield.ghost ~= ghost then
+			shield.ghost = ghost
+		end
 		if shield.active then
 			clock.remaining = math.max(clock.remaining, seconds)
 			return

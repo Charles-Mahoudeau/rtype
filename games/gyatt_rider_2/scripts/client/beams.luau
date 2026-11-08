@@ -1,5 +1,6 @@
--- The shots' beams: when a rider's game.Shot counts a new shot, a row of white squares from where it fired to what the
--- shot hit, far back under the traffic and the riders, each square leaving on its own after Game.beamLifetime.
+-- The shots' beams: when a rider's game.Shot counts a new shot, a row of squares (assets/beam.png, drawn for a shot
+-- to the right) from where it fired to what the shot hit, turned the way the shot went, far back under the traffic and
+-- the riders, each square leaving on its own after Game.beamLifetime.
 
 local Game = require("@scripts/shared/rules")
 local assets = require("@scripts/client/assets")
@@ -22,13 +23,15 @@ engine.ecs.system("game.DrawBeams", {
 			end
 			local along = { x = shot.to.x - shot.from.x, y = shot.to.y - shot.from.y }
 			local length = math.sqrt(along.x * along.x + along.y * along.y)
-			local direction = if length > 0 then { x = along.x / length, y = along.y / length } else { x = 0, y = 0 }
+			local direction = if length > 0 then { x = along.x / length, y = along.y / length } else { x = 1, y = 0 }
+			local rotation = math.atan2(direction.y, direction.x) -- radians, from the image's own right
 			for index = 0, math.max(1, math.round(length / size)) - 1 do
 				local offset = (index + 0.5) * size -- along the beam, from its start: the square's middle
 				ctx.commands:spawn({
 					["game.BeamSquare"] = { remaining = Game.beamLifetime },
 					["rtype.Transform"] = {
 						position = { x = shot.from.x + direction.x * offset, y = shot.from.y + direction.y * offset },
+						rotation = rotation,
 					},
 					["rtype.SpriteRenderer"] = {
 						texture = assets.beam,

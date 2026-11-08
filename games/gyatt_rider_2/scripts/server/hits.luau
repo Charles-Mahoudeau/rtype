@@ -30,31 +30,56 @@ local function winBoost(slot: number, boost: number)
 	boostsOf[slot] = boosts
 end
 
--- FixedUpdate, once the physics sent this tick's events: a vehicle or a cyclist that enters a rider (a sensor) hits
--- it. The event names the sensor and what entered it; their colliders' layers tell a rider and the traffic.
+-- What is inside each rider: by the rider's entity bits, the traffic in it, kept by game.HitByTraffic from the
+-- physics' TriggerEntered and TriggerExited.
+local insideOf: { [number]: { [number]: boolean } } = {}
+
+-- FixedUpdate, once the physics sent this tick's events: a rider that has a vehicle or a cyclist inside it (it is a
+-- sensor) is hit, again and again while it stays inside, as soon as its shield is down. The events name the sensor and
+-- what entered or left it; their colliders' layers tell a rider and the traffic. A vehicle that is removed sends no
+-- TriggerExited, so what no longer exists is forgotten each tick.
 engine.ecs.system("game.HitByTraffic", {
 	phase = "FixedUpdate",
 	side = "server",
-	query = { read = { "rtype.Collider" } },
-	events = { read = { "rtype.TriggerEntered" } },
+	query = { read = { "rtype.Collider" }, optionalRead = { "game.Shield" } },
+	events = { read = { "rtype.TriggerEntered", "rtype.TriggerExited" } },
 	after = { "rtype.Physics.Events" },
 	run = function(ctx)
-		local entries = {}
-		for entered in ctx.events.read("rtype.TriggerEntered") do
-			table.insert(entries, { rider = entered.trigger, other = entered.other })
-		end
-		if #entries == 0 then
-			return
-		end
-		local layerOf = {}
-		for entity, collider in ctx.query do
+		local layerOf, shieldedOf, riderOf = {}, {}, {}
+		for entity, collider, shield in ctx.query do
 			layerOf[entity.bits] = collider.layer
+			if collider.layer == Game.riderLayer then
+				riderOf[entity.bits] = entity
+				shieldedOf[entity.bits] = shield ~= nil and shield.active
+			end
 		end
-		for _, entry in entries do
-			local other = layerOf[entry.other.bits]
-			local traffic = other == Game.vehicleLayer or other == Game.cyclistLayer
-			if layerOf[entry.rider.bits] == Game.riderLayer and traffic then
-				ctx.commands:spawn({ ["game.Hit"] = { victim = entry.rider, shooter = -1 } })
+		for entered in ctx.events.read("rtype.TriggerEntered") do
+			local other = layerOf[entered.other.bits]
+			if riderOf[entered.trigger.bits] and (other == Game.vehicleLayer or other == Game.cyclistLayer) then
+				local inside = insideOf[entered.trigger.bits] or {}
+				inside[entered.other.bits] = true
+				insideOf[entered.trigger.bits] = inside
+			end
+		end
+		for exited in ctx.events.read("rtype.TriggerExited") do
+			local inside = insideOf[exited.trigger.bits]
+			if inside then
+				inside[exited.other.bits] = nil
+			end
+		end
+		for riderBits, inside in insideOf do
+			local rider = riderOf[riderBits]
+			if rider == nil then
+				insideOf[riderBits] = nil -- the rider left the game
+				continue
+			end
+			for otherBits in inside do
+				if layerOf[otherBits] == nil then
+					inside[otherBits] = nil -- the vehicle left the road
+				end
+			end
+			if next(inside) ~= nil and not shieldedOf[riderBits] then
+				ctx.commands:spawn({ ["game.Hit"] = { victim = rider, shooter = -1 } })
 			end
 		end
 	end,
@@ -109,7 +134,7 @@ engine.ecs.system("game.ResolveRiderHits", {
 					win(shooter, Game.hitReward + lost)
 				end
 			end
-			Shield.grant(shield, clock, Shield.afterHit)
+			Shield.grant(shield, clock, Shield.afterHit, true)
 		end
 	end,
 })
