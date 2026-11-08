@@ -174,7 +174,9 @@ engine.ecs.system("game.JoinTeams", {
 })
 ```
 
-Each system reads the packets for itself: two systems calling `engine.net.received` both get every packet.
+Each system reads the packets for itself: two systems calling `engine.net.received` both get every packet. A system
+gets the packets that travel toward its `side`; in a one-world [standalone game](#standalone-and-the-editor) that matters,
+and a `side = "both"` system gets all of them.
 
 !!! warning "The server decides"
     The engine checks a packet's **shape** (the fields, their types and ranges) and drops a malformed one before any
@@ -194,6 +196,26 @@ send it`); nothing is sent.
 
 Set `network.port` and `network.host` in `project.luau` from `engine.args` (see [Project settings](project-settings.md)).
 Bytes from the network never crash the server: a malformed message is dropped.
+
+## Standalone and the editor
+
+The editor (`./aylo-editor my_game/game`) and a single-player run have no server and no network: one world runs both
+sides. A networked game runs there **unchanged**; the engine plays the server with one local player:
+
+- You are **client 1**. `net.ClientConnected { client = 1 }` is raised once when the game starts, so your server
+  system spawns the player's entity as it does for a real client, with `net.Owner { client = 1 }`.
+- `rtype.replication.localClient` returns `{ connected = true, client = 1 }` at once.
+- Your keyboard and gamepad are the input of the entity client 1 owns: `rtype.replication.readInput` gives the same
+  held, pressed and released as on a server, in the same order (after `net.applyInputs`).
+- Packets loop back inside the world, one frame later, checked like network ones (a wrong field is the same script
+  error). `engine.net.sendToServer` arrives with `sender = 1`. `engine.net.sendToClients` arrives with `sender = 0`; it
+  returns `false` for a `client` other than 1.
+- **Each system gets only the packets toward its side.** A `side = "server"` system (the default) never sees a packet
+  sent to the clients, and a `side = "client"` system never sees one sent to the server. A system with `side = "both"`
+  gets every packet; tell them apart with `sender` (`0` is from the server). Over the network this is already the case,
+  since a process only has its own side's packets.
+- A client system and a server system that use the same data run in one world: the server's goes first, so the client
+  draws what the server did this frame. There is no disconnect event: the player stays until the game stops.
 
 ## Not available yet
 

@@ -15,7 +15,8 @@ The editor is its own program, `aylo-editor`. You make your game in it, and you 
 
 Nothing changes in your project. The editor runs both sides of the game in one process, the server's gameplay included,
 with no network, and it is always a debug run: `engine.isDebug` is `true`, even in a release build. Your scenes are
-[capsules](capsules.md), so list `rtype.Capsule`; the editor adds it if you forget.
+[capsules](capsules.md), so list `rtype.Capsule`; the editor adds it if you forget. A networked game works there as it
+is: you are client 1 of your own server, see [Standalone and the editor](networking.md#standalone-and-the-editor).
 
 To open a scene at once, name it in `project.luau`:
 
