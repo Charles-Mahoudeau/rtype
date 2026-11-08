@@ -16,6 +16,8 @@
 #include "rtype/luau/ErrorKind.hpp"
 #include "rtype/luau/Runtime.hpp"
 #include "rtype/luau/RuntimeConfig.hpp"
+#include "rtype/luau/Value.hpp"
+#include "rtype/luau/ValuePack.hpp"
 
 namespace {
 constexpr rtype::luau::RuntimeConfig kStandardConfig{
@@ -49,6 +51,34 @@ class TempFile {
     std::filesystem::path _path;
 };
 }  // namespace
+
+TEST(Runtime, CallGivesTheScriptItsArgumentsAndReturnsItsValues) {
+    const auto runtime = makeRuntime();
+    auto script = runtime.load("sum", "local a, b = ...; return a + b, 'done'");
+    ASSERT_TRUE(script);
+    rtype::luau::ValuePack arguments;
+    arguments.add(rtype::luau::Value{2.0});
+    arguments.add(rtype::luau::Value{3.0});
+
+    const auto returned = runtime.call(*script, arguments);
+
+    ASSERT_TRUE(returned);
+    ASSERT_EQ(returned->size(), 2U);
+    EXPECT_DOUBLE_EQ(returned->values()[0].as<double>(), 5.0);
+    EXPECT_EQ(returned->values()[1].as<std::string>(), "done");
+}
+
+TEST(Runtime, CallReturnsTheErrorOfTheScript) {
+    const auto runtime = makeRuntime();
+    auto script = runtime.load("boom", "error('broken', 0)");
+    ASSERT_TRUE(script);
+
+    const auto returned = runtime.call(*script, {});
+
+    ASSERT_FALSE(returned);
+    EXPECT_EQ(returned.error().kind(), rtype::luau::ErrorKind::kRuntime);
+    EXPECT_NE(returned.error().message().find("broken"), std::string_view::npos);
+}
 
 TEST(Runtime, CreateReturnsRuntime) {
     const auto runtime = rtype::luau::Runtime::create(kStandardConfig);

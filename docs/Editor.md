@@ -189,6 +189,31 @@ made line buffered while captured. It is the process's own output, so there is o
 descriptors are put back when it goes. A process the editor starts (the text editor) is started with its output thrown
 away, so it never holds the pipe. `EditorOptions::captureOutput` turns it off (the tests do).
 
+### The input line
+
+The Console also has an input line that runs Luau in the game's scripts (`console::ScriptPrompt`, no ImGui, tested without
+a window). The editor knows no Luau: the program gives the `EditorSession` a `console::ScriptBackend` (`aylo-editor` binds
+it to `Engine::evaluateScript()` and `Engine::completeScript()`), so a program without one has no input line. The prompt
+keeps the history (100 lines), writes `> line` and the result or `error: ...` in the `ConsoleLog`, and asks the backend
+for the completions of the name before the cursor, once per name (`forget()` empties them when the App is rebuilt). The
+panel adds Tab (the part all completions share), Up and Down (the history), and the completions as buttons above the line.
+
+`Engine` forwards to the current App's `scripting::ScriptHost::evaluate()` and `complete()`
+(`scripting/ScriptHostConsole.cpp`, the helpers in Luau in `scripting/console/ConsolePrelude.luau`). A line is compiled as
+an expression, then as a statement; it runs in a thread of the sealed runtime with the loaded modules as locals
+(`ModuleLoader::valueOf()`), `modules`, and a copy of `engine` without `ecs` (declaring on the schedule while it runs
+is not safe). The tables the modules reach are unfrozen with `Table::unfreeze()` for the line and frozen again, except
+the tables of `engine` and of the helpers. A line runs between two systems, in the tool frame. `manual/pages/editor.md`
+explains it to the game developer.
+
+The selected entity travels with each call as a `ScriptTarget{self, writable}` (`ScriptPrompt::setTarget()`, set by the
+panel each frame; `writable` is false while the editor is online, a client of the server). The host binds it as `self`
+and `entity(index, generation)` in `scripting/console/ConsoleTypes.cpp`: three usertypes, `ConsoleEntity`,
+`ConsoleComponent` and `ConsoleVector` (a `vec2`/`vec4` field, so that `position.x = 0` writes the component instead of a table copy), whose indexes go through `view::readField()` / `view::writeField()` on the component's bytes in the
+world (`getMut()` marks the component changed). They hold no pointer into the world: each access fetches the bytes, and
+a handle checks the console's `ViewScope` generation, bumped after every line, so one kept past its line is an error.
+The `__keys` pseudo-field lists the component and field names for the completion in the prelude.
+
 ## Opening a file in a text editor
 
 "Open in text editor" (the Assets' menu, the Hierarchy's header) runs the `editor.textEditor` command on the file, in the

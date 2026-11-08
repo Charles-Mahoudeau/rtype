@@ -28,6 +28,8 @@
 #include "rtype/luau/Result.hpp"
 #include "rtype/luau/Runtime.hpp"
 #include "rtype/luau/RuntimeConfig.hpp"
+#include "rtype/luau/Table.hpp"
+#include "rtype/luau/Value.hpp"
 #include "rtype/luau/detail/RawState.hpp"
 
 namespace {
@@ -210,6 +212,29 @@ TEST(ModuleLoader, AFrozenTableRejectsWritesFromModulesButNotItsNestedTables) {
         "a.inner.n = 2; return tostring(ok) .. a.value .. a.inner.n";
 
     EXPECT_EQ(modules.text(modules.require("b")), "false12");
+}
+
+TEST(ModuleLoader, ValueOfGivesTheTableOfALoadedModule) {
+    Modules modules;
+    modules.sources["a"] = "return {value = 7}";
+    static_cast<void>(modules.require("a"));
+
+    const auto value = modules.loader().valueOf("a");
+
+    ASSERT_TRUE(value);
+    const auto* table = value->tryAs<rtype::luau::Table>();
+    ASSERT_NE(table, nullptr);
+    EXPECT_DOUBLE_EQ(table->get("value")->as<double>(), 7.0);
+    EXPECT_TRUE(*table->isFrozen());
+}
+
+TEST(ModuleLoader, ValueOfFailsForAModuleThatIsNotLoaded) {
+    Modules modules;
+
+    const auto value = modules.loader().valueOf("missing");
+
+    ASSERT_FALSE(value);
+    EXPECT_EQ(value.error().kind(), ErrorKind::kRuntime);
 }
 
 TEST(ModuleLoader, ANonTableValuePassesThrough) {
