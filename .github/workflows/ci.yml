@@ -137,9 +137,10 @@ jobs:
         shell: bash
         run: .github/scripts/prefetch-sources.sh "$RUNNER_TEMP/xmake-sources"
 
+      # --require=yes: the configuration keeps the --require=no the key was read with, and would install nothing.
       - name: Build project and tests
         run: |
-          xmake f -y --Tests=y
+          xmake f -y --Tests=y --require=yes
           xmake build -y
         timeout-minutes: 30
 
@@ -215,8 +216,9 @@ jobs:
         shell: bash
         run: .github/scripts/prefetch-sources.sh "$RUNNER_TEMP/xmake-sources"
 
+      # --require=yes: the configuration keeps the --require=no the key was read with, and would install nothing.
       - name: Configure xmake
-        run: xmake f -y --Tests=y --AllExamples=y
+        run: xmake f -y --Tests=y --AllExamples=y --require=yes
 
       - name: Save package cache
         if: github.ref == 'refs/heads/main' && steps.package-cache.outputs.cache-hit != 'true'
