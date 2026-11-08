@@ -27,9 +27,10 @@ struct RequestArguments {
     std::string url;            ///< `https://host/path`, to a host of http.allowedHosts.
     std::string headers;        ///< One `Name: value` per line; `{{env:NAME}}` is a secret of http.secrets.
     std::string body;           ///< Sent as is (a JSON text, for instance); empty for none.
-    float timeout{0.0F};        ///< Seconds; 0: http.timeout, which is also the most it can be.
+    float timeout{0.0F};        ///< Seconds from the call, queue included; 0: http.timeout, also the most it can be.
+    float priority{0.0F};       ///< A whole number; higher is sent first among the requests waiting for a slot.
 };
-RTYPE_ECS_CALL_DATA(RequestArguments, "rtype.http.RequestArguments", method, url, headers, body, timeout);
+RTYPE_ECS_CALL_DATA(RequestArguments, "rtype.http.RequestArguments", method, url, headers, body, timeout, priority);
 
 /// @brief The result of `rtype.http.request`.
 struct RequestResult {
@@ -54,7 +55,7 @@ RTYPE_ECS_CALL_DATA(CancelResult, "rtype.http.CancelResult", cancelled);
 /// gets as a Luau error. Also registers the forms (addHttpForms()). Called by the HttpPlugin.
 void addHttpCalls(ecs::App& app);
 
-/// @brief Registers the Luau helper `engine.http.request(ctx, { url, method, headers, body, timeout })` on @p
+/// @brief Registers the Luau helper `engine.http.request(ctx, { url, method, headers, body, timeout, priority })` on @p
 /// registry: it checks its table, writes the headers table as lines, and makes the call. Its library does it on every
 /// side, and so does building the plugin, for a program without libraries.
 void addHttpForms(ecs::PluginRegistry& registry);

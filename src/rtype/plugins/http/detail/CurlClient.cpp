@@ -16,6 +16,8 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <chrono>
+#include <functional>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -39,6 +41,7 @@ using exceptions::HttpException;
 constexpr std::array<std::string_view, 6> kMethods{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"};
 constexpr std::string_view kSecretStart = "{{env:";
 constexpr std::string_view kSecretEnd = "}}";
+using Clock = std::chrono::steady_clock;
 constexpr long kMaxConnectMs = 10000;  // NOLINT(google-runtime-int): curl takes a long
 
 /// @brief Frees a curl URL handle.
@@ -134,7 +137,14 @@ RequestId CurlClient::send(const HttpRequest& request) {
     if (_active.size() < _settings.maxConcurrent) {
         start(std::move(checked));
     } else {
-        _queue.push_back(std::move(checked));
+        if (_queue.size() >= _settings.maxQueued) {
+            _failed.push_back(HttpResult{.request = id, .error = std::string{kQueueFull}});
+        } else {
+            // After the last request of at least this priority: FIFO among equals.
+            const auto position = std::ranges::upper_bound(_queue, checked.priority, std::ranges::greater{},
+                                                           &Checked::priority);
+            _queue.insert(position, std::move(checked));
+        }
     }
     return id;
 }
@@ -155,6 +165,7 @@ bool CurlClient::cancel(const RequestId request) {
 }
 
 std::vector<HttpResult> CurlClient::poll() {
+    expireQueued();
     std::vector<HttpResult> results = std::exchange(_failed, {});
     int running = 0;
     curl_multi_perform(_multi, &running);
@@ -215,6 +226,8 @@ CurlClient::Checked CurlClient::check(const HttpRequest& request) const {
                                ? std::min(request.timeout, _settings.timeout)
                                : _settings.timeout;
     checked.timeoutMs = std::max(1L, std::lround(seconds * 1000.0));
+    checked.priority = request.priority;
+    checked.deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds{checked.timeoutMs};
     return checked;
 }
 
@@ -321,10 +334,29 @@ void CurlClient::startQueued() {
         Checked next = std::move(_queue.front());
         _queue.pop_front();
         const RequestId id = next.id;
+        const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(next.deadline - Clock::now());
+        if (left.count() <= 0) {
+            _failed.push_back(HttpResult{.request = id, .error = "timeout"});
+            continue;
+        }
+        // The transfer gets what is left of the request's time, not a fresh timeout.
+        next.timeoutMs = static_cast<long>(left.count());  // NOLINT(google-runtime-int)
         try {
             start(std::move(next));
         } catch (const HttpException& error) {
             _failed.push_back(HttpResult{.request = id, .error = error.what()});
+        }
+    }
+}
+
+void CurlClient::expireQueued() {
+    const auto now = Clock::now();
+    for (auto queued = _queue.begin(); queued != _queue.end();) {
+        if (queued->deadline <= now) {
+            _failed.push_back(HttpResult{.request = queued->id, .error = "timeout"});
+            queued = _queue.erase(queued);
+        } else {
+            ++queued;
         }
     }
 }

@@ -31,7 +31,7 @@ and read the responses: to call a web API, such as an AI model's, from gameplay.
 |---|---|
 | `HttpPlugin` | Inserts the `HttpClient`, registers the event and the calls, adds `rtype.Http.Poll` |
 | `HttpSettings` | The `http` section of `project.luau`, checked when the plugin is created |
-| `HttpClient` | The resource `rtype.HttpClient`: `send()`, `cancel()`, `poll()`; at most `maxConcurrent` in flight, the next ones queued in order |
+| `HttpClient` | The resource `rtype.HttpClient`: `send()`, `cancel()`, `poll()`; at most `maxConcurrent` in flight, the next ones queued (highest `priority` first, send order among equals, at most `maxQueued`) |
 | `detail/CurlClient` | The libcurl transfers. Private: curl reaches no public header |
 | `HttpEvents.hpp` | `HttpResponse` |
 | `HttpCalls.hpp` | `rtype.http.request`, `rtype.http.cancel`, and the `engine.http.request` helper (`HttpForms.luau`) |
@@ -46,7 +46,8 @@ picks it). `curl_global_init()` is reference-counted by curl and called once per
 | `allowedHosts` | `{}` | The hosts a request may go to, exactly, any case: `"api.example.com"` |
 | `allowHttp` | `false` | Also allow `http://` (a local server, the tests) |
 | `maxConcurrent` | `8` | Requests in flight at once; the next ones wait their turn |
-| `timeout` | `30` | Seconds a request may take; a request may ask for less, never more |
+| `maxQueued` | `256` | Requests waiting for a slot; one more ends at once with the error `queue_full` (0: no waiting) |
+| `timeout` | `30` | Seconds a request may take **from its send, queue time included**; a request may ask for less, never more |
 | `maxResponseBytes` | `1048576` | A longer response body ends the request with an error |
 | `secrets` | `{}` | The environment variables a header may name as `{{env:NAME}}` |
 
@@ -80,11 +81,19 @@ engine.ecs.system("game.Ask", {
 
 | Call | Arguments | Result |
 |---|---|---|
-| `rtype.http.request` | `method` (`"GET"`), `url`, `headers` (`Name: value` lines), `body`, `timeout` (0: the setting) | `request`, its id |
+| `rtype.http.request` | `method` (`"GET"`), `url`, `headers` (`Name: value` lines), `body`, `timeout` (0: the setting), `priority` (whole number, `0`; higher is sent first) | `request`, its id |
 | `rtype.http.cancel` | `request` | `cancelled`: false when it already ended |
 
-`engine.http.request(ctx, { url, method, headers, body, timeout })` is the same call with `headers` as a table; `ctx` is
+`engine.http.request(ctx, { url, method, headers, body, timeout, priority })` is the same call with `headers` as a table; `ctx` is
 nil while the script loads. `rtype.HttpResponse` carries `request`, `status`, `ok`, `body` and `error`.
+
+## Queue and deadline
+
+A request over `maxConcurrent` waits in a queue ordered by `priority` (higher first; send order among equals). The queue
+holds `maxQueued` requests: the next one is not dropped silently, it ends with an `HttpResponse` whose `error` is
+`queue_full` (`kQueueFull`), in the next poll. The timeout is a deadline set at `send()`: a request that waits too long
+is never sent and ends with the error `timeout`; one that starts gets only the time left. So an agent's wait is bounded
+by `timeout`, whatever the queue.
 
 ## Tests
 
