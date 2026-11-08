@@ -58,7 +58,7 @@ architecture rules, and this file keeps the detail, which changes with every fea
   knows both the ECS and the network; it turns a `World` into messages and back (`rtype::replication`).
   Exported symbols are marked `RTYPE_REPLICATION_API`. Feature folders and sub-namespaces as in `network`:
   `component/`, `event/`, `serialization/`, `manifest/`, `input/`, `snapshot/`, `server/`, `client/`,
-  `packet/`, `exceptions/`. `input/InputCalls.hpp` holds its engine calls (`rtype.replication.addInput`, `readInput`),
+  `packet/`, `admin/` (the world messages of the admin channel), `exceptions/`. `input/InputCalls.hpp` holds its engine calls (`rtype.replication.addInput`, `readInput`),
   `client/ClientCalls.hpp` the client's (`rtype.replication.localClient`), both registered by `ReplicationPlugin`.
 - `src/rtype/engine/` — `engine` target, static library (`rtype-engine`): `Engine` runs a game directory (`game/` by
   default, `<dir>`): it reads its `project.luau` through Luau (`scripting/SettingsLoader`, which also exposes
