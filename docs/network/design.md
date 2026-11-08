@@ -1205,7 +1205,7 @@ later:
 | Maximum players per room and maximum rooms | Settings, not hardcoded ([Configuration](#configuration)) |
 | Different games in different rooms | No: one server hosts one game (one manifest) for now |
 | Timeout, resend and rate-limit values | Benchmark later ([12](#12-testing)); the current values are defaults |
-| Written protocol description beyond this document | Yes, required (see below) |
+| Written protocol description beyond this document | Done: [`protocol.md`](protocol.md) |
 | Reconnection after a short connection loss | The session lingers and is resumed with a secret resume token; fresh session token on every resume; `reconnectGrace` is a setting, default 60 s ([6.8](#68-reconnecting-after-a-connection-loss)) |
 | What happens to a player while lost, and whether the others are told | The engine raises ECS events (`ClientLost`, `ClientReconnected`, and `ConnectionLost`, `Reconnected` on the client), applies a neutral input and tells the other players by default (`kClientLost`, `kClientReconnected`); the game decides what the lost entity does and what to display |
 
@@ -1213,7 +1213,6 @@ later:
 
 | Question | Owner |
 |---|---|
-| Write the protocol description (RFC style): packet kinds, handshake, reliability, messages. [6](#6-transport-rtype-network) and [7](#7-replication-rtype-replication) are the base for it. | Network |
 | Exact value of `kPredictionSnapDistance` and the fade-out time of the visual correction, to tune by play-testing | Network + gameplay |
 
 ## 17. References
