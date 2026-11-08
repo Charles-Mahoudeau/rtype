@@ -1,8 +1,7 @@
 # Luau sandbox and table freeze
 
-How `rtype::luau::Runtime` isolates scripts from each other and from the standard libraries. Nothing in the engine
-turns it on yet: a game script cannot see it (`ScriptHost` will call `sandbox()` once `require` lands, see the
-epic "[Luau] require() for game scripts").
+How `rtype::luau::Runtime` isolates scripts from each other and from the standard libraries. `ScriptHost::seal()` turns it on
+before the first game module runs (`docs/scripting/plan.md` D10).
 
 ## Opt-in sandbox
 
