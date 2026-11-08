@@ -35,6 +35,7 @@ nav:
   - Particles: particles.md
   - User interface: ui.md
   - HTTP: http.md
+  - Persistence: persistence.md
   - Editor: editor.md
   - Native plugins: native-plugins.md
   - Shipping your game: shipping.md
