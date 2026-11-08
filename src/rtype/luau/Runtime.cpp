@@ -30,11 +30,15 @@
 #include "ErrorKind.hpp"
 #include "Exceptions.hpp"
 #include "Failure.hpp"
+#include "Function.hpp"
+#include "FunctionRef.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
 #include "RuntimeConfig.hpp"
 #include "Script.hpp"
 #include "Table.hpp"
+#include "ValuePack.hpp"
+#include "detail/Stack.hpp"
 #include "detail/UsertypeRegistry.hpp"
 
 namespace {
@@ -203,6 +207,20 @@ Result<> Runtime::run(const Ref& closure) const { return runClosure(_state.get()
 // ReSharper disable once CppMemberFunctionMayBeStatic
 // NOLINTNEXTLINE(*-convert-member-functions-to-static)
 Result<> Runtime::run(const Script& script) const { return runClosure(script.state(), script.closure()); }
+
+Result<ValuePack> Runtime::call(const Script& script, const ValuePack& args) const {
+    lua_State* const state = script.state();
+    if (lua_checkstack(state, 2) == 0) {
+        return Failure{ErrorKind::kStackOverflow, "Lua stack overflow"};
+    }
+    script.closure().push(state);
+    auto function = detail::readFunctionRef(state);
+    lua_pop(state, 1);
+    if (!function) {
+        return forwardError<ValuePack>(std::move(function));
+    }
+    return Function::fromRef(*function, std::string{script.name()}).call(args);
+}
 
 void Runtime::sandbox() {
     if (_sandboxed) {
