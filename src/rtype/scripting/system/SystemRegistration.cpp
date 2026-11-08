@@ -255,6 +255,9 @@ Result<BuiltSystem> makeSystem(ecs::App& app, SystemDeclaration declaration, std
         .events = std::move(events->first),
         .calls = std::move(calls->first),
         .clientSide = declaration.side == ecs::Side::kClient,
+        .side = declaration.side == ecs::Side::kClient ? "client"
+                : declaration.side == ecs::Side::kBoth ? "both"
+                                                       : "server",
         .components = &components.getRegistry(),
         .runtime = std::move(runtime),
         .scope = std::make_shared<view::ViewScope>(),

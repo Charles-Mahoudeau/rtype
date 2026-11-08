@@ -9,6 +9,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "RuntimeHandle.hpp"
@@ -55,6 +56,7 @@ struct ScriptSystem {
     std::vector<EventTerm> events;            ///< Its event types, in the order of its EventList.
     std::vector<const ecs::CallInfo*> calls;  ///< Its engine calls, in the order of its CallList; owned by the world.
     bool clientSide{false};                   ///< Runs on clients only: its commands cannot add replicated components.
+    std::string_view side{"server"};          ///< `ctx.side`: "server" (the default), "client" or "both".
     const ecs::ComponentRegistry* components{nullptr};  ///< The world's components, for its commands.
     std::shared_ptr<RuntimeHandle> runtime;             ///< The runtime of the host, null inside once it is destroyed.
     std::shared_ptr<view::ViewScope> scope;             ///< Invalidates the views of a run when it returns.
