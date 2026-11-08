@@ -37,7 +37,7 @@ if engine.isClient then
 end
 ```
 
-`project.luau` has no standard library (no `tonumber`), so `engine.args` holds typed values (`CommandLine::toValue()`):
+`project.luau` has the pure standard libraries (`table`, `string`, `math`, `tonumber`...; no `os`/`debug`), and `engine.args` holds typed values (`CommandLine::toValue()`):
 `true` and `false` are booleans, a decimal number (`4242`, `-3`, `0.5`, `1e3`) is a number, anything else is a string.
 
 ### The admin flags
