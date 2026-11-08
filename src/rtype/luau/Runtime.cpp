@@ -70,8 +70,6 @@ Runtime::Runtime(lua_State* state, const RuntimeConfig config)
     } else if (_config.libs != RuntimeConfig::Libs::kNone) {
         throw std::runtime_error{"unsupported library configuration"};
     }
-    // TODO: enable later, this breaks more things than it fixes
-    // luaL_sandbox(_state.get());
 }
 
 Runtime::~Runtime() noexcept = default;
@@ -83,6 +81,7 @@ Runtime& Runtime::operator=(Runtime&& other) noexcept {
         // The handlers of the usertypes go before the state they belong to is closed.
         _usertypes.reset();
         _config = other._config;
+        _sandboxed = other._sandboxed;
         _state = std::move(other._state);
         _usertypes = std::move(other._usertypes);
     }
@@ -139,8 +138,10 @@ Result<Script> Runtime::load(std::string name, const std::string& source) const 
     lua_State* threadState = lua_newthread(_state.get());
     Ref thread = Ref::pop(_state.get());
 
-    // TODO: enable later, when global state will be sandboxed
-    // luaL_sandboxthread(threadState);
+    if (_sandboxed) {
+        // The thread gets its own global table, which falls back on the shared (frozen) one.
+        luaL_sandboxthread(threadState);
+    }
 
     // The '=' prefix makes Luau use the name as it is in messages (`Shield.luau:3:`), not as `[string
     // "Shield.luau"]:3:`.
@@ -177,6 +178,16 @@ Result<> Runtime::run(const Ref& closure) const { return runClosure(_state.get()
 // ReSharper disable once CppMemberFunctionMayBeStatic
 // NOLINTNEXTLINE(*-convert-member-functions-to-static)
 Result<> Runtime::run(const Script& script) const { return runClosure(script.state(), script.closure()); }
+
+void Runtime::sandbox() {
+    if (_sandboxed) {
+        return;
+    }
+    luaL_sandbox(_state.get());
+    _sandboxed = true;
+}
+
+bool Runtime::isSandboxed() const noexcept { return _sandboxed; }
 
 Table Runtime::globals() const {
     lua_pushvalue(_state.get(), LUA_GLOBALSINDEX);

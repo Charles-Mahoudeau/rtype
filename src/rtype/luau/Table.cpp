@@ -308,6 +308,27 @@ Result<void> detail::pushTable(lua_State* state, const Table& table) {
     return {};
 }
 
+Result<void> Table::freeze() {
+    lua_State* const target{state()};
+    if (!reserveStack(target)) {
+        return stackOverflow();
+    }
+    const StackGuard guard{target};
+    _ref->push(target);
+    lua_setreadonly(target, -1, 1);
+    return {};
+}
+
+Result<bool> Table::isFrozen() const {
+    lua_State* const target{state()};
+    if (!reserveStack(target)) {
+        return stackOverflow();
+    }
+    const StackGuard guard{target};
+    _ref->push(target);
+    return lua_getreadonly(target, -1) != 0;
+}
+
 Result<bool> Table::refersToSame(const Table& other) const {
     lua_State* const target{state()};
     if (target != other.state()) {

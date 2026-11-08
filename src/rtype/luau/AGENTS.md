@@ -18,4 +18,4 @@ linked into the executable.
 ## Tests and docs
 
 - Tests: `tests/luau/` (`luau-tests`).
-- Docs: `docs/luau/error-handling.md`, `docs/luau/type-definitions.md`.
+- Docs: `docs/luau/error-handling.md`, `docs/luau/type-definitions.md`, `docs/luau/sandbox.md`.

@@ -226,6 +226,12 @@ void UsertypeData::addMethod(std::string name, Method method) {
 }
 
 void UsertypeData::setConstructor(Constructor constructor) {
+    if (lua_getreadonly(_state, LUA_GLOBALSINDEX) != 0) {
+        // Writing a frozen table outside a protected call would raise an unprotected Luau error.
+        throw exceptions::InvalidOperation{std::format(
+            "cannot publish the constructor of '{}': the global table is frozen (register usertypes before sandbox())",
+            _name)};
+    }
     {
         lua_getglobal(_state, _name.c_str());
         bool taken = !lua_isnil(_state, -1);
@@ -337,7 +343,7 @@ int UsertypeData::callMethod(lua_State* state) {
     const auto& entry = *static_cast<const MethodEntry*>(lua_tolightuserdata(state, lua_upvalueindex(kSecondUpvalue)));
     return protect(
         state,
-        [&]() -> int {
+        [&] -> int {
             void* object{requireObject(state, data, kSelfIndex)};
             const ValuePack args{readArgs(state, kSelfIndex + 1)};
             const ValuePack results{entry.handler(object, args.values())};

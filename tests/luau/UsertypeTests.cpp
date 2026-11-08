@@ -612,3 +612,13 @@ TEST(Usertype, ReadsAUserdataFromADestructorWhileTheRuntimeCloses) {
 
     EXPECT_TRUE(ran);
 }
+
+TEST(Usertype, ConstructorAfterSandboxThrowsInsteadOfWritingTheFrozenGlobals) {
+    auto runtime = makeRuntime();
+    runtime.sandbox();
+
+    EXPECT_THROW(rtype::luau::expect(runtime.usertype<Other>("Other")).constructor([](const double value) {
+        return Other{.value = value};
+    }),
+                 rtype::luau::exceptions::InvalidOperation);
+}

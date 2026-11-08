@@ -57,7 +57,8 @@ class RTYPE_LUAU_API Runtime {
 
     /// @brief Compiles and loads a script from its source code, without running it.
     ///
-    /// The script is loaded in its own sandboxed thread, which the returned `Script` keeps alive.
+    /// The script is loaded in its own thread, which the returned `Script` keeps alive. Once `sandbox()` has been
+    /// called, the thread also gets its own global table (see `sandbox()`); before, every script shares the globals.
     /// @param name Name of the script, used in error messages.
     /// @param source Luau source code.
     /// @return The loaded script, or an error (`ErrorKind::kCompilation` if the compilation fails,
@@ -81,6 +82,23 @@ class RTYPE_LUAU_API Runtime {
     /// @return Success, or an `ErrorKind::kRuntime` error if the script raised an error.
     [[nodiscard]] Result<> run(const Script& script) const;
 
+    /// @brief Seals the shared environment: freezes the global table and the standard libraries (`luaL_sandbox`).
+    ///
+    /// Opt-in and idempotent: a runtime is not sandboxed until this is called, so the host can first set the globals
+    /// every script must see. Afterwards:
+    /// - Every script loaded by `load()` runs in its own thread environment (`luaL_sandboxthread`): the globals it
+    ///   assigns stay in that environment, while it still reads the shared, frozen globals.
+    /// - Scripts loaded before the call keep sharing the global table, which is now read-only.
+    /// - The standard libraries (`string`, `table`...) are read-only.
+    /// - `globals()` still returns the shared table, which is now frozen: `Table::set` on it returns a `kRuntime`
+    ///   failure instead of writing (it never throws or crashes).
+    void sandbox();
+
+    /// @brief Tells whether `sandbox()` has been called.
+    [[nodiscard]] bool isSandboxed() const noexcept;
+
+    /// @brief Gets the shared global table.
+    /// @return The global table; frozen once `sandbox()` has been called.
     [[nodiscard]] Table globals() const;
 
     /// @brief Registers a C++ type so that scripts can use its objects as userdata.
@@ -130,6 +148,7 @@ class RTYPE_LUAU_API Runtime {
 
     RuntimeConfig _config;                            ///< Configuration the runtime was created with.
     std::unique_ptr<lua_State, StateDeleter> _state;  ///< Owned Lua state.
+    bool _sandboxed{false};                           ///< Whether `sandbox()` has been called.
 
     /// Usertypes of the Lua state. Declared after the state, so it is destroyed first: the handlers (which may hold
     /// references of the state) go before the state is closed. Do not reorder: the closures of the metatables hold a

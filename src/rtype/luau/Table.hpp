@@ -187,6 +187,24 @@ class RTYPE_LUAU_API Table {
     ///         `entries()`.
     [[nodiscard]] Result<Map> toMap() const;
 
+    /// @brief Makes the table read-only, like Luau's `table.freeze`.
+    ///
+    /// Shallow: nested tables stay writable. A write from a script raises a Luau error; `set`, `setAt`,
+    /// `setMetatable` and `clearMetatable` from C++ return a `kRuntime` failure. Freezing is irreversible and
+    /// idempotent.
+    ///
+    /// Exception: a script assigning an absent key of a frozen table with a `__newindex` metamethod calls that
+    /// handler without a read-only error; the handler can return normally or have side effects, the table itself
+    /// stays unchanged.
+    /// @return Nothing on success, or a Failure of kind `kStackOverflow` if the stack cannot grow.
+    /// @throws exceptions::InvalidRef If the handle was moved from.
+    [[nodiscard]] Result<void> freeze();
+
+    /// @brief Tells whether the table is read-only.
+    /// @return `true` if frozen, or a Failure of kind `kStackOverflow` if the stack cannot grow.
+    /// @throws exceptions::InvalidRef If the handle was moved from.
+    [[nodiscard]] Result<bool> isFrozen() const;
+
     /// @brief Checks whether two handles refer to the same table (raw identity, not equal contents).
     /// @param other The handle to compare with.
     /// @return `true` if they do (`false` for a table of another Lua state), or a Failure of kind `kStackOverflow`
