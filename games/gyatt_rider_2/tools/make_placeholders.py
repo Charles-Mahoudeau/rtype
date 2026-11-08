@@ -2,7 +2,7 @@
 """Draws the placeholder assets of GyattRider 2: flat shapes of one or two colors, to replace with real art.
 
 Run it from anywhere: python3 games/gyatt_rider_2/tools/make_placeholders.py
-It overwrites the files it makes in game/assets/. A replacement keeps the same file name and the same size in tiles.
+It overwrites the files it makes in assets/. A replacement keeps the same file name and the same size in tiles.
 The roads are vertical: everything faces up, the way the riders go.
 """
 
@@ -18,7 +18,7 @@ SIDEBAR_TILES = 1  # the strip on the left, under the timer and the gauge
 VIEW_TILES = (SIDEBAR_TILES + ROAD_TILES * ROAD_COUNT, 10)  # 17 x 10 tiles: 1088 x 640
 ROAD_SCROLL = 600  # pixels per second the roads scroll down
 
-ASSETS = Path(__file__).resolve().parent.parent / "game" / "assets"
+ASSETS = Path(__file__).resolve().parent.parent / "assets"
 
 ASPHALT = (43, 43, 46, 255)
 EDGE_LINE = (232, 182, 40, 255)
