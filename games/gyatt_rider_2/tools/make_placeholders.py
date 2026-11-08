@@ -127,11 +127,6 @@ def roads_map(image_size):
     }
 
 
-def particle_square():
-    """The particles' plain white square, tinted by each effect."""
-    return Image.new("RGBA", (8, 8), (255, 255, 255, 255))
-
-
 def beam_square():
     """One square of a shot's beam, which the client repeats from the shooter to what it hits."""
     return Image.new("RGBA", (BEAM_SQUARE, BEAM_SQUARE), (255, 255, 255, 255))
@@ -151,7 +146,6 @@ def main():
     for slot, color in enumerate(RIDERS):
         save(body((1, 2), color), f"riders/rider_{slot}.png")
     save(beam_square(), "beam.png")
-    save(particle_square(), "particle.png")
 
 
 if __name__ == "__main__":

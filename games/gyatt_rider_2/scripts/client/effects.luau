@@ -1,48 +1,36 @@
--- The particles and the screen shake: a burst of squares where each beam stops, a bigger one on each rider hit, and
--- the camera shaking when the player's own rider is hit. The particles are a plain white square (assets/particle.png),
--- tinted: square, hard-edged quads.
+-- The particles and the screen shake. One effect, the impact (assets/particles/impact.png): a single particle the
+-- size of a rider's width that grows and fades out, at the start of each beam, where a beam stops on something, and
+-- on each rider hit. The camera shakes when the player's own rider is hit.
 
 local Game = require("@scripts/shared/rules")
 local RiderEvents = require("@scripts/client/riderevents")
 
-local square = engine.assets.texture("particle.png", { linear = false })
-
 local impact = engine.assets.particle({
 	name = "game.impact",
-	texture = square,
+	texture = engine.assets.texture("particles/impact.png", { linear = false }),
+	blend = "alpha", -- the image's own colors
 	loop = false,
-	duration = 0.1,
-	bursts = { { count = 18 } },
-	lifetime = { min = 0.15, max = 0.3 },
-	speed = { min = 120, max = 320 },
-	size = { min = 6, max = 10 },
-	color = { 1, 0.75, 0.2 },
-	colorOverLife = { { t = 0, color = { 1, 1, 1, 1 } }, { t = 1, color = { 1, 0.4, 0, 0 } } },
-	sizeOverLife = { { t = 0, value = 1 }, { t = 1, value = 0.3 } },
-})
-local hitBurst = engine.assets.particle({
-	name = "game.hit",
-	texture = square,
-	loop = false,
-	duration = 0.1,
-	bursts = { { count = 36 } },
-	lifetime = { min = 0.3, max = 0.6 },
-	speed = { min = 80, max = 380 },
-	size = { min = 8, max = 14 },
-	drag = 2,
-	colorOverLife = {
-		{ t = 0, color = { 1, 1, 1, 1 } },
-		{ t = 0.3, color = { 1, 0.2, 0.2, 1 } },
-		{ t = 1, color = { 0.6, 0, 0, 0 } },
-	},
+	duration = 0.05,
+	bursts = { { count = 1 } },
+	lifetime = 0.35,
+	size = Game.riderSize.x, -- square, as wide as a rider
+	sizeOverLife = { { t = 0, value = 1 }, { t = 1, value = 2 } },
+	color = { 1, 1, 1, 0.5 },
+	colorOverLife = { { t = 0, color = { 1, 1, 1, 1 } }, { t = 1, color = { 1, 1, 1, 0 } } },
 })
 local effectsLayer = 3 -- over the riders
+
+--- Whether a beam that ends at @p to stopped on something, rather than at the view's edge.
+local function stoppedOn(to): boolean
+	return to.x > Game.roadsLeft and to.x < Game.roadsRight and to.y > 0 and to.y < Game.viewHeight
+end
 
 local shakeSeconds = 0.35
 local shakeStrength = 14 -- world units, at the start of a shake
 local shakeLeft = 0 -- seconds of shaking left
 
--- Update: a burst where each of this frame's beams stops, and one on each rider hit; the player's own hit shakes.
+-- Update: an impact at the start of each of this frame's beams, where it stopped on something, and on each rider hit;
+-- the player's own hit shakes.
 engine.ecs.system("game.SpawnEffects", {
 	phase = "Update",
 	side = "client",
@@ -50,11 +38,17 @@ engine.ecs.system("game.SpawnEffects", {
 	events = { send = { "rtype.SpawnParticles" } },
 	after = { "game.DetectRiderEvents" },
 	run = function(ctx)
+		local function burst(at)
+			ctx.events.send("rtype.SpawnParticles", { effect = impact, position = at, layer = effectsLayer })
+		end
 		for _, shot in RiderEvents.shots() do
-			ctx.events.send("rtype.SpawnParticles", { effect = impact, position = shot.to, layer = effectsLayer })
+			burst(shot.from)
+			if stoppedOn(shot.to) then
+				burst(shot.to)
+			end
 		end
 		for _, hit in RiderEvents.hits() do
-			ctx.events.send("rtype.SpawnParticles", { effect = hitBurst, position = hit.at, layer = effectsLayer })
+			burst(hit.at)
 			if hit.mine then
 				shakeLeft = shakeSeconds
 			end
