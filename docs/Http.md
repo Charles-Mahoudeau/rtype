@@ -104,6 +104,6 @@ requests from scripts.
 
 ## Later
 
-- JSON for scripts (encode a table, decode a body): today a script writes and reads the text itself.
+- JSON for a body: see [`Json.md`](Json.md) (`engine.json.encode` / `decode`).
 - Streaming responses (an AI model's tokens as they come).
 - Hot reload of the `http` settings.

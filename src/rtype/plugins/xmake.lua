@@ -131,6 +131,11 @@ plugin("http", {})
         add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN")
     end
 
+plugin("json", {})
+    add_files("json/**.cpp")
+    add_files("json/JsonForms.luau")
+    add_headerfiles("json/**.hpp")
+
 plugin("persistence", {})
     add_files("persistence/**.cpp")
     add_files("persistence/PersistenceForms.luau")
@@ -139,6 +144,6 @@ plugin("persistence", {})
 -- Every plugin library, for what loads them without linking them: the executables build after it.
 target("plugin-libraries")
     set_kind("phony")
-    add_deps("plugin-audio", "plugin-capsule", "plugin-graphics", "plugin-http", "plugin-input", "plugin-particle",
+    add_deps("plugin-audio", "plugin-capsule", "plugin-graphics", "plugin-http", "plugin-input", "plugin-json", "plugin-particle",
              "plugin-persistence", "plugin-physics", "plugin-physics-debug", "plugin-shader", "plugin-shape", "plugin-sprite", "plugin-text",
              "plugin-tilemap", "plugin-transform", "plugin-ui")
