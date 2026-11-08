@@ -2569,7 +2569,11 @@ therefore be added in any order; the manifest check reads the registry when the 
       that entity fields can refer to entities spawned by the same snapshot (the reserved entities are valid
       references in the same buffer);
    2. the component values of spawns and updates are then decoded again with the real mapper and added: added if the
-      entity does not have the component, overwritten otherwise. An update for an unknown net id is ignored;
+      entity does not have the component, overwritten otherwise. An update for an unknown net id is ignored. A value
+      the entity already holds is not written again, so that `Changed` means changed (a snapshot lists every component
+      every time, and a client's physics rebuilds a body whose `Collider` changed): the entity's own value is written
+      as the server writes it and compared with the received bytes. A component an earlier snapshot of the same frame
+      already wrote or removed, whose commands have not run yet, is always written;
    3. **removals**: remove the component if present;
    4. **despawns**: despawn the entity and remove it from the map;
    5. if `kComplete` is set: despawn every mapped entity that is not in the spawn list, and remove from each listed
