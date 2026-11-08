@@ -17,6 +17,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "rtype/ecs/app/AppExit.hpp"
 #include "rtype/ecs/app/Plugin.hpp"

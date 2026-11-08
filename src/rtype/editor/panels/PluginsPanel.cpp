@@ -59,7 +59,8 @@ void drawPluginsPanel(EditorState& state) {
         }
         if (!list.notLoaded.empty() && ImGui::CollapsingHeader("Available, not loaded")) {
             for (const std::string& name : list.notLoaded) {
-                ImGui::BulletText("%s", name.c_str());
+                ImGui::Bullet();
+                ImGui::TextUnformatted(name.c_str());
             }
         }
     }
