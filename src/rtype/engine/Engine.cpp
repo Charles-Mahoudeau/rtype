@@ -323,6 +323,14 @@ int Engine::run(std::optional<std::size_t> maxFrames) {
         pollHotReload();
         if (_reloadRequested.exchange(false)) {
             reload();
+            if (!_app) {
+                if (maxFrames) {
+                    std::cerr << "[Engine] A run with a frame limit does not wait for a change in the game files: "
+                                 "stopping.\n";
+                    return kBuildFailedCode;
+                }
+                std::cerr << "[Engine] Waiting for a change in the game files to try again.\n";
+            }
         }
     }
 }
@@ -363,9 +371,7 @@ void Engine::reload() {
         }
         _app.reset();
         _scriptHost = nullptr;
-        std::cerr << std::format(
-            "[Engine] The game cannot be built: {}\n[Engine] Waiting for a change in the game files to try again.\n",
-            error.what());
+        std::cerr << std::format("[Engine] The game cannot be built: {}\n", error.what());
     }
 }
 
