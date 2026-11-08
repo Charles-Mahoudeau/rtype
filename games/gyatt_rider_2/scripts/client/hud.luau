@@ -1,6 +1,7 @@
 -- The HUD, drawn with the UI over the game: the four scores along the top, in the players' colors, the time left in the
 -- strip on the left, the player's own score in the bottom right corner, and a message in the middle while the match
--- waits or is over. Its texts carry a game.HudText, and game.ShowHud rewrites them from what the server sends.
+-- waits. Its texts carry a game.HudText, and game.ShowHud rewrites them from what the server sends. It also tells the
+-- other modules what it read (the results, client/results.luau).
 
 local Game = require("@scripts/shared/rules")
 local assets = require("@scripts/client/assets")
@@ -134,8 +135,6 @@ local function textOf(hud): string
 		return if ownSlot then tostring(pointsOf[ownSlot] or 0) else ""
 	elseif match.phase == Game.waiting then
 		return `Waiting for players ({riders}/{Game.minPlayers})`
-	elseif match.phase == Game.over then
-		return "Match over"
 	end
 	return ""
 end
@@ -155,3 +154,22 @@ engine.ecs.system("game.ShowHud", {
 		end
 	end,
 })
+
+return {
+	--- The riders' points by slot, as read this frame.
+	pointsOf = function(): { [number]: number }
+		return table.clone(pointsOf)
+	end,
+	--- The slot of this client's own rider, or nil while it has none.
+	ownSlot = function(): number?
+		return ownSlot
+	end,
+	--- The match's phase: Game.waiting, Game.racing or Game.over.
+	phase = function(): number
+		return match.phase
+	end,
+	--- A player's color by slot, as the HUD draws it: { r, g, b, a }.
+	colorOf = function(slot: number): { number }
+		return table.clone(playerColors[slot + 1])
+	end,
+}

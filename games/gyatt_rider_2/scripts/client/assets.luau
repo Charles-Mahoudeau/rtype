@@ -2,6 +2,8 @@
 -- anything there. The textures are not smoothed (`linear = false`): hard edges, even when the view is scaled.
 
 return {
+	-- The music, decoded while it plays (stream): a long track.
+	music = engine.assets.sound("sounds/music.wav", { stream = true }),
 	-- The HUD's font, Orbitron (fonts/OFL.txt), a font atlas made with msdf-atlas-gen.
 	font = engine.assets.font("fonts/orbitron.json"),
 	-- The 8 roads, repeated down the view and scrolling on their own (the map's `scrolly`).

@@ -20,7 +20,8 @@ engine.settings.plugins = { "rtype.Physics", "rtype.Capsule" }
 if engine.isClient then
 	engine.settings.plugins = {
 		"rtype.Physics", "rtype.Capsule", "rtype.Input", "rtype.graphics", "rtype.Shader", "rtype.Sprite",
-		"rtype.SpriteDraw", "rtype.Shape", "rtype.Tilemap", "rtype.Text", "rtype.Ui", "rtype.PhysicsDebug",
+		"rtype.SpriteDraw", "rtype.Shape", "rtype.Tilemap", "rtype.Text", "rtype.Ui", "rtype.audio",
+		"rtype.PhysicsDebug",
 	}
 end
 engine.settings.physics.gravity = { 0, 0 }
@@ -44,6 +45,11 @@ if engine.isClient then
 	engine.settings.window.fullscreen = engine.args.fullscreen == true
 
 	engine.settings.vulkan.virtualResolution = { GAME_WIDTH, GAME_HEIGHT }
+
+	-- The music, through miniaudio; a machine without a sound device plays silently rather than not starting.
+	engine.settings.audio.backend = "miniaudio"
+	engine.settings.audio.required = false
+	engine.settings.audio.volume.music = 0.7
 
 	if engine.isDebug then
 		engine.settings.vulkan.layers = { "VK_LAYER_KHRONOS_validation" }
