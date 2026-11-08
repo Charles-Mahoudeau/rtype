@@ -12,6 +12,7 @@ game.Gun = {}
 game.Score = {}
 game.Shield = {}
 game.ShieldClock = {}
+game.Boosts = {}
 rtype.Transform = {}
 rtype.Collider = { shape = 0, size = (64, 128), sensor = true, layer = 1, mask = 2 }
 rtype.RigidBody = { type = 1 }

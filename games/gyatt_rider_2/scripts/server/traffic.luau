@@ -4,7 +4,7 @@
 local Game = require("@scripts/shared/rules")
 
 -- The capsule of each kind, how often it comes compared with the others, and the tiles of its road it may drive on,
--- from the road's middle: a vehicle in the middle, a cyclist on any of the three.
+-- from the road's middle: a vehicle in the middle, a cyclist on any of the three. A cyclist may carry a boost.
 local middle = { 0 }
 local anyTile = { -1, 0, 1 }
 local kinds = {
@@ -14,7 +14,7 @@ local kinds = {
 	{ capsule = "actors/truck.actor", weight = 2, tiles = middle },
 	{ capsule = "actors/bus.actor", weight = 1, tiles = middle },
 	{ capsule = "actors/limousine.actor", weight = 1, tiles = middle },
-	{ capsule = "actors/cyclist.actor", weight = 4, tiles = anyTile },
+	{ capsule = "actors/cyclist.actor", weight = 4, tiles = anyTile, cyclist = true },
 }
 local totalWeight = 0
 for _, kind in kinds do
@@ -43,6 +43,14 @@ local function drawKind()
 	return kinds[#kinds]
 end
 
+--- A cyclist's boost: one of the four, Game.boostChance of the time, or none.
+local function drawBoost(): number
+	if math.random() >= Game.boostChance then
+		return Game.noBoost
+	end
+	return math.random(Game.pointsBoost, Game.sniperBoost)
+end
+
 -- FixedUpdate, once the physics stepped, so that it asks the scene of this tick: now and then, a vehicle of a random
 -- kind enters a random road whose entrance is free, on one of the tiles its kind drives on.
 engine.ecs.system("game.SpawnTraffic", {
@@ -69,10 +77,14 @@ engine.ecs.system("game.SpawnTraffic", {
 		end
 		local kind = drawKind()
 		local position = { x = roadX + kind.tiles[math.random(1, #kind.tiles)] * Game.tile, y = spawnY }
-		engine.capsule.spawn(ctx, kind.capsule, {
+		local overrides = {
 			["rtype.Transform"] = { position = position },
 			["game.Position"] = { value = position },
-		})
+		}
+		if kind.cyclist then
+			overrides["game.Cyclist"] = { boost = drawBoost() }
+		end
+		engine.capsule.spawn(ctx, kind.capsule, overrides)
 	end,
 })
 

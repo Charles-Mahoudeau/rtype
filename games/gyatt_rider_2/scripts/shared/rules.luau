@@ -26,6 +26,19 @@ local Game = {
 	hitLoss = 0.1, -- the share of its points a hit rider loses; the shooter takes it, the traffic takes it from nobody
 	hitShield = 2, -- seconds a hit rider cannot be hit again
 
+	-- The boosts a cyclist may carry (game.Cyclist.boost), given to the rider whose shot reaches it.
+	noBoost = 0,
+	pointsBoost = 1, -- Game.boostPoints at once
+	speedBoost = 2, -- Game.boostSpeedFactor times faster for Game.boostSpeedSeconds
+	shieldBoost = 3, -- invincible for Game.boostShieldSeconds
+	sniperBoost = 4, -- shots go through everything for Game.boostSniperSeconds
+	boostChance = 0.5, -- the share of cyclists that carry one
+	boostPoints = 50,
+	boostSpeedFactor = 1.5,
+	boostSpeedSeconds = 15,
+	boostShieldSeconds = 5,
+	boostSniperSeconds = 5,
+
 	-- The collision categories: each Collider belongs to some (layer) and collides with some (mask). A shot is a ray,
 	-- which picks the categories it sees: it needs none of its own.
 	riderLayer = 1,
@@ -90,6 +103,8 @@ engine.ecs.component("game.Score", { fields = { points = "u32" }, replication = 
 engine.ecs.component("game.Shield", { fields = { active = "bool" }, replication = "everyChange" })
 -- Server only: the seconds before a rider's shield turns off.
 engine.ecs.component("game.ShieldClock", { fields = { remaining = "f32" }, presence = "serverOnly" })
+-- Server only: the seconds a rider's speed and sniper boosts still last.
+engine.ecs.component("game.Boosts", { fields = { speed = "f32", sniper = "f32" }, presence = "serverOnly" })
 -- Server only: the seconds before a rider can fire again.
 engine.ecs.component("game.Gun", { fields = { cooldown = "f32" }, presence = "serverOnly" })
 -- A shot's beam, an entity of its own sent once: it goes from the rider in slot `shooter` to what it hit, or to the
@@ -119,8 +134,8 @@ engine.ecs.component("game.Hit", {
 -- The traffic: one capsule file per kind in assets/actors/, which gives its size (its collider), its look and its
 -- speed. Server only: how fast it goes up the view, in world units per second. Slow: the traffic overtakes the riders.
 engine.ecs.component("game.Driving", { fields = { speed = "f32" }, presence = "serverOnly" })
--- The vehicles that are cyclists, sent once: the boost a shot that hits it gives (0 for none), and the gauge follows
--- them.
+-- The vehicles that are cyclists, sent once: the boost a shot that hits it gives (Game.noBoost...), which the clients
+-- show by its color, and the gauge follows them.
 engine.ecs.component("game.Cyclist", { fields = { boost = "u8" }, replication = "spawnOnly" })
 
 -- Markers of the scene's client nodes (assets/scenes/roads.scene): a server reads the file too, and the camera and the

@@ -1,24 +1,33 @@
 -- The hits: a vehicle that runs over a rider and a shot that reaches anything spawn a game.Hit, and the hits are
 -- resolved here, in one place, whatever made them. A rider is not removed by a hit: it loses Game.hitLoss of its points
 -- and keeps riding, and its shooter wins Game.hitReward plus what it lost; then its shield keeps it from being hit
--- again for Game.hitShield seconds. A cyclist is: knocked off the road, it gives Game.hitReward (and its boost) once. A
+-- again for Game.hitShield seconds. A cyclist is: knocked off the road, it gives Game.hitReward and its boost once. A
 -- vehicle just stops the shot. The points count only while the match races.
 
 local Game = require("@scripts/shared/rules")
 local Match = require("@scripts/server/match")
 local Shield = require("@scripts/server/shield")
+local Boosts = require("@scripts/server/boosts")
 
 -- This tick's hits by victim (entity bits): the shooter of each, filled by game.CollectHits for the systems that
 -- resolve them.
 local hitsOf: { [number]: { number } } = {}
 
--- This tick's points won by shooters, by their slot: filled while the hits are resolved, paid by game.PayShooters, so
--- that a victim loses its share before anyone is paid.
+-- This tick's points and boosts won by shooters, by their slot: filled while the hits are resolved, given by
+-- game.RewardShooters, so that a victim loses its share before anyone is paid.
 local winningsOf: { [number]: number } = {}
+local boostsOf: { [number]: { number } } = {}
 
 --- Gives @p points to the shooter in @p slot, paid at the end of the tick.
 local function win(slot: number, points: number)
 	winningsOf[slot] = (winningsOf[slot] or 0) + points
+end
+
+--- Gives @p boost to the shooter in @p slot, at the end of the tick.
+local function winBoost(slot: number, boost: number)
+	local boosts = boostsOf[slot] or {}
+	table.insert(boosts, boost)
+	boostsOf[slot] = boosts
 end
 
 -- FixedUpdate, once the physics sent this tick's events: a vehicle that enters a rider (a sensor) hits it. The event
@@ -103,7 +112,8 @@ engine.ecs.system("game.ResolveRiderHits", {
 	end,
 })
 
--- FixedUpdate: a cyclist shot this tick is knocked off the road, by the first shot that reached it.
+-- FixedUpdate: a cyclist shot this tick is knocked off the road, and gives its points and its boost to the first shot
+-- that reached it.
 engine.ecs.system("game.ResolveCyclistHits", {
 	phase = "FixedUpdate",
 	side = "server",
@@ -113,12 +123,15 @@ engine.ecs.system("game.ResolveCyclistHits", {
 		if next(hitsOf) == nil then
 			return
 		end
-		for entity in ctx.query do
+		for entity, cyclist in ctx.query do
 			local shooters = hitsOf[entity.bits]
 			if shooters then
-				print(`[server] player {shooters[1] + 1} shot a cyclist`)
+				print(`[server] player {shooters[1] + 1} shot a cyclist carrying boost {cyclist.boost}`)
 				if Match.racing() then
 					win(shooters[1], Game.hitReward)
+				end
+				if cyclist.boost ~= Game.noBoost then
+					winBoost(shooters[1], cyclist.boost)
 				end
 				ctx.commands:despawn(entity)
 			end
@@ -126,22 +139,27 @@ engine.ecs.system("game.ResolveCyclistHits", {
 	end,
 })
 
--- FixedUpdate, once every hit of the tick is resolved: pays the shooters what they won.
-engine.ecs.system("game.PayShooters", {
+-- FixedUpdate, once every hit of the tick is resolved: gives the shooters the points and the boosts they won.
+engine.ecs.system("game.RewardShooters", {
 	phase = "FixedUpdate",
 	side = "server",
-	query = { read = { "game.Rider" }, write = { "game.Score" } },
+	query = { read = { "game.Rider" }, write = { "game.Score", "game.Shield", "game.ShieldClock", "game.Boosts" } },
 	after = { "game.ResolveRiderHits", "game.ResolveCyclistHits" },
 	run = function(ctx)
-		if next(winningsOf) == nil then
+		if next(winningsOf) == nil and next(boostsOf) == nil then
 			return
 		end
-		for _, rider, score in ctx.query do
+		local counts = Match.racing()
+		for _, rider, score, shield, clock, boosts in ctx.query do
 			local points = winningsOf[rider.slot]
 			if points then
 				score.points += points
 			end
+			for _, boost in boostsOf[rider.slot] or {} do
+				Boosts.give(boost, counts, score, shield, clock, boosts)
+			end
 		end
 		table.clear(winningsOf)
+		table.clear(boostsOf)
 	end,
 })

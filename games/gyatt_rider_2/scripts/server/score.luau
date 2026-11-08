@@ -14,7 +14,7 @@ engine.ecs.system("game.CountScores", {
 	phase = "FixedUpdate",
 	side = "server",
 	query = { read = { "game.Rider" }, write = { "game.Score" } },
-	after = { "game.RunMatch", "game.PayShooters" },
+	after = { "game.RunMatch", "game.RewardShooters" },
 	run = function(ctx)
 		local round, secondsLeft, phase = Match.round(), Match.secondsLeft(), Match.phase()
 		local starts = round ~= seen.round
