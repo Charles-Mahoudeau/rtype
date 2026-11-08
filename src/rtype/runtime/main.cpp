@@ -16,8 +16,8 @@
 #include <exception>
 #include <iostream>
 #include <optional>
-#include <stdexcept>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>

@@ -8,10 +8,10 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
 #include <filesystem>
 #include <memory>
 #include <mutex>
-#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>

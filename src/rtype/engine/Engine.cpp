@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <charconv>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <filesystem>
@@ -19,7 +20,6 @@
 #include <map>
 #include <memory>
 #include <mutex>
-#include <cstddef>
 #include <optional>
 #include <span>
 #include <string>
