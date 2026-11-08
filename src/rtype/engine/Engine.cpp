@@ -92,12 +92,12 @@ std::filesystem::path findGame(const rtype::engine::CommandLine& commandLine, co
 
 /// @return The settings `project.luau` gives for this mode and command line.
 rtype::core::config::Settings loadSettings(const std::filesystem::path& game, const rtype::ecs::RunMode mode,
-                                           const rtype::engine::CommandLine& commandLine) {
+                                           const rtype::engine::CommandLine& commandLine, const bool isDebug) {
     rtype::engine::scripting::SettingsLoader loader;
 
     loader.setFlag("isClient", runsClient(mode));
     loader.setFlag("isServer", runsServer(mode));
-    loader.setFlag("isDebug", kIsDebug);
+    loader.setFlag("isDebug", isDebug);
     loader.setArgs(commandLine);
     loader.load(game / rtype::engine::Engine::kProjectFile);
     return loader.build();
@@ -203,7 +203,7 @@ Engine::Engine(EngineConfig config)
       _commandLine{CommandLine::parse(_config.args)},
       _gameDirectory{findGame(_commandLine, _config.game)},
       _reloader{_gameDirectory},
-      _hotReload{kIsDebug} {
+      _hotReload{_config.debug.value_or(kIsDebug)} {
     build();
 }
 
@@ -273,7 +273,8 @@ void Engine::reload() {
 void Engine::addHotReloadSources() {
     _reloader.add(std::make_unique<reload::ProjectReloadable>(std::filesystem::path{kProjectFile}, [this] {
         // The project is read again and its network settings checked, without building anything.
-        const core::config::Settings settings = loadSettings(_gameDirectory, _config.mode, _commandLine);
+        const core::config::Settings settings =
+            loadSettings(_gameDirectory, _config.mode, _commandLine, _config.debug.value_or(kIsDebug));
         static_cast<void>(makeNetworkPlugin(_config.mode, settings));
     }));
     _reloader.add(std::make_unique<reload::ScriptsReloadable>(_gameDirectory, std::filesystem::path{kScriptsDirectory},
@@ -331,8 +332,9 @@ void Engine::build() {
     _scriptHost = nullptr;
     _app.reset();
     addHotReloadSources();
-    _settings = loadSettings(_gameDirectory, _config.mode, _commandLine);
-    _hotReload = _settings.getBool(kHotReloadSetting, kIsDebug);
+    const bool isDebug = _config.debug.value_or(kIsDebug);
+    _settings = loadSettings(_gameDirectory, _config.mode, _commandLine, isDebug);
+    _hotReload = _settings.getBool(kHotReloadSetting, isDebug);
     // Checked before anything is built, so a wrong address fails before a window opens; added last, see the class.
     std::unique_ptr<ecs::Plugin> networkPlugin = makeNetworkPlugin(_config.mode, _settings);
     const bool client = runsClient(_config.mode);
@@ -380,7 +382,7 @@ void Engine::build() {
         .server = std::move(serverEntry),
         .client = std::move(clientEntry),
         .aliases = std::move(aliases),
-        .options = {.isClient = client, .isServer = server, .isDebug = kIsDebug},
+        .options = {.isClient = client, .isServer = server, .isDebug = isDebug},
         .onBuilt = [this](rtype::scripting::ScriptHost& host) { _scriptHost = &host; },
     }});
     if (networkPlugin) {
