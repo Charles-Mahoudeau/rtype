@@ -12,6 +12,9 @@ package("vma-hpp")
     end)
 package_end()
 add_requires("vma-hpp v3.3.0+3", {alias = "vulkan-memory-allocator-hpp", configs = {use_vulkanheaders = true}})
+-- A dependency of a package does not inherit `system = false` from the root requirement of the same name: without
+-- this, vma-hpp's vulkan-headers is apt's libvulkan-dev on Ubuntu 22.04 (1.3.204, no vulkan_hpp_macros.hpp).
+add_requireconfs("vma-hpp.vulkan-headers", {version = "1.4.x", system = false, override = true})
 -- glslangValidator compiles the shaders: from the glslang package required by the root xmake.lua, or from Homebrew on
 -- macOS (brew install glslang).
 
