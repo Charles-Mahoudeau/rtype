@@ -204,7 +204,9 @@ includes("src/rtype/plugins")
 includes("src/rtype/editor")
 includes("src/rtype/interop")
 includes("src/rtype/platform/glfw")
+includes("src/rtype/platform/sdl")
 includes("src/rtype/backend/null")
+includes("src/rtype/backend/raylib")
 includes("src/rtype/luau")
 includes("src/rtype/render/vulkan")
 includes("src/rtype/audio/miniaudio")
@@ -214,12 +216,12 @@ includes("src/rtype/tools/sign")
 -- Every backend library, for what loads them without linking them.
 target("backend-libraries")
     set_kind("phony")
-    add_deps("platform-glfw", "render-vulkan", "audio-miniaudio", "backend-null")
+    add_deps("platform-glfw", "platform-sdl", "render-vulkan", "audio-miniaudio", "backend-null", "backend-raylib")
 
 target("rtype")
     set_kind("phony")
     set_default(true)
-    add_deps("core", "ecs", "network", "replication", "engine", "platform-glfw", "luau", "render-vulkan", "audio-miniaudio", "backend-null",
+    add_deps("core", "ecs", "network", "replication", "engine", "platform-glfw", "platform-sdl", "luau", "render-vulkan", "audio-miniaudio", "backend-null", "backend-raylib",
              "aylo-runtime", "aylo-editor")
 
 

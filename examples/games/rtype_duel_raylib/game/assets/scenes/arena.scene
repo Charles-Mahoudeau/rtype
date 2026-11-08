@@ -1,0 +1,13 @@
+[capsule format=1]
+
+[node path="."]
+rtype.Transform = {}
+
+[node path="TopWall" instance="actors/wall.actor"]
+rtype.Transform = { position = (419.4, 140) }
+
+[node path="Rock" instance="actors/rock.actor"]
+rtype.Transform = { position = (400, 300) }
+
+[node path="BottomWall" instance="actors/wall.actor"]
+rtype.Transform = { position = (400, 460) }

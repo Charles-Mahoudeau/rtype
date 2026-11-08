@@ -171,7 +171,7 @@ end
 
 | Key | Meaning |
 |---|---|
-| `platform`, `renderer` | the backends by name (`"glfw"`, `"vulkan"` today); required on a client |
+| `platform`, `renderer` | the backends by name; required on a client. Platforms: `"glfw"`, `"sdl"` (SDL3) or `"raylib"`. Renderers: `"vulkan"` or `"raylib"`. `"raylib"` goes with `"raylib"` only: its window and its drawing come together. `"sdl"` and `"glfw"` both work with `"vulkan"` |
 | `window.size`, `window.title`, `window.resizable`, `window.fullscreen` | the window |
 | `window.system` | Linux only: `"auto"` (default: Wayland in a Wayland session, X11 otherwise or if Wayland fails), `"x11"` or `"wayland"` |
 | `audio.backend` | `"miniaudio"` or `"null"` (silent) |
@@ -180,6 +180,7 @@ end
 | `audio.volume.master`, `.music`, `.effects` | starting volumes |
 | `audio.panDistance` | world units from the listener at which a sound is fully left or right |
 | `vulkan.virtualResolution` | `{ width, height }`: the resolution your game is designed for, scaled to the window |
+| `raylib.virtualResolution` | the same as `vulkan.virtualResolution`, for the renderer `"raylib"` |
 | `vulkan.presentMode` | `"fifo"` (default), `"mailbox"` or `"immediate"` |
 | `vulkan.debugging`, `vulkan.layers` | validation, for debugging a GPU problem; `layers` takes `{ "VK_LAYER_KHRONOS_validation" }` |
 
