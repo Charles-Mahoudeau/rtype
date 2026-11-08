@@ -85,9 +85,12 @@ struct RTYPE_EDITOR_API EditorState {
     std::filesystem::path assets;              ///< The game's assets (AssetDirectory); empty: none.
 
     std::optional<plugins::capsule::CapsuleId> scene;  ///< The scene open; none: no scene is.
-    float prefabZoom{2.0F};                     ///< How big the Prefab window shows the capsule: pixels per world unit.
-    std::optional<scene::Isolation> prefab;     ///< The capsule shown alone (prefab mode), over the scene; none: not.
-    std::optional<std::uint32_t> selectedNode;  ///< The node of the edited capsule the Inspector shows.
+    float prefabZoom{2.0F};                  ///< How big the Actor tabs show the capsule: pixels per world unit.
+    std::optional<scene::Isolation> prefab;  ///< The actor shown alone (prefab mode), over the scene; none: not.
+    std::vector<plugins::capsule::CapsuleId> actors;  ///< The actors open, one tab each; prefab shows one of them.
+    std::optional<plugins::capsule::CapsuleId> focusActor;  ///< The actor whose tab to bring to the front next frame.
+    bool dockActor{false};  ///< Whether focusActor's tab is new, so it docks next to the Game panel.
+    std::optional<std::uint32_t> selectedNode;         ///< The node of the edited capsule the Inspector shows.
     std::vector<plugins::capsule::CapsuleId> unsaved;  ///< The capsules changed since they were saved or opened.
     ecs::Entity selected;                              ///< The entity the Inspector shows while playing.
 

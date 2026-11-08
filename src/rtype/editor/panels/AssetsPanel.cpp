@@ -61,9 +61,7 @@ void request(EditorState& state, AssetAction action, std::string target, std::st
 
 /// @brief Stops editing the capsule @p id, renamed or deleted: its prefab mode ends, or its scene closes.
 void forget(EditorState& state, capsule::CapsuleId id) {
-    if (state.prefab && state.prefab->capsule == id) {
-        closePrefab(state);
-    }
+    closeActor(state, id);
     if (state.scene == id) {
         state.scene.reset();
         state.selectedNode.reset();
@@ -308,19 +306,48 @@ void openPrefab(EditorState& state, const std::string& path) {
     if (!ensureLoaded(state, path)) {
         return;
     }
-    closePrefab(state);
-    std::string error;
-    auto isolation = scene::isolate(*state.world, capsule::CapsuleId::fromPath(path), error);
-    if (!isolation) {
-        state.status = error;
-        return;
+    const capsule::CapsuleId id = capsule::CapsuleId::fromPath(path);
+    const bool known = std::ranges::find(state.actors, id) != state.actors.end();
+    if (!state.prefab || state.prefab->capsule != id) {
+        if (state.prefab) {
+            scene::endIsolation(*state.world, *state.prefab);
+            state.prefab.reset();
+        }
+        std::string error;
+        auto isolation = scene::isolate(*state.world, id, error);
+        if (!isolation) {
+            state.status = error;
+            if (known) {
+                std::erase(state.actors, id);
+            }
+            return;
+        }
+        state.prefab = *isolation;
+        state.selectedNode = 0;
     }
-    state.prefab = *isolation;
-    state.selectedNode = 0;
+    if (!known) {
+        state.actors.push_back(id);
+    }
+    state.focusActor = id;
+    state.dockActor = !known;
     state.status = std::format("Editing {} alone", path);
 }
 
+void closeActor(EditorState& state, capsule::CapsuleId id) {
+    std::erase(state.actors, id);
+    if (state.focusActor == id) {
+        state.focusActor.reset();
+    }
+    if (state.prefab && state.prefab->capsule == id) {
+        scene::endIsolation(*state.world, *state.prefab);
+        state.prefab.reset();
+        state.selectedNode = state.scene ? std::optional<std::uint32_t>{0} : std::nullopt;
+    }
+}
+
 void closePrefab(EditorState& state) {
+    state.actors.clear();
+    state.focusActor.reset();
     if (!state.prefab) {
         return;
     }

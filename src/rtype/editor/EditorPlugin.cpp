@@ -137,7 +137,7 @@ void runFrame(EditorState& state, contract::platform::IPlatform& platform, contr
     panels::drawToolbar(state, platform);
     drawDockspace(state);
     panels::drawGamePanel(state, renderer);
-    panels::drawPrefabPanel(state, renderer);
+    panels::drawActorPanel(state, renderer);
     panels::drawHierarchyPanel(state);
     panels::drawInspectorPanel(state);
     panels::drawAssetsPanel(state);
