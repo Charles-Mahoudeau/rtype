@@ -1,0 +1,39 @@
+# Headless run and UI capability check (GR5-33)
+
+Checked against `main` at `ca0b15aa`, by reading `src/`, `docs/` and `tests/`. Nothing here was run on a built binary.
+
+## Headless Luau
+
+| Capability | Status | Evidence |
+|---|---|---|
+| Luau game code with no window or renderer | Supported on the server side: `aylo-runtime --server --game <dir>` registers no backend | `src/rtype/runtime/main.cpp`, `docs/engine/design.md` (Executables) |
+| `require()` in game scripts | Supported: string paths, `@scripts`/`@self` aliases, entry points `scripts.main/server/client`, sandbox sealed | `ScriptHost.cpp` (`ModuleLoader`, `sandbox()`), `ScriptResolver`, `tests/scripting/ScriptRequireTests.cpp`, `docs/scripting/plan.md` D10 |
+| Stop the process from a script with a code | Probably supported, not verified: `rtype.AppExit { code }` is a registered ECS event and `Engine::run` returns the code of the first one. Whether a Luau system can write it is unconfirmed | `ecs/app/AppExit.hpp`, `Engine.hpp` |
+| Dedicated test-runner mode (run N ticks, exit non-zero on failure) | Missing: no such flag. A game can build one from `AppExit` if the point above holds | `main.cpp` |
+| Headless client (client-side systems, no window) | Missing: client mode needs the backends `project.luau` names, and the UI and graphics plugins are `Side::kClient`. UI logic cannot be tested without a window | `UiPlugin.cpp` |
+
+Stale docs: `docs/luau/modules.md` and `docs/luau/sandbox.md` still say `ScriptHost` does not expose `require` yet. The code and `docs/scripting/plan.md` say it does.
+
+## UI plugin (`rtype.Ui`) for the debug panel
+
+| Need | Status |
+|---|---|
+| Panel (layout, background, borders, scroll) | Supported: flexbox via Yoga, `UiBackground`, `UiScroll` |
+| Buttons | Supported: `UiButton`, event `rtype.UiClicked` |
+| Toggles | Supported: `UiToggle`, event `rtype.UiValueChanged` |
+| Text | Supported: `UiText`, wrapping on word boundaries |
+| Text fields | Supported, single line: `UiTextInput`, events `UiTextChanged`/`UiTextSubmitted` |
+| Sliders | Supported (horizontal) |
+| Keyboard and gamepad focus | Supported |
+| Ignoring game input over the panel | Supported: `UiPointer::overUi`, `UiFocus::typing` |
+| Selection, clipboard, scrolling inside a field | Missing (documented limit) |
+| Scroll bar, vertical slider | Missing (documented limit) |
+| Dropdown, tables | Missing: build from nodes |
+
+None of the missing UI items blocks a debug panel. See `docs/Ui.md`.
+
+## Gaps and follow-ups
+
+1. Test-runner mode, or confirmation that `AppExit` is writable from Luau (Gameplay to confirm the scope in GR5-27).
+2. Update the stale `require` wording in `docs/luau/`.
+3. Headless client (needs a null platform and renderer). Only if Gameplay needs it.
