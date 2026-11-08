@@ -187,6 +187,9 @@ picks the broad-phase tree, so static bodies never cost a pair test against each
   the step (`settle()`) to tell a real separation from a pair that merely went to sleep, so resting bodies do not send
   false `CollisionEnded`.
 - **No end for destroyed bodies.** A despawned entity, a removed collider or a rebuilt body forgets its pairs.
+- **Two kinematic bodies send no contact.** They go through each other without a `CollisionStarted`; a kinematic
+  sensor does see kinematic bodies, with `TriggerEntered` and `TriggerExited` (GyattRider 2 makes its riders sensors
+  for its kinematic traffic).
 
 ## 9. Scene queries and `moveAndSlide`
 
