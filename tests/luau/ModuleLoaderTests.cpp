@@ -13,6 +13,7 @@
 #include <format>
 #include <map>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -50,6 +51,9 @@ class Modules {
         _loader = std::make_unique<ModuleLoader>(
             _runtime, [this](std::string_view requester, std::string_view path) { return resolve(requester, path); },
             [this](std::string_view key, bool entering) {
+                if (entering && key == throwOnEnter) {
+                    throw std::runtime_error{"hook"};
+                }
                 events.push_back(std::format("{}{}", entering ? "+" : "-", key));
             });
     }
@@ -108,6 +112,7 @@ class Modules {
 
     std::map<std::string, std::string> sources;  ///< Module key to source.
     std::vector<std::string> events;             ///< Run hook calls, `+key` entering and `-key` leaving.
+    std::string throwOnEnter;                    ///< Key whose entering hook throws.
     std::vector<std::string> requesters;         ///< Requester key of each resolver call.
 
   private:
@@ -572,6 +577,80 @@ TEST(ModuleLoader, TransactionMisuseThrows) {
     modules.loader().begin();
     EXPECT_THROW(modules.loader().begin(), rtype::luau::exceptions::InvalidOperation);
     modules.loader().commit();
+}
+
+TEST(ModuleLoader, DependentsIncludeAModuleRequiringItself) {
+    Modules modules;
+    modules.sources["m"] = "local m = {} function m.again() return require('m') end return m";
+    modules.require("m");
+    lua_State* state = rtype::luau::detail::rawState(modules.runtime());
+    modules.loader().value("m")->push(state);
+    lua_getfield(state, -1, "again");
+    EXPECT_EQ(lua_pcall(state, 0, 0, 0), LUA_OK);
+    lua_pop(state, 1);
+
+    EXPECT_EQ(modules.loader().dependents({"m"}), (Keys{"m"}));
+}
+
+TEST(ModuleLoader, UnloadRemovesTheEdgesLeadingToTheModule) {
+    Modules modules;
+    fillDiamond(modules);
+    modules.require("a");
+
+    modules.loader().unload({"b"});
+
+    const Keys reached = modules.loader().reachableFrom({"a"});
+    EXPECT_EQ(std::ranges::count(reached, "b"), 0);
+    EXPECT_EQ(modules.loader().dependents({"b"}), (Keys{"b"}));
+}
+
+TEST(ModuleLoader, AnEmptyModuleKeyIsRejected) {
+    Modules modules;
+    ModuleLoader loader{modules.runtime(), [](std::string_view, std::string_view) -> Result<ModuleSource> {
+                            return ModuleSource{.key = "", .chunkName = "x.luau", .source = "return 1"};
+                        }};
+
+    const auto result = loader.require("x");
+
+    ASSERT_FALSE(result);
+    EXPECT_NE(result.error().message().find("empty module key"), std::string::npos);
+}
+
+TEST(ModuleLoader, AVeryDeepChainOfRequiresFailsInsteadOfOverflowing) {
+    Modules modules;
+    for (int i = 0; i < 200; ++i) {
+        modules.sources[std::format("m{}", i)] = std::format("return require('m{}')", i + 1);
+    }
+    modules.sources["m200"] = "return 1";
+
+    EXPECT_NE(modules.requireError("m0").find("too deep"), std::string::npos);
+    EXPECT_EQ(modules.text(modules.require("m190")), "1");
+}
+
+TEST(ModuleLoader, AThrowingRunHookLeavesTheLoaderUsable) {
+    Modules modules;
+    modules.sources["a"] = "return 1";
+    modules.throwOnEnter = "a";
+
+    EXPECT_THROW((void)modules.loader().require("a"), std::runtime_error);
+
+    modules.throwOnEnter.clear();
+    EXPECT_EQ(modules.text(modules.require("a")), "1");
+}
+
+TEST(ModuleLoader, ARequireAfterTheLoaderIsReplacedStillFails) {
+    Modules modules;
+    modules.sources["m"] = "return function() return require('m') end";
+    const Ref function = modules.require("m");
+    modules.dropLoader();
+
+    // A new loader on the same runtime must not answer the old closure.
+    ModuleLoader replacement{modules.runtime(), [](std::string_view, std::string_view) -> Result<ModuleSource> {
+                                 return ModuleSource{.key = "m", .chunkName = "m.luau", .source = "return 2"};
+                             }};
+    ASSERT_TRUE(replacement.require("m"));
+
+    EXPECT_NE(modules.call(function).find("the module loader no longer exists"), std::string::npos);
 }
 
 TEST(ModuleLoader, ARequireAfterTheLoaderIsGoneRaisesAnError) {
