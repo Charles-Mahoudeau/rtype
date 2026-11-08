@@ -118,8 +118,18 @@ engine.ecs.component("game.Score", {
 engine.ecs.component("game.Shield", { fields = { active = "bool", ghost = "bool" }, replication = "everyChange" })
 -- Server only: the seconds before a rider's shield turns off.
 engine.ecs.component("game.ShieldClock", { fields = { remaining = "f32" }, presence = "serverOnly" })
--- Server only: the seconds a rider's speed and sniper boosts still last.
-engine.ecs.component("game.Boosts", { fields = { speed = "f32", sniper = "f32" }, presence = "serverOnly" })
+-- Server only: the seconds a rider's speed and sniper boosts still last, and how many points boosts it won.
+engine.ecs.component("game.Boosts", {
+	fields = { speed = "f32", sniper = "f32", points = "u16" },
+	presence = "serverOnly",
+})
+-- The boosts a rider has on, on every change: written only when a boost starts or ends (server/boosts.luau), and the
+-- clients show each with its effect (client/boostfx.luau). `points` counts the points boosts it won: a new one
+-- twinkles. The shield boost is game.Shield, on and not a ghost.
+engine.ecs.component("game.Boosted", {
+	fields = { speed = "bool", sniper = "bool", points = "u16" },
+	replication = "everyChange",
+})
 -- Server only: the seconds before a rider can fire again.
 engine.ecs.component("game.Gun", { fields = { cooldown = "f32" }, presence = "serverOnly" })
 -- A rider's last shot, on every change: from where to where its beam went, and how many shots it fired, which tells
@@ -165,6 +175,13 @@ engine.ecs.component("game.BeamSquare", { fields = { remaining = "f32" }, presen
 -- The race's gauge (client/gauge.luau), client only: its orange part, and the dot of a cyclist.
 engine.ecs.component("game.GaugeFill", { fields = {}, presence = "clientOnly" })
 engine.ecs.component("game.GaugeDot", { fields = { cyclist = "entity" }, presence = "clientOnly" })
+
+-- The emitter of a boost's effect on a rider (client/boostfx.luau), client only: the rider, the boost (Game.speedBoost,
+-- shieldBoost or sniperBoost), and the seconds its last particles still live once it stopped.
+engine.ecs.component("game.BoostFx", {
+	fields = { rider = "entity", boost = "u8", left = "f32" },
+	presence = "clientOnly",
+})
 
 -- Markers of the scene's client nodes (assets/scenes/roads.scene): a server reads the file too, and the camera and the
 -- shape are not its components, so the client gives them to the marked entities.
