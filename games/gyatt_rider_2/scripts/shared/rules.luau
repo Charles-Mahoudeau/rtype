@@ -12,7 +12,7 @@ local Game = {
 	trafficSyncTicks = 30, -- ticks between two positions a vehicle sends; the clients move it at its speed meanwhile
 	maxPlayers = 4, -- the next players watch
 	minPlayers = 2, -- a match starts once this many ride
-	matchDuration = 240, -- seconds: whoever has the best score then wins
+	matchDuration = 120, -- seconds: whoever has the best score then wins
 	resultsDuration = 10, -- seconds the results stay before the next match waits for its players
 	riderTiles = { x = 1, y = 2 },
 	riderSpeed = 400, -- world units per second, in every direction

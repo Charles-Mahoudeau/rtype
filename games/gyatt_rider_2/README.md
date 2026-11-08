@@ -2,7 +2,7 @@
 
 A free-for-all for up to 4 riders on 8 vertical roads, seen from above, written in Luau only. The roads scroll down
 fast while the riders race up; slow traffic comes from behind and overtakes them. The riders shoot beams at each other
-and at the cyclists. Whoever has the best score after 4 minutes wins.
+and at the cyclists. Whoever has the best score after 2 minutes wins.
 
 ## Run it
 
@@ -29,7 +29,7 @@ and the clients, no build needed.
 
 ## Rules
 
-- **The match** waits for 2 riders, races for 4 minutes, shows its results for 10 seconds, then waits for the next one.
+- **The match** waits for 2 riders, races for 2 minutes, shows its results for 10 seconds, then waits for the next one.
   A player who joins during a race rides at once, from 0.
 - **The traffic** (cars, electric cars, vans, trucks, buses, limousines, cyclists) comes from behind, each kind at its
   own speed, and slows down behind slower traffic. A vehicle or a cyclist that runs over a rider hits it, again and
