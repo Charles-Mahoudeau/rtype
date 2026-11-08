@@ -337,3 +337,10 @@ In an engine module, a backend gets its own folder and target (`platform/<librar
 `registerRenderer()` function, exported with the target's `RTYPE_<LIB>_API` macro if it is a shared library.
 Self-registration through global variables does not work: the linker drops the unreferenced objects of static
 libraries.
+
+## The null backend
+
+`src/rtype/backend/null/` (`backend-null`, `rtype-backend-null`) registers a `null` platform and a `null` renderer: no
+window, no event, nothing drawn, textures and particle systems only get ids. A client that names them in `project.luau`
+(`platform = "null"`, `renderer = "null"`) runs its UI, graphics and input scripts on a machine with no display, so a
+headless client test can exist. `close()` ends the run with one `Closed` event.
