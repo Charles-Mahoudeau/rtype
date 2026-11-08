@@ -24,6 +24,7 @@ local Game = {
 	shotCost = 20, -- each shot fired
 	hitReward = 40, -- each rider or cyclist a shot reaches
 	hitLoss = 0.1, -- the share of its points a hit rider loses; the shooter takes it, the traffic takes it from nobody
+	hitShield = 2, -- seconds a hit rider cannot be hit again
 
 	-- The collision categories: each Collider belongs to some (layer) and collides with some (mask). A shot is a ray,
 	-- which picks the categories it sees: it needs none of its own.
@@ -84,6 +85,11 @@ engine.ecs.component("game.Look", { fields = { texture = "assetId", layer = "i8"
 engine.ecs.component("game.Rider", { fields = { slot = "u32" }, replication = "spawnOnly" })
 -- A rider's points, on every change: written only when they change. Never below 0.
 engine.ecs.component("game.Score", { fields = { points = "u32" }, replication = "everyChange" })
+-- Whether a rider is invincible, on every change: written only when it turns on or off, and the clients make it
+-- twinkle. Nothing hits a rider while it is on.
+engine.ecs.component("game.Shield", { fields = { active = "bool" }, replication = "everyChange" })
+-- Server only: the seconds before a rider's shield turns off.
+engine.ecs.component("game.ShieldClock", { fields = { remaining = "f32" }, presence = "serverOnly" })
 -- Server only: the seconds before a rider can fire again.
 engine.ecs.component("game.Gun", { fields = { cooldown = "f32" }, presence = "serverOnly" })
 -- A shot's beam, an entity of its own sent once: it goes from the rider in slot `shooter` to what it hit, or to the

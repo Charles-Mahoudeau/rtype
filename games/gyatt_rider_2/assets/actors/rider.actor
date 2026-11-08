@@ -10,6 +10,8 @@ game.Position = {}
 game.Look = { layer = 1 }   # Game.riderDrawLayer: over the traffic
 game.Gun = {}
 game.Score = {}
+game.Shield = {}
+game.ShieldClock = {}
 rtype.Transform = {}
 rtype.Collider = { shape = 0, size = (64, 128), sensor = true, layer = 1, mask = 2 }
 rtype.RigidBody = { type = 1 }

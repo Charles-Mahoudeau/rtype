@@ -1,10 +1,12 @@
 -- The hits: a vehicle that runs over a rider and a shot that reaches anything spawn a game.Hit, and the hits are
 -- resolved here, in one place, whatever made them. A rider is not removed by a hit: it loses Game.hitLoss of its points
--- and keeps riding, and its shooter wins Game.hitReward plus what it lost. A cyclist is: knocked off the road, it gives
--- Game.hitReward (and its boost) once. A vehicle just stops the shot. The points count only while the match races.
+-- and keeps riding, and its shooter wins Game.hitReward plus what it lost; then its shield keeps it from being hit
+-- again for Game.hitShield seconds. A cyclist is: knocked off the road, it gives Game.hitReward (and its boost) once. A
+-- vehicle just stops the shot. The points count only while the match races.
 
 local Game = require("@scripts/shared/rules")
 local Match = require("@scripts/server/match")
+local Shield = require("@scripts/server/shield")
 
 -- This tick's hits by victim (entity bits): the shooter of each, filled by game.CollectHits for the systems that
 -- resolve them.
@@ -65,20 +67,24 @@ engine.ecs.system("game.CollectHits", {
 	end,
 })
 
--- FixedUpdate: applies each rider's hits of this tick: each one takes Game.hitLoss of its points, which its shooter
--- wins with Game.hitReward.
+-- FixedUpdate: applies each rider's hits of this tick, unless its shield is on: each one takes Game.hitLoss of its
+-- points, which its shooter wins with Game.hitReward, then the rider is shielded.
 engine.ecs.system("game.ResolveRiderHits", {
 	phase = "FixedUpdate",
 	side = "server",
-	query = { read = { "game.Rider" }, write = { "game.Score" } },
+	query = { read = { "game.Rider" }, write = { "game.Score", "game.Shield", "game.ShieldClock" } },
 	after = { "game.CollectHits" },
 	run = function(ctx)
 		if next(hitsOf) == nil then
 			return
 		end
 		local counts = Match.racing()
-		for entity, rider, score in ctx.query do
-			for _, shooter in hitsOf[entity.bits] or {} do
+		for entity, rider, score, shield, clock in ctx.query do
+			local hits = hitsOf[entity.bits]
+			if hits == nil or shield.active then
+				continue
+			end
+			for _, shooter in hits do
 				local by = if shooter < 0 then "the traffic" else `player {shooter + 1}`
 				print(`[server] player {rider.slot + 1} hit by {by}`)
 				if not counts then
@@ -92,6 +98,7 @@ engine.ecs.system("game.ResolveRiderHits", {
 					win(shooter, Game.hitReward + lost)
 				end
 			end
+			Shield.grant(shield, clock, Shield.afterHit)
 		end
 	end,
 })

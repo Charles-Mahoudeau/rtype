@@ -4,5 +4,6 @@
 require("@scripts/client/scene")
 require("@scripts/client/looks")
 require("@scripts/client/riders")
+require("@scripts/client/shields")
 require("@scripts/client/beams")
 require("@scripts/client/controls")
