@@ -117,7 +117,7 @@ struct Prompt {
     Prompt() {
         prompt.setBackend({
             .evaluate =
-                [this](const std::string_view line) {
+                [this](const std::string_view line, const console::ScriptTarget& /*target*/) {
                     evaluated.emplace_back(line);
                     if (line == "fail") {
                         return console::ScriptOutcome{.ok = false, .text = "console:1: boom"};
@@ -125,7 +125,7 @@ struct Prompt {
                     return console::ScriptOutcome{.ok = true, .text = line == "x" ? "1" : ""};
                 },
             .complete =
-                [this](const std::string_view word) {
+                [this](const std::string_view word, const console::ScriptTarget& /*target*/) {
                     ++completions;
                     std::vector<std::string> words;
                     for (const std::string candidate : {"config", "config.player", "config.speed", "math"}) {
@@ -241,15 +241,17 @@ TEST(EditorScriptPrompt, AsksAgainOnceTheModulesChanged) {
 
 TEST(EditorScriptPrompt, ShowsAFewCompletionsAndCountsTheOthers) {
     console::ScriptPrompt prompt;
-    prompt.setBackend({.evaluate = [](std::string_view) { return console::ScriptOutcome{.ok = true, .text = ""}; },
-                       .complete =
-                           [](std::string_view) {
-                               std::vector<std::string> words;
-                               for (int index = 0; index < 20; ++index) {
-                                   words.push_back(std::format("word{:02}", index));
-                               }
-                               return words;
-                           }});
+    prompt.setBackend(
+        {.evaluate = [](std::string_view,
+                        const console::ScriptTarget&) { return console::ScriptOutcome{.ok = true, .text = ""}; },
+         .complete =
+             [](std::string_view, const console::ScriptTarget&) {
+                 std::vector<std::string> words;
+                 for (int index = 0; index < 20; ++index) {
+                     words.push_back(std::format("word{:02}", index));
+                 }
+                 return words;
+             }});
     std::size_t hidden = 0;
 
     const std::vector<std::string> shown = prompt.suggestions("w", hidden);

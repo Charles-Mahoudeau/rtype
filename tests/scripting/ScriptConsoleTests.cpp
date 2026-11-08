@@ -9,7 +9,9 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstring>
 #include <filesystem>
+#include <format>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -35,9 +37,25 @@ struct Game {
             {.directory = directory, .onBuilt = [this](rtype::scripting::ScriptHost& built) { host = &built; }}});
     }
 
+    /// @brief Gives a new entity the component @p name, with its defaults.
+    rtype::ecs::Entity spawn(const std::string_view name) {
+        const auto* layout = host->findComponent(name);
+        EXPECT_NE(layout, nullptr);
+        const rtype::ecs::Entity entity = app.getWorld().spawn();
+        EXPECT_TRUE(app.getWorld().getComponents().add(entity, layout->id, layout->defaults));
+        return entity;
+    }
+
     /// @return What the console gives for @p line; `error: ` and the message if it failed.
     [[nodiscard]] std::string eval(const std::string_view line) const {
         const auto evaluation = host->evaluate(line);
+        return evaluation.ok ? evaluation.text : "error: " + evaluation.text;
+    }
+
+    /// @return What the console gives for @p line with `self` standing for @p self.
+    [[nodiscard]] std::string eval(const std::string_view line, const rtype::ecs::Entity self,
+                                   const bool writable = true) const {
+        const auto evaluation = host->evaluate(line, {.self = self, .writable = writable});
         return evaluation.ok ? evaluation.text : "error: " + evaluation.text;
     }
 };
@@ -183,4 +201,156 @@ TEST(ScriptConsole, FailsBeforeAnyScriptRan) {
 
     EXPECT_FALSE(evaluation.ok);
     EXPECT_TRUE((*host)->complete("ma").empty());
+}
+
+namespace {
+/// @brief A game that declares two components, `game.Ship` and `other.Ship`, and an `game.Engine` tag.
+void writeShipGame(const ScriptsDirectory& scripts) {
+    scripts.write("probe.luau", "return { log = {} }");
+    scripts.write("main.luau", R"(
+        require("./probe")
+        engine.ecs.component("game.Ship", { fields = { speed = "f32", hp = "u32", position = "vec2", name = "string" } })
+        engine.ecs.component("other.Ship", { fields = { size = "f32" } })
+        engine.ecs.component("game.Tag", { fields = { } })
+    )");
+}
+}  // namespace
+
+TEST(ScriptConsoleEntities, ReadsAndWritesTheFieldsOfTheSelectedEntityInPlace) {
+    const ScriptsDirectory scripts{"rtype-console-entity"};
+    writeShipGame(scripts);
+    Game game{scripts.path()};
+    const auto ship = game.spawn("game.Ship");
+
+    EXPECT_EQ(game.eval("self.Ship.speed", ship), "0");
+    EXPECT_EQ(game.eval("self['game.Ship'].speed = 3.5; self['game.Ship'].hp = 7", ship), "");
+    EXPECT_EQ(game.eval("self['game.Ship'].speed, self['game.Ship'].hp", ship), "3.5, 7");
+    const auto* layout = game.host->findComponent("game.Ship");
+    const auto bytes = game.app.getWorld().getComponents().get(ship, layout->id);
+    float speed = 0.F;
+    const auto field = std::ranges::find(layout->fields, "speed", &rtype::ecs::FieldInfo::name);
+    ASSERT_NE(field, layout->fields.end());
+    std::memcpy(&speed, bytes.data() + field->offset, sizeof(float));
+    EXPECT_FLOAT_EQ(speed, 3.5F);
+}
+
+TEST(ScriptConsoleEntities, MarksTheComponentChanged) {
+    const ScriptsDirectory scripts{"rtype-console-changed"};
+    writeShipGame(scripts);
+    Game game{scripts.path()};
+    const auto ship = game.spawn("game.Ship");
+    const auto layout = game.host->findComponent("game.Ship")->id;
+    ASSERT_EQ(game.eval("self['game.Ship'].speed = 1", ship), "");
+
+    const auto after = game.app.getWorld().getComponents().getTicks(ship, layout);
+    ASSERT_TRUE(after);
+    EXPECT_EQ(after->changed, game.app.getWorld().getComponents().getChangeTick());
+}
+
+TEST(ScriptConsoleEntities, SelfIsNilWithoutAnEntityOrWithADeadOne) {
+    const ScriptsDirectory scripts{"rtype-console-self-nil"};
+    writeShipGame(scripts);
+    Game game{scripts.path()};
+    const auto ship = game.spawn("game.Ship");
+    ASSERT_TRUE(game.app.getWorld().despawn(ship));
+
+    EXPECT_EQ(game.eval("self"), "nil");
+    EXPECT_EQ(game.eval("self", ship), "nil");
+}
+
+TEST(ScriptConsoleEntities, ReadsButDoesNotWriteWhenTheConsoleOnlyReads) {
+    const ScriptsDirectory scripts{"rtype-console-readonly"};
+    writeShipGame(scripts);
+    Game game{scripts.path()};
+    const auto ship = game.spawn("game.Ship");
+
+    EXPECT_EQ(game.eval("self['game.Ship'].speed", ship, false), "0");
+    EXPECT_TRUE(game.eval("self['game.Ship'].speed = 9", ship, false).starts_with("error: "));
+    EXPECT_EQ(game.eval("self['game.Ship'].speed", ship), "0");
+}
+
+TEST(ScriptConsoleEntities, FindsAComponentByItsLastPartAndSaysWhenItIsAmbiguous) {
+    const ScriptsDirectory scripts{"rtype-console-names-ecs"};
+    writeShipGame(scripts);
+    Game game{scripts.path()};
+    const auto ship = game.spawn("game.Ship");  // has game.Ship only
+
+    // `Ship` is both game.Ship and other.Ship: the entity has one of them, which settles it.
+    EXPECT_EQ(game.eval("self.Ship.speed", ship), "0");
+    const auto both = game.spawn("game.Ship");
+    ASSERT_TRUE(game.app.getWorld().getComponents().add(both, game.host->findComponent("other.Ship")->id,
+                                                        game.host->findComponent("other.Ship")->defaults));
+    const std::string ambiguous = game.eval("self.Ship", both);
+    EXPECT_TRUE(ambiguous.starts_with("error: ")) << ambiguous;
+    EXPECT_NE(ambiguous.find("game.Ship"), std::string::npos);
+    EXPECT_NE(ambiguous.find("other.Ship"), std::string::npos);
+    EXPECT_EQ(game.eval("self['other.Ship'].size", both), "0");
+}
+
+TEST(ScriptConsoleEntities, GivesNilForAMissingComponentAndAnErrorForAnUnknownOne) {
+    const ScriptsDirectory scripts{"rtype-console-missing"};
+    writeShipGame(scripts);
+    Game game{scripts.path()};
+    const auto tagged = game.spawn("game.Tag");
+
+    EXPECT_EQ(game.eval("self['game.Ship']", tagged), "nil");
+    EXPECT_TRUE(game.eval("self.Nothing", tagged).find("no component named 'Nothing'") != std::string::npos);
+    EXPECT_TRUE(game.eval("self['game.Ship'].nothing", game.spawn("game.Ship")).find("no field 'nothing'") !=
+                std::string::npos);
+}
+
+TEST(ScriptConsoleEntities, RefusesAValueOfTheWrongType) {
+    const ScriptsDirectory scripts{"rtype-console-wrong-type"};
+    writeShipGame(scripts);
+    Game game{scripts.path()};
+    const auto ship = game.spawn("game.Ship");
+
+    EXPECT_TRUE(game.eval("self['game.Ship'].speed = 'fast'", ship).starts_with("error: "));
+    EXPECT_EQ(game.eval("self['game.Ship'].speed", ship), "0");
+}
+
+TEST(ScriptConsoleEntities, ReachesAnotherEntityByIndexAndGeneration) {
+    const ScriptsDirectory scripts{"rtype-console-entity-fn"};
+    writeShipGame(scripts);
+    Game game{scripts.path()};
+    const auto ship = game.spawn("game.Ship");
+    const std::string call = std::format("entity({}, {})", ship.getIndex(), ship.getGeneration());
+    const std::string bits = std::format("entity({})", ship.getBits());
+
+    EXPECT_EQ(game.eval(call + "['game.Ship'].hp = 4"), "");
+    EXPECT_EQ(game.eval(bits + "['game.Ship'].hp"), "4");
+    EXPECT_TRUE(game.eval("entity(999, 1)").starts_with("error: "));
+    EXPECT_TRUE(game.eval("entity('x')").starts_with("error: "));
+}
+
+TEST(ScriptConsoleEntities, AHandleDoesNotOutliveItsLine) {
+    const ScriptsDirectory scripts{"rtype-console-stale"};
+    writeShipGame(scripts);
+    Game game{scripts.path()};
+    const auto ship = game.spawn("game.Ship");
+
+    ASSERT_EQ(game.eval("probe.log.kept = self['game.Ship']", ship), "");
+
+    const std::string later = game.eval("probe.log.kept.speed");
+    EXPECT_TRUE(later.starts_with("error: ")) << later;
+    EXPECT_NE(later.find("no longer valid"), std::string::npos);
+}
+
+TEST(ScriptConsoleEntities, CompletesTheComponentsOfSelfAndTheirFields) {
+    const ScriptsDirectory scripts{"rtype-console-complete-entity"};
+    writeShipGame(scripts);
+    Game game{scripts.path()};
+    const auto ship = game.spawn("game.Tag");
+    ASSERT_TRUE(game.app.getWorld().getComponents().add(ship, game.host->findComponent("game.Ship")->id,
+                                                        game.host->findComponent("game.Ship")->defaults));
+    // `Ship` is two components, but the entity has one: it is not a name a dot can reach, `Tag` is.
+    const std::vector<std::string> components = game.host->complete("self.", {.self = ship});
+    EXPECT_NE(std::ranges::find(components, "self.Tag"), components.end());
+
+    const auto lone = game.spawn("game.Ship");
+    const std::vector<std::string> none = game.host->complete("self.Ship.", {.self = lone});
+    EXPECT_NE(std::ranges::find(none, "self.Ship.speed"), none.end());  // the entity has one `Ship`: it settles it
+    EXPECT_TRUE(game.host->complete("self.", {}).empty());
+    const std::vector<std::string> prefixed = game.host->complete("ent", {});
+    EXPECT_NE(std::ranges::find(prefixed, "entity"), prefixed.end());
 }
