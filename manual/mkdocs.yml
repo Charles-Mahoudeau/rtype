@@ -40,4 +40,5 @@ nav:
   - Editor: editor.md
   - Native plugins: native-plugins.md
   - Shipping your game: shipping.md
+  - Accessibility: accessibility.md
   - Walkthrough, R-Type Duel: duel-walkthrough.md
