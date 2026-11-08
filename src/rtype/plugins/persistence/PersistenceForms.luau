@@ -16,8 +16,8 @@ local function invoke(form, ctx, call, fields)
 	return results[2]
 end
 
-local function nameOf(form, given)
-	local spec = forms.table(form, given, { "name" })
+local function nameOf(form, given, fields)
+	local spec = forms.table(form, given, fields or { "name" })
 	local name = forms.string(form, spec, "name")
 	if name == nil or name == "" then
 		forms.fail(form, "expected a 'name'")
@@ -43,7 +43,7 @@ engine.persistence.write = function(...)
 	if data == nil then
 		forms.fail(form, "expected a 'data' string")
 	end
-	return invoke(form, ctx, "rtype.persistence.write", { name = nameOf(form, given), data = data })
+	return invoke(form, ctx, "rtype.persistence.write", { name = nameOf(form, given, { "name", "data" }), data = data })
 end
 
 -- engine.persistence.delete(ctx, { name }) -> { ok, error }. Deleting a save that does not exist succeeds.
