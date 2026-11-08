@@ -21,6 +21,7 @@
 #include "editor/gui/GuiMesh.hpp"
 #include "editor/gui/Text.hpp"
 #include "editor/scene/Isolation.hpp"
+#include "plugins/capsule/Capsule.hpp"
 #include "plugins/capsule/Capsules.hpp"
 #include "rtype/contract/renderer/IRenderer.hpp"
 #include "rtype/contract/renderer/drawing/Texture.hpp"
@@ -77,11 +78,17 @@ bool drawActorTab(EditorState& state, contract::renderer::IRenderer& renderer, c
     if (visible && state.prefab && state.prefab->capsule == id && available.x >= 1.0F && available.y >= 1.0F) {
         const ImVec2 scale = ImGui::GetIO().DisplayFramebufferScale;
         // The capsule's root in the middle; one world unit is prefabZoom pixels of the window.
+        const contract::renderer::Orthographic projection{
+            .zoom = state.prefabZoom * scale.x,
+        };
+        const contract::renderer::View view{
+            .position = scene::centerOf(*state.world, *state.prefab),
+            .projection = projection,
+        };
         renderer.setScenePreview(contract::renderer::ScenePreview{
-            .view = contract::renderer::View{.position = scene::centerOf(*state.world, *state.prefab),
-                                             .projection =
-                                                 contract::renderer::Orthographic{.zoom = state.prefabZoom * scale.x}},
-            .size = {toPixels(available.x, scale.x), toPixels(available.y, scale.y)}});
+            .view = view,
+            .size = {toPixels(available.x, scale.x), toPixels(available.y, scale.y)},
+        });
         previewed = true;
         const contract::renderer::TextureId texture = renderer.getPreviewTexture();
         if (texture != contract::renderer::TextureId{}) {

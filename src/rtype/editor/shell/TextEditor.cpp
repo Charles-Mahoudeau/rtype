@@ -45,7 +45,7 @@ bool isCommandAvailable(std::string_view editor) {
         return false;
     }
     std::error_code error;
-    if (program.find('/') != std::string_view::npos) {
+    if (program.contains('/')) {
         return std::filesystem::exists(std::filesystem::path{program}, error);
     }
     // NOLINTNEXTLINE(concurrency-mt-unsafe): read on the main thread
