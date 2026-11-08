@@ -87,6 +87,8 @@ engine.ecs.system("game.Ask", {
 `engine.http.request(ctx, { url, method, headers, body, timeout, priority })` is the same call with `headers` as a table; `ctx` is
 nil while the script loads. `rtype.HttpResponse` carries `request`, `status`, `ok`, `body` and `error`.
 
+To build a body or read a reply as a table, use the JSON codec: [`Json.md`](Json.md) (`engine.json.encode` / `decode`).
+
 ## Queue and deadline
 
 A request over `maxConcurrent` waits in a queue ordered by `priority` (higher first; send order among equals). The queue
@@ -104,6 +106,5 @@ requests from scripts.
 
 ## Later
 
-- JSON for scripts (encode a table, decode a body): today a script writes and reads the text itself.
 - Streaming responses (an AI model's tokens as they come).
 - Hot reload of the `http` settings.
