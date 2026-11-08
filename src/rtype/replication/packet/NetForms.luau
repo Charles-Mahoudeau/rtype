@@ -5,6 +5,20 @@ engine.net = {}
 local types = { bool = true, u8 = true, u16 = true, u32 = true, i32 = true, f32 = true, string = true }
 local schemas = {}
 
+-- Packets declared natively (PacketRegistry::declare in C++) have no engine.net.packet call: read their fields from the
+-- engine once, so scripts can send and receive them too.
+if engine.hasCall("rtype.net.listPackets") then
+	local listed = forms.call("engine.net", "rtype.net.listPackets", { prefix = "" })
+	for line in string.gmatch(listed, "[^\n]+") do
+		local name, rest = string.match(line, "^(%S+)(.*)$")
+		local list = {}
+		for fieldName, fieldType in string.gmatch(rest, "(%S+):(%S+)") do
+			table.insert(list, { name = fieldName, type = fieldType })
+		end
+		schemas[name] = list
+	end
+end
+
 -- engine.net.packet(name, { direction = "toServer" | "toClients", channel = "reliable" | "unreliable", fields = { { name,
 -- type, maxLength? }, ... } }): declares a packet, on both sides, while the scripts load. Returns its name.
 engine.net.packet = function(...)

@@ -110,6 +110,41 @@ void declare(ecs::ResMut<PacketRegistry> registry, const DeclareArguments& argum
     registry->declare(std::move(schema));
 }
 
+const char* typeText(const PacketType type) noexcept {
+    switch (type) {
+        case PacketType::kBool:
+            return "bool";
+        case PacketType::kU8:
+            return "u8";
+        case PacketType::kU16:
+            return "u16";
+        case PacketType::kU32:
+            return "u32";
+        case PacketType::kI32:
+            return "i32";
+        case PacketType::kF32:
+            return "f32";
+        case PacketType::kString:
+            return "string";
+    }
+    return "string";
+}
+
+ListResult list(ecs::Res<PacketRegistry> registry, const ListArguments& arguments) {
+    ListResult result;
+    for (const PacketSchema& schema : registry->all()) {
+        if (!schema.name.starts_with(arguments.prefix)) {
+            continue;
+        }
+        result.packets += schema.name;
+        for (const PacketField& field : schema.fields) {
+            result.packets += std::format(" {}:{}", field.name, typeText(field.type));
+        }
+        result.packets += '\n';
+    }
+    return result;
+}
+
 /// @brief Finds a packet that goes @p direction and writes its message from the script's values.
 network::Bytes makeMessage(const PacketRegistry& registry, const std::string& name, const PacketDirection direction,
                            const std::string& values, network::Channel& channel) {
@@ -155,6 +190,7 @@ void addPacketCalls(ecs::App& app) {
     // bin2c ends the bytes with a null terminator, which is not part of the source.
     app.getPluginRegistry().addScriptForms("addNetForms", std::string_view{kForms.data(), kForms.size() - 1});
     app.addCall(std::string{kDeclareCall}, &declare);
+    app.addCall(std::string{kListCall}, &list);
     const ecs::RunMode mode = app.getSchedules().getRunMode();
     if (ecs::runsIn(ecs::Side::kClient, mode)) {
         app.addCall(std::string{kSendToServerCall}, &sendToServer);

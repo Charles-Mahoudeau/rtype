@@ -36,6 +36,7 @@
 #include "rtype/replication/input/InputBuffer.hpp"
 #include "rtype/replication/input/InputLayout.hpp"
 #include "rtype/replication/manifest/Manifest.hpp"
+#include "rtype/replication/packet/PacketSchema.hpp"
 
 namespace rtype::ecs {
 class Commands;
@@ -153,7 +154,8 @@ class RTYPE_REPLICATION_API ServerState {
     /// @brief Receives what arrived, and handles every event.
     /// @param inputs The game's input actions.
     /// @return What the game has to be told, in order.
-    [[nodiscard]] std::vector<ServerNotification> receive(const input::InputLayout& inputs);
+    [[nodiscard]] std::vector<ServerNotification> receive(const input::InputLayout& inputs,
+                                                          const packet::PacketRegistry* packets = nullptr);
 
     /// @brief Handles one event of the transport: a client joins, leaves, or sends an input.
     /// @param serverEvent The event.
@@ -245,6 +247,7 @@ class RTYPE_REPLICATION_API ServerState {
     std::uint32_t _serverTick{0};                                  ///< The tick of the last snapshot built.
     std::uint32_t _snapshotInterval{1};                            ///< Ticks between two snapshots, set by start().
     std::size_t _droppedInputs{0};                                 ///< Inputs that could not be decoded.
+    const packet::PacketRegistry* _packetRegistry{nullptr};        ///< Set during receive(): validates custom packets.
     std::vector<RawPacket> _packets;                               ///< Custom packets waiting for takePackets().
     std::size_t _droppedPackets{0};                                ///< Custom packets dropped for lack of room.
     std::size_t _ignoredMessages{0};                               ///< Messages that were not inputs of a client.

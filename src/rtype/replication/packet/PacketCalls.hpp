@@ -18,6 +18,7 @@
 
 namespace rtype::replication::packet {
 inline constexpr std::string_view kDeclareCall = "rtype.net.declarePacket";        ///< PacketRegistry::declare().
+inline constexpr std::string_view kListCall = "rtype.net.listPackets";             ///< Describes the declared packets.
 inline constexpr std::string_view kSendToServerCall = "rtype.net.sendToServer";    ///< Client: sends a packet.
 inline constexpr std::string_view kSendToClientsCall = "rtype.net.sendToClients";  ///< Server: sends a packet.
 
@@ -29,6 +30,18 @@ struct DeclareArguments {
     std::string fields;     ///< One `name:type` or `name:type:maxLength` per line, in wire order.
 };
 RTYPE_ECS_CALL_DATA(DeclareArguments, "rtype.net.DeclareArguments", name, direction, channel, fields);
+
+/// @brief The arguments of `rtype.net.listPackets`.
+struct ListArguments {
+    std::string prefix;  ///< Only the packets whose name starts with it; empty for every packet.
+};
+RTYPE_ECS_CALL_DATA(ListArguments, "rtype.net.ListArguments", prefix);
+
+/// @brief The result of `rtype.net.listPackets`: what `engine.net` needs to send and read packets declared natively.
+struct ListResult {
+    std::string packets;  ///< One packet per line: its name, then ` field:type` for each field, in wire order.
+};
+RTYPE_ECS_CALL_DATA(ListResult, "rtype.net.ListResult", packets);
 
 /// @brief The arguments of `rtype.net.sendToServer`.
 struct SendToServerArguments {

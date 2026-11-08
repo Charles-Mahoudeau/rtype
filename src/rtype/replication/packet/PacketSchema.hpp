@@ -94,6 +94,9 @@ class RTYPE_REPLICATION_API PacketRegistry {
     /// @return How many packets are declared.
     [[nodiscard]] std::size_t size() const noexcept;
 
+    /// @return Every declared packet, in declaration order.
+    [[nodiscard]] const std::vector<PacketSchema>& all() const noexcept;
+
   private:
     std::vector<PacketSchema> _schemas;  ///< In declaration order (few: a linear search; moves never throw).
     bool _frozen{false};                 ///< Set by freeze().

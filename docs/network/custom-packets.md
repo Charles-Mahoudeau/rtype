@@ -91,7 +91,10 @@ A running example, with the packets `game.Buy`, `game.SetDirective` and `game.Ac
 | Sending | Packet declared, goes this way, every field present with the right type, integers whole and in range, `f32` finite, strings within `maxLength` | A Luau error naming the packet and the field; nothing is sent |
 | Receiving | Message well formed (bounds-checked), packet known, direction, schema hash (the sender's declaration is the same), every value re-checked, no trailing bytes | Dropped; the scripts never see it |
 | Receiving | At most 32 packets kept per client per frame (`ServerState::kMaxPendingPackets`), so one client cannot crowd out the commands of another | The rest dropped, counted (`droppedPacketCount()`) |
-| Receiving | A packet that fails the schema is dropped | Counted too: `ServerState::droppedPacketCount()`, `ClientState::droppedCount()` |
+| Receiving | A packet that fails the schema is dropped before it takes a place in the server's queue, so garbage never uses a client's quota | Counted too: `ServerState::droppedPacketCount()`, `ClientState::droppedCount()` |
+
+Packets declared in C++ (`PacketRegistry::declare`, before the scripts load) are available to scripts too: the forms read their
+fields once through `rtype.net.listPackets`, so `engine.net.sendToServer`, `sendToClients` and `received` work on them.
 
 The engine checks **shape**. Whether a command is allowed (the player owns that ship, has the gold, the tool exists)
 is the game's rule: the server script decides, using `sender`. Nothing a client sends changes state by itself.

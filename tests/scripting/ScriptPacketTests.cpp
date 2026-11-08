@@ -31,6 +31,7 @@
 #include "rtype/network/NetworkSettings.hpp"
 #include "rtype/network/Types.hpp"
 #include "rtype/network/io/Address.hpp"
+#include "rtype/replication/MessageType.hpp"
 #include "rtype/replication/ReplicationPlugin.hpp"
 #include "rtype/replication/client/ClientPlugin.hpp"
 #include "rtype/replication/client/ClientState.hpp"
@@ -162,11 +163,18 @@ class ScriptsDirectory {
     std::filesystem::path _path;  ///< The directory.
 };
 
-std::unique_ptr<App> makeApp(const RunMode mode, const std::filesystem::path& scripts) {
+/// @brief Declares packets from C++, as a plugin does; the scripts load after it.
+using NativeDeclarations = std::function<void(rtype::replication::packet::PacketRegistry&)>;
+
+std::unique_ptr<App> makeApp(const RunMode mode, const std::filesystem::path& scripts,
+                             const NativeDeclarations& native) {
     auto app = std::make_unique<App>(mode);
     app->getWorld().getEvents().registerType<Checked>();
     app->addPlugin(rtype::ecs::TimePlugin::manual(kFrame, rtype::ecs::FixedTimestep{kTickRate, 5}));
     app->addPlugin(rtype::replication::ReplicationPlugin{});
+    if (native) {
+        native(*app->getWorld().getResources().getMut<rtype::replication::packet::PacketRegistry>());
+    }
     app->addPlugin(rtype::scripting::ScriptingPlugin{
         {.directory = scripts,
          .options = {.isClient = mode == RunMode::kClient, .isServer = mode == RunMode::kServer}}});
@@ -189,11 +197,11 @@ struct Pair {
     std::vector<PacketReceived> clientReceived;  ///< Every packet the client's scripts were given.
 
     Pair(const std::string_view tag, const std::string& serverSource, const std::string& clientSource,
-         const std::uint8_t snapshotRate = kTickRate)
+         const std::uint8_t snapshotRate = kTickRate, const NativeDeclarations& native = {})
         : serverScripts{std::string{tag} + "-server", serverSource},
           clientScripts{std::string{tag} + "-client", clientSource},
-          server{makeApp(RunMode::kServer, serverScripts.path())},
-          client{makeApp(RunMode::kClient, clientScripts.path())} {
+          server{makeApp(RunMode::kServer, serverScripts.path(), native)},
+          client{makeApp(RunMode::kClient, clientScripts.path(), native)} {
         server->addPlugin(ServerPlugin{makeNetworkSettings(), {.tickRate = kTickRate, .snapshotRate = snapshotRate}});
         server->runFrame();  // Startup: opens the socket
         const auto address = network::io::Address::resolve("127.0.0.1", state().netServer().localPort());
@@ -356,6 +364,59 @@ engine.ecs.system("game.Report", {
 
     const std::vector<std::string> expected{"refused1", "refused2", "refused3", "refused4", "refused5", "accepted6"};
     EXPECT_EQ(std::vector<std::string>(pair.serverChecked.begin(), pair.serverChecked.begin() + 6), expected);
+}
+
+TEST(ScriptPackets, AScriptSendsAndReadsAPacketDeclaredInCpp) {
+    constexpr std::string_view kNativeClient = R"(
+local sent = false
+engine.ecs.system("native.Send", {
+    phase = "Update", side = "client", query = {}, calls = { "rtype.net.sendToServer" },
+    run = function(ctx)
+        if not sent and engine.net.sendToServer(ctx, "native.Ping", { n = 42, who = "me" }) then
+            sent = true
+        end
+    end,
+})
+)";
+    constexpr std::string_view kNativeServer = R"(
+engine.ecs.system("native.Read", {
+    phase = "Update", side = "server", query = {},
+    events = { read = { "net.PacketReceived" }, send = { "test.packets.Checked" } },
+    run = function(ctx)
+        for _, packet in engine.net.received(ctx) do
+            ctx.events.send("test.packets.Checked", { what = packet.name .. packet.values.n .. packet.values.who })
+        end
+    end,
+})
+)";
+    Pair pair{
+        "rtype-packets-native", std::string{kNativeServer}, std::string{kNativeClient}, kTickRate,
+        [](rtype::replication::packet::PacketRegistry& registry) {
+            using rtype::replication::packet::PacketField;
+            using rtype::replication::packet::PacketType;
+            registry.declare({.name = "native.Ping",
+                              .direction = rtype::replication::packet::PacketDirection::kToServer,
+                              .channel = network::Channel::kReliable,
+                              .fields = {PacketField{.name = "n", .type = PacketType::kU8, .maxLength = 0},
+                                         PacketField{.name = "who", .type = PacketType::kString, .maxLength = 8}}});
+        }};
+
+    ASSERT_TRUE(pair.runUntil([&] { return !pair.serverChecked.empty(); }));
+    EXPECT_EQ(pair.serverChecked[0], "native.Ping42me");
+}
+
+TEST(ScriptPackets, AMalformedPacketIsRefusedBeforeItIsQueued) {
+    Pair pair{"rtype-packets-malformed", withShared(kServer), withShared(kClient)};
+    ASSERT_TRUE(pair.runUntil([&] { return pair.clientReceived.size() >= 3; }));
+    const std::size_t before = pair.state().droppedPacketCount();
+
+    // A custom packet whose body no schema accepts.
+    const network::Bytes garbage{static_cast<std::byte>(rtype::replication::MessageType::kCustomPacket), std::byte{1},
+                                 std::byte{2}, std::byte{3}};
+    ASSERT_TRUE(pair.runUntil([&] { return pair.clientState().sendPacket(network::Channel::kReliable, garbage); }));
+    ASSERT_TRUE(pair.runUntil([&] { return pair.state().droppedPacketCount() > before; }));
+
+    EXPECT_EQ(pair.serverReceived.size(), 3U);  // nothing new reached the scripts
 }
 
 TEST(ScriptPackets, RefusesADeclarationAfterTheNetworkStarted) {

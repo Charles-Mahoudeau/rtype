@@ -173,5 +173,7 @@ const PacketSchema* PacketRegistry::find(const std::string_view name) const noex
     return found == _schemas.end() ? nullptr : &*found;
 }
 
+const std::vector<PacketSchema>& PacketRegistry::all() const noexcept { return _schemas; }
+
 std::size_t PacketRegistry::size() const noexcept { return _schemas.size(); }
 }  // namespace rtype::replication::packet

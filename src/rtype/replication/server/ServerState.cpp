@@ -49,6 +49,8 @@
 #include "rtype/replication/exceptions/ReplicationExceptions.hpp"
 #include "rtype/replication/input/InputLayout.hpp"
 #include "rtype/replication/input/InputMessage.hpp"
+#include "rtype/replication/packet/PacketCodec.hpp"
+#include "rtype/replication/packet/PacketSchema.hpp"
 #include "rtype/replication/query/ReplicatedQueries.hpp"
 #include "rtype/replication/serialization/EntityMapper.hpp"
 #include "rtype/replication/serialization/FieldSerializer.hpp"
@@ -214,7 +216,9 @@ void ServerState::start(input::InputLayout& inputs) {
     }
 }
 
-std::vector<ServerNotification> ServerState::receive(const input::InputLayout& inputs) {
+std::vector<ServerNotification> ServerState::receive(const input::InputLayout& inputs,
+                                                     const packet::PacketRegistry* packets) {
+    _packetRegistry = packets;
     std::vector<ServerNotification> notifications;
     _server->poll(_time());
     if (_admin) {
@@ -229,6 +233,7 @@ std::vector<ServerNotification> ServerState::receive(const input::InputLayout& i
             notifications.push_back(*notification);
         }
     }
+    _packetRegistry = nullptr;
     return notifications;
 }
 
@@ -248,7 +253,11 @@ std::optional<ServerNotification> ServerState::handle(const network::server::Ser
     const auto client = _clients.find(message.client);
     if (client != _clients.end() && !message.payload.empty() &&
         message.payload.front() == static_cast<std::byte>(MessageType::kCustomPacket)) {
-        if (client->second.pendingPackets >= kMaxPendingPackets) {
+        // Malformed packets are refused here, before they take a place in the queue (a client's own quota).
+        if (_packetRegistry != nullptr &&
+            !packet::decodePacket(*_packetRegistry, packet::PacketDirection::kToServer, message.payload)) {
+            ++_droppedPackets;
+        } else if (client->second.pendingPackets >= kMaxPendingPackets) {
             ++_droppedPackets;
         } else {
             ++client->second.pendingPackets;

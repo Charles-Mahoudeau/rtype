@@ -54,7 +54,7 @@ void receive(ecs::ResMut<ServerState> state, ecs::Res<input::InputLayout> inputs
              ecs::EventWriter<event::ClientConnected> connected, ecs::EventWriter<event::ClientDisconnected> left,
              ecs::Res<packet::PacketRegistry> packets, ecs::EventWriter<packet::PacketReceived> received) {
     state->bindCommands(&commands);  // the admin channel records its world changes there, applied after the phase
-    const std::vector<ServerNotification> notifications = state->receive(inputs.get());
+    const std::vector<ServerNotification> notifications = state->receive(inputs.get(), &*packets);
     state->bindCommands(nullptr);
     for (const ServerNotification& notification : notifications) {
         if (const auto* joined = std::get_if<event::ClientConnected>(&notification)) {
