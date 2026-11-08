@@ -78,7 +78,7 @@ architecture rules, and this file keeps the detail, which changes with every fea
   sees), `GameViewport` and `GuiMesh` (ImGui's draw data and textures as a `contract::renderer::Mesh`). `play/` holds
   `PlaySession` (Play, Pause, Step, Stop), `scene/` holds `SceneEdit` (the capsule changes, open, save, new files) and
   `Isolation` (a capsule shown alone, prefab mode), `console/` holds `ConsoleLog` and `OutputCapture` (the program's
-  output, for the Console), `shell/` holds `TextEditor` (a file opened in an external editor), all without ImGui. `panels/` holds the Game, Hierarchy, Inspector, Assets, Particles, Console and Stats panels and the menu bar,
+  output, for the Console), `shell/` holds `TextEditor` (a file opened in an external editor), all without ImGui. `panels/` holds the Game, Hierarchy, Inspector, Assets, Particles, Console and Stats panels and the toolbar,
   `FieldEditor` (the widgets of a reflected value, assets dropped on fields) and `WorldView`. Dear ImGui (docking
   branch) is a private package: no header of the editor includes it. Design in `docs/Editor.md`.
 - `src/rtype/runtime/` — the generic executable `aylo-runtime`: a `main` that runs an `Engine` on `game/` as a client, or

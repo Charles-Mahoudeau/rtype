@@ -101,7 +101,7 @@ and the resources and the scripts' state stay as they are.
 
 ### Playing online
 
-The menu bar has a choice next to Play: **Standalone** (the default, above) or **Online**, locked while a Play is under
+The toolbar has a choice next to Play: **Standalone** (the default, above) or **Online**, locked while a Play is under
 way. Online tests the real thing, a server and its clients:
 
 1. Play remembers the open scene, then starts the child server with the options of the Server panel (game folder, port,
@@ -197,7 +197,7 @@ background (`shell::buildOpenCommand()`): Visual Studio Code by default, through
 
 | Panel | File | What it does |
 |---|---|---|
-| Menu bar | `panels/ToolbarPanel.cpp` | File (Save scene, Ctrl+S; Quit, through `IPlatform::close()`), View (panels, Reset layout), the Standalone / Online choice, Play / Pause / Step / Stop, the mode and the last message |
+| Toolbar | `panels/ToolbarPanel.cpp` | One padded row (`gui::beginToolbar()`): on the left File (Save scene, Ctrl+S; Quit, through `IPlatform::close()`) and View (panels, Reset layout), as flat buttons opening popups; in the center the mode chip and the last message; on the right the Standalone / Online choice and Play / Pause / Step / Stop. The three groups are placed by `gui::beginToolbarGroup()` |
 | Prefab | `panels/PrefabPanel.cpp` | The capsule opened alone, from the renderer's preview, centred; the wheel zooms; its cross goes back to the scene |
 | Game | `panels/GamePanel.cpp` | Asks for a scene texture as big as its content, draws it as an image, tells the input bridge where it is (`GameViewport`) |
 | Hierarchy | `panels/HierarchyPanel.cpp` | Editing: the scene's node tree; drag a node onto another to move it, drop a capsule file to place an instance, right-click to add or delete. Playing: the world's entities by their `Parent` and `Children`, named by their `Name`, or a flat list filtered by component name |
@@ -231,7 +231,7 @@ particles run in PostUpdate and Render, they play while editing.
 
 1. Open `editor.scene` on the first frame (the capsule files are read once every plugin is built).
 2. Tell ImGui the size of the window, the density of its pixels, the last frame's duration and the clipboard.
-3. `ImGui::NewFrame()`, the menu bar, the dockspace over the window (the panels are docked as by default on the first
+3. `ImGui::NewFrame()`, the toolbar, the dockspace over the window (the panels are docked as by default on the first
    frame if no layout was kept; the layout file is `<cache>/rtype/editor/layout-<version>.ini`, its version raised when
    the panels change), then the panels.
 4. `ImGui::Render()`, `gui::updateTextures()` (ImGui's font atlas, sent whole when it grows) and `gui::buildMesh()`, one
