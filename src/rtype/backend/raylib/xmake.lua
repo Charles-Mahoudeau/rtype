@@ -15,6 +15,17 @@ target("backend-raylib")
         -- in the same process.
         add_shflags("-Wl,--exclude-libs,ALL")
     end
+    -- On Linux, raylib's GLFW opens the X11 libraries when it starts, and the OpenGL functions come through it. The
+    -- package lists X11, OpenGL and thirty xcb libraries as links all the same, which would make this library need
+    -- them to load: on a machine missing one (libxcb-xf86dri...), the engine cannot load it, even for a game that uses
+    -- another backend. Only raylib is linked, and libX11, whose clipboard functions raylib calls directly; every X11 or
+    -- XWayland desktop has it. platform-glfw does the same with GLFW.
+    before_link(function (target)
+        if target:is_plat("linux") then
+            target:pkg("raylib"):set("links", {"raylib"})
+            target:pkg("raylib"):set("syslinks", {"X11"})
+        end
+    end)
     add_files("**.cpp")
     add_headerfiles("**.hpp")
     -- Headers are included as "backend/raylib/...".
