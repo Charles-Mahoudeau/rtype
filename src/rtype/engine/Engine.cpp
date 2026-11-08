@@ -284,6 +284,18 @@ void Engine::requestReload(const ecs::RunMode mode, std::vector<std::string> arg
     _reloadRequested = true;
 }
 
+Engine::ScriptEvaluation Engine::evaluateScript(const std::string_view source) {
+    if (_scriptHost == nullptr) {
+        return {.ok = false, .text = "no script is running"};
+    }
+    auto evaluation = _scriptHost->evaluate(source);
+    return {.ok = evaluation.ok, .text = std::move(evaluation.text)};
+}
+
+std::vector<std::string> Engine::completeScript(const std::string_view word) {
+    return _scriptHost == nullptr ? std::vector<std::string>{} : _scriptHost->complete(word);
+}
+
 std::optional<Engine::Setup> Engine::adoptPendingSetup() {
     std::optional<Setup> next;
     {

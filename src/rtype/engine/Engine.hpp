@@ -123,6 +123,25 @@ class RTYPE_ENGINE_API Engine {
     /// @throws exceptions::RuntimeError If @p args is not a valid command line.
     void requestReload(ecs::RunMode mode, std::vector<std::string> args);
 
+    /// @brief What evaluateScript() gives back.
+    struct ScriptEvaluation {
+        bool ok{false};    ///< False when there is no script to run, or the line did not compile or raised an error.
+        std::string text;  ///< The values the line gave written as Luau, or the error message.
+    };
+
+    /// @brief Runs a line of Luau in the scripts of the current App, as a debug console does (see
+    /// scripting::ScriptHost::evaluate()): the loaded modules are in reach by name and their tables are writable.
+    ///
+    /// Call it from the thread that runs the frames, between two systems (a tool frame). Never throws.
+    /// @param source One line of Luau.
+    /// @return The outcome; not ok when the App has no scripts.
+    [[nodiscard]] ScriptEvaluation evaluateScript(std::string_view source);
+
+    /// @brief Completes the dotted name a debug console is typing (see scripting::ScriptHost::complete()).
+    /// @param word The name up to the cursor.
+    /// @return The whole words that complete it; none when the App has no scripts.
+    [[nodiscard]] std::vector<std::string> completeScript(std::string_view word);
+
     /// @brief Runs frames until a system sends AppExit, building a new App between two frames when a reload was
     /// requested.
     /// @param maxFrames When set, stops after that many frames if no AppExit came (a test run): the code is then 0.
