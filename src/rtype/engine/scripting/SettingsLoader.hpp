@@ -21,8 +21,8 @@ namespace rtype::engine::scripting {
 /// @brief Reads the project settings from a Luau script (`examples/games/rtype_duel/game/project.luau`) into a
 /// core::config::Settings.
 ///
-/// @details The script runs in a sandboxed runtime and sees the pure standard libraries (`table`, `string`, `math`..., but no `os` or `debug`) plus
-/// one engine global, `engine`:
+/// @details The script runs in a sandboxed runtime and sees the pure standard libraries (`table`, `string`, `math`...,
+/// but no `os` or `debug`) plus one engine global, `engine`:
 /// - `engine.<flag>`: the booleans given to setFlag() (`engine.isClient`, `engine.isDebug`...);
 /// - `engine.args`: the command line given to setArgs() (`--port 4242` gives `engine.args.port == 4242`), empty until
 ///   then, so `engine.args.port or 4242` reads a flag with a default;

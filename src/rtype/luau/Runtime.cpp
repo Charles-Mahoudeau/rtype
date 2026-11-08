@@ -22,7 +22,6 @@
 #include <iostream>
 #include <iterator>
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -77,17 +76,17 @@ Runtime::Runtime(lua_State* state, const RuntimeConfig config)
         lua_CFunction open;
     };
     const std::array<Entry, 11> entries{{
-        {Libs::kBase, "", luaopen_base},
-        {Libs::kMath, LUA_MATHLIBNAME, luaopen_math},
-        {Libs::kTable, LUA_TABLIBNAME, luaopen_table},
-        {Libs::kString, LUA_STRLIBNAME, luaopen_string},
-        {Libs::kCoroutine, LUA_COLIBNAME, luaopen_coroutine},
-        {Libs::kBit32, LUA_BITLIBNAME, luaopen_bit32},
-        {Libs::kUtf8, LUA_UTF8LIBNAME, luaopen_utf8},
-        {Libs::kOs, LUA_OSLIBNAME, luaopen_os},
-        {Libs::kDebug, LUA_DBLIBNAME, luaopen_debug},
-        {Libs::kBuffer, LUA_BUFFERLIBNAME, luaopen_buffer},
-        {Libs::kVector, LUA_VECLIBNAME, luaopen_vector},
+        {.flag = Libs::kBase, .name = "", .open = luaopen_base},
+        {.flag = Libs::kMath, .name = LUA_MATHLIBNAME, .open = luaopen_math},
+        {.flag = Libs::kTable, .name = LUA_TABLIBNAME, .open = luaopen_table},
+        {.flag = Libs::kString, .name = LUA_STRLIBNAME, .open = luaopen_string},
+        {.flag = Libs::kCoroutine, .name = LUA_COLIBNAME, .open = luaopen_coroutine},
+        {.flag = Libs::kBit32, .name = LUA_BITLIBNAME, .open = luaopen_bit32},
+        {.flag = Libs::kUtf8, .name = LUA_UTF8LIBNAME, .open = luaopen_utf8},
+        {.flag = Libs::kOs, .name = LUA_OSLIBNAME, .open = luaopen_os},
+        {.flag = Libs::kDebug, .name = LUA_DBLIBNAME, .open = luaopen_debug},
+        {.flag = Libs::kBuffer, .name = LUA_BUFFERLIBNAME, .open = luaopen_buffer},
+        {.flag = Libs::kVector, .name = LUA_VECLIBNAME, .open = luaopen_vector},
     }};
     for (const auto& [flag, name, open] : entries) {
         if (has(_config.libs, flag)) {
