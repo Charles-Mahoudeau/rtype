@@ -13,6 +13,7 @@
 #include "Panels.hpp"
 #include "editor/EditorState.hpp"
 #include "editor/gui/Text.hpp"
+#include "editor/gui/Theme.hpp"
 #include "editor/play/OnlinePlay.hpp"
 #include "editor/scene/SceneEdit.hpp"
 #include "plugins/capsule/Capsules.hpp"
@@ -79,15 +80,15 @@ void drawPlayButtons(EditorState& state) {
     ecs::App& app = *state.app;
     play::OnlinePlay& online = state.session->online;
     if (online.stage() == play::OnlineStage::kStartingServer) {
-        ImGui::TextUnformatted("Starting server...");
-        if (ImGui::Button("Cancel")) {
+        gui::textTone("Starting server...", gui::Tone::kWarning);
+        if (gui::toneButton("Cancel", gui::Tone::kDanger)) {
             online.end();
             state.status = "Cancelled";
         }
         return;
     }
     if (!state.play.isPlaying()) {
-        if (ImGui::Button("Play")) {
+        if (gui::toneButton("Play", gui::Tone::kSuccess)) {
             closePrefab(state);  // the game plays its scene, not a capsule shown alone
             if (online.mode() == play::PlayMode::kOnline) {
                 playOnline(state);
@@ -100,15 +101,15 @@ void drawPlayButtons(EditorState& state) {
         return;
     }
     const bool paused = app.getSchedules().isPaused();
-    if (ImGui::Button(paused ? "Resume" : "Pause")) {
+    if (gui::toneButton(paused ? "Resume" : "Pause", paused ? gui::Tone::kSuccess : gui::Tone::kWarning)) {
         state.play.togglePause(app);
     }
     ImGui::BeginDisabled(!paused);
-    if (ImGui::Button("Step")) {
+    if (gui::toneButton("Step", gui::Tone::kInfo)) {
         state.play.step(app);
     }
     ImGui::EndDisabled();
-    if (ImGui::Button("Stop")) {
+    if (gui::toneButton("Stop", gui::Tone::kDanger)) {
         if (online.isActive()) {
             online.end();  // rebuilds the editor standalone; the server keeps running
             state.status = "Stopping: back to the scene";
@@ -153,6 +154,17 @@ std::string modeText(const EditorState& state) {
     return paused ? "Paused" : "Playing";
 }
 
+/// @return The color of the mode chip: what the editor is doing, at a glance.
+gui::Tone modeTone(const EditorState& state) {
+    if (!state.play.isPlaying()) {
+        return state.isEditedUnsaved() ? gui::Tone::kWarning : gui::Tone::kInfo;
+    }
+    if (state.app->getSchedules().isPaused()) {
+        return gui::Tone::kWarning;
+    }
+    return state.session->online.isActive() ? gui::Tone::kOnline : gui::Tone::kSuccess;
+}
+
 }  // namespace
 
 void drawToolbar(EditorState& state, contract::platform::IPlatform& platform) {
@@ -177,10 +189,10 @@ void drawToolbar(EditorState& state, contract::platform::IPlatform& platform) {
     drawModeSelector(state);
     drawPlayButtons(state);
     ImGui::Separator();
-    ImGui::TextUnformatted(modeText(state).c_str());
+    gui::chip(modeText(state), modeTone(state));
     if (const std::string& problem = state.session->online.message(); !problem.empty()) {
         ImGui::Separator();
-        gui::textDisabled(problem);
+        gui::textTone(problem, gui::Tone::kDanger);
     }
     if (!state.status.empty()) {
         ImGui::Separator();
