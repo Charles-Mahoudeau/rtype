@@ -15,12 +15,12 @@ if engine.isClient then
 end
 
 -- Seen from above (the riders, the traffic and the scene around them are capsules, in assets/): the physics without
--- gravity, and F3 outlines every collider (hidden at first).
+-- gravity, and F3 outlines every collider (hidden at first). The clients draw the HUD with the UI.
 engine.settings.plugins = { "rtype.Physics", "rtype.Capsule" }
 if engine.isClient then
 	engine.settings.plugins = {
 		"rtype.Physics", "rtype.Capsule", "rtype.Input", "rtype.graphics", "rtype.Shader", "rtype.Sprite",
-		"rtype.SpriteDraw", "rtype.Shape", "rtype.Tilemap", "rtype.PhysicsDebug",
+		"rtype.SpriteDraw", "rtype.Shape", "rtype.Tilemap", "rtype.Text", "rtype.Ui", "rtype.PhysicsDebug",
 	}
 end
 engine.settings.physics.gravity = { 0, 0 }

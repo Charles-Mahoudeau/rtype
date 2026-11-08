@@ -138,6 +138,9 @@ engine.ecs.component("game.Driving", { fields = { speed = "f32" }, presence = "s
 -- show by its color, and the gauge follows them.
 engine.ecs.component("game.Cyclist", { fields = { boost = "u8" }, replication = "spawnOnly" })
 
+-- A text of the HUD (client/hud.luau), client only: what it shows (its role) and, for a score, whose (its slot).
+engine.ecs.component("game.HudText", { fields = { role = "u8", slot = "u8" }, presence = "clientOnly" })
+
 -- Markers of the scene's client nodes (assets/scenes/roads.scene): a server reads the file too, and the camera and the
 -- shape are not its components, so the client gives them to the marked entities.
 engine.ecs.component("game.Camera", { fields = {}, presence = "clientOnly" })

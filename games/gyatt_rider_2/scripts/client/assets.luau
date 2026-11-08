@@ -2,6 +2,8 @@
 -- anything there.
 
 return {
+	-- The HUD's font, Orbitron (fonts/OFL.txt), a font atlas made with msdf-atlas-gen.
+	font = engine.assets.font("fonts/orbitron.json"),
 	-- The 8 roads, repeated down the view and scrolling on their own (the map's `scrolly`).
 	roads = engine.assets.tilemap("levels/roads.tmj"),
 	-- One square of a shot's beam, repeated from the shooter to what it hits (client/beams.luau).
