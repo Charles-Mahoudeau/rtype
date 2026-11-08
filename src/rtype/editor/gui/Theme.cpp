@@ -8,6 +8,7 @@
 #include "Theme.hpp"
 
 #include <imgui.h>
+#include <imgui_internal.h>
 
 #include <cstdint>
 #include <string>
@@ -56,6 +57,12 @@ constexpr ImVec4 kLavender = rgb(0xB4BEFE);
 
 constexpr ImVec4 kAccent = kMauve;
 constexpr ImVec4 kClear = rgb(0x000000, 0.0F);
+
+constexpr float kToolbarPaddingX = 14.0F;  ///< Space left and right of the toolbar's items.
+constexpr float kToolbarPaddingY = 9.0F;   ///< Space above and below them.
+constexpr float kTreePaddingX = 4.0F;      ///< Horizontal padding of a tree row: the arrow's room is made of it.
+constexpr float kTreePaddingY = 3.0F;      ///< Vertical padding of a tree row.
+constexpr float kTreeIndent = 16.0F;       ///< Indent of a level of a tree.
 
 constexpr float kHoverMix = 0.18F;      ///< How much lighter a filled button gets under the pointer.
 constexpr float kPressMix = 0.2F;       ///< How much darker it gets pressed.
@@ -170,7 +177,7 @@ void applyColors(ImGuiStyle& style) {
 }
 
 void applyShapes(ImGuiStyle& style) {
-    style.FontSizeBase = 14.0F;  // JetBrains Mono is wide: 14 reads like 15 of a narrower font
+    style.FontSizeBase = 16.0F;
 
     style.WindowPadding = ImVec2{10.0F, 10.0F};
     style.FramePadding = ImVec2{10.0F, 6.0F};
@@ -211,6 +218,27 @@ void applyTheme() {
     applyShapes(style);
     applyColors(style);
 }
+
+bool beginToolbar(const char* id) {
+    const float height = ImGui::GetFrameHeight() + (2.0F * kToolbarPaddingY);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{kToolbarPaddingX, kToolbarPaddingY});
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0F);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, kMantle);
+    const bool visible = ImGui::BeginViewportSideBar(id, ImGui::GetMainViewport(), ImGuiDir_Up, height,
+                                                     ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings);
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(2);
+    return visible;
+}
+
+void endToolbar() { ImGui::End(); }
+
+void pushTreeMetrics() {
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2{kTreePaddingX, kTreePaddingY});
+    ImGui::PushStyleVar(ImGuiStyleVar_IndentSpacing, kTreeIndent);
+}
+
+void popTreeMetrics() { ImGui::PopStyleVar(2); }
 
 void pushEmphasisFont() {
     // The emphasis font is the last one the atlas loaded; with a single font that is the text one, so the pushes and

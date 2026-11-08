@@ -31,6 +31,22 @@ enum class Tone : std::uint8_t {
 /// breathe.
 RTYPE_EDITOR_API void applyTheme();
 
+/// @brief Starts the toolbar: a bar under the menu bar, as wide as the window, padded all round, in which items are
+/// laid out with SameLine() and sit centered between its top and bottom. Always call endToolbar(), even when this
+/// returns false.
+/// @param id The window's name, unique.
+RTYPE_EDITOR_API bool beginToolbar(const char* id);
+
+/// @brief Ends what beginToolbar() started.
+RTYPE_EDITOR_API void endToolbar();
+
+/// @brief Compact metrics for the rows of a tree (padding and indent), until popTreeMetrics(). The roomy padding of
+/// the theme widens the arrow every row reserves, so the labels of a tree drift away from their parents.
+RTYPE_EDITOR_API void pushTreeMetrics();
+
+/// @brief Ends what pushTreeMetrics() started.
+RTYPE_EDITOR_API void popTreeMetrics();
+
 /// @brief Starts text in @p tone; ends with popTextTone().
 RTYPE_EDITOR_API void pushTextTone(Tone tone);
 
