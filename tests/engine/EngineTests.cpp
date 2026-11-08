@@ -14,6 +14,8 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <future>
+#include <limits>
 #include <span>
 #include <string>
 #include <string_view>
@@ -596,6 +598,26 @@ TEST(Engine, StopsWithCodeZeroAfterTheFramesItWasGiven) {
     EXPECT_EQ(engine.run(3), 0);
 }
 
+TEST(Engine, RunsNoFrameWithAZeroFrameLimit) {
+    const GameDirectory game{"rtype-engine-max-frames-zero"};
+    std::int32_t builds = 0;
+    EngineConfig config = serverConfig(game);
+    config.setup = countingSetup(builds, &exitAtOnce);
+    Engine engine{std::move(config)};
+
+    EXPECT_EQ(engine.run(0), 0) << "no frame ran, so no AppExit was sent";
+}
+
+TEST(Engine, RunsTheLastFrameOfTheLimit) {
+    const GameDirectory game{"rtype-engine-max-frames-last"};
+    std::int32_t builds = 0;
+    EngineConfig config = serverConfig(game);
+    config.setup = countingSetup(builds, &exitAtOnce);
+    Engine engine{std::move(config)};
+
+    EXPECT_EQ(engine.run(1), 1) << "the one frame it was given sent the AppExit";
+}
+
 TEST(Engine, AnAppExitBeatsTheFrameLimit) {
     const GameDirectory game{"rtype-engine-max-frames-exit"};
     std::int32_t builds = 0;
@@ -934,4 +956,29 @@ TEST(EngineHotReload, WaitsForAFixWhenTheNewGameCannotBeBuilt) {
     EXPECT_NE(log.find("The game cannot be built"), std::string::npos) << log;
     EXPECT_NE(log.find("unknown plugin 'no.Such'"), std::string::npos) << log;
     EXPECT_NE(log.find("Waiting for a change"), std::string::npos) << log;
+}
+
+TEST(EngineHotReload, StopsARunWithAFrameLimitWhenTheNewGameCannotBeBuilt) {
+    const GameDirectory game{"rtype-engine-hot-bounded", kHotProject};
+    std::int32_t builds = 0;
+    EngineConfig config = serverConfig(game);
+    config.setup = countingSetup(builds, &exitOnSecondBuild);
+    Engine engine{std::move(config)};
+    game.write(std::string{Engine::kProjectFile},
+               std::string{kHotProject} + "engine.settings.plugins = { 'no.Such' }\n");
+
+    testing::internal::CaptureStderr();
+    auto runner =
+        std::async(std::launch::async, [&engine] { return engine.run(std::numeric_limits<std::size_t>::max()); });
+    const bool stopped = runner.wait_for(std::chrono::seconds{30}) == std::future_status::ready;
+    if (!stopped) {  // a regression waits for a fix: give it one, so the thread ends and the suite does not hang
+        game.write(std::string{Engine::kProjectFile}, kHotProject);
+    }
+    const int code = runner.get();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_TRUE(stopped) << "the run waited for a change in the files";
+    EXPECT_EQ(code, Engine::kBuildFailedCode);
+    EXPECT_NE(log.find("unknown plugin 'no.Such'"), std::string::npos) << log;
+    EXPECT_EQ(log.find("Waiting for a change"), std::string::npos) << log;
 }
