@@ -72,6 +72,10 @@ engine.ecs.system("game.Rules", {
 })
 ```
 
+In a standalone world (the editor, single player) packets loop back inside the world: `sendToServer` arrives with
+`sender = 1`, `sendToClients` with `sender = 0` (client 1 is the local player). `engine.net.received(ctx)` gives a
+system only the packets toward its side, from `ctx.side`; a `"both"` system gets every one (design, "Standalone").
+
 `engine.net.sendToClients(ctx, name, values, client?)` sends to every connected client, or to `client` (an id from
 `net.ClientConnected` or a packet's `sender`); it returns `false` when nobody got it: unknown client, no client ready, or
 every recipient's reliable queue is full.

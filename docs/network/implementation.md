@@ -1943,7 +1943,8 @@ struct ClientDisconnected { std::uint32_t client; std::uint8_t reason; };
 
 namespace rtype::replication {
 /// @brief Registers every replication component and event, and inserts the InputLayout resource (NET-15).
-/// Added by ServerPlugin and ClientPlugin; the only plugin a standalone game needs.
+/// Added by ServerPlugin, ClientPlugin and StandalonePlugin (`replication/standalone/`: client 1, loopback packets,
+/// local input; see the design, "Standalone").
 class RTYPE_REPLICATION_API ReplicationPlugin : public ecs::Plugin {
   public:
     static constexpr std::string_view kName = "rtype.replication";

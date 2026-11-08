@@ -56,7 +56,7 @@ the token protects against other users' programs reaching the port, not against 
 |------------|------|-----------|-----------|
 | `aylo-runtime --server` (`src/rtype/runtime/`) | `kServer` | nothing (headless) | `game/` only |
 | `aylo-runtime` (`src/rtype/runtime/`) | `kClient` | the backends `project.luau` names (`platform`, `renderer`, `audio.backend`) | `game/` only |
-| `aylo-editor` (`src/rtype/editor/app/`) | `kStandalone`, `EngineConfig::debug` true | as the client, plus `rtype.Editor` (`EngineConfig::addPlugins`) | `game/` only, both sides in one world (`docs/Editor.md`) |
+| `aylo-editor` (`src/rtype/editor/app/`) | `kStandalone`, `EngineConfig::debug` true | as the client, plus `rtype.Editor` (`EngineConfig::addPlugins`) | `game/` only, both sides in one world, with a local client 1 (`docs/Editor.md`) |
 | `rtype_duel` (example) | `server` or `client`, the first argument | as the client, on the client side | its `game/` only (Luau) |
 | `ethan_game(bestoftheworld)` (example) | `kStandalone` | as the client | `setup` |
 

@@ -27,7 +27,9 @@ A program of its own, not a feature of a game and not a mode of the runtime. Gam
 - **Always a debug run.** `EngineConfig::debug` is true, so `engine.isDebug` is true and hot reload defaults on, even in
   a release build. The check of the game plugins' signatures still follows the build type.
 - **Both sides by default.** `RunMode::kStandalone` (both sides in one world, no network: a client alone would not run
-  the server's gameplay). "Play online" rebuilds it as `RunMode::kClient` against a child server (see
+  the server's gameplay) as a server with one local client, client 1 (`StandalonePlugin`: `net.ClientConnected` once, the
+  keyboard is its input, packets loop back in the world, see `docs/network/design.md`), so a networked game loads and
+  plays unchanged. "Play online" rebuilds it as `RunMode::kClient` against a child server (see
   [Playing online](#playing-online)). `--server` is refused. The program adds `rtype.Editor` through `EngineConfig::addPlugins`, reads
   its `editor` settings with `readEditorOptions()`, and gives `engine.args.editor` (true) to the project.
 - **Dear ImGui is private to it.** It is the only module that includes `imgui.h` (no header of the editor does). The
