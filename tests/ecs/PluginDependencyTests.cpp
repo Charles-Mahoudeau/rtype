@@ -199,3 +199,18 @@ TEST(PluginDependency, StaysUsableAfterAnError) {
     static_cast<void>(testing::internal::GetCapturedStderr());
     EXPECT_EQ(log, (pdep::BuildLog{"test.missing", "test.a"}));
 }
+
+TEST(PluginDependency, GetPluginsListsThePluginsInTheOrderTheyWereRecorded) {
+    rtype::ecs::App app;
+    pdep::BuildLog log;
+    pdep::registerPlugin(app, "test.b", {}, &log);
+    testing::internal::CaptureStderr();
+    app.addPlugin(pdep::RequiringPlugin{"test.a", {"test.b"}, &log});
+    app.addPlugin(pdep::RequiringPlugin{"test.a", {}, &log});  // already added: ignored
+    static_cast<void>(testing::internal::GetCapturedStderr());
+    std::vector<std::string> names;
+    for (const rtype::ecs::Plugin* plugin : app.getPlugins()) {
+        names.emplace_back(plugin->getName());
+    }
+    EXPECT_EQ(names, (std::vector<std::string>{"test.b", "test.a"}));
+}
