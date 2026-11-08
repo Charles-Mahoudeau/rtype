@@ -16,7 +16,7 @@ They are ordinary components you spawn with `ctx.commands` and query by name.
 
 | Component | What it is |
 |---|---|
-| `rtype.Collider` | A shape (`shape`: `0` box, `1` circle, `2` capsule, with `size`, `radius`...), a `layer` and a `mask` |
+| `rtype.Collider` | A shape (`shape`: `0` box, `1` circle, `2` capsule, with `size`, `radius`...), a `layer` and a `mask`, and `sensor` (`true`: a zone that sends trigger events, which bodies go through instead of bumping into) |
 | `rtype.RigidBody` | How it moves: its `type` (for example `1` for kinematic), `gravityScale`, `fixedRotation`, `continuousCollision` |
 | `rtype.Velocity` | `linear` and `angular` velocity, in world units per second |
 | `rtype.Transform` | The pose; write it to move a body |
@@ -46,7 +46,18 @@ Declare them under `events = { read = {...} }` and read them with `ctx.events.re
 | Event | When |
 |---|---|
 | `rtype.CollisionStarted`, `rtype.CollisionEnded` | two bodies start or stop touching (`first`, `second` are entities) |
-| `rtype.TriggerEntered`, `rtype.TriggerExited` | a body enters or leaves a sensor |
+| `rtype.TriggerEntered`, `rtype.TriggerExited` | a body enters or leaves a sensor (`trigger` is the sensor, `other` the body) |
+
+Each pair sends one start and one end, however long the bodies stay together.
+
+!!! warning "Two kinematic bodies never touch"
+    Kinematic bodies go through each other without a `CollisionStarted`. To know when a kinematic body runs into
+    another, such as a car over a player, make one of them a sensor and read `rtype.TriggerEntered`:
+
+    ```luau
+    ["rtype.Collider"] = { size = { x = 64, y = 128 }, sensor = true, layer = 1, mask = 2 },
+    ["rtype.RigidBody"] = { type = 1 },
+    ```
 
 ## Calls
 
