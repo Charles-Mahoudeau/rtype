@@ -61,7 +61,7 @@ architecture rules, and this file keeps the detail, which changes with every fea
   `packet/`, `exceptions/`. `input/InputCalls.hpp` holds its engine calls (`rtype.replication.addInput`, `readInput`),
   `client/ClientCalls.hpp` the client's (`rtype.replication.localClient`), both registered by `ReplicationPlugin`.
 - `src/rtype/engine/` — `engine` target, static library (`rtype-engine`): `Engine` runs a game directory (`game/` by
-  default, `--game <dir>`): it reads its `project.luau` through Luau (`scripting/SettingsLoader`, which also exposes
+  default, `<dir>`): it reads its `project.luau` through Luau (`scripting/SettingsLoader`, which also exposes
   the command line as `engine.args`), builds the `App` with the program's plugins, `EngineConfig::addPlugins`, and the engine's (transform, replication,
   scripting, server or client) in a fixed order, calls the game's native `EngineConfig::setup`, runs it, and builds it
   again on `requestReload()` or when `project.luau` changes. `reload/` holds `ProjectReloadable` and `ScriptsReloadable`, the engine's hot reload sources (`HotReloader`, `plugins/HotReload.hpp`). `plugin/` holds `SharedLibrary` and `PluginLoader`, which load the plugin libraries, and

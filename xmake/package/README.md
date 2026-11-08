@@ -19,8 +19,8 @@ to be installed, apart from the graphics driver of the machine (Vulkan) for a ga
 From this folder:
 
 ```sh
-runtime/aylo-runtime --server --game templates/game     # the server, no window
-runtime/aylo-runtime --game templates/game              # a client, in a window
+runtime/aylo-runtime --server templates/game     # the server, no window
+runtime/aylo-runtime templates/game              # a client, in a window
 runtime/aylo-runtime --version                          # which engine this is
 ```
 
@@ -30,7 +30,7 @@ runtime/aylo-runtime --version                          # which engine this is
 ## Make a game
 
 A game is a folder with `project.luau`, `scripts/` and `assets/`, written in Luau only. Copy `templates/game/` to
-`my_game/game/`, edit it, and run it with `--game my_game/game`. The manual explains the rest.
+`my_game/game/`, edit it, and run it with `my_game/game`. The manual explains the rest.
 
 ## Ship it
 

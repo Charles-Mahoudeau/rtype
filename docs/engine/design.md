@@ -20,14 +20,14 @@ game/
 └── scripts/        the Luau files of ScriptingPlugin: the entry points (`scripts.main/server/client`, default `main`) and what they `require` (optional)
 ```
 
-The directory is `EngineConfig::game` (`game` by default), or `--game <directory>` on the command line. A relative path
+The directory is `EngineConfig::game` (`game` by default), or the first argument of the command line when it is not a flag (`<directory> --port 4243`). A relative path
 is resolved against the working directory, then made absolute once, at construction, so a later change of directory
 does not move the game. If the directory has no `project.luau`, the constructor throws `exceptions::RuntimeError`.
 
 ## The command line
 
 `CommandLine` reads flags only: `--name value`, `--name=value`, or a bare `--name` (`true`). A flag given twice keeps
-its last value. Any other argument is an error. The engine itself reads only `--game`. **Every** flag is also given to
+its last value. Any other argument is an error. The engine itself reads only the game directory, which must come first: a flag takes the argument after it as its value. **Every** flag is also given to
 `project.luau` as `engine.args`, so the game decides its own command line:
 
 ```lua
@@ -51,7 +51,7 @@ end
 | `ethan_game(bestoftheworld)` (example) | `kStandalone` | as the client | `setup` |
 
 A game written entirely in Luau (SCR-10 in `../scripting/plan.md`) needs no `main` of its own: the generic
-runtime runs it (`./aylo-runtime --server --game examples/games/rtype_duel/game`). `rtype_duel` is one: its `main` only picks
+runtime runs it (`./aylo-runtime --server examples/games/rtype_duel/game`). `rtype_duel` is one: its `main` only picks
 the side from its first argument, to show that one binary can run both sides, and registers the client's backends.
 `ethan_game` shows the step before: its gameplay is still C++, given to the `Engine` as `EngineConfig::setup`.
 
