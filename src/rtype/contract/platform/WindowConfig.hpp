@@ -22,10 +22,14 @@ struct RTYPE_CONTRACT_PLATFORM_API WindowConfig {
     std::string title = "R-Type";
     bool resizable = true;
     bool fullscreen = false;  ///< On the primary monitor, at its current resolution.
+    /// @brief The window system, on Linux: "auto" (Wayland in a Wayland session, X11 otherwise or if Wayland fails),
+    /// "x11" or "wayland". Elsewhere there is only one, and this is not read.
+    std::string system = "auto";
 
-    /// @brief Reads the keys `size` ({width, height}), `title`, `resizable` and `fullscreen`; the missing ones keep
-    /// their default.
-    /// @throws core::config::exceptions::SettingsException If a key is unknown or has the wrong type.
+    /// @brief Reads the keys `size` ({width, height}), `title`, `resizable`, `fullscreen` and `system`; the missing
+    /// ones keep their default.
+    /// @throws core::config::exceptions::SettingsException If a key is unknown or has the wrong type, or `system` is
+    /// not "auto", "x11" or "wayland".
     [[nodiscard]] static WindowConfig fromSettings(const core::config::Settings& settings);
 };
 }  // namespace rtype::contract::platform

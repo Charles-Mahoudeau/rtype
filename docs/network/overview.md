@@ -219,7 +219,7 @@ end
 - Sending checks every value (`300` into a `u8` is a script error); receiving drops anything invalid.
 - This one is 11 bytes on the wire.
 
-Details: [Custom packets](design.md#8-custom-packets).
+Implemented subset (client → server commands, validated, from Luau): [Custom packets](custom-packets.md). Full design: [Custom packets](design.md#8-custom-packets).
 
 ## Never trust the network
 

@@ -21,7 +21,12 @@ physics, audio and a replicated client/server network model. It does not contain
 
 ## Build and run
 
-Requires `xmake` and `clang`.
+Requires `xmake` and `clang`. On Linux, the window needs the development files of X11 and of xkbcommon (GLFW builds
+its X11 and Wayland support with them), as the CI installs them:
+
+```sh
+sudo apt install libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxkbcommon-dev
+```
 
 ```sh
 xmake f -y

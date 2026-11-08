@@ -24,6 +24,8 @@
 #include "rtype/replication/event/ClientDisconnected.hpp"
 #include "rtype/replication/input/InputCalls.hpp"
 #include "rtype/replication/input/InputLayout.hpp"
+#include "rtype/replication/packet/PacketCalls.hpp"
+#include "rtype/replication/packet/PacketSchema.hpp"
 
 namespace rtype::replication {
 ReplicationPlugin::~ReplicationPlugin() = default;  // defined here: the class's vtable lives in the library
@@ -44,7 +46,11 @@ void ReplicationPlugin::build(ecs::App& app) {
     static_cast<void>(events.registerType<event::ClientConnected>({.presence = ecs::Presence::kServerOnly}));
     static_cast<void>(events.registerType<event::ClientDisconnected>({.presence = ecs::Presence::kServerOnly}));
 
+    static_cast<void>(events.registerType<packet::PacketReceived>({.presence = ecs::Presence::kBoth}));
+
     app.insertResourceIfAbsent<input::InputLayout>();
+    app.insertResourceIfAbsent<packet::PacketRegistry>();
+    packet::addPacketCalls(app);
     input::addInputCalls(app);
     if (ecs::runsIn(ecs::Side::kClient, app.getSchedules().getRunMode())) {
         client::addClientCalls(app);
