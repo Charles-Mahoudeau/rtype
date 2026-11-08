@@ -10,11 +10,11 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
-#include <expected>
 #include <memory>
 #include <optional>
 #include <string>
 #include <thread>
+#include <tl/expected.hpp>
 #include <utility>
 #include <vector>
 
@@ -154,12 +154,12 @@ class ChildProcess::Impl {
         return out;
     }
 
-    static std::expected<std::unique_ptr<Impl>, std::string> start(const ProcessSpec& spec) {
+    static tl::expected<std::unique_ptr<Impl>, std::string> start(const ProcessSpec& spec) {
         SECURITY_ATTRIBUTES attributes{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
         HANDLE readEnd = nullptr;
         HANDLE writeEnd = nullptr;
         if (CreatePipe(&readEnd, &writeEnd, &attributes, 0) == 0) {
-            return std::unexpected("cannot create the output pipe");
+            return tl::make_unexpected("cannot create the output pipe");
         }
         SetHandleInformation(readEnd, HANDLE_FLAG_INHERIT, 0);
 
@@ -180,7 +180,7 @@ class ChildProcess::Impl {
         CloseHandle(writeEnd);
         if (created == 0) {
             CloseHandle(readEnd);
-            return std::unexpected("cannot start " + spec.program.string());
+            return tl::make_unexpected("cannot start " + spec.program.string());
         }
         CloseHandle(info.hThread);
         return std::make_unique<Impl>(info.hProcess, readEnd, info.dwProcessId);
@@ -279,10 +279,10 @@ class ChildProcess::Impl {
         return out;
     }
 
-    static std::expected<std::unique_ptr<Impl>, std::string> start(const ProcessSpec& spec) {
+    static tl::expected<std::unique_ptr<Impl>, std::string> start(const ProcessSpec& spec) {
         std::array<int, 2> fds{};
         if (::pipe(fds.data()) != 0) {
-            return std::unexpected(std::string{"cannot create the output pipe: "} + std::strerror(errno));
+            return tl::make_unexpected(std::string{"cannot create the output pipe: "} + std::strerror(errno));
         }
         // fcntl is a C variadic function and its flags are macros: nothing else sets a pipe non-blocking.
         // NOLINTBEGIN(cppcoreguidelines-pro-type-vararg,hicpp-vararg,bugprone-signed-bitwise)
@@ -316,7 +316,7 @@ class ChildProcess::Impl {
             posix_spawn_file_actions_destroy(&actions);
             ::close(fds.at(0));
             ::close(fds.at(1));
-            return std::unexpected("a working folder is not supported on this system");
+            return tl::make_unexpected("a working folder is not supported on this system");
 #endif
         }
         pid_t id = 0;
@@ -328,7 +328,7 @@ class ChildProcess::Impl {
         ::close(fds.at(1));
         if (error != 0) {
             ::close(fds.at(0));
-            return std::unexpected("cannot start " + program + ": " + std::strerror(error));
+            return tl::make_unexpected("cannot start " + program + ": " + std::strerror(error));
         }
         return std::make_unique<Impl>(id, fds.at(0));
     }
@@ -343,10 +343,10 @@ class ChildProcess::Impl {
 
 #endif
 
-std::expected<ChildProcess, std::string> ChildProcess::spawn(const ProcessSpec& spec) {
+tl::expected<ChildProcess, std::string> ChildProcess::spawn(const ProcessSpec& spec) {
     auto impl = Impl::start(spec);
     if (!impl) {
-        return std::unexpected(std::move(impl.error()));
+        return tl::make_unexpected(std::move(impl.error()));
     }
     return ChildProcess{std::move(*impl)};
 }

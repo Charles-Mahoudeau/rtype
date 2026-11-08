@@ -9,11 +9,11 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <expected>
 #include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
+#include <tl/expected.hpp>
 #include <vector>
 
 #include "editor/Export.hpp"
@@ -58,7 +58,7 @@ class RTYPE_EDITOR_API ClientLauncher {
     /// @param options Where it connects.
     /// @param extraArgs More flags for this client alone (`--name p2`).
     /// @return Its number, or why it could not start.
-    std::expected<int, std::string> launch(const ClientOptions& options, const std::vector<std::string>& extraArgs);
+    tl::expected<int, std::string> launch(const ClientOptions& options, const std::vector<std::string>& extraArgs);
 
     /// @brief Stops client @p number (it stays in the list, ended). Does nothing for an unknown number.
     void kill(int number);
@@ -68,7 +68,7 @@ class RTYPE_EDITOR_API ClientLauncher {
 
     /// @brief Stops every client and starts each again, with its flags, under its number.
     /// @return Nothing, or the first error.
-    std::expected<void, std::string> restartAll(const ClientOptions& options);
+    tl::expected<void, std::string> restartAll(const ClientOptions& options);
 
     /// @brief Removes the clients that ended from the list.
     void removeEnded();
@@ -94,8 +94,8 @@ class RTYPE_EDITOR_API ClientLauncher {
     };
 
     /// @brief Starts the process of a client.
-    static std::expected<ChildProcess, std::string> spawn(const ClientOptions& options,
-                                                          const std::vector<std::string>& extraArgs);
+    static tl::expected<ChildProcess, std::string> spawn(const ClientOptions& options,
+                                                         const std::vector<std::string>& extraArgs);
     /// @brief Copies what the process of @p client wrote to its log and the sink.
     void drain(Client& client);
     /// @brief Adds a line of the editor's own about @p client to its log and the sink.

@@ -14,7 +14,6 @@
 #include <cstdint>
 #include <cstring>
 #include <exception>
-#include <expected>
 #include <format>
 #include <functional>
 #include <istream>
@@ -25,6 +24,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <tl/expected.hpp>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -488,11 +488,11 @@ namespace {
 using Edit = std::function<void(std::span<std::byte>)>;
 
 /// @return What changes a text list field into @p text, or why it cannot.
-std::expected<Edit, net::ErrorCode> makeListEdit(const ecs::FieldInfo& field, const net::SetFieldRequest& request,
-                                                 const std::span<const std::byte> current) {
+tl::expected<Edit, net::ErrorCode> makeListEdit(const ecs::FieldInfo& field, const net::SetFieldRequest& request,
+                                                const std::span<const std::byte> current) {
     if (field.type != ecs::FieldType::kText || request.index != 0 ||
         !inBounds(current, field.offset, field.list->size)) {
-        return std::unexpected(net::ErrorCode::kBadValue);
+        return tl::make_unexpected(net::ErrorCode::kBadValue);
     }
     std::vector<std::byte> text;
     for (const char c : request.value) {
@@ -507,19 +507,19 @@ std::expected<Edit, net::ErrorCode> makeListEdit(const ecs::FieldInfo& field, co
 }
 
 /// @return What writes the value of @p request in a plain field, or why it cannot.
-std::expected<Edit, net::ErrorCode> makeValueEdit(const ecs::FieldInfo& field, const net::SetFieldRequest& request,
-                                                  const std::span<const std::byte> current) {
+tl::expected<Edit, net::ErrorCode> makeValueEdit(const ecs::FieldInfo& field, const net::SetFieldRequest& request,
+                                                 const std::span<const std::byte> current) {
     const ecs::FieldLayout layout = ecs::getFieldLayout(field.type);
     if (request.index >= std::max<std::uint32_t>(field.count, 1)) {
-        return std::unexpected(net::ErrorCode::kUnknownField);
+        return tl::make_unexpected(net::ErrorCode::kUnknownField);
     }
     const std::size_t offset = field.offset + (static_cast<std::size_t>(request.index) * layout.size);
     if (layout.size == 0 || !inBounds(current, offset, layout.size)) {
-        return std::unexpected(net::ErrorCode::kUnknownField);
+        return tl::make_unexpected(net::ErrorCode::kUnknownField);
     }
     std::optional<std::vector<std::byte>> bytes = parseValue(field.type, request.value);
     if (!bytes || bytes->size() != layout.size) {
-        return std::unexpected(net::ErrorCode::kBadValue);
+        return tl::make_unexpected(net::ErrorCode::kBadValue);
     }
     return Edit{[offset, bytes = std::move(*bytes)](std::span<std::byte> value) {
         if (inBounds(value, offset, bytes.size())) {
@@ -548,7 +548,7 @@ net::Reply WorldAdmin::setField(const net::SetFieldRequest& request) {
         return error(net::ErrorCode::kUnknownField);
     }
     const std::span<const std::byte> current = components.get(entity, *id);
-    std::expected<Edit, net::ErrorCode> edit =
+    tl::expected<Edit, net::ErrorCode> edit =
         field->list != nullptr ? makeListEdit(*field, request, current) : makeValueEdit(*field, request, current);
     if (!edit) {
         return error(edit.error());

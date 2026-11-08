@@ -10,11 +10,11 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <expected>
 #include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
+#include <tl/expected.hpp>
 #include <vector>
 
 #include "editor/Export.hpp"
@@ -56,13 +56,13 @@ class RTYPE_EDITOR_API ServerSupervisor {
 
     /// @brief Starts the server.
     /// @return Nothing, or why it could not start (already running, no runtime, bad options, the process failed).
-    std::expected<void, std::string> start(ServerOptions options);
+    tl::expected<void, std::string> start(ServerOptions options);
 
     /// @brief Stops the server: a stop request, then a kill after a short delay. Does nothing when stopped.
     void stop();
 
     /// @brief Stops the server and starts it again with the same options.
-    std::expected<void, std::string> restart();
+    tl::expected<void, std::string> restart();
 
     /// @brief Reads the output, notices the end of the process and polls the admin channel. Call once a frame.
     void update(Clock::time_point now = Clock::now());

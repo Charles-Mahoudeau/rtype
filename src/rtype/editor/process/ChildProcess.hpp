@@ -9,11 +9,11 @@
 
 #include <chrono>
 #include <cstdint>
-#include <expected>
 #include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
+#include <tl/expected.hpp>
 #include <vector>
 
 #include "editor/Export.hpp"
@@ -39,7 +39,7 @@ class RTYPE_EDITOR_API ChildProcess {
   public:
     /// @brief Starts a process.
     /// @return The process, or why it could not start (no such program, no permission, no more processes).
-    [[nodiscard]] static std::expected<ChildProcess, std::string> spawn(const ProcessSpec& spec);
+    [[nodiscard]] static tl::expected<ChildProcess, std::string> spawn(const ProcessSpec& spec);
 
     ChildProcess(ChildProcess&& other) noexcept;
     ChildProcess& operator=(ChildProcess&& other) noexcept;
