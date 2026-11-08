@@ -12,6 +12,7 @@
 #include "editor/EditorState.hpp"
 #include "editor/Export.hpp"
 #include "editor/server/ServerSupervisor.hpp"
+#include "plugins/capsule/Capsule.hpp"
 #include "rtype/contract/platform/IPlatform.hpp"
 #include "rtype/contract/renderer/IRenderer.hpp"
 
@@ -49,15 +50,20 @@ RTYPE_EDITOR_API void openScene(EditorState& state, const std::string& path);
 /// `engine.assets.particle` table of the effect, to paste in the script that makes it.
 RTYPE_EDITOR_API void drawParticlesPanel(EditorState& state);
 
-/// @brief The Prefab window: the capsule opened alone (openPrefab()), drawn from the renderer's preview, in the middle,
-/// next to the Game panel, which goes on showing the game. The wheel zooms. Hidden while no capsule is open alone.
-RTYPE_EDITOR_API void drawPrefabPanel(EditorState& state, contract::renderer::IRenderer& renderer);
+/// @brief The Actor windows: one tab per capsule opened alone (openPrefab()), docked with the Game panel, which goes on
+/// showing the game. The tab in front is drawn from the renderer's preview and edited; the wheel zooms. None while no
+/// capsule is open alone.
+RTYPE_EDITOR_API void drawActorPanel(EditorState& state, contract::renderer::IRenderer& renderer);
 
-/// @brief Opens the capsule file @p path alone (prefab mode), in the Prefab window: the Hierarchy and the Inspector
-/// edit it until closePrefab(). Refused while playing.
+/// @brief Opens the capsule file @p path alone (prefab mode), in an Actor tab next to the Game panel, brought to the
+/// front: the Hierarchy and the Inspector edit it until it is closed. A capsule already open gets its tab back instead
+/// of a new one. Refused while playing.
 RTYPE_EDITOR_API void openPrefab(EditorState& state, const std::string& path);
 
-/// @brief Leaves prefab mode: the capsule shown alone goes, and the scene is edited again.
+/// @brief Closes the Actor tab of the capsule @p id. If it was the one shown, the scene is edited again.
+RTYPE_EDITOR_API void closeActor(EditorState& state, plugins::capsule::CapsuleId id);
+
+/// @brief Leaves prefab mode: every Actor tab closes, and the scene is edited again.
 RTYPE_EDITOR_API void closePrefab(EditorState& state);
 
 /// @brief The Console panel: the program's output (the scripts' `print`, the engine's and the renderer's messages),

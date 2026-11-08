@@ -93,6 +93,15 @@ TEST(EditorTextEditor, RunsTheEditorOnTheFileInTheBackground) {
 #endif
 }
 
-TEST(EditorTextEditor, OpensVisualStudioCodeByDefault) {
-    EXPECT_TRUE(rtype::editor::shell::defaultTextEditor().contains("ode"));
+TEST(EditorTextEditor, DefaultsToAnEditorThatCanRun) {
+    const std::string editor = rtype::editor::shell::defaultTextEditor();
+    EXPECT_TRUE(editor.contains("ode") || editor == "codium" || editor == "xdg-open") << editor;
+}
+
+TEST(EditorTextEditor, RefusesACommandThatDoesNotExist) {
+#ifndef _WIN32
+    EXPECT_FALSE(rtype::editor::shell::isCommandAvailable("no-such-editor-for-the-tests"));
+    EXPECT_FALSE(rtype::editor::shell::openInTextEditor("no-such-editor-for-the-tests", "/game/a.actor"));
+    EXPECT_TRUE(rtype::editor::shell::isCommandAvailable("sh -c"));
+#endif
 }

@@ -160,14 +160,16 @@ editor edits is the capsule, the data the file holds, and the world only shows i
 
 ## Prefab mode
 
-A double-click on an `.actor` (or a `.capsule`) in the Assets opens it **alone**, in a window of its own, the Prefab
-window, while the Game panel goes on showing the game (`panels::openPrefab()`, `scene::isolate()`). The capsule is
+A double-click on an `.actor` (or a `.capsule`) in the Assets opens it **alone**, in an Actor tab docked with the Game panel
+(`panels::drawActorPanel()`), while the Game panel goes on showing the game (`panels::openPrefab()`, `scene::isolate()`). The capsule is
 spawned under an anchor entity at `kIsolatedOrigin` (100000, 100000), far from anything a game places and near enough
 for a float to place it to a hundredth of a unit. The anchor holds the offset, so the capsule's own values are those of
 its file, and a respawn after an edit keeps it isolated (a reload keeps the root's other components, its `Parent`
 included).
 
-The window shows the renderer's **preview** (`IRenderer::setScenePreview()`): every frame, the world is drawn a second
+Each capsule opened has its own tab (`closeActor()` closes one); opening one already open brings its tab to the
+front. Only the tab in front is spawned and edited: clicking another tab swaps the isolation. The tab shows the
+renderer's **preview** (`IRenderer::setScenePreview()`): every frame, the world is drawn a second
 time, from a view centred on the capsule's root (`scene::centerOf()`, its GlobalTransform) at `EditorState::prefabZoom`
 pixels per world unit (the wheel changes it), into a texture of the window's size. The game's camera is untouched. The
 Hierarchy and the Inspector edit the capsule (`EditorState::getEdited()`), Save writes it, and its instances in the scene
@@ -191,14 +193,16 @@ away, so it never holds the pipe. `EditorOptions::captureOutput` turns it off (t
 
 "Open in text editor" (the Assets' menu, the Hierarchy's header) runs the `editor.textEditor` command on the file, in the
 background (`shell::buildOpenCommand()`): Visual Studio Code by default, through `open -a "Visual Studio Code"` on macOS
-(it needs no `code` command installed) and `code` elsewhere.
+(it needs no `code` command installed) and `code` elsewhere, else `codium`, else `xdg-open`, whichever is on the PATH.
+A command not on the PATH is refused (`shell::isCommandAvailable()`) with a message in the status line, as run in the
+background it would fail out of sight.
 
 ## The panels
 
 | Panel | File | What it does |
 |---|---|---|
 | Toolbar | `panels/ToolbarPanel.cpp` | One padded row (`gui::beginToolbar()`): on the left File (Save scene, Ctrl+S; Quit, through `IPlatform::close()`) and View (panels, Reset layout), as flat buttons opening popups; in the center the mode chip and the last message; on the right the Standalone / Online choice and Play / Pause / Step / Stop. The three groups are placed by `gui::beginToolbarGroup()` |
-| Prefab | `panels/PrefabPanel.cpp` | The capsule opened alone, from the renderer's preview, centred; the wheel zooms; its cross goes back to the scene |
+| Actor | `panels/ActorPanel.cpp` | One tab per capsule opened alone (`EditorState::actors`), docked with the Game panel; the one in front is drawn from the renderer's preview, centred; the wheel zooms; a tab's cross closes it |
 | Game | `panels/GamePanel.cpp` | Asks for a scene texture as big as its content, draws it as an image, tells the input bridge where it is (`GameViewport`) |
 | Hierarchy | `panels/HierarchyPanel.cpp` | Editing: the scene's node tree; drag a node onto another to move it, drop a capsule file to place an instance, right-click to add or delete. Playing: the world's entities by their `Parent` and `Children`, named by their `Name`, or a flat list filtered by component name |
 | Inspector | `panels/InspectorPanel.cpp` | Editing: the selected node's name, side, instance and components (added with their type's default value, removed, edited). Playing: the selected entity's components, the same way, lost at Stop |

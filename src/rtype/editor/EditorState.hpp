@@ -88,11 +88,13 @@ struct RTYPE_EDITOR_API EditorState {
     std::filesystem::path assets;              ///< The game's assets (AssetDirectory); empty: none.
 
     std::optional<plugins::capsule::CapsuleId> scene;  ///< The scene open; none: no scene is.
-    float prefabZoom{2.0F};                     ///< How big the Prefab window shows the capsule: pixels per world unit.
-    std::optional<scene::Isolation> prefab;     ///< The capsule shown alone (prefab mode), over the scene; none: not.
-    std::optional<std::uint32_t> selectedNode;  ///< The node of the edited capsule the Inspector shows.
-    std::vector<plugins::capsule::CapsuleId> unsaved;  ///< The capsules changed since they were saved or opened.
-    ecs::Entity selected;                              ///< The entity the Inspector shows while playing.
+    float prefabZoom{2.0F};                  ///< How big the Actor tabs show the capsule: pixels per world unit.
+    std::optional<scene::Isolation> prefab;  ///< The actor shown alone (prefab mode), over the scene; none: not.
+    std::vector<plugins::capsule::CapsuleId> actors;  ///< The actors open, one tab each; prefab shows one of them.
+    std::optional<plugins::capsule::CapsuleId> focusActor;  ///< The actor whose tab to bring to the front next frame.
+    std::optional<std::uint32_t> selectedNode;              ///< The node of the edited capsule the Inspector shows.
+    std::vector<plugins::capsule::CapsuleId> unsaved;       ///< The capsules changed since they were saved or opened.
+    ecs::Entity selected;                                   ///< The entity the Inspector shows while playing.
 
     AssetAction assetAction{AssetAction::kNone};   ///< What the Assets panel's popup asks for.
     std::string assetTarget;                       ///< The folder or file of assetAction, in the assets.
@@ -124,6 +126,7 @@ struct RTYPE_EDITOR_API EditorState {
 
     double lastTime{0.0};      ///< The platform's time at the previous frame, in seconds.
     bool buildLayout{true};    ///< Whether the first frame docks the panels as by default, if no layout was kept.
+    bool dockActor{false};     ///< Whether focusActor's tab is new, so it docks next to the Game panel.
     bool resetLayout{false};   ///< Whether the next frame docks them as by default anyway.
     bool showGame{true};       ///< Whether the Game panel is open.
     bool showHierarchy{true};  ///< Whether the Hierarchy panel is open.
