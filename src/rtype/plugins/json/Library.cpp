@@ -9,6 +9,7 @@
 #include <string>
 
 #include "core/config/Settings.hpp"
+#include "plugins/json/JsonCalls.hpp"
 #include "plugins/json/JsonPlugin.hpp"
 #include "rtype/ecs/app/PluginEntry.hpp"
 

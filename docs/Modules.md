@@ -156,8 +156,11 @@ architecture rules, and this file keeps the detail, which changes with every fea
       section: allowed hosts, limits, secrets), the `HttpClient` resource (libcurl, private in `detail/CurlClient`,
       polled without waiting by `rtype.Http.Poll`), the `HttpResponse` event, the `rtype.http.request` and
       `rtype.http.cancel` calls and the `engine.http.request` helper (`HttpForms.luau`). Design in `docs/Http.md`.
-    - `plugins/json/` (`rtype::plugins::json`) — `JsonPlugin`: JSON for scripts, the `engine.json` helpers
-      (`JsonForms.luau`: `encode`, `decode`, `tryDecode`, `map`). No component, event or call. Design in `docs/Json.md`.
+    - `plugins/json/` (`rtype::plugins::json`) — `JsonPlugin`: JSON for scripts. The `rtype.json.encode` and
+      `rtype.json.decode` calls (`JsonCalls.hpp`) do the real work with nlohmann::json, private in `detail/JsonCodec`,
+      on a value flattened into a pre-order node stream (an engine call carries reflected fields, never a table of any
+      shape); the `engine.json` helpers (`JsonForms.luau`: `encode`, `decode`, `tryDecode`, `map`) only walk a Luau
+      table's shape and rebuild a value from the stream. No component or event. Design in `docs/Json.md`.
     - `plugins/shape/` (`rtype::plugins::shape`) — `ShapePlugin`: the `ShapeRenderer` component (a `Shape` filled and/or
       outlined at its entity's `GlobalTransform`) and the client Render system that draws them over the sprites, by layer.
       `plugins/GraphicsReflection.hpp` reflects the renderer contract's `BlendMode` and `Rect` as ECS fields. It requires

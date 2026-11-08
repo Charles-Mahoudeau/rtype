@@ -135,6 +135,8 @@ plugin("json", {})
     add_files("json/**.cpp")
     add_files("json/JsonForms.luau")
     add_headerfiles("json/**.hpp")
+    -- Encodes and decodes JSON for scripts (rtype.json.encode / decode). Private: only json/detail/ includes it.
+    add_packages("nlohmann_json")
 
 plugin("persistence", {})
     add_files("persistence/**.cpp")

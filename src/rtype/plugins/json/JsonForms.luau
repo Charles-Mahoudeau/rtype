@@ -1,7 +1,11 @@
 local json = {}
 engine.json = json
 
--- JSON for scripts (docs/Json.md). Pure Luau, run on every side the plugin is added to.
+-- JSON for scripts (docs/Json.md): a thin Luau layer over the engine calls rtype.json.encode / rtype.json.decode
+-- (JsonCalls.hpp), which do the real work in C++ with nlohmann::json. This file only inspects a Luau value's shape
+-- (is a table an array, a plain object, or a json.map() ordered object?) on the way in, and rebuilds a Luau value
+-- from the flattened node stream the calls take and return on the way out; it has no JSON grammar, no string
+-- escaping and no number formatting of its own.
 --   engine.json.encode(value) -> string      sorted keys, deterministic; errors on NaN/inf, functions, mixed tables
 --   engine.json.decode(text) -> value        errors on malformed input, naming the byte; JSON null is nil
 --   engine.json.tryDecode(text) -> value, nil | nil, message
@@ -9,27 +13,12 @@ engine.json = json
 
 local MAX_DEPTH = 64
 
-local ESCAPES = { ['"'] = '\\"', ["\\"] = "\\\\", ["\b"] = "\\b", ["\f"] = "\\f", ["\n"] = "\\n", ["\r"] = "\\r", ["\t"] = "\\t" }
-local UNESCAPES = { ['"'] = '"', ["\\"] = "\\", ["/"] = "/", b = "\b", f = "\f", n = "\n", r = "\r", t = "\t" }
+-- Node kinds of the flattened stream rtype.json.encode takes and rtype.json.decode returns: rtype::plugins::json::NodeKind
+-- (JsonCalls.hpp). Keep in the same order.
+local NULL, FALSE, TRUE, NUMBER, STRING, ARRAY, OBJECT, ORDERED_OBJECT = 0, 1, 2, 3, 4, 5, 6, 7
 
 -- The tables json.map marked. A weak set rather than a field, so that a table's own keys are never read as a marker.
 local ordered = setmetatable({}, { __mode = "k" })
-
-local function encodeString(s)
-	return '"' .. string.gsub(s, '[%c"\\]', function(c)
-		return ESCAPES[c] or string.format("\\u%04x", string.byte(c))
-	end) .. '"'
-end
-
-local function encodeNumber(n)
-	if n ~= n or n == math.huge or n == -math.huge then
-		error("json: cannot encode " .. (n ~= n and "NaN" or n > 0 and "inf" or "-inf"), 0)
-	end
-	if n == math.floor(n) and math.abs(n) < 2 ^ 53 then
-		return string.format("%d", n)
-	end
-	return string.format("%.17g", n)
-end
 
 -- A table of 1..n with no hole (and no other key) is an array; the empty table is the empty array.
 local function isArray(t)
@@ -45,31 +34,36 @@ local function isArray(t)
 	return true
 end
 
-local encodeValue
+-- flattenValue writes its stream into a table of four parallel lists plus a text pool (kinds, numbers, counts,
+-- text, lengths), filled in pre-order; see rtype::plugins::json::NodeKind (JsonCalls.hpp) for how they read back.
 
-local function encodeTable(v, out, depth)
+local function pushText(stream, s)
+	stream.text[#stream.text + 1] = s
+	stream.lengths[#stream.lengths + 1] = #s
+end
+
+local flattenValue
+
+local function flattenTable(v, depth, stream)
+	if depth >= MAX_DEPTH then
+		error("json: nested too deeply to encode (more than " .. MAX_DEPTH .. " levels, or a table that contains itself)", 0)
+	end
 	if ordered[v] then
-		out[#out + 1] = "{"
+		stream.kinds[#stream.kinds + 1] = ORDERED_OBJECT
+		stream.counts[#stream.counts + 1] = #v
 		for i, entry in ipairs(v) do
 			if type(entry) ~= "table" or type(entry[1]) ~= "string" then
 				error("json: map entry " .. i .. " must be { key, value } with a string key", 0)
 			end
-			if i > 1 then
-				out[#out + 1] = ","
-			end
-			out[#out + 1] = encodeString(entry[1]) .. ":"
-			encodeValue(entry[2], out, depth)
+			pushText(stream, entry[1])
+			flattenValue(entry[2], depth + 1, stream)
 		end
-		out[#out + 1] = "}"
 	elseif isArray(v) then
-		out[#out + 1] = "["
+		stream.kinds[#stream.kinds + 1] = ARRAY
+		stream.counts[#stream.counts + 1] = #v
 		for i = 1, #v do
-			if i > 1 then
-				out[#out + 1] = ","
-			end
-			encodeValue(v[i], out, depth)
+			flattenValue(v[i], depth + 1, stream)
 		end
-		out[#out + 1] = "]"
 	else
 		local keys = {}
 		for k in pairs(v) do
@@ -78,43 +72,56 @@ local function encodeTable(v, out, depth)
 			end
 			keys[#keys + 1] = k
 		end
-		table.sort(keys)
-		out[#out + 1] = "{"
-		for i, k in ipairs(keys) do
-			if i > 1 then
-				out[#out + 1] = ","
-			end
-			out[#out + 1] = encodeString(k) .. ":"
-			encodeValue(v[k], out, depth)
+		stream.kinds[#stream.kinds + 1] = OBJECT
+		stream.counts[#stream.counts + 1] = #keys
+		-- C++ sorts a plain object's keys before writing them: their order here does not matter.
+		for _, k in keys do
+			pushText(stream, k)
+			flattenValue(v[k], depth + 1, stream)
 		end
-		out[#out + 1] = "}"
 	end
 end
 
-function encodeValue(v, out, depth)
+function flattenValue(v, depth, stream)
 	local t = type(v)
 	if v == nil then
-		out[#out + 1] = "null"
-	elseif t == "string" then
-		out[#out + 1] = encodeString(v)
-	elseif t == "number" then
-		out[#out + 1] = encodeNumber(v)
+		stream.kinds[#stream.kinds + 1] = NULL
 	elseif t == "boolean" then
-		out[#out + 1] = v and "true" or "false"
+		stream.kinds[#stream.kinds + 1] = v and TRUE or FALSE
+	elseif t == "number" then
+		stream.kinds[#stream.kinds + 1] = NUMBER
+		stream.numbers[#stream.numbers + 1] = v
+	elseif t == "string" then
+		stream.kinds[#stream.kinds + 1] = STRING
+		pushText(stream, v)
 	elseif t == "table" then
-		if depth >= MAX_DEPTH then
-			error("json: nested too deeply to encode (more than " .. MAX_DEPTH .. " levels, or a table that contains itself)", 0)
-		end
-		encodeTable(v, out, depth + 1)
+		flattenTable(v, depth, stream)
 	else
 		error("json: cannot encode a " .. t, 0)
 	end
 end
 
+-- Strips the "native function 'call': engine call '...': " prefix an engine call's error carries, so a json error
+-- always reads "json: ...".
+local function callError(message)
+	return (string.gsub(tostring(message), "^.-engine call '[^']*': ", ""))
+end
+
 function json.encode(value)
-	local out = {}
-	encodeValue(value, out, 0)
-	return table.concat(out)
+	local stream = { kinds = {}, numbers = {}, counts = {}, text = {}, lengths = {} }
+	flattenValue(value, 0, stream)
+	local ok, result = pcall(engine.call, "rtype.json.encode", {
+		kinds = stream.kinds,
+		numbers = stream.numbers,
+		counts = stream.counts,
+		text = table.concat(stream.text),
+		textLengths = stream.lengths,
+	})
+	if not ok then
+		error(callError(result), 0)
+	end
+	-- A result with one field is that field's value: the text.
+	return result
 end
 
 function json.map(entries)
@@ -125,166 +132,80 @@ function json.map(entries)
 	return entries
 end
 
-local function fail(pos, message)
-	error(string.format("json: %s at byte %d", message, pos), 0)
-end
+-- Reads the result of rtype.json.decode one node at a time, in the same order flattenValue wrote it.
+local function makeReader(result)
+	local cursors = { kind = 1, number = 1, count = 1, length = 1, text = 1 }
 
-local function skip(text, pos)
-	return string.find(text, "[^ \t\r\n]", pos) or #text + 1
-end
+	local function nextText()
+		local len = result.stringLengths[cursors.length]
+		cursors.length += 1
+		local s = string.sub(result.strings, cursors.text, cursors.text + len - 1)
+		cursors.text += len
+		return s
+	end
 
-local decodeValue
+	local read
 
-local function decodeString(text, pos)
-	local out, i = {}, pos + 1
-	while true do
-		local j = string.find(text, '[\0-\31"\\]', i)
-		if not j then
-			fail(pos, "unterminated string")
-		end
-		out[#out + 1] = string.sub(text, i, j - 1)
-		local c = string.sub(text, j, j)
-		if c == '"' then
-			return table.concat(out), j + 1
-		end
-		if c ~= "\\" then
-			fail(j, "control character in string")
-		end
-		local e = string.sub(text, j + 1, j + 1)
-		if e == "u" then
-			local hex = string.match(text, "^%x%x%x%x", j + 2)
-			if not hex then
-				fail(j, "bad \\u escape")
+	local function readArray()
+		local count = result.counts[cursors.count]
+		cursors.count += 1
+		local arr = {}
+		for _ = 1, count do
+			-- A null element is nil, so it takes no place in the array: the elements after it move down.
+			local v = read()
+			if v ~= nil then
+				arr[#arr + 1] = v
 			end
-			local cp = tonumber(hex, 16)
-			i = j + 6
-			if cp >= 0xD800 and cp <= 0xDBFF then -- a high surrogate pairs with the \uDC00-\uDFFF escape after it
-				local low = string.match(text, "^\\u(%x%x%x%x)", i)
-				local lo = low and tonumber(low, 16)
-				if lo and lo >= 0xDC00 and lo <= 0xDFFF then
-					cp = 0x10000 + (cp - 0xD800) * 0x400 + (lo - 0xDC00)
-					i += 6
-				end
-			end
-			-- A lone surrogate is not text: it becomes U+FFFD.
-			out[#out + 1] = (cp >= 0xD800 and cp <= 0xDFFF) and "\239\191\189" or utf8.char(cp)
-		elseif UNESCAPES[e] then
-			out[#out + 1] = UNESCAPES[e]
-			i = j + 2
-		else
-			fail(j, "bad escape")
 		end
+		return arr
 	end
-end
 
-local function decodeNumber(text, pos)
-	local int = string.match(text, "^-?%d+", pos)
-	if not int then
-		fail(pos, "unexpected character")
+	local function readObject()
+		local count = result.counts[cursors.count]
+		cursors.count += 1
+		local obj = {}
+		for _ = 1, count do
+			local key = nextText()
+			obj[key] = read()
+		end
+		return obj
 	end
-	if string.match(int, "^-?0%d") then
-		fail(pos, "leading zero in number")
-	end
-	local stop = pos + #int
-	local frac = string.match(text, "^%.%d+", stop)
-	if frac then
-		stop += #frac
-	end
-	local exp = string.match(text, "^[eE][+-]?%d+", stop)
-	if exp then
-		stop += #exp
-	end
-	local n = tonumber(string.sub(text, pos, stop - 1))
-	if not n or n ~= n or n == math.huge or n == -math.huge then
-		fail(pos, "number out of range")
-	end
-	return n, stop
-end
 
-local function decodeObject(text, pos, depth)
-	local obj = {}
-	pos = skip(text, pos + 1)
-	if string.sub(text, pos, pos) == "}" then
-		return obj, pos + 1
+	function read()
+		local kind = result.kinds[cursors.kind]
+		cursors.kind += 1
+		if kind == NULL then
+			return nil
+		elseif kind == FALSE then
+			return false
+		elseif kind == TRUE then
+			return true
+		elseif kind == NUMBER then
+			local n = result.numbers[cursors.number]
+			cursors.number += 1
+			return n
+		elseif kind == STRING then
+			return nextText()
+		elseif kind == ARRAY then
+			return readArray()
+		elseif kind == OBJECT then
+			return readObject()
+		end
+		error("json: malformed decode result: unknown node kind " .. tostring(kind), 0)
 	end
-	while true do
-		pos = skip(text, pos)
-		if string.sub(text, pos, pos) ~= '"' then
-			fail(pos, "expected a key")
-		end
-		local key
-		key, pos = decodeString(text, pos)
-		pos = skip(text, pos)
-		if string.sub(text, pos, pos) ~= ":" then
-			fail(pos, "expected ':'")
-		end
-		obj[key], pos = decodeValue(text, pos + 1, depth)
-		pos = skip(text, pos)
-		local d = string.sub(text, pos, pos)
-		if d == "}" then
-			return obj, pos + 1
-		end
-		if d ~= "," then
-			fail(pos, "expected ',' or '}'")
-		end
-		pos += 1
-	end
-end
 
-local function decodeArray(text, pos, depth)
-	local arr = {}
-	pos = skip(text, pos + 1)
-	if string.sub(text, pos, pos) == "]" then
-		return arr, pos + 1
-	end
-	while true do
-		-- A null element is nil, so it takes no place in the array: the elements after it move down.
-		arr[#arr + 1], pos = decodeValue(text, pos, depth)
-		pos = skip(text, pos)
-		local d = string.sub(text, pos, pos)
-		if d == "]" then
-			return arr, pos + 1
-		end
-		if d ~= "," then
-			fail(pos, "expected ',' or ']'")
-		end
-		pos += 1
-	end
-end
-
-function decodeValue(text, pos, depth)
-	pos = skip(text, pos)
-	local c = string.sub(text, pos, pos)
-	if c == "{" or c == "[" then
-		if depth >= MAX_DEPTH then
-			fail(pos, "nested too deeply")
-		end
-		if c == "{" then
-			return decodeObject(text, pos, depth + 1)
-		end
-		return decodeArray(text, pos, depth + 1)
-	elseif c == '"' then
-		return decodeString(text, pos)
-	elseif string.sub(text, pos, pos + 3) == "true" then
-		return true, pos + 4
-	elseif string.sub(text, pos, pos + 4) == "false" then
-		return false, pos + 5
-	elseif string.sub(text, pos, pos + 3) == "null" then
-		return nil, pos + 4
-	end
-	return decodeNumber(text, pos)
+	return read
 end
 
 function json.decode(text)
 	if type(text) ~= "string" then
 		error("json: expected a string, got a " .. type(text), 0)
 	end
-	local value, pos = decodeValue(text, 1, 0)
-	local rest = skip(text, pos)
-	if rest <= #text then
-		fail(rest, "trailing data")
+	local ok, result = pcall(engine.call, "rtype.json.decode", { text = text })
+	if not ok then
+		error(callError(result), 0)
 	end
-	return value
+	return makeReader(result)()
 end
 
 function json.tryDecode(text)

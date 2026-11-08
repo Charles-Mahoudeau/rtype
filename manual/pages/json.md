@@ -1,7 +1,8 @@
 # JSON
 
 The JSON plugin turns tables into JSON text and back: to build the body of an [HTTP](http.md) request, read a
-response, or keep a save in a readable form. Add it on every side that needs it:
+response, or keep a save in a readable form. The actual encoding and decoding runs in the engine, not in your script,
+so it is correct and fast even on a large body. Add it on every side that needs it:
 
 ```luau
 -- project.luau
@@ -60,3 +61,8 @@ It returns the value, or `nil` and the message. (A text that is just `null` give
 
 Nesting stops at 64 levels, so a hostile text cannot crash the game. The empty object decodes to `{}`, which encodes
 back as `[]`; write `engine.json.map({})` to get `{}`.
+
+`encode` does not check a string for valid UTF-8: it writes the bytes you give it as they are. `decode` does, since it
+reads a text your script did not write; an invalid byte sequence is a decode error, like any other malformed text.
+
+A lone `\ud800`-style surrogate escape (one with no partner) is not text: decoding it is an error.

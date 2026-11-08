@@ -96,7 +96,7 @@ TEST(ScriptJson, DecodesEveryKindOfValue) {
         assert(json.decode("null") == nil)
         assert(json.decode("7") == 7)
         assert(json.decode('"\\u00e9\\ud83d\\ude00\\n\\/"') == "\195\169\240\159\152\128\n/")
-        assert(json.decode('"\\ud800x"') == "\239\191\189x")
+        assert(not json.tryDecode('"\\ud800x"')) -- a lone surrogate is not text
         assert(json.decode('"\127"') == "\127")
     )"),
               "");
@@ -124,20 +124,20 @@ TEST(ScriptJson, DecodeErrorsNameTheByte) {
             assert(not ok, "expected an error for " .. text)
             assert(string.find(message, part, 1, true), message)
         end
-        fails("", "at byte 1")
-        fails("{", "expected a key at byte 2")
-        fails('{"a" 1}', "expected ':' at byte 6")
-        fails("[1 2]", "expected ',' or ']' at byte 4")
-        fails("[1,]", "unexpected character at byte 4")
-        fails('"abc', "unterminated string")
-        fails('"a\nb"', "control character")
-        fails('"\\q"', "bad escape")
-        fails('"\\u12"', "bad \\u escape")
-        fails("1 2", "trailing data at byte 3")
-        fails("01", "leading zero")
+        fails("", "malformed JSON at byte 1")
+        fails("{", "malformed JSON at byte")
+        fails('{"a" 1}', "malformed JSON at byte 6")
+        fails("[1 2]", "malformed JSON at byte 4")
+        fails("[1,]", "malformed JSON at byte 4")
+        fails('"abc', "malformed JSON")
+        fails('"a\nb"', "malformed JSON")
+        fails('"\\q"', "malformed JSON")
+        fails('"\\u12"', "malformed JSON")
+        fails("1 2", "malformed JSON at byte 3")
+        fails("01", "malformed JSON")
         fails("1e999", "out of range")
-        fails("nul", "unexpected character")
-        fails("-", "unexpected character")
+        fails("nul", "malformed JSON")
+        fails("-", "malformed JSON")
         fails(string.rep("[", 65) .. string.rep("]", 65), "nested too deeply")
         assert(not pcall(json.decode, 5))
         json.decode(string.rep("[", 64) .. string.rep("]", 64))
@@ -157,6 +157,18 @@ TEST(ScriptJson, TryDecodeNeverThrows) {
         assert(value == nil and err ~= nil)
         value, err = json.tryDecode("null")
         assert(value == nil and err == nil)
+    )"),
+              "");
+}
+
+TEST(ScriptJson, TheNativeCallBoundsNestingEvenWhenCalledDirectly) {
+    JsonScripts s;
+    EXPECT_EQ(s.run(R"(
+        local kinds, counts = {}, {}
+        for i = 1, 70 do kinds[i] = 5; counts[i] = 1 end -- 70 arrays, each holding the next
+        kinds[71] = 0
+        local ok, message = pcall(engine.call, "rtype.json.encode", { kinds = kinds, counts = counts })
+        assert(not ok and string.find(message, "nested too deeply", 1, true), message)
     )"),
               "");
 }
