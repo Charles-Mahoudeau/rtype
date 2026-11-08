@@ -354,3 +354,20 @@ TEST(ScriptConsoleEntities, CompletesTheComponentsOfSelfAndTheirFields) {
     const std::vector<std::string> prefixed = game.host->complete("ent", {});
     EXPECT_NE(std::ranges::find(prefixed, "entity"), prefixed.end());
 }
+
+TEST(ScriptConsoleEntities, WritesOnePartOfAVectorFieldInPlace) {
+    const ScriptsDirectory scripts{"rtype-console-vector-part"};
+    writeShipGame(scripts);
+    Game game{scripts.path()};
+    const auto ship = game.spawn("game.Ship");
+
+    EXPECT_EQ(game.eval("self.Ship.position = { x = 1, y = 2 }", ship), "");
+    EXPECT_EQ(game.eval("self.Ship.position.x = 5", ship), "");
+    EXPECT_EQ(game.eval("self.Ship.position.x, self.Ship.position.y", ship), "5, 2");
+    EXPECT_EQ(game.eval("self.Ship.position", ship), "{ x = 5, y = 2 }");
+    EXPECT_TRUE(game.eval("self.Ship.position.z = 1", ship).find("no part 'z'") != std::string::npos);
+    EXPECT_TRUE(game.eval("self.Ship.position.x = 1", ship, false).starts_with("error: "));
+    EXPECT_EQ(game.eval("self.Ship.position.x", ship), "5");
+    const auto parts = game.host->complete("self.Ship.position.", {.self = ship});
+    EXPECT_NE(std::ranges::find(parts, "self.Ship.position.y"), parts.end());
+}
