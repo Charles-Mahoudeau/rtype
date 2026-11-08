@@ -1,13 +1,13 @@
 # Editor
 
-The editor is a plugin library, `rtype-editor` (`src/rtype/editor/`, target `editor`), that the engine loads as
-`rtype.Editor`. It runs the game inside the "Game" panel of a window of docked panels made with Dear ImGui (the docking
+The editor is the program `aylo-editor`: a static library, `rtype-editor` (`src/rtype/editor/`, target `editor`), whose
+plugin `rtype.Editor` the program adds to the engine, and a `main` (`editor/app/main.cpp`). It runs the game inside the "Game" panel of a window of docked panels made with Dear ImGui (the docking
 branch), and edits its scenes the way Unity does: while editing, the gameplay is paused and the panels change the
 scene's capsule, saved to its file; while playing, they change the running world, and Stop puts the scene back. For what
 a game developer does with it, see `manual/pages/editor.md`.
 
 ```sh
-./aylo-runtime --editor --game examples/games/rtype_duel/game
+./aylo-editor --game examples/games/rtype_duel/game
 ```
 
 ```lua
@@ -16,17 +16,19 @@ engine.settings.editor.scene = "scenes/level.scene"  -- optional: the scene open
 
 ## Where it lives, and why
 
-It is a library the engine loads, not a feature of a game and not an executable of its own:
+A program of its own, not a feature of a game and not a mode of the runtime. Game developers make their game in
+`aylo-editor` and ship it with `aylo-runtime`, which does not know the editor:
 
-- **Not in `plugins/`.** A game never ships it, and nothing a game reads is declared there. It has its own folder,
-  namespace `rtype::editor` and export macro `RTYPE_EDITOR_API`; the build puts it in the `plugins/` folder (rule
-  `rtype.plugin_library`) so the engine finds it by name like any plugin (`RTYPE_PLUGIN_LIBRARY`, in `Library.cpp`).
-- **Not an executable.** The executables link no plugin, and `engine` is a static module that a shared library cannot
-  link. The editor needs the window and the renderer the graphics plugin starts, so it is a plugin that requires
-  `rtype.graphics` and `rtype.Capsule`, which is what a plugin is allowed to do.
-- **Started by the runtime.** `aylo-runtime --editor` runs the game in `RunMode::kStandalone` (both sides in one world,
-  no network: a client alone would not run the server's gameplay) and adds `rtype.Editor` to the plugins the project
-  lists (`EngineConfig::extraPlugins`). A project does not name the editor; `engine.args.editor` tells it it runs in one.
+- **Not in `plugins/`.** A game never ships it. It has its own folder, namespace `rtype::editor` and export macro
+  `RTYPE_EDITOR_API` (empty: the library is static, `RTYPE_EDITOR_STATIC`).
+- **A program, like the runtime.** `aylo-editor` links `engine` and `editor` (both static), and the Engine loads the
+  plugins and backends from their libraries as in `aylo-runtime`. The editor library links the plugin libraries it uses
+  (graphics, capsule, particle) for their types, which the Engine opens again by name: one copy, as the same file.
+- **Always a debug run.** `EngineConfig::debug` is true, so `engine.isDebug` is true and hot reload defaults on, even in
+  a release build. The check of the game plugins' signatures still follows the build type.
+- **Always both sides.** `RunMode::kStandalone` (both sides in one world, no network: a client alone would not run the
+  server's gameplay). `--server` is refused. The program adds `rtype.Editor` through `EngineConfig::addPlugins`, reads
+  its `editor` settings with `readEditorOptions()`, and gives `engine.args.editor` (true) to the project.
 - **Dear ImGui is private to it.** It is the only module that includes `imgui.h` (no header of the editor does). The
   package is `imgui v1.92.9+b-docking`, with none of its backends: the editor does their work through the contracts.
 
@@ -209,7 +211,7 @@ particles run in PostUpdate and Render, they play while editing.
 | `editor.scene` | none | The capsule file, in the assets, opened at start: a `.scene` as the level, anything else alone |
 | `editor.textEditor` | Visual Studio Code | The command that opens a file, its arguments included: `"code"`, `"subl"`, `"open -a TextEdit"` |
 
-The section is read when `rtype.Editor` is built, and an unknown key in it is an error.
+The section is read when the editor is built (`readEditorOptions()`), and an unknown key in it is an error.
 
 ## Limits
 

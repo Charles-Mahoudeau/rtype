@@ -43,7 +43,7 @@ and the materials are in `plugin-shader`.
 | `physics-debug` | Draws the colliders | `graphics`, `input`, `transform` |
 | `ui` | The user interface, laid out by Yoga: nodes, widgets, focus | `graphics`, `input`, `text` |
 | `http` | HTTPS requests for scripts: `HttpClient`, `HttpResponse`, `rtype.http.request` (libcurl) | |
-| `Editor` | The editor (`rtype-editor`, in `src/rtype/editor/`, not a feature of a game): the game in a panel, its entities and their components, the frame rate, scenes and particles edited. Added by `aylo-runtime --editor`, see [`Editor.md`](Editor.md) | `graphics`, `capsule` |
+| `Editor` | The editor (`rtype-editor`, in `src/rtype/editor/`, not a feature of a game): the game in a panel, its entities and their components, the frame rate, scenes and particles edited. Added by the `aylo-editor` program, see [`Editor.md`](Editor.md) | `graphics`, `capsule` |
 
 A plugin states what it requires in `getDependencies()`. The `App` refuses a plugin whose requirement was not added
 first, naming both, so a program adds a plugin after the ones it requires:

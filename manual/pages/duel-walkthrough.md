@@ -34,7 +34,7 @@ game/
 ```
 
 The arena and what the server spawns in it are [capsules](capsules.md): files you can open and change in the
-[editor](editor.md) (`./aylo-runtime --editor --game examples/games/rtype_duel/game` opens the arena).
+[editor](editor.md) (`./aylo-editor --game examples/games/rtype_duel/game` opens the arena).
 
 Nothing runs by itself: `project.luau` names three entries, and every other file runs because one requires it.
 

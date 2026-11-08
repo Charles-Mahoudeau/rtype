@@ -33,7 +33,7 @@ aylo-engine-<version>-<os>-<arch>/
     plugins/              the engine's plugins, and plugins/backends/ for the window, the renderer and the sound
       backends/           the window, renderer and audio backends
     licenses/             the notices of the libraries inside
-  editor/                 planned: the editor. Never shipped.
+  editor/                 planned: the editor (aylo-editor). Never shipped.
   tools/aylo-sign         makes the signatures of native plugins
   templates/game/         a small game to start from
   manual/                 this manual, to read offline

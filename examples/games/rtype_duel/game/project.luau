@@ -22,7 +22,7 @@ if engine.isClient then
 		"rtype.PhysicsDebug",
 	}
 end
--- `aylo-runtime --editor --game <this folder>` opens the arena to edit it; `--open actors/ship_left.actor` opens
+-- `aylo-editor --game <this folder>` opens the arena to edit it; `--open actors/ship_left.actor` opens
 -- another capsule (an actor opens alone).
 engine.settings.editor.scene = engine.args.open or "scenes/arena.scene"
 engine.settings.physics.gravity = { 0, 0 }
