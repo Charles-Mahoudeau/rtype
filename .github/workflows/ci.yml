@@ -128,6 +128,10 @@ jobs:
           key: xmake-build-cache-${{ matrix.os }}-tests-${{ hashFiles('**/xmake.lua', 'src/**', 'tests/**') }}
           restore-keys: xmake-build-cache-${{ matrix.os }}-tests-
 
+      - name: Prefetch package sources
+        shell: bash
+        run: .github/scripts/prefetch-sources.sh "$RUNNER_TEMP/xmake-sources"
+
       - name: Build project and tests
         run: |
           xmake f -y --Tests=y
@@ -204,6 +208,10 @@ jobs:
           path: ${{ steps.packages.outputs.dir }}
           key: xmake-package-cache-ubuntu-latest-tests-${{ steps.packages.outputs.hash }}
           restore-keys: xmake-package-cache-ubuntu-latest-tests-
+
+      - name: Prefetch package sources
+        shell: bash
+        run: .github/scripts/prefetch-sources.sh "$RUNNER_TEMP/xmake-sources"
 
       - name: Configure xmake
         run: xmake f -y --Tests=y --AllExamples=y
