@@ -9,11 +9,9 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <map>
-#include <optional>
-#include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -98,8 +96,8 @@ class RTYPE_REPLICATION_API PacketRegistry {
     [[nodiscard]] std::size_t size() const noexcept;
 
   private:
-    std::map<std::string, PacketSchema, std::less<>> _schemas;  ///< By name.
-    bool _frozen{false};                                        ///< Set by freeze().
+    std::vector<PacketSchema> _schemas;  ///< In declaration order (few: a linear search; moves never throw).
+    bool _frozen{false};                 ///< Set by freeze().
 };
 
 RTYPE_ECS_RESOURCE(PacketRegistry, "net.PacketRegistry");

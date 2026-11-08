@@ -17,6 +17,7 @@
 #include "rtype/ecs/system/ResourceParam.hpp"
 #include "rtype/ecs/system/Side.hpp"
 #include "rtype/network/NetworkSettings.hpp"
+#include "rtype/network/Types.hpp"
 #include "rtype/network/io/Address.hpp"
 #include "rtype/replication/ReplicationPlugin.hpp"
 #include "rtype/replication/client/ClientState.hpp"
@@ -42,7 +43,10 @@ void receive(ecs::ResMut<ClientState> state, ecs::ResMut<input::InputLayout> inp
         if (auto decoded = packet::decodePacket(*packets, packet::PacketDirection::kToClients, message)) {
             const packet::PacketSchema* schema = packets->find(decoded->name);
             received.send(packet::PacketReceived{
-                .name = decoded->name, .sender = 0, .values = packet::formatValues(*schema, decoded->values)});
+                .name = decoded->name,
+                .sender = 0,
+                .values = packet::formatValues(*schema, decoded->values),
+            });
         }
     }
 }

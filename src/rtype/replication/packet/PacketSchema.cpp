@@ -111,7 +111,7 @@ void PacketRegistry::declare(PacketSchema schema) {
             std::format("Invalid packet name '{}': expected identifiers separated by dots, at most {} bytes",
                         schema.name, kMaxPacketNameSize)};
     }
-    if (_schemas.contains(schema.name)) {
+    if (find(schema.name) != nullptr) {
         throw exceptions::PacketException{std::format("Packet '{}' is already declared", schema.name)};
     }
     if (schema.fields.size() > kMaxFields) {
@@ -142,8 +142,7 @@ void PacketRegistry::declare(PacketSchema schema) {
             std::format("Packet '{}' could take {} bytes, more than the {} of a message: shorten its strings",
                         schema.name, schema.maxMessageSize(), kMaxMessageSize)};
     }
-    const std::string name = schema.name;
-    _schemas.emplace(name, std::move(schema));
+    _schemas.push_back(std::move(schema));
 }
 
 void PacketRegistry::freeze() noexcept { _frozen = true; }
@@ -151,8 +150,8 @@ void PacketRegistry::freeze() noexcept { _frozen = true; }
 bool PacketRegistry::isFrozen() const noexcept { return _frozen; }
 
 const PacketSchema* PacketRegistry::find(const std::string_view name) const noexcept {
-    const auto found = _schemas.find(name);
-    return found == _schemas.end() ? nullptr : &found->second;
+    const auto found = std::ranges::find(_schemas, name, &PacketSchema::name);
+    return found == _schemas.end() ? nullptr : &*found;
 }
 
 std::size_t PacketRegistry::size() const noexcept { return _schemas.size(); }

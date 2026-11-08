@@ -7,10 +7,12 @@
 
 #include "rtype/replication/packet/PacketCodec.hpp"
 
-#include <charconv>
+#include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <format>
 #include <limits>
 #include <optional>
@@ -20,9 +22,11 @@
 #include <utility>
 #include <variant>
 
+#include "rtype/network/Types.hpp"
 #include "rtype/network/bytes/ByteReader.hpp"
 #include "rtype/network/bytes/ByteWriter.hpp"
 #include "rtype/replication/MessageType.hpp"
+#include "rtype/replication/packet/PacketSchema.hpp"
 
 namespace rtype::replication::packet {
 namespace {
@@ -35,15 +39,15 @@ struct Range {
 Range rangeOf(const PacketType type) noexcept {
     switch (type) {
         case PacketType::kU8:
-            return {0.0, 255.0};
+            return Range{.low = 0.0, .high = 255.0};
         case PacketType::kU16:
-            return {0.0, 65535.0};
+            return Range{.low = 0.0, .high = 65535.0};
         case PacketType::kU32:
-            return {0.0, 4294967295.0};
+            return Range{.low = 0.0, .high = 4294967295.0};
         case PacketType::kI32:
-            return {-2147483648.0, 2147483647.0};
+            return Range{.low = -2147483648.0, .high = 2147483647.0};
         default:
-            return {0.0, 0.0};
+            return Range{.low = 0.0, .high = 0.0};
     }
 }
 
@@ -81,13 +85,37 @@ std::string checkValue(const PacketField& field, const PacketValue& value) {
 
 /// @brief Reads a decimal number, all of @p text.
 std::optional<double> parseNumber(const std::string_view text) {
-    double value = 0.0;
-    const auto* end = text.data() + text.size();
-    const auto result = std::from_chars(text.data(), end, value);
-    if (result.ec != std::errc{} || result.ptr != end) {
+    if (text.empty() || std::isspace(static_cast<unsigned char>(text.front())) != 0) {
         return std::nullopt;
     }
+    try {
+        std::size_t consumed = 0;
+        const double value = std::stod(std::string{text}, &consumed);
+        return consumed == text.size() ? std::optional<double>{value} : std::nullopt;
+    } catch (const std::exception&) {  // not a number, or out of the range of a double
+        return std::nullopt;
+    }
+}
+
+/// @brief Reads a size written in decimal digits, all of @p text.
+std::optional<std::size_t> parseSize(const std::string_view text) {
+    constexpr std::size_t kMaxDigits = 9;
+    if (text.empty() || text.size() > kMaxDigits ||
+        !std::ranges::all_of(text, [](const char c) { return c >= '0' && c <= '9'; })) {
+        return std::nullopt;
+    }
+    std::size_t value = 0;
+    for (const char digit : text) {
+        value = (value * 10) + static_cast<std::size_t>(digit - '0');
+    }
     return value;
+}
+
+/// @return The bytes as text.
+std::string asText(const std::span<const std::byte> bytes) {
+    std::string text(bytes.size(), '\0');
+    std::ranges::transform(bytes, text.begin(), [](const std::byte byte) { return static_cast<char>(byte); });
+    return text;
 }
 }  // namespace
 
@@ -96,18 +124,18 @@ std::optional<PacketValues> parseValues(const PacketSchema& schema, const std::s
     std::size_t position = 0;
     for (const PacketField& field : schema.fields) {
         const std::size_t colon = text.find(':', position);
-        std::size_t size = 0;
-        if (colon == std::string_view::npos ||
-            std::from_chars(text.data() + position, text.data() + colon, size).ptr != text.data() + colon) {
+        const std::optional<std::size_t> size =
+            colon == std::string_view::npos ? std::nullopt : parseSize(text.substr(position, colon - position));
+        if (!size) {
             error = std::format("field '{}' is missing", field.name);
             return std::nullopt;
         }
-        if (size > text.size() - colon - 1) {
+        if (*size > text.size() - colon - 1) {
             error = std::format("field '{}' is cut short", field.name);
             return std::nullopt;
         }
-        const std::string_view raw = text.substr(colon + 1, size);
-        position = colon + 1 + size;
+        const std::string_view raw = text.substr(colon + 1, *size);
+        position = colon + 1 + *size;
         PacketValue value;
         if (field.type == PacketType::kString) {
             value = std::string{raw};
@@ -142,12 +170,12 @@ std::string formatValues(const PacketSchema& schema, const PacketValues& values)
     std::string text;
     for (std::size_t index = 0; index < schema.fields.size() && index < values.size(); ++index) {
         std::string field;
-        if (const auto* string = std::get_if<std::string>(&values[index])) {
+        if (const auto* string = std::get_if<std::string>(&values.at(index))) {
             field = *string;
-        } else if (const auto* flag = std::get_if<bool>(&values[index])) {
+        } else if (const auto* flag = std::get_if<bool>(&values.at(index))) {
             field = *flag ? "1" : "0";
         } else {
-            field = std::format("{}", std::get<double>(values[index]));
+            field = std::format("{}", std::get<double>(values.at(index)));
         }
         text += std::format("{}:{}", field.size(), field);
     }
@@ -155,15 +183,15 @@ std::string formatValues(const PacketSchema& schema, const PacketValues& values)
 }
 
 network::Bytes encodePacket(const PacketSchema& schema, const PacketValues& values) {
-    network::Bytes bytes(schema.maxMessageSize());
+    auto bytes = network::Bytes(schema.maxMessageSize());
     network::bytes::ByteWriter writer{bytes};
     writer.writeU8(static_cast<std::uint8_t>(MessageType::kCustomPacket));
     writer.writeU8(static_cast<std::uint8_t>(schema.name.size()));
     writer.writeBytes(std::as_bytes(std::span{schema.name}));
     writer.writeU32(schema.hash());
     for (std::size_t index = 0; index < schema.fields.size() && index < values.size(); ++index) {
-        const PacketValue& value = values[index];
-        switch (schema.fields[index].type) {
+        const PacketValue& value = values.at(index);
+        switch (schema.fields.at(index).type) {
             case PacketType::kBool:
                 writer.writeU8(std::get<bool>(value) ? 1U : 0U);
                 break;
@@ -183,7 +211,7 @@ network::Bytes encodePacket(const PacketSchema& schema, const PacketValues& valu
                 writer.writeF32(static_cast<float>(std::get<double>(value)));
                 break;
             case PacketType::kString: {
-                const std::string& text = std::get<std::string>(value);
+                const auto& text = std::get<std::string>(value);
                 writer.writeU16(static_cast<std::uint16_t>(text.size()));
                 writer.writeBytes(std::as_bytes(std::span{text}));
                 break;
@@ -206,7 +234,7 @@ std::optional<DecodedPacket> decodePacket(const PacketRegistry& registry, const 
     if (!reader.isValid()) {
         return std::nullopt;
     }
-    const std::string_view name{reinterpret_cast<const char*>(nameBytes.data()), nameBytes.size()};
+    const std::string name = asText(nameBytes);
     const PacketSchema* schema = registry.find(name);
     if (schema == nullptr || schema->direction != direction || schema->hash() != hash) {
         return std::nullopt;
@@ -244,7 +272,7 @@ std::optional<DecodedPacket> decodePacket(const PacketRegistry& registry, const 
                     return std::nullopt;
                 }
                 const std::span<const std::byte> text = reader.readBytes(size);
-                value = std::string{reinterpret_cast<const char*>(text.data()), text.size()};
+                value = std::string{asText(text)};
                 break;
             }
         }

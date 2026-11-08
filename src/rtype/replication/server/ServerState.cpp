@@ -277,9 +277,11 @@ bool ServerState::sendPacket(const network::ClientId client, const network::Chan
     if (_server == nullptr || (client != 0 && !_clients.contains(client)) || _clients.empty()) {
         return false;
     }
-    _server->execute(network::server::SendMessage{.client = client == 0 ? network::server::kAllClients : client,
-                                                  .channel = channel,
-                                                  .payload = std::move(payload)});
+    _server->execute(network::server::SendMessage{
+        .client = client == 0 ? network::server::kAllClients : client,
+        .channel = channel,
+        .payload = std::move(payload),
+    });
     _server->flush(_time());
     return true;
 }

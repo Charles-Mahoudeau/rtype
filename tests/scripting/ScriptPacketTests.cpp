@@ -32,6 +32,7 @@
 #include "rtype/replication/client/ClientState.hpp"
 #include "rtype/replication/input/InputLayout.hpp"
 #include "rtype/replication/packet/PacketCalls.hpp"
+#include "rtype/replication/packet/PacketSchema.hpp"
 #include "rtype/replication/server/ServerPlugin.hpp"
 #include "rtype/replication/server/ServerState.hpp"
 #include "rtype/scripting/plugin/ScriptingPlugin.hpp"

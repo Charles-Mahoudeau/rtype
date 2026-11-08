@@ -36,7 +36,6 @@
 #include "rtype/replication/input/InputBuffer.hpp"
 #include "rtype/replication/input/InputLayout.hpp"
 #include "rtype/replication/manifest/Manifest.hpp"
-#include "rtype/replication/packet/PacketSchema.hpp"
 
 namespace rtype::ecs {
 class Commands;

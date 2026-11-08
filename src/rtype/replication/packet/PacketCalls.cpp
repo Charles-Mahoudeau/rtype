@@ -7,14 +7,16 @@
 
 #include "rtype/replication/packet/PacketCalls.hpp"
 
+#include <algorithm>
 #include <array>
-#include <charconv>
+#include <cstddef>
 #include <cstdint>
 #include <format>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/PluginRegistry.hpp"
@@ -33,15 +35,17 @@ namespace {
 using exceptions::PacketException;
 
 PacketType typeNamed(const std::string_view packet, const std::string_view name) {
-    static constexpr std::array<std::pair<std::string_view, PacketType>, 7> kTypes{{
-        {"bool", PacketType::kBool},
-        {"u8", PacketType::kU8},
-        {"u16", PacketType::kU16},
-        {"u32", PacketType::kU32},
-        {"i32", PacketType::kI32},
-        {"f32", PacketType::kF32},
-        {"string", PacketType::kString},
-    }};
+    static constexpr std::array<std::pair<std::string_view, PacketType>, 7> kTypes{
+        {
+            {"bool", PacketType::kBool},
+            {"u8", PacketType::kU8},
+            {"u16", PacketType::kU16},
+            {"u32", PacketType::kU32},
+            {"i32", PacketType::kI32},
+            {"f32", PacketType::kF32},
+            {"string", PacketType::kString},
+        },
+    };
     for (const auto& [text, type] : kTypes) {
         if (text == name) {
             return type;
@@ -67,12 +71,14 @@ std::vector<PacketField> parseFields(const std::string_view packet, const std::s
             .name = std::string{line.substr(0, first)},
             .type = typeNamed(packet, line.substr(first + 1, second == std::string_view::npos ? std::string_view::npos
                                                                                               : second - first - 1)),
-            .maxLength = 0};
+            .maxLength = 0,
+        };
         if (second != std::string_view::npos) {
-            const std::string_view length = line.substr(second + 1);
-            unsigned value = 0;
-            const auto result = std::from_chars(length.data(), length.data() + length.size(), value);
-            if (result.ptr != length.data() + length.size() || value > kMaxStringSize) {
+            const std::string length{line.substr(second + 1)};
+            const bool digits = !length.empty() && length.size() <= 4 &&
+                                std::ranges::all_of(length, [](const char c) { return c >= '0' && c <= '9'; });
+            const unsigned long value = digits ? std::stoul(length) : kMaxStringSize + 1;
+            if (value > kMaxStringSize) {
                 throw PacketException{std::format("Packet '{}': invalid length in '{}'", packet, line)};
             }
             field.maxLength = static_cast<std::uint16_t>(value);

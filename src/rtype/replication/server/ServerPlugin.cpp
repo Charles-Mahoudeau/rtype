@@ -68,7 +68,10 @@ void receive(ecs::ResMut<ServerState> state, ecs::Res<input::InputLayout> inputs
         if (auto decoded = packet::decodePacket(*packets, packet::PacketDirection::kToServer, raw.payload)) {
             const packet::PacketSchema* schema = packets->find(decoded->name);
             received.send(packet::PacketReceived{
-                .name = decoded->name, .sender = raw.client, .values = packet::formatValues(*schema, decoded->values)});
+                .name = decoded->name,
+                .sender = raw.client,
+                .values = packet::formatValues(*schema, decoded->values),
+            });
         }
     }
 }
