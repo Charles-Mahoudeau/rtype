@@ -1,5 +1,6 @@
--- The shields: a rider whose game.Shield is on twinkles, its sprite fading in and out, so that everyone sees it cannot
--- be hit; it turns solid again when the shield turns off.
+-- The shields: a ghost (a rider just hit, whose game.Shield is on as a ghost) twinkles, its sprite fading in and out,
+-- so that everyone sees it cannot be hit nor shoot; it turns solid again when the shield turns off. A rider invincible
+-- by the boost does not twinkle: its own effect will show it.
 
 local twinklesPerSecond = 10
 local faded = 0.25 -- the sprite's alpha at the low of a twinkle
@@ -13,7 +14,7 @@ engine.ecs.system("game.TwinkleShields", {
 	run = function(ctx)
 		local low = math.floor(ctx.time.elapsed * twinklesPerSecond * 2) % 2 == 1
 		for _, shield, sprite in ctx.query do
-			local alpha = if shield.active and low then faded else 1
+			local alpha = if shield.active and shield.ghost and low then faded else 1
 			local color = sprite.color
 			if color.w ~= alpha then
 				sprite.color = { x = color.x, y = color.y, z = color.z, w = alpha }
