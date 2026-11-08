@@ -13,3 +13,5 @@ target("scripting")
     -- Embeds the prelude of the setup forms as a byte array, included as "FormsPrelude.luau.h".
     add_rules("utils.bin2c", {extensions = {".luau"}})
     add_files("setup/FormsPrelude.luau")
+    -- Same for the helpers of the debug console.
+    add_files("console/ConsolePrelude.luau")

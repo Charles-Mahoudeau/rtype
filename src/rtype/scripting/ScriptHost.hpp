@@ -28,6 +28,7 @@
 #include "rtype/luau/ModuleSource.hpp"
 #include "rtype/luau/Result.hpp"
 #include "rtype/luau/Runtime.hpp"
+#include "rtype/luau/Table.hpp"
 #include "rtype/luau/ValuePack.hpp"
 #include "system/RuntimeHandle.hpp"
 #include "system/SystemRegistration.hpp"
@@ -151,6 +152,29 @@ class RTYPE_SCRIPTING_API ScriptHost {
     /// points): it is ignored until a module requires it.
     void setAdoptsNewFiles(bool adopts) noexcept;
 
+    /// @brief What evaluate() gives back.
+    struct Evaluation {
+        bool ok{true};     ///< False when the code did not compile or raised an error.
+        std::string text;  ///< The values it gave written as Luau, or the error message; empty if it gave nothing.
+    };
+
+    /// @brief Runs a line typed in a debug console and gives back what it evaluates to.
+    ///
+    /// @details The line is an expression (`config.player.size`, written with its values) or, if it is not one, a
+    /// statement (`config.player.size.x = 10`). It sees `engine` (without `ecs`), `modules` (every loaded module by
+    /// its key) and each loaded module by its file name (`config` for `shared/config`; a name taken falls back on the
+    /// whole key with `_` for `/`). The tables of the modules are writable while it runs (a module returns its table
+    /// frozen), then frozen again. A global it assigns is gone with the line. Scripts run through it as through any
+    /// code: an error is returned, never thrown.
+    /// @param source One line of Luau.
+    /// @return The outcome. Not ok before the scripts ran.
+    [[nodiscard]] Evaluation evaluate(std::string_view source);
+
+    /// @brief Completes the dotted name a console is typing, among the modules, `engine` and the globals.
+    /// @param word The name up to the cursor (`config.pl`, `math.`, `en`).
+    /// @return The whole words that complete it (`config.player`), sorted, at most 64; none when nothing matches.
+    [[nodiscard]] std::vector<std::string> complete(std::string_view word);
+
     /// @param name Name of a component a script declared.
     /// @return Its layout, with the default value a field left out of `Commands::add` or `spawn` takes, or null if no
     /// script declared it. Valid while the host lives.
@@ -195,6 +219,19 @@ class RTYPE_SCRIPTING_API ScriptHost {
     /// @brief The body of `engine.call`: calls an engine call by name, outside any system.
     /// @throws luau::exceptions::RuntimeError When no call has the name, or the call fails (see call::callEngine()).
     [[nodiscard]] luau::ValuePack callEngine(const luau::CallContext& arguments);
+
+    /// @brief The helpers of the debug console (the prelude's table), loaded on the first use.
+    [[nodiscard]] luau::Result<luau::Table> consoleTools();
+
+    /// @brief The names a console line sees (see evaluate()), with what each one holds.
+    struct ConsoleBindings {
+        luau::Table table;                      ///< The names to their values, read by the line (`__b`).
+        std::vector<std::string> names;         ///< The names, in the order the line declares them.
+        std::vector<luau::Table> moduleTables;  ///< The module values that are tables.
+    };
+
+    /// @brief Collects what a console line sees: the loaded modules by name, `modules` and `engine`.
+    [[nodiscard]] luau::Result<ConsoleBindings> consoleBindings(const luau::Table& tools);
 
     /// @brief Registers the `App` usertype that `build` receives.
     [[nodiscard]] luau::Result<> registerAppType();
@@ -280,5 +317,6 @@ class RTYPE_SCRIPTING_API ScriptHost {
     bool _adoptsNewFiles{true};                      ///< Whether a new file is a root (see setAdoptsNewFiles()).
     std::vector<std::string> _ownerStack;            ///< The owners to give back when a module ends, innermost last.
     std::unique_ptr<luau::ModuleLoader> _loader;     ///< The module cache; null without a resolver. After `_runtime`.
+    std::optional<luau::Table> _consoleTools;        ///< The console's helpers; none until a console is used.
 };
 }  // namespace rtype::scripting
