@@ -1,6 +1,7 @@
--- The view: a 1-tile strip on the left (the timer and the gauge), then 8 roads of 2 tiles, 64 pixels a tile.
-local GAME_WIDTH = 1088
-local GAME_HEIGHT = 640
+-- The view: a 1-tile strip on the left (the timer and the gauge), then 8 roads of 3 tiles, 64 pixels a tile, and as
+-- high as 16:9 makes it.
+local GAME_WIDTH = 1600
+local GAME_HEIGHT = 900
 
 -- The scripts: the shared entry runs first on both sides, then the entry of the side (see scripts/).
 engine.settings.scripts.main = "shared/main"
@@ -13,12 +14,13 @@ if engine.isClient then
 	engine.settings.network.host = engine.args.host or "127.0.0.1"
 end
 
--- Seen from above (the riders and the scene around them are capsules, in assets/): the physics without gravity, and F3 outlines every collider (hidden at first).
+-- Seen from above (the riders, the traffic and the scene around them are capsules, in assets/): the physics without
+-- gravity, and F3 outlines every collider (hidden at first).
 engine.settings.plugins = { "rtype.Physics", "rtype.Capsule" }
 if engine.isClient then
 	engine.settings.plugins = {
-		"rtype.Physics", "rtype.Capsule", "rtype.Input", "rtype.graphics", "rtype.Shader", "rtype.Sprite", "rtype.SpriteDraw",
-		"rtype.Shape", "rtype.Tilemap", "rtype.PhysicsDebug",
+		"rtype.Physics", "rtype.Capsule", "rtype.Input", "rtype.graphics", "rtype.Shader", "rtype.Sprite",
+		"rtype.SpriteDraw", "rtype.Shape", "rtype.Tilemap", "rtype.PhysicsDebug",
 	}
 end
 engine.settings.physics.gravity = { 0, 0 }
@@ -30,8 +32,12 @@ if engine.isClient then
 	engine.settings.platform = "glfw"
 	engine.settings.renderer = "vulkan"
 
+	-- A window you can resize, or the whole screen with `--fullscreen`: the view is scaled to it, with bars where the
+	-- screen's shape is not 16:9.
 	engine.settings.window.title = "GyattRider 2"
 	engine.settings.window.size = { GAME_WIDTH, GAME_HEIGHT }
+	engine.settings.window.resizable = true
+	engine.settings.window.fullscreen = engine.args.fullscreen == true
 
 	engine.settings.vulkan.virtualResolution = { GAME_WIDTH, GAME_HEIGHT }
 

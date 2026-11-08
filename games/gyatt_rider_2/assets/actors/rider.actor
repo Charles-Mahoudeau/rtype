@@ -1,10 +1,14 @@
 [capsule format=1]
 
-# A player's rider: 1x2 tiles of 64 px, kinematic (moved by game.MoveRiders, nothing pushes it), on layer 1 and hit by
-# the vehicles (2) and the bullets (4). The server spawns it for a client with the slot and the start of its slot
+# A player's rider: 1x2 tiles of 64 px, kinematic (moved by game.MoveRiders, nothing pushes it), on layer 1. A sensor:
+# a vehicle (layer 2) goes through it and sends rtype.TriggerEntered, since two kinematic bodies send no contact, and a
+# shot's ray sees it. The server spawns it for a client with its slot, its start and its slot's texture
 # (scripts/server/players.luau), and gives it its owner.
 [node path="."]
 game.Rider = {}
+game.Position = {}
+game.Look = { layer = 1 }   # Game.riderDrawLayer: over the traffic
+game.Gun = {}
 rtype.Transform = {}
-rtype.Collider = { shape = 0, size = (64, 128), layer = 1, mask = 6 }
+rtype.Collider = { shape = 0, size = (64, 128), sensor = true, layer = 1, mask = 2 }
 rtype.RigidBody = { type = 1 }

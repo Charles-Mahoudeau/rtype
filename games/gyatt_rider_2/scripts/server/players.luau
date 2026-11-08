@@ -30,9 +30,11 @@ engine.ecs.system("game.SpawnRiders", {
 			end
 			taken[slot] = true
 			local position = Game.startOf(slot)
-			-- The rider's actor holds its body and its collision layers; the slot gives its start and its color.
+			-- The rider's actor holds its body, its gun and its draw layer; the slot gives its start and its color.
 			local rider = engine.capsule.spawn(ctx, Game.riderActor, {
-				["game.Rider"] = { position = position, slot = slot },
+				["game.Rider"] = { slot = slot },
+				["game.Position"] = { value = position },
+				["game.Look"] = { texture = `riders/rider_{slot}.png` },
 				["rtype.Transform"] = { position = position },
 			})
 			ctx.commands:add(rider, "net.Owner", { client = joined.client })

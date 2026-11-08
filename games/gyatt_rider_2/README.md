@@ -13,40 +13,50 @@ Build the engine (`xmake build -y`), then from the repository root:
 ./r-type_client --game games/gyatt_rider_2     # once per player
 ```
 
-`--port <port>` on both sides and `--host <address>` on a client play over the network. The first 4 clients ride, the
-next ones watch.
+`--port <port>` on both sides and `--host <address>` on a client play over the network, and `--fullscreen` on a
+client fills the screen (the window can be resized otherwise). The first 4 clients ride, the next ones watch; a match
+starts once 2 ride.
 
 ## Controls
 
 | Key | Action |
 |---|---|
 | Z Q S D (W A S D on a QWERTY keyboard) | Move in every direction |
+| Arrows | Fire a beam up, down, left or right |
 | F3 | Show the colliders |
+| Escape | Quit |
 
 ## What is in it so far
 
 - The 8 roads scrolling, and the strip on the left for the timer and the gauge.
 - A rider for each of the first 4 players, in their slot's color (blue, red, green, purple), moved by the server and
   outlined in white on its own player's screen.
+- The traffic: cars, electric cars, vans, trucks, buses, limousines and cyclists come from behind, each kind at its
+  speed, and slow down behind slower traffic. A vehicle that runs over a rider hits it.
+- Instant shots: a beam from the rider to the first thing it meets. A rider it reaches is hit; a cyclist it reaches is
+  knocked off the road; a vehicle stops it.
+- The 4-minute match: it waits for 2 riders, races, shows its results, then waits for the next one.
 
-Planned: the traffic (cars, electric cars, vans, trucks, buses, limousines, cyclists), shooting with the arrow keys,
-the score and the 4-minute match, the cyclists' boosts, the HUD, then the art, the sounds and the effects.
+Planned: the score, the cyclists' boosts, the HUD, then the art, the sounds and the effects.
 
 ## Layout
 
 ```
-project.luau            settings: network, plugins, window (1088x640)
+project.luau            settings: network, plugins, window (1600x900, 16:9)
 scripts/shared/         the rules both sides share (`rules.luau`: the Game table, the replicated components, the
                         inputs), required by the entry `shared/main`
-scripts/server/         gameplay: the players' riders and their moves; `main.luau` is the server's entry
-scripts/client/         presentation: the assets, the roads, the riders' look; `main.luau` is the client's entry
-assets/actors/          the rider (body and collision layers), spawned by the server for each player
+scripts/server/         gameplay: the riders, the traffic, the shots, the hits, the match; `main.luau` is the
+                        server's entry
+scripts/client/         presentation: the assets, the roads, the looks of what moves, the beams, the controls;
+                        `main.luau` is the client's entry
+assets/actors/          the rider and each kind of traffic (body, look, speed), spawned by the server
 assets/scenes/          the places of the camera and of the strip on the left, loaded by the clients
 assets/                 also the placeholder art and the roads map
 tools/make_placeholders.py   draws the placeholder art
 ```
 
-Every size is counted in tiles of 64 pixels: a road is 2 tiles wide, a rider 1x2, a car 2x3, a limousine 2x7.
+Every size is counted in tiles of 64 pixels: a road is 3 tiles wide, a rider 1x2, a cyclist 1x2, a car 2x3, a
+limousine 2x7. A vehicle drives in the middle of its road, a cyclist on any of its 3 tiles.
 
 ## Assets
 

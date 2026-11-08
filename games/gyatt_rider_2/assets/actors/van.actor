@@ -1,0 +1,10 @@
+[capsule format=1]
+
+# A van, 2x4 tiles. Placed and moved by server/traffic.luau.
+[node path="."]
+rtype.Transform = {}
+game.Position = {}
+game.Look = { texture = "vehicles/van.png", layer = 0 }   # under the riders
+game.Driving = { speed = 55 }   # world units per second, up the view
+rtype.Collider = { shape = 0, size = (128, 256), layer = 2, mask = 1 }   # meets the riders, stops shots
+rtype.RigidBody = { type = 1 }   # kinematic: moved by its Transform, pushed by nothing

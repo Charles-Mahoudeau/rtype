@@ -4,20 +4,36 @@
 
 local Game = {
 	tile = 64, -- pixels per tile: every size of the game is counted in tiles
-	roadTiles = 2, -- a road is as wide as a vehicle
+	roadTiles = 3, -- a vehicle (2 tiles) drives in its middle, a cyclist (1 tile) on any of its tiles
 	roadCount = 8,
 	sidebarTiles = 1, -- the strip on the left, under the timer and the gauge
-	viewTilesHigh = 10,
+	viewHeight = 900, -- world units: with the 8 roads' width, 16:9, the shape of most screens
 	maxPlayers = 4, -- the next players watch
+	minPlayers = 2, -- a match starts once this many ride
+	matchDuration = 240, -- seconds: whoever has the best score then wins
+	resultsDuration = 10, -- seconds the results stay before the next match waits for its players
 	riderTiles = { x = 1, y = 2 },
 	riderSpeed = 400, -- world units per second, in every direction
 	startRoads = { 1, 3, 4, 6 }, -- the road each slot starts on, counted from 0 on the left
+	fireCooldown = 0.25, -- seconds between two shots while an arrow is held
+	beamLifetime = 0.2, -- seconds a shot's beam stays, long enough for a snapshot to carry it
+	beamSquare = 32, -- world units: a beam is drawn as a row of squares this big
 
-	-- The collision categories: each Collider belongs to some (layer) and collides with some (mask).
+	-- The collision categories: each Collider belongs to some (layer) and collides with some (mask). A shot is a ray,
+	-- which picks the categories it sees: it needs none of its own.
 	riderLayer = 1,
 	vehicleLayer = 2,
-	bulletLayer = 4,
-	cyclistLayer = 8,
+	cyclistLayer = 4,
+
+	-- The draw layers: the beams far back, just over the roads, then the traffic (in its capsules), then the riders.
+	beamDrawLayer = -50,
+	trafficDrawLayer = 0,
+	riderDrawLayer = 1,
+
+	-- The phases of a match (game.Match).
+	waiting = 0,
+	racing = 1,
+	over = 2,
 
 	-- The capsules (assets/): what the server spawns for a player, and the scene around the roads. Their sizes and
 	-- layers repeat the ones above: change both together.
@@ -25,6 +41,7 @@ local Game = {
 	roadsScene = "scenes/roads.scene",
 
 	-- The enums of the engine's components, as their reflected numbers.
+	box = 0, -- rtype.Collider shape
 	rectShape = 0, -- rtype.ShapeRenderer kind
 }
 
@@ -36,7 +53,6 @@ end
 -- The sizes in world units, from the tiles. project.luau sizes the window the same, and tools/make_placeholders.py
 -- draws the art the same.
 Game.viewWidth = (Game.sidebarTiles + Game.roadCount * Game.roadTiles) * Game.tile
-Game.viewHeight = Game.viewTilesHigh * Game.tile
 Game.roadsLeft = Game.sidebarTiles * Game.tile -- the roads' edges: the riders stay inside
 Game.roadsRight = Game.viewWidth
 Game.riderSize = Game.sizeOf(Game.riderTiles)
@@ -52,11 +68,46 @@ function Game.startOf(slot: number): { x: number, y: number }
 	return { x = Game.roadCenterX(Game.startRoads[slot + 1]), y = Game.startY }
 end
 
--- A player's rider, on every change. Its slot (0 to 3) gives its start and its color.
-engine.ecs.component("game.Rider", {
-	fields = { position = "vec2", slot = "u32" },
-	replication = "everyChange",
+-- What moves and is drawn, riders and traffic alike: the server writes where it is, and the clients draw its look
+-- there, at its collider's size (client/looks.luau).
+engine.ecs.component("game.Position", { fields = { value = "vec2" }, replication = "everyChange" })
+-- What it looks like, sent once: its texture, and its draw layer (Game.trafficDrawLayer...).
+engine.ecs.component("game.Look", { fields = { texture = "assetId", layer = "i8" }, replication = "spawnOnly" })
+
+-- A player's rider (assets/actors/rider.actor), sent once. Its slot (0 to 3) gives its start and its color.
+engine.ecs.component("game.Rider", { fields = { slot = "u32" }, replication = "spawnOnly" })
+-- Server only: the seconds before a rider can fire again.
+engine.ecs.component("game.Gun", { fields = { cooldown = "f32" }, presence = "serverOnly" })
+-- A shot's beam, an entity of its own sent once: it goes from the rider in slot `shooter` to what it hit, or to the
+-- view's edge, and the clients draw it as a row of squares (client/beams.luau).
+engine.ecs.component("game.Beam", {
+	fields = { from = "vec2", to = "vec2", shooter = "u32" },
+	replication = "spawnOnly",
 })
+-- Server only: the seconds before a beam is removed.
+engine.ecs.component("game.BeamTimer", { fields = { remaining = "f32" }, presence = "serverOnly" })
+
+-- The match, one entity, on every change: its phase (Game.waiting, racing or over) and the whole seconds left,
+-- written only when they change, so that the clients get a new value once a second.
+engine.ecs.component("game.Match", { fields = { phase = "u8", secondsLeft = "u16" }, replication = "everyChange" })
+-- Server only: the exact seconds left in the match's phase.
+engine.ecs.component("game.MatchClock", { fields = { remaining = "f32" }, presence = "serverOnly" })
+
+-- Server only: a hit, an entity of its own: `victim` was hit this tick by the traffic (shooter -1) or by the shot of
+-- the rider in slot `shooter`. Whatever hits a rider spawns one, and server/hits.luau resolves every hit in one place,
+-- then despawns it.
+engine.ecs.component("game.Hit", {
+	fields = { victim = "entity", shooter = "i32" },
+	defaults = { shooter = -1 },
+	presence = "serverOnly",
+})
+
+-- The traffic: one capsule file per kind in assets/actors/, which gives its size (its collider), its look and its
+-- speed. Server only: how fast it goes up the view, in world units per second. Slow: the traffic overtakes the riders.
+engine.ecs.component("game.Driving", { fields = { speed = "f32" }, presence = "serverOnly" })
+-- The vehicles that are cyclists, sent once: the boost a shot that hits it gives (0 for none), and the gauge follows
+-- them.
+engine.ecs.component("game.Cyclist", { fields = { boost = "u8" }, replication = "spawnOnly" })
 
 -- Markers of the scene's client nodes (assets/scenes/roads.scene): a server reads the file too, and the camera and the
 -- shape are not its components, so the client gives them to the marked entities.
@@ -66,5 +117,6 @@ engine.ecs.component("game.Sidebar", { fields = {}, presence = "clientOnly" })
 -- The actions both sides agree on: the clients send them, the server reads them. The keys are physical positions
 -- named after the US layout: W A S D is Z Q S D on a French keyboard.
 engine.input.action("move", "vector2", { bind = { { up = "W", down = "S", left = "A", right = "D" } } })
+engine.input.action("fire", "vector2", { bind = { { up = "Up", down = "Down", left = "Left", right = "Right" } } })
 
 return Game

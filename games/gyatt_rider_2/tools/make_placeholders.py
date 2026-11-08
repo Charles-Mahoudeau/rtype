@@ -7,15 +7,17 @@ The roads are vertical: everything faces up, the way the riders go.
 """
 
 import json
+import math
 from pathlib import Path
 
 from PIL import Image, ImageDraw
 
 TILE = 64  # pixels per tile
-ROAD_TILES = 2  # a road is two tiles wide, as wide as a vehicle
+ROAD_TILES = 3  # a road is three tiles wide: a vehicle (2) drives in its middle
 ROAD_COUNT = 8
 SIDEBAR_TILES = 1  # the strip on the left, under the timer and the gauge
-VIEW_TILES = (SIDEBAR_TILES + ROAD_TILES * ROAD_COUNT, 10)  # 17 x 10 tiles: 1088 x 640
+VIEW_WIDTH = (SIDEBAR_TILES + ROAD_TILES * ROAD_COUNT) * TILE  # 25 tiles: 1600
+VIEW_HEIGHT = 900  # 16:9 with that width
 ROAD_SCROLL = 600  # pixels per second the roads scroll down
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
@@ -90,15 +92,15 @@ def roads_map(image_size):
         "orientation": "orthogonal",
         "renderorder": "right-down",
         "infinite": False,
-        "width": VIEW_TILES[0],
-        "height": VIEW_TILES[1],
+        "width": VIEW_WIDTH // TILE,
+        "height": math.ceil(VIEW_HEIGHT / TILE),
         "tilewidth": TILE,
         "tileheight": TILE,
         "nextlayerid": 2,
         "nextobjectid": 1,
         # Where the camera stands when it sees the layers at their place: the middle of the view.
-        "parallaxoriginx": VIEW_TILES[0] * TILE // 2,
-        "parallaxoriginy": VIEW_TILES[1] * TILE // 2,
+        "parallaxoriginx": VIEW_WIDTH // 2,
+        "parallaxoriginy": VIEW_HEIGHT // 2,
         "tilesets": [],
         "layers": [
             {
@@ -124,12 +126,10 @@ def roads_map(image_size):
     }
 
 
-def bullet():
-    size = TILE // 4
-    image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    ImageDraw.Draw(image).ellipse((1, 1, size - 2, size - 2), fill=(255, 255, 255, 255), outline=(40, 40, 40, 255),
-                                  width=2)
-    return image
+def beam_square():
+    """One square of a shot's beam, which the client repeats from the shooter to what it hits."""
+    size = TILE // 2
+    return Image.new("RGBA", (size, size), (255, 255, 255, 255))
 
 
 def main():
@@ -145,7 +145,7 @@ def main():
     save(body(size, color), f"cyclists/{name}.png")
     for slot, color in enumerate(RIDERS):
         save(body((1, 2), color), f"riders/rider_{slot}.png")
-    save(bullet(), "bullet.png")
+    save(beam_square(), "beam.png")
 
 
 if __name__ == "__main__":
