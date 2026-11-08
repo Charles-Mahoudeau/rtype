@@ -328,3 +328,20 @@ TEST(ScriptSystemRun, ChangedAndAddedGiveNoViewOfTheirOwn) {
     fixture.app.runFrame();
     EXPECT_EQ(testing::internal::GetCapturedStderr(), "");
 }
+
+TEST(ScriptSystemRun, AScriptStopsTheAppWithACodeThroughAppExit) {
+    Fixture fixture;
+    ASSERT_EQ(fixture.run(R"(
+        engine.ecs.system("game.Quit", {
+            phase = "Update",
+            query = {},
+            events = { send = { "rtype.AppExit" } },
+            run = function(ctx) ctx.events.send("rtype.AppExit", { code = 3 }) end,
+        })
+    )"),
+              "");
+
+    fixture.app.runFrame();
+
+    EXPECT_EQ(fixture.app.takeExit(), 3);
+}

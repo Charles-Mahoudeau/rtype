@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -123,9 +124,10 @@ class RTYPE_ENGINE_API Engine {
 
     /// @brief Runs frames until a system sends AppExit, building a new App between two frames when a reload was
     /// requested.
+    /// @param maxFrames When set, stops after that many frames if no AppExit came (a test run): the code is then 0.
     /// @return The code of the first AppExit read.
     /// @throws std::exception What a frame throws, or what a reload throws (the engine then has no App).
-    int run();
+    int run(std::optional<std::size_t> maxFrames = std::nullopt);
 
   private:
     /// @brief The mode and command line a build runs with.

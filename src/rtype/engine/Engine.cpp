@@ -19,6 +19,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <cstddef>
 #include <optional>
 #include <span>
 #include <string>
@@ -303,9 +304,14 @@ void Engine::useSetup(Setup setup) {
     _commandLine = std::move(setup.commandLine);
 }
 
-int Engine::run() {
+int Engine::run(std::optional<std::size_t> maxFrames) {
+    std::size_t frames = 0;
     while (true) {
+        if (maxFrames && frames >= *maxFrames) {
+            return 0;
+        }
         if (_app) {
+            ++frames;
             _app->runFrame();
             if (const std::optional<int> code = _app->takeExit()) {
                 return *code;

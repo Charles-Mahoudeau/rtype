@@ -586,6 +586,26 @@ TEST(Engine, RunsUntilAppExit) {
     EXPECT_EQ(builds, 1);
 }
 
+TEST(Engine, StopsWithCodeZeroAfterTheFramesItWasGiven) {
+    const GameDirectory game{"rtype-engine-max-frames"};
+    std::int32_t builds = 0;
+    EngineConfig config = serverConfig(game);
+    config.setup = countingSetup(builds, [](rtype::ecs::Res<Build>) {});
+    Engine engine{std::move(config)};
+
+    EXPECT_EQ(engine.run(3), 0);
+}
+
+TEST(Engine, AnAppExitBeatsTheFrameLimit) {
+    const GameDirectory game{"rtype-engine-max-frames-exit"};
+    std::int32_t builds = 0;
+    EngineConfig config = serverConfig(game);
+    config.setup = countingSetup(builds, &exitAtOnce);
+    Engine engine{std::move(config)};
+
+    EXPECT_EQ(engine.run(100), 1);
+}
+
 TEST(Engine, ReloadsBetweenTwoFrames) {
     const GameDirectory game{"rtype-engine-reload"};
     std::int32_t builds = 0;
