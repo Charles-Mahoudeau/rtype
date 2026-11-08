@@ -1,6 +1,6 @@
 -- The particles and the screen shake. One effect, the impact (assets/particles/impact.png): a single particle 1.6 times
 -- a rider's width that grows and fades out, at the start of each beam, where a beam stops on something, and
--- on each rider hit. The camera shakes when the player's own rider is hit.
+-- on each rider hit. The camera shakes when the player's own rider is hit, and a little when the player fires.
 
 local Game = require("@scripts/shared/rules")
 local RiderEvents = require("@scripts/client/riderevents")
@@ -26,11 +26,21 @@ local function stoppedOn(to): boolean
 end
 
 local shakeSeconds = 0.35
-local shakeStrength = 14 -- world units, at the start of a shake
+local hitShake = 14 -- world units, at the start of the shake of the player's own hit
+local shotShake = hitShake * 0.3 -- and of the player's own shot
 local shakeLeft = 0 -- seconds of shaking left
+local shakeStrength = 0 -- world units, at the start of the shake going on
+
+--- Shakes the camera, @p strength world units at first, unless a stronger shake is still going on.
+local function shake(strength: number)
+	if strength >= shakeStrength * shakeLeft / shakeSeconds then
+		shakeStrength = strength
+		shakeLeft = shakeSeconds
+	end
+end
 
 -- Update: an impact at the start of each of this frame's beams, where it stopped on something, and on each rider hit;
--- the player's own hit shakes.
+-- the player's own hit shakes, and its own shot a little.
 engine.ecs.system("game.SpawnEffects", {
 	phase = "Update",
 	side = "client",
@@ -46,11 +56,14 @@ engine.ecs.system("game.SpawnEffects", {
 			if stoppedOn(shot.to) then
 				burst(shot.to)
 			end
+			if shot.mine then
+				shake(shotShake)
+			end
 		end
 		for _, hit in RiderEvents.hits() do
 			burst(hit.at)
 			if hit.mine then
-				shakeLeft = shakeSeconds
+				shake(hitShake)
 			end
 		end
 	end,

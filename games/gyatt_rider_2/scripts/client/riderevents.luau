@@ -8,7 +8,7 @@
 local seenOf: { [number]: { shots: number, ghost: boolean, kills: number, cyclists: number } } = {}
 
 -- This frame's events, filled by game.DetectRiderEvents.
-local shots: { { from: { x: number, y: number }, to: { x: number, y: number } } } = {}
+local shots: { { from: { x: number, y: number }, to: { x: number, y: number }, mine: boolean } } = {}
 local hits: { { at: { x: number, y: number }, mine: boolean } } = {}
 local kills = 0
 
@@ -36,7 +36,7 @@ engine.ecs.system("game.DetectRiderEvents", {
 			end
 			local mine = me.connected and owner.client == me.client
 			if shot.serial ~= seen.shots then
-				table.insert(shots, { from = shot.from, to = shot.to })
+				table.insert(shots, { from = shot.from, to = shot.to, mine = mine })
 			end
 			if shield.ghost and not seen.ghost then
 				table.insert(hits, { at = position.value, mine = mine })
@@ -52,7 +52,7 @@ engine.ecs.system("game.DetectRiderEvents", {
 })
 
 return {
-	--- The shots fired this frame: where each went from and to.
+	--- The shots fired this frame: where each went from and to, and whether the player fired it.
 	shots = function()
 		return table.clone(shots)
 	end,
