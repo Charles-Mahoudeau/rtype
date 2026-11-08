@@ -45,7 +45,7 @@ A program of its own, not a feature of a game and not a mode of the runtime. Gam
 | `panels/` | The panels, `FieldEditor` (the widgets of a reflected value, the drag-and-drop of assets) and `WorldView` |
 
 `play/`, `scene/`, `console/` and `shell/` include no ImGui: the tests (`tests/plugins/EditorPlaySessionTests.cpp`,
-`EditorSceneEditTests.cpp`, `EditorIsolationTests.cpp`, `EditorConsoleTests.cpp`, `EditorPluginInfoTests.cpp`) drive them without a window.
+`EditorSceneEditTests.cpp`, `EditorIsolationTests.cpp`, `EditorConsoleTests.cpp`, `EditorPluginInfoTests.cpp`, `EditorAssetKindTests.cpp`) drive them without a window.
 
 ## How it reaches the screen and the window
 
@@ -202,7 +202,7 @@ background (`shell::buildOpenCommand()`): Visual Studio Code by default, through
 | Game | `panels/GamePanel.cpp` | Asks for a scene texture as big as its content, draws it as an image, tells the input bridge where it is (`GameViewport`) |
 | Hierarchy | `panels/HierarchyPanel.cpp` | Editing: the scene's node tree; drag a node onto another to move it, drop a capsule file to place an instance, right-click to add or delete. Playing: the world's entities by their `Parent` and `Children`, named by their `Name`, or a flat list filtered by component name |
 | Inspector | `panels/InspectorPanel.cpp` | Editing: the selected node's name, side, instance and components (added with their type's default value, removed, edited). Playing: the selected entity's components, the same way, lost at Stop |
-| Assets | `panels/AssetsPanel.cpp` | The tree of `<game>/assets`: open a scene, new scene / actor / folder, rename, delete, drag a file |
+| Assets | `panels/AssetsPanel.cpp` | A file explorer: on the left a small tree of the folders of `<game>/assets`; on the right the folder shown as a grid of icons (one per file type, told by `kindOf()` in `panels/AssetKind.cpp`, drawn with Nerd Font glyphs), with a breadcrumb, an up button and an icon size slider. Click selects, double-click enters a folder or opens a capsule, drag carries a file's path, right-click opens the menu (new scene / actor / folder, open, rename, delete) |
 | Console | `panels/ConsolePanel.cpp` | The program's output: filters by kind (info, warnings, errors) and by text, Clear, right-click to copy a line, follows new lines unless scrolled up |
 | Particles | `panels/ParticlesPanel.cpp` | The effects of `ParticleEffectAssets`: edit the spawning, each particle and the forces, preview at the middle of the view, Copy as Luau |
 | Stats | `panels/StatsPanel.cpp` | `io.Framerate`, the plot of the last frame times, `getFrameStats()` |

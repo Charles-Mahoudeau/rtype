@@ -64,6 +64,8 @@ struct EditorOptions {
 /// @brief Everything the editor keeps between two frames: the Dear ImGui context, the bridge that feeds it, the play
 /// session, the scene being edited, what the panels show and what they remember. The plugin's two hooks (the event
 /// filter and the tool frame) share it, and it goes with them when the App is destroyed.
+// The fields are grouped by meaning, not by size.
+// NOLINTNEXTLINE(clang-analyzer-optin.performance.Padding)
 struct RTYPE_EDITOR_API EditorState {
     static constexpr std::size_t kFrameHistory = 120;  ///< How many frame times the Stats panel plots.
 
@@ -95,6 +97,9 @@ struct RTYPE_EDITOR_API EditorState {
     AssetAction assetAction{AssetAction::kNone};   ///< What the Assets panel's popup asks for.
     std::string assetTarget;                       ///< The folder or file of assetAction, in the assets.
     bool openAssetPopup{false};                    ///< Whether the popup opens at the end of the panel.
+    std::string assetFolder;                       ///< The folder the Assets panel shows, in the assets; "": the root.
+    std::string assetSelected;                     ///< The file or folder selected in the Assets panel; "": none.
+    float assetIconSize{64.0F};                    ///< How big the Assets panel draws an icon, in pixels.
     std::array<char, 256> textField{};             ///< The text the popups and the rename fields edit.
     std::array<char, 64> filter{};                 ///< What the Hierarchy keeps while playing: a component name.
     std::array<char, 64> componentFilter{};        ///< What the Inspector's "Add component" list keeps.
