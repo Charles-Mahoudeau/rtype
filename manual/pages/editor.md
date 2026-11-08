@@ -74,11 +74,12 @@ The editor shows those names; your scripts can read them, and give names to the 
 
 ### Edit an actor alone
 
-Double-click an `.actor` (or a `.capsule`) in the Assets: it opens **alone**, in the **Prefab** window, in the middle,
-with nothing of your game around it, while the Game panel goes on showing your game. Turn the wheel over it to zoom.
+Double-click an `.actor` (or a `.capsule`) in the Assets: it opens **alone**, in an **Actor** tab, next to the Game tab,
+with nothing of your game around it, while the Game tab goes on showing your game. Open several actors and each gets a
+tab of its own (opening one again brings its tab back). Turn the wheel over it to zoom.
 The Hierarchy shows its nodes, the Inspector its components, and you edit and save it as a scene. Every instance of it in
-the scene follows your changes. **< Back**, at the top of the Hierarchy, or the window's cross, returns to the scene. The
-Prefab window floats the first time: dock it where you like, the editor remembers. A `.scene` you double-click opens as
+the scene follows your changes. **< Back**, at the top of the Hierarchy, or the window's cross, closes the
+actor's tab and returns to the scene. Drag a tab where you like, the editor remembers. A `.scene` you double-click opens as
 the level.
 
 What your scripts add to an entity in `PostUpdate` shows there too: give the look of an actor (its sprite) in
@@ -87,7 +88,8 @@ What your scripts add to an entity in `PostUpdate` shows there too: give the loo
 ### Open the file
 
 **Open in text editor**, at the top of the Hierarchy or in the menu of a file in the Assets (right-click), opens the file
-in Visual Studio Code. Name another editor in `project.luau`:
+in Visual Studio Code (or VSCodium, or your system's default program, when `code` is not installed). If the command
+cannot be found, the status line says so. Name another editor in `project.luau`:
 
 ```luau
 engine.settings.editor.textEditor = "subl"  -- any command: it gets the file's path
