@@ -16,6 +16,7 @@
 #include <string_view>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include "rtype/replication/exceptions/ReplicationExceptions.hpp"
 

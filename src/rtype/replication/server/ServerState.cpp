@@ -254,10 +254,10 @@ std::optional<ServerNotification> ServerState::handle(const network::server::Ser
     if (client != _clients.end() && !message.payload.empty() &&
         message.payload.front() == static_cast<std::byte>(MessageType::kCustomPacket)) {
         // Malformed packets are refused here, before they take a place in the queue (a client's own quota).
-        if (_packetRegistry != nullptr &&
-            !packet::decodePacket(*_packetRegistry, packet::PacketDirection::kToServer, message.payload)) {
-            ++_droppedPackets;
-        } else if (client->second.pendingPackets >= kMaxPendingPackets) {
+        const bool malformed =
+            _packetRegistry != nullptr &&
+            !packet::decodePacket(*_packetRegistry, packet::PacketDirection::kToServer, message.payload);
+        if (malformed || client->second.pendingPackets >= kMaxPendingPackets) {
             ++_droppedPackets;
         } else {
             ++client->second.pendingPackets;
