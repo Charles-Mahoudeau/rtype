@@ -11,13 +11,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <exception>
-#include <expected>
 #include <filesystem>
 #include <format>
 #include <memory>
 #include <random>
 #include <string>
 #include <string_view>
+#include <tl/expected.hpp>
 #include <utility>
 #include <vector>
 
@@ -77,25 +77,25 @@ void ServerSupervisor::drainOutput() {
     _forwarded = added;
 }
 
-std::expected<void, std::string> ServerSupervisor::start(ServerOptions options) {
+tl::expected<void, std::string> ServerSupervisor::start(ServerOptions options) {
     if (_status == ServerStatus::kStarting || _status == ServerStatus::kRunning) {
-        return std::unexpected("the server is already running");
+        return tl::make_unexpected("the server is already running");
     }
     if (options.gameDirectory.empty() || !std::filesystem::is_directory(options.gameDirectory)) {
-        return std::unexpected(std::format("'{}' is not a game folder", options.gameDirectory.string()));
+        return tl::make_unexpected(std::format("'{}' is not a game folder", options.gameDirectory.string()));
     }
     if (options.port == 0) {
-        return std::unexpected("the port must be from 1 to 65535");
+        return tl::make_unexpected("the port must be from 1 to 65535");
     }
     if (options.runtime.empty()) {
         options.runtime = process::runtimePath();
     }
     if (!std::filesystem::exists(options.runtime)) {
-        return std::unexpected(std::format("aylo-runtime is not at '{}'", options.runtime.string()));
+        return tl::make_unexpected(std::format("aylo-runtime is not at '{}'", options.runtime.string()));
     }
     const std::uint16_t adminPort = findFreePort();
     if (adminPort == 0) {
-        return std::unexpected("no free local port for the admin channel");
+        return tl::make_unexpected("no free local port for the admin channel");
     }
     const std::string token = makeToken();
 
@@ -107,13 +107,13 @@ std::expected<void, std::string> ServerSupervisor::start(ServerOptions options) 
     auto child = process::ChildProcess::spawn(spec);
     if (!child) {
         note(std::format("Error: {}", child.error()));
-        return std::unexpected(std::move(child.error()));
+        return tl::make_unexpected(std::move(child.error()));
     }
     std::unique_ptr<AdminSession> session;
     try {
         session = std::make_unique<AdminSession>(adminPort, token);
     } catch (const std::exception& error) {
-        return std::unexpected(std::format("cannot open the admin socket: {}", error.what()));
+        return tl::make_unexpected(std::format("cannot open the admin socket: {}", error.what()));
     }
     _options = std::move(options);
     _adminPort = adminPort;
@@ -141,7 +141,7 @@ void ServerSupervisor::stop() {
     _status = ServerStatus::kStopped;
 }
 
-std::expected<void, std::string> ServerSupervisor::restart() {
+tl::expected<void, std::string> ServerSupervisor::restart() {
     ServerOptions options = _options;
     stop();
     return start(std::move(options));

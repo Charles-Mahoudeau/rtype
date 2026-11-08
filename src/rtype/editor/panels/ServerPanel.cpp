@@ -12,10 +12,10 @@
 #include <cfloat>
 #include <cstddef>
 #include <cstdint>
-#include <expected>
 #include <filesystem>
 #include <format>
 #include <string>
+#include <tl/expected.hpp>
 #include <vector>
 
 #include "Panels.hpp"
@@ -101,7 +101,7 @@ process::ClientOptions clientOptions(const EditorState& state) {
     };
 }
 
-void remember(EditorState& state, const std::expected<void, std::string>& result) {
+void remember(EditorState& state, const tl::expected<void, std::string>& result) {
     state.serverPanel.message = result ? std::string{} : result.error();
 }
 

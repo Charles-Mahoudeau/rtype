@@ -7,8 +7,8 @@
 
 #include "OnlinePlay.hpp"
 
-#include <expected>
 #include <string>
+#include <tl/expected.hpp>
 #include <utility>
 #include <vector>
 
@@ -32,21 +32,20 @@ void OnlinePlay::setMode(const PlayMode mode) noexcept {
     }
 }
 
-std::expected<void, std::string> OnlinePlay::begin(server::ServerSupervisor& supervisor,
-                                                   server::ServerOptions options) {
+tl::expected<void, std::string> OnlinePlay::begin(server::ServerSupervisor& supervisor, server::ServerOptions options) {
     if (_stage != OnlineStage::kIdle) {
         return {};
     }
     _message.clear();
     if (!_rebuild) {
         _message = "Play online needs the program to rebuild the game as a client";
-        return std::unexpected(_message);
+        return tl::make_unexpected(_message);
     }
     const server::ServerStatus status = supervisor.status();
     if (status == server::ServerStatus::kStopped || status == server::ServerStatus::kExited) {
         if (auto started = supervisor.start(std::move(options)); !started) {
             _message = started.error();
-            return std::unexpected(_message);
+            return tl::make_unexpected(_message);
         }
     }
     _stage = OnlineStage::kStartingServer;

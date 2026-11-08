@@ -10,12 +10,12 @@
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
-#include <expected>
 #include <filesystem>
 #include <format>
 #include <memory>
 #include <optional>
 #include <string>
+#include <tl/expected.hpp>
 #include <utility>
 #include <vector>
 
@@ -40,17 +40,17 @@ ClientLauncher::~ClientLauncher() {
     }
 }
 
-std::expected<ChildProcess, std::string> ClientLauncher::spawn(const ClientOptions& options,
-                                                               const std::vector<std::string>& extraArgs) {
+tl::expected<ChildProcess, std::string> ClientLauncher::spawn(const ClientOptions& options,
+                                                              const std::vector<std::string>& extraArgs) {
     if (options.gameDirectory.empty() || !std::filesystem::is_directory(options.gameDirectory)) {
-        return std::unexpected(std::format("'{}' is not a game folder", options.gameDirectory.string()));
+        return tl::make_unexpected(std::format("'{}' is not a game folder", options.gameDirectory.string()));
     }
     if (options.port == 0) {
-        return std::unexpected("the port must be from 1 to 65535");
+        return tl::make_unexpected("the port must be from 1 to 65535");
     }
     const std::filesystem::path runtime = options.runtime.empty() ? runtimePath() : options.runtime;
     if (!std::filesystem::exists(runtime)) {
-        return std::unexpected(std::format("aylo-runtime is not at '{}'", runtime.string()));
+        return tl::make_unexpected(std::format("aylo-runtime is not at '{}'", runtime.string()));
     }
     return ChildProcess::spawn(ProcessSpec{
         .program = runtime,
@@ -83,11 +83,11 @@ void ClientLauncher::note(Client& client, const std::string& text) {
     drain(client);
 }
 
-std::expected<int, std::string> ClientLauncher::launch(const ClientOptions& options,
-                                                       const std::vector<std::string>& extraArgs) {
+tl::expected<int, std::string> ClientLauncher::launch(const ClientOptions& options,
+                                                      const std::vector<std::string>& extraArgs) {
     auto child = spawn(options, extraArgs);
     if (!child) {
-        return std::unexpected(std::move(child.error()));
+        return tl::make_unexpected(std::move(child.error()));
     }
     Client& client = _clients.emplace_back();
     client.number = _next++;
@@ -132,7 +132,7 @@ void ClientLauncher::killAll() {
     }
 }
 
-std::expected<void, std::string> ClientLauncher::restartAll(const ClientOptions& options) {
+tl::expected<void, std::string> ClientLauncher::restartAll(const ClientOptions& options) {
     killAll();
     std::optional<std::string> failure;
     for (Client& client : _clients) {
@@ -149,7 +149,7 @@ std::expected<void, std::string> ClientLauncher::restartAll(const ClientOptions&
         note(client, std::format("Started again (process {})", client.process->pid()));
     }
     if (failure) {
-        return std::unexpected(std::move(*failure));
+        return tl::make_unexpected(std::move(*failure));
     }
     return {};
 }
