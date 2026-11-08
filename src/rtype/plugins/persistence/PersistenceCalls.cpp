@@ -10,8 +10,8 @@
 #include <array>
 #include <string>
 #include <string_view>
+#include <utility>
 
-#include "plugins/persistence/PersistencePlugin.hpp"
 #include "plugins/persistence/SaveStore.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/app/PluginRegistry.hpp"

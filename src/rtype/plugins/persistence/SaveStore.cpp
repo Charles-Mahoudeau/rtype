@@ -10,9 +10,11 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <ios>
 #include <iterator>
 #include <string>
 #include <string_view>
@@ -80,8 +82,9 @@ SaveResult SaveStore::read(const std::string_view name) const {
         return failure("io: cannot open the file");
     }
     const std::string content{std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
+    const std::string_view contentView{content};
     // Header: "RTSAVE1\n<size>\n<hash in hex>\n", then exactly <size> bytes.
-    if (!content.starts_with(kMagic) || content.size() <= kMagic.size() || content[kMagic.size()] != '\n') {
+    if (!content.starts_with(kMagic) || content.size() <= kMagic.size() || content.at(kMagic.size()) != '\n') {
         return failure("corrupt");
     }
     const std::size_t sizeEnd = content.find('\n', kMagic.size() + 1);
@@ -89,8 +92,8 @@ SaveResult SaveStore::read(const std::string_view name) const {
     if (hashEnd == std::string::npos) {
         return failure("corrupt");
     }
-    const std::string_view sizeText{content.data() + kMagic.size() + 1, sizeEnd - kMagic.size() - 1};
-    const std::string_view hashText{content.data() + sizeEnd + 1, hashEnd - sizeEnd - 1};
+    const std::string_view sizeText = contentView.substr(kMagic.size() + 1, sizeEnd - kMagic.size() - 1);
+    const std::string_view hashText = contentView.substr(sizeEnd + 1, hashEnd - sizeEnd - 1);
     std::size_t size = 0;
     std::uint64_t hash = 0;
     try {
@@ -106,7 +109,7 @@ SaveResult SaveStore::read(const std::string_view name) const {
     } catch (const std::exception&) {
         return failure("corrupt");
     }
-    const std::string_view payload{content.data() + hashEnd + 1, content.size() - hashEnd - 1};
+    const std::string_view payload = contentView.substr(hashEnd + 1);
     if (payload.size() != size || checksum(payload) != hash) {
         return failure("corrupt");
     }

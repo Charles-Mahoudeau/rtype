@@ -9,8 +9,8 @@
 
 #include <cstdlib>
 #include <filesystem>
-#include <memory>
-#include <string>
+#include <memory>  // IWYU pragma: keep (std::unique_ptr, used only on Windows)
+#include <string>  // IWYU pragma: keep (used only on Windows)
 
 namespace rtype::plugins::persistence {
 namespace {
@@ -38,6 +38,7 @@ std::filesystem::path absoluteEnvironmentPath(const char* name) {
 std::filesystem::path getUserDataDirectory() {
 #ifdef _WIN32
     return absoluteEnvironmentPath("APPDATA");
+// NOLINTNEXTLINE(readability-use-concise-preprocessor-directives): #elifdef is not in every compiler the project needs.
 #elif defined(__APPLE__)
     const std::filesystem::path home = absoluteEnvironmentPath("HOME");
     return home.empty() ? home : home / "Library" / "Application Support";

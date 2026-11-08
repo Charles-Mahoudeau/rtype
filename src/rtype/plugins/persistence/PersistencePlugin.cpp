@@ -13,6 +13,7 @@
 #include <utility>
 
 #include "plugins/persistence/PersistenceCalls.hpp"
+#include "plugins/persistence/PersistenceSettings.hpp"
 #include "plugins/persistence/SaveStore.hpp"
 #include "plugins/persistence/UserDataDirectory.hpp"
 #include "rtype/ecs/app/App.hpp"
