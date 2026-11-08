@@ -12,6 +12,8 @@
 #include <filesystem>
 #include <system_error>
 
+#include "Theme.hpp"
+
 namespace rtype::editor::gui {
 
 GuiContext::GuiContext(const std::filesystem::path& layoutFile)
@@ -30,7 +32,7 @@ GuiContext::GuiContext(const std::filesystem::path& layoutFile)
         std::filesystem::create_directories(layoutFile.parent_path(), error);
         io.IniFilename = _layoutFile.c_str();
     }
-    ImGui::StyleColorsDark();
+    applyTheme();
 }
 
 GuiContext::~GuiContext() { ImGui::DestroyContext(_context); }
