@@ -167,6 +167,9 @@ class RTYPE_REPLICATION_API ClientState {
     /// @param inputs The client's input actions.
     void sendInput(const input::InputLayout& inputs);
 
+    /// @brief Counts a custom packet that the schemas refused (the plugin decodes after takePackets()).
+    void noteDroppedPacket() noexcept;
+
     /// @brief Takes the custom packet messages the server sent since the last call, oldest first. At most
     /// kMaxPendingPackets are kept between two calls: the rest are dropped.
     [[nodiscard]] std::vector<network::Bytes> takePackets();
@@ -174,7 +177,11 @@ class RTYPE_REPLICATION_API ClientState {
     /// @brief Sends a custom packet message to the server.
     /// @param channel How to send it.
     /// @param payload The message (packet::encodePacket()).
-    /// @return Whether it was handed to the transport: false when the client is not connected.
+    /// @return Whether it was handed to the transport: false when the client is not connected, the manifest is not
+    /// accepted, or the transport refused it. An unreliable packet also waits until the server is known to be ready
+    /// (a snapshot or a packet came from it): the server drops what it gets before the client's `Ready`, and an
+    /// unreliable message may reach it ahead of that `Ready`, even in the same datagram. Reliable packets are
+    /// delivered after `Ready`, in order, so they need not wait.
     bool sendPacket(network::Channel channel, std::span<const std::byte> payload);
 
   private:
@@ -227,6 +234,7 @@ class RTYPE_REPLICATION_API ClientState {
     std::optional<component::PlayerInput> _input;                ///< The game's input for the frame.
     std::deque<input::InputSample> _recentInputs;                ///< The last three, oldest first.
     std::vector<network::Bytes> _packets;                        ///< Custom packets waiting for takePackets().
+    bool _serverReady{false};                                    ///< The server answered after our `Ready`.
     std::size_t _dropped{0};                                     ///< Messages that could not be used.
     std::size_t _stale{0};                                       ///< Snapshots that were not applied.
 };

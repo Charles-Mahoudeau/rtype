@@ -72,6 +72,8 @@ void receive(ecs::ResMut<ServerState> state, ecs::Res<input::InputLayout> inputs
                 .sender = raw.client,
                 .values = packet::formatValues(*schema, decoded->values),
             });
+        } else {
+            state->noteDroppedPacket();
         }
     }
 }

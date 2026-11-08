@@ -56,7 +56,7 @@ RTYPE_ECS_CALL_DATA(SendResult, "rtype.net.SendResult", sent);
 struct PacketReceived {
     std::string name;         ///< The packet's name.
     std::uint32_t sender{0};  ///< On the server, the client that sent it; 0 on a client.
-    std::string values;       ///< The fields as formatValues() writes them; `engine.net.decode` makes a table.
+    std::string values;       ///< The fields as formatValues() writes them; `engine.net.received` makes a table.
 };
 RTYPE_ECS_EVENT(PacketReceived, "net.PacketReceived", name, sender, values);
 

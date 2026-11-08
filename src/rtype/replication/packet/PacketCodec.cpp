@@ -12,11 +12,12 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <exception>
 #include <format>
 #include <limits>
+#include <locale>
 #include <optional>
 #include <span>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -88,13 +89,14 @@ std::optional<double> parseNumber(const std::string_view text) {
     if (text.empty() || std::isspace(static_cast<unsigned char>(text.front())) != 0) {
         return std::nullopt;
     }
-    try {
-        std::size_t consumed = 0;
-        const double value = std::stod(std::string{text}, &consumed);
-        return consumed == text.size() ? std::optional<double>{value} : std::nullopt;
-    } catch (const std::exception&) {  // not a number, or out of the range of a double
-        return std::nullopt;
-    }
+    // A stream imbued with the classic locale reads '.' whatever the program's numeric locale is (stod does not).
+    std::istringstream stream{std::string{text}};
+    stream.imbue(std::locale::classic());
+    double value = 0;
+    stream >> value;
+    // Fails on text that is not a number, or out of the range of a double.
+    return !stream.fail() && stream.peek() == std::istringstream::traits_type::eof() ? std::optional<double>{value}
+                                                                                     : std::nullopt;
 }
 
 /// @brief Reads a size written in decimal digits, all of @p text.

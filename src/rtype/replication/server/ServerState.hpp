@@ -55,7 +55,8 @@ using ServerNotification = std::variant<event::ClientConnected, event::ClientDis
 /// is an ECS resource, named "net.ServerState". It keeps a pointer to the world it was made for, which must outlive it.
 class RTYPE_REPLICATION_API ServerState {
   public:
-    static constexpr std::size_t kMaxPendingPackets = 256;  ///< The most custom packets kept between two receive().
+    static constexpr std::size_t kMaxPendingPackets =
+        32;  ///< The most custom packets kept per client between two takePackets().
 
     /// @brief Gives the time of the transport.
     using TimeSource = std::function<network::TimePoint()>;
@@ -167,18 +168,23 @@ class RTYPE_REPLICATION_API ServerState {
         network::Bytes payload;      ///< The message, type byte included.
     };
 
-    /// @brief Takes the custom packets that arrived since the last call, oldest first. At most kMaxPendingPackets are
-    /// kept between two calls: the rest are dropped and counted.
+    /// @brief Takes the custom packets that arrived since the last call, oldest first. At most kMaxPendingPackets per
+    /// client are kept between two calls: the rest are dropped and counted, so a client that floods cannot take the
+    /// place of another one's commands.
     [[nodiscard]] std::vector<RawPacket> takePackets();
 
     /// @brief Sends a custom packet message.
     /// @param client The client, or 0 for every connected client.
     /// @param channel How to send it.
     /// @param payload The message (packet::encodePacket()).
-    /// @return Whether at least one client could get it.
+    /// @return Whether at least one client queued it: false if @p client is unknown, none is ready, or the transport
+    /// refused it for every recipient (its reliable queue is full).
     bool sendPacket(network::ClientId client, network::Channel channel, network::Bytes payload);
 
-    /// @return How many custom packets were dropped because too many arrived in one frame.
+    /// @brief Counts a custom packet that the schemas refused (the plugin decodes after takePackets()).
+    void noteDroppedPacket() noexcept;
+
+    /// @return How many custom packets were dropped: too many from one client in a frame, or refused by the schemas.
     [[nodiscard]] std::size_t droppedPacketCount() const noexcept;
 
     /// @brief Writes the next input of a client in the PlayerInput of its entity: the neutral input when the client is
@@ -212,6 +218,7 @@ class RTYPE_REPLICATION_API ServerState {
     struct ClientRecord {
         input::InputBuffer inputs;             ///< Its inputs, waiting for their tick.
         std::uint32_t lastAppliedSnapshot{0};  ///< The tick of the last snapshot it says it applied.
+        std::size_t pendingPackets{0};         ///< Its custom packets waiting for takePackets().
     };
 
     /// @brief Counts and reports a snapshot that did not list every entity.

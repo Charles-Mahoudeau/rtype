@@ -7,12 +7,15 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <functional>
 #include <memory>
+#include <random>
 #include <set>
 #include <string>
 #include <string_view>
@@ -21,6 +24,7 @@
 
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/event/EventCursor.hpp"
+#include "rtype/ecs/event/EventTraits.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/time/FixedTimestep.hpp"
 #include "rtype/ecs/time/TimePlugin.hpp"
@@ -30,12 +34,23 @@
 #include "rtype/replication/ReplicationPlugin.hpp"
 #include "rtype/replication/client/ClientPlugin.hpp"
 #include "rtype/replication/client/ClientState.hpp"
+#include "rtype/replication/exceptions/ReplicationExceptions.hpp"
 #include "rtype/replication/input/InputLayout.hpp"
 #include "rtype/replication/packet/PacketCalls.hpp"
+#include "rtype/replication/packet/PacketCodec.hpp"
 #include "rtype/replication/packet/PacketSchema.hpp"
 #include "rtype/replication/server/ServerPlugin.hpp"
 #include "rtype/replication/server/ServerState.hpp"
 #include "rtype/scripting/plugin/ScriptingPlugin.hpp"
+
+namespace rtype::test::script_packets {
+/// @brief Sent by a script after a check of its own held: the test counts them, since a failing Luau assert only
+/// stops the system and logs.
+struct Checked {
+    std::string what;
+};
+RTYPE_ECS_EVENT(Checked, "test.packets.Checked", what);
+}  // namespace rtype::test::script_packets
 
 namespace {
 namespace network = rtype::network;
@@ -48,6 +63,7 @@ using rtype::replication::client::ManifestStatus;
 using rtype::replication::packet::PacketReceived;
 using rtype::replication::server::ServerPlugin;
 using rtype::replication::server::ServerState;
+using rtype::test::script_packets::Checked;
 
 constexpr std::uint8_t kTickRate = 50;
 constexpr std::chrono::milliseconds kFrame{20};
@@ -63,16 +79,25 @@ engine.net.packet("game.Ack", { direction = "toClients", channel = "reliable", f
     { "ok", "bool" }, { "reason", "string", 32 } } })
 )";
 
+/// @brief Sends each command in order, retrying a refused one (not connected yet) on the next frame.
 constexpr std::string_view kClient = R"(
-local sent = 0
+local commands = {
+    { "game.Buy", { item = "laser", qty = 2 } },
+    { "game.Buy", { item = "nope", qty = 1 } },
+    { "game.SetDirective", { ship = 7, text = string.rep("go north. ", 90) } },
+}
+local nextCommand = 1
 engine.ecs.system("game.Commands", {
     phase = "Update", side = "client", query = {}, calls = { "rtype.net.sendToServer" },
+    events = { send = { "test.packets.Checked" } },
     run = function(ctx)
-        sent += 1
-        if sent == 3 then
-            engine.net.sendToServer(ctx, "game.Buy", { item = "laser", qty = 2 })
-            engine.net.sendToServer(ctx, "game.Buy", { item = "nope", qty = 1 })
-            engine.net.sendToServer(ctx, "game.SetDirective", { ship = 7, text = string.rep("go north. ", 90) })
+        while nextCommand <= #commands do
+            local command = commands[nextCommand]
+            if not engine.net.sendToServer(ctx, command[1], command[2]) then
+                break
+            end
+            ctx.events.send("test.packets.Checked", { what = "sent" })
+            nextCommand += 1
         end
     end,
 })
@@ -82,14 +107,18 @@ constexpr std::string_view kServer = R"(
 local catalog = { laser = 10 }
 engine.ecs.system("game.Rules", {
     phase = "Update", side = "server", query = {}, calls = { "rtype.net.sendToClients" },
-    events = { read = { "net.PacketReceived" } },
+    events = { read = { "net.PacketReceived" }, send = { "test.packets.Checked" } },
     run = function(ctx)
         for _, packet in engine.net.received(ctx) do
+            local reply
             if packet.name == "game.Buy" then
                 local known = catalog[packet.values.item] ~= nil
-                engine.net.sendToClients(ctx, "game.Ack", { ok = known, reason = known and "" or "unknown_item" }, packet.sender)
+                reply = { ok = known, reason = known and "" or "unknown_item" }
             elseif packet.name == "game.SetDirective" then
-                engine.net.sendToClients(ctx, "game.Ack", { ok = #packet.values.text == 900, reason = "directive" }, packet.sender)
+                reply = { ok = #packet.values.text == 900, reason = "directive" }
+            end
+            if engine.net.sendToClients(ctx, "game.Ack", reply, packet.sender) then
+                ctx.events.send("test.packets.Checked", { what = "answered" })
             end
         end
     end,
@@ -102,12 +131,17 @@ network::NetworkSettings makeNetworkSettings() {
     return settings;
 }
 
+/// @return A suffix that no other fixture or test process uses, so that two runs never share a directory.
+std::string uniqueSuffix() {
+    static std::atomic<unsigned> counter{0};
+    return std::to_string(std::random_device{}()) + "-" + std::to_string(counter.fetch_add(1));
+}
+
 /// @brief A scripts directory in the temporary directory, removed with it.
 class ScriptsDirectory {
   public:
     ScriptsDirectory(const std::string_view name, const std::string& content)
-        : _path{std::filesystem::temp_directory_path() / std::string{name}} {
-        std::filesystem::remove_all(_path);
+        : _path{std::filesystem::temp_directory_path() / (std::string{name} + "-" + uniqueSuffix())} {
         std::filesystem::create_directories(_path);
         std::ofstream{_path / "main.luau"} << content;
     }
@@ -130,6 +164,7 @@ class ScriptsDirectory {
 
 std::unique_ptr<App> makeApp(const RunMode mode, const std::filesystem::path& scripts) {
     auto app = std::make_unique<App>(mode);
+    app->getWorld().getEvents().registerType<Checked>();
     app->addPlugin(rtype::ecs::TimePlugin::manual(kFrame, rtype::ecs::FixedTimestep{kTickRate, 5}));
     app->addPlugin(rtype::replication::ReplicationPlugin{});
     app->addPlugin(rtype::scripting::ScriptingPlugin{
@@ -146,6 +181,10 @@ struct Pair {
     std::unique_ptr<App> client;
     rtype::ecs::EventCursor serverCursor;
     rtype::ecs::EventCursor clientCursor;
+    rtype::ecs::EventCursor serverChecks;
+    rtype::ecs::EventCursor clientChecks;
+    std::vector<std::string> serverChecked;      ///< What the server's scripts reported (Checked events).
+    std::vector<std::string> clientChecked;      ///< What the client's scripts reported.
     std::vector<PacketReceived> serverReceived;  ///< Every packet the server's scripts were given.
     std::vector<PacketReceived> clientReceived;  ///< Every packet the client's scripts were given.
 
@@ -174,6 +213,12 @@ struct Pair {
         }
         for (const PacketReceived& packet : client->getWorld().getEvents().read<PacketReceived>(clientCursor)) {
             clientReceived.push_back(packet);
+        }
+        for (const Checked& check : server->getWorld().getEvents().read<Checked>(serverChecks)) {
+            serverChecked.push_back(check.what);
+        }
+        for (const Checked& check : client->getWorld().getEvents().read<Checked>(clientChecks)) {
+            clientChecked.push_back(check.what);
         }
     }
 
@@ -212,17 +257,22 @@ TEST(ScriptPackets, AClientCommandIsValidatedByTheServerAndAnswered) {
     EXPECT_EQ(pair.clientReceived[1].values, "1:012:unknown_item");
     EXPECT_EQ(pair.clientReceived[2].values, "1:19:directive");
     EXPECT_EQ(pair.clientReceived[0].sender, 0U);
+    // Every send reported success, and the server's replies were all queued (checked in the scripts, counted here).
+    EXPECT_EQ(std::ranges::count(pair.clientChecked, "sent"), 3);
+    EXPECT_EQ(std::ranges::count(pair.serverChecked, "answered"), 3);
 }
 
 TEST(ScriptPackets, TheServerOnlySendsToTheClientItNames) {
     constexpr std::string_view kEcho = R"(
 engine.ecs.system("game.Rules", {
     phase = "Update", side = "server", query = {}, calls = { "rtype.net.sendToClients" },
-    events = { read = { "net.PacketReceived" } },
+    events = { read = { "net.PacketReceived" }, send = { "test.packets.Checked" } },
     run = function(ctx)
         for _, packet in engine.net.received(ctx) do
-            -- an id nobody has: nothing is sent
-            assert(engine.net.sendToClients(ctx, "game.Ack", { ok = true, reason = "x" }, 4242) == false)
+            -- an id nobody has: nothing is sent, and the call says so
+            if engine.net.sendToClients(ctx, "game.Ack", { ok = true, reason = "x" }, 4242) == false then
+                ctx.events.send("test.packets.Checked", { what = "refused" })
+            end
         end
     end,
 })
@@ -235,23 +285,30 @@ engine.ecs.system("game.Rules", {
     }
 
     EXPECT_TRUE(pair.clientReceived.empty());
+    EXPECT_EQ(std::ranges::count(pair.serverChecked, "refused"), 3);  // the assertion ran for each command
 }
 
 TEST(ScriptPackets, ASendThatBreaksTheSchemaIsAScriptErrorAndNothingTravels) {
     constexpr std::string_view kBad = R"(
-local sent = 0
+local rejected = false
+local sent = false
 engine.ecs.system("game.Commands", {
     phase = "Update", side = "client", query = {}, calls = { "rtype.net.sendToServer" },
+    events = { send = { "test.packets.Checked" } },
     run = function(ctx)
-        sent += 1
-        if sent == 3 then
+        if not rejected then
+            rejected = true
             assert(not pcall(engine.net.sendToServer, ctx, "game.Buy", { item = "laser", qty = 256 }))
             assert(not pcall(engine.net.sendToServer, ctx, "game.Buy", { item = "laser", qty = 1.5 }))
             assert(not pcall(engine.net.sendToServer, ctx, "game.Buy", { item = string.rep("x", 33), qty = 1 }))
             assert(not pcall(engine.net.sendToServer, ctx, "game.Buy", { item = "laser" }))
             assert(not pcall(engine.net.sendToServer, ctx, "game.Ack", { ok = true, reason = "" }))
             assert(not pcall(engine.net.sendToServer, ctx, "game.Nope", {}))
-            engine.net.sendToServer(ctx, "game.Buy", { item = "laser", qty = 255 })
+            ctx.events.send("test.packets.Checked", { what = "rejected" })
+        end
+        if not sent and engine.net.sendToServer(ctx, "game.Buy", { item = "laser", qty = 255 }) then
+            sent = true
+            ctx.events.send("test.packets.Checked", { what = "sent" })
         end
     end,
 })
@@ -263,27 +320,95 @@ engine.ecs.system("game.Commands", {
         pair.frame();
     }
 
+    EXPECT_EQ(std::ranges::count(pair.clientChecked, "rejected"), 1);  // all six refusals held
+    EXPECT_EQ(std::ranges::count(pair.clientChecked, "sent"), 1);
     ASSERT_EQ(pair.serverReceived.size(), 1U);  // only the valid one
     EXPECT_EQ(pair.serverReceived[0].values, "5:laser3:255");
+}
+
+TEST(ScriptPackets, ADeclarationThatWouldChangeTheSchemaIsRefusedWhenItLoads) {
+    constexpr std::string_view kDeclarations = R"(
+local function declare(name, fields)
+    return pcall(engine.net.packet, name, { direction = "toServer", fields = fields })
+end
+local outcomes = {
+    declare("game.Holes", { { "a", "u8" }, nil, { "b", "u8" } }),
+    declare("game.Named", { { "a", "u8" }, extra = { "b", "u8" } }),
+    declare("game.Fraction", { { "text", "string", 0.5 } }),
+    declare("game.Zero", { { "text", "string", 0 } }),
+    declare("game.Delimiter", { { "qty:u8\ncount", "u8" } }),
+    declare("game.Fine", { { "a", "u8" }, { "text", "string", 12 } }),
+}
+engine.ecs.system("game.Report", {
+    phase = "Update", side = "server", query = {},
+    events = { send = { "test.packets.Checked" } },
+    run = function(ctx)
+        -- every frame: the first frame runs in the constructor of Pair, before anyone reads the events
+        for index = 1, 6 do
+            ctx.events.send("test.packets.Checked", { what = (outcomes[index] and "accepted" or "refused") .. index })
+        end
+    end,
+})
+)";
+    Pair pair{"rtype-packets-declarations", std::string{kDeclarations}, withShared(kClient)};
+
+    ASSERT_TRUE(pair.runUntil([&] { return pair.serverChecked.size() >= 6; }));
+
+    const std::vector<std::string> expected{"refused1", "refused2", "refused3", "refused4", "refused5", "accepted6"};
+    EXPECT_EQ(std::vector<std::string>(pair.serverChecked.begin(), pair.serverChecked.begin() + 6), expected);
 }
 
 TEST(ScriptPackets, RefusesADeclarationAfterTheNetworkStarted) {
     Pair pair{"rtype-packets-late", withShared(kServer), withShared(kClient)};
     pair.frame();
+    auto registry = pair.server->getWorld().getResources().getMut<rtype::replication::packet::PacketRegistry>();
 
-    EXPECT_TRUE(pair.server->getWorld().getResources().get<rtype::replication::packet::PacketRegistry>()->isFrozen());
+    EXPECT_TRUE(registry->isFrozen());
+    rtype::replication::packet::PacketSchema late{
+        .name = "game.Late", .direction = {}, .channel = network::Channel::kReliable, .fields = {}};
+    EXPECT_THROW(registry->declare(late), rtype::replication::exceptions::PacketException);
+    // A reload declares the packets again, unchanged: accepted.
+    EXPECT_NO_THROW(registry->declare(*registry->find("game.Buy")));
+}
+
+TEST(ScriptPackets, AnUnreliableCommandWaitsUntilTheServerAnswered) {
+    // The transport hands a datagram's unreliable messages to the server before its reliable ones, so a command sent
+    // in the datagram of `Ready` is dropped as "not ready". The client therefore refuses it until the server spoke.
+    Pair pair{"rtype-packets-ready", withShared(kServer), withShared(kClient)};
+    const auto& registry = *pair.client->getWorld().getResources().get<rtype::replication::packet::PacketRegistry>();
+    const auto& schema = *registry.find("game.Buy");
+    const auto message = rtype::replication::packet::encodePacket(schema, {std::string{"laser"}, 1.0});
+    ASSERT_TRUE(pair.runUntil([&] { return pair.clientState().manifestStatus() == ManifestStatus::kAccepted; }));
+
+    // The manifest is accepted, `Ready` is on its way and nothing came back yet.
+    EXPECT_FALSE(pair.clientState().sendPacket(network::Channel::kUnreliable, message));
+    EXPECT_TRUE(pair.clientState().sendPacket(network::Channel::kReliable, message));  // ordered after `Ready`
+
+    // Once the server's snapshots arrive, unreliable commands go.
+    ASSERT_TRUE(pair.runUntil([&] { return pair.clientState().sendPacket(network::Channel::kUnreliable, message); }));
+    EXPECT_TRUE(pair.runUntil([&] {
+        // Both of ours (the reliable one and the unreliable one) reached the server's scripts.
+        return std::ranges::count(pair.serverReceived, "5:laser1:1", &PacketReceived::values) >= 2;
+    }));
 }
 
 TEST(ScriptPackets, TheServerPushesASnapshotAtTenHertzWhileCommandsFlow) {
     Pair pair{"rtype-packets-rate", withShared(kServer), withShared(kClient), 10};
     std::set<std::uint32_t> ticks;
+    std::set<std::uint32_t> applied;
 
     for (int frame = 0; frame < 100; ++frame) {
         pair.frame();
         ticks.insert(pair.state().serverTick());
+        applied.insert(pair.clientState().lastAppliedTick());
+        std::this_thread::sleep_for(1ms);  // the datagrams cross the loopback between two frames
     }
 
     // 100 frames at 50 Hz are two seconds: a snapshot every 5 ticks is 10 per second.
     EXPECT_GE(ticks.size() - 1, 18U);
     EXPECT_LE(ticks.size() - 1, 21U);
+    // The client really applied them (loopback loses none), and the commands went through meanwhile.
+    EXPECT_GE(applied.size(), 10U);
+    EXPECT_TRUE(pair.runUntil([&] { return pair.serverReceived.size() >= 3; }));
+    EXPECT_EQ(std::ranges::count(pair.clientChecked, "sent"), 3);
 }

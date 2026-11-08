@@ -8,14 +8,24 @@ game (`buy`, `set_speed`, a free-form directive...). State still goes down as [r
 
 | Direction | Mechanism | Limits |
 |---|---|---|
-| Server → clients, state | A component with `replication = "everyChange"` (or `"spawnOnly"` for append-only data such as a feed line), at the server's `snapshotRate` (60 Hz by default, `ReplicationSettings`; `10` gives a 10 Hz delta) | Typed fields; a `string` is at most 255 bytes |
+| Server → clients, state | A component with `replication = "everyChange"` (or `"spawnOnly"`), at the server's `snapshotRate` (60 per second by default, `ReplicationSettings`; `10` gives 10 snapshots per second) | Typed fields; a `string` is at most 255 bytes |
 | Client → server, commands | A `toServer` packet, `engine.net.sendToServer` | At most 1000 bytes per message (strings up to about 960 bytes) |
 | Server → clients, one-shot | A `toClients` packet, `engine.net.sendToClients` | Same |
+
+State is sent as **snapshots**, unreliably, not as deltas: each one lists the replicated entities that fit in a
+message, **unchanged components included**, and a `spawnOnly` component is listed again too while its entity is alive
+(it is not delivered once). So the bandwidth of state grows with entities × component size × `snapshotRate`, whatever
+changes, and a lost snapshot is repaired by the next one. A `spawnOnly` component suits what the client simulates
+itself, not a feed line to receive once: send that as a `toClients` packet.
 
 ## Declaring a packet
 
 Both sides load the same declaration (put it in a shared file). Declare while the scripts load: the registry is frozen
-when the server or client starts, and a later declaration is an error.
+when the server or client starts, and a later declaration is an error. The one exception is a script reload (hot
+reload): declaring a packet again **identically** is accepted; a changed declaration is refused with a message asking to
+restart, since the other side would still hold the old one. Packets are declared by scripts, with `engine.net.packet`;
+`PacketRegistry` can hold one declared from C++, but `engine.net.sendToServer` and `engine.net.received` only know the
+packets the script itself declared.
 
 ```luau
 engine.net.packet("game.Buy", {
@@ -26,7 +36,8 @@ engine.net.packet("game.Buy", {
 ```
 
 Types: `bool`, `u8`, `u16`, `u32`, `i32`, `f32`, `string` (`maxLength` defaults to 64, at most 1000). Field names are
-identifiers, unique, and not `sender`. A packet whose largest message would not fit in the transport's 1000 bytes
+identifiers (letters, digits, `_`), unique, and not `sender`. `fields` must be a plain list (no holes or named keys), and
+`maxLength` a whole number from 1 to 65535 (and in the end at most 1000). A packet whose largest message would not fit in the transport's 1000 bytes
 (`6 + name + fields`, a string counting `2 + maxLength`) is refused at declaration, naming the packet.
 
 ## Sending, receiving, validating
@@ -38,6 +49,12 @@ engine.ecs.system("game.Commands", {
     run = function(ctx)
         engine.net.sendToServer(ctx, "game.Buy", { item = "laser", qty = 2 })   -- returns false when not connected
     end,
+})
+
+-- shared, with game.Buy: the reply, declared on both sides
+engine.net.packet("game.Ack", {
+    direction = "toClients",
+    fields = { { "ok", "bool" }, { "reason", "string", 32 } },
 })
 
 -- server system: reads what arrived, validates what it MEANS, answers
@@ -56,9 +73,16 @@ engine.ecs.system("game.Rules", {
 ```
 
 `engine.net.sendToClients(ctx, name, values, client?)` sends to every connected client, or to `client` (an id from
-`net.ClientConnected` or a packet's `sender`); it returns `false` when nobody could get it.
+`net.ClientConnected` or a packet's `sender`); it returns `false` when nobody got it: unknown client, no client ready, or
+every recipient's reliable queue is full.
 
-A running example, with the three packets above, is the test `tests/scripting/ScriptPacketTests.cpp`.
+`engine.net.sendToServer` returns `false` when the client is not connected or the manifest is not accepted yet, or the
+transport refuses it. An **unreliable** packet also waits until the server has answered (its first snapshot or packet
+arrived): the server drops what it receives before the client's `Ready`, and an unreliable message can reach it ahead
+of that `Ready`, even in the same datagram. Retry until it returns `true`. Reliable packets are delivered after `Ready`
+in order, so they need no wait.
+
+A running example, with the packets `game.Buy`, `game.SetDirective` and `game.Ack` (declared in the test's shared file), is the test `tests/scripting/ScriptPacketTests.cpp`.
 
 ## What the engine checks
 
@@ -66,7 +90,8 @@ A running example, with the three packets above, is the test `tests/scripting/Sc
 |---|---|---|
 | Sending | Packet declared, goes this way, every field present with the right type, integers whole and in range, `f32` finite, strings within `maxLength` | A Luau error naming the packet and the field; nothing is sent |
 | Receiving | Message well formed (bounds-checked), packet known, direction, schema hash (the sender's declaration is the same), every value re-checked, no trailing bytes | Dropped; the scripts never see it |
-| Receiving | At most 256 packets kept per frame (`ServerState::kMaxPendingPackets`) | The rest dropped, counted (`droppedPacketCount()`) |
+| Receiving | At most 32 packets kept per client per frame (`ServerState::kMaxPendingPackets`), so one client cannot crowd out the commands of another | The rest dropped, counted (`droppedPacketCount()`) |
+| Receiving | A packet that fails the schema is dropped | Counted too: `ServerState::droppedPacketCount()`, `ClientState::droppedCount()` |
 
 The engine checks **shape**. Whether a command is allowed (the player owns that ship, has the gold, the tool exists)
 is the game's rule: the server script decides, using `sender`. Nothing a client sends changes state by itself.
@@ -82,7 +107,7 @@ packing: the engine parses and checks it again, so a script cannot send anything
 ## Differences with the design
 
 - **No manifest entry.** The design lists packets in the manifest; here the hash rides in every message, and a
-  mismatch drops the packet silently (a client with other scripts is not refused at connection). A manifest check is
+  mismatch drops the packet (counted) (a client with other scripts is not refused at connection). A manifest check is
   still to do.
 - **The name is on the wire**, not a 2-byte id.
 - **No C++ `RTYPE_REPLICATION_PACKET` macro and no ECS event per packet**: all packets arrive as one event,

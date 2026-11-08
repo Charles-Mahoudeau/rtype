@@ -7,9 +7,11 @@
 
 #include <gtest/gtest.h>
 
+#include <clocale>
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <locale>
 #include <string>
 #include <variant>
 
@@ -79,7 +81,7 @@ TEST(Packet, TextWithABadValueIsRefused) {
     EXPECT_NE(error.find("item"), std::string::npos);
     EXPECT_FALSE(parseValues(schema, "5:laser1:31:01:01:2", error));    // bool 2
     EXPECT_FALSE(parseValues(schema, "5:laser3:1.51:01:01:1", error));  // qty not whole
-    EXPECT_FALSE(parseValues(schema, "5:laser1:31:01:03:nan1:1", error));
+    EXPECT_FALSE(parseValues(schema, "5:laser1:31:03:nan1:1", error));
     EXPECT_FALSE(parseValues(schema, "5:laser1:31:01:01:11:1", error));  // extra data
     EXPECT_FALSE(parseValues(schema, "5:laser1:3", error));              // fields missing
     EXPECT_FALSE(parseValues(schema, "99:x", error));                    // cut short
@@ -121,10 +123,63 @@ TEST(Packet, ADifferentDeclarationHasADifferentHash) {
 
 TEST(Packet, TheHashIsStable) {
     // Hard-coded: two builds must agree, or a client and a server of different versions would read each other.
-    EXPECT_EQ(buy().hash(), buy().hash());
+    // Change this value only with the wire format.
+    EXPECT_EQ(buy().hash(), 0x8BB476E0U);
     PacketSchema renamed = buy();
     renamed.name = "game.Sell";
     EXPECT_NE(buy().hash(), renamed.hash());
+}
+
+TEST(Packet, ARegistryRefusesAnUnknownFieldType) {
+    PacketRegistry registry;
+    PacketSchema schema = buy();
+    schema.fields[1].type = static_cast<PacketType>(200);
+
+    EXPECT_THROW(registry.declare(schema), PacketException);
+    EXPECT_EQ(registry.size(), 0U);
+}
+
+TEST(Packet, AFrozenRegistryAcceptsTheSameDeclarationAgainForAReload) {
+    PacketRegistry registry;
+    registry.declare(buy());
+    registry.freeze();
+
+    EXPECT_NO_THROW(registry.declare(buy()));
+    EXPECT_EQ(registry.size(), 1U);
+    PacketSchema changed = buy();
+    changed.fields[1].type = PacketType::kU16;
+    EXPECT_THROW(registry.declare(changed), PacketException);  // the other side would keep the old one
+    PacketSchema renamed = buy();
+    renamed.name = "game.Sell";
+    EXPECT_THROW(registry.declare(renamed), PacketException);  // new: too late
+    EXPECT_EQ(registry.size(), 1U);
+    EXPECT_EQ(registry.find("game.Buy")->fields[1].type, PacketType::kU8);
+}
+
+/// @brief A numeric locale that writes 1,5.
+struct CommaDecimal : std::numpunct<char> {
+    [[nodiscard]] char do_decimal_point() const override { return ','; }
+};
+
+TEST(Packet, RoundTripsThroughTheTextWhateverTheNumericLocale) {
+    const PacketRegistry registry = registryWith(buy());
+    const PacketSchema& schema = *registry.find("game.Buy");
+    const std::locale previousCpp = std::locale::global(std::locale(std::locale::classic(), new CommaDecimal));
+    const std::string previousC = std::setlocale(LC_NUMERIC, nullptr);
+    // A real comma-decimal locale, where the machine has one (stod would stop at the '.').
+    for (const char* name : {"de_DE.UTF-8", "fr_FR.UTF-8", "de_DE.utf8", "fr_FR.utf8", "de_DE", "fr_FR"}) {
+        if (std::setlocale(LC_NUMERIC, name) != nullptr) {
+            break;
+        }
+    }
+    std::string error;
+
+    const auto parsed = parseValues(schema, formatValues(schema, buyValues()), error);
+
+    std::setlocale(LC_NUMERIC, previousC.c_str());
+    std::locale::global(previousCpp);
+    ASSERT_TRUE(parsed) << error;
+    EXPECT_EQ(*parsed, buyValues());
 }
 
 TEST(Packet, ARegistryRefusesBadDeclarations) {

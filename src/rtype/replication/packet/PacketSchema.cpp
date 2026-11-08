@@ -75,6 +75,14 @@ bool isPacketName(const std::string_view name) noexcept {
     }
     return true;
 }
+
+/// @return Whether two schemas describe the same packet, field by field.
+bool sameSchema(const PacketSchema& left, const PacketSchema& right) noexcept {
+    return left.name == right.name && left.direction == right.direction && left.channel == right.channel &&
+           std::ranges::equal(left.fields, right.fields, [](const PacketField& a, const PacketField& b) {
+               return a.name == b.name && a.type == b.type && a.maxLength == b.maxLength;
+           });
+}
 }  // namespace
 
 std::uint32_t PacketSchema::hash() const noexcept {
@@ -100,19 +108,10 @@ std::size_t PacketSchema::maxMessageSize() const noexcept {
 }
 
 void PacketRegistry::declare(PacketSchema schema) {
-    if (_frozen) {
-        throw exceptions::PacketException{
-            std::format("Cannot declare packet '{}': packets are declared while the scripts load, not after the "
-                        "network started",
-                        schema.name)};
-    }
     if (!isPacketName(schema.name)) {
         throw exceptions::PacketException{
             std::format("Invalid packet name '{}': expected identifiers separated by dots, at most {} bytes",
                         schema.name, kMaxPacketNameSize)};
-    }
-    if (find(schema.name) != nullptr) {
-        throw exceptions::PacketException{std::format("Packet '{}' is already declared", schema.name)};
     }
     if (schema.fields.size() > kMaxFields) {
         throw exceptions::PacketException{
@@ -128,6 +127,10 @@ void PacketRegistry::declare(PacketSchema schema) {
             throw exceptions::PacketException{
                 std::format("Packet '{}': field '{}' is declared twice", schema.name, field.name)};
         }
+        if (field.type > PacketType::kString) {
+            throw exceptions::PacketException{std::format("Packet '{}': field '{}' has an unknown type {}", schema.name,
+                                                          field.name, static_cast<unsigned>(field.type))};
+        }
         if (field.type != PacketType::kString) {
             field.maxLength = 0;
         } else if (field.maxLength == 0) {
@@ -141,6 +144,22 @@ void PacketRegistry::declare(PacketSchema schema) {
         throw exceptions::PacketException{
             std::format("Packet '{}' could take {} bytes, more than the {} of a message: shorten its strings",
                         schema.name, schema.maxMessageSize(), kMaxMessageSize)};
+    }
+    if (const PacketSchema* existing = find(schema.name)) {
+        // A script that reloads declares its packets again: the same declaration is fine, even once frozen.
+        if (_frozen && sameSchema(*existing, schema)) {
+            return;
+        }
+        throw exceptions::PacketException{
+            _frozen
+                ? std::format("Cannot change packet '{}' after the network started: restart to apply it", schema.name)
+                : std::format("Packet '{}' is already declared", schema.name)};
+    }
+    if (_frozen) {
+        throw exceptions::PacketException{
+            std::format("Cannot declare packet '{}': packets are declared while the scripts load, not after the "
+                        "network started",
+                        schema.name)};
     }
     _schemas.push_back(std::move(schema));
 }

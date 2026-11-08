@@ -404,6 +404,41 @@ TEST_F(ServerStateTest, DropsTheCustomPacketsOfAFloodAndCountsThem) {
     EXPECT_EQ(_state->droppedPacketCount(), 5U);
 }
 
+TEST_F(ServerStateTest, AFloodingClientCannotTakeThePlaceOfAnotherClientsPackets) {
+    makeState();
+    join(kFirst);
+    join(kSecond);
+    const network::Bytes message{std::byte{0x32}, std::byte{0x01}};
+    const auto send = [&](const network::ClientId client) {
+        static_cast<void>(_state->handle(
+            network::server::ClientMessage{
+                .client = client, .channel = network::Channel::kReliable, .payload = message},
+            _layout));
+    };
+
+    for (std::size_t sent = 0; sent < ServerState::kMaxPendingPackets * 4; ++sent) {
+        send(kFirst);
+    }
+    send(kSecond);  // arrives after the flood
+
+    const auto packets = _state->takePackets();
+    EXPECT_EQ(std::ranges::count(packets, kFirst, &ServerState::RawPacket::client), ServerState::kMaxPendingPackets);
+    EXPECT_EQ(std::ranges::count(packets, kSecond, &ServerState::RawPacket::client), 1);
+    EXPECT_EQ(_state->droppedPacketCount(), ServerState::kMaxPendingPackets * 3);
+    // The room is given back once the packets are taken.
+    send(kFirst);
+    EXPECT_EQ(_state->takePackets().size(), 1U);
+}
+
+TEST_F(ServerStateTest, CountsThePacketsTheSchemasRefused) {
+    makeState();
+
+    _state->noteDroppedPacket();
+    _state->noteDroppedPacket();
+
+    EXPECT_EQ(_state->droppedPacketCount(), 2U);
+}
+
 TEST_F(ServerStateTest, AnInputFromAnUnknownClientIsIgnoredAndCounted) {
     makeState();
     const network::Bytes payload =

@@ -47,6 +47,8 @@ void receive(ecs::ResMut<ClientState> state, ecs::ResMut<input::InputLayout> inp
                 .sender = 0,
                 .values = packet::formatValues(*schema, decoded->values),
             });
+        } else {
+            state->noteDroppedPacket();
         }
     }
 }

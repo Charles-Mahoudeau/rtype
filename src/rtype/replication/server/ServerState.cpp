@@ -18,6 +18,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <unordered_map>
 #include <utility>
@@ -247,9 +248,10 @@ std::optional<ServerNotification> ServerState::handle(const network::server::Ser
     const auto client = _clients.find(message.client);
     if (client != _clients.end() && !message.payload.empty() &&
         message.payload.front() == static_cast<std::byte>(MessageType::kCustomPacket)) {
-        if (_packets.size() >= kMaxPendingPackets) {
+        if (client->second.pendingPackets >= kMaxPendingPackets) {
             ++_droppedPackets;
         } else {
+            ++client->second.pendingPackets;
             _packets.push_back(RawPacket{.client = message.client, .payload = message.payload});
         }
         return std::nullopt;
@@ -271,20 +273,29 @@ std::optional<ServerNotification> ServerState::handle(const network::server::Ser
     return std::nullopt;
 }
 
-std::vector<ServerState::RawPacket> ServerState::takePackets() { return std::exchange(_packets, {}); }
+std::vector<ServerState::RawPacket> ServerState::takePackets() {
+    for (auto& record : _clients | std::views::values) {
+        record.pendingPackets = 0;
+    }
+    return std::exchange(_packets, {});
+}
 
 bool ServerState::sendPacket(const network::ClientId client, const network::Channel channel, network::Bytes payload) {
     if (_server == nullptr || (client != 0 && !_clients.contains(client)) || _clients.empty()) {
         return false;
     }
-    _server->execute(network::server::SendMessage{
+    const bool queued = _server->execute(network::server::SendMessage{
         .client = client == 0 ? network::server::kAllClients : client,
         .channel = channel,
         .payload = std::move(payload),
     });
-    _server->flush(_time());
-    return true;
+    if (queued) {
+        _server->flush(_time());
+    }
+    return queued;
 }
+
+void ServerState::noteDroppedPacket() noexcept { ++_droppedPackets; }
 
 std::size_t ServerState::droppedPacketCount() const noexcept { return _droppedPackets; }
 

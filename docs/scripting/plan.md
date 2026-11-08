@@ -550,14 +550,16 @@ loader only warns on `std::cerr` when a `both` system writes a `serverOnly` comp
   notifications, and no code serializes an event. `EventInfo.hpp` and `ecs/features/11-events.md` say the same (the
   registry refuses a replicated event). `docs/network/design.md` section 8 designs **custom packets** for this
   (`net.packet`, `toServer` / `toClients`, with a `string` field: `u8` length, `maxLength` 64 by default, at most
-  255), received as events in the receiver's world (NET-34, NET-35). Only `MessageType::kCustomPacket = 0x32` exists
-  today: a minimal slice is implemented since GR5-88 ([custom-packets](../network/custom-packets.md): `engine.net.packet`, typed fields, one `net.PacketReceived` event); the manifest check, the C++ macro and per-packet events are not. So an event can hold a string once
-  `kString` exists, but text that has to reach other machines is a replicated component (a `ChatLine` spawned by the
-  server) until custom packets land.
+  255), received as events in the receiver's world (NET-34, NET-35). A minimal slice is implemented
+  since GR5-88 ([custom-packets](../network/custom-packets.md): `engine.net.packet`, typed fields with a bounded `string`, one
+  `net.PacketReceived` event); the manifest check, the C++ macro and per-packet events are not. So text that has to
+  reach other machines is a `string` field of a custom packet (a command or a one-shot message), or a replicated
+  component (a `ChatLine` spawned by the server) for state that every client keeps.
 - **A name cannot ride the handshake as it is.** Checked in `network/protocol/Packets.hpp`: `ConnectRequest` and
   `ChallengeResponse` carry a version and tokens only, padded to `kHandshakePadding` (64 bytes) before the client is
   authenticated, and `ClientConnected` carries the client id only. Client to server, the replication layer sends
-  inputs only (`InputMessage`), through `NetClient::send(Channel, payload)`.
+  inputs (`InputMessage`) and, since GR5-88, the custom packets of the game (`engine.net.sendToServer`), through
+  `NetClient::send(Channel, payload)`.
 - **The server validates, replication does not.** A string that comes from a client (a name) is untrusted: the server
   checks its length and its UTF-8, and filters characters if the game needs it, before putting it in a component.
 - **Decision: strings replicate in M2.**

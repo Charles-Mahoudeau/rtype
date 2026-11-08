@@ -508,6 +508,33 @@ TEST_F(ServerCoreTest, SendMessageReachesOneClientAndAllClientsReachesReadySessi
     EXPECT_NO_FATAL_FAILURE(static_cast<void>(flush()));
 }
 
+TEST_F(ServerCoreTest, ExecuteSaysWhetherAReadyClientQueuedTheMessage) {
+    const auto ready = makeAddress(1);
+    const auto welcoming = makeAddress(2);
+    const auto readyHandshake = join(ready);
+    const auto welcomingHandshake = connect(welcoming);
+    ASSERT_TRUE(readyHandshake);
+    ASSERT_TRUE(welcomingHandshake);
+    static_cast<void>(flush());
+    const auto send = [&](const network::ClientId client, const network::Channel channel) {
+        return _core.execute(server::SendMessage{.client = client, .channel = channel, .payload = message(kGameType)});
+    };
+
+    EXPECT_TRUE(send(readyHandshake->client, network::Channel::kReliable));
+    EXPECT_TRUE(send(server::kAllClients, network::Channel::kUnreliable));
+    EXPECT_FALSE(send(999, network::Channel::kReliable));                         // nobody
+    EXPECT_FALSE(send(welcomingHandshake->client, network::Channel::kReliable));  // not ready
+    EXPECT_FALSE(_core.execute(server::SendMessage{
+        .client = readyHandshake->client, .channel = network::Channel::kReliable, .payload = {}}));  // refused
+    // A full reliable queue refuses: the result says so instead of pretending the message left.
+    bool refused = false;
+    for (std::size_t i = 0; i <= protocol::kMaxPendingReliable + 1 && !refused; ++i) {
+        refused = !send(readyHandshake->client, network::Channel::kReliable);
+    }
+    EXPECT_TRUE(refused);
+    EXPECT_FALSE(send(server::kAllClients, network::Channel::kReliable));  // the only ready client is full
+}
+
 TEST_F(ServerCoreTest, SendMessageToAWelcomingClientIsIgnored) {
     const auto address = makeAddress(1);
     const auto handshake = connect(address);

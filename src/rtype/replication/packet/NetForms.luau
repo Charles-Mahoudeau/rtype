@@ -20,16 +20,34 @@ engine.net.packet = function(...)
 	if type(spec.fields) ~= "table" then
 		forms.fail(form, "expected 'fields', a list of { name, type }")
 	end
+	-- ipairs would skip a hole or a named key and leave the field out on both sides: count every key instead.
+	local count = 0
+	for key in pairs(spec.fields) do
+		if type(key) ~= "number" or key < 1 or key ~= math.floor(key) then
+			forms.fail(form, "'fields' of '" .. name .. "' must be a plain list, found the key " .. tostring(key))
+		end
+		count += 1
+	end
+	if count ~= #spec.fields then
+		forms.fail(form, "'fields' of '" .. name .. "' must be a list without holes")
+	end
 	local lines, list = {}, {}
 	for index, field in ipairs(spec.fields) do
 		local fieldName, fieldType, maxLength = field.name or field[1], field.type or field[2], field.maxLength or field[3]
 		if type(fieldName) ~= "string" or not types[fieldType] then
 			forms.fail(form, "field " .. index .. " of '" .. name .. "' needs a name and a type (bool, u8, u16, u32, i32, f32, string)")
 		end
+		-- The engine reads `name:type[:maxLength]` lines: a name with a ':' or a newline would be read as other fields.
+		if not string.match(fieldName, "^[%a_][%w_]*$") then
+			forms.fail(form, "invalid field name '" .. fieldName .. "' (letters, digits and '_', not starting with a digit)")
+		end
 		if maxLength ~= nil and (fieldType ~= "string" or type(maxLength) ~= "number") then
 			forms.fail(form, "only a string has a numeric maxLength ('" .. fieldName .. "')")
 		end
-		table.insert(lines, fieldName .. ":" .. fieldType .. (maxLength and (":" .. math.floor(maxLength)) or ""))
+		if maxLength ~= nil and (maxLength ~= math.floor(maxLength) or maxLength < 1 or maxLength > 65535) then
+			forms.fail(form, "maxLength of '" .. fieldName .. "' must be a whole number of bytes, from 1 to 65535")
+		end
+		table.insert(lines, fieldName .. ":" .. fieldType .. (maxLength and (":" .. string.format("%d", maxLength)) or ""))
 		table.insert(list, { name = fieldName, type = fieldType })
 	end
 	forms.call(form, "rtype.net.declarePacket", {
