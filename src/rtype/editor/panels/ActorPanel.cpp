@@ -64,7 +64,7 @@ bool drawActorTab(EditorState& state, contract::renderer::IRenderer& renderer, c
     }
     ImGui::SetNextWindowSize(kFirstSize, ImGuiCond_FirstUseEver);
     bool open = true;
-    const std::string title = std::format("Actor: {}###Actor/{}", path, path);
+    const std::string title = std::format("Actor - {}###Actor/{}", path, path);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{0.0F, 0.0F});
     const bool visible =
         ImGui::Begin(title.c_str(), &open, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
