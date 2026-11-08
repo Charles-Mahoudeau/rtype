@@ -14,6 +14,11 @@ local playerSize = (Game.playerRadius + 4) * 2 -- the images have 4 pixels aroun
 local ballSize = (Game.ballRadius + 4) * 2
 local nameOffset = Game.playerRadius + 6
 local markerOffset = Game.playerRadius + 18
+local iconDrawLayer = 5
+local powerupDrawLayer = 1
+local iconSize = 16 -- the icons over a player, from the 32 pixels of the sheet
+local iconStep = 18
+local iconOffset = Game.playerRadius + 38
 local maxLead = 0.05 -- seconds a body goes on along its velocity, at most, without a new snapshot
 
 type Vec2 = { x: number, y: number }
@@ -22,6 +27,14 @@ type Vec2 = { x: number, y: number }
 local names: { [number]: string } = {}
 local kicking: { [number]: boolean } = {}
 local mine: { [number]: boolean } = {}
+
+-- The power-ups of each player (Game.hasBuff), its dash cooldown and its size, by the player's entity bits; and which
+-- material (slot) shows each player's reload, with the last progress sent to it.
+local buffs: { [number]: number } = {}
+local dashLeft: { [number]: number } = {}
+local sizes: { [number]: number } = {}
+local slots: { [number]: number } = {}
+local slotProgress: { [number]: number } = {}
 
 -- Where each body was last sent, when, and how far the ball has turned, by entity bits.
 local motions: { [number]: { position: Vec2, at: number } } = {}
@@ -108,6 +121,20 @@ engine.ecs.system("game.DressPlayers", {
 					layer = tagDrawLayer,
 				},
 			})
+			for kind = 1, 4 do
+				local icon = ctx.commands:spawn({
+					["game.BuffIcon"] = { player = entity, kind = kind },
+					["rtype.Transform"] = { position = { x = 0, y = -iconOffset } },
+					["rtype.SpriteRenderer"] = {
+						texture = assets.powerups,
+						source = { x = (kind - 1) * 32, y = 0, z = 32, w = 32 },
+						origin = { x = 16, y = 16 },
+						color = { x = 1, y = 1, z = 1, w = 0 },
+						layer = iconDrawLayer,
+					},
+				})
+				ctx.commands:setParent(icon, entity)
+			end
 			ctx.commands:setParent(ring, entity)
 			ctx.commands:setParent(tag, entity)
 			ctx.commands:setParent(marker, entity)
@@ -120,7 +147,7 @@ engine.ecs.system("game.ShowPlayers", {
 	phase = "Update",
 	side = "client",
 	query = { read = { "game.Player", "net.Owner" }, write = { "rtype.Transform", "rtype.SpriteRenderer" } },
-	calls = { "rtype.replication.localClient" },
+	calls = { "rtype.replication.localClient", "rtype.shader.setMaterialValue" },
 	run = function(ctx)
 		local local_ = ctx.call("rtype.replication.localClient", {})
 		local me = State.me()
@@ -129,14 +156,50 @@ engine.ecs.system("game.ShowPlayers", {
 		table.clear(names)
 		table.clear(kicking)
 		table.clear(mine)
+		table.clear(buffs)
+		table.clear(dashLeft)
 		local red, blue = 0, 0
 		local now = ctx.time.elapsed
+		local seen = {}
 		for entity, player, owner, transform, renderer in ctx.query do
 			local bits = entity.bits
+			seen[bits] = true
 			transform.position = smoothed(bits, player.position, player.velocity, now)
 			renderer.texture = assets.players[player.team]
 			names[bits] = player.name
 			kicking[bits] = player.kicking
+			buffs[bits] = player.buffs
+			dashLeft[bits] = player.dash
+
+			-- Big players grow and shrink smoothly (their children follow the scale).
+			local wanted = if Game.hasBuff(player.buffs, Game.big) then Game.bigFactor else 1
+			local size = (sizes[bits] or 1) + (wanted - (sizes[bits] or 1)) * math.min(1, ctx.time.delta * 10)
+			sizes[bits] = size
+			transform.scale = { x = size, y = size }
+
+			-- The dash's reload: a material of the player's own, swept as the cooldown runs out.
+			local slot = slots[bits]
+			if slot == nil then
+				local used = {}
+				for _, taken in slots do
+					used[taken] = true
+				end
+				slot = 1
+				while used[slot] do
+					slot += 1
+				end
+				slot = math.min(slot, #assets.reloadMaterials)
+				slots[bits] = slot
+			end
+			local material = assets.reloadMaterials[slot]
+			if renderer.material ~= material then
+				renderer.material = material
+			end
+			local progress = 1 - math.clamp(player.dash / Game.dashCooldown, 0, 1)
+			if slotProgress[slot] ~= progress then
+				slotProgress[slot] = progress
+				ctx.call("rtype.shader.setMaterialValue", { material = material, name = "progress", x = progress, size = 1 })
+			end
 			if me.connected and owner.client == me.client then
 				mine[bits] = true
 				me.team = player.team
@@ -148,6 +211,80 @@ engine.ecs.system("game.ShowPlayers", {
 			end
 		end
 		State.setTeamCounts(red, blue)
+		for bits in slots do
+			if not seen[bits] then
+				slotProgress[slots[bits]] = nil
+				slots[bits] = nil
+				sizes[bits] = nil
+			end
+		end
+	end,
+})
+
+-- Update: the power-ups a player has, above it: an icon each, side by side, the ones it has not hidden.
+engine.ecs.system("game.UpdateBuffIcons", {
+	phase = "Update",
+	side = "client",
+	query = { read = { "game.BuffIcon" }, write = { "rtype.SpriteRenderer", "rtype.Transform" } },
+	after = { "game.ShowPlayers", "game.ShowBall", "game.UpdateKickRings", "game.UpdateMarkers" },
+	run = function(ctx)
+		local bob = math.sin(ctx.time.elapsed * 4) * 1.5
+		for _, icon, renderer, transform in ctx.query do
+			local mask = buffs[icon.player.bits] or 0
+			local has = Game.hasBuff(mask, icon.kind)
+			local alpha = if has then 1 else 0
+			if renderer.color.w ~= alpha then
+				renderer.color = { x = 1, y = 1, z = 1, w = alpha }
+			end
+			if has then
+				-- The icons of the power-ups it has are centered above it, in the order of their kinds.
+				local count, index = 0, 0
+				for kind = 1, 4 do
+					if Game.hasBuff(mask, kind) then
+						count += 1
+						if kind == icon.kind then
+							index = count
+						end
+					end
+				end
+				transform.position = { x = (index - (count + 1) / 2) * iconStep, y = -iconOffset + bob }
+				local scale = iconSize / 32
+				transform.scale = { x = scale, y = scale }
+			end
+		end
+	end,
+})
+
+-- Update: gives each power-up on the pitch its icon.
+engine.ecs.system("game.DressPowerups", {
+	phase = "Update",
+	side = "client",
+	query = { read = { "game.Powerup" }, without = { "rtype.SpriteRenderer" } },
+	run = function(ctx)
+		for entity, powerup in ctx.query do
+			ctx.commands:add(entity, "rtype.Transform", { position = powerup.position })
+			ctx.commands:add(entity, "rtype.SpriteRenderer", {
+				texture = assets.powerups,
+				source = { x = (powerup.kind - 1) * 32, y = 0, z = 32, w = 32 },
+				origin = { x = 16, y = 16 },
+				color = { x = 1, y = 1, z = 1, w = 1 },
+				layer = powerupDrawLayer,
+			})
+		end
+	end,
+})
+
+-- Update: the power-ups on the pitch pulse so that they are seen.
+engine.ecs.system("game.PulsePowerups", {
+	phase = "Update",
+	side = "client",
+	query = { read = { "game.Powerup" }, write = { "rtype.Transform" } },
+	after = { "game.ShowPlayers", "game.ShowBall", "game.UpdateBuffIcons", "game.UpdateMarkers" },
+	run = function(ctx)
+		for _, powerup, transform in ctx.query do
+			local pulse = 1 + math.sin(ctx.time.elapsed * 5 + powerup.position.x) * 0.12
+			transform.scale = { x = pulse, y = pulse }
+		end
 	end,
 })
 

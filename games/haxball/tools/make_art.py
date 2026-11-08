@@ -207,6 +207,37 @@ def particles():
     shrink(image, (size, size)).save(folder / "star.png")
 
 
+def powerups():
+    """The four power-ups in one row of 32x32 icons: speed, big, no inertia, strong kick (the order of rules.luau)."""
+    size = 32
+    colors = [(255, 200, 40), (70, 200, 110), (60, 200, 230), (255, 120, 40)]
+    image = canvas((size * 4, size))
+    draw = ImageDraw.Draw(image)
+    white = (255, 255, 255, 255)
+    for i, color in enumerate(colors):
+        x0 = i * size
+        c = x0 + size / 2
+        draw.ellipse([s(x0 + 1), s(1), s(x0 + size - 1), s(size - 1)], fill=color + (255,), outline=white, width=s(2))
+        if i == 0:  # two chevrons: speed
+            for shift in (-4, 3):
+                draw.line([(s(c + shift - 3), s(9)), (s(c + shift + 3), s(16)), (s(c + shift - 3), s(23))], fill=white,
+                          width=s(3), joint="curve")
+        elif i == 1:  # a small disc and a big ring: size
+            draw.ellipse([s(c - 3), s(16 - 3), s(c + 3), s(16 + 3)], fill=white)
+            draw.ellipse([s(c - 9), s(16 - 9), s(c + 9), s(16 + 9)], outline=white, width=s(2))
+        elif i == 2:  # a stop bar and a slide mark: no inertia
+            draw.rectangle([s(c + 3), s(8), s(c + 6), s(24)], fill=white)
+            draw.line([(s(c - 9), s(16)), (s(c + 1), s(16))], fill=white, width=s(3))
+        else:  # a star burst: strong kick
+            points = []
+            for k in range(16):
+                r = 10 if k % 2 == 0 else 4
+                angle = -math.pi / 2 + k * math.pi / 8
+                points.append((s(c + r * math.cos(angle)), s(16 + r * math.sin(angle))))
+            draw.polygon(points, fill=white)
+    shrink(image, (size * 4, size)).save(ASSETS / "sprites" / "powerups.png")
+
+
 def main():
     (ASSETS / "sprites").mkdir(parents=True, exist_ok=True)
     (ASSETS / "particles").mkdir(parents=True, exist_ok=True)
@@ -215,6 +246,7 @@ def main():
     player("player_blue", (70, 128, 240))
     ball()
     ring()
+    powerups()
     particles()
 
 

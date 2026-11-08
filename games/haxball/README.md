@@ -28,6 +28,7 @@ watches. The match starts once each team has a player; before that, everyone war
 |---|---|
 | W A S D or the arrows (Z Q S D on an AZERTY keyboard) | Move |
 | Space or X | Kick: held, you slow down and kick the ball as soon as it is in reach |
+| Left Shift or C | Dash along the move keys (or the current direction); 10 seconds to reload, shown as a dark sweep on your disc |
 | Escape | Open or close the menu, to change team or name, or quit |
 | F3 | Show the colliders |
 
@@ -37,6 +38,9 @@ watches. The match starts once each team has a player; before that, everyone war
   which nobody moves.
 - A goal scored into your own net counts for the other team, as an own goal.
 - When time runs out on a draw, the match goes on in golden goal: the next goal wins.
+- Power-ups appear at random places, at random intervals, while the ball is in play (3 at most). Touch one to get it
+  for 12 seconds: **speed**, **big** (a larger, heavier body), **no inertia** (stop and turn at once) or **strong kick**.
+  The ones a player has show as icons above it. A kickoff clears them.
 - The result stays on screen for 6 seconds, then a new match starts with the same teams.
 
 Every number (sizes, speeds, damping, kick strength, durations) is in `scripts/shared/rules.luau`.
@@ -46,10 +50,10 @@ Every number (sizes, speeds, damping, kick strength, durations) is in `scripts/s
 ```
 project.luau            settings: network, plugins, window (1280x720)
 scripts/shared/         what both sides share: rules.luau (the Game table, the replicated components, the inputs),
-                        packets.luau (game.Join, game.Kicked, game.Bounce, game.Goal); the entry is main.luau
-scripts/server/         gameplay: the pitch's walls, posts and goal sensors, the players, the ball, the match
+                        packets.luau (game.Join, game.Kicked, game.Bounce, game.Goal, game.Dashed, game.PowerupTaken); the entry is main.luau
+scripts/server/         gameplay: the pitch's walls, posts and goal sensors, the players, the ball, the power-ups, the match
 scripts/client/         presentation: the scene, the sprites, the menu, the HUD, the particles and the sounds
-assets/                 sprites/, particles/, sounds/, fonts/
+assets/                 sprites/, particles/, sounds/, fonts/, shaders/ (reload.glsl: the dash cooldown)
 tools/                  the scripts that make the art and the sounds
 PLAN.md                 how the game was planned
 ```
