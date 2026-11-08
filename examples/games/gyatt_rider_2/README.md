@@ -37,9 +37,10 @@ the score and the 4-minute match, the cyclists' boosts, the HUD, then the art, t
 ```
 game/
   project.luau          settings: network, plugins, window (1088x640)
-  scripts/base.luau     the shared rules, loaded first: the Game table, the replicated components, the inputs
-  scripts/server/       gameplay: the players' riders and their moves
-  scripts/client/       presentation: the assets, the roads, the riders' look
+  scripts/shared/       the rules both sides share (`rules.luau`: the Game table, the replicated components, the
+                        inputs), required by the entry `shared/main`
+  scripts/server/       gameplay: the players' riders and their moves; `main.luau` is the server's entry
+  scripts/client/       presentation: the assets, the roads, the riders' look; `main.luau` is the client's entry
   assets/               placeholder art and the roads map
 tools/make_placeholders.py   draws the placeholder art
 ```
