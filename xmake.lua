@@ -213,7 +213,7 @@ target("rtype")
     set_kind("phony")
     set_default(true)
     add_deps("core", "ecs", "network", "replication", "engine", "platform-glfw", "luau", "render-vulkan", "audio-miniaudio",
-             "aylo-runtime")
+             "aylo-runtime", "aylo-editor")
 
 
 local ALL_EXAMPLES_FLAG = "AllExamples"

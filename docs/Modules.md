@@ -69,12 +69,12 @@ architecture rules, and this file keeps the detail, which changes with every fea
   `NetworkInput` fills the `PlayerInput` sent to the server from the `Input` actions. `EngineConfig` holds
   the mode, the command line and these functions; `CommandLine` parses the `--name value` flags. Exported symbols are marked `RTYPE_ENGINE_API`.
   Design in `docs/engine/design.md`.
-- `src/rtype/editor/` — `editor` target, shared library (`rtype-editor`): the editor, a library the engine loads as
-  `rtype.Editor`, added by `aylo-runtime --editor` (`rtype::editor`, exported symbols marked `RTYPE_EDITOR_API`). It
+- `src/rtype/editor/` — `editor` target, static library (`rtype-editor`) and the `aylo-editor` program (`app/main.cpp`: the
+  engine in `kStandalone`, `EngineConfig::debug` true, `EditorPlugin` added by `addPlugins`) (`rtype::editor`, macro `RTYPE_EDITOR_API`, empty as the library is static). It
   requires the graphics and capsule plugins and adds no system: it sets the graphics plugin's `PlatformEventFilter` and
   `ToolFrame` resources, and pauses the App's schedules while editing. `EditorPlugin` builds an `EditorState` (the ImGui
   context, the input bridge, the play session, the open scene, what the panels remember) and reads the `editor`
-  settings (`scene`, `textEditor`). `gui/` holds `GuiContext`, `GuiInput` (the window's events to ImGui, and which of them the game
+  settings (`scene`, `textEditor`) with `readEditorOptions()`. `gui/` holds `GuiContext`, `GuiInput` (the window's events to ImGui, and which of them the game
   sees), `GameViewport` and `GuiMesh` (ImGui's draw data and textures as a `contract::renderer::Mesh`). `play/` holds
   `PlaySession` (Play, Pause, Step, Stop), `scene/` holds `SceneEdit` (the capsule changes, open, save, new files) and
   `Isolation` (a capsule shown alone, prefab mode), `console/` holds `ConsoleLog` and `OutputCapture` (the program's

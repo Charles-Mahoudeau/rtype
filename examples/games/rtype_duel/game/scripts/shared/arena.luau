@@ -24,7 +24,7 @@ local Duel = {
 	ships = { [0] = "actors/ship_left.actor", [1] = "actors/ship_right.actor" },
 	laser = "actors/laser.actor",
 
-	-- Whether players join through the network. Run alone (`aylo-runtime --editor`), the server and the client are one
+	-- Whether players join through the network. Run alone (`aylo-editor`), the server and the client are one
 	-- process with no network: there are no players, and the scripts that need them stay out.
 	networked = not (engine.isServer and engine.isClient),
 }

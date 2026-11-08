@@ -13,6 +13,8 @@ compile_commands.json
 # Binaries copied to the repository root by the rtype.copy_to_root rule
 /aylo-runtime
 /aylo-runtime.exe
+/aylo-editor
+/aylo-editor.exe
 /*.dll
 /plugins
 # Plugin libraries built into a game

@@ -9,6 +9,7 @@
 
 #include <filesystem>
 #include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -52,8 +53,13 @@ struct EngineConfig {
 
     /// @brief Plugins added by name after those `project.luau` lists under `plugins`, from their libraries, as if the
     /// project listed them last; one the project already lists is not added twice. For a program that brings a tool
-    /// to any game: `aylo-runtime --editor` adds "rtype.Editor".
+    /// to any game.
     std::vector<std::string> extraPlugins;
+
+    /// @brief Whether this is a debug run (`engine.isDebug`, and the default of hot reload). Empty: it follows the
+    /// build type. `aylo-editor` sets it, so the editor is always a debug run. The check of the game plugins'
+    /// signatures does not follow it: it stays tied to the build type.
+    std::optional<bool> debug;
 
     /// @brief The game's own native code: its components, resources, systems and plugins. Optional.
     ///

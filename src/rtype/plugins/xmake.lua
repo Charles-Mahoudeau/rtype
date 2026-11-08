@@ -133,4 +133,4 @@ target("plugin-libraries")
     set_kind("phony")
     add_deps("plugin-audio", "plugin-capsule", "plugin-graphics", "plugin-http", "plugin-input", "plugin-particle",
              "plugin-physics", "plugin-physics-debug", "plugin-shader", "plugin-shape", "plugin-sprite", "plugin-text",
-             "plugin-tilemap", "plugin-transform", "plugin-ui", "editor")
+             "plugin-tilemap", "plugin-transform", "plugin-ui")

@@ -160,6 +160,25 @@ TEST(Engine, RejectsAnInvalidCommandLine) {
     EXPECT_THROW(Engine{serverConfig(game, {"server"})}, RuntimeError);
 }
 
+TEST(Engine, TheDebugOverrideSetsEngineIsDebugEitherWay) {
+    const GameDirectory game{"rtype-engine-debug", R"(
+        engine.settings.network.port = 0
+        engine.settings.debug = engine.isDebug
+    )"};
+    for (const bool debug : {true, false}) {
+        bool seen = !debug;
+        EngineConfig config = serverConfig(game);
+        config.debug = debug;
+        config.addPlugins = [&seen](rtype::ecs::App&, const rtype::core::config::Settings& settings) {
+            seen = settings.getBool("debug", !seen);
+        };
+
+        const Engine engine{std::move(config)};
+
+        EXPECT_EQ(seen, debug);
+    }
+}
+
 TEST(Engine, AddsThePluginsTheSettingsNameFromTheirLibraries) {
     const GameDirectory game{"rtype-engine-listed", R"(
         engine.settings.network.port = 0

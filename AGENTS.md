@@ -37,9 +37,9 @@ One line per module; the detail of each (classes, files) is in `docs/Modules.md`
 | `src/rtype/platform/`, `render/`, `audio/` | `platform-*`, `render-*`, `audio-*` | Backends fulfilling a contract; each wraps one third-party library |
 | `src/rtype/interop/` | `interop-*` | What a renderer needs from a platform, per graphics API |
 | `src/rtype/plugins/` | `plugin-*` | The engine features as ECS plugins, one shared library each, loaded by the engine: transform, input, graphics, sprite, physics... (`docs/Plugins.md`) |
-| `src/rtype/editor/` | `editor` | The editor: a library the engine loads (`rtype.Editor`, added by `aylo-runtime --editor`) that edits a game's scenes (capsules) in docked ImGui panels and plays the game inside them. ImGui is private to it (`docs/Editor.md`) |
+| `src/rtype/editor/` | `editor` | The editor: a static library (and the `aylo-editor` program, always a debug run) that edits a game's scenes (capsules) in docked ImGui panels and plays the game inside them. ImGui is private to it (`docs/Editor.md`) |
 | `src/rtype/tools/` | `aylo-sign` | Command line tools; `aylo-sign` makes the keys and signatures of the game plugins (`docs/Plugins.md#signatures`) |
-| `src/rtype/runtime/` | `aylo-runtime` | The generic executable, a client, with `--server` the server, or with `--editor` both sides in the editor: it links no plugin and no backend, the engine loads them |
+| `src/rtype/runtime/` | `aylo-runtime` | The generic executable that ships a game, a client, or with `--server` the server: it links no plugin and no backend, the engine loads them |
 | `examples/` | per example | Standalone examples; `examples/games/` holds the games |
 | `tests/<module>/` | `<module>-tests` | GoogleTest, one folder per module |
 | `docs/` | | Design docs for engine developers |
@@ -111,7 +111,7 @@ scripting, replication  <-  engine  <-  executables, examples
   on `game/` or `--game <dir>`; other `--name value` flags reach `project.luau` as `engine.args`. `./r-type_server` and
   `./r-type_client` at the root are `sh` wrappers (`.bat` ones on Windows) that start it with the right side (the names
   the subject asks for).
-- The editor: `./aylo-runtime --editor --game <dir>` (both sides in one world, the scenes edited in panels:
+- The editor: `./aylo-editor --game <dir>` (both sides in one world, the scenes edited in panels:
   `docs/Editor.md`).
 - Duel example: `xmake f -y --rtype_duel=y`, then `xmake run rtype_duel server [--port <port>]` and
   `xmake run rtype_duel client [--host <host>] [--port <port>]` (or the generic executables with

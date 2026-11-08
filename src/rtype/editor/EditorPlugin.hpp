@@ -22,8 +22,8 @@ namespace rtype::editor {
 
 /// @brief The editor of a game: the game runs inside the "Game" panel of a window of docked panels, next to the
 /// "Entities" and "Inspector" panels, which show and edit the world, and the "Stats" panel, which shows the frame rate
-/// and what the renderer drew. It is a library the engine loads, not part of the game: a game gets it by listing
-/// "rtype.Editor" under `plugins` in `project.luau`, and a release leaves it out.
+/// and what the renderer drew. It is not part of the game: the `aylo-editor` program adds it, and `aylo-runtime`,
+/// which ships the game, never does.
 ///
 /// @details The panels are made with Dear ImGui, which lives in this library only. The editor reaches the screen
 /// through the renderer contract: the game is drawn into a texture (IRenderer::setSceneSize()) and the panels are drawn
