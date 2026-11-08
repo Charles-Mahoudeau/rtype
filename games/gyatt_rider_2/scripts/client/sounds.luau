@@ -50,7 +50,8 @@ engine.ecs.system("game.PlayEffects", {
 			ctx.call("rtype.audio.playSound", { sound = shotSound, position = shot.from, volume = volume })
 		end
 		for _, hit in RiderEvents.hits() do
-			ctx.call("rtype.audio.playSound", { sound = deathSound, position = hit.at, volume = volume })
+			local sound = if hit.cyclist then killSound else deathSound
+			ctx.call("rtype.audio.playSound", { sound = sound, position = hit.at, volume = volume })
 		end
 		if RiderEvents.kills() > 0 then
 			ctx.call("rtype.audio.playSound", { sound = killSound, volume = volume })

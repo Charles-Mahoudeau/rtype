@@ -9,7 +9,7 @@ local seenOf: { [number]: { shots: number, ghost: boolean, kills: number, cyclis
 
 -- This frame's events, filled by game.DetectRiderEvents.
 local shots: { { from: { x: number, y: number }, to: { x: number, y: number }, mine: boolean } } = {}
-local hits: { { at: { x: number, y: number }, mine: boolean } } = {}
+local hits: { { at: { x: number, y: number }, mine: boolean, cyclist: boolean } } = {}
 local kills = 0
 
 -- Update: finds this frame's shots, hits and the player's kills.
@@ -39,10 +39,10 @@ engine.ecs.system("game.DetectRiderEvents", {
 				table.insert(shots, { from = shot.from, to = shot.to, mine = mine })
 			end
 			if shield.ghost and not seen.ghost then
-				table.insert(hits, { at = position.value, mine = mine })
+				table.insert(hits, { at = position.value, mine = mine, cyclist = false })
 			end
 			if score.cyclists ~= seen.cyclists then
-				table.insert(hits, { at = shot.to, mine = false }) -- a cyclist, where this rider's beam stopped
+				table.insert(hits, { at = shot.to, mine = false, cyclist = true }) -- a cyclist, where this rider's beam stopped
 			end
 			if mine and score.kills ~= seen.kills then
 				kills += (score.kills - seen.kills) % 65536
