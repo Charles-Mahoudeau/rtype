@@ -16,8 +16,18 @@ return {
 		shader = engine.assets.shader("shaders/glow.glsl"),
 		values = { core = 0.25, pulses = 25 },
 	}),
-	-- The looks of the traffic and of the riders (the cyclist's, tinted): the capsule files and the server name them in
-	-- each game.Look, these forms load them.
+	-- The cyclist, which the riders are too (tinted): its three frames side by side (cyclists/cyclist_sheet.png, packed
+	-- by tools/pack_cyclist.py), riding 1 2 3 2 1... Its texture is the one game.Look names; client/looks.luau plays the
+	-- atlas' animation on what shows it.
+	cyclistSheet = engine.assets.texture("cyclists/cyclist_sheet.png", { linear = false }),
+	cyclist = engine.assets.atlas({
+		name = "game.cyclist",
+		texture = "cyclists/cyclist_sheet.png",
+		linear = false,
+		grid = { frameSize = { x = 64, y = 128 }, count = 3 },
+		animations = { ride = { frames = { 0, 1, 2 }, frameDuration = 0.12, direction = "pingPong" } },
+	}),
+	-- The looks of the traffic: the capsule files name them in each game.Look, these forms load them.
 	traffic = {
 		engine.assets.texture("vehicles/car.png", { linear = false }),
 		engine.assets.texture("vehicles/electric_car.png", { linear = false }),
@@ -25,6 +35,5 @@ return {
 		engine.assets.texture("vehicles/truck.png", { linear = false }),
 		engine.assets.texture("vehicles/bus.png", { linear = false }),
 		engine.assets.texture("vehicles/limousine.png", { linear = false }),
-		engine.assets.texture("cyclists/cyclist.png", { linear = false }),
 	},
 }

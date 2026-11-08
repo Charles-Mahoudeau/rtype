@@ -1,5 +1,7 @@
 -- The look of everything the server moves, riders and traffic alike: the texture of its game.Look, at its look's
--- size, on its look's layer, where its game.Position says.
+-- size, on its look's layer, where its game.Position says. What shows the cyclist's sheet plays its riding animation.
+
+local assets = require("@scripts/client/assets")
 
 -- Update: gives what the server spawned its sprite.
 engine.ecs.system("game.DressLooks", {
@@ -16,6 +18,9 @@ engine.ecs.system("game.DressLooks", {
 				origin = { x = size.x / 2, y = size.y / 2 }, -- centred on its position, like its hitbox
 				layer = look.layer,
 			})
+			if look.texture == assets.cyclistSheet then
+				ctx.commands:add(entity, "rtype.SpriteAnimator", { atlas = assets.cyclist, animation = "ride" })
+			end
 		end
 	end,
 })

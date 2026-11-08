@@ -35,7 +35,7 @@ engine.ecs.system("game.SpawnRiders", {
 			local rider = engine.capsule.spawn(ctx, Game.riderActor, {
 				["game.Rider"] = { slot = slot },
 				["game.Position"] = { value = position },
-				["game.Look"] = { texture = "cyclists/cyclist.png" },
+				["game.Look"] = { texture = "cyclists/cyclist_sheet.png" },
 				["rtype.Transform"] = { position = position },
 			})
 			ctx.commands:add(rider, "net.Owner", { client = joined.client })

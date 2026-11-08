@@ -88,7 +88,9 @@ each side than its image.
 ## Assets
 
 Real art replaces a file with the same name and the same size in tiles, facing up. The riders and the cyclists share
-`cyclists/cyclist.png`, which each client tints: draw it white or light grey. `beam.png` is drawn for a shot to the
+`cyclists/cyclist1.png`, `2` and `3`, the frames of their riding animation (1 2 3 2 1...), which each client
+tints: draw them white or light grey, then run `python3 tools/pack_cyclist.py`, which packs them into
+`cyclists/cyclist_sheet.png`. `beam.png` is drawn for a shot to the
 right, and the game turns it. `tools/make_placeholders.py` redraws every placeholder and overwrites what is there: do
 not run it over real art.
 
