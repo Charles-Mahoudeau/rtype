@@ -229,7 +229,7 @@ void drawTree(EditorState& state, const std::filesystem::path& folder) {
 
 /// @brief The folders on the way to the folder shown, as buttons that go back to them, and the icon size slider.
 void drawPathBar(EditorState& state) {
-    if (ImGui::SmallButton(toUtf8(U'').c_str()) && !state.assetFolder.empty()) {
+    if (ImGui::SmallButton(toUtf8(U'\uf062').c_str()) && !state.assetFolder.empty()) {
         enter(state, std::filesystem::path{state.assetFolder}.parent_path().generic_string());
     }
     ImGui::SameLine();
@@ -238,7 +238,7 @@ void drawPathBar(EditorState& state) {
     const auto crumb = [&](const std::string& label, const std::string& path) {
         if (!first) {
             ImGui::SameLine(0.0F, 2.0F);
-            ImGui::TextUnformatted(toUtf8(U'').c_str());
+            ImGui::TextUnformatted(toUtf8(U'\uf054').c_str());
             ImGui::SameLine(0.0F, 2.0F);
         }
         first = false;
