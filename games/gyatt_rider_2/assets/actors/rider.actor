@@ -1,0 +1,10 @@
+[capsule format=1]
+
+# A player's rider: 1x2 tiles of 64 px, kinematic (moved by game.MoveRiders, nothing pushes it), on layer 1 and hit by
+# the vehicles (2) and the bullets (4). The server spawns it for a client with the slot and the start of its slot
+# (scripts/server/players.luau), and gives it its owner.
+[node path="."]
+game.Rider = {}
+rtype.Transform = {}
+rtype.Collider = { shape = 0, size = (64, 128), layer = 1, mask = 6 }
+rtype.RigidBody = { type = 1 }

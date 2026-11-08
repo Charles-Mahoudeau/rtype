@@ -1,0 +1,15 @@
+[capsule format=1]
+
+# What a client sees around the riders: the camera on the middle of the 1088x640 view, and the strip on the left of the
+# roads (1 tile wide) where the timer and the gauge will go. The nodes are the client's and hold only markers and
+# places: a server reads this file too and knows no camera or shape, so scripts/client/scene.luau gives them those.
+# The roads themselves are a map, spawned there too.
+[node path="."]
+
+[node path="Camera" side=client]
+rtype.Transform = { position = (544, 320) }
+game.Camera = {}
+
+[node path="Sidebar" side=client]
+rtype.Transform = { position = (32, 320) }
+game.Sidebar = {}
