@@ -26,10 +26,10 @@
 
 #include "call/EngineCall.hpp"
 #include "commands/ScriptCommands.hpp"
-#include "console/ConsoleTypes.hpp"
 #include "component/ComponentLayout.hpp"
 #include "component/ComponentRegistration.hpp"
 #include "component/DeclarationReader.hpp"
+#include "console/ConsoleTypes.hpp"
 #include "core/asset/AssetId.hpp"
 #include "plugin/PluginDeclarationReader.hpp"
 #include "rtype/core/reload/ReloadOutcome.hpp"

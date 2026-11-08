@@ -28,8 +28,8 @@
 #include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/world/World.hpp"
 #include "rtype/luau/CallContext.hpp"
-#include "rtype/luau/Exceptions.hpp"
 #include "rtype/luau/ErrorKind.hpp"
+#include "rtype/luau/Exceptions.hpp"
 #include "rtype/luau/Failure.hpp"
 #include "rtype/luau/Function.hpp"
 #include "rtype/luau/Result.hpp"
@@ -156,6 +156,7 @@ luau::Result<luau::Table> ScriptHost::consoleTools() {
     return *_consoleTools;
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): one pass that builds every binding of a line.
 luau::Result<ScriptHost::ConsoleBindings> ScriptHost::consoleBindings(const luau::Table& tools,
                                                                       const ConsoleTarget& target,
                                                                       std::optional<luau::Function>& entityFunction) {
@@ -238,6 +239,7 @@ luau::Result<ScriptHost::ConsoleBindings> ScriptHost::consoleBindings(const luau
             if (position >= call.argCount()) {
                 return std::nullopt;
             }
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access): checked above.
             const auto* number = call.args()[position].tryAs<double>();
             return number == nullptr ? std::nullopt : std::optional{*number};
         };
@@ -246,15 +248,15 @@ luau::Result<ScriptHost::ConsoleBindings> ScriptHost::consoleBindings(const luau
         if (!first || (call.argCount() > 1 && !second) || call.argCount() > 2 || *first < 0.0) {
             throw luau::exceptions::RuntimeError{"entity(index, generation) or entity(bits) expects numbers"};
         }
-        constexpr int kGenerationShift = 32;  // an Entity's bits: the generation over the index
+        constexpr unsigned kGenerationShift = 32U;  // an Entity's bits: the generation over the index
         const auto bits = static_cast<std::uint64_t>(*first);
-        const ecs::Entity entity = second ? ecs::Entity{static_cast<std::uint32_t>(*first),
-                                                        static_cast<std::uint32_t>(*second)}
-                                          : ecs::Entity{static_cast<std::uint32_t>(bits),
-                                                        static_cast<std::uint32_t>(bits >> kGenerationShift)};
+        const ecs::Entity entity =
+            second
+                ? ecs::Entity{static_cast<std::uint32_t>(*first), static_cast<std::uint32_t>(*second)}
+                : ecs::Entity{static_cast<std::uint32_t>(bits), static_cast<std::uint32_t>(bits >> kGenerationShift)};
         if (!access.world->isAlive(entity)) {
-            throw luau::exceptions::RuntimeError{std::format("no entity {}:{} is alive", entity.getIndex(),
-                                                              entity.getGeneration())};
+            throw luau::exceptions::RuntimeError{
+                std::format("no entity {}:{} is alive", entity.getIndex(), entity.getGeneration())};
         }
         auto made = console::makeConsoleEntity(_runtime, access, entity);
         if (!made) {

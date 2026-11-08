@@ -33,8 +33,8 @@
 #include "rtype/luau/Table.hpp"
 #include "rtype/luau/ValuePack.hpp"
 #include "system/RuntimeHandle.hpp"
-#include "view/ViewScope.hpp"
 #include "system/SystemRegistration.hpp"
+#include "view/ViewScope.hpp"
 
 namespace rtype::scripting {
 /// @brief Runs the scripts of a game on an App: owns their Luau runtime and the `engine` global they declare ECS data
@@ -157,8 +157,8 @@ class RTYPE_SCRIPTING_API ScriptHost {
 
     /// @brief What a console line reaches in the world, set by the tool that runs it.
     struct ConsoleTarget {
-        ecs::Entity self;      ///< The entity `self` stands for in the line; null or dead: `self` is nil.
-        bool writable{true};   ///< False: the line reads components but cannot write them (a client of a server).
+        ecs::Entity self;     ///< The entity `self` stands for in the line; null or dead: `self` is nil.
+        bool writable{true};  ///< False: the line reads components but cannot write them (a client of a server).
     };
 
     /// @brief What evaluate() gives back.
@@ -339,7 +339,8 @@ class RTYPE_SCRIPTING_API ScriptHost {
     bool _adoptsNewFiles{true};                      ///< Whether a new file is a root (see setAdoptsNewFiles()).
     std::vector<std::string> _ownerStack;            ///< The owners to give back when a module ends, innermost last.
     std::unique_ptr<luau::ModuleLoader> _loader;     ///< The module cache; null without a resolver. After `_runtime`.
-    std::shared_ptr<view::ViewScope> _consoleScope{std::make_shared<view::ViewScope>()};  ///< What the handles of a console line are valid against.
-    std::optional<luau::Table> _consoleTools;        ///< The console's helpers; none until a console is used.
+    ///< What the handles of a console line are valid against.
+    std::shared_ptr<view::ViewScope> _consoleScope = std::make_shared<view::ViewScope>();
+    std::optional<luau::Table> _consoleTools;  ///< The console's helpers; none until a console is used.
 };
 }  // namespace rtype::scripting
