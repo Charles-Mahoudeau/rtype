@@ -7,7 +7,7 @@ local assets = require("@scripts/client/assets")
 
 local ownPedaling = 1.5 -- times the riding animation's speed
 local otherPedaling = 0.4
-local brighter = 0.3 -- how far toward white the middle frame's color goes
+local brighter = 0.9 -- how far toward white the middle frame's color goes
 
 --- A rider's color on this frame of its ride: its player's, a bit brighter on every second frame.
 local function colorOf(slot: number, time: number): { number }
