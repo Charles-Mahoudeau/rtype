@@ -13,6 +13,7 @@ game.Gun = {}
 game.Score = {}
 game.Shot = {}
 game.Shield = {}
+game.Ready = {}
 game.ShieldClock = {}
 game.Boosts = {}
 game.Boosted = {}

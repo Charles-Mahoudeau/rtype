@@ -10,7 +10,7 @@ local TextBox = require("@scripts/client/textbox")
 local Menu = require("@scripts/client/menu")
 
 -- What a game.HudText shows.
-local scoreText, timerText, ownScoreText, messageText = 0, 1, 2, 3
+local scoreText, timerText, ownScoreText, messageText, readyText = 0, 1, 2, 3, 4
 
 -- The players' colors, by slot (the riders' art), and the look of the boxes.
 local playerColors = {
@@ -21,6 +21,7 @@ local playerColors = {
 }
 local ink = TextBox.ink
 local white = { 1, 1, 1, 1 }
+local readyColor = { 0.49, 0.99, 0.49, 1 }
 local timerColor = { 1, 0.55, 0, 1 }
 local ownColor = { 0.8, 0.82, 0.85, 1 }
 local scoreBox = { width = 220, height = 52, ignorePointer = true }
@@ -32,7 +33,8 @@ local waitingBox = nil
 -- What game.ReadRiders and game.ReadMatch saw this frame, for game.ShowHud.
 local pointsOf: { [number]: number } = {} -- by slot
 local ownSlot: number? = nil
-local riders = 0
+local riders, readyCount = 0, 0
+local ownReady = false
 local match = { phase = Game.waiting, secondsLeft = Game.matchDuration }
 
 --- A text node of the HUD: its `role` and `slot` say what game.ShowHud writes in it.
@@ -97,17 +99,21 @@ engine.ecs.system("game.SpawnHud", {
 engine.ecs.system("game.ReadRiders", {
 	phase = "Update",
 	side = "client",
-	query = { read = { "game.Rider", "game.Score", "net.Owner" } },
+	query = { read = { "game.Rider", "game.Score", "game.Ready", "net.Owner" } },
 	calls = { "rtype.replication.localClient" },
 	run = function(ctx)
 		local me = ctx.call("rtype.replication.localClient", {})
 		table.clear(pointsOf)
-		ownSlot, riders = nil, 0
-		for _, rider, score, owner in ctx.query do
+		ownSlot, riders, readyCount, ownReady = nil, 0, 0, false
+		for _, rider, score, ready, owner in ctx.query do
 			pointsOf[rider.slot] = score.points
 			riders += 1
+			if ready.value then
+				readyCount += 1
+			end
 			if me.connected and owner.client == me.client then
 				ownSlot = rider.slot
+				ownReady = ready.value
 			end
 		end
 	end,
@@ -135,8 +141,16 @@ local function textOf(hud): string
 		return string.format("%d:%02d", seconds // 60, seconds % 60)
 	elseif hud.role == ownScoreText then
 		return if ownSlot then tostring(pointsOf[ownSlot] or 0) else ""
+	elseif hud.role == readyText then
+		if ownSlot == nil then
+			return "Watching"
+		end
+		return if ownReady then "Ready!  (R to cancel)" else "Press R when ready"
 	elseif match.phase == Game.waiting then
-		return `Waiting for players ({riders}/{Game.minPlayers})`
+		if riders < Game.minPlayers then
+			return `Waiting for players ({riders}/{Game.minPlayers})`
+		end
+		return `Everyone ready? ({readyCount}/{riders})`
 	end
 	return ""
 end
@@ -159,11 +173,34 @@ engine.ecs.system("game.ShowWaiting", {
 						white,
 						{ textNode(messageText, 0, 36, ink) }
 					),
+					TextBox.node(
+						{ width = 520, height = 90, marginTop = 16, ignorePointer = true },
+						white,
+						{ textNode(readyText, 0, 28, ink) },
+						{ components = { ["game.ReadyButton"] = {} } }
+					),
 				},
 			})
 		elseif not waiting and waitingBox ~= nil then
 			ctx.commands:despawn(waitingBox)
 			waitingBox = nil
+		end
+	end,
+})
+
+-- Update: the ready button is green once the player is ready, white until then.
+engine.ecs.system("game.ColorReadyButton", {
+	phase = "Update",
+	side = "client",
+	query = { write = { "rtype.UiImage" }, with = { "game.ReadyButton" } },
+	after = { "game.ReadRiders" },
+	before = { "game.LightMenuButtons" },
+	run = function(ctx)
+		local color = if ownReady then readyColor else white
+		for _, image in ctx.query do
+			if image.color.x ~= color[1] then
+				image.color = { x = color[1], y = color[2], z = color[3], w = color[4] }
+			end
 		end
 	end,
 })

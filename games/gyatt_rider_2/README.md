@@ -24,6 +24,7 @@ and the clients, no build needed.
 |---|---|
 | Z Q S D (W A S D on a QWERTY keyboard) | Move in every direction |
 | Arrows | Fire a beam up, down, left or right |
+| R | Toggle ready, while the match waits |
 | F3 | Show the hitboxes |
 | Escape | Open or close the menu (the game goes on behind it) |
 | The window's close button | Quit |
@@ -46,8 +47,9 @@ The arrows still fire while the menu is open: the game does not pause, being sha
 
 ## Rules
 
-- **The match** waits for 2 riders, races for 2 minutes, shows its results for 10 seconds, then waits for the next one.
-  A player who joins during a race rides at once, from 0.
+- **The match** waits for 2 riders who are all ready (the ready button under the waiting message, toggled with R),
+  races for 2 minutes, shows its results for 10 seconds, then waits for the next one, where everyone is asked to be
+  ready again. A player who joins during a race rides at once, from 0.
 - **The traffic** (cars, electric cars, vans, trucks, buses, limousines, cyclists) comes from behind, each kind at its
   own speed (the cyclists fastest), and slows down behind slower traffic. A vehicle or a cyclist that runs over a
   rider hits it, again and again while the rider stays inside it.

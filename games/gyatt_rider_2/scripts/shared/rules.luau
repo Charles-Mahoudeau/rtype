@@ -111,6 +111,9 @@ engine.ecs.component("game.Score", {
 	fields = { points = "u32", kills = "u16", cyclists = "u16" },
 	replication = "everyChange",
 })
+-- Whether a rider is ready to start, on every change: written only when the player toggles it (server/ready.luau).
+-- The match waits until every rider is ready, and the riders are not ready again once it started.
+engine.ecs.component("game.Ready", { fields = { value = "bool" }, replication = "everyChange" })
 -- Whether a rider is invincible, on every change: written only when it turns on or off, and the clients make it
 -- twinkle. Nothing hits a rider while it is on.
 -- A ghost (shielded by a hit) cannot shoot either; an invincible rider (the boost) can.
@@ -181,6 +184,9 @@ engine.ecs.component("game.BoostIcon", { fields = { cyclist = "entity" }, presen
 -- A button of the menu (client/menu.luau), client only: it lights up under the pointer or the focus.
 engine.ecs.component("game.MenuButton", { fields = {}, presence = "clientOnly" })
 
+-- The ready button of the waiting screen (client/hud.luau), client only: it turns green once the player is ready.
+engine.ecs.component("game.ReadyButton", { fields = {}, presence = "clientOnly" })
+
 -- The notice of a player who left (client/leaves.luau), client only: the seconds it is still shown.
 engine.ecs.component("game.LeaveNotice", { fields = { remaining = "f32" }, presence = "clientOnly" })
 
@@ -199,6 +205,9 @@ engine.ecs.component("game.Sidebar", { fields = {}, presence = "clientOnly" })
 -- The actions both sides agree on: the clients send them, the server reads them. The keys are physical positions
 -- named after the US layout: W A S D is Z Q S D on a French keyboard.
 engine.input.action("move", "vector2", { bind = { { up = "W", down = "S", left = "A", right = "D" } } })
+-- The ready button of the waiting screen: R toggles it. A click cannot, since a client tells the server only its
+-- actions, bound to controls (see client/hud.luau).
+engine.input.action("ready", "button", { bind = { "R" } })
 engine.input.action("fire", "vector2", { bind = { { up = "Up", down = "Down", left = "Left", right = "Right" } } })
 
 return Game

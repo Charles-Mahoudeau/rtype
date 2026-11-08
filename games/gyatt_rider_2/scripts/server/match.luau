@@ -1,10 +1,10 @@
--- The match: it waits for Game.minPlayers riders, races for Game.matchDuration seconds, shows its results for
--- Game.resultsDuration seconds, then waits for the next one. A player who joins during a race rides at once.
+-- The match: it waits for Game.minPlayers riders, all ready (server/ready.luau), races for Game.matchDuration seconds,
+-- shows its results for Game.resultsDuration seconds, then waits for the next one. A player who joins during a race rides at once.
 
 local Game = require("@scripts/shared/rules")
 
--- The riders of this tick, counted by game.CountRiders for game.RunMatch.
-local riderCount = 0
+-- The riders of this tick, and how many are ready, counted by game.CountRiders for game.RunMatch.
+local riderCount, readyCount = 0, 0
 
 -- The match as the other modules see it, written by game.RunMatch: its phase, its whole seconds left, and how many
 -- matches started (a new one resets the scores).
@@ -23,15 +23,18 @@ engine.ecs.system("game.SpawnMatch", {
 	end,
 })
 
--- FixedUpdate: counts the riders for game.RunMatch.
+-- FixedUpdate: counts the riders, and the ready ones, for game.RunMatch.
 engine.ecs.system("game.CountRiders", {
 	phase = "FixedUpdate",
 	side = "server",
-	query = { read = { "game.Rider" } },
+	query = { read = { "game.Rider", "game.Ready" } },
 	run = function(ctx)
-		riderCount = 0
-		for _ in ctx.query do
+		riderCount, readyCount = 0, 0
+		for _, _, ready in ctx.query do
 			riderCount += 1
+			if ready.value then
+				readyCount += 1
+			end
 		end
 	end,
 })
@@ -47,7 +50,7 @@ engine.ecs.system("game.RunMatch", {
 		for entity, match, clock in ctx.query do
 			local phase = match.phase
 			if phase == Game.waiting then
-				if riderCount >= Game.minPlayers then
+				if riderCount >= Game.minPlayers and readyCount == riderCount then
 					phase, clock.remaining = Game.racing, Game.matchDuration
 					current.round += 1
 					print(`[server] the match starts: {Game.matchDuration} seconds`)
