@@ -38,12 +38,27 @@
 #include <cstring>
 #endif
 
-#ifndef _WIN32
+#ifdef __APPLE__
+#include <crt_externs.h>
+#elifndef _WIN32
 extern char**
     environ;  // NOLINT(readability-redundant-declaration,misc-use-internal-linkage,cppcoreguidelines-avoid-non-const-global-variables)
 #endif
 
 namespace rtype::editor::process {
+
+#ifndef _WIN32
+namespace {
+/// @return The environment the child inherits: the editor's.
+char** processEnvironment() {
+#ifdef __APPLE__
+    return *_NSGetEnviron();  // `environ` is not visible to a library on macOS
+#else
+    return environ;
+#endif
+}
+}  // namespace
+#endif
 
 namespace {
 constexpr auto kPollDelay = std::chrono::milliseconds{5};
@@ -306,8 +321,9 @@ class ChildProcess::Impl {
         }
         pid_t id = 0;
         const bool search = !program.contains('/');
-        const int error = search ? ::posix_spawnp(&id, program.c_str(), &actions, nullptr, argv.data(), environ)
-                                 : ::posix_spawn(&id, program.c_str(), &actions, nullptr, argv.data(), environ);
+        const int error =
+            search ? ::posix_spawnp(&id, program.c_str(), &actions, nullptr, argv.data(), processEnvironment())
+                   : ::posix_spawn(&id, program.c_str(), &actions, nullptr, argv.data(), processEnvironment());
         posix_spawn_file_actions_destroy(&actions);
         ::close(fds.at(1));
         if (error != 0) {
