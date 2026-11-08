@@ -162,6 +162,7 @@ void followTransforms(
             world->teleport(entity, pose);
         }
     }
+    world->releaseBroadPhase();
 }
 
 /// @brief FixedUpdate, after the step: the dynamic bodies write the velocity the step changed to their Velocity.
