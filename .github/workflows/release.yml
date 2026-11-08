@@ -131,6 +131,17 @@ jobs:
             vulkan-tools libvulkan-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100
           sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-18 100
+          # --install alone can leave the image's own clang selected (a higher priority, or a /usr/bin/clang it does not
+          # manage), and an older clang cannot parse libstdc++ 13 in C++23 (auto(x) in basic_string.tcc). Selected by
+          # hand, linked directly if that is not enough, and checked.
+          sudo update-alternatives --set clang /usr/bin/clang-18 || true
+          sudo update-alternatives --set clang++ /usr/bin/clang++-18 || true
+          if ! clang++ --version | grep -q 'clang version 18\.'; then
+            sudo ln -sf /usr/bin/clang-18 /usr/bin/clang
+            sudo ln -sf /usr/bin/clang++-18 /usr/bin/clang++
+          fi
+          clang++ --version
+          clang++ --version | grep -q 'clang version 18\.' || { echo "::error::clang++ is not clang 18"; exit 1; }
 
       - name: Setup macOS dependencies
         if: runner.os == 'macOS'
