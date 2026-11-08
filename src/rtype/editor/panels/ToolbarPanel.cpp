@@ -26,7 +26,17 @@
 namespace rtype::editor::panels {
 
 namespace {
-constexpr float kModeWidth = 100.0F;  ///< Width of the Standalone / Online choice, in pixels.
+constexpr float kModeWidth = 110.0F;  ///< Width of the Standalone / Online choice, in pixels.
+
+// Nerd Font icons (Font Awesome, UTF-8 bytes of U+F04B, U+F04C, U+F04D, U+F051), spelled out so the file does not
+// depend on the compiler's source charset.
+constexpr const char* kPlayIcon = "\xEF\x81\x8B";
+constexpr const char* kPauseIcon = "\xEF\x81\x8C";
+constexpr const char* kStopIcon = "\xEF\x81\x8D";
+constexpr const char* kStepIcon = "\xEF\x81\x91";
+
+/// @return @p label with @p icon in front of it.
+std::string withIcon(const char* icon, const std::string& label) { return std::string{icon} + "  " + label; }
 
 /// @brief Writes the scene being edited to its file.
 void saveScene(EditorState& state) {
@@ -88,7 +98,7 @@ void drawPlayButtons(EditorState& state) {
         return;
     }
     if (!state.play.isPlaying()) {
-        if (gui::toneButton("Play", gui::Tone::kSuccess)) {
+        if (gui::toneButton(withIcon(kPlayIcon, "Play"), gui::Tone::kSuccess)) {
             closePrefab(state);  // the game plays its scene, not a capsule shown alone
             if (online.mode() == play::PlayMode::kOnline) {
                 playOnline(state);
@@ -101,15 +111,16 @@ void drawPlayButtons(EditorState& state) {
         return;
     }
     const bool paused = app.getSchedules().isPaused();
-    if (gui::toneButton(paused ? "Resume" : "Pause", paused ? gui::Tone::kSuccess : gui::Tone::kWarning)) {
+    if (gui::toneButton(paused ? withIcon(kPlayIcon, "Resume") : withIcon(kPauseIcon, "Pause"),
+                        paused ? gui::Tone::kSuccess : gui::Tone::kWarning)) {
         state.play.togglePause(app);
     }
     ImGui::BeginDisabled(!paused);
-    if (gui::toneButton("Step", gui::Tone::kInfo)) {
+    if (gui::toneButton(withIcon(kStepIcon, "Step"), gui::Tone::kInfo)) {
         state.play.step(app);
     }
     ImGui::EndDisabled();
-    if (gui::toneButton("Stop", gui::Tone::kDanger)) {
+    if (gui::toneButton(withIcon(kStopIcon, "Stop"), gui::Tone::kDanger)) {
         if (online.isActive()) {
             online.end();  // rebuilds the editor standalone; the server keeps running
             state.status = "Stopping: back to the scene";
