@@ -15,7 +15,8 @@ The editor is its own program, `aylo-editor`. You make your game in it, and you 
 
 Nothing changes in your project. The editor runs both sides of the game in one process, the server's gameplay included,
 with no network, and it is always a debug run: `engine.isDebug` is `true`, even in a release build. Your scenes are
-[capsules](capsules.md), so list `rtype.Capsule`; the editor adds it if you forget.
+[capsules](capsules.md), so list `rtype.Capsule`; the editor adds it if you forget. A networked game works there as it
+is: you are client 1 of your own server, see [Standalone and the editor](networking.md#standalone-and-the-editor).
 
 To open a scene at once, name it in `project.luau`:
 
@@ -34,7 +35,7 @@ An `.actor` named there opens alone (see below).
 | **Game** | The game, as big as the panel. While editing, it shows the scene; while playing, the game you play |
 | **Hierarchy** | While editing, the tree of the scene's nodes. While playing, the entities of the game, by their parents |
 | **Inspector** | The components of what the Hierarchy selected, to change, add and remove |
-| **Assets** | The files of your `assets/` folder: open a scene, make new ones, rename, delete, drag a file |
+| **Assets** | An explorer for your `assets/` folder: the folders in a small tree on the left, the current folder as big icons on the right (one icon and color per kind of file). Double-click a folder to enter it, right-click to make a scene, an actor or a folder, rename, delete, or drag a file |
 | **Particles** | Your particle effects, to tune and preview |
 | **Console** | What your game writes: your scripts' `print`, the engine's errors and warnings |
 | **Stats** | The frame rate, the last frame times, and what the frame drew |
@@ -74,11 +75,12 @@ The editor shows those names; your scripts can read them, and give names to the 
 
 ### Edit an actor alone
 
-Double-click an `.actor` (or a `.capsule`) in the Assets: it opens **alone**, in the **Prefab** window, in the middle,
-with nothing of your game around it, while the Game panel goes on showing your game. Turn the wheel over it to zoom.
+Double-click an `.actor` (or a `.capsule`) in the Assets: it opens **alone**, in an **Actor** tab, next to the Game tab,
+with nothing of your game around it, while the Game tab goes on showing your game. Open several actors and each gets a
+tab of its own (opening one again brings its tab back). Turn the wheel over it to zoom.
 The Hierarchy shows its nodes, the Inspector its components, and you edit and save it as a scene. Every instance of it in
-the scene follows your changes. **< Back**, at the top of the Hierarchy, or the window's cross, returns to the scene. The
-Prefab window floats the first time: dock it where you like, the editor remembers. A `.scene` you double-click opens as
+the scene follows your changes. **< Back**, at the top of the Hierarchy, or the window's cross, closes the
+actor's tab and returns to the scene. Drag a tab where you like, the editor remembers. A `.scene` you double-click opens as
 the level.
 
 What your scripts add to an entity in `PostUpdate` shows there too: give the look of an actor (its sprite) in
@@ -87,7 +89,8 @@ What your scripts add to an entity in `PostUpdate` shows there too: give the loo
 ### Open the file
 
 **Open in text editor**, at the top of the Hierarchy or in the menu of a file in the Assets (right-click), opens the file
-in Visual Studio Code. Name another editor in `project.luau`:
+in Visual Studio Code (or VSCodium, or your system's default program, when `code` is not installed). If the command
+cannot be found, the status line says so. Name another editor in `project.luau`:
 
 ```luau
 engine.settings.editor.textEditor = "subl"  -- any command: it gets the file's path
@@ -128,6 +131,82 @@ The Console shows what your game writes: your scripts' `print`, the engine's mes
 red and warnings in yellow. Tick **Info**, **Warnings** and **Errors** to choose what shows, type in **Filter** to keep
 the lines that hold a text, **Clear** to start again, and right-click a line to copy it. Everything still goes to the
 terminal too.
+
+### Running Luau in the game
+
+The line at the bottom of the Console runs Luau in your game, while it runs: type it and press Enter. The line is
+written back with `>`, then what it gave. It is the quickest way to try a value.
+
+A line that is an expression gives its values, written as Luau; any other line is run as a statement and gives nothing:
+
+```luau
+config.player.size
+config.player.size.x = 10
+```
+
+```
+> config.player.size
+{ x = 1, y = 2 }
+> config.player.size.x = 10
+```
+
+The line sees:
+
+| Name | What it is |
+|---|---|
+| Each module your scripts loaded | By its file name: `config` for `scripts/shared/config.luau`. If two files share a name, the second is named with its whole path: `other_config` for `other/config.luau` |
+| `modules` | Every loaded module, by its path without the extension: `modules["shared/config"]` |
+| `engine` | `engine.call`, `engine.hasCall`, `engine.isClient`... but not `engine.ecs`: a line cannot declare components or systems |
+| The standard libraries | `math`, `string`, `table`... |
+| `self` | The entity selected in the Hierarchy, or `nil` when none is selected (or it is gone) |
+| `entity(index, generation)` | Another entity, from the two numbers the Inspector shows. `entity(bits)` takes the two joined in one number |
+
+A module returns its table frozen, so your scripts cannot write its top level. The Console can: it unfreezes the module
+tables for the time of the line, then freezes them again, so the game still cannot write them. The game sees a new value
+the next time it reads it. A script that copied the value when it loaded (a component default, an entity already
+spawned) keeps its copy: change the table the script reads every frame, or reload with the new value.
+
+Variables a line creates are gone with it: keep the state in a module table. An error shows in red with its message,
+and the game goes on.
+
+### Components of an entity
+
+`self` and `entity(...)` give an entity whose components you reach with a dot, and whose fields you read and write like
+the ones of a table. The change lands in the entity at once:
+
+```luau
+self.Ship.speed
+self.Ship.speed = 3
+self["game.Ship"].position
+```
+
+```
+> self.Ship.speed = 3
+> self.Ship.speed
+3
+```
+
+A component is named by its whole name (`self["game.Ship"]`), or by its last part (`self.Ship`) when only one component
+has it. If two components share the last part, the one the entity has settles it; if it has both, or none, the line
+fails and lists the whole names to write. A component the entity does not have gives `nil`; a name no component has is an
+error, and so is a field the component does not have, or a value of the wrong type.
+
+A `vec2` or `vec4` field gives a handle, so you can write one part: `self.Transform.position.x = 0`. To move it whole,
+write a table: `self.Transform.position = { x = 0, y = 0 }`. A `vec3` is a Luau `vector`, which cannot be changed
+in place: write the whole value.
+
+The handles live for the line that made them: keep a number, not `self.Ship`, for the next line. The Console only
+reads while you play online: the editor is then a client, and a client never writes replicated data.
+
+**Completion.** While you type a name, the names it can become show above the line as buttons: click one, or press
+**Tab** to complete as far as all of them agree. It completes module names, the fields of a table
+(`config.player.` offers `size`), the components of `self` and their fields (`self.Ship.` offers `speed`), `engine` and
+the standard libraries. **Up** and **Down** browse the lines you ran before.
+
+!!! note
+    The line runs in the game the editor shows, on whichever side the editor runs. It is a debug tool: what it changes is
+    lost when the game is rebuilt (a change to `project.luau`, Play online). While you play online the editor is
+    a client of the server, so the line changes the client only, never the server.
 
 ## Particles
 

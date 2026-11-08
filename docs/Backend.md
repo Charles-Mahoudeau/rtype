@@ -142,6 +142,7 @@ The window, and every native event translated into an engine `Event` (see [`Inpu
 | `getFramebufferSize()`, `getTitle()`, `setTitle()`, `setSize()` | Window properties. |
 | `setCursorLocked()`, `getTime()` | Cursor capture, seconds since `init()` (delta time). |
 | `setClipboardText()`, `getClipboardText()` | Optional (default: none). The system's clipboard, UTF-8: the editor copies and pastes with it. |
+| `getWindowSize()`, `getContentScale()` | Optional (defaults: the framebuffer's size, and 1). The window in the units of the mouse, and the scale the desktop asks of its content (2 at 200%, from `glfwGetWindowContentScale()`): the editor sizes its panels with both. |
 
 ### `IRenderer`
 
@@ -156,7 +157,7 @@ the backend.
 | `getViewSize()` | Optional (default: 0x0, the view is the framebuffer). The resolution the game is designed for, which the view fits in the window with bars; the `GraphicsPlugin` uses it to record what each frame shows (`VisibleArea`). |
 | `createTexture(desc, pixels)`, `destroy(id)` | Textures from RGBA pixels, referred to by `TextureId`. `desc.encoding` says whether they are sRGB colours (images, which a renderer may premultiply) or data sampled as stored (`TextureEncoding::kLinear`: the distances of a font atlas). |
 | `beginFrame(clearColor)`, `endFrame()` | One frame. |
-| `drawMesh(mesh)`, `setSceneSize(size)`, `getSceneSize()`, `getSceneTexture()`, `setScenePreview(preview)`, `getPreviewTexture()`, `getFrameStats()` | Optional, for a tool built on the renderer (the editor, `docs/Editor.md`): draw indexed triangles in framebuffer pixels over the frame, have the scene drawn into a texture of a given size instead of the window, have the world drawn a second time from another view into a texture of its own (the editor's Prefab window), and read what the last frame drew. A renderer without them ignores the meshes, draws into the window and reports nothing. |
+| `drawMesh(mesh)`, `setSceneSize(size)`, `getSceneSize()`, `getSceneTexture()`, `setScenePreview(preview)`, `getPreviewTexture()`, `getFrameStats()` | Optional, for a tool built on the renderer (the editor, `docs/Editor.md`): draw indexed triangles in framebuffer pixels over the frame, have the scene drawn into a texture of a given size instead of the window, have the world drawn a second time from another view into a texture of its own (the editor's Actor tabs), and read what the last frame drew. A renderer without them ignores the meshes, draws into the window and reports nothing. |
 | `setView(view)`, `draw(Sprite)`, `draw(Shape)`, `draw(Text)` | Drawing, between `beginFrame()` and `endFrame()`. A `Shape` is a rectangle (rounded corners), circle, capsule or line, filled and/or outlined; shapes are overlays, drawn after the sprites. A `Text` is already laid out by the text plugin: its glyphs, cut from an MSDF font atlas, drawn in order with the sprites (see `docs/Text.md`). |
 
 Conventions, the ones of those libraries: world units with X to the right and Y down, angles in radians and
@@ -293,7 +294,7 @@ Each part of the engine reads **its own section** and turns it into **its own ty
 | Section | Read by | Keys |
 |---|---|---|
 | (root) | `BackendRegistry` | `platform`, `renderer` (names, required) |
-| `window` | `WindowConfig::fromSettings()` | `size` ({width, height}), `title`, `resizable`, `fullscreen` |
+| `window` | `WindowConfig::fromSettings()` | `size` ({width, height}), `title`, `resizable`, `fullscreen`, `system` (`"auto"`, `"x11"`, `"wayland"`: on Linux, the `GLFW_PLATFORM` hint the GLFW platform gives before `glfwInit()`) |
 | `glfw` | the `glfw` factory | none |
 | `vulkan` | the `vulkan` factory → `VulkanRenderer::Config` | `engineName`, `layers`, `extraExtensions`, `debugging`, `minSeverity` (`"verbose"`, `"info"`, `"warning"`, `"error"`), `preferredDeviceType` (`"discrete_gpu"` by default, `"integrated_gpu"`, `"virtual_gpu"`, `"cpu"`, `"other"`), `synchronizationValidation` (`true` by default), `bestPractices` (`false` by default), `presentMode` (`"fifo"` by default, `"mailbox"`, `"immediate"`) |
 
@@ -344,3 +345,41 @@ libraries.
 window, no event, nothing drawn, textures and particle systems only get ids. A client that names them in `project.luau`
 (`platform = "null"`, `renderer = "null"`) runs its UI, graphics and input scripts on a machine with no display, so a
 headless client test can exist. `close()` ends the run with one `Closed` event.
+
+## The SDL3 platform
+
+`src/rtype/platform/sdl/` (`platform-sdl`, `rtype-platform-sdl`) registers the platform `sdl`: the window, keyboard,
+mouse, text input and clipboard through SDL3. Like `platform-glfw`, it implements `IVulkanSurfaceSource`, so the Vulkan
+renderer draws in its window unchanged: `platform = "sdl"`, `renderer = "vulkan"`. Gamepads are not reported yet. SDL3
+is private to this folder; on Linux only SDL itself is linked, as for GLFW, so a headless server still loads it.
+
+## The raylib backend
+
+`src/rtype/backend/raylib/` (`backend-raylib`, `rtype-backend-raylib`) registers a platform `raylib` and a renderer
+`raylib`. raylib opens its window and its OpenGL context together (`InitWindow()`), so the two live in one library, as
+the null backend does, and the renderer refuses any other platform. Settings: the section `raylib`, with
+`virtualResolution` as for Vulkan.
+
+| Folder | Holds |
+|---|---|
+| `Library.cpp`, `Registration.*` | The library's entry point; the factories of the platform and the renderer, which read the section `raylib` |
+| `platform/` | `RaylibPlatform` (window, events) and `InputMapping` (raylib's key, mouse and gamepad names next to the engine's) |
+| `renderer/` | `RaylibRenderer`, which only dispatches; `Frame` (camera, letterboxed viewport, blend mode, overlay and screen spaces); `TextureTable` (textures by generation-checked id); `Convert` (contract types to raylib's) |
+| `renderer/draw/` | One file per kind of drawing: `Sprites`, `Shapes`, `MsdfText`, `Particles`, `Meshes` |
+
+| Contract | raylib |
+|---|---|
+| Textures | `LoadTextureFromImage`, filter and wrap from the `TextureDesc` |
+| View | a `Camera2D` and a scissor on the viewport `CameraView` computes, so letterboxing matches Vulkan |
+| Sprites, shapes | `DrawTexturePro`, `DrawRectangle*`, `DrawCircle*`, `DrawRing`, `DrawLineEx` |
+| Text | the glyph quads, through a small MSDF fragment shader (GLSL 330) |
+| Particles | drawn from the instances the particle plugin simulates on the CPU: `supportsGpuParticles()` is false |
+| Overlay, tool meshes | a view-pixel camera with each item's clip; meshes through `rlgl` triangles |
+| User shaders | not supported (`supportsShaders()` is false): they are SPIR-V, raylib reads GLSL |
+
+Colours are linear in the engine; the renderer encodes them in sRGB, as Vulkan's sRGB framebuffer does, so both look
+the same.
+
+Known limit: raylib 6.0 carries its own GLFW. The engine loads every backend library, so on macOS the Objective-C
+classes of GLFW exist twice in the process and the runtime prints a warning. Only one window is ever opened, by one of
+them, so it works; on Linux the library hides its GLFW symbols (`--exclude-libs`).

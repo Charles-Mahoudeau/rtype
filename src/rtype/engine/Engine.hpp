@@ -23,6 +23,7 @@
 #include "rtype/core/config/Settings.hpp"
 #include "rtype/core/reload/HotReloader.hpp"
 #include "rtype/ecs/app/App.hpp"
+#include "rtype/ecs/entity/Entity.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/engine/plugin/PluginLoader.hpp"
 
@@ -122,6 +123,38 @@ class RTYPE_ENGINE_API Engine {
     /// builds again with the mode and the command line it had, so the program is not left without a game.
     /// @throws exceptions::RuntimeError If @p args is not a valid command line.
     void requestReload(ecs::RunMode mode, std::vector<std::string> args);
+
+    /// @brief What a debug console line reaches in the world (see scripting::ScriptHost::ConsoleTarget).
+    struct ScriptTarget {
+        ecs::Entity self;     ///< The entity `self` stands for; null: none.
+        bool writable{true};  ///< False: the line cannot write components.
+    };
+
+    /// @brief What evaluateScript() gives back.
+    struct ScriptEvaluation {
+        bool ok{false};    ///< False when there is no script to run, or the line did not compile or raised an error.
+        std::string text;  ///< The values the line gave written as Luau, or the error message.
+    };
+
+    /// @brief Runs a line of Luau in the scripts of the current App, as a debug console does (see
+    /// scripting::ScriptHost::evaluate()): the loaded modules are in reach by name and their tables are writable.
+    ///
+    /// Call it from the thread that runs the frames, between two systems (a tool frame). Never throws.
+    /// @param source One line of Luau.
+    /// @param target The entity `self` stands for, and whether the line may write components.
+    /// @return The outcome; not ok when the App has no scripts.
+    [[nodiscard]] ScriptEvaluation evaluateScript(std::string_view source, const ScriptTarget& target);
+
+    /// @brief evaluateScript() with no entity.
+    [[nodiscard]] ScriptEvaluation evaluateScript(std::string_view source);
+
+    /// @brief Completes the dotted name a debug console is typing (see scripting::ScriptHost::complete()).
+    /// @param word The name up to the cursor.
+    /// @return The whole words that complete it; none when the App has no scripts.
+    [[nodiscard]] std::vector<std::string> completeScript(std::string_view word, const ScriptTarget& target);
+
+    /// @brief completeScript() with no entity.
+    [[nodiscard]] std::vector<std::string> completeScript(std::string_view word);
 
     /// @brief Runs frames until a system sends AppExit, building a new App between two frames when a reload was
     /// requested.

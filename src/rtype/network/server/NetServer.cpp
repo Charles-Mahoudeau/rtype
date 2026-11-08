@@ -49,7 +49,7 @@ void NetServer::poll(const TimePoint now) {
     flush(now);
 }
 
-void NetServer::execute(ServerCommand command) { _core.execute(std::move(command)); }
+bool NetServer::execute(ServerCommand command) { return _core.execute(std::move(command)); }
 
 void NetServer::flush(const TimePoint now) {
     if (_outbound.isIdle()) {

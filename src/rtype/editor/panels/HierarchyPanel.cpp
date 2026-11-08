@@ -24,6 +24,7 @@
 #include "core/asset/AssetFiles.hpp"
 #include "editor/EditorState.hpp"
 #include "editor/gui/Text.hpp"
+#include "editor/gui/Theme.hpp"
 #include "editor/scene/SceneEdit.hpp"
 #include "editor/shell/TextEditor.hpp"
 #include "plugins/capsule/Capsule.hpp"
@@ -173,7 +174,7 @@ void drawSceneTree(EditorState& state, capsule::CapsuleId id) {
     if (state.prefab) {
         // The way back to the scene, as a breadcrumb: the scene, then the capsule shown alone over it.
         if (ImGui::SmallButton("< Back")) {
-            closePrefab(state);
+            closeActor(state, state.prefab->capsule);
             return;
         }
         ImGui::SameLine();
@@ -194,7 +195,9 @@ void drawSceneTree(EditorState& state, capsule::CapsuleId id) {
     }
     ImGui::Separator();
     TreeRequest request;
+    gui::pushTreeMetrics();
     drawNode(state, *edited, 0, request);
+    gui::popTreeMetrics();
     try {
         apply(state, *edited, request);
     } catch (const capsule::exceptions::CapsuleException& error) {
@@ -261,11 +264,13 @@ void drawWorldTree(EditorState& state) {
             ImGui::PopID();
         }
     } else {
+        gui::pushTreeMetrics();
         for (const ecs::Entity entity : entities) {
             if (state.world->getComponents().get<ecs::Parent>(entity) == nullptr) {
                 drawEntityTree(state, entity);
             }
         }
+        gui::popTreeMetrics();
     }
     ImGui::EndChild();
 }

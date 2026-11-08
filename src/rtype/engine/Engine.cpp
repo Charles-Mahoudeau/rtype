@@ -59,6 +59,7 @@
 #include "rtype/replication/ReplicationSettings.hpp"
 #include "rtype/replication/client/ClientPlugin.hpp"
 #include "rtype/replication/server/ServerPlugin.hpp"
+#include "rtype/replication/standalone/StandalonePlugin.hpp"
 #include "rtype/scripting/ScriptHost.hpp"
 #include "rtype/scripting/exceptions/ScriptLoadException.hpp"
 #include "rtype/scripting/modules/ScriptResolver.hpp"
@@ -284,6 +285,27 @@ void Engine::requestReload(const ecs::RunMode mode, std::vector<std::string> arg
     _reloadRequested = true;
 }
 
+Engine::ScriptEvaluation Engine::evaluateScript(const std::string_view source, const ScriptTarget& target) {
+    if (_scriptHost == nullptr) {
+        return {.ok = false, .text = "no script is running"};
+    }
+    auto evaluation = _scriptHost->evaluate(source, {.self = target.self, .writable = target.writable});
+    return {.ok = evaluation.ok, .text = std::move(evaluation.text)};
+}
+
+Engine::ScriptEvaluation Engine::evaluateScript(const std::string_view source) {
+    return evaluateScript(source, ScriptTarget{});
+}
+
+std::vector<std::string> Engine::completeScript(const std::string_view word) {
+    return completeScript(word, ScriptTarget{});
+}
+
+std::vector<std::string> Engine::completeScript(const std::string_view word, const ScriptTarget& target) {
+    return _scriptHost == nullptr ? std::vector<std::string>{}
+                                  : _scriptHost->complete(word, {.self = target.self, .writable = target.writable});
+}
+
 std::optional<Engine::Setup> Engine::adoptPendingSetup() {
     std::optional<Setup> next;
     {
@@ -474,7 +496,9 @@ void Engine::build() {
     if (_config.addPlugins) {
         _config.addPlugins(app, _settings);
     }
-    if (_config.mode != ecs::RunMode::kStandalone) {
+    if (_config.mode == ecs::RunMode::kStandalone) {
+        app.addPlugin(replication::standalone::StandalonePlugin{});
+    } else {
         app.addPlugin(replication::ReplicationPlugin{});
     }
     addListedPlugins();
@@ -493,7 +517,7 @@ void Engine::build() {
     if (networkPlugin) {
         app.addPlugin(std::move(networkPlugin));
     }
-    if (_config.mode == ecs::RunMode::kClient) {
+    if (_config.mode == ecs::RunMode::kClient || _config.mode == ecs::RunMode::kStandalone) {
         addNetworkInput(app);
     }
 }

@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_uint2.hpp>
 #include <memory>
 #include <optional>
@@ -51,7 +52,8 @@ namespace rtype::test::plugins {
 struct FakeBackendState {
     std::vector<std::vector<rtype::contract::platform::Event>> frames;  ///< The events each poll returns, in order.
     glm::uvec2 framebufferSize{800, 600};                               ///< 0x0 while minimized.
-    bool open{true};                                                    ///< Cleared to close the window.
+    glm::vec2 contentScale{1.0F, 1.0F};                 ///< What getContentScale() returns: 2 for a screen set to 200%.
+    bool open{true};                                    ///< Cleared to close the window.
     int closeAfterPolls{-1};                            ///< Closes the window after this many polls (-1: never).
     int initCount{0};                                   ///< platform.init() calls.
     int polls{0};                                       ///< pollEvents() calls.
@@ -96,6 +98,7 @@ class FakePlatform : public rtype::contract::platform::IPlatform {
     FakePlatform& operator=(FakePlatform&& other) = delete;
 
     [[nodiscard]] glm::uvec2 getFramebufferSize() const override { return _state->framebufferSize; }
+    [[nodiscard]] glm::vec2 getContentScale() const override { return _state->contentScale; }
     [[nodiscard]] const std::string& getTitle() const override { return _title; }
     void setTitle(const std::string& title) override { _title = title; }
     void setSize(glm::uvec2 /*size*/) override {}

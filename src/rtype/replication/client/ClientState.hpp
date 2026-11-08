@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <bitset>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -68,6 +69,8 @@ enum class ConnectionStatus : std::uint8_t {
 /// to the world it was made for, which must outlive it.
 class RTYPE_REPLICATION_API ClientState {
   public:
+    static constexpr std::size_t kMaxPendingPackets = 256;  ///< The most custom packets kept between two receive().
+
     /// @brief Gives the time of the transport.
     using TimeSource = std::function<network::TimePoint()>;
 
@@ -149,7 +152,9 @@ class RTYPE_REPLICATION_API ClientState {
     /// @param commands Where the changes to the world are recorded.
     void handle(const network::client::ClientEvent& clientEvent, input::InputLayout& inputs, ecs::Commands& commands);
 
-    /// @brief Applies a snapshot, all or nothing, if it is newer than the last one applied.
+    /// @brief Applies a snapshot, all or nothing, if it is newer than the last one applied. A part (snapshot::kPart)
+    /// is applied when it is of a newer tick, or of the last tick and not applied yet; once every part of a complete
+    /// snapshot is in, the entities none of them listed are removed.
     /// @param message The bytes of the message, starting with the message type.
     /// @param commands Where the changes to the world are recorded.
     /// @return Whether the snapshot was applied; a dropped one leaves the world and the state as they were.
@@ -165,6 +170,23 @@ class RTYPE_REPLICATION_API ClientState {
     /// @param inputs The client's input actions.
     void sendInput(const input::InputLayout& inputs);
 
+    /// @brief Counts a custom packet that the schemas refused (the plugin decodes after takePackets()).
+    void noteDroppedPacket() noexcept;
+
+    /// @brief Takes the custom packet messages the server sent since the last call, oldest first. At most
+    /// kMaxPendingPackets are kept between two calls: the rest are dropped.
+    [[nodiscard]] std::vector<network::Bytes> takePackets();
+
+    /// @brief Sends a custom packet message to the server.
+    /// @param channel How to send it.
+    /// @param payload The message (packet::encodePacket()).
+    /// @return Whether it was handed to the transport: false when the client is not connected, the manifest is not
+    /// accepted, or the transport refused it. An unreliable packet also waits until the server is known to be ready
+    /// (a snapshot or a packet came from it): the server drops what it gets before the client's `Ready`, and an
+    /// unreliable message may reach it ahead of that `Ready`, even in the same datagram. Reliable packets are
+    /// delivered after `Ready`, in order, so they need not wait.
+    bool sendPacket(network::Channel channel, std::span<const std::byte> payload);
+
   private:
     /// @brief Checks the manifest once it is complete; accepts it or disconnects.
     void checkManifest(input::InputLayout& inputs);
@@ -178,20 +200,30 @@ class RTYPE_REPLICATION_API ClientState {
     /// @brief Records the spawn of every entity of the snapshot the client does not have.
     void spawnEntities(const snapshot::Snapshot& decoded, ecs::Commands& commands);
 
-    /// @brief Records the values of the components of an entity.
+    /// @brief Records the values of the components of an entity, but those it already holds: the world sees a
+    /// replicated component change only when its value does.
     void writeValues(std::uint32_t networkId, const std::vector<snapshot::ComponentValue>& values,
-                     const manifest::Manifest& manifest, ecs::Commands& commands) const;
+                     const manifest::Manifest& manifest, ecs::Commands& commands);
 
     /// @brief Records the removal of the components the snapshot lists.
     void removeComponents(const snapshot::Snapshot& decoded, const manifest::Manifest& manifest,
-                          ecs::Commands& commands) const;
+                          ecs::Commands& commands);
 
     /// @brief Records the despawn of the entities the snapshot lists, and forgets them.
     void despawnEntities(const snapshot::Snapshot& decoded, ecs::Commands& commands);
 
-    /// @brief Of a complete snapshot: records the despawn of the entities it does not list and the removal of their
-    /// components it does not list.
-    void removeUnlisted(const snapshot::Snapshot& decoded, const manifest::Manifest& manifest, ecs::Commands& commands);
+    /// @brief Tells whether a part (snapshot::kPart) may be applied: of a newer tick than the last snapshot applied, or
+    /// of the same tick, of as many parts, and not applied yet.
+    [[nodiscard]] bool acceptsPart(const snapshot::Snapshot& decoded) const;
+
+    /// @brief Of a complete snapshot, or of a part of one: records the removal of the components its records do not
+    /// list, since a record lists all of its entity's.
+    void removeUnlistedComponents(const snapshot::Snapshot& decoded, const manifest::Manifest& manifest,
+                                  ecs::Commands& commands);
+
+    /// @brief Of a complete snapshot, once all of it is in: records the despawn of the entities it does not list, and
+    /// forgets them.
+    void removeUnlistedEntities(const std::unordered_set<std::uint32_t>& listed, ecs::Commands& commands);
 
     network::io::Address _server;                                ///< The server's address.
     network::NetworkSettings _settings;                          ///< The transport settings.
@@ -209,13 +241,21 @@ class RTYPE_REPLICATION_API ClientState {
     std::vector<std::size_t> _componentSizes;                    ///< The wire size of each component by short id.
     std::unordered_map<std::uint32_t, ecs::Entity> _entities;    ///< NetworkId → local entity.
     std::unordered_set<ecs::Entity> _reserved;                   ///< Entities spawned by commands not flushed yet.
-    std::uint32_t _lastAppliedTick{0};                           ///< The tick of the last snapshot applied.
-    std::uint32_t _lastProcessedInput{0};                        ///< From the last snapshot applied.
-    std::uint32_t _nextInputSequence{1};                         ///< The sequence of the next input sent.
-    std::optional<component::PlayerInput> _input;                ///< The game's input for the frame.
-    std::deque<input::InputSample> _recentInputs;                ///< The last three, oldest first.
-    std::size_t _dropped{0};                                     ///< Messages that could not be used.
-    std::size_t _stale{0};                                       ///< Snapshots that were not applied.
+    std::unordered_set<std::uint64_t>
+        _pending;                          ///< Components (NetworkId, ComponentId) commands not flushed yet touch.
+    std::uint32_t _lastAppliedTick{0};     ///< The tick of the last snapshot applied.
+    std::uint32_t _lastProcessedInput{0};  ///< From the last snapshot applied.
+    std::uint32_t _partTick{0};            ///< The tick of the parts being put together.
+    std::uint8_t _partCount{0};            ///< How many parts that tick has.
+    std::bitset<snapshot::kMaxParts> _partsSeen;    ///< The parts of that tick already applied.
+    std::unordered_set<std::uint32_t> _partListed;  ///< The NetworkIds those parts listed.
+    std::uint32_t _nextInputSequence{1};            ///< The sequence of the next input sent.
+    std::optional<component::PlayerInput> _input;   ///< The game's input for the frame.
+    std::deque<input::InputSample> _recentInputs;   ///< The last three, oldest first.
+    std::vector<network::Bytes> _packets;           ///< Custom packets waiting for takePackets().
+    bool _serverReady{false};                       ///< The server answered after our `Ready`.
+    std::size_t _dropped{0};                        ///< Messages that could not be used.
+    std::size_t _stale{0};                          ///< Snapshots that were not applied.
 };
 
 RTYPE_ECS_RESOURCE(ClientState, "net.ClientState");

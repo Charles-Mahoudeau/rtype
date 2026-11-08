@@ -37,9 +37,24 @@ class RTYPE_EDITOR_API GuiContext {
     /// @brief Makes this context the one ImGui calls act on.
     void makeCurrent() const;
 
+    /// @brief Draws the panels @p scale times ImGui's default size: the style's spacing and the fonts, which ImGui
+    /// renders again at that size, so they stay sharp. Called before a frame; does nothing when the scale is the same.
+    void setScale(float scale);
+
+    /// @return The scale the panels are drawn at; 1 until setScale() changes it.
+    [[nodiscard]] float getScale() const noexcept;
+
   private:
     ImGuiContext* _context;   ///< Owned: created and destroyed through ImGui's C API.
     std::string _layoutFile;  ///< ImGui keeps a pointer to it, so it lives as long as the context.
+    float _scale{1.0F};       ///< What setScale() last applied.
 };
+
+/// @brief The scale of the editor's interface on a window: the desktop's content scale (2 at 200%) over the ratio of
+/// the framebuffer to the window, which already covers it where the window is measured in points (macOS, Wayland).
+/// @param contentScale IPlatform::getContentScale(); a value that is not positive reads as 1.
+/// @param framebufferScale The framebuffer's width over the window's; a value that is not positive reads as 1.
+/// @return The scale, between 0.5 and 4.
+[[nodiscard]] RTYPE_EDITOR_API float interfaceScale(float contentScale, float framebufferScale) noexcept;
 
 }  // namespace rtype::editor::gui

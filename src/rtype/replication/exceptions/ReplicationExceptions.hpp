@@ -51,4 +51,18 @@ class RTYPE_REPLICATION_API ReplicationException : public std::runtime_error {
     ReplicationException(ReplicationException&& other) noexcept = default;
     ReplicationException& operator=(ReplicationException&& other) noexcept = default;
 };
+
+/// @brief Thrown when a custom packet cannot be declared or sent: a local setup or scripting error (a name taken, an
+/// invalid field, a declaration after the registry was frozen, an unknown packet, a value that breaks the schema, the
+/// wrong direction), never caused by the network.
+class RTYPE_REPLICATION_API PacketException : public std::runtime_error {
+  public:
+    /// @param message What is wrong, naming the packet.
+    explicit PacketException(const std::string& message);
+    ~PacketException() override;
+    PacketException(const PacketException& other) = default;
+    PacketException& operator=(const PacketException& other) = default;
+    PacketException(PacketException&& other) noexcept = default;
+    PacketException& operator=(PacketException&& other) noexcept = default;
+};
 }  // namespace rtype::replication::exceptions

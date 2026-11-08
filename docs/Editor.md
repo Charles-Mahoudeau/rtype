@@ -27,7 +27,9 @@ A program of its own, not a feature of a game and not a mode of the runtime. Gam
 - **Always a debug run.** `EngineConfig::debug` is true, so `engine.isDebug` is true and hot reload defaults on, even in
   a release build. The check of the game plugins' signatures still follows the build type.
 - **Both sides by default.** `RunMode::kStandalone` (both sides in one world, no network: a client alone would not run
-  the server's gameplay). "Play online" rebuilds it as `RunMode::kClient` against a child server (see
+  the server's gameplay) as a server with one local client, client 1 (`StandalonePlugin`: `net.ClientConnected` once, the
+  keyboard is its input, packets loop back in the world, see `docs/network/design.md`), so a networked game loads and
+  plays unchanged. "Play online" rebuilds it as `RunMode::kClient` against a child server (see
   [Playing online](#playing-online)). `--server` is refused. The program adds `rtype.Editor` through `EngineConfig::addPlugins`, reads
   its `editor` settings with `readEditorOptions()`, and gives `engine.args.editor` (true) to the project.
 - **Dear ImGui is private to it.** It is the only module that includes `imgui.h` (no header of the editor does). The
@@ -36,15 +38,16 @@ A program of its own, not a feature of a game and not a mode of the runtime. Gam
 | Folder | Holds |
 |---|---|
 | `editor/` | `EditorPlugin` (the two hooks, the frame, the default layout), `EditorState` (everything kept between frames) |
-| `gui/` | `GuiContext` (the ImGui context), `GuiInput` (the window's events to ImGui and to the game), `GameViewport`, `GuiMesh` (ImGui's draw data and textures for the renderer) |
+| `gui/` | `GuiContext` (the ImGui context and the UI fonts), `Theme` (the Catppuccin Mocha colors, shapes and tone widgets), `GuiInput` (the window's events to ImGui and to the game), `GameViewport`, `GuiMesh` (ImGui's draw data and textures for the renderer) |
 | `play/` | `PlaySession`: Play, Pause, Step and Stop; `OnlinePlay`: the steps of Play online |
 | `scene/` | `SceneEdit`: the capsule changes (copy a tree with a node removed or moved, add, rename), commit, open, save, new files; `Isolation`: a capsule shown alone (prefab mode) |
 | `console/` | `ConsoleLog` (the last lines, from any thread), `OutputCapture` (the process's output into it) |
+| `fonts/` | JetBrains Mono Nerd Font, Regular (the text) and Bold (`gui::pushEmphasisFont()`: dark text on a filled button or chip, where thin strokes look faded), with its OFL license. Embedded in the program by `utils.bin2c`, so the editor needs no file at run time; the Nerd Font icons (Font Awesome in the Play controls) come with it |
 | `shell/` | `TextEditor`: a file opened in an external text editor |
 | `panels/` | The panels, `FieldEditor` (the widgets of a reflected value, the drag-and-drop of assets) and `WorldView` |
 
 `play/`, `scene/`, `console/` and `shell/` include no ImGui: the tests (`tests/plugins/EditorPlaySessionTests.cpp`,
-`EditorSceneEditTests.cpp`, `EditorIsolationTests.cpp`, `EditorConsoleTests.cpp`, `EditorPluginInfoTests.cpp`) drive them without a window.
+`EditorSceneEditTests.cpp`, `EditorIsolationTests.cpp`, `EditorConsoleTests.cpp`, `EditorPluginInfoTests.cpp`, `EditorAssetKindTests.cpp`) drive them without a window.
 
 ## How it reaches the screen and the window
 
@@ -100,7 +103,7 @@ and the resources and the scripts' state stay as they are.
 
 ### Playing online
 
-The menu bar has a choice next to Play: **Standalone** (the default, above) or **Online**, locked while a Play is under
+The toolbar has a choice next to Play: **Standalone** (the default, above) or **Online**, locked while a Play is under
 way. Online tests the real thing, a server and its clients:
 
 1. Play remembers the open scene, then starts the child server with the options of the Server panel (game folder, port,
@@ -159,14 +162,16 @@ editor edits is the capsule, the data the file holds, and the world only shows i
 
 ## Prefab mode
 
-A double-click on an `.actor` (or a `.capsule`) in the Assets opens it **alone**, in a window of its own, the Prefab
-window, while the Game panel goes on showing the game (`panels::openPrefab()`, `scene::isolate()`). The capsule is
+A double-click on an `.actor` (or a `.capsule`) in the Assets opens it **alone**, in an Actor tab docked with the Game panel
+(`panels::drawActorPanel()`), while the Game panel goes on showing the game (`panels::openPrefab()`, `scene::isolate()`). The capsule is
 spawned under an anchor entity at `kIsolatedOrigin` (100000, 100000), far from anything a game places and near enough
 for a float to place it to a hundredth of a unit. The anchor holds the offset, so the capsule's own values are those of
 its file, and a respawn after an edit keeps it isolated (a reload keeps the root's other components, its `Parent`
 included).
 
-The window shows the renderer's **preview** (`IRenderer::setScenePreview()`): every frame, the world is drawn a second
+Each capsule opened has its own tab (`closeActor()` closes one); opening one already open brings its tab to the
+front. Only the tab in front is spawned and edited: clicking another tab swaps the isolation. The tab shows the
+renderer's **preview** (`IRenderer::setScenePreview()`): every frame, the world is drawn a second
 time, from a view centred on the capsule's root (`scene::centerOf()`, its GlobalTransform) at `EditorState::prefabZoom`
 pixels per world unit (the wheel changes it), into a texture of the window's size. The game's camera is untouched. The
 Hierarchy and the Inspector edit the capsule (`EditorState::getEdited()`), Save writes it, and its instances in the scene
@@ -186,22 +191,49 @@ made line buffered while captured. It is the process's own output, so there is o
 descriptors are put back when it goes. A process the editor starts (the text editor) is started with its output thrown
 away, so it never holds the pipe. `EditorOptions::captureOutput` turns it off (the tests do).
 
+### The input line
+
+The Console also has an input line that runs Luau in the game's scripts (`console::ScriptPrompt`, no ImGui, tested without
+a window). The editor knows no Luau: the program gives the `EditorSession` a `console::ScriptBackend` (`aylo-editor` binds
+it to `Engine::evaluateScript()` and `Engine::completeScript()`), so a program without one has no input line. The prompt
+keeps the history (100 lines), writes `> line` and the result or `error: ...` in the `ConsoleLog`, and asks the backend
+for the completions of the name before the cursor, once per name (`forget()` empties them when the App is rebuilt). The
+panel adds Tab (the part all completions share), Up and Down (the history), and the completions as buttons above the line.
+
+`Engine` forwards to the current App's `scripting::ScriptHost::evaluate()` and `complete()`
+(`scripting/ScriptHostConsole.cpp`, the helpers in Luau in `scripting/console/ConsolePrelude.luau`). A line is compiled as
+an expression, then as a statement; it runs in a thread of the sealed runtime with the loaded modules as locals
+(`ModuleLoader::valueOf()`), `modules`, and a copy of `engine` without `ecs` (declaring on the schedule while it runs
+is not safe). The tables the modules reach are unfrozen with `Table::unfreeze()` for the line and frozen again, except
+the tables of `engine` and of the helpers. A line runs between two systems, in the tool frame. `manual/pages/editor.md`
+explains it to the game developer.
+
+The selected entity travels with each call as a `ScriptTarget{self, writable}` (`ScriptPrompt::setTarget()`, set by the
+panel each frame; `writable` is false while the editor is online, a client of the server). The host binds it as `self`
+and `entity(index, generation)` in `scripting/console/ConsoleTypes.cpp`: three usertypes, `ConsoleEntity`,
+`ConsoleComponent` and `ConsoleVector` (a `vec2`/`vec4` field, so that `position.x = 0` writes the component instead of a table copy), whose indexes go through `view::readField()` / `view::writeField()` on the component's bytes in the
+world (`getMut()` marks the component changed). They hold no pointer into the world: each access fetches the bytes, and
+a handle checks the console's `ViewScope` generation, bumped after every line, so one kept past its line is an error.
+The `__keys` pseudo-field lists the component and field names for the completion in the prelude.
+
 ## Opening a file in a text editor
 
 "Open in text editor" (the Assets' menu, the Hierarchy's header) runs the `editor.textEditor` command on the file, in the
 background (`shell::buildOpenCommand()`): Visual Studio Code by default, through `open -a "Visual Studio Code"` on macOS
-(it needs no `code` command installed) and `code` elsewhere.
+(it needs no `code` command installed) and `code` elsewhere, else `codium`, else `xdg-open`, whichever is on the PATH.
+A command not on the PATH is refused (`shell::isCommandAvailable()`) with a message in the status line, as run in the
+background it would fail out of sight.
 
 ## The panels
 
 | Panel | File | What it does |
 |---|---|---|
-| Menu bar | `panels/ToolbarPanel.cpp` | File (Save scene, Ctrl+S; Quit, through `IPlatform::close()`), View (panels, Reset layout), the Standalone / Online choice, Play / Pause / Step / Stop, the mode and the last message |
-| Prefab | `panels/PrefabPanel.cpp` | The capsule opened alone, from the renderer's preview, centred; the wheel zooms; its cross goes back to the scene |
+| Toolbar | `panels/ToolbarPanel.cpp` | One padded row (`gui::beginToolbar()`): on the left File (Save scene, Ctrl+S; Quit, through `IPlatform::close()`) and View (panels, Reset layout), as flat buttons opening popups; in the center the mode chip and the last message; on the right the Standalone / Online choice and Play / Pause / Step / Stop. The three groups are placed by `gui::beginToolbarGroup()` |
+| Actor | `panels/ActorPanel.cpp` | One tab per capsule opened alone (`EditorState::actors`), docked with the Game panel; the one in front is drawn from the renderer's preview, centred; the wheel zooms; a tab's cross closes it |
 | Game | `panels/GamePanel.cpp` | Asks for a scene texture as big as its content, draws it as an image, tells the input bridge where it is (`GameViewport`) |
 | Hierarchy | `panels/HierarchyPanel.cpp` | Editing: the scene's node tree; drag a node onto another to move it, drop a capsule file to place an instance, right-click to add or delete. Playing: the world's entities by their `Parent` and `Children`, named by their `Name`, or a flat list filtered by component name |
 | Inspector | `panels/InspectorPanel.cpp` | Editing: the selected node's name, side, instance and components (added with their type's default value, removed, edited). Playing: the selected entity's components, the same way, lost at Stop |
-| Assets | `panels/AssetsPanel.cpp` | The tree of `<game>/assets`: open a scene, new scene / actor / folder, rename, delete, drag a file |
+| Assets | `panels/AssetsPanel.cpp` | A file explorer: on the left a small tree of the folders of `<game>/assets`; on the right the folder shown as a grid of icons (one per file type, told by `kindOf()` in `panels/AssetKind.cpp`, drawn with Nerd Font glyphs), with a breadcrumb, an up button and an icon size slider. Click selects, double-click enters a folder or opens a capsule, drag carries a file's path, right-click opens the menu (new scene / actor / folder, open, rename, delete) |
 | Console | `panels/ConsolePanel.cpp` | The program's output: filters by kind (info, warnings, errors) and by text, Clear, right-click to copy a line, follows new lines unless scrolled up |
 | Particles | `panels/ParticlesPanel.cpp` | The effects of `ParticleEffectAssets`: edit the spawning, each particle and the forces, preview at the middle of the view, Copy as Luau |
 | Stats | `panels/StatsPanel.cpp` | `io.Framerate`, the plot of the last frame times, `getFrameStats()` |
@@ -229,8 +261,13 @@ particles run in PostUpdate and Render, they play while editing.
 `ToolFrame` runs `runFrame()` in `EditorPlugin.cpp`:
 
 1. Open `editor.scene` on the first frame (the capsule files are read once every plugin is built).
-2. Tell ImGui the size of the window, the density of its pixels, the last frame's duration and the clipboard.
-3. `ImGui::NewFrame()`, the menu bar, the dockspace over the window (the panels are docked as by default on the first
+2. Tell ImGui the size of the window, the density of its pixels, the last frame's duration and the clipboard, and
+   scale the panels to the screen (`gui::interfaceScale()`): the platform's content scale (2 on a screen set to 200%)
+   over the framebuffer to window ratio. Where the window is measured in points (macOS, Wayland) that ratio already
+   covers it, so the scale is 1; where both are pixels (X11, including through XWayland, and Windows) it is the
+   content scale. `GuiContext::setScale()` rebuilds the style from its defaults at that scale (`ScaleAllSizes()`) and
+   sets `FontScaleDpi`, so ImGui renders its glyphs again at that size and the text stays sharp.
+3. `ImGui::NewFrame()`, the toolbar, the dockspace over the window (the panels are docked as by default on the first
    frame if no layout was kept; the layout file is `<cache>/rtype/editor/layout-<version>.ini`, its version raised when
    the panels change), then the panels.
 4. `ImGui::Render()`, `gui::updateTextures()` (ImGui's font atlas, sent whole when it grows) and `gui::buildMesh()`, one
@@ -256,6 +293,8 @@ particles run in PostUpdate and Render, they play while editing.
 | `editor.textEditor` | Visual Studio Code | The command that opens a file, its arguments included: `"code"`, `"subl"`, `"open -a TextEdit"` |
 
 The section is read when the editor is built (`readEditorOptions()`), and an unknown key in it is an error.
+
+The window is titled `AYLO Editor - <Game>`, where `<Game>` is the game's `window.title`; with none, `AYLO Editor`.
 
 ## Limits
 

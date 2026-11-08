@@ -128,6 +128,11 @@ class RTYPE_PLUGIN_PHYSICS_API PhysicsWorld {
     /// @param deltaSeconds The step's duration; the PhysicsPlugin passes Time::fixedDelta.
     void step(float deltaSeconds);
 
+    /// @brief Frees the broad phase nodes of the bodies removed since the last step or release.
+    /// @details Jolt only does it when it steps; a world that is never stepped (a client) calls this after changing
+    /// its bodies, or its node pool runs out. Does nothing when no body came or went.
+    void releaseBroadPhase();
+
     /// @brief Creates the entity's body from its components, replacing the one it had.
     /// @details A replaced moving body keeps its velocity. The body counts as seen by the current body pass.
     /// @param entity The entity, stored on the body to find it back from contacts.

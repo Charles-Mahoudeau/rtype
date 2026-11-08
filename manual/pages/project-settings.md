@@ -171,20 +171,36 @@ end
 
 | Key | Meaning |
 |---|---|
-| `platform`, `renderer` | the backends by name (`"glfw"`, `"vulkan"` today); required on a client |
+| `platform`, `renderer` | the backends by name; required on a client. Platforms: `"glfw"`, `"sdl"` (SDL3) or `"raylib"`. Renderers: `"vulkan"` or `"raylib"`. `"raylib"` goes with `"raylib"` only: its window and its drawing come together. `"sdl"` and `"glfw"` both work with `"vulkan"` |
 | `window.size`, `window.title`, `window.resizable`, `window.fullscreen` | the window |
+| `window.system` | Linux only: `"auto"` (default: Wayland in a Wayland session, X11 otherwise or if Wayland fails), `"x11"` or `"wayland"` |
 | `audio.backend` | `"miniaudio"` or `"null"` (silent) |
 | `audio.required` | if the device cannot open: `false` falls back to `"null"`, `true` is an error |
 | `audio.maxVoices` | sounds playing at once; the oldest effect is stolen beyond that |
 | `audio.volume.master`, `.music`, `.effects` | starting volumes |
 | `audio.panDistance` | world units from the listener at which a sound is fully left or right |
 | `vulkan.virtualResolution` | `{ width, height }`: the resolution your game is designed for, scaled to the window |
+| `raylib.virtualResolution` | the same as `vulkan.virtualResolution`, for the renderer `"raylib"` |
 | `vulkan.presentMode` | `"fifo"` (default), `"mailbox"` or `"immediate"` |
 | `vulkan.debugging`, `vulkan.layers` | validation, for debugging a GPU problem; `layers` takes `{ "VK_LAYER_KHRONOS_validation" }` |
 
 The `vulkan` section also accepts `engineName`, `extraExtensions`, `minSeverity`, `preferredDeviceType`,
 `synchronizationValidation` and `bestPractices`; the `miniaudio` section accepts `sampleRate`, `channels` and
 `periodSizeInMilliseconds`. Leave them unset unless you know you need them.
+
+On Linux the window opens natively on Wayland when your desktop runs it, so a screen scaled to 150% or 200% is drawn
+sharp and at the right size. If a machine has trouble with Wayland (an old graphics driver), let players choose the
+window system with a flag of their own:
+
+```luau
+if engine.isClient then
+	engine.settings.window.system = engine.args.windowSystem or "auto"
+end
+```
+
+```sh
+./aylo-runtime my_game/game --windowSystem x11
+```
 
 A common pattern is to turn on validation only in debug builds:
 

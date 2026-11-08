@@ -18,6 +18,7 @@
 #include "RuntimeConfig.hpp"
 #include "Script.hpp"
 #include "Table.hpp"
+#include "ValuePack.hpp"
 #include "detail/RawState.hpp"
 
 struct lua_State;
@@ -81,6 +82,13 @@ class RTYPE_LUAU_API Runtime {
     /// @param script Script to run; it must have been loaded by this runtime.
     /// @return Success, or an `ErrorKind::kRuntime` error if the script raised an error.
     [[nodiscard]] Result<> run(const Script& script) const;
+
+    /// @brief Runs a loaded script in protected mode with arguments (its `...`) and gives back what it returns.
+    /// @param script Script to run; it must have been loaded by this runtime.
+    /// @param args The values the script reads as `...`.
+    /// @return The values the script returned, or an `ErrorKind::kRuntime` error if it raised one (the message is the
+    ///         script's own, with its position).
+    [[nodiscard]] Result<ValuePack> call(const Script& script, const ValuePack& args) const;
 
     /// @brief Seals the shared environment: freezes the global table and the standard libraries (`luaL_sandbox`).
     ///

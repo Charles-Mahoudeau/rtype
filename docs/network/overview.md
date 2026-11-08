@@ -1,8 +1,8 @@
 # Network Overview
 
 The short version of the network design, for a first read. Every section links to the full document,
-[`design.md`](design.md), which has the byte-level details, the exact limits and the reasons behind each choice.
-Nothing here is implemented yet.
+[`design.md`](design.md), which has the reasons behind each choice. The bytes on the wire, precise enough to write
+another client, are specified in [`protocol.md`](protocol.md).
 
 ## In one paragraph
 
@@ -163,7 +163,8 @@ A snapshot holds four lists:
 | Despawns | Entities destroyed |
 
 Spawns and despawns are **in the snapshot**, not on the reliable channel: one lost bullet spawn never delays
-anything else. If a snapshot would be too big, what does not fit simply goes in the next one.
+anything else. If a snapshot would be too big, what does not fit simply goes in the next one. (Until deltas land, every
+snapshot lists every entity: one too big for a message is split into parts of the same tick.)
 
 **Bullets** are `kSpawnOnly`: sent once when they appear, then moved by the same system on both sides. With
 positions packed into 16-bit integers, a steady-state snapshot of 300 entities fits in one datagram instead of
@@ -219,7 +220,7 @@ end
 - Sending checks every value (`300` into a `u8` is a script error); receiving drops anything invalid.
 - This one is 11 bytes on the wire.
 
-Details: [Custom packets](design.md#8-custom-packets).
+Implemented subset (client → server commands, validated, from Luau): [Custom packets](custom-packets.md). Full design: [Custom packets](design.md#8-custom-packets).
 
 ## Never trust the network
 
@@ -259,6 +260,6 @@ Details: [Robustness and security](design.md#10-robustness-and-security).
 
 The snapshot rate, players per room and the timeouts are settings, tuned later from benchmarks. The local ship is
 predicted by the client and corrected by the server (design [7.6](design.md#76-client-prediction-and-reconciliation)),
-so it does not wait for the 100 ms display delay. What remains is the written protocol description and a few
-tuning values: see [Decisions and open questions](design.md#16-decisions-and-open-questions). Points where this design differs from the ECS
+so it does not wait for the 100 ms display delay. The protocol is specified in [`protocol.md`](protocol.md); what
+remains is a few tuning values: see [Decisions and open questions](design.md#16-decisions-and-open-questions). Points where this design differs from the ECS
 docs are listed in [Differences with the ECS docs](design.md#13-differences-with-the-ecs-docs).

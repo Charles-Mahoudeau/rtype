@@ -36,6 +36,7 @@
 #include "rtype/replication/input/InputBuffer.hpp"
 #include "rtype/replication/input/InputLayout.hpp"
 #include "rtype/replication/manifest/Manifest.hpp"
+#include "rtype/replication/packet/PacketSchema.hpp"
 
 namespace rtype::ecs {
 class Commands;
@@ -55,6 +56,9 @@ using ServerNotification = std::variant<event::ClientConnected, event::ClientDis
 /// is an ECS resource, named "net.ServerState". It keeps a pointer to the world it was made for, which must outlive it.
 class RTYPE_REPLICATION_API ServerState {
   public:
+    static constexpr std::size_t kMaxPendingPackets =
+        32;  ///< The most custom packets kept per client between two takePackets().
+
     /// @brief Gives the time of the transport.
     using TimeSource = std::function<network::TimePoint()>;
 
@@ -110,7 +114,8 @@ class RTYPE_REPLICATION_API ServerState {
     /// @return How many messages were ignored: of another type, or from a client that is not connected.
     [[nodiscard]] std::size_t ignoredMessageCount() const noexcept;
 
-    /// @return How many snapshots did not list every entity because they did not fit in a message.
+    /// @return How many snapshots did not list every entity: a record too big for a message of its own, or more than
+    /// snapshot::kMaxParts parts.
     [[nodiscard]] std::size_t incompleteSnapshotCount() const noexcept;
 
     /// @return Whether the client is connected.
@@ -150,7 +155,8 @@ class RTYPE_REPLICATION_API ServerState {
     /// @brief Receives what arrived, and handles every event.
     /// @param inputs The game's input actions.
     /// @return What the game has to be told, in order.
-    [[nodiscard]] std::vector<ServerNotification> receive(const input::InputLayout& inputs);
+    [[nodiscard]] std::vector<ServerNotification> receive(const input::InputLayout& inputs,
+                                                          const packet::PacketRegistry* packets = nullptr);
 
     /// @brief Handles one event of the transport: a client joins, leaves, or sends an input.
     /// @param serverEvent The event.
@@ -158,6 +164,32 @@ class RTYPE_REPLICATION_API ServerState {
     /// @return What the game has to be told, if anything.
     [[nodiscard]] std::optional<ServerNotification> handle(const network::server::ServerEvent& serverEvent,
                                                            const input::InputLayout& inputs);
+
+    /// @brief A custom packet message of a client, not decoded yet.
+    struct RawPacket {
+        network::ClientId client{};  ///< Who sent it.
+        network::Channel channel{};  ///< The channel it came on: it must be the one its schema declares.
+        network::Bytes payload;      ///< The message, type byte included.
+    };
+
+    /// @brief Takes the custom packets that arrived since the last call, oldest first. At most kMaxPendingPackets per
+    /// client are kept between two calls: the rest are dropped and counted, so a client that floods cannot take the
+    /// place of another one's commands.
+    [[nodiscard]] std::vector<RawPacket> takePackets();
+
+    /// @brief Sends a custom packet message.
+    /// @param client The client, or 0 for every connected client.
+    /// @param channel How to send it.
+    /// @param payload The message (packet::encodePacket()).
+    /// @return Whether at least one client queued it: false if @p client is unknown, none is ready, or the transport
+    /// refused it for every recipient (its reliable queue is full).
+    bool sendPacket(network::ClientId client, network::Channel channel, network::Bytes payload);
+
+    /// @brief Counts a custom packet that the schemas refused (the plugin decodes after takePackets()).
+    void noteDroppedPacket() noexcept;
+
+    /// @return How many custom packets were dropped: too many from one client in a frame, or refused by the schemas.
+    [[nodiscard]] std::size_t droppedPacketCount() const noexcept;
 
     /// @brief Writes the next input of a client in the PlayerInput of its entity: the neutral input when the client is
     /// not connected.
@@ -174,11 +206,12 @@ class RTYPE_REPLICATION_API ServerState {
     /// @return Whether a snapshot is due: at least `tickRate / snapshotRate` ticks passed since the last one.
     [[nodiscard]] bool isSnapshotDue(std::uint32_t tick) const noexcept;
 
-    /// @brief Forgets the entities that are not alive, then writes one snapshot per connected client.
+    /// @brief Forgets the entities that are not alive, then writes one snapshot per connected client. A snapshot that
+    /// does not fit in one message is split into parts (snapshot::kPart), all sent in the same tick.
     /// @param tick The server tick the snapshots carry.
     /// @param replicated The queries of the replicated components, one per component in the order of
     /// query::listReplicatedComponents().
-    /// @return One command per connected client, by client id; empty when nobody is connected.
+    /// @return One command per connected client and part, by client id then part; empty when nobody is connected.
     [[nodiscard]] std::vector<network::server::SendMessage> buildSnapshots(std::uint32_t tick,
                                                                            const ecs::DynamicQueries& replicated);
 
@@ -190,6 +223,7 @@ class RTYPE_REPLICATION_API ServerState {
     struct ClientRecord {
         input::InputBuffer inputs;             ///< Its inputs, waiting for their tick.
         std::uint32_t lastAppliedSnapshot{0};  ///< The tick of the last snapshot it says it applied.
+        std::size_t pendingPackets{0};         ///< Its custom packets waiting for takePackets().
     };
 
     /// @brief Counts and reports a snapshot that did not list every entity.
@@ -216,6 +250,9 @@ class RTYPE_REPLICATION_API ServerState {
     std::uint32_t _serverTick{0};                                  ///< The tick of the last snapshot built.
     std::uint32_t _snapshotInterval{1};                            ///< Ticks between two snapshots, set by start().
     std::size_t _droppedInputs{0};                                 ///< Inputs that could not be decoded.
+    const packet::PacketRegistry* _packetRegistry{nullptr};        ///< Set during receive(): validates custom packets.
+    std::vector<RawPacket> _packets;                               ///< Custom packets waiting for takePackets().
+    std::size_t _droppedPackets{0};                                ///< Custom packets dropped for lack of room.
     std::size_t _ignoredMessages{0};                               ///< Messages that were not inputs of a client.
     std::size_t _incompleteSnapshots{0};                           ///< Snapshots that did not list every entity.
     std::optional<network::TimePoint> _lastWarning;                ///< When the last warning was written.

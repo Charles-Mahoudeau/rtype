@@ -63,25 +63,31 @@ void ServerCore::receive(const io::Address& from, const std::span<const std::byt
                *packet);
 }
 
-void ServerCore::execute(ServerCommand command) {
-    std::visit(bytes::Overloaded{
-                   [this](SendMessage& message) {
-                       if (message.client == kAllClients) {
-                           for (auto& session : _sessions | std::views::values) {
-                               if (session.state == SessionState::kReady) {
-                                   session.connection.send(message.channel, message.payload);
-                               }
-                           }
-                           return;
-                       }
-                       if (const auto found = _sessions.find(message.client);
-                           found != _sessions.end() && found->second.state == SessionState::kReady) {
-                           found->second.connection.send(message.channel, message.payload);
-                       }
-                   },
-                   [this](const KickClient& kick) { disconnect(kick.client, kick.reason); },
-               },
-               command);
+bool ServerCore::execute(ServerCommand command) {
+    return std::visit(bytes::Overloaded{
+                          [this](SendMessage& message) {
+                              bool queued = false;
+                              if (message.client == kAllClients) {
+                                  for (auto& session : _sessions | std::views::values) {
+                                      if (session.state == SessionState::kReady) {
+                                          queued = session.connection.send(message.channel, message.payload) || queued;
+                                      }
+                                  }
+                                  return queued;
+                              }
+                              if (const auto found = _sessions.find(message.client);
+                                  found != _sessions.end() && found->second.state == SessionState::kReady) {
+                                  queued = found->second.connection.send(message.channel, message.payload);
+                              }
+                              return queued;
+                          },
+                          [this](const KickClient& kick) {
+                              const bool exists = _sessions.contains(kick.client);
+                              disconnect(kick.client, kick.reason);
+                              return exists;
+                          },
+                      },
+                      command);
 }
 
 void ServerCore::update(const TimePoint now) {

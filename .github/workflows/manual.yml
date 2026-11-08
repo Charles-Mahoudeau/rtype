@@ -1,12 +1,14 @@
 name: Manual
 
-# Builds the game developer manual (manual/, a Zensical site) and publishes it to GitHub Pages.
+# Builds the game developer manual (manual/) and the engine developer documentation (docs/), two Zensical sites, and
+# publishes them to GitHub Pages: the manual at the root, the developer documentation under /engine/.
 
 on:
   push:
     branches: [main]
     paths:
       - "manual/**"
+      - "docs/**"
       - ".github/workflows/manual.yml"
   workflow_dispatch:
 
@@ -34,6 +36,11 @@ jobs:
 
       - name: Build the manual
         run: zensical build -f manual/mkdocs.yml
+
+      - name: Build the developer documentation
+        run: |
+          zensical build -f docs/mkdocs.yml
+          cp -R docs/site manual/site/engine
 
       - uses: actions/configure-pages@v5
 

@@ -18,6 +18,7 @@
 
 #include "editor/console/ConsoleLog.hpp"
 #include "editor/console/OutputCapture.hpp"
+#include "editor/console/ScriptPrompt.hpp"
 #include "editor/shell/TextEditor.hpp"
 
 namespace {
@@ -93,6 +94,168 @@ TEST(EditorTextEditor, RunsTheEditorOnTheFileInTheBackground) {
 #endif
 }
 
-TEST(EditorTextEditor, OpensVisualStudioCodeByDefault) {
-    EXPECT_TRUE(rtype::editor::shell::defaultTextEditor().contains("ode"));
+TEST(EditorTextEditor, DefaultsToAnEditorThatCanRun) {
+    const std::string editor = rtype::editor::shell::defaultTextEditor();
+    EXPECT_TRUE(editor.contains("ode") || editor == "codium" || editor == "xdg-open") << editor;
+}
+
+TEST(EditorTextEditor, RefusesACommandThatDoesNotExist) {
+#ifndef _WIN32
+    EXPECT_FALSE(rtype::editor::shell::isCommandAvailable("no-such-editor-for-the-tests"));
+    EXPECT_FALSE(rtype::editor::shell::openInTextEditor("no-such-editor-for-the-tests", "/game/a.actor"));
+    EXPECT_TRUE(rtype::editor::shell::isCommandAvailable("sh -c"));
+#endif
+}
+
+namespace {
+/// @brief A prompt over a fake game: `x` gives 1, `fail` raises, anything else gives its own text.
+struct Prompt {
+    console::ScriptPrompt prompt;
+    std::vector<std::string> evaluated;  ///< The lines the backend ran.
+    int completions{0};                  ///< How many times the backend was asked to complete.
+
+    Prompt() {
+        prompt.setBackend({
+            .evaluate =
+                [this](const std::string_view line, const console::ScriptTarget& /*target*/) {
+                    evaluated.emplace_back(line);
+                    if (line == "fail") {
+                        return console::ScriptOutcome{.ok = false, .text = "console:1: boom"};
+                    }
+                    return console::ScriptOutcome{.ok = true, .text = line == "x" ? "1" : ""};
+                },
+            .complete =
+                [this](const std::string_view word, const console::ScriptTarget& /*target*/) {
+                    ++completions;
+                    std::vector<std::string> words;
+                    for (const std::string candidate : {"config", "config.player", "config.speed", "math"}) {
+                        if (candidate.starts_with(word) && candidate != word) {
+                            words.push_back(candidate);
+                        }
+                    }
+                    return words;
+                },
+        });
+    }
+};
+}  // namespace
+
+TEST(EditorScriptPrompt, HasNoInputLineWithoutABackend) {
+    console::ScriptPrompt prompt;
+    console::ConsoleLog log;
+
+    prompt.submit("x", log);
+
+    EXPECT_FALSE(prompt.hasBackend());
+    EXPECT_TRUE(log.getLines().empty());
+}
+
+TEST(EditorScriptPrompt, WritesTheLineAndWhatItGaveInTheConsole) {
+    Prompt fixture;
+    console::ConsoleLog log;
+
+    fixture.prompt.submit("  x  ", log);
+    fixture.prompt.submit("config.speed = 3", log);
+
+    EXPECT_EQ(textsOf(log), (std::vector<std::string>{"> x", "1", "> config.speed = 3"}));
+    EXPECT_EQ(fixture.evaluated, (std::vector<std::string>{"x", "config.speed = 3"}));
+}
+
+TEST(EditorScriptPrompt, WritesAnErrorAsAnError) {
+    Prompt fixture;
+    console::ConsoleLog log;
+
+    fixture.prompt.submit("fail", log);
+
+    const std::vector<console::Line> lines = log.getLines();
+    ASSERT_EQ(lines.size(), 2U);
+    EXPECT_EQ(lines[1].text, "error: console:1: boom");
+    EXPECT_EQ(lines[1].level, console::Level::kError);
+}
+
+TEST(EditorScriptPrompt, IgnoresABlankLine) {
+    Prompt fixture;
+    console::ConsoleLog log;
+
+    fixture.prompt.submit(" \t ", log);
+
+    EXPECT_TRUE(fixture.evaluated.empty());
+    EXPECT_TRUE(log.getLines().empty());
+}
+
+TEST(EditorScriptPrompt, BrowsesTheHistoryAndComesBackToWhatWasTyped) {
+    Prompt fixture;
+    console::ConsoleLog log;
+    fixture.prompt.submit("one", log);
+    fixture.prompt.submit("two", log);
+    fixture.prompt.submit("two", log);  // twice in a row: once in the history
+
+    EXPECT_EQ(fixture.prompt.older("dra").value_or(""), "two");
+    EXPECT_EQ(fixture.prompt.older("two").value_or(""), "one");
+    EXPECT_FALSE(fixture.prompt.older("one").has_value());  // the oldest
+    EXPECT_EQ(fixture.prompt.newer().value_or(""), "two");
+    EXPECT_EQ(fixture.prompt.newer().value_or(""), "dra");
+    EXPECT_FALSE(fixture.prompt.newer().has_value());
+}
+
+TEST(EditorScriptPrompt, FindsTheNameAtTheEndOfTheText) {
+    EXPECT_EQ(console::ScriptPrompt::wordAt("config.player.si"), "config.player.si");
+    EXPECT_EQ(console::ScriptPrompt::wordAt("x = math."), "math.");
+    EXPECT_EQ(console::ScriptPrompt::wordAt("f(config.pl"), "config.pl");
+    EXPECT_EQ(console::ScriptPrompt::wordAt("x = "), "");
+    EXPECT_EQ(console::ScriptPrompt::wordAt(""), "");
+}
+
+TEST(EditorScriptPrompt, FindsTheStartTheCompletionsShare) {
+    EXPECT_EQ(console::ScriptPrompt::commonPrefix({"config.player", "config.speed"}), "config.");
+    EXPECT_EQ(console::ScriptPrompt::commonPrefix({"config"}), "config");
+    EXPECT_EQ(console::ScriptPrompt::commonPrefix({"a", "b"}), "");
+    EXPECT_EQ(console::ScriptPrompt::commonPrefix({}), "");
+}
+
+TEST(EditorScriptPrompt, CompletesTheNameBeforeTheCursorAndAsksOncePerName) {
+    Prompt fixture;
+    std::size_t hidden = 0;
+
+    const std::vector<std::string> first = fixture.prompt.suggestions("x = conf", hidden);
+    const std::vector<std::string> again = fixture.prompt.suggestions("y = conf", hidden);
+
+    EXPECT_EQ(first, (std::vector<std::string>{"config", "config.player", "config.speed"}));
+    EXPECT_EQ(again, first);
+    EXPECT_EQ(fixture.completions, 1);
+    EXPECT_EQ(hidden, 0U);
+    EXPECT_TRUE(fixture.prompt.suggestions("x = ", hidden).empty());  // no name: nothing to ask
+    EXPECT_EQ(fixture.completions, 1);
+}
+
+TEST(EditorScriptPrompt, AsksAgainOnceTheModulesChanged) {
+    Prompt fixture;
+    std::size_t hidden = 0;
+    static_cast<void>(fixture.prompt.suggestions("conf", hidden));
+
+    fixture.prompt.forget();
+    static_cast<void>(fixture.prompt.suggestions("conf", hidden));
+
+    EXPECT_EQ(fixture.completions, 2);
+}
+
+TEST(EditorScriptPrompt, ShowsAFewCompletionsAndCountsTheOthers) {
+    console::ScriptPrompt prompt;
+    prompt.setBackend(
+        {.evaluate = [](std::string_view,
+                        const console::ScriptTarget&) { return console::ScriptOutcome{.ok = true, .text = ""}; },
+         .complete =
+             [](std::string_view, const console::ScriptTarget&) {
+                 std::vector<std::string> words;
+                 for (int index = 0; index < 20; ++index) {
+                     words.push_back(std::format("word{:02}", index));
+                 }
+                 return words;
+             }});
+    std::size_t hidden = 0;
+
+    const std::vector<std::string> shown = prompt.suggestions("w", hidden);
+
+    EXPECT_EQ(shown.size(), console::ScriptPrompt::kMaxSuggestions);
+    EXPECT_EQ(hidden, 20U - console::ScriptPrompt::kMaxSuggestions);
 }

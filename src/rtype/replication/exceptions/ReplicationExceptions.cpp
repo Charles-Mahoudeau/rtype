@@ -22,4 +22,8 @@ InputLayoutException::~InputLayoutException() = default;
 ReplicationException::ReplicationException(const std::string& message) : std::runtime_error{message} {}
 
 ReplicationException::~ReplicationException() = default;
+
+PacketException::PacketException(const std::string& message) : std::runtime_error{message} {}
+
+PacketException::~PacketException() = default;
 }  // namespace rtype::replication::exceptions

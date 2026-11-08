@@ -167,12 +167,59 @@ TEST(SnapshotDecoder, RejectsBytesLeftOver) {
 
 TEST(SnapshotDecoder, RejectsReservedFlags) {
     Bytes bytes = encodeSample();
-    bytes[9] = std::byte{0x03};
+    bytes[9] = std::byte{0x05};
     EXPECT_FALSE(snapshot::decode(bytes, sizes()));
     bytes[9] = std::byte{0x80};
     EXPECT_FALSE(snapshot::decode(bytes, sizes()));
     bytes[9] = std::byte{0x00};
     EXPECT_TRUE(snapshot::decode(bytes, sizes()));
+}
+
+TEST(Snapshot, WritesAPartsIndexAndCountAfterTheFlags) {
+    const Snapshot part{.tick = 3, .flags = snapshot::kPart | snapshot::kComplete, .part = 1, .partCount = 4};
+
+    const Bytes bytes = snapshot::encode(part).value();
+
+    ASSERT_EQ(bytes.size(), snapshot::kEmptyPartSize);
+    EXPECT_EQ(snapshot::computeWireSize(part), snapshot::kEmptyPartSize);
+    EXPECT_EQ(bytes[9], std::byte{0x03});   // flags
+    EXPECT_EQ(bytes[10], std::byte{0x01});  // part
+    EXPECT_EQ(bytes[11], std::byte{0x04});  // count
+}
+
+TEST(Snapshot, APartRoundTrips) {
+    Snapshot value = makeSnapshot();
+    value.flags = snapshot::kPart;
+    value.part = 2;
+    value.partCount = 3;
+
+    const std::optional<Snapshot> decoded = snapshot::decode(snapshot::encode(value).value(), sizes());
+
+    ASSERT_TRUE(decoded);
+    EXPECT_EQ(*decoded, value);
+}
+
+TEST(Snapshot, EncodeRefusesAnInvalidPart) {
+    EXPECT_FALSE(snapshot::encode({.flags = snapshot::kPart, .part = 2, .partCount = 2}));
+    EXPECT_FALSE(snapshot::encode({.flags = snapshot::kPart, .part = 0, .partCount = 1}));
+    EXPECT_FALSE(snapshot::encode({.flags = 0x04}));
+    EXPECT_TRUE(snapshot::encode({.flags = snapshot::kPart, .part = 1, .partCount = 2}));
+}
+
+TEST(SnapshotDecoder, RejectsAnInvalidPart) {
+    Bytes bytes = snapshot::encode({.flags = snapshot::kPart, .part = 0, .partCount = 2}).value();
+    ASSERT_TRUE(snapshot::decode(bytes, sizes()));
+    bytes[10] = std::byte{2};  // the index is not below the count
+    EXPECT_FALSE(snapshot::decode(bytes, sizes()));
+    bytes[10] = std::byte{0};
+    bytes[11] = std::byte{1};  // a single part is not a part
+    EXPECT_FALSE(snapshot::decode(bytes, sizes()));
+}
+
+TEST(SnapshotDecoder, RejectsAPartWithoutItsIndexAndCount) {
+    Bytes bytes = snapshot::encode(Snapshot{}).value();
+    bytes[9] = std::byte{snapshot::kPart};  // the counts are read as the index and the count: two bytes are missing
+    EXPECT_FALSE(snapshot::decode(bytes, sizes()));
 }
 
 TEST(SnapshotDecoder, RejectsCountsLargerThanTheBytesAllow) {

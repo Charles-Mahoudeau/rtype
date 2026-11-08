@@ -49,6 +49,8 @@ class RTYPE_PLATFORM_GLFW_API GlfwPlatform final : public contract::platform::IP
 
     [[nodiscard]] glm::uvec2 getFramebufferSize() const override;
     [[nodiscard]] glm::uvec2 getWindowSize() const override;
+    /// @return glfwGetWindowContentScale(): under X11, read from the desktop's `Xft.dpi`.
+    [[nodiscard]] glm::vec2 getContentScale() const override;
     [[nodiscard]] const std::string& getTitle() const override;
     void setTitle(const std::string& title) override;
     void setSize(glm::uvec2 size) override;

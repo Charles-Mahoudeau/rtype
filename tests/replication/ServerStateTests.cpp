@@ -359,13 +359,84 @@ TEST_F(ServerStateTest, OtherMessagesAreIgnoredAndCounted) {
     join(kFirst);
     EXPECT_FALSE(_state->handle(
         network::server::ClientMessage{
-            .client = kFirst, .channel = network::Channel::kReliable, .payload = {std::byte{0x32}, std::byte{0x01}}},
+            .client = kFirst, .channel = network::Channel::kReliable, .payload = {std::byte{0x7F}, std::byte{0x01}}},
         _layout));
     EXPECT_FALSE(_state->handle(
         network::server::ClientMessage{.client = kFirst, .channel = network::Channel::kReliable, .payload = {}},
         _layout));
     EXPECT_EQ(_state->ignoredMessageCount(), 2U);
     EXPECT_EQ(_state->droppedInputCount(), 0U);
+}
+
+TEST_F(ServerStateTest, KeepsTheCustomPacketsOfAConnectedClientForTheGame) {
+    makeState();
+    join(kFirst);
+    const network::Bytes message{std::byte{0x32}, std::byte{0x01}};
+
+    EXPECT_FALSE(_state->handle(
+        network::server::ClientMessage{.client = kFirst, .channel = network::Channel::kReliable, .payload = message},
+        _layout));
+    EXPECT_FALSE(_state->handle(
+        network::server::ClientMessage{.client = 99, .channel = network::Channel::kReliable, .payload = message},
+        _layout));  // not connected: ignored
+
+    const auto packets = _state->takePackets();
+    ASSERT_EQ(packets.size(), 1U);
+    EXPECT_EQ(packets[0].client, kFirst);
+    EXPECT_EQ(packets[0].payload, message);
+    EXPECT_TRUE(_state->takePackets().empty());
+    EXPECT_EQ(_state->ignoredMessageCount(), 1U);
+}
+
+TEST_F(ServerStateTest, DropsTheCustomPacketsOfAFloodAndCountsThem) {
+    makeState();
+    join(kFirst);
+    const network::Bytes message{std::byte{0x32}, std::byte{0x01}};
+
+    for (std::size_t sent = 0; sent < ServerState::kMaxPendingPackets + 5; ++sent) {
+        static_cast<void>(_state->handle(
+            network::server::ClientMessage{
+                .client = kFirst, .channel = network::Channel::kReliable, .payload = message},
+            _layout));
+    }
+
+    EXPECT_EQ(_state->takePackets().size(), ServerState::kMaxPendingPackets);
+    EXPECT_EQ(_state->droppedPacketCount(), 5U);
+}
+
+TEST_F(ServerStateTest, AFloodingClientCannotTakeThePlaceOfAnotherClientsPackets) {
+    makeState();
+    join(kFirst);
+    join(kSecond);
+    const network::Bytes message{std::byte{0x32}, std::byte{0x01}};
+    const auto send = [&](const network::ClientId client) {
+        static_cast<void>(_state->handle(
+            network::server::ClientMessage{
+                .client = client, .channel = network::Channel::kReliable, .payload = message},
+            _layout));
+    };
+
+    for (std::size_t sent = 0; sent < ServerState::kMaxPendingPackets * 4; ++sent) {
+        send(kFirst);
+    }
+    send(kSecond);  // arrives after the flood
+
+    const auto packets = _state->takePackets();
+    EXPECT_EQ(std::ranges::count(packets, kFirst, &ServerState::RawPacket::client), ServerState::kMaxPendingPackets);
+    EXPECT_EQ(std::ranges::count(packets, kSecond, &ServerState::RawPacket::client), 1);
+    EXPECT_EQ(_state->droppedPacketCount(), ServerState::kMaxPendingPackets * 3);
+    // The room is given back once the packets are taken.
+    send(kFirst);
+    EXPECT_EQ(_state->takePackets().size(), 1U);
+}
+
+TEST_F(ServerStateTest, CountsThePacketsTheSchemasRefused) {
+    makeState();
+
+    _state->noteDroppedPacket();
+    _state->noteDroppedPacket();
+
+    EXPECT_EQ(_state->droppedPacketCount(), 2U);
 }
 
 TEST_F(ServerStateTest, AnInputFromAnUnknownClientIsIgnoredAndCounted) {
@@ -612,7 +683,7 @@ TEST_F(ServerStateTest, TheSnapshotIsCompleteWhenEverythingFits) {
     EXPECT_EQ(_state->incompleteSnapshotCount(), 0U);
 }
 
-TEST_F(ServerStateTest, TheSnapshotIsNotCompleteAboveTheBudget) {
+TEST_F(ServerStateTest, ASnapshotAboveTheBudgetIsSplitIntoParts) {
     makeState();
     join(kFirst);
     constexpr std::size_t kEntities = 200;  // 200 records of 19 bytes do not fit in 1000
@@ -622,18 +693,64 @@ TEST_F(ServerStateTest, TheSnapshotIsNotCompleteAboveTheBudget) {
 
     const auto commands = build(1);
 
+    ASSERT_GT(commands.size(), 1U);
+    EXPECT_EQ(_state->incompleteSnapshotCount(), 0U);
+    std::uint32_t next = 1;
+    for (std::size_t index = 0; index < commands.size(); ++index) {
+        EXPECT_EQ(commands[index].client, kFirst);
+        EXPECT_LE(commands[index].payload.size(), network::protocol::kMaxMessageSize);
+        const snapshot::Snapshot part = decode(commands[index]);
+        EXPECT_EQ(part.tick, 1U);
+        EXPECT_EQ(part.flags, snapshot::kPart | snapshot::kComplete);
+        EXPECT_EQ(part.part, index);
+        EXPECT_EQ(part.partCount, commands.size());
+        // Every entity comes once and whole, lowest ids first.
+        for (const snapshot::SpawnRecord& record : part.spawns) {
+            EXPECT_EQ(record.networkId, next++);
+            EXPECT_EQ(record.components.size(), 1U);
+        }
+    }
+    EXPECT_EQ(next, kEntities + 1);
+}
+
+TEST_F(ServerStateTest, EveryClientGetsEveryPart) {
+    makeState();
+    join(kSecond);
+    join(kFirst);
+    for (int index = 0; index < 200; ++index) {
+        static_cast<void>(spawnTracked(static_cast<float>(index)));
+    }
+
+    const auto commands = build(1);
+
+    ASSERT_EQ(commands.size() % 2, 0U);
+    const std::size_t parts = commands.size() / 2;
+    ASSERT_GT(parts, 1U);
+    for (std::size_t index = 0; index < commands.size(); ++index) {
+        EXPECT_EQ(commands[index].client, index < parts ? kFirst : kSecond);
+        EXPECT_EQ(commands[index].channel, network::Channel::kUnreliable);
+        EXPECT_EQ(decode(commands[index]).part, index % parts);
+    }
+}
+
+TEST_F(ServerStateTest, ARecordTooBigForAMessageIsLeftOutAndTheSnapshotIsNotComplete) {
+    using rtype::test::server::Cargo;
+    static_cast<void>(world().getComponents().registerType<Cargo>(
+        {.presence = Presence::kBoth, .replication = ReplicationMode::kEveryChange}));
+    makeState();
+    join(kFirst);
+    const Entity small = spawnTracked(1.F);
+    const Entity big = spawnTracked(2.F);
+    world().getComponents().add(big, Cargo{.items = std::vector<std::uint32_t>(400, 1U)});  // 1600 bytes
+
+    const auto commands = build(1);
+
     ASSERT_EQ(commands.size(), 1U);
-    EXPECT_LE(commands.front().payload.size(), network::protocol::kMaxMessageSize);
     const snapshot::Snapshot decoded = decode(commands.front());
     EXPECT_EQ(decoded.flags, 0U);
-    EXPECT_GT(decoded.spawns.size(), 0U);
-    EXPECT_LT(decoded.spawns.size(), kEntities);
+    ASSERT_EQ(decoded.spawns.size(), 1U);
+    EXPECT_EQ(decoded.spawns[0].networkId, *_state->findNetworkId(small));
     EXPECT_EQ(_state->incompleteSnapshotCount(), 1U);
-    // The entities that fit come whole, lowest ids first.
-    for (std::size_t index = 0; index < decoded.spawns.size(); ++index) {
-        EXPECT_EQ(decoded.spawns[index].networkId, index + 1);
-        EXPECT_EQ(decoded.spawns[index].components.size(), 1U);
-    }
 }
 
 TEST_F(ServerStateTest, SendsAComponentWithListsThatComesBackWhole) {

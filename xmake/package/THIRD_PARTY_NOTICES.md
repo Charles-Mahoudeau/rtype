@@ -12,6 +12,7 @@ bundled differently.
 | Vulkan Memory Allocator | GPU memory | MIT | https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator |
 | glslang | shader compiler | BSD-3-Clause, Apache-2.0 | https://github.com/KhronosGroup/glslang |
 | Dear ImGui | debug interface | MIT | https://github.com/ocornut/imgui |
+| JetBrains Mono Nerd Font | the editor's font (embedded in `aylo-editor` only) | OFL-1.1 | https://github.com/ryanoasis/nerd-fonts |
 | GLM | mathematics | MIT | https://github.com/g-truc/glm |
 | stb | image decoding | MIT or public domain | https://github.com/nothings/stb |
 | Asio | networking | BSL-1.0 | https://think-async.com |

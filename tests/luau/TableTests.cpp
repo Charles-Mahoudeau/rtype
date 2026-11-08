@@ -236,6 +236,20 @@ TEST(Table, IsFrozen) {
     EXPECT_TRUE(table.freeze());
 }
 
+TEST(Table, UnfreezeMakesTheTableWritableAgain) {
+    const auto runtime = makeRuntime();
+    Table table = runForTable(runtime, "return {a = 1}");
+    ASSERT_TRUE(table.freeze());
+    ASSERT_FALSE(table.set("a", Value{2.0}));
+
+    ASSERT_TRUE(table.unfreeze());
+
+    EXPECT_FALSE(*table.isFrozen());
+    EXPECT_TRUE(table.set("a", Value{2.0}));
+    EXPECT_DOUBLE_EQ(number(table, "a"), 2.0);
+    EXPECT_TRUE(table.unfreeze());  // idempotent
+}
+
 TEST(Table, FreezeRejectsWrites) {
     const auto runtime = makeRuntime();
     Table table = runForTable(runtime, "return {a = 1}");

@@ -270,6 +270,9 @@ replicated: Collider, RigidBody (+ the game's own components)     queries, moveA
   reads generically, as for any game component.
 - **Clients build bodies but never step.** `SyncBodies` runs on every side; in client mode the plugin registers the
   teleporting variant of `SyncToPhysics` under the same name, and `Step`, `SyncFromPhysics` and `Events` never run.
+  Jolt frees the broad phase nodes of removed bodies only when it steps, so the client variant ends with
+  `PhysicsWorld::releaseBroadPhase()` (`OptimizeBroadPhase`, only when bodies came or went); without it the node pool
+  runs out and Jolt aborts.
   The client's bodies follow the `Transform` replication (or the game) writes, so scene queries answer against the
   same scene as the server. The same name matters: the schedule refuses unordered systems touching the same data even
   in a mode where one of them never runs, so a new system would break every game system placed around

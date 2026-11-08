@@ -1,0 +1,10 @@
+[capsule format=1]
+
+# A laser: a dynamic body flying at its Velocity, without gravity, never tunnelling through a thin wall (layer 2). The
+# ship that fires it gives its position, its shooter, its direction and the ship it can hit (scripts/server/ships.luau).
+[node path="."]
+game.Laser = {}
+rtype.Transform = {}
+rtype.Collider = { size = (60, 12), layer = 2 }
+rtype.RigidBody = { gravityScale = 0, fixedRotation = true, continuousCollision = true }
+rtype.Velocity = {}

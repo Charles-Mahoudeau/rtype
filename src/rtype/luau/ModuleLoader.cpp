@@ -27,8 +27,10 @@
 #include "Result.hpp"
 #include "Runtime.hpp"
 #include "Script.hpp"
+#include "Value.hpp"
 #include "detail/RawState.hpp"
 #include "detail/RequireFunction.hpp"
+#include "detail/Stack.hpp"
 
 namespace rtype::luau {
 namespace {
@@ -120,6 +122,19 @@ bool ModuleLoader::isLoaded(const std::string_view key) const { return _cache.co
 const Ref* ModuleLoader::value(const std::string_view key) const {
     const auto found = _cache.find(key);
     return found == _cache.end() ? nullptr : &found->second.value;
+}
+
+Result<Value> ModuleLoader::valueOf(const std::string_view key) const {
+    const Ref* const ref = value(key);
+    if (ref == nullptr) {
+        return Failure{ErrorKind::kRuntime, std::format("module '{}' is not loaded", key)};
+    }
+    lua_State* const state = detail::rawState(_runtime);
+    if (lua_checkstack(state, 2) == 0) {
+        return Failure{ErrorKind::kStackOverflow, "Lua stack overflow"};
+    }
+    ref->push(state);
+    return detail::popValue(state);
 }
 
 std::vector<std::string> ModuleLoader::loadedKeys() const {

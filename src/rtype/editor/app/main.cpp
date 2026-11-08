@@ -30,6 +30,7 @@
 #include "editor/EditorSession.hpp"
 #include "editor/EditorSettings.hpp"
 #include "editor/EditorState.hpp"
+#include "editor/console/ScriptPrompt.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/engine/Engine.hpp"
@@ -95,6 +96,21 @@ int main(const int argc, char** argv) {
                 },
             .debug = true,
         }};
+        // The Console's input line runs Luau in the scripts of the App the engine has now (the editor knows no Luau).
+        session->prompt.setBackend({
+            .evaluate =
+                [&engine](const std::string_view line, const rtype::editor::console::ScriptTarget& target) {
+                    auto evaluation = engine.evaluateScript(line, {.self = target.self, .writable = target.writable});
+                    return rtype::editor::console::ScriptOutcome{
+                        .ok = evaluation.ok,
+                        .text = std::move(evaluation.text),
+                    };
+                },
+            .complete =
+                [&engine](const std::string_view word, const rtype::editor::console::ScriptTarget& target) {
+                    return engine.completeScript(word, {.self = target.self, .writable = target.writable});
+                },
+        });
         // Play online rebuilds the game as a client of the server, and Stop as standalone again.
         session->online.setRebuild(
             [&engine](const rtype::ecs::RunMode mode, std::vector<std::string> flags) {

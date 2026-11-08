@@ -319,6 +319,17 @@ Result<void> Table::freeze() {
     return {};
 }
 
+Result<void> Table::unfreeze() {
+    lua_State* const target{state()};
+    if (!reserveStack(target)) {
+        return stackOverflow();
+    }
+    const StackGuard guard{target};
+    _ref->push(target);
+    lua_setreadonly(target, -1, 0);
+    return {};
+}
+
 Result<bool> Table::isFrozen() const {
     lua_State* const target{state()};
     if (!reserveStack(target)) {

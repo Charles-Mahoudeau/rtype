@@ -20,6 +20,7 @@
 #include "ModuleSource.hpp"
 #include "Ref.hpp"
 #include "Result.hpp"
+#include "Value.hpp"
 
 struct lua_State;
 
@@ -94,6 +95,10 @@ class RTYPE_LUAU_API ModuleLoader {
     /// @return The value (a reference to nil for a module returning nothing), or nullptr if not loaded. Valid until
     ///         the cache changes.
     [[nodiscard]] const Ref* value(std::string_view key) const;
+
+    /// @brief Reads the cached value of a module as a Value (a handle for a table).
+    /// @return The value, or a `kRuntime` failure if the module is not loaded, or the failure of the read.
+    [[nodiscard]] Result<Value> valueOf(std::string_view key) const;
 
     /// @brief Lists the keys in the cache, sorted.
     [[nodiscard]] std::vector<std::string> loadedKeys() const;

@@ -1,0 +1,8 @@
+[capsule format=1]
+
+# The right player's ship (player 1, firing left): layer 8 (the right ship), colliding with the obstacles and the lasers.
+[node path="."]
+game.Ship = { position = (720, 300), player = 1 }
+rtype.Transform = { position = (720, 300) }
+rtype.Collider = { size = (48, 48), layer = 8, mask = 3 }
+rtype.RigidBody = { type = 1 }

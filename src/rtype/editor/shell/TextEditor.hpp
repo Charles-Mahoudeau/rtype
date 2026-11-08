@@ -15,8 +15,12 @@
 
 namespace rtype::editor::shell {
 
+/// @return Whether the command @p editor can run: its program is on the PATH (or exists, given as a path). Always true
+/// for macOS's `open -a` and on Windows.
+[[nodiscard]] RTYPE_EDITOR_API bool isCommandAvailable(std::string_view editor);
+
 /// @return The command that opens a file in a text editor by default: Visual Studio Code, through `open` on macOS (it
-/// needs no `code` command installed) and its `code` command elsewhere.
+/// needs no `code` command installed) and its `code` command elsewhere, else `codium`, else `xdg-open`.
 [[nodiscard]] RTYPE_EDITOR_API std::string defaultTextEditor();
 
 /// @return The shell command that runs @p editor (a command, its arguments included) on @p file, in the background,
@@ -24,7 +28,8 @@ namespace rtype::editor::shell {
 [[nodiscard]] RTYPE_EDITOR_API std::string buildOpenCommand(std::string_view editor, const std::filesystem::path& file);
 
 /// @brief Opens @p file in @p editor (buildOpenCommand()).
-/// @return Whether the shell could run the command; the editor itself may still fail, out of sight.
+/// @return Whether the command exists (isCommandAvailable()) and the shell could run it; the editor itself may still
+/// fail, out of sight.
 RTYPE_EDITOR_API bool openInTextEditor(std::string_view editor, const std::filesystem::path& file);
 
 }  // namespace rtype::editor::shell
