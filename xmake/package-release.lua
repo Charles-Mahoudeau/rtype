@@ -166,6 +166,62 @@ task("package-release")
             end
         end
 
+        -- macOS has no Vulkan loader with the system: the renderer links Homebrew's (brew install molten-vk
+        -- vulkan-loader), which the zip carries in `lib/` with MoltenVK, its driver. The loader looks for drivers in the
+        -- resources of the main bundle, which for an executable outside a bundle is its own folder: the manifest of
+        -- MoltenVK is `runtime/vulkan/icd.d/`, its library path relative to it. Every binary then names the bundled
+        -- libraries by @rpath, and loses its search paths outside the folder (the renderer's /opt/homebrew/lib).
+        if plat == "macosx" then
+            local function brewprefix(formula)
+                local prefix = try { function () return os.iorunv("brew", {"--prefix", formula}):trim() end }
+                if not prefix or not os.isdir(prefix) then
+                    raise("%s not found: brew install molten-vk vulkan-loader", formula)
+                end
+                return prefix
+            end
+            local libdir = path.join(runtime, "lib")
+            local bundled = {}
+            local function bundle(from, filename)
+                local to = path.join(libdir, filename)
+                -- os.cp copies the file a link points to, as a real file.
+                os.cp(from, to)
+                os.vrunv("chmod", {"755", to})
+                os.vrunv("install_name_tool", {"-id", "@rpath/" .. filename, to})
+                bundled[filename] = true
+            end
+            bundle(path.join(brewprefix("vulkan-loader"), "lib", "libvulkan.1.dylib"), "libvulkan.1.dylib")
+            bundle(path.join(brewprefix("molten-vk"), "lib", "libMoltenVK.dylib"), "libMoltenVK.dylib")
+            local icddir = path.join(runtime, "vulkan", "icd.d")
+            os.mkdir(icddir)
+            json.savefile(path.join(icddir, "MoltenVK_icd.json"), {
+                file_format_version = "1.0.0",
+                ICD = {library_path = "../../lib/libMoltenVK.dylib", api_version = "1.4.0", is_portability_driver = true},
+            })
+
+            local binaries = table.join(os.files(path.join(runtime, "**.dylib")),
+                                        {path.join(runtime, "aylo-runtime"), path.join(stage, "tools", "aylo-sign")})
+            for _, file in ipairs(binaries) do
+                local args = {}
+                -- otool -L: the first line is the file, then one dependency per line (the first of a library is its id).
+                for line in os.iorunv("otool", {"-L", file}):gmatch("[^\n]+") do
+                    local dependency = line:match("^%s+(%S+) %(compatibility")
+                    if dependency and not dependency:startswith("@") and bundled[path.filename(dependency)] then
+                        table.join2(args, {"-change", dependency, "@rpath/" .. path.filename(dependency)})
+                    end
+                end
+                -- otool -l: an LC_RPATH command is followed by its `path <entry> (offset n)` line.
+                for entry in os.iorunv("otool", {"-l", file}):gmatch("\n%s+path (%S+) %(offset") do
+                    if not entry:startswith("@") then
+                        table.join2(args, {"-delete_rpath", entry})
+                    end
+                end
+                if #args > 0 then
+                    table.insert(args, file)
+                    os.vrunv("install_name_tool", args)
+                end
+            end
+        end
+
         -- Licenses of what the runtime carries.
         local notices = path.join(rootdir, "xmake", "package", "THIRD_PARTY_NOTICES.md")
         os.mkdir(path.join(runtime, "licenses"))
