@@ -24,6 +24,11 @@
 #include "rtype/ecs/schedule/RunMode.hpp"
 #include "rtype/ecs/time/FixedTimestep.hpp"
 #include "rtype/ecs/time/TimePlugin.hpp"
+#include "rtype/replication/component/Owner.hpp"
+#include "rtype/replication/component/PlayerInput.hpp"
+#include "rtype/replication/input/InputKind.hpp"
+#include "rtype/replication/input/InputLayout.hpp"
+#include "rtype/replication/standalone/LocalSession.hpp"
 #include "rtype/replication/standalone/StandalonePlugin.hpp"
 #include "rtype/scripting/plugin/ScriptingPlugin.hpp"
 
@@ -38,6 +43,11 @@ RTYPE_ECS_EVENT(Checked, "test.standalone.Checked", what);
 namespace {
 using rtype::ecs::App;
 using rtype::ecs::RunMode;
+using rtype::replication::component::Owner;
+using rtype::replication::component::PlayerInput;
+using rtype::replication::input::InputKind;
+using rtype::replication::input::InputLayout;
+using rtype::replication::standalone::LocalSession;
 using rtype::replication::standalone::StandalonePlugin;
 using rtype::test::script_standalone::Checked;
 
@@ -95,6 +105,18 @@ engine.ecs.system("t.Both", {
     end,
 })
 
+engine.ecs.system("t.Input", {
+    phase = "Update", side = "server", query = { read = { "net.Owner" } }, after = { "t.Both" },
+    calls = { "rtype.replication.readInput" },
+    events = { send = { "test.standalone.Checked" } },
+    run = function(ctx)
+        for entity, owner in ctx.query do
+            local state = ctx.call("rtype.replication.readInput", { entity = entity, action = "fire" })
+            ctx.events.send("test.standalone.Checked", {
+                what = "input:" .. owner.client .. ":" .. tostring(state.held) .. ":" .. tostring(state.pressed) })
+        end
+    end,
+})
 )";
 
 std::string uniqueSuffix() {
@@ -112,6 +134,7 @@ class StandaloneWorld {
         _app.getWorld().getEvents().registerType<Checked>();
         _app.addPlugin(rtype::ecs::TimePlugin::manual(kFrame, rtype::ecs::FixedTimestep{kTickRate, 5}));
         _app.addPlugin(StandalonePlugin{});
+        _app.getWorld().getResources().getMut<InputLayout>()->add("fire", InputKind::kButton);
         _app.addPlugin(rtype::scripting::ScriptingPlugin{
             {.directory = _directory, .options = {.isClient = true, .isServer = true}}});
     }
@@ -172,6 +195,17 @@ TEST(ScriptStandalone, PacketsLoopBackToTheSideTheyTravelTo) {
     EXPECT_TRUE(has(third, "client:t.Down:0"));
     EXPECT_TRUE(has(third, "both:t.Down:0"));
     EXPECT_FALSE(std::ranges::any_of(third, [](const std::string& what) { return what.starts_with("server:t.Down"); }));
+}
+
+TEST(ScriptStandalone, ReadInputGivesTheLocalPlayersInput) {
+    StandaloneWorld world{kScript};
+    world.app().getWorld().spawn(Owner{.client = 1}, PlayerInput{});
+    PlayerInput held;
+    world.app().getWorld().getResources().get<InputLayout>()->setButton(held, "fire", true);
+    world.app().getWorld().getResources().getMut<LocalSession>()->setInput(held);
+
+    EXPECT_TRUE(has(world.frame(), "input:1:true:true"));
+    EXPECT_TRUE(has(world.frame(), "input:1:true:false"));
 }
 
 TEST(ScriptStandalone, ABadPacketIsAScriptErrorNotACrash) {
