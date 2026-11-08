@@ -20,9 +20,9 @@ directory when the program starts.
 ## The command line is yours
 
 `aylo-runtime --version` prints the version of the engine, the commit it was built from and the library version, and
-stops: quote it in a bug report. The runtime keeps `--server` (it selects the server side) and `--version`, and the
+stops: quote it in a bug report. The runtime keeps `--server` (it selects the server side), `--ticks` (see below) and `--version`, and the
 engine keeps the game folder, which must come first. Every other `--name value` (or `--name=value`, or a bare
-`--name`) is given to `project.luau` as `engine.args`, so your game decides its own options, and `--server` is not one of them:
+`--name`) is given to `project.luau` as `engine.args`, so your game decides its own options, and `--server` and `--ticks` are not among them:
 
 ```luau
 engine.settings.network.port = engine.args.port or 4242
@@ -108,3 +108,35 @@ game like the one above, sets nothing: the entry is `scripts/main.luau`. See
 share data.
 
 When your game is ready, [Shipping your game](shipping.md) explains what to give your players.
+
+## Stopping the game and running a test
+
+A script stops the process with the event `rtype.AppExit`. The game finishes the frame it was sent in, and `aylo-runtime`
+returns `code` as its exit code (`0` is success; send another number to fail):
+
+```luau
+engine.ecs.system("game.Quit", {
+	phase = "Update",
+	query = {},
+	events = { send = { "rtype.AppExit" } },
+	run = function(ctx)
+		ctx.events.send("rtype.AppExit", { code = 1 })
+	end,
+})
+```
+
+If several are sent, the first one read gives the code. `--ticks <n>` runs at most `n` frames and then exits with `0`,
+unless an `rtype.AppExit` came first: with it a test game checks its rules in a system and sends `AppExit` with a
+non-zero code when one fails, so a CI job just checks the exit status:
+
+```sh
+./aylo-runtime --server --ticks 600 my_game/tests
+```
+
+The limit counts frames, not `FixedUpdate` steps: a frame runs `FixedUpdate` zero, one or several times depending on how
+long it took, so `--ticks 600` does not mean 600 fixed steps. To check something after a given amount of simulated time,
+count it in your own system (for example from the time the fixed step gives you) and send `AppExit` then.
+
+`--ticks` takes a whole number and may be given only once; a missing, negative, non-numeric or too large value, or a
+second `--ticks`, stops the program with the exit code `84` before the game starts. With hot reload on, a rebuild that
+fails during a `--ticks` run also ends it with `84`, instead of waiting for you to fix the files as a normal run does.

@@ -191,7 +191,9 @@ run between two frames, on the main thread, which is the renderer's.
   If the build with the new setup fails, the engine logs why and builds again with the setup it had, so the program
   keeps a game whatever the new mode needs (assets, a resolvable host).
 - **Errors.** With hot reload on, a failing rebuild is logged and the engine waits, with no `App`, for the next change of
-  the game files to try again. With it off, `run()` throws.
+  the game files to try again. With it off, `run()` throws. A run with a frame limit (`run(maxFrames)`,
+  `aylo-runtime --ticks`; it counts frames, not fixed ticks) never waits: a failed rebuild ends it with
+  `Engine::kBuildFailedCode`.
 - **Client and server.** Each process watches the same folder and reloads itself. A layout change makes both rebuild; a
   side that differs from the other is refused by the manifest check.
 

@@ -30,7 +30,10 @@
 #include "rtype/ecs/world/World.hpp"
 
 namespace rtype::ecs {
-App::App(RunMode mode) : _schedules{_world, mode} {}
+App::App(RunMode mode) : _schedules{_world, mode} {
+    // Registered up front, so a script can name "rtype.AppExit" in its events before any system sends one.
+    static_cast<void>(_world.getEvents().registerType<AppExit>());
+}
 
 App::~App() = default;  // defined here, where Plugin is complete, for the unique_ptrs to destroy it
 

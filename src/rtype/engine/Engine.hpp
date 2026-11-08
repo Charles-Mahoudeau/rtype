@@ -8,6 +8,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -74,7 +75,8 @@ class RTYPE_ENGINE_API Engine {
     static constexpr std::string_view kPluginsSetting = "plugins";  ///< The setting naming the plugins to add.
     static constexpr std::string_view kDefaultHost = "127.0.0.1";   ///< The server a client joins by default.
     static constexpr std::string_view kHotReloadSetting =
-        "hotReload";  ///< The setting that turns hot reload on or off.
+        "hotReload";                             ///< The setting that turns hot reload on or off.
+    static constexpr int kBuildFailedCode = 84;  ///< What run() returns when a run with a frame limit cannot rebuild.
 
     /// @brief Reads the command line and the project settings, then builds the App.
     /// @param config What to run; kept to build the App again on a reload.
@@ -123,9 +125,12 @@ class RTYPE_ENGINE_API Engine {
 
     /// @brief Runs frames until a system sends AppExit, building a new App between two frames when a reload was
     /// requested.
-    /// @return The code of the first AppExit read.
+    /// @param maxFrames When set, stops after that many frames if no AppExit came (a test run): the code is then 0.
+    /// It counts frames, not fixed-timestep ticks: a frame runs `FixedUpdate` zero or several times. A hot reload
+    /// whose build fails ends such a run with kBuildFailedCode instead of waiting for the files to change.
+    /// @return The code of the first AppExit read, or kBuildFailedCode.
     /// @throws std::exception What a frame throws, or what a reload throws (the engine then has no App).
-    int run();
+    int run(std::optional<std::size_t> maxFrames = std::nullopt);
 
   private:
     /// @brief The mode and command line a build runs with.

@@ -7,6 +7,9 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
+#include <limits>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -15,6 +18,7 @@
 
 namespace {
 using rtype::engine::CommandLine;
+using rtype::engine::takeFrameLimit;
 using rtype::engine::exceptions::RuntimeError;
 
 /// @return The flags of @p args.
@@ -93,5 +97,60 @@ TEST(CommandLine, KeepsEverythingElseAsAString) {
     for (const std::string text :
          {"", "localhost", "10.0.0.2", "1e", "-", ".", "+", "inf", "nan", "0x10", "12abc", " 1", "1 "}) {
         EXPECT_EQ(CommandLine::toValue(text), CommandLine::Value{text}) << text;
+    }
+}
+
+TEST(FrameLimit, IsAbsentWithoutTheFlag) {
+    std::vector<std::string> args{"my_game", "--port", "1"};
+
+    EXPECT_FALSE(takeFrameLimit(args));
+    EXPECT_EQ(args, (std::vector<std::string>{"my_game", "--port", "1"}));
+}
+
+TEST(FrameLimit, TakesTheFlagAndItsValueOnly) {
+    std::vector<std::string> args{"--server", "--ticks", "600", "my_game", "--port", "1"};
+
+    EXPECT_EQ(takeFrameLimit(args), std::optional<std::size_t>{600});
+    EXPECT_EQ(args, (std::vector<std::string>{"--server", "my_game", "--port", "1"}));
+}
+
+TEST(FrameLimit, AcceptsZeroAndTheLargestCount) {
+    std::vector<std::string> zero{"--ticks", "0"};
+    std::vector<std::string> largest{"--ticks", std::to_string(std::numeric_limits<std::size_t>::max())};
+
+    EXPECT_EQ(takeFrameLimit(zero), std::optional<std::size_t>{0});
+    EXPECT_EQ(takeFrameLimit(largest), std::optional<std::size_t>{std::numeric_limits<std::size_t>::max()});
+}
+
+TEST(FrameLimit, RejectsACountThatDoesNotFitASize) {
+    std::vector<std::string> args{"--ticks", "999999999999999999999999999999"};
+
+    EXPECT_THROW(static_cast<void>(takeFrameLimit(args)), RuntimeError);
+}
+
+TEST(FrameLimit, RejectsAMissingOrInvalidValue) {
+    for (const std::vector<std::string>& bad : std::vector<std::vector<std::string>>{{"--ticks"},
+                                                                                     {"--ticks", "abc"},
+                                                                                     {"--ticks", "-1"},
+                                                                                     {"--ticks", "+1"},
+                                                                                     {"--ticks", "12x"},
+                                                                                     {"--ticks", ""},
+                                                                                     {"--ticks", " 1"},
+                                                                                     {"--ticks", "--server"},
+                                                                                     {"--ticks", "1.5"}}) {
+        std::vector<std::string> args = bad;
+
+        EXPECT_THROW(static_cast<void>(takeFrameLimit(args)), RuntimeError) << bad.back();
+    }
+}
+
+TEST(FrameLimit, RejectsTheFlagGivenTwice) {
+    for (const std::vector<std::string>& bad :
+         std::vector<std::vector<std::string>>{{"--server", "--ticks", "2", "--ticks", "4", "my_game"},
+                                               {"--ticks", "2", "my_game", "--ticks", "4"},
+                                               {"--ticks", "2", "--ticks", "2"}}) {
+        std::vector<std::string> args = bad;
+
+        EXPECT_THROW(static_cast<void>(takeFrameLimit(args)), RuntimeError);
     }
 }

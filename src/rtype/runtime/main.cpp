@@ -8,13 +8,14 @@
 // aylo-runtime: runs a game in `game/` (or the <directory> given first), with the plugins and backends its project.luau
 // names, loaded from their libraries. It runs the client side by default, and the headless server side with `--server`.
 // Every other flag goes to project.luau as `engine.args`. The editor is another program, `aylo-editor`.
-//   aylo-runtime [--server] [<directory>] [--<flag> <value>]...
+//   aylo-runtime [--server] [--ticks <n>] [<directory>] [--<flag> <value>]...
 //   aylo-runtime --version
 
 #include <algorithm>
 #include <cstddef>
 #include <exception>
 #include <iostream>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -24,6 +25,7 @@
 #include "core/library/LibraryEntry.hpp"
 #include "core/version/Version.hpp"
 #include "rtype/ecs/schedule/RunMode.hpp"
+#include "rtype/engine/CommandLine.hpp"
 #include "rtype/engine/Engine.hpp"
 
 namespace {
@@ -77,12 +79,13 @@ int main(const int argc, char** argv) {
             return 0;
         }
         const bool server = takeServerFlag(args);
+        const std::optional<std::size_t> ticks = rtype::engine::takeFrameLimit(args);
         rtype::engine::Engine engine{{
             .mode = server ? rtype::ecs::RunMode::kServer : rtype::ecs::RunMode::kClient,
             .args = std::move(args),
         }};
 
-        return engine.run();
+        return engine.run(ticks);
     } catch (const std::exception& error) {
         std::cerr << "Error: " << error.what() << '\n';
         return kErrorCode;
