@@ -21,7 +21,7 @@ for _, kind in kinds do
 	totalWeight += kind.weight
 end
 
-local spawnDelayMin, spawnDelayMax = 1.2, 2.5 -- seconds between two arrivals
+local spawnDelayMin, spawnDelayMax = 0.96, 2 -- seconds between two arrivals
 local longestTiles = 7 -- the limousine: a road's entrance is free when one fits there
 local spawnY = Game.viewHeight + longestTiles / 2 * Game.tile -- out of view, the longest one included
 local trafficMask = bit32.bor(Game.vehicleLayer, Game.cyclistLayer) -- what the traffic looks for in a road
