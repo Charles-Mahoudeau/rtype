@@ -32,8 +32,8 @@ and the clients, no build needed.
 - **The match** waits for 2 riders, races for 2 minutes, shows its results for 10 seconds, then waits for the next one.
   A player who joins during a race rides at once, from 0.
 - **The traffic** (cars, electric cars, vans, trucks, buses, limousines, cyclists) comes from behind, each kind at its
-  own speed, and slows down behind slower traffic. A vehicle or a cyclist that runs over a rider hits it, again and
-  again while the rider stays inside it.
+  own speed (the cyclists fastest), and slows down behind slower traffic. A vehicle or a cyclist that runs over a
+  rider hits it, again and again while the rider stays inside it.
 - **A shot** is an instant beam, every 0.25 seconds while an arrow is held. It stops at the first thing it meets: a
   rider is hit, a cyclist is knocked off the road, a vehicle just stops it.
 - **A hit rider** becomes a ghost for 2 seconds: nothing hits it, and it cannot shoot.
@@ -100,6 +100,6 @@ not run it over real art.
 
 The server owns the gameplay and the clients draw it. A snapshot holds about 9 entities, sent whole, so the game keeps
 its replicated entities under that (`Game.maxReplicated`): a shot is the shooter's `game.Shot`, not an entity, and a
-vehicle sends its position twice a second and its speed when it changes, the clients moving it in between. The clients
-give each vehicle's body more room in the physics (`physics.maxBodies`), as they never step their world (engine
-issue).
+vehicle sends its position every 0.3 seconds and its speed when it changes, the clients moving it in between. The
+clients give each vehicle's body more room in the physics (`physics.maxBodies`), as they never step their world
+(engine issue).
