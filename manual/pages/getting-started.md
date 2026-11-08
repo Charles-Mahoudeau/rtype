@@ -132,3 +132,11 @@ non-zero code when one fails, so a CI job just checks the exit status:
 ```sh
 ./aylo-runtime --server --ticks 600 my_game/tests
 ```
+
+The limit counts frames, not `FixedUpdate` steps: a frame runs `FixedUpdate` zero, one or several times depending on how
+long it took, so `--ticks 600` does not mean 600 fixed steps. To check something after a given amount of simulated time,
+count it in your own system (for example from the time the fixed step gives you) and send `AppExit` then.
+
+`--ticks` takes a whole number and may be given only once; a missing, negative, non-numeric or too large value, or a
+second `--ticks`, stops the program with the exit code `84` before the game starts. With hot reload on, a rebuild that
+fails during a `--ticks` run also ends it with `84`, instead of waiting for you to fix the files as a normal run does.
