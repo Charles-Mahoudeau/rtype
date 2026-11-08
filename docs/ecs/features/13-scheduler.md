@@ -187,6 +187,10 @@ Access conflicts: one system writes a type the other reads or writes (two reader
 system is checked whatever the run mode, so a schedule that builds on the server also builds on clients
 (standalone runs both kinds together).
 
+In a `kStandalone` schedule, a server-side system and a client-side system that conflict are not an error: the one world
+is the server's and the client's, so the scheduler orders the server's system first, as a client sees what the server did
+over the network (unless the game ordered them itself). Pairs on the same side, or on both, still need an order.
+
 ### Running a phase
 
 `Schedule::run()` (or `Schedules::run(phase)`) runs the phase's systems in order, skipping those whose [side](12-systems.md#the-side-rule)
