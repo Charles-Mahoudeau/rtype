@@ -192,6 +192,7 @@ void ClientState::setTimeSource(TimeSource source) { _time = std::move(source); 
 void ClientState::connect() {
     _client = std::make_unique<network::client::NetClient>(_server, _settings);
     _connection = ConnectionStatus::kConnecting;
+    _serverReady = false;
     _client->connect(_time());
 }
 
@@ -214,6 +215,7 @@ void ClientState::handle(const network::client::ClientEvent& clientEvent, input:
     }
     if (const auto* left = std::get_if<network::client::Disconnected>(&clientEvent)) {
         _connection = ConnectionStatus::kDisconnected;
+        _serverReady = false;
         _disconnectReason = left->reason;
         return;
     }
@@ -229,7 +231,18 @@ void ClientState::handle(const network::client::ClientEvent& clientEvent, input:
     }
     const auto type = static_cast<std::uint8_t>(message.payload.front());
     if (type == static_cast<std::uint8_t>(MessageType::kSnapshot)) {
+        // The server sends snapshots to the clients that sent their `Ready` only.
+        _serverReady = _serverReady || _manifestStatus == ManifestStatus::kAccepted;
         static_cast<void>(applySnapshot(message.payload, commands));
+        return;
+    }
+    if (type == static_cast<std::uint8_t>(MessageType::kCustomPacket)) {
+        if (_manifestStatus != ManifestStatus::kAccepted || _packets.size() >= kMaxPendingPackets) {
+            ++_dropped;
+        } else {
+            _serverReady = true;  // it sends packets to the clients that are ready only
+            _packets.push_back(message.payload);
+        }
         return;
     }
     const bool isManifest = type >= static_cast<std::uint8_t>(MessageType::kManifestComponent) &&
@@ -433,5 +446,21 @@ void ClientState::sendInput(const input::InputLayout& inputs) {
         static_cast<void>(_client->send(network::Channel::kUnreliable, *message));
         _client->flush(_time());
     }
+}
+
+void ClientState::noteDroppedPacket() noexcept { ++_dropped; }
+
+std::vector<network::Bytes> ClientState::takePackets() { return std::exchange(_packets, {}); }
+
+bool ClientState::sendPacket(const network::Channel channel, const std::span<const std::byte> payload) {
+    if (!_client || _connection != ConnectionStatus::kConnected || _manifestStatus != ManifestStatus::kAccepted) {
+        return false;
+    }
+    if (channel != network::Channel::kReliable && !_serverReady) {
+        return false;
+    }
+    const bool queued = _client->send(channel, payload);
+    _client->flush(_time());
+    return queued;
 }
 }  // namespace rtype::replication::client

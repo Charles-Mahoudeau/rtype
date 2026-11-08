@@ -64,7 +64,9 @@ class RTYPE_NETWORK_API ServerCore {
 
     /// @brief Applies a command of the game; a command for a client that is gone is ignored.
     /// @param command The command.
-    void execute(ServerCommand command);
+    /// @return For a `SendMessage`, whether at least one ready client queued it (false if every queue refused it or
+    /// no client was ready); for a `KickClient`, whether the client existed.
+    bool execute(ServerCommand command);
 
     /// @brief Removes the expired challenges, then closes the silent and the overflowed sessions.
     /// @param now The current time.

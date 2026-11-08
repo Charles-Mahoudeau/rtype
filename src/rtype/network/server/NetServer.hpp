@@ -62,7 +62,9 @@ class RTYPE_NETWORK_API NetServer {
 
     /// @brief Applies a command of the game; its datagrams leave at the next `poll` or `flush`.
     /// @param command The command.
-    void execute(ServerCommand command);
+    /// @return For a `SendMessage`, whether at least one ready client queued it; for a `KickClient`, whether the
+    /// client existed.
+    bool execute(ServerCommand command);
 
     /// @brief Sends now what the commands queued, instead of waiting for the next `poll`.
     /// @param now The current time.

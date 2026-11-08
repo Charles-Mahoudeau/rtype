@@ -18,6 +18,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <unordered_map>
 #include <utility>
@@ -48,6 +49,8 @@
 #include "rtype/replication/exceptions/ReplicationExceptions.hpp"
 #include "rtype/replication/input/InputLayout.hpp"
 #include "rtype/replication/input/InputMessage.hpp"
+#include "rtype/replication/packet/PacketCodec.hpp"
+#include "rtype/replication/packet/PacketSchema.hpp"
 #include "rtype/replication/query/ReplicatedQueries.hpp"
 #include "rtype/replication/serialization/EntityMapper.hpp"
 #include "rtype/replication/serialization/FieldSerializer.hpp"
@@ -213,7 +216,9 @@ void ServerState::start(input::InputLayout& inputs) {
     }
 }
 
-std::vector<ServerNotification> ServerState::receive(const input::InputLayout& inputs) {
+std::vector<ServerNotification> ServerState::receive(const input::InputLayout& inputs,
+                                                     const packet::PacketRegistry* packets) {
+    _packetRegistry = packets;
     std::vector<ServerNotification> notifications;
     _server->poll(_time());
     if (_admin) {
@@ -228,6 +233,7 @@ std::vector<ServerNotification> ServerState::receive(const input::InputLayout& i
             notifications.push_back(*notification);
         }
     }
+    _packetRegistry = nullptr;
     return notifications;
 }
 
@@ -245,6 +251,21 @@ std::optional<ServerNotification> ServerState::handle(const network::server::Ser
     }
     const auto& message = std::get<network::server::ClientMessage>(serverEvent);
     const auto client = _clients.find(message.client);
+    if (client != _clients.end() && !message.payload.empty() &&
+        message.payload.front() == static_cast<std::byte>(MessageType::kCustomPacket)) {
+        // Malformed packets are refused here, before they take a place in the queue (a client's own quota).
+        const bool malformed = _packetRegistry != nullptr &&
+                               !packet::isAcceptedPacket(*_packetRegistry, packet::PacketDirection::kToServer,
+                                                         message.channel, message.payload);
+        if (malformed || client->second.pendingPackets >= kMaxPendingPackets) {
+            ++_droppedPackets;
+        } else {
+            ++client->second.pendingPackets;
+            _packets.push_back(
+                RawPacket{.client = message.client, .channel = message.channel, .payload = message.payload});
+        }
+        return std::nullopt;
+    }
     if (client == _clients.end() || message.payload.empty() ||
         message.payload.front() != static_cast<std::byte>(MessageType::kInput)) {
         ++_ignoredMessages;
@@ -261,6 +282,32 @@ std::optional<ServerNotification> ServerState::handle(const network::server::Ser
     client->second.lastAppliedSnapshot = std::max(client->second.lastAppliedSnapshot, decoded->lastAppliedSnapshot);
     return std::nullopt;
 }
+
+std::vector<ServerState::RawPacket> ServerState::takePackets() {
+    for (auto& record : _clients | std::views::values) {
+        record.pendingPackets = 0;
+    }
+    return std::exchange(_packets, {});
+}
+
+bool ServerState::sendPacket(const network::ClientId client, const network::Channel channel, network::Bytes payload) {
+    if (_server == nullptr || (client != 0 && !_clients.contains(client)) || _clients.empty()) {
+        return false;
+    }
+    const bool queued = _server->execute(network::server::SendMessage{
+        .client = client == 0 ? network::server::kAllClients : client,
+        .channel = channel,
+        .payload = std::move(payload),
+    });
+    if (queued) {
+        _server->flush(_time());
+    }
+    return queued;
+}
+
+void ServerState::noteDroppedPacket() noexcept { ++_droppedPackets; }
+
+std::size_t ServerState::droppedPacketCount() const noexcept { return _droppedPackets; }
 
 void ServerState::applyInput(const network::ClientId client, component::PlayerInput& input) {
     const auto found = _clients.find(client);
