@@ -190,8 +190,7 @@ class RTYPE_LUAU_API Table {
     /// @brief Makes the table read-only, like Luau's `table.freeze`.
     ///
     /// Shallow: nested tables stay writable. A write from a script raises a Luau error; `set`, `setAt`,
-    /// `setMetatable` and `clearMetatable` from C++ return a `kRuntime` failure. Freezing is irreversible and
-    /// idempotent.
+    /// `setMetatable` and `clearMetatable` from C++ return a `kRuntime` failure. Idempotent; see `unfreeze()`.
     ///
     /// Exception: a script assigning an absent key of a frozen table with a `__newindex` metamethod calls that
     /// handler without a read-only error; the handler can return normally or have side effects, the table itself
@@ -199,6 +198,15 @@ class RTYPE_LUAU_API Table {
     /// @return Nothing on success, or a Failure of kind `kStackOverflow` if the stack cannot grow.
     /// @throws exceptions::InvalidRef If the handle was moved from.
     [[nodiscard]] Result<void> freeze();
+
+    /// @brief Makes the table writable again, whoever froze it.
+    ///
+    /// Shallow, like `freeze()`. A debug tool's escape hatch (the editor's console edits the frozen tables the
+    /// modules return): the host puts the freeze back with `freeze()` once it is done. Idempotent. Nothing in a game
+    /// calls it, and a script has no way to.
+    /// @return Nothing on success, or a Failure of kind `kStackOverflow` if the stack cannot grow.
+    /// @throws exceptions::InvalidRef If the handle was moved from.
+    [[nodiscard]] Result<void> unfreeze();
 
     /// @brief Tells whether the table is read-only.
     /// @return `true` if frozen, or a Failure of kind `kStackOverflow` if the stack cannot grow.

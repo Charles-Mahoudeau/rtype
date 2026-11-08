@@ -28,7 +28,8 @@ Scripts loaded **before** `sandbox()` keep sharing the (now frozen) global table
 ## Table freeze
 
 `Table::freeze()` makes a table read-only, shallowly like Luau's `table.freeze`: nested tables stay writable.
-`isFrozen()` reads the flag. Freezing is irreversible. A write from a script raises a Luau error, and from C++ `set`,
+`isFrozen()` reads the flag. No script can undo a freeze; the host can, with `unfreeze()` (the editor's console does it around
+one evaluation, then freezes the table again). A write from a script raises a Luau error, and from C++ `set`,
 `setAt`, `setMetatable` and `clearMetatable` return a `kRuntime` failure; the host does not crash.
 
 One exception: assigning an **absent** key of a frozen table that has a `__newindex` metamethod calls the handler
