@@ -175,6 +175,9 @@ engine.ecs.component("game.BeamSquare", { fields = { remaining = "f32" }, presen
 engine.ecs.component("game.GaugeFill", { fields = {}, presence = "clientOnly" })
 engine.ecs.component("game.GaugeDot", { fields = { cyclist = "entity" }, presence = "clientOnly" })
 
+-- The notice of a player who left (client/leaves.luau), client only: the seconds it is still shown.
+engine.ecs.component("game.LeaveNotice", { fields = { remaining = "f32" }, presence = "clientOnly" })
+
 -- The emitter of a boost's effect on a rider (client/boostfx.luau), client only: the rider, the boost (Game.speedBoost,
 -- shieldBoost or sniperBoost), and the seconds its last particles still live once it stopped.
 engine.ecs.component("game.BoostFx", {
