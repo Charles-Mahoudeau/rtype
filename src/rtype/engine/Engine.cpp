@@ -188,8 +188,10 @@ std::optional<rtype::network::admin::AdminSettings> readAdmin(const rtype::engin
     }
     std::uint32_t value = 0;
     const std::string_view text{*port};
-    const auto [stop, error] = std::from_chars(text.begin(), text.end(), value);
-    if (error != std::errc{} || stop != text.end() || value == 0 || value > std::numeric_limits<std::uint16_t>::max()) {
+    const char* const first = text.data();
+    const char* const last = first + text.size();  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    const auto [stop, error] = std::from_chars(first, last, value);
+    if (error != std::errc{} || stop != last || value == 0 || value > std::numeric_limits<std::uint16_t>::max()) {
         throw rtype::engine::exceptions::RuntimeError{
             std::format("Invalid --admin-port '{}': a whole number from 1 to 65535", *port)};
     }
