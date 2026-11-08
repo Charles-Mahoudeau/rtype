@@ -36,7 +36,7 @@ A program of its own, not a feature of a game and not a mode of the runtime. Gam
 | Folder | Holds |
 |---|---|
 | `editor/` | `EditorPlugin` (the two hooks, the frame, the default layout), `EditorState` (everything kept between frames) |
-| `gui/` | `GuiContext` (the ImGui context), `GuiInput` (the window's events to ImGui and to the game), `GameViewport`, `GuiMesh` (ImGui's draw data and textures for the renderer) |
+| `gui/` | `GuiContext` (the ImGui context), `Theme` (the Catppuccin Mocha colors, shapes and tone widgets), `GuiInput` (the window's events to ImGui and to the game), `GameViewport`, `GuiMesh` (ImGui's draw data and textures for the renderer) |
 | `play/` | `PlaySession`: Play, Pause, Step and Stop; `OnlinePlay`: the steps of Play online |
 | `scene/` | `SceneEdit`: the capsule changes (copy a tree with a node removed or moved, add, rename), commit, open, save, new files; `Isolation`: a capsule shown alone (prefab mode) |
 | `console/` | `ConsoleLog` (the last lines, from any thread), `OutputCapture` (the process's output into it) |

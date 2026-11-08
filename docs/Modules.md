@@ -74,7 +74,7 @@ architecture rules, and this file keeps the detail, which changes with every fea
   requires the graphics and capsule plugins and adds no system: it sets the graphics plugin's `PlatformEventFilter` and
   `ToolFrame` resources, and pauses the App's schedules while editing. `EditorPlugin` builds an `EditorState` (the ImGui
   context, the input bridge, the play session, the open scene, what the panels remember) and reads the `editor`
-  settings (`scene`, `textEditor`) with `readEditorOptions()`. `gui/` holds `GuiContext`, `GuiInput` (the window's events to ImGui, and which of them the game
+  settings (`scene`, `textEditor`) with `readEditorOptions()`. `gui/` holds `GuiContext`, `Theme` (the look and its tone widgets), `GuiInput` (the window's events to ImGui, and which of them the game
   sees), `GameViewport` and `GuiMesh` (ImGui's draw data and textures as a `contract::renderer::Mesh`). `play/` holds
   `PlaySession` (Play, Pause, Step, Stop), `scene/` holds `SceneEdit` (the capsule changes, open, save, new files) and
   `Isolation` (a capsule shown alone, prefab mode), `console/` holds `ConsoleLog` and `OutputCapture` (the program's
