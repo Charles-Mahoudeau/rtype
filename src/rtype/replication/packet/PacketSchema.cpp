@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 
+#include "rtype/network/Types.hpp"
 #include "rtype/replication/exceptions/ReplicationExceptions.hpp"
 
 namespace rtype::replication::packet {
