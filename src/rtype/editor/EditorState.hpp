@@ -64,6 +64,8 @@ struct EditorOptions {
 /// @brief Everything the editor keeps between two frames: the Dear ImGui context, the bridge that feeds it, the play
 /// session, the scene being edited, what the panels show and what they remember. The plugin's two hooks (the event
 /// filter and the tool frame) share it, and it goes with them when the App is destroyed.
+// The fields are grouped by meaning, not by size.
+// NOLINTNEXTLINE(clang-analyzer-optin.performance.Padding)
 struct RTYPE_EDITOR_API EditorState {
     static constexpr std::size_t kFrameHistory = 120;  ///< How many frame times the Stats panel plots.
 

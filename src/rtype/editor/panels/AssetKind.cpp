@@ -47,7 +47,7 @@ AssetKind kindOf(std::string_view name, bool isFolder) {
     std::string extension = std::filesystem::path{name}.extension().string();
     std::ranges::transform(extension, extension.begin(),
                            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    const auto* const found = std::ranges::find(kExtensions, extension, &Extension::first);
+    const auto found = std::ranges::find(kExtensions, extension, &Extension::first);
     return found == kExtensions.end() ? AssetKind::kOther : found->second;
 }
 
