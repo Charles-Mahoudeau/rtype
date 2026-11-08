@@ -67,7 +67,8 @@ engine.ecs.system("game.MoveShips", {
 })
 ```
 
-`ctx` gives `query`, `commands` (spawn, add, remove, despawn: deferred), `time`, `resources`, `events` and `call`.
+`ctx` gives `query`, `commands` (spawn, add, patch, setParent, removeParent, despawn: deferred; none removes a
+component), `time`, `resources`, `events` and `call`.
 A system must declare every call, resource and event it uses. A file runs only where an entry requires it: put what needs client-only plugins under the client entry, with no
 `engine.isClient` guard. Components and input actions both sides must declare alike go in a shared module both entries require.
 
