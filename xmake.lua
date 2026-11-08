@@ -30,7 +30,13 @@ end
 
 -- Shared by several modules, so declared once here.
 add_requires("glm 1.0.x", {alias = "glm"})
-add_requires("glfw 3.4", {alias = "glfw"})
+-- Wayland as well as X11 on Linux: GLFW picks Wayland in a Wayland session and X11 otherwise, or if Wayland fails
+-- (`window.system` can force one). GLFW opens their libraries itself when it starts, so neither becomes a link
+-- dependency (see platform-glfw). Never the system's GLFW: built here, it is linked statically into the backend.
+add_requires("glfw 3.4", {alias = "glfw", system = false, configs = {wayland = is_plat("linux")}})
+-- GLFW 3.4 ships the protocol files it uses, so the package's wayland-protocols only has to build: newer releases need a
+-- newer wayland-scanner than a distribution's (Ubuntu's, the CI's) and fail its strict validation.
+add_requireconfs("glfw.wayland-protocols", {version = "1.32", override = true})
 -- Never the system's: apt's are older than 1.4 and lack vulkan_hpp_macros.hpp, which vulkan-memory-allocator-hpp needs.
 add_requires("vulkan-headers 1.4.x", {alias = "vulkan-headers", system = false})
 add_requires("stb", {alias = "stb"})
