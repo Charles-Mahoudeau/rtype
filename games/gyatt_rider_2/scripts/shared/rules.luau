@@ -18,7 +18,7 @@ local Game = {
 	riderSpeed = 400, -- world units per second, in every direction
 	startRoads = { 1, 3, 4, 6 }, -- the road each slot starts on, counted from 0 on the left
 	fireCooldown = 0.25, -- seconds between two shots while an arrow is held
-	beamLifetime = 0.2, -- seconds a shot's beam stays on the clients' screens
+	beamLifetime = 0.13, -- seconds a shot's beam stays on the clients' screens
 	-- The replicated entities the game keeps at once at most: each snapshot sends every entity whole and holds 9 of
 	-- them, and the ones left out never reach the clients (engine issue), so the traffic stays under it.
 	maxReplicated = 9,
