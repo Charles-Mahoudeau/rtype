@@ -97,13 +97,13 @@ try {
         $game = Join-Path $root 'templates\game'
         $serverLog = Join-Path $work 'server.log'
         $clientLog = Join-Path $work 'client.log'
-        $server = Start-Process -FilePath $runtime -ArgumentList '--server', '--game', "`"$game`"", '--port', $port `
+        $server = Start-Process -FilePath $runtime -ArgumentList '--server', "`"$game`"", '--port', $port `
             -RedirectStandardOutput $serverLog -RedirectStandardError (Join-Path $work 'server.err') -PassThru -WindowStyle Hidden
         $processes += $server
         Start-Sleep -Seconds 2
         if (-not $server.HasExited) {
             Ok 'the server on templates\game is running'
-            $client = Start-Process -FilePath $runtime -ArgumentList '--game', "`"$game`"", '--port', $port, '--headless' `
+            $client = Start-Process -FilePath $runtime -ArgumentList "`"$game`"", '--port', $port, '--headless' `
                 -RedirectStandardOutput $clientLog -RedirectStandardError (Join-Path $work 'client.err') -PassThru -WindowStyle Hidden
             $processes += $client
             Start-Sleep -Seconds 4

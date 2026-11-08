@@ -11,6 +11,7 @@
 #include <luacode.h>
 #include <lualib.h>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -21,7 +22,6 @@
 #include <iostream>
 #include <iterator>
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -65,10 +65,35 @@ void Runtime::StateDeleter::operator()(lua_State* state) const noexcept { lua_cl
 
 Runtime::Runtime(lua_State* state, const RuntimeConfig config)
     : _config{config}, _state{state}, _usertypes{std::make_unique<detail::UsertypeRegistry>(state)} {
-    if (has(_config.libs, RuntimeConfig::Libs::kStandard)) {
+    if (_config.libs == RuntimeConfig::Libs::kStandard) {
         luaL_openlibs(_state.get());
-    } else if (_config.libs != RuntimeConfig::Libs::kNone) {
-        throw std::runtime_error{"unsupported library configuration"};
+        return;
+    }
+    using Libs = RuntimeConfig::Libs;
+    struct Entry {
+        Libs flag;
+        const char* name;
+        lua_CFunction open;
+    };
+    const std::array<Entry, 11> entries{{
+        {.flag = Libs::kBase, .name = "", .open = luaopen_base},
+        {.flag = Libs::kMath, .name = LUA_MATHLIBNAME, .open = luaopen_math},
+        {.flag = Libs::kTable, .name = LUA_TABLIBNAME, .open = luaopen_table},
+        {.flag = Libs::kString, .name = LUA_STRLIBNAME, .open = luaopen_string},
+        {.flag = Libs::kCoroutine, .name = LUA_COLIBNAME, .open = luaopen_coroutine},
+        {.flag = Libs::kBit32, .name = LUA_BITLIBNAME, .open = luaopen_bit32},
+        {.flag = Libs::kUtf8, .name = LUA_UTF8LIBNAME, .open = luaopen_utf8},
+        {.flag = Libs::kOs, .name = LUA_OSLIBNAME, .open = luaopen_os},
+        {.flag = Libs::kDebug, .name = LUA_DBLIBNAME, .open = luaopen_debug},
+        {.flag = Libs::kBuffer, .name = LUA_BUFFERLIBNAME, .open = luaopen_buffer},
+        {.flag = Libs::kVector, .name = LUA_VECLIBNAME, .open = luaopen_vector},
+    }};
+    for (const auto& [flag, name, open] : entries) {
+        if (has(_config.libs, flag)) {
+            lua_pushcfunction(_state.get(), open, nullptr);
+            lua_pushstring(_state.get(), name);
+            lua_call(_state.get(), 1, 0);
+        }
     }
 }
 

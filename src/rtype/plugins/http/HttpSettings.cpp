@@ -44,8 +44,8 @@ double readCount(const core::config::Settings& settings, const std::string_view 
 }  // namespace
 
 HttpSettings HttpSettings::fromSettings(const core::config::Settings& settings) {
-    settings.checkKeys({"allowedHosts", "allowHttp", "maxConcurrent", "timeout", "maxResponseBytes", "secrets"},
-                       "http");
+    settings.checkKeys(
+        {"allowedHosts", "allowHttp", "maxConcurrent", "maxQueued", "timeout", "maxResponseBytes", "secrets"}, "http");
     // Bytes are counted in a double: exact up to 2^53, far more than a response holds.
     constexpr double kMaxBytes = 9007199254740992.0;
     HttpSettings config;
@@ -62,6 +62,12 @@ HttpSettings HttpSettings::fromSettings(const core::config::Settings& settings) 
     config.allowHttp = settings.getBool("allowHttp", config.allowHttp);
     config.maxConcurrent = static_cast<std::uint32_t>(
         readCount(settings, "maxConcurrent", config.maxConcurrent, std::numeric_limits<std::uint32_t>::max()));
+    // 0 is valid: nothing waits, a request over maxConcurrent ends with `queue_full`.
+    const double queued = settings.getNumber("maxQueued", config.maxQueued);
+    if (queued < 0.0 || queued > std::numeric_limits<std::uint32_t>::max() || std::floor(queued) != queued) {
+        throw core::config::exceptions::SettingsException{"Setting 'http.maxQueued' must be an integer, 0 or more"};
+    }
+    config.maxQueued = static_cast<std::uint32_t>(queued);
     config.timeout = settings.getNumber("timeout", config.timeout);
     if (!(config.timeout > 0.0) || !std::isfinite(config.timeout)) {
         throw core::config::exceptions::SettingsException{

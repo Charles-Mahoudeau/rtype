@@ -7,10 +7,12 @@
 
 #pragma once
 
+#include <optional>
 #include <string_view>
 
 #include "rtype/ecs/app/Plugin.hpp"
 #include "rtype/network/NetworkSettings.hpp"
+#include "rtype/network/admin/AdminSettings.hpp"
 #include "rtype/replication/Export.hpp"
 #include "rtype/replication/ReplicationSettings.hpp"
 
@@ -60,6 +62,10 @@ class RTYPE_REPLICATION_API ServerPlugin : public ecs::Plugin {
     ServerPlugin(ServerPlugin&& other) noexcept = default;
     ServerPlugin& operator=(ServerPlugin&& other) noexcept = default;
 
+    /// @brief Opens the admin channel (`network/admin/`) when the server starts, for a tool such as the editor.
+    /// @param settings The port and the secret; an empty token keeps the channel off.
+    void setAdmin(network::admin::AdminSettings settings);
+
     /// @return "rtype.replication.server".
     [[nodiscard]] std::string_view getName() const noexcept override;
 
@@ -67,7 +73,8 @@ class RTYPE_REPLICATION_API ServerPlugin : public ecs::Plugin {
     void build(ecs::App& app) override;
 
   private:
-    network::NetworkSettings _network;  ///< The transport settings.
-    ReplicationSettings _settings;      ///< The replication settings.
+    network::NetworkSettings _network;                    ///< The transport settings.
+    ReplicationSettings _settings;                        ///< The replication settings.
+    std::optional<network::admin::AdminSettings> _admin;  ///< The admin channel, when asked.
 };
 }  // namespace rtype::replication::server

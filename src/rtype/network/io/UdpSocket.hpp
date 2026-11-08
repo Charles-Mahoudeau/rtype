@@ -35,8 +35,9 @@ class RTYPE_NETWORK_API UdpSocket {
   public:
     /// @brief Opens an IPv4 UDP socket bound to `0.0.0.0:port` and starts receiving.
     /// @param port The port to bind; 0 picks any free port (for clients).
+    /// @param loopbackOnly Binds `127.0.0.1` instead: only this machine can reach the socket (the admin channel).
     /// @throws exceptions::SocketException if the port cannot be bound.
-    explicit UdpSocket(std::uint16_t port);
+    explicit UdpSocket(std::uint16_t port, bool loopbackOnly = false);
 
     /// @brief Closes the socket.
     ~UdpSocket();

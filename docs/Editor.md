@@ -1,13 +1,13 @@
 # Editor
 
-The editor is a plugin library, `rtype-editor` (`src/rtype/editor/`, target `editor`), that the engine loads as
-`rtype.Editor`. It runs the game inside the "Game" panel of a window of docked panels made with Dear ImGui (the docking
+The editor is the program `aylo-editor`: a static library, `rtype-editor` (`src/rtype/editor/`, target `editor`), whose
+plugin `rtype.Editor` the program adds to the engine, and a `main` (`editor/app/main.cpp`). It runs the game inside the "Game" panel of a window of docked panels made with Dear ImGui (the docking
 branch), and edits its scenes the way Unity does: while editing, the gameplay is paused and the panels change the
 scene's capsule, saved to its file; while playing, they change the running world, and Stop puts the scene back. For what
 a game developer does with it, see `manual/pages/editor.md`.
 
 ```sh
-./aylo-runtime --editor --game examples/games/rtype_duel/game
+./aylo-editor examples/games/rtype_duel/game
 ```
 
 ```lua
@@ -16,17 +16,20 @@ engine.settings.editor.scene = "scenes/level.scene"  -- optional: the scene open
 
 ## Where it lives, and why
 
-It is a library the engine loads, not a feature of a game and not an executable of its own:
+A program of its own, not a feature of a game and not a mode of the runtime. Game developers make their game in
+`aylo-editor` and ship it with `aylo-runtime`, which does not know the editor:
 
-- **Not in `plugins/`.** A game never ships it, and nothing a game reads is declared there. It has its own folder,
-  namespace `rtype::editor` and export macro `RTYPE_EDITOR_API`; the build puts it in the `plugins/` folder (rule
-  `rtype.plugin_library`) so the engine finds it by name like any plugin (`RTYPE_PLUGIN_LIBRARY`, in `Library.cpp`).
-- **Not an executable.** The executables link no plugin, and `engine` is a static module that a shared library cannot
-  link. The editor needs the window and the renderer the graphics plugin starts, so it is a plugin that requires
-  `rtype.graphics` and `rtype.Capsule`, which is what a plugin is allowed to do.
-- **Started by the runtime.** `aylo-runtime --editor` runs the game in `RunMode::kStandalone` (both sides in one world,
-  no network: a client alone would not run the server's gameplay) and adds `rtype.Editor` to the plugins the project
-  lists (`EngineConfig::extraPlugins`). A project does not name the editor; `engine.args.editor` tells it it runs in one.
+- **Not in `plugins/`.** A game never ships it. It has its own folder, namespace `rtype::editor` and export macro
+  `RTYPE_EDITOR_API` (empty: the library is static, `RTYPE_EDITOR_STATIC`).
+- **A program, like the runtime.** `aylo-editor` links `engine` and `editor` (both static), and the Engine loads the
+  plugins and backends from their libraries as in `aylo-runtime`. The editor library links the plugin libraries it uses
+  (graphics, capsule, particle) for their types, which the Engine opens again by name: one copy, as the same file.
+- **Always a debug run.** `EngineConfig::debug` is true, so `engine.isDebug` is true and hot reload defaults on, even in
+  a release build. The check of the game plugins' signatures still follows the build type.
+- **Both sides by default.** `RunMode::kStandalone` (both sides in one world, no network: a client alone would not run
+  the server's gameplay). "Play online" rebuilds it as `RunMode::kClient` against a child server (see
+  [Playing online](#playing-online)). `--server` is refused. The program adds `rtype.Editor` through `EngineConfig::addPlugins`, reads
+  its `editor` settings with `readEditorOptions()`, and gives `engine.args.editor` (true) to the project.
 - **Dear ImGui is private to it.** It is the only module that includes `imgui.h` (no header of the editor does). The
   package is `imgui v1.92.9+b-docking`, with none of its backends: the editor does their work through the contracts.
 
@@ -34,14 +37,14 @@ It is a library the engine loads, not a feature of a game and not an executable 
 |---|---|
 | `editor/` | `EditorPlugin` (the two hooks, the frame, the default layout), `EditorState` (everything kept between frames) |
 | `gui/` | `GuiContext` (the ImGui context), `GuiInput` (the window's events to ImGui and to the game), `GameViewport`, `GuiMesh` (ImGui's draw data and textures for the renderer) |
-| `play/` | `PlaySession`: Play, Pause, Step and Stop |
+| `play/` | `PlaySession`: Play, Pause, Step and Stop; `OnlinePlay`: the steps of Play online |
 | `scene/` | `SceneEdit`: the capsule changes (copy a tree with a node removed or moved, add, rename), commit, open, save, new files; `Isolation`: a capsule shown alone (prefab mode) |
 | `console/` | `ConsoleLog` (the last lines, from any thread), `OutputCapture` (the process's output into it) |
 | `shell/` | `TextEditor`: a file opened in an external text editor |
 | `panels/` | The panels, `FieldEditor` (the widgets of a reflected value, the drag-and-drop of assets) and `WorldView` |
 
 `play/`, `scene/`, `console/` and `shell/` include no ImGui: the tests (`tests/plugins/EditorPlaySessionTests.cpp`,
-`EditorSceneEditTests.cpp`, `EditorIsolationTests.cpp`, `EditorConsoleTests.cpp`) drive them without a window.
+`EditorSceneEditTests.cpp`, `EditorIsolationTests.cpp`, `EditorConsoleTests.cpp`, `EditorPluginInfoTests.cpp`) drive them without a window.
 
 ## How it reaches the screen and the window
 
@@ -94,6 +97,48 @@ particles still run, the gameplay does not move. The clock still measures the fr
 
 Stop does not put back what is not the scene: the entities that were there before Play keep what the game did to them,
 and the resources and the scripts' state stay as they are.
+
+### Playing online
+
+The menu bar has a choice next to Play: **Standalone** (the default, above) or **Online**, locked while a Play is under
+way. Online tests the real thing, a server and its clients:
+
+1. Play remembers the open scene, then starts the child server with the options of the Server panel (game folder, port,
+   flags), unless one already runs; the bar shows "Starting server..." and a Cancel button.
+2. Once the server answers on its admin channel (`ServerStatus::kRunning`), `OnlinePlay` asks the Engine for
+   `requestReload(RunMode::kClient, <the program's flags> --host 127.0.0.1 --port <port>)`. The App is rebuilt between
+   two frames, as for any reload: the editor is built again as a client, joins the server and runs at once.
+3. Stop rebuilds the editor standalone and opens the scene again. **The server keeps running** (and its clients): stop
+   it in the Server panel. The next online Play joins it without starting another.
+
+While online the editor is a client, so nothing writes the replicated data (rule 6): no scene is edited or opened, the
+Hierarchy lists the replicated entities, the Inspector shows them read-only, and the server's world is edited from the
+Server panel's World tab. Pause and Step act on the client's schedule only; the server goes on (pause it in the Server
+panel). The game's `project.luau` has to read `engine.args.host` and `engine.args.port` into `network.host` and
+`network.port`, as it does for `aylo-runtime`: the editor passes the connection that way.
+
+The state that must outlive the rebuild lives in an `EditorSession`, created by the program (`aylo-editor`'s `main()`)
+and given to every `EditorPlugin` through `EditorOptions::session`; without one (tests), each plugin makes its own. If
+the client cannot be built, the Engine goes back to standalone (`Engine::requestReload(mode, args)`) and `OnlinePlay`
+gives up with a message in the bar.
+
+### The Server panel
+
+The editor supervises the server as a child process (`process::ChildProcess`, which pipes its output and always ends
+it: the editor's exit stops every child). `ServerSupervisor` runs
+`aylo-runtime --server <game> --port N --admin-port M --admin-token T`, with a free admin port and a random token, and
+`AdminSession` talks to it over the admin channel (`docs/network/design.md`), retrying the datagrams the network drops.
+Debug runs only, like the channel. The Server panel (View menu) has Start, Stop and Restart, the status (tick,
+entities, uptime) and these tabs:
+
+- **Log**: the child's output, also in the Console.
+- **Players**: the connected clients (id, address, RTT, dropped messages) and a Kick button.
+- **Network**: sliders for the added latency, jitter and loss, on both directions of the server's link.
+- **World**: pause, step and resume the server; list, inspect and edit the entities (a field is sent as text, and the
+  server decides: it stays authoritative), spawn and despawn.
+- **Clients**: `ClientLauncher` starts N detached `aylo-runtime <game> --host 127.0.0.1 --port N [flags]` windows, each
+  with its own flags (e.g. `--name p2`), lists them, kills one or all, and restarts them all when the server restarts.
+  Their output reaches the Console as `[client N] ...`.
 
 ## Scenes
 
@@ -151,7 +196,7 @@ background (`shell::buildOpenCommand()`): Visual Studio Code by default, through
 
 | Panel | File | What it does |
 |---|---|---|
-| Menu bar | `panels/ToolbarPanel.cpp` | File (Save scene, Ctrl+S; Quit, through `IPlatform::close()`), View (panels, Reset layout), Play / Pause / Step / Stop, the mode and the last message |
+| Menu bar | `panels/ToolbarPanel.cpp` | File (Save scene, Ctrl+S; Quit, through `IPlatform::close()`), View (panels, Reset layout), the Standalone / Online choice, Play / Pause / Step / Stop, the mode and the last message |
 | Prefab | `panels/PrefabPanel.cpp` | The capsule opened alone, from the renderer's preview, centred; the wheel zooms; its cross goes back to the scene |
 | Game | `panels/GamePanel.cpp` | Asks for a scene texture as big as its content, draws it as an image, tells the input bridge where it is (`GameViewport`) |
 | Hierarchy | `panels/HierarchyPanel.cpp` | Editing: the scene's node tree; drag a node onto another to move it, drop a capsule file to place an instance, right-click to add or delete. Playing: the world's entities by their `Parent` and `Children`, named by their `Name`, or a flat list filtered by component name |
@@ -160,6 +205,7 @@ background (`shell::buildOpenCommand()`): Visual Studio Code by default, through
 | Console | `panels/ConsolePanel.cpp` | The program's output: filters by kind (info, warnings, errors) and by text, Clear, right-click to copy a line, follows new lines unless scrolled up |
 | Particles | `panels/ParticlesPanel.cpp` | The effects of `ParticleEffectAssets`: edit the spawning, each particle and the forces, preview at the middle of the view, Copy as Luau |
 | Stats | `panels/StatsPanel.cpp` | `io.Framerate`, the plot of the last frame times, `getFrameStats()` |
+| Plugins | `panels/PluginsPanel.cpp` | The plugins added to the App (`App::getPlugins()`), in the order recorded: kind (engine for an `rtype.` name, else game), requires, required by, a name filter, and the registered plugins not added. The data is gathered by `collectPlugins()` (`panels/PluginInfo.cpp`), without ImGui |
 
 `FieldEditor::editFields()` shows a reflected value field by field (`TypeInfo::fields`). It works on a byte copy of the
 value, which shares what the value owns (a list's elements): only plain fields are changed in it, and the caller writes
@@ -209,7 +255,7 @@ particles run in PostUpdate and Render, they play while editing.
 | `editor.scene` | none | The capsule file, in the assets, opened at start: a `.scene` as the level, anything else alone |
 | `editor.textEditor` | Visual Studio Code | The command that opens a file, its arguments included: `"code"`, `"subl"`, `"open -a TextEdit"` |
 
-The section is read when `rtype.Editor` is built, and an unknown key in it is an error.
+The section is read when the editor is built (`readEditorOptions()`), and an unknown key in it is an error.
 
 ## Limits
 
@@ -218,4 +264,6 @@ The section is read when `rtype.Editor` is built, and an unknown key in it is an
 - Entity fields are shown and not edited; neither are lists. An entity with no component is not listed.
 - Particle effects are edited in memory only (Copy as Luau to keep them).
 - The App is built again on `Engine::requestReload()`: the editor is too, with its ImGui context, and loses its
-  selection and the open scene.
+  selection and the open scene (Play online and Stop bring the scene back; a hot reload does not). The child server and
+  the Console survive: they are in the `EditorSession`.
+- Online, edits are limited to the Server panel's World tab, and Play online needs a debug run (the admin channel).

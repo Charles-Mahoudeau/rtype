@@ -22,8 +22,10 @@
 
 #include "EditorState.hpp"
 #include "core/system/CacheDirectory.hpp"
+#include "editor/EditorSession.hpp"
 #include "editor/gui/GuiMesh.hpp"
 #include "editor/panels/Panels.hpp"
+#include "editor/play/OnlinePlay.hpp"
 #include "editor/play/PlaySession.hpp"
 #include "editor/scene/Isolation.hpp"
 #include "editor/shell/TextEditor.hpp"
@@ -36,6 +38,8 @@
 #include "rtype/contract/renderer/IRenderer.hpp"
 #include "rtype/ecs/app/App.hpp"
 #include "rtype/ecs/resource/Resources.hpp"
+#include "rtype/ecs/schedule/RunMode.hpp"
+#include "rtype/ecs/schedule/Schedules.hpp"
 
 namespace rtype::editor {
 
@@ -43,7 +47,7 @@ namespace {
 constexpr float kLeftShare = 0.2F;     ///< Share of the window the Hierarchy takes in the default layout.
 constexpr float kRightShare = 0.25F;   ///< Share of what is left the Inspector takes.
 constexpr float kBottomShare = 0.25F;  ///< Share of what is left the Assets and the Stats take.
-constexpr int kLayoutVersion = 5;  ///< Raised when the panels change, so a kept layout is not read with the wrong ones.
+constexpr int kLayoutVersion = 7;  ///< Raised when the panels change, so a kept layout is not read with the wrong ones.
 constexpr float kFallbackFrame = 1.0F / 60.0F;  ///< The duration of the first frame, which has no previous one.
 
 /// @return Where the layout of the panels is kept: the user's cache, as the editor is a tool and not a game's data.
@@ -71,8 +75,10 @@ void buildDefaultLayout(ImGuiID dockspace) {
     ImGui::DockBuilderDockWindow("Inspector", right);
     ImGui::DockBuilderDockWindow("Assets", bottom);
     ImGui::DockBuilderDockWindow("Stats", bottom);
+    ImGui::DockBuilderDockWindow("Plugins", bottom);
     ImGui::DockBuilderDockWindow("Particles", bottom);
     ImGui::DockBuilderDockWindow("Console", bottom);
+    ImGui::DockBuilderDockWindow("Server", bottom);
     ImGui::DockBuilderDockWindow("Game", center);
     ImGui::DockBuilderFinish(dockspace);
 }
@@ -138,6 +144,9 @@ void runFrame(EditorState& state, contract::platform::IPlatform& platform, contr
     panels::drawStatsPanel(state, renderer);
     panels::drawParticlesPanel(state);
     panels::drawConsolePanel(state);
+    panels::drawServerPanel(state);
+    panels::drawPluginsPanel(state);
+    state.session->online.update(*state.supervisor);
     ImGui::Render();
     ImDrawData& drawData = *ImGui::GetDrawData();
     gui::updateTextures(drawData, renderer);
@@ -156,11 +165,29 @@ std::span<const std::string_view> EditorPlugin::getDependencies() const noexcept
 }
 
 void EditorPlugin::build(ecs::App& app) {
+    if (!_options.session) {
+        _options.session = std::make_shared<EditorSession>(_options.captureOutput);
+    }
     const auto state =
-        std::make_shared<EditorState>(app, _options.layoutFile.value_or(layoutFilePath()), _options.captureOutput);
-    // The editor starts editing: the gameplay waits for Play (Startup still runs, so the game sets itself up).
-    play::PlaySession::edit(app);
-    state->startScene = _options.scene;
+        std::make_shared<EditorState>(app, _options.layoutFile.value_or(layoutFilePath()), _options.session);
+    play::OnlinePlay& online = state->session->online;
+    if (online.isActive() && app.getSchedules().getRunMode() == ecs::RunMode::kClient) {
+        // Play online: this App is the client of the server. The game runs at once, and the scene is not shown: the
+        // world is the server's.
+        online.adopt();
+        state->play.play(app);
+        state->status = "Online: playing as a client of the server";
+    } else {
+        if (online.isActive()) {  // the engine could not build a client and went back to its previous mode
+            online.fail("The game could not be built as a client: see the Console");
+        }
+        // The editor starts editing: the gameplay waits for Play (Startup still runs, so the game sets itself up).
+        play::PlaySession::edit(app);
+        // Back from an online Play, the scene being edited is opened again.
+        state->startScene =
+            state->session->reopenScene.empty() ? _options.scene : std::move(state->session->reopenScene);
+        state->session->reopenScene.clear();
+    }
     state->textEditor = _options.textEditor.empty() ? shell::defaultTextEditor() : _options.textEditor;
     ecs::Resources& resources = app.getWorld().getResources();
     // The graphics plugin, which this one requires, inserted both hooks; they live and die with this App.

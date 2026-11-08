@@ -7,7 +7,10 @@
 
 #include "plugins/http/HttpCalls.hpp"
 
+#include <algorithm>
 #include <array>
+#include <cmath>
+#include <cstdint>
 #include <string>
 #include <string_view>
 
@@ -18,12 +21,18 @@
 
 namespace rtype::plugins::http {
 namespace {
+/// @return @p value as a whole priority, clamped; a NaN is 0.
+std::int32_t toPriority(const float value) {
+    return !std::isnan(value) ? static_cast<std::int32_t>(std::clamp(std::round(value), -1.0e9F, 1.0e9F)) : 0;
+}
+
 RequestResult request(ecs::ResMut<HttpClient> client, const RequestArguments& arguments) {
     return RequestResult{.request = client->send(HttpRequest{.method = std::string{arguments.method.view()},
                                                              .url = arguments.url,
                                                              .headers = arguments.headers,
                                                              .body = arguments.body,
-                                                             .timeout = arguments.timeout})};
+                                                             .timeout = arguments.timeout,
+                                                             .priority = toPriority(arguments.priority)})};
 }
 
 CancelResult cancel(ecs::ResMut<HttpClient> client, const CancelArguments& arguments) {

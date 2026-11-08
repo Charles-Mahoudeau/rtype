@@ -65,14 +65,16 @@ TEST(Runtime, CreateWithNoLibrariesSucceeds) {
     EXPECT_TRUE(runtime);
 }
 
-TEST(Runtime, CreateWithPartialLibrariesFails) {
-    const auto runtime = rtype::luau::Runtime::create({
+TEST(Runtime, CreateWithPartialLibrariesOpensOnlyThose) {
+    auto runtime = rtype::luau::Runtime::create({
         .libs = rtype::luau::RuntimeConfig::Libs::kBase | rtype::luau::RuntimeConfig::Libs::kMath,
         .optimizationLevel = rtype::luau::RuntimeConfig::OptimizationLevel::kStandard,
     });
 
-    ASSERT_FALSE(runtime);
-    EXPECT_EQ(runtime.error().kind(), rtype::luau::ErrorKind::kUnknown);
+    ASSERT_TRUE(runtime);
+    const auto globals = runtime->globals();
+    EXPECT_TRUE(rtype::luau::expect(globals.has("math")));
+    EXPECT_FALSE(rtype::luau::expect(globals.has("table")));
 }
 
 TEST(Runtime, IsMovable) {

@@ -14,6 +14,8 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <future>
+#include <limits>
 #include <span>
 #include <string>
 #include <string_view>
@@ -125,16 +127,38 @@ TEST(Engine, FailsWithoutAProjectFile) {
     EXPECT_THROW(Engine{serverConfig(game)}, RuntimeError);
 }
 
-TEST(Engine, FindsTheGameGivenByTheGameFlag) {
-    const GameDirectory game{"rtype-engine-game-flag"};
+TEST(Engine, FindsTheGameGivenAsTheFirstArgument) {
+    const GameDirectory game{"rtype-engine-game-argument"};
     const EngineConfig config{.mode = rtype::ecs::RunMode::kServer,
                               .game = game.path() / "missing",
-                              .args = {"--game", game.path().string()}};
+                              .args = {game.path().string(), "--port", "4243"}};
 
     const Engine engine{config};
 
     EXPECT_EQ(engine.gameDirectory(), game.path().lexically_normal());
-    EXPECT_EQ(engine.commandLine().get("game"), game.path().string());
+    EXPECT_EQ(engine.commandLine().get("port"), "4243");
+    EXPECT_EQ(engine.commandLine().flags().size(), 1U);  // the directory is not a flag
+}
+
+TEST(Engine, KeepsTheConfiguredGameWhenTheCommandLineStartsWithAFlag) {
+    const GameDirectory game{"rtype-engine-flag-first"};
+    const EngineConfig config{.mode = rtype::ecs::RunMode::kServer, .game = game.path(), .args = {"--port", "4243"}};
+
+    const Engine engine{config};
+
+    EXPECT_EQ(engine.gameDirectory(), game.path().lexically_normal());
+    EXPECT_EQ(engine.commandLine().get("port"), "4243");
+}
+
+TEST(Engine, TreatsGameAsAnOrdinaryFlag) {
+    const GameDirectory game{"rtype-engine-game-is-a-flag"};
+    const EngineConfig config{
+        .mode = rtype::ecs::RunMode::kServer, .game = game.path(), .args = {"--game", "elsewhere"}};
+
+    const Engine engine{config};
+
+    EXPECT_EQ(engine.gameDirectory(), game.path().lexically_normal());
+    EXPECT_EQ(engine.commandLine().get("game"), "elsewhere");
 }
 
 TEST(Engine, MakesTheGameDirectoryAbsolute) {
@@ -158,6 +182,56 @@ TEST(Engine, RejectsAnInvalidCommandLine) {
     const GameDirectory game{"rtype-engine-bad-args"};
 
     EXPECT_THROW(Engine{serverConfig(game, {"server"})}, RuntimeError);
+}
+
+TEST(Engine, TakesTheAdminChannelFlagsInADebugRun) {
+    const GameDirectory game{"rtype-engine-admin"};
+    EngineConfig config = serverConfig(game, {"--admin-port", "47123", "--admin-token", "secret"});
+    config.debug = true;
+
+    EXPECT_NO_THROW(Engine{std::move(config)});
+}
+
+TEST(Engine, RefusesTheAdminChannelOutsideADebugRun) {
+    const GameDirectory game{"rtype-engine-admin-release"};
+    EngineConfig config = serverConfig(game, {"--admin-port", "47123", "--admin-token", "secret"});
+    config.debug = false;
+
+    EXPECT_THROW(Engine{std::move(config)}, RuntimeError);
+}
+
+TEST(Engine, RefusesHalfAnAdminChannelOrABadAdminPort) {
+    const GameDirectory game{"rtype-engine-admin-bad"};
+    const std::vector<std::vector<std::string>> bad{{"--admin-port", "47123"},
+                                                    {"--admin-token", "secret"},
+                                                    {"--admin-port", "0", "--admin-token", "secret"},
+                                                    {"--admin-port", "70000", "--admin-token", "secret"},
+                                                    {"--admin-port", "x", "--admin-token", "secret"},
+                                                    {"--admin-port", "47123", "--admin-token", ""}};
+    for (const std::vector<std::string>& args : bad) {
+        EngineConfig config = serverConfig(game, args);
+        config.debug = true;
+        EXPECT_THROW(Engine{std::move(config)}, RuntimeError);
+    }
+}
+
+TEST(Engine, TheDebugOverrideSetsEngineIsDebugEitherWay) {
+    const GameDirectory game{"rtype-engine-debug", R"(
+        engine.settings.network.port = 0
+        engine.settings.debug = engine.isDebug
+    )"};
+    for (const bool debug : {true, false}) {
+        bool seen = !debug;
+        EngineConfig config = serverConfig(game);
+        config.debug = debug;
+        config.addPlugins = [&seen](rtype::ecs::App&, const rtype::core::config::Settings& settings) {
+            seen = settings.getBool("debug", !seen);
+        };
+
+        const Engine engine{std::move(config)};
+
+        EXPECT_EQ(seen, debug);
+    }
 }
 
 TEST(Engine, AddsThePluginsTheSettingsNameFromTheirLibraries) {
@@ -514,6 +588,46 @@ TEST(Engine, RunsUntilAppExit) {
     EXPECT_EQ(builds, 1);
 }
 
+TEST(Engine, StopsWithCodeZeroAfterTheFramesItWasGiven) {
+    const GameDirectory game{"rtype-engine-max-frames"};
+    std::int32_t builds = 0;
+    EngineConfig config = serverConfig(game);
+    config.setup = countingSetup(builds, [](rtype::ecs::Res<Build>) {});
+    Engine engine{std::move(config)};
+
+    EXPECT_EQ(engine.run(3), 0);
+}
+
+TEST(Engine, RunsNoFrameWithAZeroFrameLimit) {
+    const GameDirectory game{"rtype-engine-max-frames-zero"};
+    std::int32_t builds = 0;
+    EngineConfig config = serverConfig(game);
+    config.setup = countingSetup(builds, &exitAtOnce);
+    Engine engine{std::move(config)};
+
+    EXPECT_EQ(engine.run(0), 0) << "no frame ran, so no AppExit was sent";
+}
+
+TEST(Engine, RunsTheLastFrameOfTheLimit) {
+    const GameDirectory game{"rtype-engine-max-frames-last"};
+    std::int32_t builds = 0;
+    EngineConfig config = serverConfig(game);
+    config.setup = countingSetup(builds, &exitAtOnce);
+    Engine engine{std::move(config)};
+
+    EXPECT_EQ(engine.run(1), 1) << "the one frame it was given sent the AppExit";
+}
+
+TEST(Engine, AnAppExitBeatsTheFrameLimit) {
+    const GameDirectory game{"rtype-engine-max-frames-exit"};
+    std::int32_t builds = 0;
+    EngineConfig config = serverConfig(game);
+    config.setup = countingSetup(builds, &exitAtOnce);
+    Engine engine{std::move(config)};
+
+    EXPECT_EQ(engine.run(100), 1);
+}
+
 TEST(Engine, ReloadsBetweenTwoFrames) {
     const GameDirectory game{"rtype-engine-reload"};
     std::int32_t builds = 0;
@@ -546,6 +660,49 @@ TEST(Engine, ReadsTheProjectAgainOnAReload) {
     engine.requestReload();
     EXPECT_EQ(engine.run(), 2);
     EXPECT_EQ(engine.settings().getNumber("version", 0.0), 2.0);
+}
+
+TEST(Engine, ReloadsInTheModeAndWithTheFlagsItIsAskedFor) {
+    const GameDirectory game{"rtype-engine-reload-mode"};
+    std::filesystem::create_directories(game.path() / Engine::kAssetsDirectory);  // a client needs them
+    std::int32_t builds = 0;
+    EngineConfig config = serverConfig(game, {"--name", "first"});
+    config.setup = countingSetup(builds, &exitOnSecondBuild);
+    Engine engine{std::move(config)};
+    ASSERT_EQ(engine.mode(), rtype::ecs::RunMode::kServer);
+
+    engine.requestReload(rtype::ecs::RunMode::kStandalone, {"--name", "second"});
+
+    EXPECT_EQ(engine.run(), 2);
+    EXPECT_EQ(engine.mode(), rtype::ecs::RunMode::kStandalone);
+    EXPECT_EQ(engine.commandLine().get("name"), "second");
+    EXPECT_EQ(engine.gameDirectory(), game.path().lexically_normal());
+}
+
+TEST(Engine, GoesBackToItsModeWhenTheNewOneCannotBeBuilt) {
+    const GameDirectory game{"rtype-engine-reload-mode-fails"};  // no assets: a client cannot be built
+    std::int32_t builds = 0;
+    EngineConfig config = serverConfig(game, {"--name", "first"});
+    config.setup = countingSetup(builds, &exitOnSecondBuild);
+    Engine engine{std::move(config)};
+
+    engine.requestReload(rtype::ecs::RunMode::kClient, {"--name", "second"});
+    testing::internal::CaptureStderr();
+    const int code = engine.run();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_EQ(code, 2) << "the game was built again in its old mode";
+    EXPECT_EQ(engine.mode(), rtype::ecs::RunMode::kServer);
+    EXPECT_EQ(engine.commandLine().get("name"), "first");
+    EXPECT_NE(log.find("cannot be built in the new mode"), std::string::npos) << log;
+}
+
+TEST(Engine, RefusesAReloadWithAnInvalidCommandLine) {
+    const GameDirectory game{"rtype-engine-reload-mode-args"};
+    Engine engine{serverConfig(game)};
+
+    EXPECT_THROW(engine.requestReload(rtype::ecs::RunMode::kServer, {"--name", "a", "b"}), RuntimeError);
+    EXPECT_EQ(engine.mode(), rtype::ecs::RunMode::kServer);
 }
 
 TEST(Engine, ExitsBeforeAReloadRequestedInTheSameFrame) {
@@ -799,4 +956,29 @@ TEST(EngineHotReload, WaitsForAFixWhenTheNewGameCannotBeBuilt) {
     EXPECT_NE(log.find("The game cannot be built"), std::string::npos) << log;
     EXPECT_NE(log.find("unknown plugin 'no.Such'"), std::string::npos) << log;
     EXPECT_NE(log.find("Waiting for a change"), std::string::npos) << log;
+}
+
+TEST(EngineHotReload, StopsARunWithAFrameLimitWhenTheNewGameCannotBeBuilt) {
+    const GameDirectory game{"rtype-engine-hot-bounded", kHotProject};
+    std::int32_t builds = 0;
+    EngineConfig config = serverConfig(game);
+    config.setup = countingSetup(builds, &exitOnSecondBuild);
+    Engine engine{std::move(config)};
+    game.write(std::string{Engine::kProjectFile},
+               std::string{kHotProject} + "engine.settings.plugins = { 'no.Such' }\n");
+
+    testing::internal::CaptureStderr();
+    auto runner =
+        std::async(std::launch::async, [&engine] { return engine.run(std::numeric_limits<std::size_t>::max()); });
+    const bool stopped = runner.wait_for(std::chrono::seconds{30}) == std::future_status::ready;
+    if (!stopped) {  // a regression waits for a fix: give it one, so the thread ends and the suite does not hang
+        game.write(std::string{Engine::kProjectFile}, kHotProject);
+    }
+    const int code = runner.get();
+    const std::string log = testing::internal::GetCapturedStderr();
+
+    EXPECT_TRUE(stopped) << "the run waited for a change in the files";
+    EXPECT_EQ(code, Engine::kBuildFailedCode);
+    EXPECT_NE(log.find("unknown plugin 'no.Such'"), std::string::npos) << log;
+    EXPECT_EQ(log.find("Waiting for a change"), std::string::npos) << log;
 }

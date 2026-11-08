@@ -11,6 +11,7 @@
 #include <asio/error.hpp>
 #include <asio/error_code.hpp>
 #include <asio/io_context.hpp>
+#include <asio/ip/address_v4.hpp>
 #include <asio/ip/address_v6.hpp>
 #include <asio/ip/udp.hpp>
 #include <cstddef>
@@ -63,6 +64,7 @@ struct UdpSocket::Impl {
             ++stats.oversized;
         } else {
             ++stats.received;
+            stats.bytesReceived += size;
             Datagram datagram{
                 .from = toAddress(sender),
                 .bytes = Bytes(buffer.begin(), buffer.begin() + static_cast<std::ptrdiff_t>(size)),
@@ -73,11 +75,14 @@ struct UdpSocket::Impl {
     }
 };
 
-UdpSocket::UdpSocket(const std::uint16_t port) : _impl{std::make_unique<Impl>()} {
+UdpSocket::UdpSocket(const std::uint16_t port, const bool loopbackOnly) : _impl{std::make_unique<Impl>()} {
     asio::error_code error;
     error = _impl->socket.open(asio::ip::udp::v4(), error);
     if (!error) {
-        error = _impl->socket.bind(asio::ip::udp::endpoint{asio::ip::udp::v4(), port}, error);
+        error = _impl->socket.bind(
+            asio::ip::udp::endpoint{loopbackOnly ? asio::ip::address_v4::loopback() : asio::ip::address_v4::any(),
+                                    port},
+            error);
     }
     if (error) {
         throw exceptions::SocketException{port, error.message()};
@@ -106,6 +111,9 @@ void UdpSocket::sendTo(const Address& to, const std::span<const std::byte> bytes
         static_cast<void>(_impl->socket.send_to(asio::buffer(bytes.data(), bytes.size()), destination, 0, error));
         if (error) {
             ++_impl->stats.sendErrors;
+        } else {
+            ++_impl->stats.sent;
+            _impl->stats.bytesSent += bytes.size();
         }
     } catch (...) {
         ++_impl->stats.sendErrors;

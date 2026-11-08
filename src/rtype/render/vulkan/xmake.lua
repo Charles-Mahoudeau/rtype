@@ -1,14 +1,18 @@
 
 add_requires("vulkan-memory-allocator 3.3.x", {alias = "vulkan-memory-allocator"})
--- xmake-repo's vulkan-memory-allocator-hpp adds its vulkan-headers dependency in on_install, after the requirements are
--- resolved: on a clean machine it is neither installed first nor given to the package's test, which then compiles
--- against the system headers (Ubuntu 22.04's lack vulkan/vulkan_hpp_macros.hpp). The same package, with the dependency
--- declared on load, so it resolves to the vulkan-headers the root xmake.lua requires. set_base inherits the scripts
--- but not the add_deps of the base, so vulkan-memory-allocator is declared here too.
+-- vma-hpp: xmake-repo's vulkan-memory-allocator-hpp, headers only, without its dependencies. That package adds its
+-- vulkan-headers in on_install, after the requirements are resolved: neither a requirement nor add_requireconfs reaches
+-- it, and its test compiles against whatever headers the machine has (Ubuntu 22.04's libvulkan-dev, 1.3.204, lacks
+-- vulkan/vulkan_hpp_macros.hpp, so the release build failed there). This package copies the headers and checks they
+-- are there; render-vulkan, which uses them, adds vulkan-headers (the root xmake.lua's, never the system's) and
+-- vulkan-memory-allocator itself.
 package("vma-hpp")
     set_base("vulkan-memory-allocator-hpp")
-    on_load(function (package)
-        package:add("deps", "vulkan-memory-allocator", "vulkan-headers")
+    on_install(function (package)
+        os.cp("include", package:installdir())
+    end)
+    on_test(function (package)
+        assert(os.isfile(path.join(package:installdir("include"), "vk_mem_alloc.hpp")))
     end)
 package_end()
 add_requires("vma-hpp v3.3.0+3", {alias = "vulkan-memory-allocator-hpp", configs = {use_vulkanheaders = true}})

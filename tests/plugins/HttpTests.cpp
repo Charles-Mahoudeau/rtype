@@ -283,6 +283,71 @@ TEST(HttpClient, QueuesWhatIsOverTheLimitAndCancels) {
     EXPECT_EQ(received[1].path, "/c");
 }
 
+TEST(HttpClient, SendsTheHighestPriorityFirstAndFifoAmongEquals) {
+    const LocalHttpServer server{routes()};
+    HttpSettings settings = localSettings();
+    settings.maxConcurrent = 1;
+    HttpClient client{settings};
+    static_cast<void>(client.send(HttpRequest{.url = server.url("/first")}));
+    static_cast<void>(client.send(HttpRequest{.url = server.url("/low1")}));
+    static_cast<void>(client.send(HttpRequest{.url = server.url("/high"), .priority = 5}));
+    static_cast<void>(client.send(HttpRequest{.url = server.url("/low2")}));
+    static_cast<void>(client.send(HttpRequest{.url = server.url("/high2"), .priority = 5}));
+    ASSERT_EQ(waitFor(client, 5).size(), 5U);
+    const auto received = server.getReceived();
+    ASSERT_EQ(received.size(), 5U);
+    EXPECT_EQ(received[0].path, "/first");
+    EXPECT_EQ(received[1].path, "/high");
+    EXPECT_EQ(received[2].path, "/high2");
+    EXPECT_EQ(received[3].path, "/low1");
+    EXPECT_EQ(received[4].path, "/low2");
+}
+
+TEST(HttpClient, AFullQueueEndsTheRequestWithQueueFull) {
+    const LocalHttpServer server{routes()};
+    HttpSettings settings = localSettings();
+    settings.maxConcurrent = 1;
+    settings.maxQueued = 1;
+    HttpClient client{settings};
+    const RequestId first = client.send(HttpRequest{.url = server.url("/a")});
+    const RequestId second = client.send(HttpRequest{.url = server.url("/b")});
+    const RequestId third = client.send(HttpRequest{.url = server.url("/c")});
+    const std::vector<HttpResult> results = waitFor(client, 3);
+    ASSERT_EQ(results.size(), 3U);
+    EXPECT_EQ(results[0].request, third);
+    EXPECT_EQ(results[0].error, "queue_full");
+    EXPECT_EQ(results[0].status, 0);
+    for (const HttpResult& result : results) {
+        if (result.request == first || result.request == second) {
+            EXPECT_EQ(result.status, 200);
+        }
+    }
+    EXPECT_EQ(server.getReceived().size(), 2U);
+}
+
+TEST(HttpClient, ARequestThatExpiresWhileQueuedIsNeverSent) {
+    const LocalHttpServer server{routes()};
+    HttpSettings settings = localSettings();
+    settings.maxConcurrent = 1;
+    HttpClient client{settings};
+    static_cast<void>(client.send(HttpRequest{.url = server.url("/slow")}));  // holds the slot for a second
+    const RequestId waiting = client.send(HttpRequest{.url = server.url("/never"), .timeout = 0.2});
+    const std::vector<HttpResult> results = waitFor(client, 2);
+    ASSERT_EQ(results.size(), 2U);
+    EXPECT_EQ(results[0].request, waiting);
+    EXPECT_EQ(results[0].error, "timeout");
+    for (const auto& received : server.getReceived()) {
+        EXPECT_NE(received.path, "/never");
+    }
+}
+
+TEST(HttpSettings, ReadsMaxQueued) {
+    EXPECT_EQ(HttpSettings::fromSettings(Settings{}).maxQueued, 256U);
+    EXPECT_EQ(HttpSettings::fromSettings(sectionWith("maxQueued", 0.0)).maxQueued, 0U);
+    EXPECT_THROW(static_cast<void>(HttpSettings::fromSettings(sectionWith("maxQueued", -1.0))), SettingsException);
+    EXPECT_THROW(static_cast<void>(HttpSettings::fromSettings(sectionWith("maxQueued", 1.5))), SettingsException);
+}
+
 // ---- plugin ----
 
 TEST(HttpPlugin, SendsAnHttpResponseForARequestOfItsCall) {

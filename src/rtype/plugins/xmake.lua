@@ -9,8 +9,11 @@
 add_requires("joltphysics 5.6.x", {alias = "joltphysics", configs = {object_layer_bits = "32"}})
 add_requires("nlohmann_json 3.12.x", {alias = "nlohmann_json"})
 add_requires("yoga 3.2.x", {alias = "yoga"})
--- HTTPS for the http plugin: Schannel on Windows, OpenSSL 3 elsewhere (the package picks it).
-add_requires("libcurl 8.x", {alias = "libcurl"})
+-- HTTPS for the http plugin: Schannel on Windows, OpenSSL 3 elsewhere (the package picks it). Never the system's, nor
+-- its OpenSSL: xmake builds both, static, as the system's (apt's libcurl4 and libssl3, Homebrew's openssl@4) are shared
+-- libraries the release does not hold (docs/release/self-contained.md).
+add_requires("libcurl 8.x", {alias = "libcurl", system = false})
+add_requireconfs("libcurl.openssl3", "libcurl.openssl", {system = false, override = true})
 
 -- Starts the target of the plugin `name` and what every plugin shares. `deps`: the libraries its public headers use.
 local function plugin(name, deps)
@@ -128,9 +131,21 @@ plugin("http", {})
         add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN")
     end
 
+plugin("json", {})
+    add_files("json/**.cpp")
+    add_files("json/JsonForms.luau")
+    add_headerfiles("json/**.hpp")
+    -- Encodes and decodes JSON for scripts (rtype.json.encode / decode). Private: only json/detail/ includes it.
+    add_packages("nlohmann_json")
+
+plugin("persistence", {})
+    add_files("persistence/**.cpp")
+    add_files("persistence/PersistenceForms.luau")
+    add_headerfiles("persistence/**.hpp")
+
 -- Every plugin library, for what loads them without linking them: the executables build after it.
 target("plugin-libraries")
     set_kind("phony")
-    add_deps("plugin-audio", "plugin-capsule", "plugin-graphics", "plugin-http", "plugin-input", "plugin-particle",
-             "plugin-physics", "plugin-physics-debug", "plugin-shader", "plugin-shape", "plugin-sprite", "plugin-text",
-             "plugin-tilemap", "plugin-transform", "plugin-ui", "editor")
+    add_deps("plugin-audio", "plugin-capsule", "plugin-graphics", "plugin-http", "plugin-input", "plugin-json", "plugin-particle",
+             "plugin-persistence", "plugin-physics", "plugin-physics-debug", "plugin-shader", "plugin-shape", "plugin-sprite", "plugin-text",
+             "plugin-tilemap", "plugin-transform", "plugin-ui")

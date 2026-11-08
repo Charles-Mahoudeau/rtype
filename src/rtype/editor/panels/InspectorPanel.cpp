@@ -255,7 +255,14 @@ void drawInspectorPanel(EditorState& state) {
         if (!state.play.isPlaying() && edited && state.selectedNode) {
             drawNode(state, *edited, *state.selectedNode);
         } else if (!state.selected.isNull() && state.world->isAlive(state.selected)) {
+            // Online, the world is the server's copy: a client never writes it. Edit it from the Server panel.
+            const bool online = state.session->online.isActive();
+            if (online) {
+                gui::textDisabled("Online: read-only. Edit the server's world in the Server panel.");
+            }
+            ImGui::BeginDisabled(online);
             drawEntity(state);
+            ImGui::EndDisabled();
         } else {
             ImGui::TextUnformatted(edited ? "Select a node."
                                           : "Open a scene or an actor in the Assets, or select an entity.");

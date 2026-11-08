@@ -13,7 +13,7 @@ my_game/game/
 ```
 
 The same generic program, `aylo-runtime`, runs every game: as the client by default, and as the server (no window, no
-graphics) with `--server`. You point it at your folder with `--game`. Nothing in the engine knows about your game, and
+graphics) with `--server`. You point it at your folder as the first argument. Nothing in the engine knows about your game, and
 your game never needs a program of its own.
 
 ## What you write

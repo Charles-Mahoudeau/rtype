@@ -33,7 +33,7 @@ aylo-engine-<version>-<os>-<arch>/
     plugins/              the engine's plugins, and plugins/backends/ for the window, the renderer and the sound
       backends/           the window, renderer and audio backends
     licenses/             the notices of the libraries inside
-  editor/                 planned: the editor. Never shipped.
+  editor/                 planned: the editor (aylo-editor). Never shipped.
   tools/aylo-sign         makes the signatures of native plugins
   templates/game/         a small game to start from
   manual/                 this manual, to read offline
@@ -51,12 +51,12 @@ Copy `templates/game/` next to the zip's folder, rename it, and run it with the 
 cp -r aylo-engine-0.3.0-linux-x86_64/templates/game my_game/game
 
 # the server: no window, no graphics
-./aylo-engine-0.3.0-linux-x86_64/runtime/aylo-runtime --server --game my_game/game
+./aylo-engine-0.3.0-linux-x86_64/runtime/aylo-runtime --server my_game/game
 # a player
-./aylo-engine-0.3.0-linux-x86_64/runtime/aylo-runtime --game my_game/game
+./aylo-engine-0.3.0-linux-x86_64/runtime/aylo-runtime my_game/game
 ```
 
-`--game` takes the folder with your `project.luau`, `scripts/` and `assets/`. [Getting started](getting-started.md)
+The first argument is the folder with your `project.luau`, `scripts/` and `assets/`. [Getting started](getting-started.md)
 explains the command line, and [Project settings](project-settings.md) the file. With
 [hot reload](hot-reload.md) you can change scripts while the game runs.
 
@@ -84,14 +84,14 @@ The program looks for `game/` in the folder you start it from, so a small launch
 #!/bin/sh
 # play.sh
 cd "$(dirname "$0")"
-exec ./runtime/MyGame --game game "$@"
+exec ./runtime/MyGame game "$@"
 ```
 
 ```bat
 @echo off
 rem play.bat
 cd /d "%~dp0"
-runtime\MyGame.exe --game game %*
+runtime\MyGame.exe game %*
 ```
 
 Your players run `play.sh`, and a dedicated server runs `./play.sh --server`. Zip the `MyGame/` folder and you have your

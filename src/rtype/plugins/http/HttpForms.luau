@@ -18,7 +18,7 @@ local function readHeaders(value)
 	return table.concat(lines, "\n")
 end
 
--- engine.http.request(ctx, { url, method, headers, body, timeout }): sends a request and returns its id, which the
+-- engine.http.request(ctx, { url, method, headers, body, timeout, priority }): sends a request and returns its id, which the
 -- rtype.HttpResponse event carries. `ctx` is a system's (which lists "rtype.http.request" under `calls`), or nil
 -- while the script loads.
 engine.http.request = function(...)
@@ -27,7 +27,7 @@ engine.http.request = function(...)
 	if ctx ~= nil and type(ctx) ~= "table" then
 		forms.fail(form, "expected a system's ctx (or nil) first, then the request")
 	end
-	local spec = forms.table(form, given, { "url", "method", "headers", "body", "timeout" })
+	local spec = forms.table(form, given, { "url", "method", "headers", "body", "timeout", "priority" })
 	local url = forms.string(form, spec, "url")
 	if url == nil or url == "" then
 		forms.fail(form, "expected a 'url'")
@@ -38,6 +38,7 @@ engine.http.request = function(...)
 		headers = readHeaders(spec.headers),
 		body = forms.string(form, spec, "body"),
 		timeout = forms.number(form, spec, "timeout"),
+		priority = forms.number(form, spec, "priority"),
 	}
 	if ctx == nil then
 		return forms.call(form, "rtype.http.request", fields)

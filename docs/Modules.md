@@ -58,10 +58,10 @@ architecture rules, and this file keeps the detail, which changes with every fea
   knows both the ECS and the network; it turns a `World` into messages and back (`rtype::replication`).
   Exported symbols are marked `RTYPE_REPLICATION_API`. Feature folders and sub-namespaces as in `network`:
   `component/`, `event/`, `serialization/`, `manifest/`, `input/`, `snapshot/`, `server/`, `client/`,
-  `packet/`, `exceptions/`. `input/InputCalls.hpp` holds its engine calls (`rtype.replication.addInput`, `readInput`),
+  `packet/`, `admin/` (the world messages of the admin channel), `exceptions/`. `input/InputCalls.hpp` holds its engine calls (`rtype.replication.addInput`, `readInput`),
   `client/ClientCalls.hpp` the client's (`rtype.replication.localClient`), both registered by `ReplicationPlugin`.
 - `src/rtype/engine/` — `engine` target, static library (`rtype-engine`): `Engine` runs a game directory (`game/` by
-  default, `--game <dir>`): it reads its `project.luau` through Luau (`scripting/SettingsLoader`, which also exposes
+  default, `<dir>`): it reads its `project.luau` through Luau (`scripting/SettingsLoader`, which also exposes
   the command line as `engine.args`), builds the `App` with the program's plugins, `EngineConfig::addPlugins`, and the engine's (transform, replication,
   scripting, server or client) in a fixed order, calls the game's native `EngineConfig::setup`, runs it, and builds it
   again on `requestReload()` or when `project.luau` changes. `reload/` holds `ProjectReloadable` and `ScriptsReloadable`, the engine's hot reload sources (`HotReloader`, `plugins/HotReload.hpp`). `plugin/` holds `SharedLibrary` and `PluginLoader`, which load the plugin libraries, and
@@ -69,12 +69,12 @@ architecture rules, and this file keeps the detail, which changes with every fea
   `NetworkInput` fills the `PlayerInput` sent to the server from the `Input` actions. `EngineConfig` holds
   the mode, the command line and these functions; `CommandLine` parses the `--name value` flags. Exported symbols are marked `RTYPE_ENGINE_API`.
   Design in `docs/engine/design.md`.
-- `src/rtype/editor/` — `editor` target, shared library (`rtype-editor`): the editor, a library the engine loads as
-  `rtype.Editor`, added by `aylo-runtime --editor` (`rtype::editor`, exported symbols marked `RTYPE_EDITOR_API`). It
+- `src/rtype/editor/` — `editor` target, static library (`rtype-editor`) and the `aylo-editor` program (`app/main.cpp`: the
+  engine in `kStandalone`, `EngineConfig::debug` true, `EditorPlugin` added by `addPlugins`) (`rtype::editor`, macro `RTYPE_EDITOR_API`, empty as the library is static). It
   requires the graphics and capsule plugins and adds no system: it sets the graphics plugin's `PlatformEventFilter` and
   `ToolFrame` resources, and pauses the App's schedules while editing. `EditorPlugin` builds an `EditorState` (the ImGui
   context, the input bridge, the play session, the open scene, what the panels remember) and reads the `editor`
-  settings (`scene`, `textEditor`). `gui/` holds `GuiContext`, `GuiInput` (the window's events to ImGui, and which of them the game
+  settings (`scene`, `textEditor`) with `readEditorOptions()`. `gui/` holds `GuiContext`, `GuiInput` (the window's events to ImGui, and which of them the game
   sees), `GameViewport` and `GuiMesh` (ImGui's draw data and textures as a `contract::renderer::Mesh`). `play/` holds
   `PlaySession` (Play, Pause, Step, Stop), `scene/` holds `SceneEdit` (the capsule changes, open, save, new files) and
   `Isolation` (a capsule shown alone, prefab mode), `console/` holds `ConsoleLog` and `OutputCapture` (the program's
@@ -156,6 +156,11 @@ architecture rules, and this file keeps the detail, which changes with every fea
       section: allowed hosts, limits, secrets), the `HttpClient` resource (libcurl, private in `detail/CurlClient`,
       polled without waiting by `rtype.Http.Poll`), the `HttpResponse` event, the `rtype.http.request` and
       `rtype.http.cancel` calls and the `engine.http.request` helper (`HttpForms.luau`). Design in `docs/Http.md`.
+    - `plugins/json/` (`rtype::plugins::json`) — `JsonPlugin`: JSON for scripts. The `rtype.json.encode` and
+      `rtype.json.decode` calls (`JsonCalls.hpp`) do the real work with nlohmann::json, private in `detail/JsonCodec`,
+      on a value flattened into a pre-order node stream (an engine call carries reflected fields, never a table of any
+      shape); the `engine.json` helpers (`JsonForms.luau`: `encode`, `decode`, `tryDecode`, `map`) only walk a Luau
+      table's shape and rebuild a value from the stream. No component or event. Design in `docs/Json.md`.
     - `plugins/shape/` (`rtype::plugins::shape`) — `ShapePlugin`: the `ShapeRenderer` component (a `Shape` filled and/or
       outlined at its entity's `GlobalTransform`) and the client Render system that draws them over the sprites, by layer.
       `plugins/GraphicsReflection.hpp` reflects the renderer contract's `BlendMode` and `Rect` as ECS fields. It requires

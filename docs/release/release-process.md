@@ -29,6 +29,14 @@ job allowed to write to the repository (`contents: write`).
 The build and its tests run again in this workflow rather than being taken from the CI of the same commit: the zip must
 come from the tests of the release build, and one path serves the tag, the nightly and the manual run.
 
+### The compiler
+
+On Linux the build uses clang from apt.llvm.org, plus `g++-13` from the toolchain PPA because Ubuntu 22.04 ships
+libstdc++ 12, too old for C++23. The CI (`ci.yml`, the build and the lint jobs) installs the same clang through the same
+composite action, `.github/actions/setup-clang`: the version is the default of its `version` input, the only place the
+number is written, so what the CI checks is what ships. macOS (Apple Clang) and Windows (MSVC) use the compiler of the
+`macos-latest` and `windows-latest` images, in both workflows.
+
 ## Cut a version
 
 1. On a branch, raise the version in `xmake.lua` (`set_version`). Until the script API settles the version is `0.x`;

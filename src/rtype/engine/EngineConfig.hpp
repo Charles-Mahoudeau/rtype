@@ -9,6 +9,7 @@
 
 #include <filesystem>
 #include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -37,11 +38,11 @@ struct EngineConfig {
     /// @brief What the process runs: the client side, the server side, or both (standalone, no network).
     ecs::RunMode mode{ecs::RunMode::kStandalone};
 
-    /// @brief The game directory when the command line has no `--game`; relative to the working directory.
+    /// @brief The game directory when the command line starts with no directory; relative to the working directory.
     std::filesystem::path game{"game"};
 
-    /// @brief The command line, without the program name: `--game <dir>`, then any flag `project.luau` reads from
-    /// `engine.args`.
+    /// @brief The command line, without the program name: the game directory (optional), then any flag `project.luau`
+    /// reads from `engine.args`.
     std::vector<std::string> args;
 
     /// @brief Adds the plugins this program uses, with the project's settings: a server without a window adds none of
@@ -52,8 +53,13 @@ struct EngineConfig {
 
     /// @brief Plugins added by name after those `project.luau` lists under `plugins`, from their libraries, as if the
     /// project listed them last; one the project already lists is not added twice. For a program that brings a tool
-    /// to any game: `aylo-runtime --editor` adds "rtype.Editor".
+    /// to any game.
     std::vector<std::string> extraPlugins;
+
+    /// @brief Whether this is a debug run (`engine.isDebug`, and the default of hot reload). Empty: it follows the
+    /// build type. `aylo-editor` sets it, so the editor is always a debug run. The check of the game plugins'
+    /// signatures does not follow it: it stays tied to the build type.
+    std::optional<bool> debug;
 
     /// @brief The game's own native code: its components, resources, systems and plugins. Optional.
     ///

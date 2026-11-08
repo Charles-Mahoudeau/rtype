@@ -7,14 +7,14 @@ change while editing is saved, what you change while playing is lost at Stop.
 
 ## Start it
 
-Run the engine with `--editor`:
+The editor is its own program, `aylo-editor`. You make your game in it, and you ship it with `aylo-runtime`:
 
 ```sh
-./aylo-runtime --editor --game path/to/game
+./aylo-editor path/to/game
 ```
 
 Nothing changes in your project. The editor runs both sides of the game in one process, the server's gameplay included,
-with no network, and it adds the editor to the plugins your `project.luau` lists. Your scenes are
+with no network, and it is always a debug run: `engine.isDebug` is `true`, even in a release build. Your scenes are
 [capsules](capsules.md), so list `rtype.Capsule`; the editor adds it if you forget.
 
 To open a scene at once, name it in `project.luau`:
@@ -38,6 +38,7 @@ An `.actor` named there opens alone (see below).
 | **Particles** | Your particle effects, to tune and preview |
 | **Console** | What your game writes: your scripts' `print`, the engine's errors and warnings |
 | **Stats** | The frame rate, the last frame times, and what the frame drew |
+| **Plugins** | The plugins your game loaded, in build order, each with its kind (engine or game), the plugins it needs and those that need it; a filter; and the plugins available but not loaded |
 
 Drag a panel by its tab to dock it elsewhere. The editor remembers where they are, and **View**, **Reset layout** docks
 them as they were the first time. **File**, **Save scene** (Ctrl+S) saves the scene; **File**, **Quit** closes the editor.
@@ -150,7 +151,7 @@ blending are kept as your script gives them.
 - There is no undo yet: save often, and keep your scenes in version control.
 - A scene cannot be opened while playing: press Stop first.
 - The editor draws through the renderer you named. It needs one that can draw into a texture, which `vulkan` does.
-- Leave the editor out of what you ship: it is only there when you start the engine with `--editor`.
+- Leave the editor out of what you ship: `aylo-runtime` has no editor, and `aylo-editor` is not part of what you ship.
 
 ## See also
 

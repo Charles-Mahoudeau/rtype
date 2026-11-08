@@ -29,10 +29,13 @@
 #include "rtype/luau/ValuePack.hpp"
 
 namespace {
-/// @return A runtime with no standard library and no optimization: project scripts only assign settings.
+/// @return A runtime with the pure standard libraries (no `os`, no `debug`) and no optimization: project scripts only
+/// assign settings, but may use `table`, `string`, `math`, `tonumber`...
 rtype::luau::Runtime createRuntime() {
-    constexpr rtype::luau::RuntimeConfig config{
-        .libs = rtype::luau::RuntimeConfig::Libs::kNone,
+    using Libs = rtype::luau::RuntimeConfig::Libs;
+    const rtype::luau::RuntimeConfig config{
+        .libs = Libs::kBase | Libs::kMath | Libs::kTable | Libs::kString | Libs::kCoroutine | Libs::kBit32 |
+                Libs::kUtf8 | Libs::kBuffer | Libs::kVector,
         .optimizationLevel = rtype::luau::RuntimeConfig::OptimizationLevel::kDisabled,
     };
     return rtype::luau::expect(rtype::luau::Runtime::create(config));

@@ -8,9 +8,14 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
 #include <filesystem>
 #include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "CommandLine.hpp"
 #include "EngineConfig.hpp"
@@ -28,9 +33,9 @@ class ScriptHost;
 namespace rtype::engine {
 /// @brief Runs a game: reads its project settings, builds the App with the engine's plugins, then runs it.
 ///
-/// @details A game is a directory (`game` by default, `--game <dir>` on the command line) holding `project.luau` (the
-/// settings, see scripting::SettingsLoader) and `scripts/` (the Luau files of scripting::ScriptingPlugin). Each build
-/// of the App adds, in this order:
+/// @details A game is a directory (`game` by default, or the first argument on the command line) holding `project.luau`
+/// (the settings, see scripting::SettingsLoader) and `scripts/` (the Luau files of scripting::ScriptingPlugin). Each
+/// build of the App adds, in this order:
 /// 1. the MinimalPlugins and the transform plugin (from its library), which every game has;
 /// 2. the plugins of the program, EngineConfig::addPlugins, with the settings: a client adds its window and what it
 ///    draws there, so the Engine names no backend and a server links none;
@@ -60,7 +65,6 @@ namespace rtype::engine {
 /// @endcode
 class RTYPE_ENGINE_API Engine {
   public:
-    static constexpr std::string_view kGameFlag = "game";             ///< The flag that names the game directory.
     static constexpr std::string_view kProjectFile = "project.luau";  ///< The settings, in the game directory.
     static constexpr std::string_view kScriptsDirectory = "scripts";  ///< The scripts, in the game directory.
     static constexpr std::string_view kAssetsDirectory = "assets";    ///< The assets, in the game directory.
@@ -71,7 +75,8 @@ class RTYPE_ENGINE_API Engine {
     static constexpr std::string_view kPluginsSetting = "plugins";  ///< The setting naming the plugins to add.
     static constexpr std::string_view kDefaultHost = "127.0.0.1";   ///< The server a client joins by default.
     static constexpr std::string_view kHotReloadSetting =
-        "hotReload";  ///< The setting that turns hot reload on or off.
+        "hotReload";                             ///< The setting that turns hot reload on or off.
+    static constexpr int kBuildFailedCode = 84;  ///< What run() returns when a run with a frame limit cannot rebuild.
 
     /// @brief Reads the command line and the project settings, then builds the App.
     /// @param config What to run; kept to build the App again on a reload.
@@ -109,13 +114,39 @@ class RTYPE_ENGINE_API Engine {
     /// Safe to call from a system, or from another thread (a file watcher). The world is lost: see the class.
     void requestReload() noexcept;
 
+    /// @brief Like requestReload(), and the next build runs in @p mode with the command line @p args (as
+    /// EngineConfig::args: the game directory is the one the engine already has, the flags are the new ones).
+    ///
+    /// For a tool that switches a running game between sides, as the editor between standalone and a client of its
+    /// server. Safe from a system or another thread. If the build with the new mode fails, the engine reports why and
+    /// builds again with the mode and the command line it had, so the program is not left without a game.
+    /// @throws exceptions::RuntimeError If @p args is not a valid command line.
+    void requestReload(ecs::RunMode mode, std::vector<std::string> args);
+
     /// @brief Runs frames until a system sends AppExit, building a new App between two frames when a reload was
     /// requested.
-    /// @return The code of the first AppExit read.
+    /// @param maxFrames When set, stops after that many frames if no AppExit came (a test run): the code is then 0.
+    /// It counts frames, not fixed-timestep ticks: a frame runs `FixedUpdate` zero or several times. A hot reload
+    /// whose build fails ends such a run with kBuildFailedCode instead of waiting for the files to change.
+    /// @return The code of the first AppExit read, or kBuildFailedCode.
     /// @throws std::exception What a frame throws, or what a reload throws (the engine then has no App).
-    int run();
+    int run(std::optional<std::size_t> maxFrames = std::nullopt);
 
   private:
+    /// @brief The mode and command line a build runs with.
+    struct Setup {
+        ecs::RunMode mode;
+        std::vector<std::string> args;
+        CommandLine commandLine;
+    };
+
+    /// @brief Makes the pending setup of requestReload(mode, args) the current one.
+    /// @return The setup it replaces; nothing when none was pending.
+    std::optional<Setup> adoptPendingSetup();
+
+    /// @brief Makes @p setup the mode and command line of the next build.
+    void useSetup(Setup setup);
+
     /// @brief Reads the project settings and builds a new App from them, replacing the current one.
     void build();
 
@@ -146,5 +177,7 @@ class RTYPE_ENGINE_API Engine {
     core::config::Settings _settings;             ///< The settings of the last build.
     std::unique_ptr<ecs::App> _app;               ///< The App; replaced by a reload.
     std::atomic<bool> _reloadRequested{false};    ///< Set by requestReload(), cleared by the reload.
+    std::mutex _pendingMutex;                     ///< Guards _pending.
+    std::optional<Setup> _pending;  ///< The setup of the last requestReload(mode, args), until the reload.
 };
 }  // namespace rtype::engine

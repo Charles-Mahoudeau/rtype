@@ -62,6 +62,20 @@ TEST(SettingsLoader, BuildsEmptySettingsByDefault) {
     EXPECT_FALSE(loader.build().has("anything"));
 }
 
+TEST(SettingsLoader, ExposesPureStandardLibraries) {
+    const auto settings = run(R"(
+        local plugins = {}
+        table.insert(plugins, string.format("%s-%d", "a", math.floor(1.5)))
+        engine.settings.plugins = plugins
+        engine.settings.hasOs = os ~= nil
+        engine.settings.hasDebug = debug ~= nil
+    )");
+
+    EXPECT_EQ(settings.getStringList("plugins", {}), (std::vector<std::string>{"a-1"}));
+    EXPECT_FALSE(settings.getBool("hasOs", true));
+    EXPECT_FALSE(settings.getBool("hasDebug", true));
+}
+
 TEST(SettingsLoader, StoresScalars) {
     const auto settings = run(R"(
         engine.settings.renderer = "vulkan"
@@ -237,9 +251,9 @@ TEST(SettingsLoader, LoadThrowsOnAScriptError) {
     EXPECT_THROW(loader.load(script.path()), rtype::luau::exceptions::RuntimeError);
 }
 
-TEST(SettingsLoader, ScriptsHaveNoStandardLibrary) {
+TEST(SettingsLoader, ScriptsHaveNoOsLibrary) {
     SettingsLoader loader;
-    const TempScript script{R"(engine.settings.x = math.pi)"};
+    const TempScript script{R"(engine.settings.x = os.time())"};
 
     EXPECT_THROW(loader.load(script.path()), rtype::luau::exceptions::RuntimeError);
 }

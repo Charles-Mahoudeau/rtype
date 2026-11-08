@@ -1,8 +1,8 @@
 -- The starting point of a game: a project with one counter, a window on the client and a network port.
 -- Run it from the folder of the engine (the one with `runtime/`):
---   runtime/aylo-runtime --server --game templates/game        the server, no window
---   runtime/aylo-runtime --game templates/game                 a client, in a window
---   runtime/aylo-runtime --game templates/game --headless      a client without a window, to test the network
+--   runtime/aylo-runtime --server templates/game        the server, no window
+--   runtime/aylo-runtime templates/game                 a client, in a window
+--   runtime/aylo-runtime templates/game --headless      a client without a window, to test the network
 
 -- The scripts run from `scripts/main.luau`. For a game with a server and a client side, name an entry per side:
 --   engine.settings.scripts.server = "server/main"   engine.settings.scripts.client = "client/main"

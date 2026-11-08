@@ -17,6 +17,7 @@ task("package-release")
     on_run(function ()
         import("core.base.json")
         import("core.base.option")
+        import("core.base.semver")
         import("core.project.config")
         import("lib.detect.find_tool")
         import("utils.archive")
@@ -94,6 +95,42 @@ task("package-release")
                 end
             end
         end
+        -- Windows: the Visual C++ runtime of the toolchain (vcruntime140*.dll, msvcp140*.dll...), next to the executable,
+        -- where the DLLs of plugins/ find it too (it is loaded once, by name). From %VCToolsRedistDir% when the build runs
+        -- in a developer prompt, otherwise from the Visual Studio vswhere finds.
+        if windows then
+            local redistdir = os.getenv("VCToolsRedistDir")
+            if not redistdir or not os.isdir(redistdir) then
+                redistdir = nil
+                local programfiles = os.getenv("ProgramFiles(x86)") or "C:\\Program Files (x86)"
+                local vswhere = path.join(programfiles, "Microsoft Visual Studio", "Installer", "vswhere.exe")
+                if os.isfile(vswhere) then
+                    local installdir = try { function ()
+                        return os.iorunv(vswhere, {"-latest", "-products", "*", "-requires",
+                                                   "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+                                                   "-property", "installationPath"}):trim()
+                    end }
+                    -- Redist/MSVC/<version>/: the highest version is the one of the newest toolset.
+                    local best
+                    for _, dir in ipairs(installdir and os.dirs(path.join(installdir, "VC", "Redist", "MSVC", "*")) or {}) do
+                        local name = path.filename(dir)
+                        if name:match("^%d+%.%d+%.%d+$") and (not best or semver.compare(name, path.filename(best)) > 0) then
+                            best = dir
+                        end
+                    end
+                    redistdir = best
+                end
+            end
+            local redistarch = ({x86_64 = "x64", arm64 = "arm64", x86 = "x86"})[arch] or arch
+            local crt = redistdir and os.dirs(path.join(redistdir, redistarch, "Microsoft.VC*.CRT"))[1]
+            if not crt then
+                raise("the Visual C++ runtime was not found (no VCToolsRedistDir, nor a Visual Studio with the C++ tools): " ..
+                      "the zip would not run where it is not installed")
+            end
+            for _, file in ipairs(os.files(path.join(crt, "*.dll"))) do
+                os.cp(file, path.join(runtime, path.filename(file)))
+            end
+        end
         -- The tool finds the engine's DLLs next to itself.
         if windows then
             for _, file in ipairs(os.files(path.join(runtime, "*" .. libext))) do
@@ -126,6 +163,62 @@ task("package-release")
                                             path.join(stage, "tools", "aylo-sign")})
             else
                 cprint("${yellow}warning: patchelf is missing: the executables keep the search paths of the build")
+            end
+        end
+
+        -- macOS has no Vulkan loader with the system: the renderer links Homebrew's (brew install molten-vk
+        -- vulkan-loader), which the zip carries in `lib/` with MoltenVK, its driver. The loader looks for drivers in the
+        -- resources of the main bundle, which for an executable outside a bundle is its own folder: the manifest of
+        -- MoltenVK is `runtime/vulkan/icd.d/`, its library path relative to it. Every binary then names the bundled
+        -- libraries by @rpath, and loses its search paths outside the folder (the renderer's /opt/homebrew/lib).
+        if plat == "macosx" then
+            local function brewprefix(formula)
+                local prefix = try { function () return os.iorunv("brew", {"--prefix", formula}):trim() end }
+                if not prefix or not os.isdir(prefix) then
+                    raise("%s not found: brew install molten-vk vulkan-loader", formula)
+                end
+                return prefix
+            end
+            local libdir = path.join(runtime, "lib")
+            local bundled = {}
+            local function bundle(from, filename)
+                local to = path.join(libdir, filename)
+                -- os.cp copies the file a link points to, as a real file.
+                os.cp(from, to)
+                os.vrunv("chmod", {"755", to})
+                os.vrunv("install_name_tool", {"-id", "@rpath/" .. filename, to})
+                bundled[filename] = true
+            end
+            bundle(path.join(brewprefix("vulkan-loader"), "lib", "libvulkan.1.dylib"), "libvulkan.1.dylib")
+            bundle(path.join(brewprefix("molten-vk"), "lib", "libMoltenVK.dylib"), "libMoltenVK.dylib")
+            local icddir = path.join(runtime, "vulkan", "icd.d")
+            os.mkdir(icddir)
+            json.savefile(path.join(icddir, "MoltenVK_icd.json"), {
+                file_format_version = "1.0.0",
+                ICD = {library_path = "../../lib/libMoltenVK.dylib", api_version = "1.4.0", is_portability_driver = true},
+            })
+
+            local binaries = table.join(os.files(path.join(runtime, "**.dylib")),
+                                        {path.join(runtime, "aylo-runtime"), path.join(stage, "tools", "aylo-sign")})
+            for _, file in ipairs(binaries) do
+                local args = {}
+                -- otool -L: the first line is the file, then one dependency per line (the first of a library is its id).
+                for line in os.iorunv("otool", {"-L", file}):gmatch("[^\n]+") do
+                    local dependency = line:match("^%s+(%S+) %(compatibility")
+                    if dependency and not dependency:startswith("@") and bundled[path.filename(dependency)] then
+                        table.join2(args, {"-change", dependency, "@rpath/" .. path.filename(dependency)})
+                    end
+                end
+                -- otool -l: an LC_RPATH command is followed by its `path <entry> (offset n)` line.
+                for entry in os.iorunv("otool", {"-l", file}):gmatch("\n%s+path (%S+) %(offset") do
+                    if not entry:startswith("@") then
+                        table.join2(args, {"-delete_rpath", entry})
+                    end
+                end
+                if #args > 0 then
+                    table.insert(args, file)
+                    os.vrunv("install_name_tool", args)
+                end
             end
         end
 
