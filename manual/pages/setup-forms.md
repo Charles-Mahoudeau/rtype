@@ -52,7 +52,21 @@ or TexturePacker JSON), or from a `texture` with a `grid` or a list of `frames`.
 - `grid`, `frames` and `name` make an atlas from a `texture`, not from a `path`.
 
 An atlas gives an entity its look through the `rtype.SpriteRenderer` component; an `rtype.SpriteAnimator` plays an
-animation.
+animation:
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `atlas` | atlas id | none | The atlas, from `engine.assets.atlas` |
+| `animation` | string | none | The name of one of its animations; to switch, set it and put `time` back to `0` |
+| `time` | number | `0` | Seconds since the animation started, at speed 1 |
+| `speed` | number | `1` | Multiplies the time: `2` plays twice as fast, `0.5` half as fast, `0` freezes it |
+| `playing` | boolean | `true` | `false`: the time stands still and the current frame stays |
+
+```luau
+ctx.commands:add(entity, "rtype.SpriteAnimator", { atlas = assets.cyclist, animation = "ride", speed = 1.5 })
+```
+
+An animation that plays a finite number of times stops on its last frame: `playing` turns `false`.
 
 ## `engine.input`
 

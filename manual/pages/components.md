@@ -19,7 +19,7 @@ engine.ecs.component("game.MisfireTimer", { fields = { remaining = "f32" }, pres
 |---|---|
 | `fields` | **Required.** A table of field name to type name. An empty table makes a tag. |
 | `defaults` | The starting value of some fields; a field not listed starts at zero. It can only name declared fields. |
-| `replication` | `"none"` (default), `"everyChange"` (sent whenever it changes) or `"spawnOnly"` (sent once, when the entity appears). |
+| `replication` | `"none"` (default), `"everyChange"` (sent whenever it changes) or `"spawnOnly"` (sent once, when the entity appears). A replicated component needs at least one field: a tag cannot be sent, and the server stops at start naming it. |
 | `presence` | `"both"` (default), `"serverOnly"` or `"clientOnly"`: which side the component exists on. |
 
 Any other option is an error. Names are conventionally `game.Name`; the `rtype.` and `net.` prefixes belong to the

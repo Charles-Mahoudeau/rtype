@@ -1,0 +1,11 @@
+[capsule format=1]
+
+# A bus, 2x6 tiles: the slowest vehicle. Placed and moved by server/traffic.luau.
+[node path="."]
+rtype.Transform = {}
+game.Position = {}
+game.Speed = {}
+game.Look = { texture = "vehicles/bus.png", size = (128, 384), layer = 0 }   # under the riders
+game.Driving = { speed = 40.25 }   # world units per second, up the view
+rtype.Collider = { shape = 0, size = (96, 352), layer = 2, mask = 1 }   # meets the riders, stops shots
+rtype.RigidBody = { type = 1 }   # kinematic: moved by its Transform, pushed by nothing
