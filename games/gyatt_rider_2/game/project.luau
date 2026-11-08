@@ -13,11 +13,11 @@ if engine.isClient then
 	engine.settings.network.host = engine.args.host or "127.0.0.1"
 end
 
--- Seen from above: the physics without gravity, and F3 outlines every collider (hidden at first).
-engine.settings.plugins = { "rtype.Physics" }
+-- Seen from above (the riders and the scene around them are capsules, in assets/): the physics without gravity, and F3 outlines every collider (hidden at first).
+engine.settings.plugins = { "rtype.Physics", "rtype.Capsule" }
 if engine.isClient then
 	engine.settings.plugins = {
-		"rtype.Physics", "rtype.Input", "rtype.graphics", "rtype.Shader", "rtype.Sprite", "rtype.SpriteDraw",
+		"rtype.Physics", "rtype.Capsule", "rtype.Input", "rtype.graphics", "rtype.Shader", "rtype.Sprite", "rtype.SpriteDraw",
 		"rtype.Shape", "rtype.Tilemap", "rtype.PhysicsDebug",
 	}
 end

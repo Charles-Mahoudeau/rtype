@@ -41,7 +41,9 @@ game/
                         inputs), required by the entry `shared/main`
   scripts/server/       gameplay: the players' riders and their moves; `main.luau` is the server's entry
   scripts/client/       presentation: the assets, the roads, the riders' look; `main.luau` is the client's entry
-  assets/               placeholder art and the roads map
+  assets/actors/        the rider (body and collision layers), spawned by the server for each player
+  assets/scenes/        the places of the camera and of the strip on the left, loaded by the clients
+  assets/               also the placeholder art and the roads map
 tools/make_placeholders.py   draws the placeholder art
 ```
 

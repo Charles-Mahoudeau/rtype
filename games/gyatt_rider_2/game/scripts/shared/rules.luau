@@ -19,9 +19,12 @@ local Game = {
 	bulletLayer = 4,
 	cyclistLayer = 8,
 
+	-- The capsules (assets/): what the server spawns for a player, and the scene around the roads. Their sizes and
+	-- layers repeat the ones above: change both together.
+	riderActor = "actors/rider.actor",
+	roadsScene = "scenes/roads.scene",
+
 	-- The enums of the engine's components, as their reflected numbers.
-	box = 0, -- rtype.Collider shape
-	kinematic = 1, -- rtype.RigidBody type
 	rectShape = 0, -- rtype.ShapeRenderer kind
 }
 
@@ -54,6 +57,11 @@ engine.ecs.component("game.Rider", {
 	fields = { position = "vec2", slot = "u32" },
 	replication = "everyChange",
 })
+
+-- Markers of the scene's client nodes (assets/scenes/roads.scene): a server reads the file too, and the camera and the
+-- shape are not its components, so the client gives them to the marked entities.
+engine.ecs.component("game.Camera", { fields = {}, presence = "clientOnly" })
+engine.ecs.component("game.Sidebar", { fields = {}, presence = "clientOnly" })
 
 -- The actions both sides agree on: the clients send them, the server reads them. The keys are physical positions
 -- named after the US layout: W A S D is Z Q S D on a French keyboard.

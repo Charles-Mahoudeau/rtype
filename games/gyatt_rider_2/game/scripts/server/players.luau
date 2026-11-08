@@ -4,13 +4,13 @@ local Game = require("@scripts/shared/rules")
 
 print(`[server] up to {Game.maxPlayers} players`)
 
--- Update: gives each new client a rider in the first free slot, kinematic: the riders' moves place it, nothing pushes
--- it.
+-- Update: gives each new client a rider (assets/actors/rider.actor) in the first free slot.
 engine.ecs.system("game.SpawnRiders", {
 	phase = "Update",
 	side = "server",
 	query = { read = { "game.Rider" } },
 	events = { read = { "net.ClientConnected" } },
+	calls = { "rtype.capsule.spawn" },
 	run = function(ctx)
 		local taken = {}
 		for _, rider in ctx.query do
@@ -30,19 +30,13 @@ engine.ecs.system("game.SpawnRiders", {
 			end
 			taken[slot] = true
 			local position = Game.startOf(slot)
-			ctx.commands:spawn({
+			-- The rider's actor holds its body and its collision layers; the slot gives its start and its color.
+			local rider = engine.capsule.spawn(ctx, Game.riderActor, {
 				["game.Rider"] = { position = position, slot = slot },
-				["net.Owner"] = { client = joined.client },
-				["net.PlayerInput"] = {},
 				["rtype.Transform"] = { position = position },
-				["rtype.Collider"] = {
-					shape = Game.box,
-					size = Game.riderSize,
-					layer = Game.riderLayer,
-					mask = bit32.bor(Game.vehicleLayer, Game.bulletLayer),
-				},
-				["rtype.RigidBody"] = { type = Game.kinematic },
 			})
+			ctx.commands:add(rider, "net.Owner", { client = joined.client })
+			ctx.commands:add(rider, "net.PlayerInput", {})
 			print(`[server] client {joined.client} is player {slot + 1}`)
 		end
 	end,

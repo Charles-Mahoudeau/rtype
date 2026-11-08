@@ -1,4 +1,5 @@
--- The scene around the game: the camera, the roads scrolling down as the riders race up, and the strip on the left.
+-- The scene around the game: the camera and the strip on the left (a scene), and the roads scrolling down as the riders
+-- race up (a map).
 
 local Game = require("@scripts/shared/rules")
 local assets = require("@scripts/client/assets")
@@ -6,16 +7,43 @@ local assets = require("@scripts/client/assets")
 local roadsDrawLayer = -100 -- under every sprite
 local sidebarColor = { x = 0.8, y = 0.82, z = 0.85, w = 1 }
 
--- Startup: the camera looks at the middle of the view.
-engine.ecs.system("game.SpawnCamera", {
+-- Startup: loads the scene (assets/scenes/roads.scene): the places of the camera and of the strip on the left of the
+-- roads. Its nodes are the client's, so the server spawns nothing of it.
+engine.ecs.system("game.LoadScene", {
 	phase = "Startup",
 	side = "client",
 	query = {},
+	calls = { "rtype.capsule.load" },
 	run = function(ctx)
-		ctx.commands:spawn({
-			["rtype.Transform"] = { position = { x = Game.viewWidth / 2, y = Game.viewHeight / 2 } },
-			["rtype.Camera"] = {},
-		})
+		engine.capsule.load(ctx, Game.roadsScene)
+	end,
+})
+
+-- Update: gives the scene's camera marker its camera, once the scene is spawned.
+engine.ecs.system("game.DressScene", {
+	phase = "Update",
+	side = "client",
+	query = { read = { "game.Camera" }, without = { "rtype.Camera" } },
+	run = function(ctx)
+		for entity in ctx.query do
+			ctx.commands:add(entity, "rtype.Camera", {})
+		end
+	end,
+})
+
+-- Update: gives the scene's sidebar marker its rectangle.
+engine.ecs.system("game.DressSidebar", {
+	phase = "Update",
+	side = "client",
+	query = { read = { "game.Sidebar" }, without = { "rtype.ShapeRenderer" } },
+	run = function(ctx)
+		for entity in ctx.query do
+			ctx.commands:add(entity, "rtype.ShapeRenderer", {
+				kind = Game.rectShape,
+				size = { x = Game.roadsLeft, y = Game.viewHeight },
+				fillColor = sidebarColor,
+			})
+		end
 	end,
 })
 
@@ -31,23 +59,6 @@ engine.ecs.system("game.SpawnRoads", {
 			position = { x = 0, y = 0 },
 			scale = { x = 1, y = 1 },
 			firstDrawLayer = roadsDrawLayer,
-		})
-	end,
-})
-
--- Startup: the strip on the left of the roads, where the timer and the gauge will go.
-engine.ecs.system("game.SpawnSidebar", {
-	phase = "Startup",
-	side = "client",
-	query = {},
-	run = function(ctx)
-		ctx.commands:spawn({
-			["rtype.Transform"] = { position = { x = Game.roadsLeft / 2, y = Game.viewHeight / 2 } },
-			["rtype.ShapeRenderer"] = {
-				kind = Game.rectShape,
-				size = { x = Game.roadsLeft, y = Game.viewHeight },
-				fillColor = sidebarColor,
-			},
 		})
 	end,
 })
