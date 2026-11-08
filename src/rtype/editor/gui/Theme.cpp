@@ -170,7 +170,7 @@ void applyColors(ImGuiStyle& style) {
 }
 
 void applyShapes(ImGuiStyle& style) {
-    style.FontSizeBase = 15.0F;
+    style.FontSizeBase = 14.0F;  // JetBrains Mono is wide: 14 reads like 15 of a narrower font
 
     style.WindowPadding = ImVec2{10.0F, 10.0F};
     style.FramePadding = ImVec2{10.0F, 6.0F};
@@ -212,6 +212,14 @@ void applyTheme() {
     applyColors(style);
 }
 
+void pushEmphasisFont() {
+    // The emphasis font is the last one the atlas loaded; with a single font that is the text one, so the pushes and
+    // the pops always match.
+    ImGui::PushFont(ImGui::GetIO().Fonts->Fonts.back(), 0.0F);
+}
+
+void popEmphasisFont() { ImGui::PopFont(); }
+
 void pushTextTone(Tone tone) { ImGui::PushStyleColor(ImGuiCol_Text, colorOf(tone)); }
 
 void popTextTone() { ImGui::PopStyleColor(); }
@@ -228,13 +236,16 @@ bool toneButton(const std::string& label, Tone tone) {
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, mix(color, kText, kHoverMix));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, mix(color, kCrust, kPressMix));
     ImGui::PushStyleColor(ImGuiCol_Text, kCrust);
+    pushEmphasisFont();
     const bool pressed = ImGui::Button(label.c_str());
+    popEmphasisFont();
     ImGui::PopStyleColor(4);
     return pressed;
 }
 
 void chip(const std::string& text, Tone tone) {
     const ImVec4 color = colorOf(tone);
+    pushEmphasisFont();
     const ImVec2 textSize = ImGui::CalcTextSize(text.c_str());
     const float rowHeight = ImGui::GetFrameHeight();
     const float height = rowHeight - (2.0F * kChipInset);
@@ -247,6 +258,7 @@ void chip(const std::string& text, Tone tone) {
     draw->AddText(ImVec2{min.x + kChipPadding, min.y + ((height - textSize.y) * 0.5F)},
                   ImGui::ColorConvertFloat4ToU32(color), text.c_str());
     ImGui::Dummy(ImVec2{max.x - min.x, rowHeight});
+    popEmphasisFont();
 }
 
 }  // namespace rtype::editor::gui

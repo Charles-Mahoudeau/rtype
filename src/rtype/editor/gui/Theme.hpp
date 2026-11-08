@@ -37,6 +37,13 @@ RTYPE_EDITOR_API void pushTextTone(Tone tone);
 /// @brief Ends what pushTextTone() started.
 RTYPE_EDITOR_API void popTextTone();
 
+/// @brief Draws with the heavier font until popEmphasisFont(): for text on a filled shape, where the regular weight
+/// looks faded. The heavier font is the last one the atlas loaded.
+RTYPE_EDITOR_API void pushEmphasisFont();
+
+/// @brief Ends what pushEmphasisFont() started.
+RTYPE_EDITOR_API void popEmphasisFont();
+
 /// @brief Shows @p text in @p tone, without a format string.
 RTYPE_EDITOR_API void textTone(const std::string& text, Tone tone);
 
