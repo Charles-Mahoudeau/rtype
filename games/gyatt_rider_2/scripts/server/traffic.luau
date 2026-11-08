@@ -14,7 +14,8 @@ local kinds = {
 	{ capsule = "actors/truck.actor", weight = 2, tiles = middle },
 	{ capsule = "actors/bus.actor", weight = 1, tiles = middle },
 	{ capsule = "actors/limousine.actor", weight = 1, tiles = middle },
-	{ capsule = "actors/cyclist.actor", weight = 4, tiles = anyTile, cyclist = true },
+	-- 8.25 of 24.25: a third of the arrivals, 1.7 times the share a weight of 4 had (4 of 20).
+	{ capsule = "actors/cyclist.actor", weight = 8.25, tiles = anyTile, cyclist = true },
 }
 local totalWeight = 0
 for _, kind in kinds do
