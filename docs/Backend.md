@@ -353,3 +353,33 @@ mouse, text input and clipboard through SDL3. Like `platform-glfw`, it implement
 renderer draws in its window unchanged: `platform = "sdl"`, `renderer = "vulkan"`. Gamepads are not reported yet. SDL3
 is private to this folder; on Linux only SDL itself is linked, as for GLFW, so a headless server still loads it.
 
+## The raylib backend
+
+`src/rtype/backend/raylib/` (`backend-raylib`, `rtype-backend-raylib`) registers a platform `raylib` and a renderer
+`raylib`. raylib opens its window and its OpenGL context together (`InitWindow()`), so the two live in one library, as
+the null backend does, and the renderer refuses any other platform. Settings: the section `raylib`, with
+`virtualResolution` as for Vulkan.
+
+| Folder | Holds |
+|---|---|
+| `Library.cpp`, `Registration.*` | The library's entry point; the factories of the platform and the renderer, which read the section `raylib` |
+| `platform/` | `RaylibPlatform` (window, events) and `InputMapping` (raylib's key, mouse and gamepad names next to the engine's) |
+| `renderer/` | `RaylibRenderer`, which only dispatches; `Frame` (camera, letterboxed viewport, blend mode, overlay and screen spaces); `TextureTable` (textures by generation-checked id); `Convert` (contract types to raylib's) |
+| `renderer/draw/` | One file per kind of drawing: `Sprites`, `Shapes`, `MsdfText`, `Particles`, `Meshes` |
+
+| Contract | raylib |
+|---|---|
+| Textures | `LoadTextureFromImage`, filter and wrap from the `TextureDesc` |
+| View | a `Camera2D` and a scissor on the viewport `CameraView` computes, so letterboxing matches Vulkan |
+| Sprites, shapes | `DrawTexturePro`, `DrawRectangle*`, `DrawCircle*`, `DrawRing`, `DrawLineEx` |
+| Text | the glyph quads, through a small MSDF fragment shader (GLSL 330) |
+| Particles | drawn from the instances the particle plugin simulates on the CPU: `supportsGpuParticles()` is false |
+| Overlay, tool meshes | a view-pixel camera with each item's clip; meshes through `rlgl` triangles |
+| User shaders | not supported (`supportsShaders()` is false): they are SPIR-V, raylib reads GLSL |
+
+Colours are linear in the engine; the renderer encodes them in sRGB, as Vulkan's sRGB framebuffer does, so both look
+the same.
+
+Known limit: raylib 6.0 carries its own GLFW. The engine loads every backend library, so on macOS the Objective-C
+classes of GLFW exist twice in the process and the runtime prints a warning. Only one window is ever opened, by one of
+them, so it works; on Linux the library hides its GLFW symbols (`--exclude-libs`).
