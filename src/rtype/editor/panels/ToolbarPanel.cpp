@@ -26,7 +26,9 @@
 namespace rtype::editor::panels {
 
 namespace {
-constexpr float kModeWidth = 110.0F;  ///< Width of the Standalone / Online choice, in pixels.
+constexpr float kModeWidth = 130.0F;      ///< Width of the Standalone / Online choice, in pixels.
+constexpr float kMenuBarMarginX = 10.0F;  ///< Space left of the first menu of the menu bar, in pixels.
+constexpr float kGroupGap = 20.0F;        ///< Space between the groups of the toolbar, in pixels.
 
 // Nerd Font icons (Font Awesome, UTF-8 bytes of U+F04B, U+F04C, U+F04D, U+F051), spelled out so the file does not
 // depend on the compiler's source charset.
@@ -90,7 +92,9 @@ void drawPlayButtons(EditorState& state) {
     ecs::App& app = *state.app;
     play::OnlinePlay& online = state.session->online;
     if (online.stage() == play::OnlineStage::kStartingServer) {
+        ImGui::AlignTextToFramePadding();
         gui::textTone("Starting server...", gui::Tone::kWarning);
+        ImGui::SameLine();
         if (gui::toneButton("Cancel", gui::Tone::kDanger)) {
             online.end();
             state.status = "Cancelled";
@@ -115,11 +119,13 @@ void drawPlayButtons(EditorState& state) {
                         paused ? gui::Tone::kSuccess : gui::Tone::kWarning)) {
         state.play.togglePause(app);
     }
+    ImGui::SameLine();
     ImGui::BeginDisabled(!paused);
     if (gui::toneButton(withIcon(kStepIcon, "Step"), gui::Tone::kInfo)) {
         state.play.step(app);
     }
     ImGui::EndDisabled();
+    ImGui::SameLine();
     if (gui::toneButton(withIcon(kStopIcon, "Stop"), gui::Tone::kDanger)) {
         if (online.isActive()) {
             online.end();  // rebuilds the editor standalone; the server keeps running
@@ -176,13 +182,33 @@ gui::Tone modeTone(const EditorState& state) {
     return state.session->online.isActive() ? gui::Tone::kOnline : gui::Tone::kSuccess;
 }
 
-}  // namespace
-
-void drawToolbar(EditorState& state, contract::platform::IPlatform& platform) {
-    if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S, ImGuiInputFlags_RouteGlobal)) {
-        saveScene(state);
+/// @brief The mode selector, the play controls, the mode chip and the messages, in a row.
+void drawToolbarItems(EditorState& state) {
+    drawModeSelector(state);
+    ImGui::SameLine(0.0F, kGroupGap);
+    drawPlayButtons(state);
+    ImGui::SameLine(0.0F, kGroupGap);
+    gui::chip(modeText(state), modeTone(state));
+    ImGui::AlignTextToFramePadding();
+    if (const std::string& problem = state.session->online.message(); !problem.empty()) {
+        ImGui::SameLine(0.0F, kGroupGap);
+        gui::textTone(problem, gui::Tone::kDanger);
     }
-    if (!ImGui::BeginMainMenuBar()) {
+    if (!state.status.empty()) {
+        ImGui::SameLine(0.0F, kGroupGap);
+        ImGui::AlignTextToFramePadding();
+        gui::textDisabled(state.status);
+    }
+}
+
+void drawMenuBar(EditorState& state, contract::platform::IPlatform& platform) {
+    // The first menu is placed by the safe-area padding: widen it for the duration of the bar, for a left margin.
+    ImGuiStyle& style = ImGui::GetStyle();
+    const ImVec2 safeArea = style.DisplaySafeAreaPadding;
+    style.DisplaySafeAreaPadding.x = kMenuBarMarginX;
+    const bool visible = ImGui::BeginMainMenuBar();
+    style.DisplaySafeAreaPadding = safeArea;
+    if (!visible) {
         return;
     }
     if (ImGui::BeginMenu("File")) {
@@ -196,20 +222,20 @@ void drawToolbar(EditorState& state, contract::platform::IPlatform& platform) {
         ImGui::EndMenu();
     }
     drawViewMenu(state);
-    ImGui::Separator();
-    drawModeSelector(state);
-    drawPlayButtons(state);
-    ImGui::Separator();
-    gui::chip(modeText(state), modeTone(state));
-    if (const std::string& problem = state.session->online.message(); !problem.empty()) {
-        ImGui::Separator();
-        gui::textTone(problem, gui::Tone::kDanger);
-    }
-    if (!state.status.empty()) {
-        ImGui::Separator();
-        gui::textDisabled(state.status);
-    }
     ImGui::EndMainMenuBar();
+}
+
+}  // namespace
+
+void drawToolbar(EditorState& state, contract::platform::IPlatform& platform) {
+    if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S, ImGuiInputFlags_RouteGlobal)) {
+        saveScene(state);
+    }
+    drawMenuBar(state, platform);
+    if (gui::beginToolbar("##toolbar")) {
+        drawToolbarItems(state);
+    }
+    gui::endToolbar();
 }
 
 }  // namespace rtype::editor::panels
